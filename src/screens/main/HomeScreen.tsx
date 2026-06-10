@@ -19,6 +19,7 @@ import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useHolidayPhase } from '../../hooks/useHolidayPhase';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
 import { usersService } from '../../services/firestore/users';
 import { ordersService } from '../../services/firestore/orders';
 import { catalogService } from '../../services/firestore/catalog';
@@ -30,7 +31,7 @@ import {
   heroTitleForLifecycle,
 } from '../../services/box/boxLifecycle';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
-import { CatalogProductRail } from '../../components/home/CatalogProductRail';
+import { CatalogProductRail, COLLECTION_RAIL_GAP } from '../../components/home/CatalogProductRail';
 import { HomeHeroCard } from '../../components/home/HomeHeroCard';
 import { MyBoxesWelcomeCard } from '../../components/home/MyBoxesWelcomeCard';
 import { SetTheStageSection } from '../../components/home/SetTheStageSection';
@@ -45,15 +46,15 @@ import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
 import type { MainTabsParamList, MainStackParamList } from '../../navigation/types';
 import type { CatalogItem, PilotOrder } from '../../types/pilot';
 import {
-  semanticColors,
   spacing,
   borderRadius,
   shadows,
   typography,
   MOBILE_GUTTER,
   tabBarTotalHeight,
-  colors,
 } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDimensions';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
@@ -71,9 +72,6 @@ const HEADER_BOTTOM_PAD = 16;
 const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
 const SHADOW_BLEED = 8;
-const COLLECTION_SHADOW_BLEED = 12;
-/** Figma 384:775 — gap between Hanukkiahs and Dreidels rails (y 250 → 262) */
-const COLLECTION_RAIL_GAP = 12;
 
 /** Figma 370:2954 — category chip row */
 const CATEGORY_CHIPS = [
@@ -124,6 +122,8 @@ function statusLine(phase: string, locked: boolean, lockCountdown: string | null
 }
 
 export function HomeScreen() {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createHomeStyles(colors), [colors]);
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useEffectiveWindowDimensions();
@@ -151,6 +151,13 @@ export function HomeScreen() {
   const [now, setNow] = useState(() => new Date());
 
   const interests = guestInterests;
+  const { beginBoxBuild } = useGuestBoxFlow();
+
+  const openBox = useCallback(() => {
+    if (!beginBoxBuild()) {
+      navigation.navigate('MyBox');
+    }
+  }, [beginBoxBuild, navigation]);
 
   const cardWidth = useMemo(() => myBoxCardWidth(contentWidth), [contentWidth]);
   const gridCell = useMemo(() => gridCellForCard(cardWidth), [cardWidth]);
@@ -275,7 +282,7 @@ export function HomeScreen() {
   if (sessionLoading || loading || draftLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={semanticColors.brand} />
+        <ActivityIndicator color={colors.brand} />
       </View>
     );
   }
@@ -336,7 +343,7 @@ export function HomeScreen() {
               title={heroTitle}
               subtitle={heroSubtitle}
               compact={hasBoxStarted}
-              onPress={() => navigation.navigate('MyBox')}
+              onPress={openBox}
             />
           )}
 
@@ -371,7 +378,7 @@ export function HomeScreen() {
 
             {!hasBoxStarted && !hasOrder ? (
               <MyBoxesWelcomeCard
-                onPress={() => navigation.navigate('MyBox')}
+                onPress={openBox}
                 passoverRegistered={passoverNotified}
                 onPassoverPreregister={handlePassoverPreregister}
                 onPreregisterInterest={handleToggleInterest}
@@ -386,7 +393,7 @@ export function HomeScreen() {
                 <View style={styles.myBoxShadowWrap}>
                   <TouchableOpacity
                     style={myBoxCardStyle}
-                    onPress={() => navigation.navigate('MyBox')}
+                    onPress={openBox}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.myBoxCardTitle}>Hanukkah</Text>
@@ -419,7 +426,7 @@ export function HomeScreen() {
                 <MyBoxesWelcomeCard
                   width={Math.floor(cardWidth * 0.92)}
                   peek
-                  onPress={() => navigation.navigate('MyBox')}
+                  onPress={openBox}
                   passoverRegistered={passoverNotified}
                   onPassoverPreregister={handlePassoverPreregister}
                   onPreregisterInterest={handleToggleInterest}
@@ -429,8 +436,9 @@ export function HomeScreen() {
           </View>
 
           <View style={styles.collectionSection} onLayout={(e) => setCollectionSectionY(e.nativeEvent.layout.y)}>
-            <Text style={[styles.collectionHeading, styles.gutterPad]}>Build your Collection</Text>
-            <View style={styles.collectionRails}>
+            <View style={styles.collectionBlock}>
+              <Text style={[styles.collectionHeading, styles.gutterPad]}>Build your Collection</Text>
+              <View style={styles.collectionRails}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -455,6 +463,7 @@ export function HomeScreen() {
                   />
                 </ScrollView>
               ) : null}
+              </View>
             </View>
             {hasBoxStarted ? (
               <>
@@ -489,13 +498,14 @@ export function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: semanticColors.bgPrimary, overflow: 'visible' as const },
+function createHomeStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: colors.bgPrimary, overflow: 'visible' as const },
   panel: { overflow: 'visible' as const },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: semanticColors.bgPrimary },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgPrimary },
   header: {
     gap: HEADER_CHIP_GAP,
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: colors.bgPrimary,
     overflow: 'visible' as const,
   },
   headerSticky: Platform.OS === 'web' ? ({ position: 'sticky' as const, top: 0, zIndex: 20 }) : {},
@@ -513,7 +523,7 @@ const styles = StyleSheet.create({
   },
   categoryChip: {
     borderWidth: 0.5,
-    borderColor: colors.warm[200],
+    borderColor: colors.brand,
     borderRadius: 32,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
@@ -521,8 +531,9 @@ const styles = StyleSheet.create({
   categoryChipText: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.22,
+    fontFamily: typography.fontFamily.light,
   },
   scrollView: { flex: 1, overflow: 'visible' as const },
   content: {
@@ -533,14 +544,14 @@ const styles = StyleSheet.create({
   gutterPad: { paddingHorizontal: MOBILE_GUTTER },
   phaseCard: {
     padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    backgroundColor: semanticColors.bgElevated,
+    borderRadius: 16,
+    backgroundColor: colors.bgElevated,
     borderWidth: 1,
-    borderColor: semanticColors.goldMuted,
+    borderColor: colors.goldMuted,
   },
-  phaseTitle: { fontSize: typography.xl, fontWeight: '600' },
-  phaseBody: { fontSize: typography.md, color: semanticColors.textSecondary, marginTop: spacing.xs, lineHeight: 20 },
-  phaseLink: { fontSize: typography.sm, color: semanticColors.brand, marginTop: spacing.sm, fontWeight: '600' },
+  phaseTitle: { fontSize: typography.xl, fontWeight: '600', color: colors.textPrimary },
+  phaseBody: { fontSize: typography.md, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 },
+  phaseLink: { fontSize: typography.sm, color: colors.brand, marginTop: spacing.sm, fontWeight: '600' },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',
@@ -550,10 +561,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: typography.lg,
     fontWeight: '400',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.26,
   },
-  collectionSection: { gap: spacing.md, overflow: 'visible' as const },
+  collectionSection: { gap: COLLECTION_RAIL_GAP, overflow: 'visible' as const },
+  /** Matches SetTheStageSection — 12px from section title to first card. */
+  collectionBlock: { gap: COLLECTION_RAIL_GAP, overflow: 'visible' as const },
   collectionRails: {
     gap: COLLECTION_RAIL_GAP,
     overflow: 'visible' as const,
@@ -573,16 +586,15 @@ const styles = StyleSheet.create({
   },
   collectionRow: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: COLLECTION_RAIL_GAP,
     paddingLeft: MOBILE_GUTTER,
     paddingRight: MOBILE_GUTTER,
-    paddingVertical: COLLECTION_SHADOW_BLEED,
     alignItems: 'flex-start',
   },
   collectionHeading: {
     fontSize: typography.lg,
     fontWeight: '400',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.26,
   },
   spiritHeading: { marginTop: spacing.xs },
@@ -593,13 +605,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   myBoxCard: {
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: colors.bgPrimary,
     borderRadius: 16,
     padding: spacing.md,
     minHeight: 280,
   },
-  myBoxCardTitle: { fontSize: typography.lg, fontWeight: '400', color: semanticColors.textPrimary, letterSpacing: -0.26 },
-  myBoxCardSub: { fontSize: typography.sm, fontWeight: '200', color: semanticColors.textSecondary, marginTop: 4, marginBottom: spacing.sm },
+  myBoxCardTitle: { fontSize: typography.lg, fontWeight: '400', color: colors.textPrimary, letterSpacing: -0.26 },
+  myBoxCardSub: { fontSize: typography.sm, fontWeight: '200', color: colors.textSecondary, marginTop: 4, marginBottom: spacing.sm },
   myBoxGrid: { marginTop: spacing.sm, gap: 4 },
   myBoxGridRow: { flexDirection: 'row', gap: 4 },
   myBoxGridCell: { backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: borderRadius.sm },
@@ -609,4 +621,5 @@ const styles = StyleSheet.create({
     paddingVertical: SHADOW_BLEED,
     marginBottom: -SHADOW_BLEED,
   },
-});
+  });
+}

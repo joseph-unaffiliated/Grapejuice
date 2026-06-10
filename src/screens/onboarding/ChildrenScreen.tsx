@@ -121,6 +121,6 @@ const styles = StyleSheet.create({
   ageChipOn: { backgroundColor: semanticColors.brand },
   ageText: { fontSize: typography.md },
   ageTextOn: { color: semanticColors.textInverse, fontWeight: '600' },
-  cta: { backgroundColor: semanticColors.brand, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.lg },
+  cta: { backgroundColor: semanticColors.brand, padding: spacing.md, borderRadius: borderRadius.pill, alignItems: 'center', marginTop: spacing.lg },
   ctaText: { fontWeight: '700', color: semanticColors.textInverse },
 });

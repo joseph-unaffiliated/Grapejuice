@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   cardTitleOn: { color: semanticColors.textPrimary },
   cardSub: { fontSize: typography.md, color: semanticColors.textSecondary, marginTop: 4 },
   cardSubOn: { color: semanticColors.textSecondary },
-  cta: { backgroundColor: semanticColors.brand, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.lg },
+  cta: { backgroundColor: semanticColors.brand, padding: spacing.md, borderRadius: borderRadius.pill, alignItems: 'center', marginTop: spacing.lg },
   ctaDisabled: { opacity: 0.4 },
   ctaText: { fontWeight: '700', color: semanticColors.textInverse },
 });

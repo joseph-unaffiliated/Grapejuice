@@ -11,6 +11,10 @@ import {
   PROJECT_PARTNER_JSON_INSTRUCTIONS,
   PROJECT_PARTNER_SYSTEM,
 } from './modes/projectPartner';
+import {
+  FACILITATOR_KID_JSON_INSTRUCTIONS,
+  FACILITATOR_KID_SYSTEM,
+} from './modes/facilitatorKid';
 
 export type RavModeConfig = {
   systemPrompt: string;
@@ -30,10 +34,16 @@ const MODES: Record<RavModeName, RavModeConfig> = {
     systemPrompt: PROJECT_PARTNER_SYSTEM,
     jsonInstructions: PROJECT_PARTNER_JSON_INSTRUCTIONS,
   },
+  facilitator_kid: {
+    systemPrompt: FACILITATOR_KID_SYSTEM,
+    jsonInstructions: FACILITATOR_KID_JSON_INSTRUCTIONS,
+  },
 };
 
 export function resolveRavMode(mode?: string): RavModeName {
-  if (mode === 'personal_shopper' || mode === 'project_partner') return mode;
+  if (mode === 'personal_shopper' || mode === 'project_partner' || mode === 'facilitator_kid') {
+    return mode;
+  }
   return 'facilitator';
 }
 

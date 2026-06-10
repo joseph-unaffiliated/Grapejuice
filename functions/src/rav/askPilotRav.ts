@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PRESENCE_APPEND } from './presence';
 import { getRavModeConfig } from './modeRegistry';
 import { buildCatalogContext, buildHouseholdContext } from './context';
+import { assertKidRavAllowed, stripKidRavActions } from './kidRavGuard';
 import type { AskPilotRavData, RavResponse } from './types';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
@@ -24,17 +25,36 @@ export const askPilotRav = onCall(
       );
     }
 
-    const modeConfig = getRavModeConfig(data.mode);
+    const modeName = data.mode === 'facilitator_kid' ? 'facilitator_kid' : data.mode;
+    let kidChildName: string | undefined;
+
+    if (modeName === 'facilitator_kid') {
+      if (!request.auth?.uid) {
+        throw new HttpsError('unauthenticated', 'Sign in required for kid Rav.');
+      }
+      const { childName } = await assertKidRavAllowed(request.auth.uid, data.childId);
+      kidChildName = childName;
+    }
+
+    const modeConfig = getRavModeConfig(modeName);
     const clientDraft =
-      typeof data.boxDraftSummary === 'string' && data.boxDraftSummary.trim()
-        ? data.boxDraftSummary.trim()
-        : undefined;
+      modeName === 'facilitator_kid'
+        ? undefined
+        : typeof data.boxDraftSummary === 'string' && data.boxDraftSummary.trim()
+          ? data.boxDraftSummary.trim()
+          : undefined;
 
     const [householdContext, catalogContext] = await Promise.all([
-      request.auth?.uid
+      request.auth?.uid && modeName !== 'facilitator_kid'
         ? buildHouseholdContext(request.auth.uid, clientDraft)
-        : Promise.resolve(clientDraft ? `Current box (guest): ${clientDraft}` : ''),
-      buildCatalogContext(),
+        : Promise.resolve(
+            modeName === 'facilitator_kid' && kidChildName
+              ? `Child profile: ${kidChildName}. Hanukkah 2026 at-home guide only.`
+              : clientDraft
+                ? `Current box (guest): ${clientDraft}`
+                : ''
+          ),
+      modeName === 'facilitator_kid' ? Promise.resolve('') : buildCatalogContext(),
     ]);
 
     const contextParts = [householdContext, catalogContext ? `Catalog (id slot name):\n${catalogContext}` : '']
@@ -48,8 +68,9 @@ export const askPilotRav = onCall(
 
     const anthropic = new Anthropic({ apiKey });
     const history = Array.isArray(data.conversationHistory) ? data.conversationHistory : [];
+    const historyLimit = modeName === 'facilitator_kid' ? 6 : 20;
     const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
-      ...history.slice(-20),
+      ...history.slice(-historyLimit),
       { role: 'user', content: message },
     ];
 
@@ -69,9 +90,10 @@ export const askPilotRav = onCall(
         parsed = null;
       }
       const text = parsed?.text?.trim() || raw.trim() || 'Sorry, I could not generate a reply.';
-      const blocks = Array.isArray(parsed?.blocks) ? parsed!.blocks : [];
-      const actions = Array.isArray(parsed?.actions) ? parsed!.actions : [];
-      return { reply: text, text, blocks, actions };
+      const blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.blocks) ? parsed!.blocks : [];
+      const actions = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.actions) ? parsed!.actions : [];
+      const payload = stripKidRavActions({ reply: text, text, blocks, actions });
+      return payload;
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('askPilotRav Anthropic error', errMessage);

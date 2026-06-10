@@ -12,14 +12,15 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { SessionProvider, useSession } from '../context/SessionContext';
+import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
 import { semanticColors } from '../constants/theme';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 function MainGate() {
-  const { isKid } = useSession();
+  const { isChildProfile } = useActiveProfile();
   return (
-    <ThemeProvider mode={isKid ? 'kid' : 'parent'}>
+    <ThemeProvider mode={isChildProfile ? 'kid' : 'parent'}>
       <MainStack />
     </ThemeProvider>
   );
@@ -93,9 +94,11 @@ export function RootNavigator() {
 
   return (
     <SessionProvider>
-      <NavigationContainer ref={navigationRef}>
-        <RootRoutes />
-      </NavigationContainer>
+      <ActiveProfileProvider>
+        <NavigationContainer ref={navigationRef}>
+          <RootRoutes />
+        </NavigationContainer>
+      </ActiveProfileProvider>
     </SessionProvider>
   );
 }

@@ -2,7 +2,11 @@
 
 **Source:** `brandcard.png` in this folder — 8 reference cards that demonstrate allowed color combinations. These rules codify how brand colors are used across the app.
 
-**App default:** The app uses a **dark** default: off-black (`#090113`) for screen and card backgrounds, with **light text** (white, gold, muted beige). Orientation is light-on-dark throughout.
+**Hanukkah pilot (parent UI):** The grown-up experience follows **Figma-light** — white/cream surfaces and gold accents. See [`docs/DESIGN_SYSTEM.md`](../../docs/DESIGN_SYSTEM.md).
+
+**Kid profiles:** Use the **dark** palette below (off-black surfaces, light text, pink accent). BRAND_RULES accent and gold/purple separation still apply.
+
+**Long-term brand default:** Off-black (`#090113`) for screen and card backgrounds with light text — used in kid mode and documented here for accent usage rules.
 
 ---
 

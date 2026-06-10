@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { CapacityRing } from './CapacityRing';
-import { semanticColors, spacing, typography, shadows, shadowsWeb, borderRadius, colors } from '../../constants/theme';
+import { spacing, typography, shadows, shadowsWeb, borderRadius, colors as palette } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import type { MainTabsParamList } from '../../navigation/types';
 
 type Nav = BottomTabNavigationProp<MainTabsParamList>;
@@ -19,6 +21,8 @@ type Props = {
 /** Figma 370:3396 — ring when open; centered copy + Rav CTA when pre-registered. */
 export function PassoverPreregisterCard({ capacityPercent, onRegister, registered }: Props) {
   const navigation = useNavigation<Nav>();
+  const { colors: themeColors } = useThemeMode();
+  const styles = useMemo(() => createPassoverCardStyles(themeColors), [themeColors]);
 
   const cardStyle = [
     styles.card,
@@ -58,53 +62,55 @@ export function PassoverPreregisterCard({ capacityPercent, onRegister, registere
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    paddingVertical: 21,
-    paddingHorizontal: spacing.lg,
-    borderRadius: 16,
-    backgroundColor: semanticColors.bgPrimary,
-  },
-  cardOpen: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  cardRegistered: {
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  copyOpen: { flex: 1, minWidth: 0 },
-  copyRegistered: {
-    width: '100%',
-    alignItems: 'center',
-    gap: 0,
-  },
-  title: { fontSize: typography.lg, fontWeight: '400', color: semanticColors.textPrimary, letterSpacing: -0.26 },
-  sub: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: semanticColors.textSecondary,
-    marginTop: spacing.xs,
-    lineHeight: 18,
-  },
-  textCenter: { textAlign: 'center' },
-  ctaRegistered: {
-    marginTop: spacing.sm,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.warm[200],
-    alignSelf: 'stretch',
-  },
-  ctaText: {
-    fontSize: typography.sm,
-    fontWeight: '400',
-    color: semanticColors.textPrimary,
-    letterSpacing: -0.22,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-});
+function createPassoverCardStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    card: {
+      paddingVertical: 21,
+      paddingHorizontal: spacing.lg,
+      borderRadius: 16,
+      backgroundColor: colors.bgPrimary,
+    },
+    cardOpen: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    cardRegistered: {
+      flexDirection: 'column',
+      alignItems: 'center',
+    },
+    copyOpen: { flex: 1, minWidth: 0 },
+    copyRegistered: {
+      width: '100%',
+      alignItems: 'center',
+      gap: 0,
+    },
+    title: { fontSize: typography.lg, fontWeight: '400', color: colors.textPrimary, letterSpacing: -0.26 },
+    sub: {
+      fontSize: typography.sm,
+      fontWeight: '200',
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+      lineHeight: 18,
+    },
+    textCenter: { textAlign: 'center' },
+    ctaRegistered: {
+      marginTop: spacing.sm,
+      paddingVertical: 10,
+      paddingHorizontal: spacing.sm,
+      borderRadius: borderRadius.pill,
+      borderWidth: 1,
+      borderColor: palette.warm[200],
+      alignSelf: 'stretch',
+    },
+    ctaText: {
+      fontSize: typography.sm,
+      fontWeight: '400',
+      color: colors.textPrimary,
+      letterSpacing: -0.22,
+      lineHeight: 18,
+      textAlign: 'center',
+    },
+  });
+}

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { WebPageContainer } from '../../components/ui/WebPageContainer';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
 
 export function SignInEmailScreen() {
@@ -27,16 +28,17 @@ export function SignInEmailScreen() {
         value={password}
         onChangeText={setPassword}
       />
-      <TouchableOpacity
-        style={styles.button}
+      <GrapejuiceButton
+        label="Sign in"
+        variant="filled"
         onPress={async () => {
           clearError();
           await signIn(email.trim(), password);
         }}
         disabled={isLoading}
-      >
-        {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
-      </TouchableOpacity>
+        loading={isLoading}
+        style={styles.btn}
+      />
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </WebPageContainer>
   );
@@ -44,7 +46,7 @@ export function SignInEmailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl, backgroundColor: semanticColors.bgPrimary },
-  title: { fontSize: typography.headerLg, fontWeight: '700', marginBottom: spacing.lg },
+  title: { fontSize: typography.headerLg, fontWeight: '700', marginBottom: spacing.lg, color: semanticColors.textPrimary },
   input: {
     borderWidth: 1,
     borderColor: semanticColors.border,
@@ -53,7 +55,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     fontSize: 16,
   },
-  button: { backgroundColor: semanticColors.brand, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
-  buttonText: { fontWeight: '600', color: semanticColors.textInverse },
+  btn: { alignSelf: 'stretch', minWidth: undefined },
   error: { color: semanticColors.error, marginTop: spacing.md },
 });

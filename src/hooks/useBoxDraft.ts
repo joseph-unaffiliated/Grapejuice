@@ -6,7 +6,8 @@ import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
-import type { BoxLineItem, ChildProfile, FamiliarityLevel } from '../types/pilot';
+import { emptySlotVotes } from '../services/box/slotVotes';
+import type { BoxLineItem, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
 
 function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
@@ -27,6 +28,7 @@ export function useBoxDraft() {
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
+  const [slotVotes, setSlotVotes] = useState<SlotVotes>(emptySlotVotes());
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>('moderate');
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,7 @@ export function useBoxDraft() {
       const kids = draftsToProfiles(guestDrafts);
       setChildren(kids);
       setFamiliarity(guestFamiliarity);
+      setSlotVotes(emptySlotVotes());
       if (guestLineItems.length) {
         setLineItems(guestLineItems);
       } else if (guestDrafts.length) {
@@ -63,6 +66,7 @@ export function useBoxDraft() {
     ]);
     setChildren(kids);
     setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
+    setSlotVotes(draft?.slotVotes ?? emptySlotVotes());
     if (draft?.lineItems?.length) {
       setLineItems(draft.lineItems);
     } else if (catalog.length) {
@@ -97,18 +101,30 @@ export function useBoxDraft() {
       if (!household?.id || !user?.uid) return;
       await boxDraftService.save(household.id, user.uid, next, {
         familiarityLevel: profile?.familiarityLevel ?? familiarity,
+        slotVotes,
       });
     },
-    [isAuthenticated, household?.id, user?.uid, profile?.familiarityLevel, familiarity, setGuestLineItems]
+    [isAuthenticated, household?.id, user?.uid, profile?.familiarityLevel, familiarity, slotVotes, setGuestLineItems]
+  );
+
+  const persistSlotVotes = useCallback(
+    async (next: SlotVotes) => {
+      setSlotVotes(next);
+      if (!isAuthenticated || !household?.id || !user?.uid) return;
+      await boxDraftService.saveSlotVotes(household.id, user.uid, next);
+    },
+    [isAuthenticated, household?.id, user?.uid]
   );
 
   return {
     lineItems,
+    slotVotes,
     children,
     familiarity,
     loading: loading || (isAuthenticated && sessionLoading),
     isGuest: !isAuthenticated,
     persist,
+    persistSlotVotes,
     refresh: load,
   };
 }

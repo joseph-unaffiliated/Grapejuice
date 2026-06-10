@@ -22,7 +22,14 @@ cp .env.example .env
 npx expo start
 ```
 
-Use **Dev: enter app** on sign-in, then **Theme: parent/kid** (top-right) to preview kid dark mode until child auth exists.
+Use **Dev: enter app** on sign-in. Open **Account → Profiles** to switch between grown-up and kid experiences.
+
+## Family profiles
+
+- **Profiles** — reached from Account only; tap a child to enter kid theme
+- **Thumbs-up voting** on story/gift picks (kids + grown-ups); long-press to see who voted
+- **Wrapped gifts** — parents hide gift options from kids until Hanukkah
+- **Kid Rav** — optional per child (`Allow Rav` on Profiles); server-enforced limits (no box changes)
 
 ## What's in this scaffold (Phase A)
 

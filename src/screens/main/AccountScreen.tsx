@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -24,8 +24,12 @@ import {
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { PilotOrder, PartnerInvite } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography, borderRadius } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
+import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -46,9 +50,12 @@ function statusLabel(status: PilotOrder['status']): string {
 
 export function AccountScreen() {
   const navigation = useNavigation<Nav>();
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createAccountStyles(colors), [colors]);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { household, profile, loading: sessionLoading } = useSession();
+  const { activeProfile, activeChild } = useActiveProfile();
   const guestHidden = useGuestSessionStore((s) => s.hiddenHolidays);
   const toggleGuestHidden = useGuestSessionStore((s) => s.toggleHiddenHoliday);
 
@@ -135,8 +142,16 @@ export function AccountScreen() {
   if (sessionLoading || loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={semanticColors.brand} />
+        <ActivityIndicator color={colors.brand} />
       </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <WebContentPanel>
+        <GuestAuthPrompt returnTo="Account" />
+      </WebContentPanel>
     );
   }
 
@@ -185,8 +200,12 @@ export function AccountScreen() {
           <Text style={styles.hint}>Sign in to invite a partner and share your box.</Text>
         )}
 
-        <TouchableOpacity style={styles.kidsBtn} onPress={() => navigation.navigate('KidsVote')}>
-          <Text style={styles.kidsBtnText}>Kids&apos; corner — vote on picks</Text>
+        <Text style={styles.section}>Profiles</Text>
+        <Text style={styles.hint}>
+          Active: {profileDisplayName(activeProfile, profile?.displayName, activeChild)}
+        </Text>
+        <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('Profiles')}>
+          <Text style={styles.profilesBtnText}>Who&apos;s using Grapejuice?</Text>
         </TouchableOpacity>
 
         {hiddenHolidays.length ? (
@@ -234,61 +253,63 @@ export function AccountScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  content: { padding: spacing.lg, paddingBottom: 120 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '700' },
-  email: { fontSize: typography.lg, marginTop: spacing.xs },
-  meta: { fontSize: typography.md, color: semanticColors.textSecondary, marginTop: 4 },
-  section: { fontSize: typography.xl, fontWeight: '700', marginTop: spacing.xl, marginBottom: spacing.sm },
-  hint: { fontSize: typography.md, color: semanticColors.textTertiary },
-  input: {
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.sm,
-    marginTop: spacing.sm,
-    fontSize: 16,
-  },
-  inviteBtn: {
-    marginTop: spacing.sm,
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.pill,
-    borderWidth: 1,
-    borderColor: semanticColors.brand,
-  },
-  inviteBtnText: { color: semanticColors.brand, fontWeight: '600' },
-  inviteRow: { fontSize: typography.sm, color: semanticColors.textSecondary, marginTop: spacing.xs },
-  kidsBtn: {
-    marginTop: spacing.lg,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: semanticColors.accentCream,
-  },
-  kidsBtnText: { fontWeight: '600', color: semanticColors.textPrimary },
-  restoreLink: { color: semanticColors.brand, fontWeight: '600', marginBottom: spacing.xs },
-  orderCard: {
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  orderHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  orderId: { fontWeight: '600' },
-  orderStatus: { color: semanticColors.brand, fontWeight: '600' },
-  orderTotal: { marginTop: spacing.xs, fontSize: typography.lg },
-  trackLink: { marginTop: spacing.sm, color: semanticColors.brand, fontWeight: '600' },
-  logoutBtn: {
-    marginTop: spacing.xxl,
-    padding: spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    borderRadius: borderRadius.md,
-  },
-  logoutText: { fontWeight: '600', color: semanticColors.textSecondary },
-});
+function createAccountStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.bgPrimary },
+    content: { padding: spacing.lg, paddingBottom: 120 },
+    centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    title: { fontSize: 24, fontWeight: '700' },
+    email: { fontSize: typography.lg, marginTop: spacing.xs },
+    meta: { fontSize: typography.md, color: colors.textSecondary, marginTop: 4 },
+    section: { fontSize: typography.xl, fontWeight: '700', marginTop: spacing.xl, marginBottom: spacing.sm },
+    hint: { fontSize: typography.md, color: colors.textTertiary },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.md,
+      padding: spacing.sm,
+      marginTop: spacing.sm,
+      fontSize: 16,
+    },
+    inviteBtn: {
+      marginTop: spacing.sm,
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.pill,
+      borderWidth: 1,
+      borderColor: colors.brand,
+    },
+    inviteBtnText: { color: colors.brand, fontWeight: '600' },
+    inviteRow: { fontSize: typography.sm, color: colors.textSecondary, marginTop: spacing.xs },
+    profilesBtn: {
+      marginTop: spacing.lg,
+      padding: spacing.md,
+      borderRadius: borderRadius.pill,
+      backgroundColor: colors.accentCream,
+    },
+    profilesBtnText: { fontWeight: '600', color: colors.textPrimary },
+    restoreLink: { color: colors.brand, fontWeight: '600', marginBottom: spacing.xs },
+    orderCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    orderHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+    orderId: { fontWeight: '600' },
+    orderStatus: { color: colors.brand, fontWeight: '600' },
+    orderTotal: { marginTop: spacing.xs, fontSize: typography.lg },
+    trackLink: { marginTop: spacing.sm, color: colors.brand, fontWeight: '600' },
+    logoutBtn: {
+      marginTop: spacing.xxl,
+      padding: spacing.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.pill,
+    },
+    logoutText: { fontWeight: '600', color: colors.textSecondary },
+  });
+}

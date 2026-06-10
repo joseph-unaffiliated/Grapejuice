@@ -2,6 +2,10 @@
  * Grapejuice design system. Simplified light theme for focus on functionality.
  * Design will be updated later from Figma mockups.
  */
+import { Platform, type TextStyle } from 'react-native';
+
+/** Google Fonts family — must match public/index.html link. */
+export const WEB_FONT_FAMILY = 'DM Sans';
 
 export const BRAND_ACCENT_ON_DARK = '#E16FFF';
 export const BRAND_GRADIENT = { top: '#53006A', bottom: '#17001D' } as const;
@@ -215,8 +219,22 @@ export const borderRadius = {
   chip: 8,
 };
 
-/** Typography – system font, smaller header sizes. */
+/** Typography — DM Sans (Expo on native; Google Fonts on web). */
 export const typography = {
+  fontFamily: Platform.select({
+    web: {
+      light: WEB_FONT_FAMILY,
+      regular: WEB_FONT_FAMILY,
+      medium: WEB_FONT_FAMILY,
+      bold: WEB_FONT_FAMILY,
+    },
+    default: {
+      light: 'DMSans_200ExtraLight',
+      regular: 'DMSans_400Regular',
+      medium: 'DMSans_500Medium',
+      bold: 'DMSans_700Bold',
+    },
+  })!,
   xs: 10,
   sm: 11,
   md: 12,
@@ -227,6 +245,15 @@ export const typography = {
   titleLg: 16,
   headerLg: 17,
 };
+
+/** Per-weight typeface — web uses fontWeight; native uses Expo font files. */
+export function typeface(weight: 'light' | 'regular' | 'medium' | 'bold' = 'regular'): Pick<TextStyle, 'fontFamily' | 'fontWeight'> {
+  if (Platform.OS === 'web') {
+    const fontWeight = { light: '200', regular: '400', medium: '500', bold: '700' } as const;
+    return { fontFamily: WEB_FONT_FAMILY, fontWeight: fontWeight[weight] };
+  }
+  return { fontFamily: typography.fontFamily[weight] };
+}
 
 export const shadows = {
   sm: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },

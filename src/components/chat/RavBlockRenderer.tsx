@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import type { RavBlock, CatalogItem, BoxLineItem } from '../../types/pilot';
 import { catalogService } from '../../services/firestore/catalog';
 import { BoxItemImage } from '../box/BoxItemImage';
 import { formatDollars, unitCentsForTier } from '../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../services/box/pricing';
-import { semanticColors, spacing, typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
+import { spacing, typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 
 type Props = {
   blocks: RavBlock[];
@@ -17,6 +19,8 @@ type Props = {
 const goldCardShadow = Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow;
 
 export function RavBlockRenderer({ blocks, lineItems, onSwap, onAddExtra }: Props) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createRavBlockStyles(colors), [colors]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
 
   useEffect(() => {
@@ -109,17 +113,18 @@ export function RavBlockRenderer({ blocks, lineItems, onSwap, onAddExtra }: Prop
   );
 }
 
-const styles = StyleSheet.create({
+function createRavBlockStyles(colors: SemanticColors) {
+  return StyleSheet.create({
   wrap: { marginTop: spacing.sm, gap: spacing.md, width: '100%' },
   curationCard: {
-    backgroundColor: semanticColors.bgPrimary,
-    borderRadius: borderRadius.xxl,
+    backgroundColor: colors.bgPrimary,
+    borderRadius: 16,
     padding: spacing.md,
     width: '100%',
   },
   curationTitle: {
     fontSize: typography.lg,
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: spacing.md,
   },
@@ -134,13 +139,13 @@ const styles = StyleSheet.create({
   gridLabel: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     marginTop: 4,
   },
   seeMore: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.goldMuted,
+    color: colors.goldMuted,
     textAlign: 'center',
     marginTop: spacing.sm,
   },
@@ -149,25 +154,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     padding: spacing.md,
-    backgroundColor: semanticColors.bgPrimary,
-    borderRadius: borderRadius.xxl,
+    backgroundColor: colors.bgPrimary,
+    borderRadius: 16,
   },
   cardText: { flex: 1 },
-  cardTitle: { fontSize: typography.lg, color: semanticColors.textPrimary },
-  cardBody: { fontSize: typography.sm, fontWeight: '200', color: semanticColors.textSecondary, marginTop: 2 },
-  price: { fontSize: typography.sm, fontWeight: '600', marginTop: 4, color: semanticColors.textPrimary },
+  cardTitle: { fontSize: typography.lg, color: colors.textPrimary },
+  cardBody: { fontSize: typography.sm, fontWeight: '200', color: colors.textSecondary, marginTop: 2 },
+  price: { fontSize: typography.sm, fontWeight: '600', marginTop: 4, color: colors.textPrimary },
   chipBtn: {
     borderWidth: 0.5,
-    borderColor: semanticColors.brand,
+    borderColor: colors.brand,
     borderRadius: borderRadius.chip,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  chipBtnText: { fontSize: typography.sm, fontWeight: '200', color: semanticColors.textPrimary },
+  chipBtnText: { fontSize: typography.sm, fontWeight: '200', color: colors.textPrimary },
   swapCard: {
     padding: spacing.md,
-    backgroundColor: semanticColors.bgPrimary,
-    borderRadius: borderRadius.xxl,
+    backgroundColor: colors.bgPrimary,
+    borderRadius: 16,
     gap: spacing.xs,
   },
-});
+  });
+}

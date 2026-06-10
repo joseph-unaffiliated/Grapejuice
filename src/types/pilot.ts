@@ -20,7 +20,17 @@ export type BeamContentCategory =
   | 'god'
   | 'culture';
 
-export type RavMode = 'facilitator' | 'personal_shopper' | 'project_partner';
+export type RavMode = 'facilitator' | 'facilitator_kid' | 'personal_shopper' | 'project_partner';
+
+export type SlotVoteEntry = {
+  voterId: string;
+  voterName: string;
+  voterType: 'parent' | 'child';
+  votedAt: string;
+};
+
+/** Per slot, per catalog item id → voters who thumbs-upped that option. */
+export type SlotVotes = Record<string, Record<string, SlotVoteEntry[]>>;
 export type AgeGroup = '0-2' | '3-5' | '6-8' | '9-12';
 export type CatalogSlot = 'base' | 'story' | 'gift' | 'addon' | 'keepsake';
 export type CatalogPricingTier = 'included' | 'perKid' | 'extra' | 'alaCarte';
@@ -66,6 +76,8 @@ export type ChildProfile = {
   hebrewName?: string;
   barMitzvahDate?: string;
   beamStatus?: BeamStatus;
+  /** Parent-controlled; enables kid-safe Rav tab when viewing this child's profile. */
+  ravEnabled?: boolean;
 };
 
 export type CatalogCurationTag =
@@ -125,11 +137,16 @@ export type BoxLineItem = {
 export type BoxDraft = {
   holidayId: string;
   lineItems: BoxLineItem[];
+  slotVotes?: SlotVotes;
   familiarityLevel?: FamiliarityLevel;
   updatedAt: string;
   updatedBy: string;
   lockedAt?: string | null;
 };
+
+export type ActiveProfile =
+  | { type: 'parent' }
+  | { type: 'child'; childId: string };
 
 export type ShippingAddress = {
   name: string;

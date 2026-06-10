@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,9 @@ import { BoxItemImage } from '../box/BoxItemImage';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import type { CatalogItem } from '../../types/pilot';
 import type { MainTabsParamList, MainStackParamList } from '../../navigation/types';
-import { semanticColors, typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
+import { typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import { ProductStarRating } from './ProductStarRating';
 
 type Nav = CompositeNavigationProp<
@@ -33,16 +35,22 @@ const TILE_GAP = 4;
 export const COLLECTION_CARD_PADDING = 16;
 /** Figma 384:488 — gap between rail title and product row. */
 export const COLLECTION_CARD_GAP = 16;
+/** Figma 384:775 — vertical gap between collection cards / horizontal gap between stage cards. */
+export const COLLECTION_RAIL_GAP = 12;
+/** Gold-glow shadow bleed — negative margin keeps layout gap at COLLECTION_RAIL_GAP. */
+const SHADOW_BLEED = 12;
 export const CATALOG_PRODUCT_NAME_LINES = 3;
 
 /** Shared product title typography for catalog tiles (rails + Set the Stage). */
-export const catalogProductNameStyle = {
-  fontSize: typography.sm,
-  fontWeight: '200' as const,
-  color: semanticColors.textPrimary,
-  letterSpacing: -0.22,
-  lineHeight: 14,
-};
+export function catalogProductNameStyle(colors: SemanticColors) {
+  return {
+    fontSize: typography.sm,
+    fontWeight: '200' as const,
+    color: colors.textPrimary,
+    letterSpacing: -0.22,
+    lineHeight: 14,
+  };
+}
 
 /** Figma 384:487 — wide card, products in one horizontal row; parent ScrollView pans the card. */
 export function collectionCardWidth(itemCount: number): number {
@@ -52,6 +60,8 @@ export function collectionCardWidth(itemCount: number): number {
 
 export function CatalogProductRail({ title, items }: Props) {
   const navigation = useNavigation<Nav>();
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createCatalogRailStyles(colors), [colors]);
 
   if (!items.length) return null;
 
@@ -85,40 +95,44 @@ export function CatalogProductRail({ title, items }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  carouselWrap: {
-    overflow: 'visible' as const,
-  },
-  card: {
-    backgroundColor: semanticColors.bgPrimary,
-    borderRadius: 16,
-    padding: COLLECTION_CARD_PADDING,
-    gap: COLLECTION_CARD_GAP,
-    overflow: 'visible' as const,
-  },
-  title: {
-    fontSize: typography.lg,
-    fontWeight: '400',
-    color: semanticColors.textPrimary,
-    letterSpacing: -0.26,
-  },
-  productRow: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'flex-start',
-    gap: TILE_GAP,
-  },
-  tile: {
-    width: CATALOG_TILE,
-    alignSelf: 'flex-start',
-    gap: 4,
-  },
-  image: { borderRadius: borderRadius.md, backgroundColor: 'rgba(0,0,0,0.05)' },
-  name: catalogProductNameStyle,
-  price: {
-    fontSize: typography.lg,
-    fontWeight: '400',
-    color: semanticColors.textPrimary,
-    letterSpacing: -0.26,
-  },
-});
+function createCatalogRailStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    carouselWrap: {
+      overflow: 'visible' as const,
+      paddingBottom: SHADOW_BLEED,
+      marginBottom: -SHADOW_BLEED,
+    },
+    card: {
+      backgroundColor: colors.bgPrimary,
+      borderRadius: 16,
+      padding: COLLECTION_CARD_PADDING,
+      gap: COLLECTION_CARD_GAP,
+      overflow: 'visible' as const,
+    },
+    title: {
+      fontSize: typography.lg,
+      fontWeight: '400',
+      color: colors.textPrimary,
+      letterSpacing: -0.26,
+    },
+    productRow: {
+      flexDirection: 'row',
+      flexWrap: 'nowrap',
+      alignItems: 'flex-start',
+      gap: TILE_GAP,
+    },
+    tile: {
+      width: CATALOG_TILE,
+      alignSelf: 'flex-start',
+      gap: 4,
+    },
+    image: { borderRadius: borderRadius.md, backgroundColor: 'rgba(0,0,0,0.05)' },
+    name: catalogProductNameStyle(colors),
+    price: {
+      fontSize: typography.lg,
+      fontWeight: '400',
+      color: colors.textPrimary,
+      letterSpacing: -0.26,
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,9 @@ import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../../components/cha
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { MainTabsParamList } from '../../navigation/types';
-import { semanticColors, tabBarTotalHeight } from '../../constants/theme';
+import { tabBarTotalHeight } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 
 type RavRoute = RouteProp<MainTabsParamList, 'Rav'>;
@@ -18,6 +20,8 @@ export function RavScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
   const { isDesktop } = useWebLayout();
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createRavStyles(colors), [colors]);
   const route = useRoute<RavRoute>();
   const ref = useRef<PilotAIChatSheetRef>(null);
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
@@ -50,6 +54,8 @@ export function RavScreen() {
 
 const spacingBottomDesktop = 24;
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-});
+function createRavStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bgPrimary },
+  });
+}

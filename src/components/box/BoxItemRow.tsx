@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,12 @@ import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { inferKeepOrToss } from '../../constants/boxPracticeGroups';
 import { BoxItemImage } from './BoxItemImage';
 import { ItemDetailSheet } from './ItemDetailSheet';
-import { semanticColors, spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
+import { spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import type { KeepOrToss } from '../../types/pilot';
+
+type BoxItemRowStyles = ReturnType<typeof createBoxItemRowStyles>;
 
 type Props = {
   li: BoxLineItem;
@@ -26,7 +30,6 @@ type Props = {
   onSetKeepOrToss?: (value: KeepOrToss) => void;
   onAddAnother?: () => void;
   showAddAnother?: boolean;
-  kidsMode?: boolean;
   formatPrice: (cents: number) => string;
   variant?: 'default' | 'card';
   onRemove?: () => void;
@@ -43,11 +46,13 @@ function ActionChip({
   primary,
   onPress,
   disabled,
+  styles,
 }: {
   label: string;
   primary?: boolean;
   onPress?: () => void;
   disabled?: boolean;
+  styles: BoxItemRowStyles;
 }) {
   return (
     <TouchableOpacity
@@ -72,17 +77,18 @@ export function BoxItemRow({
   onSetKeepOrToss,
   onAddAnother,
   showAddAnother,
-  kidsMode = false,
   formatPrice,
   variant = 'default',
   onRemove,
 }: Props) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createBoxItemRowStyles(colors), [colors]);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const keepOrToss = li.keepOrToss ?? inferKeepOrToss(li.slotId);
   const isSurprise = !!li.isSurprise;
   const swappable = !locked && swapOptions.length > 0;
-  const displayName = kidsMode && isSurprise ? 'Wrapped surprise' : li.label ?? item?.name ?? li.itemId;
+  const displayName = li.label ?? item?.name ?? li.itemId;
 
   if (variant === 'card') {
     return (
@@ -103,15 +109,15 @@ export function BoxItemRow({
               {showPrice ? <Text style={styles.price}>{formatPrice(li.unitCents)}</Text> : null}
             </View>
             <View style={styles.cardActions}>
-              <ActionChip label="In box" primary />
+              <ActionChip label="In box" primary styles={styles} />
               {swappable ? (
-                <ActionChip label="Swap" onPress={() => setShelfOpen((v) => !v)} />
+                <ActionChip label="Swap" onPress={() => setShelfOpen((v) => !v)} styles={styles} />
               ) : null}
               {showAddAnother && onAddAnother && !locked ? (
-                <ActionChip label="Add more" onPress={onAddAnother} />
+                <ActionChip label="Add more" onPress={onAddAnother} styles={styles} />
               ) : null}
               {onRemove && !locked ? (
-                <ActionChip label="Remove" onPress={onRemove} />
+                <ActionChip label="Remove" onPress={onRemove} styles={styles} />
               ) : null}
             </View>
           </View>
@@ -175,7 +181,9 @@ export function BoxItemRow({
           ) : null}
           {onToggleSurprise && !locked ? (
             <TouchableOpacity onPress={onToggleSurprise} style={styles.surpriseBtn}>
-              <Text style={styles.surpriseBtnText}>{isSurprise ? 'Surprise ✓' : 'Surprise?'}</Text>
+              <Text style={styles.surpriseBtnText}>
+                {isSurprise ? 'Wrapped ✓' : 'Wrap as surprise'}
+              </Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -237,60 +245,62 @@ export function BoxItemRow({
   );
 }
 
-const styles = StyleSheet.create({
-  cardRow: { flexDirection: 'row', gap: spacing.md, paddingVertical: spacing.sm },
-  cardImageWrap: { width: 130 },
-  cardBody: { flex: 1, justifyContent: 'space-between', paddingVertical: spacing.xs },
-  cardTop: { gap: 4 },
-  cardTag: { fontSize: typography.sm, color: semanticColors.goldMuted },
-  cardName: { fontWeight: '600', fontSize: typography.md, color: semanticColors.textPrimary },
-  cardDesc: { fontSize: typography.sm, color: semanticColors.textSecondary, lineHeight: 16 },
-  cardMeta: { fontSize: typography.sm, color: semanticColors.goldMuted },
-  cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.sm },
-  chip: {
-    borderWidth: 0.5,
-    borderColor: semanticColors.goldMuted,
-    borderRadius: borderRadius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    backgroundColor: semanticColors.bgPrimary,
-  },
-  chipPrimary: { backgroundColor: semanticColors.textPrimary, borderColor: semanticColors.textPrimary },
-  chipDisabled: { opacity: 0.6 },
-  chipText: { fontSize: 9, color: semanticColors.goldMuted, fontWeight: '500', textTransform: 'lowercase' },
-  chipTextPrimary: { color: semanticColors.goldMuted },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: semanticColors.border },
-  body: { flex: 1, flexDirection: 'row', gap: spacing.sm },
-  text: { flex: 1 },
-  name: { fontWeight: '600', fontSize: typography.lg },
-  meta: { fontSize: typography.sm, color: semanticColors.goldMuted, marginTop: 2 },
-  badges: { marginTop: 4, gap: 2 },
-  badge: { fontSize: typography.sm, color: semanticColors.textTertiary },
-  surpriseBadge: { fontSize: typography.sm, color: semanticColors.brand, fontWeight: '600' },
-  price: { fontSize: typography.md, fontWeight: '600', marginTop: 4 },
-  actions: { alignItems: 'flex-end', gap: spacing.xs },
-  swapBtn: { paddingHorizontal: spacing.sm, paddingVertical: 6 },
-  swapText: { color: semanticColors.brand, fontWeight: '600' },
-  surpriseBtn: { paddingHorizontal: spacing.xs },
-  surpriseBtnText: { fontSize: typography.sm, color: semanticColors.textSecondary },
-  keepRow: { flexDirection: 'row', gap: spacing.xs, paddingLeft: 64, marginBottom: spacing.xs },
-  keepBtn: { borderWidth: 1, borderColor: semanticColors.border, borderRadius: borderRadius.pill, paddingHorizontal: spacing.sm, paddingVertical: 4 },
-  keepBtnOn: { borderColor: semanticColors.brand, backgroundColor: semanticColors.brandLight },
-  keepText: { fontSize: typography.sm, color: semanticColors.textSecondary },
-  addAnother: { paddingVertical: spacing.xs, paddingLeft: 64 },
-  addAnotherText: { color: semanticColors.brand, fontWeight: '600', fontSize: typography.sm },
-  shelf: { marginBottom: spacing.sm },
-  shelfContent: { gap: spacing.sm, paddingVertical: spacing.sm },
-  shelfCard: {
-    width: 100,
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: semanticColors.bgPrimary,
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    alignItems: 'center',
-  },
-  shelfCardSelected: { borderColor: semanticColors.goldMuted, backgroundColor: semanticColors.accentCream },
-  shelfName: { fontSize: typography.sm, textAlign: 'center', marginTop: 4 },
-  selectedMark: { color: semanticColors.brand, fontWeight: '700', marginTop: 2 },
-});
+function createBoxItemRowStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    cardRow: { flexDirection: 'row', gap: spacing.md, paddingVertical: spacing.sm },
+    cardImageWrap: { width: 130 },
+    cardBody: { flex: 1, justifyContent: 'space-between', paddingVertical: spacing.xs },
+    cardTop: { gap: 4 },
+    cardTag: { fontSize: typography.sm, color: colors.goldMuted },
+    cardName: { fontWeight: '600', fontSize: typography.md, color: colors.textPrimary },
+    cardDesc: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 16 },
+    cardMeta: { fontSize: typography.sm, color: colors.goldMuted },
+    cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.sm },
+    chip: {
+      borderWidth: 0.5,
+      borderColor: colors.goldMuted,
+      borderRadius: borderRadius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      backgroundColor: colors.bgPrimary,
+    },
+    chipPrimary: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
+    chipDisabled: { opacity: 0.6 },
+    chipText: { fontSize: 9, color: colors.goldMuted, fontWeight: '500', textTransform: 'lowercase' },
+    chipTextPrimary: { color: colors.goldMuted },
+    row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    body: { flex: 1, flexDirection: 'row', gap: spacing.sm },
+    text: { flex: 1 },
+    name: { fontWeight: '600', fontSize: typography.lg },
+    meta: { fontSize: typography.sm, color: colors.goldMuted, marginTop: 2 },
+    badges: { marginTop: 4, gap: 2 },
+    badge: { fontSize: typography.sm, color: colors.textTertiary },
+    surpriseBadge: { fontSize: typography.sm, color: colors.brand, fontWeight: '600' },
+    price: { fontSize: typography.md, fontWeight: '600', marginTop: 4 },
+    actions: { alignItems: 'flex-end', gap: spacing.xs },
+    swapBtn: { paddingHorizontal: spacing.sm, paddingVertical: 6 },
+    swapText: { color: colors.brand, fontWeight: '600' },
+    surpriseBtn: { paddingHorizontal: spacing.xs },
+    surpriseBtnText: { fontSize: typography.sm, color: colors.textSecondary },
+    keepRow: { flexDirection: 'row', gap: spacing.xs, paddingLeft: 64, marginBottom: spacing.xs },
+    keepBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.pill, paddingHorizontal: spacing.sm, paddingVertical: 4 },
+    keepBtnOn: { borderColor: colors.brand, backgroundColor: colors.brandLight },
+    keepText: { fontSize: typography.sm, color: colors.textSecondary },
+    addAnother: { paddingVertical: spacing.xs, paddingLeft: 64 },
+    addAnotherText: { color: colors.brand, fontWeight: '600', fontSize: typography.sm },
+    shelf: { marginBottom: spacing.sm },
+    shelfContent: { gap: spacing.sm, paddingVertical: spacing.sm },
+    shelfCard: {
+      width: 100,
+      padding: spacing.sm,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.bgPrimary,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    shelfCardSelected: { borderColor: colors.goldMuted, backgroundColor: colors.accentCream },
+    shelfName: { fontSize: typography.sm, textAlign: 'center', marginTop: 4 },
+    selectedMark: { color: colors.brand, fontWeight: '700', marginTop: 2 },
+  });
+}

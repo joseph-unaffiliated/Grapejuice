@@ -1,0 +1,49 @@
+---
+description: Grapejuice pilot Figma design system — typography, colors, cards, buttons
+globs: grapejuice/pilot-app/src/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# Grapejuice pilot design
+
+Full spec: [`docs/DESIGN_SYSTEM.md`](../../docs/DESIGN_SYSTEM.md)
+
+## Quick checklist
+
+### Theme
+- Use `useThemeMode().colors` in UI components (not static `semanticColors`).
+- Kid profile: same structure; only colors differ via `kidSemantic`.
+- Auth/onboarding may use parent `semanticColors` (always parent mode).
+
+### Typography
+- DM Sans via `typography.fontFamily`.
+- Sizes: 11px chips/hints, 13px pills, 14px sections, 16px hero titles.
+- Letter-spacing: -0.22 (sm), -0.26 (lg/xl), -0.32 (titleLg).
+- Secondary text: `goldMuted` on parent, not arbitrary grays.
+
+### Layout
+- Horizontal gutter: `MOBILE_GUTTER` (24px) on phone layouts.
+- Section gaps: 24px; header groups: 16px.
+
+### Cards
+- Hero / collection / My Boxes: **16px** radius, **goldGlow** shadow, white or cream bg.
+- Accordion (guide): **4px** radius, 1px border.
+- Use `GrapejuiceCard` when adding new card surfaces.
+
+### Buttons
+- Auth and guest CTAs: **pill** (40px radius), white + goldGlowSm OR filled gold.
+- Use `GrapejuiceButton` — variants `pill`, `pillOutline`, `filled`.
+- Do not use `borderRadius.md` (4px) for primary CTAs.
+
+### Chips
+- Category: 32px radius, 0.5px gold border, 11px extralight.
+- Rav starters: 8px radius (`borderRadius.chip`).
+- Search: 37px height, 40px radius, goldGlowSm.
+
+### Shadows
+- Marketing cards and pills: gold glow (`shadowsWeb.goldGlow` / `goldGlowSm`).
+- Avoid generic gray card shadows on hero/marketing surfaces.
+
+### Colors (parent)
+- No lavender/vibrant purple as full card or screen backgrounds.
+- Gold must not touch lavender/vibrant purple in the same component.

@@ -1,4 +1,4 @@
-export type RavModeName = 'facilitator' | 'personal_shopper' | 'project_partner';
+export type RavModeName = 'facilitator' | 'facilitator_kid' | 'personal_shopper' | 'project_partner';
 
 export type BeamMilestoneType = 'bat_mitzvah' | 'bar_mitzvah';
 
@@ -25,6 +25,7 @@ export type AskPilotRavData = {
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   boxDraftSummary?: string;
   mode?: RavModeName;
+  childId?: string;
 };
 
 export type LineItem = {

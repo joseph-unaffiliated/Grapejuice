@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   cta: {
     backgroundColor: semanticColors.brand,
     padding: spacing.md,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.pill,
     alignItems: 'center',
     marginTop: spacing.xl,
   },

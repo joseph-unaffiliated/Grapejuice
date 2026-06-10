@@ -22,6 +22,8 @@ export const kidSemantic = {
   border: 'rgba(255,255,255,0.12)',
   borderCard: 'rgba(255,255,255,0.2)',
   goldMuted: colors.goldMuted,
+  textInverse: colors.text.inverse,
+  accentCream: colors.purple[400],
 } as const;
 
 export type SemanticColors = typeof parentSemantic | typeof kidSemantic;

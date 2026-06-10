@@ -11,16 +11,18 @@ export type MainTabsParamList = {
   Home: undefined;
   Rav: { initialMessage?: string } | undefined;
   Account: undefined;
+  Box: undefined;
 };
 
 export type MainStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabsParamList> | undefined;
   MyBox: undefined;
   Guide: undefined;
+  KidGuide: undefined;
+  Profiles: undefined;
   AlaCarteStore: undefined;
   Checkout: undefined;
   OrderConfirmation: { orderId: string };
-  KidsVote: undefined;
   Reflection: undefined;
 };
 

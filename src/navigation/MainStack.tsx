@@ -7,15 +7,31 @@ import { WebDesktopFrame } from '../components/layout/WebDesktopFrame';
 import { MainTabs } from './MainTabs';
 import { MyBoxScreen } from '../screens/main/MyBoxScreen';
 import { GuideScreen } from '../screens/main/GuideScreen';
+import { KidGuideScreen } from '../screens/kids/KidGuideScreen';
 import { AlaCarteStoreScreen } from '../screens/main/AlaCarteStoreScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
-import { KidsVoteScreen } from '../screens/main/KidsVoteScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
+import { ProfilesScreen } from '../screens/profiles/ProfilesScreen';
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
+import { useGuestSessionStore } from '../stores/guestSessionStore';
 
 const Stack = createStackNavigator<MainStackParamList>();
+
+function GuestBoxRevealHandler() {
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const openMyBoxAfterReveal = useGuestSessionStore((s) => s.openMyBoxAfterReveal);
+  const consumeOpenMyBoxAfterReveal = useGuestSessionStore((s) => s.consumeOpenMyBoxAfterReveal);
+
+  useEffect(() => {
+    if (!openMyBoxAfterReveal) return;
+    consumeOpenMyBoxAfterReveal();
+    navigation.navigate('MyBox');
+  }, [openMyBoxAfterReveal, consumeOpenMyBoxAfterReveal, navigation]);
+
+  return null;
+}
 
 function AuthReturnHandler() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
@@ -33,6 +49,21 @@ function AuthReturnHandler() {
     if (pendingReturn === 'Rav') {
       clearPending();
       navigation.navigate('MainTabs', { screen: 'Rav' });
+      return;
+    }
+    if (pendingReturn === 'Account') {
+      clearPending();
+      navigation.navigate('MainTabs', { screen: 'Account' });
+      return;
+    }
+    if (pendingReturn === 'Profiles') {
+      clearPending();
+      navigation.navigate('Profiles');
+      return;
+    }
+    if (pendingReturn === 'MyBox') {
+      clearPending();
+      navigation.navigate('MyBox');
     }
   }, [isAuthenticated, pendingReturn, clearPending, navigation]);
 
@@ -42,15 +73,17 @@ function AuthReturnHandler() {
 export function MainStack() {
   return (
     <WebDesktopFrame>
+      <GuestBoxRevealHandler />
       <AuthReturnHandler />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="MyBox" component={MyBoxScreen} />
         <Stack.Screen name="Guide" component={GuideScreen} />
+        <Stack.Screen name="KidGuide" component={KidGuideScreen} />
         <Stack.Screen name="AlaCarteStore" component={AlaCarteStoreScreen} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
-        <Stack.Screen name="KidsVote" component={KidsVoteScreen} />
+        <Stack.Screen name="Profiles" component={ProfilesScreen} />
         <Stack.Screen name="Reflection" component={ReflectionFlowScreen} />
       </Stack.Navigator>
     </WebDesktopFrame>

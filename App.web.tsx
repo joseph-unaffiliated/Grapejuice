@@ -4,6 +4,7 @@ import { Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { TypographyProvider } from './src/components/ui/TypographyProvider';
 
 /** On web, zero safe-area insets — avoids extra bottom margin below the tab bar. */
 const { width = 0, height = 0 } = Dimensions.get('window');
@@ -16,8 +17,10 @@ const webInitialMetrics = {
 export default function App() {
   return (
     <SafeAreaProvider initialMetrics={webInitialMetrics}>
-      <StatusBar style="dark" />
-      <RootNavigator />
+      <TypographyProvider>
+        <StatusBar style="dark" />
+        <RootNavigator />
+      </TypographyProvider>
     </SafeAreaProvider>
   );
 }

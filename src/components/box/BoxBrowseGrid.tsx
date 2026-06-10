@@ -1,8 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import type { CatalogItem } from '../../types/pilot';
 import { BoxItemImage } from './BoxItemImage';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography, borderRadius } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 
 type Props = {
   title: string;
@@ -19,6 +21,9 @@ function itemMeta(item: CatalogItem): string {
 }
 
 export function BoxBrowseGrid({ title, items, locked, formatPrice, onAdd, onSwapIn }: Props) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createBrowseGridStyles(colors), [colors]);
+
   if (!items.length) return null;
 
   return (
@@ -68,40 +73,42 @@ export function BoxBrowseGrid({ title, items, locked, formatPrice, onAdd, onSwap
 
 const CARD_WIDTH = '48%';
 
-const styles = StyleSheet.create({
-  block: { marginTop: spacing.lg, gap: spacing.md },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: semanticColors.goldMuted,
-    width: '100%',
-  },
-  header: { alignItems: 'center', gap: 4 },
-  title: { fontSize: typography.md, fontWeight: '600', textAlign: 'center' },
-  subtitle: { fontSize: typography.sm, fontWeight: '200', color: semanticColors.textSecondary, textAlign: 'center' },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: spacing.lg,
-  },
-  card: { width: CARD_WIDTH, gap: 4 },
-  image: { width: '100%', borderRadius: borderRadius.md },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.xs },
-  chip: {
-    borderWidth: 0.5,
-    borderColor: semanticColors.goldMuted,
-    borderRadius: borderRadius.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    backgroundColor: semanticColors.bgPrimary,
-  },
-  chipText: {
-    fontSize: 9,
-    color: semanticColors.textPrimary,
-    fontWeight: '500',
-    textTransform: 'lowercase',
-  },
-  meta: { fontSize: typography.sm, color: semanticColors.goldMuted, marginTop: 4 },
-  name: { fontSize: typography.md, fontWeight: '600', color: semanticColors.textPrimary },
-  desc: { fontSize: typography.sm, color: semanticColors.textSecondary, lineHeight: 16 },
-});
+function createBrowseGridStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    block: { marginTop: spacing.lg, gap: spacing.md },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.goldMuted,
+      width: '100%',
+    },
+    header: { alignItems: 'center', gap: 4 },
+    title: { fontSize: typography.md, fontWeight: '600', textAlign: 'center' },
+    subtitle: { fontSize: typography.sm, fontWeight: '200', color: colors.textSecondary, textAlign: 'center' },
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      rowGap: spacing.lg,
+    },
+    card: { width: CARD_WIDTH, gap: 4 },
+    image: { width: '100%', borderRadius: borderRadius.md },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.xs },
+    chip: {
+      borderWidth: 0.5,
+      borderColor: colors.goldMuted,
+      borderRadius: borderRadius.pill,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      backgroundColor: colors.bgPrimary,
+    },
+    chipText: {
+      fontSize: typography.sm,
+      fontWeight: '200',
+      color: colors.textPrimary,
+      textTransform: 'lowercase',
+    },
+    meta: { fontSize: typography.sm, color: colors.goldMuted, marginTop: 4 },
+    name: { fontSize: typography.md, fontWeight: '600', color: colors.textPrimary },
+    desc: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 16 },
+  });
+}

@@ -14,8 +14,11 @@ type Props = {
 };
 
 export function AuthStack({ checkoutAuth = false }: Props) {
+  const authScreen = useAuthFlowStore((s) => s.authScreen);
   const authEntry = useAuthFlowStore((s) => s.authEntry);
-  const initialRoute = checkoutAuth ? (authEntry === 'signin' ? 'SignIn' : 'SignUp') : 'Welcome';
+  const initialRoute = checkoutAuth
+    ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
+    : 'Welcome';
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>

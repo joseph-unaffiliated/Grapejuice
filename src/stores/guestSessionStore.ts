@@ -28,6 +28,8 @@ type GuestSessionState = {
   ravNotes: string;
   onboardingComplete: boolean;
   boxRevealComplete: boolean;
+  /** After guest reveal, open My Box once in main app */
+  openMyBoxAfterReveal: boolean;
   hiddenHolidays: string[];
   interests: string[];
   interestEmail: string;
@@ -40,6 +42,7 @@ type GuestSessionState = {
   setLineItems: (items: BoxLineItem[]) => void;
   completeOnboarding: () => void;
   completeBoxReveal: () => void;
+  consumeOpenMyBoxAfterReveal: () => void;
   toggleInterest: (interest: string) => void;
   setInterestEmail: (email: string) => void;
   toggleHiddenHoliday: (holidayId: string) => void;
@@ -58,6 +61,7 @@ const initialState = {
   ravNotes: '',
   onboardingComplete: false,
   boxRevealComplete: false,
+  openMyBoxAfterReveal: false,
   hiddenHolidays: [] as string[],
   interests: [] as string[],
   interestEmail: '',
@@ -79,7 +83,8 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       setRavNotes: (ravNotes) => set({ ravNotes }),
       setLineItems: (lineItems) => set({ lineItems }),
       completeOnboarding: () => set({ onboardingComplete: true }),
-      completeBoxReveal: () => set({ boxRevealComplete: true }),
+      completeBoxReveal: () => set({ boxRevealComplete: true, openMyBoxAfterReveal: true }),
+      consumeOpenMyBoxAfterReveal: () => set({ openMyBoxAfterReveal: false }),
       toggleInterest: (interest) => {
         const current = get().interests;
         set({
@@ -114,6 +119,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         ravNotes: state.ravNotes,
         onboardingComplete: state.onboardingComplete,
         boxRevealComplete: state.boxRevealComplete,
+        openMyBoxAfterReveal: state.openMyBoxAfterReveal,
         hiddenHolidays: state.hiddenHolidays,
         interests: state.interests,
         interestEmail: state.interestEmail,

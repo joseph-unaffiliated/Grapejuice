@@ -11,6 +11,20 @@ import {
 import { persistGuestToAccount } from '../services/guest/persistGuestToAccount';
 
 function getErrorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
+    const code = String((error as { code: unknown }).code);
+    const message = String((error as { message: unknown }).message);
+    if (code === 'auth/popup-blocked') {
+      return 'Google sign-in popup was blocked. Allow popups for localhost or use email sign-in.';
+    }
+    if (code === 'auth/unauthorized-domain') {
+      return 'This domain is not authorized for Google sign-in. Add localhost in Firebase Console → Authentication → Settings → Authorized domains.';
+    }
+    if (code === 'auth/internal-error') {
+      return 'Google sign-in failed (auth/internal-error). Check the browser console for CSP or API-key errors, confirm Google is enabled in Firebase Auth, and try email sign-in on localhost.';
+    }
+    return message;
+  }
   if (error instanceof Error) return error.message;
   return 'An unexpected error occurred';
 }

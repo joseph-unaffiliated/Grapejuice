@@ -33,6 +33,7 @@ import {
   faPlus,
   faPaperPlane,
   faArrowUp,
+  faThumbsUp,
 } from '@fortawesome/free-solid-svg-icons';
 
 export const icons = {
@@ -67,6 +68,7 @@ export const icons = {
   plus: faPlus,
   paperPlane: faPaperPlane,
   arrowUp: faArrowUp,
+  thumbsUp: faThumbsUp,
 } as const;
 
 export type IconName = keyof typeof icons;

@@ -3,16 +3,17 @@ import { View, TextInput, StyleSheet, Platform } from 'react-native';
 import {
   borderRadius,
   MOBILE_GUTTER,
-  semanticColors,
   shadows,
   shadowsWeb,
   spacing,
   typography,
+  typeface,
 } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
 
 const LINE = typography.lg;
-/** Figma 366:1762 / 370:2952 — 12px pad + 13px type */
-export const SEARCH_PILL_HEIGHT = spacing.sm * 2 + LINE;
+/** Figma 366:1762 — 37px pill height */
+export const SEARCH_PILL_HEIGHT = 37;
 
 type Props = {
   value: string;
@@ -29,18 +30,25 @@ export function SearchPill({
   placeholder = 'Search or ask a question',
   returnKeyType = 'search',
 }: Props) {
+  const { colors } = useThemeMode();
   const hasText = value.trim().length > 0;
   const pillStyle = [
     styles.pill,
+    { backgroundColor: colors.bgPrimary },
     Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm } : shadows.goldGlow,
   ];
 
   return (
     <View style={pillStyle}>
       <TextInput
-        style={[styles.input, !hasText && styles.inputCentered, hasText && styles.inputActive]}
+        style={[
+          styles.input,
+          { color: colors.textPrimary },
+          !hasText && styles.inputCentered,
+          hasText && styles.inputActive,
+        ]}
         placeholder={placeholder}
-        placeholderTextColor={semanticColors.textPrimary}
+        placeholderTextColor={colors.textPrimary}
         value={value}
         onChangeText={onChangeText}
         onSubmitEditing={onSubmitEditing}
@@ -58,7 +66,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: semanticColors.bgPrimary,
     borderRadius: borderRadius.pill,
     paddingHorizontal: MOBILE_GUTTER,
   },
@@ -67,10 +74,10 @@ const styles = StyleSheet.create({
     fontSize: LINE,
     lineHeight: LINE,
     height: LINE,
-    color: semanticColors.textPrimary,
     padding: 0,
     margin: 0,
     letterSpacing: -0.26,
+    ...typeface('regular'),
     ...(Platform.OS === 'web'
       ? ({ outlineStyle: 'none', border: 'none', backgroundColor: 'transparent' } as object)
       : { includeFontPadding: false, textAlignVertical: 'center' }),

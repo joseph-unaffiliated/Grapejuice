@@ -4,30 +4,45 @@ import { useNavigationState } from '@react-navigation/native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { useThemeMode } from '../../context/ThemeContext';
-import { LAYOUT, spacing, typography, shadowsWeb } from '../../constants/theme';
-import type { MainTabsParamList, MainStackParamList } from '../../navigation/types';
-import { navigateMainTab, navigateMainStack } from '../../navigation/mainStackNavigation';
+import { useActiveProfile } from '../../context/ActiveProfileContext';
+import { spacing, typography, shadowsWeb } from '../../constants/theme';
+import type { MainTabsParamList } from '../../navigation/types';
+import { navigateMainTab } from '../../navigation/mainStackNavigation';
 
 type TabName = keyof MainTabsParamList;
 
-const NAV_ITEMS: {
-  name: TabName | 'Guide';
+const PARENT_NAV: {
+  name: TabName;
   label: string;
   icon: (typeof icons)[keyof typeof icons];
-  stack?: keyof MainStackParamList;
 }[] = [
   { name: 'Home', label: 'Home', icon: icons.explosion },
   { name: 'Rav', label: 'Rav', icon: icons.childReaching },
-  { name: 'Guide', label: 'Guide', icon: icons.book, stack: 'Guide' },
   { name: 'Account', label: 'Account', icon: icons.fingerprint },
 ];
+
+function childNav(ravEnabled: boolean) {
+  const items: typeof PARENT_NAV = [
+    { name: 'Home', label: 'Home', icon: icons.explosion },
+    { name: 'Box', label: 'My picks', icon: icons.boxOpen },
+  ];
+  if (ravEnabled) {
+    items.push({ name: 'Rav', label: 'Rav', icon: icons.childReaching });
+  }
+  return items;
+}
 
 function resolveActiveTab(state: ReturnType<typeof useNavigationState> | undefined): TabName | null {
   if (!state) return null;
   let current = state;
   while (current) {
     const route = current.routes[current.index ?? 0];
-    if (route.name === 'Home' || route.name === 'Rav' || route.name === 'Account') {
+    if (
+      route.name === 'Home' ||
+      route.name === 'Rav' ||
+      route.name === 'Account' ||
+      route.name === 'Box'
+    ) {
       return route.name as TabName;
     }
     if (route.state) {
@@ -43,8 +58,10 @@ type Props = { width: number };
 
 export function WebDesktopNav({ width }: Props) {
   const { colors } = useThemeMode();
+  const { isChildProfile, ravEnabledForActiveChild } = useActiveProfile();
   const navState = useNavigationState((s) => s);
   const activeTab = useMemo(() => resolveActiveTab(navState), [navState]);
+  const navItems = isChildProfile ? childNav(ravEnabledForActiveChild) : PARENT_NAV;
 
   return (
     <View
@@ -61,12 +78,12 @@ export function WebDesktopNav({ width }: Props) {
     >
       <Text style={[styles.brand, { color: colors.textPrimary }]}>Grapejuice</Text>
       <View style={styles.nav}>
-        {NAV_ITEMS.map(({ name, label, icon, stack }) => {
-          const focused = stack ? false : activeTab === name;
+        {navItems.map(({ name, label, icon }) => {
+          const focused = activeTab === name;
           return (
             <TouchableOpacity
               key={name}
-              onPress={() => (stack ? navigateMainStack(stack) : navigateMainTab(name as TabName))}
+              onPress={() => navigateMainTab(name)}
               style={[styles.item, focused && { backgroundColor: colors.brandLight }]}
               accessibilityRole="button"
               accessibilityState={{ selected: focused }}

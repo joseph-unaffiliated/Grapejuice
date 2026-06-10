@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, type ViewStyle, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
-import { spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
+import { MOBILE_GUTTER, spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
 import { BRAND_BYLINE } from '../../constants/themeMode';
 
 export function ScreenShell({
@@ -54,7 +54,7 @@ export function ScreenShell({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: spacing.md },
+  root: { flex: 1, paddingHorizontal: MOBILE_GUTTER },
   headerBlock: { flex: 1 },
   authCard: {
     maxWidth: 440,

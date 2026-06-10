@@ -1,10 +1,12 @@
 import React from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { MOBILE_GUTTER, semanticColors, shadows, TAB_NAV } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import { MOBILE_GUTTER, shadows, TAB_NAV } from '../../constants/theme';
 
 /** Figma 366:1799 — icons vertically centered in padded footer row. */
 export function PilotTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+  const { colors } = useThemeMode();
   const bottomInset = Platform.OS === 'web' ? 0 : Math.max(insets.bottom, 0);
 
   return (
@@ -14,6 +16,8 @@ export function PilotTabBar({ state, descriptors, navigation, insets }: BottomTa
         {
           paddingTop: TAB_NAV.padTop,
           paddingBottom: TAB_NAV.padBottom + bottomInset,
+          backgroundColor: colors.bgPrimary,
+          borderTopColor: colors.border,
         },
         Platform.OS === 'web' ? styles.barWeb : shadows.goldGlow,
       ]}
@@ -23,8 +27,8 @@ export function PilotTabBar({ state, descriptors, navigation, insets }: BottomTa
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
           const color = isFocused
-            ? options.tabBarActiveTintColor ?? semanticColors.textPrimary
-            : options.tabBarInactiveTintColor ?? semanticColors.goldMuted;
+            ? options.tabBarActiveTintColor ?? colors.textPrimary
+            : options.tabBarInactiveTintColor ?? colors.goldMuted;
 
           const onPress = () => {
             const event = navigation.emit({
@@ -66,9 +70,7 @@ export function PilotTabBar({ state, descriptors, navigation, insets }: BottomTa
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: semanticColors.bgPrimary,
     borderTopWidth: 1,
-    borderTopColor: semanticColors.border,
     paddingHorizontal: MOBILE_GUTTER,
     alignItems: 'center',
     justifyContent: 'center',

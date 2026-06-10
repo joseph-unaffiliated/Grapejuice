@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { AgeGroup, BeamStatus, ChildProfile } from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
@@ -24,6 +24,7 @@ function toChild(id: string, data: Record<string, unknown>): ChildProfile {
     hebrewName: typeof data.hebrewName === 'string' ? data.hebrewName : undefined,
     barMitzvahDate: typeof data.barMitzvahDate === 'string' ? data.barMitzvahDate : undefined,
     beamStatus: parseBeamStatus(data.beamStatus),
+    ravEnabled: data.ravEnabled === true,
   };
 }
 
@@ -55,10 +56,23 @@ export const childrenService = {
         hebrewName: child.hebrewName ?? null,
         barMitzvahDate: child.barMitzvahDate ?? null,
         beamStatus: child.beamStatus ?? 'not_eligible',
+        ravEnabled: child.ravEnabled === true,
       };
       await setDoc(ref, payload);
-      saved.push({ id: ref.id, ...child, birthdate: birthdate ?? undefined, beamStatus: child.beamStatus ?? 'not_eligible' });
+      saved.push({
+        id: ref.id,
+        ...child,
+        birthdate: birthdate ?? undefined,
+        beamStatus: child.beamStatus ?? 'not_eligible',
+        ravEnabled: child.ravEnabled === true,
+      });
     }
     return saved;
+  },
+
+  async updateRavEnabled(userId: string, childId: string, ravEnabled: boolean): Promise<void> {
+    if (!db) throw new Error('Firestore not configured');
+    await ensureAuthTokenReady(userId);
+    await updateDoc(doc(db, 'users', userId, 'children', childId), { ravEnabled });
   },
 };

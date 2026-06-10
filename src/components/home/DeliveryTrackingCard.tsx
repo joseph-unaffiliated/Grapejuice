@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import type { DeliveryTimelineStep } from '../../types/pilot';
-import { semanticColors, spacing, typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
+import { spacing, typography, shadows, shadowsWeb } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 
 type Props = {
   title: string;
@@ -10,6 +12,8 @@ type Props = {
 };
 
 export function DeliveryTrackingCard({ title, subtitle, steps }: Props) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createDeliveryStyles(colors), [colors]);
   const cardStyle = [
     styles.card,
     Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow,
@@ -45,36 +49,33 @@ export function DeliveryTrackingCard({ title, subtitle, steps }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    backgroundColor: semanticColors.bgPrimary,
-  },
-  title: { fontSize: typography.titleLg, fontWeight: '600', color: semanticColors.textPrimary },
-  subtitle: { fontSize: typography.sm, fontWeight: '200', color: semanticColors.goldMuted, marginTop: spacing.xs },
-  timeline: { marginTop: spacing.md, gap: 0 },
-  stepRow: { flexDirection: 'row', minHeight: 48 },
-  stepRail: { width: 20, alignItems: 'center' },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: semanticColors.border,
-    backgroundColor: semanticColors.bgPrimary,
-  },
-  dotCompleted: { borderColor: semanticColors.goldMuted, backgroundColor: semanticColors.goldMuted },
-  dotActive: { borderColor: semanticColors.brand, backgroundColor: semanticColors.brand },
-  line: {
-    flex: 1,
-    width: 2,
-    backgroundColor: semanticColors.border,
-    marginVertical: 2,
-  },
-  lineCompleted: { backgroundColor: semanticColors.goldMuted },
-  stepBody: { flex: 1, paddingBottom: spacing.sm, paddingLeft: spacing.sm },
-  stepLabel: { fontSize: typography.md, color: semanticColors.textSecondary, fontWeight: '500' },
-  stepLabelActive: { color: semanticColors.textPrimary, fontWeight: '600' },
-  stepDetail: { fontSize: typography.sm, color: semanticColors.textTertiary, marginTop: 2, lineHeight: 16 },
-});
+function createDeliveryStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    card: {
+      padding: spacing.lg,
+      borderRadius: 16,
+      backgroundColor: colors.bgPrimary,
+    },
+    title: { fontSize: typography.titleLg, fontWeight: '600', color: colors.textPrimary },
+    subtitle: { fontSize: typography.sm, fontWeight: '200', color: colors.goldMuted, marginTop: spacing.xs },
+    timeline: { marginTop: spacing.md, gap: 0 },
+    stepRow: { flexDirection: 'row', minHeight: 48 },
+    stepRail: { width: 20, alignItems: 'center' },
+    dot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      borderWidth: 2,
+      borderColor: colors.goldMuted,
+      backgroundColor: colors.bgPrimary,
+    },
+    dotCompleted: { backgroundColor: colors.brand, borderColor: colors.brand },
+    dotActive: { borderColor: colors.brand, backgroundColor: colors.bgPrimary },
+    line: { flex: 1, width: 2, backgroundColor: colors.border, marginVertical: 2 },
+    lineCompleted: { backgroundColor: colors.brand },
+    stepBody: { flex: 1, paddingLeft: spacing.sm, paddingBottom: spacing.sm },
+    stepLabel: { fontSize: typography.lg, color: colors.goldMuted, fontWeight: '400' },
+    stepLabelActive: { color: colors.textPrimary, fontWeight: '600' },
+    stepDetail: { fontSize: typography.sm, color: colors.textSecondary, marginTop: 2 },
+  });
+}

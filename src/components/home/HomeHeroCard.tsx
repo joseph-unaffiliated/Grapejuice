@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import { HERO_STACKED_CARDS, HERO_STACKED_CARDS_SM } from '../../constants/homeImages';
-import { semanticColors, spacing, typography, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import { spacing, typography, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 
 type Props = {
   title: string;
@@ -16,19 +17,25 @@ const HERO_INNER_PAD = 16;
 const SHADOW_BLEED = 8;
 const HERO_HEIGHT = 194;
 const STACK_HEIGHT = 148;
-const SHADOW =
-  Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlow } as object) : shadows.goldGlow;
 
 /** Figma 370:3426 — copy then stack in column; card clips overflow. */
 export function HomeHeroCard({ title, subtitle, compact = false, onPress }: Props) {
+  const { colors } = useThemeMode();
+  const shadow =
+    Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlow } as object) : shadows.goldGlow;
+
   if (compact) {
     return (
       <View style={styles.shadowWrap}>
-        <TouchableOpacity style={[styles.card, styles.cardCompact, SHADOW]} onPress={onPress} activeOpacity={0.92}>
+        <TouchableOpacity
+          style={[styles.card, styles.cardCompact, { backgroundColor: colors.bgPrimary }, shadow]}
+          onPress={onPress}
+          activeOpacity={0.92}
+        >
           <View style={styles.row}>
             <View style={styles.copyLeft}>
-              <Text style={styles.titleCompact}>{title}</Text>
-              <Text style={styles.subtitle}>{subtitle}</Text>
+              <Text style={[styles.titleCompact, { color: colors.textPrimary }]}>{title}</Text>
+              <Text style={[styles.subtitle, { color: colors.textPrimary }]}>{subtitle}</Text>
             </View>
             <Image
               source={HERO_STACKED_CARDS_SM}
@@ -44,10 +51,14 @@ export function HomeHeroCard({ title, subtitle, compact = false, onPress }: Prop
 
   return (
     <View style={styles.shadowWrap}>
-      <TouchableOpacity style={[styles.card, SHADOW]} onPress={onPress} activeOpacity={0.92}>
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: colors.bgPrimary }, shadow]}
+        onPress={onPress}
+        activeOpacity={0.92}
+      >
         <View style={styles.copyBlock}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+          <Text style={[styles.subtitle, { color: colors.textPrimary }]}>{subtitle}</Text>
         </View>
         <View style={styles.stackWrap}>
           <Image
@@ -72,7 +83,6 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     height: HERO_HEIGHT,
-    backgroundColor: semanticColors.bgPrimary,
     borderRadius: 16,
     overflow: 'hidden',
     flexDirection: 'column',
@@ -122,20 +132,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.titleLg,
     fontWeight: '400',
-    color: semanticColors.textPrimary,
     letterSpacing: -0.32,
     textAlign: 'center',
   },
   titleCompact: {
     fontSize: typography.lg,
     fontWeight: '400',
-    color: semanticColors.textPrimary,
     letterSpacing: -0.26,
   },
   subtitle: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.textPrimary,
     letterSpacing: -0.22,
   },
   stackSm: { width: 72, height: 71 },

@@ -9,6 +9,8 @@ export type AskRavParams = {
   boxDraftSummary?: string;
   /** Rav mode — defaults to facilitator (Grapejuice holiday guide). */
   mode?: RavMode;
+  /** Required for facilitator_kid mode. */
+  childId?: string;
 };
 
 export type AskRavResult = {

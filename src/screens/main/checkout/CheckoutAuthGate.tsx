@@ -2,10 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useAuthStore } from '../../stores/authStore';
-import { useAuthFlowStore } from '../../stores/authFlowStore';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
-import type { MainStackParamList } from '../../navigation/types';
+import { useAuthStore } from '../../../stores/authStore';
+import { useAuthFlowStore } from '../../../stores/authFlowStore';
+import { semanticColors, spacing, typography } from '../../../constants/theme';
+import type { MainStackParamList } from '../../../navigation/types';
+import { GrapejuiceButton } from '../../../components/ui/GrapejuiceButton';
 
 type Nav = StackNavigationProp<MainStackParamList, 'Checkout'>;
 
@@ -25,19 +26,19 @@ export function CheckoutAuthGate() {
         picked.
       </Text>
 
-      <TouchableOpacity
-        style={styles.primaryBtn}
+      <GrapejuiceButton
+        label="Create account"
+        variant="filled"
         onPress={() => startAuthForCheckout('signup')}
-      >
-        <Text style={styles.primaryText}>Create account</Text>
-      </TouchableOpacity>
+        style={styles.btn}
+      />
 
-      <TouchableOpacity
-        style={styles.secondaryBtn}
+      <GrapejuiceButton
+        label="Log in"
+        variant="pillOutline"
         onPress={() => startAuthForCheckout('signin')}
-      >
-        <Text style={styles.secondaryText}>Log in</Text>
-      </TouchableOpacity>
+        style={styles.btn}
+      />
     </ScrollView>
   );
 }
@@ -53,15 +54,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingTop: spacing.xxl, paddingBottom: 120 },
   backRow: { marginBottom: spacing.md },
   backLink: { color: semanticColors.brand, fontWeight: '600' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.md },
+  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.md, color: semanticColors.textPrimary },
   body: { fontSize: typography.lg, color: semanticColors.textSecondary, lineHeight: 22, marginBottom: spacing.xl },
-  primaryBtn: {
-    backgroundColor: semanticColors.brand,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-  },
-  primaryText: { fontWeight: '700', color: semanticColors.textInverse, fontSize: typography.lg },
-  secondaryBtn: { marginTop: spacing.md, alignItems: 'center', padding: spacing.md },
-  secondaryText: { color: semanticColors.brand, fontWeight: '600', fontSize: typography.lg },
+  btn: { alignSelf: 'stretch', minWidth: undefined, marginBottom: spacing.md },
 });

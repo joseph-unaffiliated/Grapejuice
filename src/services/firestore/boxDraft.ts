@@ -1,13 +1,19 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { BoxDraft, BoxLineItem } from '../../types/pilot';
+import type { BoxDraft, BoxLineItem, SlotVotes } from '../../types/pilot';
 import { HOLIDAY_ID } from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
+
+function parseSlotVotes(raw: unknown): SlotVotes {
+  if (!raw || typeof raw !== 'object') return {};
+  return raw as SlotVotes;
+}
 
 function toDraft(data: Record<string, unknown>): BoxDraft {
   return {
     holidayId: String(data.holidayId ?? HOLIDAY_ID),
     lineItems: Array.isArray(data.lineItems) ? (data.lineItems as BoxLineItem[]) : [],
+    slotVotes: parseSlotVotes(data.slotVotes),
     familiarityLevel: data.familiarityLevel as BoxDraft['familiarityLevel'],
     updatedAt: String(data.updatedAt ?? ''),
     updatedBy: String(data.updatedBy ?? ''),
@@ -31,7 +37,7 @@ export const boxDraftService = {
     householdId: string,
     uid: string,
     lineItems: BoxLineItem[],
-    extra?: Partial<Pick<BoxDraft, 'familiarityLevel' | 'lockedAt'>>
+    extra?: Partial<Pick<BoxDraft, 'familiarityLevel' | 'lockedAt' | 'slotVotes'>>
   ): Promise<BoxDraft> {
     if (!db) throw new Error('Firestore not configured');
     await ensureAuthTokenReady(uid);
@@ -47,5 +53,13 @@ export const boxDraftService = {
     await setDoc(ref, payload, { merge: true });
     const snap = await getDoc(ref);
     return toDraft(snap.data() as Record<string, unknown>);
+  },
+
+  async saveSlotVotes(householdId: string, uid: string, slotVotes: SlotVotes): Promise<void> {
+    if (!db) throw new Error('Firestore not configured');
+    await ensureAuthTokenReady(uid);
+    const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
+    const now = new Date().toISOString();
+    await setDoc(ref, { slotVotes, updatedAt: now, updatedBy: uid }, { merge: true });
   },
 };

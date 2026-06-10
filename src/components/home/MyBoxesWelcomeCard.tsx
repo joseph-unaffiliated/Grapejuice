@@ -5,7 +5,9 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MyBoxesHolidayRow } from './MyBoxesHolidayRow';
 import { MY_BOXES_HOLIDAYS } from '../../constants/myBoxesHolidays';
 import { useMyBoxesDismissedHolidays } from '../../hooks/useMyBoxesDismissedHolidays';
-import { semanticColors, spacing, typography, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
+import { spacing, typography, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import type { MainTabsParamList } from '../../navigation/types';
 
 type Nav = BottomTabNavigationProp<MainTabsParamList>;
@@ -36,6 +38,8 @@ export function MyBoxesWelcomeCard({
   onPassoverPreregister,
   onPreregisterInterest,
 }: Props) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createWelcomeStyles(colors), [colors]);
   const navigation = useNavigation<Nav>();
   const { dismissed, dismiss, restore, loaded } = useMyBoxesDismissedHolidays();
 
@@ -126,7 +130,8 @@ export function MyBoxesWelcomeCard({
   );
 }
 
-const styles = StyleSheet.create({
+function createWelcomeStyles(colors: SemanticColors) {
+  return StyleSheet.create({
   shadowWrap: {
     overflow: 'visible' as const,
     paddingHorizontal: MOBILE_GUTTER,
@@ -139,7 +144,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: colors.bgPrimary,
     borderRadius: 16,
     paddingHorizontal: CARD_PAD,
     paddingVertical: CARD_SECTION_GAP,
@@ -151,14 +156,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: typography.lg,
     fontWeight: '400',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.26,
     textAlign: 'center',
   },
   headerSub: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.22,
     textAlign: 'center',
   },
@@ -174,8 +179,9 @@ const styles = StyleSheet.create({
   dismissedLabel: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.textSecondary,
+    color: colors.textSecondary,
     letterSpacing: -0.22,
     paddingVertical: 2,
   },
-});
+  });
+}

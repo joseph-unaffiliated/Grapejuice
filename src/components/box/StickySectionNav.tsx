@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
 } from 'react-native';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { BOX_DISPLAY_SECTIONS } from '../../constants/boxDisplaySections';
-import { semanticColors, typography, spacing } from '../../constants/theme';
+import { typography, spacing, MOBILE_GUTTER } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 
 type Props = {
   activeSection: BoxDisplaySectionId;
@@ -18,6 +20,8 @@ type Props = {
 };
 
 export function StickySectionNav({ activeSection, onSelect }: Props) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createNavStyles(colors), [colors]);
   const tabLayouts = useRef<Partial<Record<BoxDisplaySectionId, { x: number; width: number }>>>({});
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorW = useRef(new Animated.Value(0)).current;
@@ -58,7 +62,7 @@ export function StickySectionNav({ activeSection, onSelect }: Props) {
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
             >
-              <Text style={styles.tabText}>{navLabel}</Text>
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{navLabel}</Text>
             </TouchableOpacity>
           );
         })}
@@ -77,38 +81,45 @@ export function StickySectionNav({ activeSection, onSelect }: Props) {
 }
 
 /** Figma 370:3524 — section tab row (sentence case, gold rule + black active bar). */
-const styles = StyleSheet.create({
-  wrap: {
-    paddingVertical: spacing.lg,
-    paddingHorizontal: 8,
-    backgroundColor: semanticColors.bgPrimary,
-    zIndex: 10,
-    ...(Platform.OS === 'web' ? { position: 'sticky' as const, top: 0 } : {}),
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(216,201,144,0.5)',
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 8,
-    minWidth: 0,
-  },
-  tabText: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: semanticColors.textPrimary,
-    letterSpacing: -0.33,
-  },
-  indicator: {
-    position: 'absolute',
-    bottom: 0,
-    height: 1,
-    backgroundColor: semanticColors.textPrimary,
-  },
-});
+function createNavStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    wrap: {
+      paddingVertical: spacing.lg,
+      paddingHorizontal: MOBILE_GUTTER,
+      backgroundColor: colors.bgPrimary,
+      zIndex: 10,
+      ...(Platform.OS === 'web' ? { position: 'sticky' as const, top: 0 } : {}),
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      position: 'relative',
+      borderBottomWidth: 0.5,
+      borderBottomColor: 'rgba(216,201,144,0.5)',
+    },
+    tab: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingBottom: 8,
+      minWidth: 0,
+    },
+    tabText: {
+      fontSize: typography.sm,
+      fontWeight: '200',
+      color: colors.goldMuted,
+      letterSpacing: -0.22,
+      fontFamily: typography.fontFamily.light,
+    },
+    tabTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '400',
+    },
+    indicator: {
+      position: 'absolute',
+      bottom: 0,
+      height: 1,
+      backgroundColor: colors.textPrimary,
+    },
+  });
+}

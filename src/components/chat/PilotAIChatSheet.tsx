@@ -17,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { aiChatService } from '../../services/firestore/aiChat';
+import { kidRavChatService } from '../../services/firestore/kidRavChat';
 import { askRav } from '../../services/rav/askRav';
 import { applyRavDraftActions, summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
 import { getHanukkahConfig } from '../../services/firestore/config';
@@ -24,11 +25,14 @@ import { catalogService } from '../../services/firestore/catalog';
 import { formatHanukkahWelcomeSubtext, formatRelativeTime, formatThreadListDate } from '../../services/hanukkah/dates';
 import type { AIChatMessage, AIChatThreadSummary } from '../../types/aiChat';
 import type { CatalogItem } from '../../types/pilot';
-import { semanticColors, spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER, tabBarTotalHeight } from '../../constants/theme';
+import { spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER, tabBarTotalHeight, typeface } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
+import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { RavBlockRenderer } from './RavBlockRenderer';
 
@@ -40,6 +44,15 @@ type StarterChip = {
   lines: string[];
   message: string;
 };
+
+function buildKidStarterChips(childName: string): StarterChip[] {
+  const name = childName.trim() || 'friend';
+  return [
+    { lines: ['What should we do', 'tonight?'], message: 'What should we do tonight?' },
+    { lines: ['Tell me about', 'Hanukkah candles'], message: 'Tell me about Hanukkah candles' },
+    { lines: [`Hi Rav, I'm ${name}`], message: `Hi Rav, I'm ${name}` },
+  ];
+}
 
 function buildStarterChips(hanukkahStartsOn: string | null): StarterChip[] {
   const countdown = formatHanukkahWelcomeSubtext(hanukkahStartsOn);
@@ -86,10 +99,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   { embedded = true, bottomInset = 0, initialMessage },
   ref
 ) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createPilotStyles(colors), [colors]);
   const user = useAuthStore((s) => s.user);
   const startAuthForRav = useAuthFlowStore((s) => s.startAuthForRav);
   const recordGuestRavPrompt = useGuestSessionStore((s) => s.recordGuestRavPrompt);
   const { lineItems, persist } = useBoxDraft();
+  const { isChildProfile, activeChild, ravEnabledForActiveChild } = useActiveProfile();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -105,10 +121,17 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const initialSent = useRef(false);
   const listRef = useRef<FlatList<AIChatMessage>>(null);
   const isGuest = !user?.uid;
+  const useKidRavThreads =
+    isChildProfile && ravEnabledForActiveChild && !!activeChild?.id && !isGuest;
 
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
   const bottomPad = bottomInset || tabBarHeight;
-  const starterChips = useMemo(() => buildStarterChips(hanukkahStartsOn), [hanukkahStartsOn]);
+  const starterChips = useMemo(() => {
+    if (isChildProfile && ravEnabledForActiveChild) {
+      return buildKidStarterChips(activeChild?.name ?? 'friend');
+    }
+    return buildStarterChips(hanukkahStartsOn);
+  }, [isChildProfile, ravEnabledForActiveChild, activeChild?.name, hanukkahStartsOn]);
   const welcomeSubtext = useMemo(() => formatHanukkahWelcomeSubtext(hanukkahStartsOn), [hanukkahStartsOn]);
   const firstUserIndex = useMemo(() => messages.findIndex((m) => m.role === 'user'), [messages]);
 
@@ -120,19 +143,24 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   }, []);
 
   const refreshThreads = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.uid || useKidRavThreads) return;
     setRecentChats(await aiChatService.listThreads(user.uid));
-  }, [user?.uid]);
+  }, [user?.uid, useKidRavThreads]);
 
   const resetToWelcome = useCallback(() => {
     setMessages([]);
     setError(null);
     setInput('');
-    if (user?.uid) {
-      void refreshThreads();
-      aiChatService.getOrCreateDefaultThread(user.uid).then(({ threadId: id }) => setThreadId(id));
+    if (!user?.uid) return;
+    void refreshThreads();
+    if (useKidRavThreads && activeChild?.id) {
+      kidRavChatService
+        .getOrCreateDefaultThread(user.uid, activeChild.id)
+        .then(({ threadId: id }) => setThreadId(id));
+      return;
     }
-  }, [user?.uid, refreshThreads]);
+    aiChatService.getOrCreateDefaultThread(user.uid).then(({ threadId: id }) => setThreadId(id));
+  }, [user?.uid, refreshThreads, useKidRavThreads, activeChild?.id]);
 
   useEffect(() => {
     getHanukkahConfig().then((c) => setHanukkahStartsOn(c.startsOn ?? null));
@@ -147,13 +175,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       return;
     }
     if (!user?.uid) return;
-    aiChatService.getOrCreateDefaultThread(user.uid).then(({ threadId: id, thread }) => {
+    const loadThread = useKidRavThreads && activeChild?.id
+      ? kidRavChatService.getOrCreateDefaultThread(user.uid, activeChild.id)
+      : aiChatService.getOrCreateDefaultThread(user.uid);
+    loadThread.then(({ threadId: id, thread }) => {
       setThreadId(id);
       setMessages(thread.messages);
       refreshThreads();
       setInitializing(false);
     });
-  }, [isGuest, user?.uid, refreshThreads]);
+  }, [isGuest, user?.uid, refreshThreads, useKidRavThreads, activeChild?.id]);
 
   const addBlockItem = useCallback(
     async (item: CatalogItem) => {
@@ -206,18 +237,25 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       scrollToEnd();
 
       try {
-        if (!isGuest && prior.length === 0) {
-          await aiChatService.updateTitle(user.uid, threadId, titleFromMessage(trimmed));
-          await refreshThreads();
+        if (!isGuest && prior.length === 0 && threadId) {
+          if (useKidRavThreads && activeChild?.id) {
+            await kidRavChatService.updateTitle(user.uid, activeChild.id, threadId, titleFromMessage(trimmed));
+          } else {
+            await aiChatService.updateTitle(user.uid, threadId, titleFromMessage(trimmed));
+            await refreshThreads();
+          }
         }
+        const ravMode = isChildProfile && ravEnabledForActiveChild ? 'facilitator_kid' : undefined;
         const { reply, blocks = [], actions = [] } = await askRav({
           message: trimmed,
           conversationHistory: prior.slice(-MAX_HISTORY_TURNS * 2),
-          boxDraftSummary: summarizeLineItemsForRav(lineItems),
+          boxDraftSummary: ravMode ? undefined : summarizeLineItemsForRav(lineItems),
+          mode: ravMode,
+          childId: ravMode ? activeChild?.id : undefined,
         });
 
         let content = reply;
-        if (actions.length && catalog.length) {
+        if (!ravMode && actions.length && catalog.length) {
           const { lineItems: nextItems, applied } = applyRavDraftActions(actions, lineItems, catalog);
           if (applied.length) {
             await persist(nextItems);
@@ -228,9 +266,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         const assistantMsg: AIChatMessage = { role: 'assistant', content, blocks };
         setMessages((m) => [...m, assistantMsg]);
         setLastActivityAt(new Date());
-        if (!isGuest) {
-          await aiChatService.appendMessages(user.uid, threadId, [userMsg, assistantMsg]);
-          await refreshThreads();
+        if (!isGuest && threadId) {
+          if (useKidRavThreads && activeChild?.id) {
+            await kidRavChatService.appendMessages(user.uid, activeChild.id, threadId, [
+              userMsg,
+              assistantMsg,
+            ]);
+          } else {
+            await aiChatService.appendMessages(user.uid, threadId, [userMsg, assistantMsg]);
+            await refreshThreads();
+          }
         } else if (prior.length >= 1) {
           recordGuestRavPrompt();
         }
@@ -243,7 +288,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads]
   );
 
   React.useImperativeHandle(
@@ -271,7 +316,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     () => recentChats.filter((t) => !(t.id === 'default' && t.title === 'Chat')),
     [recentChats]
   );
-  const hasThreadHistory = !isGuest && historyThreads.length > 0;
+  const hasThreadHistory = !isGuest && !useKidRavThreads && historyThreads.length > 0;
 
   const openThread = useCallback(
     async (threadId: string) => {
@@ -342,7 +387,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {initializing ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={semanticColors.brand} />
+            <ActivityIndicator color={colors.brand} />
           </View>
         ) : showWelcome ? (
           <ScrollView
@@ -367,7 +412,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   hasInput && styles.welcomeInputActive,
                 ]}
                 placeholder="Search or ask a question"
-                placeholderTextColor={semanticColors.textPrimary}
+                placeholderTextColor={colors.textPrimary}
                 value={input}
                 onChangeText={setInput}
                 multiline={hasInput}
@@ -381,9 +426,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color={semanticColors.textPrimary} />
+                    <ActivityIndicator size="small" color={colors.textPrimary} />
                   ) : (
-                    <Icon icon={icons.arrowUp} size={14} color={semanticColors.textPrimary} />
+                    <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
                   )}
                 </TouchableOpacity>
               ) : null}
@@ -440,7 +485,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               }}
               accessibilityLabel="Chat menu"
             >
-              <Icon icon={icons.menu} size={16} color={semanticColors.textPrimary} />
+              <Icon icon={icons.menu} size={16} color={colors.textPrimary} />
             </TouchableOpacity>
 
             <FlatList
@@ -463,14 +508,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 <TextInput
                   style={styles.replyInput}
                   placeholder="Reply to Rav"
-                  placeholderTextColor={semanticColors.goldMuted}
+                  placeholderTextColor={colors.goldMuted}
                   value={input}
                   onChangeText={setInput}
                   multiline
                   fontSize={typography.lg}
                 />
                 <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
-                  <Icon icon={icons.plus} size={12} color={semanticColors.goldMuted} />
+                  <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.pillIconBtn}
@@ -479,9 +524,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   accessibilityLabel="Send message"
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color={semanticColors.textPrimary} />
+                    <ActivityIndicator size="small" color={colors.textPrimary} />
                   ) : (
-                    <Icon icon={icons.arrowUp} size={14} color={semanticColors.textPrimary} />
+                    <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -526,8 +571,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   );
 });
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
+function createPilotStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgPrimary },
   flex: { flex: 1, width: '100%' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   welcome: {
@@ -543,13 +589,13 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 24,
     fontWeight: '400',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.72,
   },
   welcomeSub: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.goldMuted,
+    color: colors.goldMuted,
     letterSpacing: -0.22,
   },
   searchPill: {
@@ -557,7 +603,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: colors.bgPrimary,
     borderRadius: borderRadius.pill,
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.sm,
@@ -566,11 +612,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: typography.lg,
     lineHeight: WELCOME_SEARCH_LINE_HEIGHT,
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     paddingVertical: 0,
     paddingHorizontal: 0,
     margin: 0,
     letterSpacing: -0.26,
+    ...typeface('regular'),
     ...(Platform.OS === 'web'
       ? ({ outlineStyle: 'none', height: WELCOME_SEARCH_LINE_HEIGHT } as object)
       : { includeFontPadding: false, textAlignVertical: 'center' }),
@@ -599,14 +646,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: spacing.md,
   },
-  recentTitle: { fontSize: typography.sm, fontWeight: '400', color: semanticColors.textPrimary },
-  viewAll: { fontSize: typography.sm, fontWeight: '200', color: semanticColors.goldMuted },
+  recentTitle: { fontSize: typography.sm, fontWeight: '400', color: colors.textPrimary },
+  viewAll: { fontSize: typography.sm, fontWeight: '200', color: colors.goldMuted },
   recentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 0.5,
-    borderColor: semanticColors.goldMuted,
+    borderColor: colors.goldMuted,
     borderRadius: borderRadius.chip,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -616,18 +663,18 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: typography.sm,
     fontWeight: '400',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
   },
   recentRowDate: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.goldMuted,
+    color: colors.goldMuted,
     opacity: 0.5,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
   chip: {
     borderWidth: 0.5,
-    borderColor: semanticColors.goldMuted,
+    borderColor: colors.goldMuted,
     borderRadius: borderRadius.chip,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -636,7 +683,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     letterSpacing: -0.22,
     lineHeight: 16,
@@ -649,14 +696,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: colors.bgPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   userChipWrap: { alignItems: 'flex-end' },
   userChip: {
     borderWidth: 0.5,
-    borderColor: semanticColors.brand,
+    borderColor: colors.brand,
     borderRadius: borderRadius.chip,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -664,7 +711,7 @@ const styles = StyleSheet.create({
   },
   userChipText: {
     fontSize: typography.lg,
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     letterSpacing: -0.26,
   },
@@ -672,14 +719,14 @@ const styles = StyleSheet.create({
   userReplyText: {
     fontSize: typography.lg,
     fontWeight: '400',
-    color: semanticColors.goldMuted,
+    color: colors.goldMuted,
     lineHeight: 20,
     letterSpacing: -0.39,
   },
   assistantWrap: { paddingRight: spacing.xl },
   assistantText: {
     fontSize: typography.lg,
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     lineHeight: 20,
     letterSpacing: -0.39,
   },
@@ -688,12 +735,12 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.goldMuted,
+    color: colors.goldMuted,
     letterSpacing: -0.22,
   },
   saveChip: {
     borderWidth: 0.5,
-    borderColor: semanticColors.brand,
+    borderColor: colors.brand,
     borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
@@ -701,7 +748,7 @@ const styles = StyleSheet.create({
   saveChipWide: {
     marginTop: spacing.md,
     borderWidth: 0.5,
-    borderColor: semanticColors.brand,
+    borderColor: colors.brand,
     borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -710,7 +757,7 @@ const styles = StyleSheet.create({
   saveChipText: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.22,
   },
   inputBar: {
@@ -720,7 +767,7 @@ const styles = StyleSheet.create({
   replyPill: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: colors.bgPrimary,
     borderRadius: 20,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -730,34 +777,36 @@ const styles = StyleSheet.create({
   replyInput: {
     flex: 1,
     fontSize: typography.lg,
-    color: semanticColors.textPrimary,
+    color: colors.textPrimary,
     maxHeight: 180,
     paddingVertical: spacing.xs,
+    ...typeface('regular'),
   },
   pillIconBtn: {
     paddingBottom: 4,
     paddingHorizontal: 2,
   },
-  error: { color: semanticColors.error, fontSize: typography.sm, padding: spacing.md, textAlign: 'center' },
+  error: { color: colors.error, fontSize: typography.sm, padding: spacing.md, textAlign: 'center' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: colors.bgPrimary,
     borderTopLeftRadius: borderRadius.xxl,
     borderTopRightRadius: borderRadius.xxl,
     padding: spacing.lg,
     maxHeight: '60%',
   },
   modalTitle: { fontSize: typography.titleLg, fontWeight: '700', marginBottom: spacing.md },
-  modalHint: { fontSize: typography.sm, color: semanticColors.textSecondary, marginBottom: spacing.md },
+  modalHint: { fontSize: typography.sm, color: colors.textSecondary, marginBottom: spacing.md },
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: semanticColors.border,
+    borderColor: colors.border,
     gap: spacing.sm,
   },
-  historyRowTitle: { flex: 1, fontSize: typography.md, color: semanticColors.textPrimary },
-  historyRowDate: { fontSize: typography.sm, fontWeight: '200', color: semanticColors.goldMuted, opacity: 0.5 },
-});
+  historyRowTitle: { flex: 1, fontSize: typography.md, color: colors.textPrimary },
+  historyRowDate: { fontSize: typography.sm, fontWeight: '200', color: colors.goldMuted, opacity: 0.5 },
+  });
+}
