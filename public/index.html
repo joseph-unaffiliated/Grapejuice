@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://*.google.com https://use.typekit.net https://js.stripe.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://accounts.google.com https://api.unsplash.com https://api.stripe.com https://*.stripe.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app https://js.stripe.com https://hooks.stripe.com; img-src 'self' data: https://images.unsplash.com https://placehold.co https://*.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net; font-src 'self' https://fonts.gstatic.com https://use.typekit.net;" />
+    <title>Grapejuice</title>
+    <style id="expo-reset">
+      html, body { height: 100%; margin: 0; }
+      body {
+        overflow: auto;
+        background: #ffffff;
+      }
+      #root {
+        display: flex;
+        min-height: 100%;
+        width: 100%;
+        flex: 1;
+      }
+      #root input:focus,
+      #root textarea:focus {
+        outline: none;
+      }
+      #main-tab-bar button:focus,
+      #main-tab-bar [role="button"]:focus,
+      #main-tab-bar a:focus,
+      #main-tab-bar *:focus,
+      #root [data-testid="main-tab-bar"] button:focus,
+      #root [data-testid="main-tab-bar"] [role="button"]:focus,
+      #root [data-testid="main-tab-bar"] a:focus,
+      #root [data-testid="main-tab-bar"] *:focus,
+      #root [role="tab"]:focus {
+        outline: none !important;
+      }
+      #root,
+      #root > div {
+        overflow: visible !important;
+      }
+      /* RN Web horizontal ScrollView clips vertical shadow bleed unless overflow-y stays visible */
+      #root div[style*="overflow-x: auto"],
+      #root div[style*="overflow-x: scroll"],
+      #root div[style*="overflow: auto"] {
+        overflow-y: visible !important;
+      }
+      #main-tab-bar button,
+      #main-tab-bar [role="button"],
+      #root [data-testid="main-tab-bar"] button,
+      #root [data-testid="main-tab-bar"] [role="button"] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        margin: 0;
+        min-height: 0;
+        border: none;
+        background: transparent;
+        line-height: 0;
+      }
+    </style>
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,400&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

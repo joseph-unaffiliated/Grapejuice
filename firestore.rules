@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    function isHouseholdMember(householdId) {
+      return signedIn() &&
+        request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.memberIds;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isUser(userId);
+      match /children/{childId} {
+        allow read, write: if isUser(userId);
+      }
+      match /aiChats/{threadId} {
+        allow read, write: if isUser(userId);
+      }
+      match /reflection/{holidayId} {
+        allow read, write: if isUser(userId);
+      }
+    }
+
+    match /households/{householdId} {
+      allow read: if isHouseholdMember(householdId);
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isHouseholdMember(householdId);
+      match /boxDrafts/{holidayId} {
+        allow read, write: if isHouseholdMember(householdId);
+      }
+      match /orders/{orderId} {
+        allow read: if isHouseholdMember(householdId);
+        allow write: if false;
+      }
+      match /partnerInvites/{inviteId} {
+        allow read, write: if isHouseholdMember(householdId);
+      }
+    }
+
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /content/{holidayId} {
+      allow read: if true;
+      match /nights/{nightId} {
+        allow read: if true;
+      }
+    }
+
+    match /catalog/{holidayId}/items/{itemId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /waitlist/{entryId} {
+      allow create: if signedIn();
+      allow read, update: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

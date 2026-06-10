@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your Grapejuice order is confirmed</title>
+</head>
+<body style="margin:0;padding:0;background-color:#fafafa;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fafafa;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e4d7c1;border-radius:8px;">
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <p style="margin:0;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#433c32;">Grapejuice</p>
+              <h1 style="margin:12px 0 0;font-size:26px;line-height:1.25;color:#2f2412;font-weight:700;">
+                You&apos;re all set for Hanukkah
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 28px 24px;">
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.5;color:#433c32;">
+                Thanks for ordering your curated Hanukkah box. We&apos;ve received your payment and your order is confirmed.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4eee4;border-radius:6px;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;color:#433c32;">Order</p>
+                    <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:#2f2412;">
+                      #{{ trigger.orderId | slice: 0, 8 }}
+                    </p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#433c32;">Total</p>
+                    <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:#2f2412;">
+                      ${{ trigger.totalCents | divided_by: 100 | round: 2 }}
+                    </p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#433c32;">Estimated delivery by</p>
+                    <p style="margin:0;font-size:15px;font-weight:600;color:#2f2412;">
+                      {{ trigger.estimatedDelivery }}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:20px 0 0;font-size:15px;line-height:1.5;color:#433c32;">
+                Open the Grapejuice app anytime to track shipping from your Account tab. We&apos;ll email you again when your box ships.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 28px 28px;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#8a8175;">
+                Questions? Reply to this email or visit
+                <a href="https://grapejuice.co/support" style="color:#433c32;">grapejuice.co/support</a>.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:11px;color:#8a8175;">
+          Grapejuice · Hanukkah 2026 pilot
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

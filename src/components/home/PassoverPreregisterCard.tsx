@@ -1,0 +1,110 @@
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { CapacityRing } from './CapacityRing';
+import { semanticColors, spacing, typography, shadows, shadowsWeb, borderRadius, colors } from '../../constants/theme';
+import type { MainTabsParamList } from '../../navigation/types';
+
+type Nav = BottomTabNavigationProp<MainTabsParamList>;
+
+export const PASSOVER_RAV_PROMPT = "I'd like to start thinking about Passover";
+
+type Props = {
+  capacityPercent: number;
+  onRegister: () => void;
+  registered?: boolean;
+};
+
+/** Figma 370:3396 — ring when open; centered copy + Rav CTA when pre-registered. */
+export function PassoverPreregisterCard({ capacityPercent, onRegister, registered }: Props) {
+  const navigation = useNavigation<Nav>();
+
+  const cardStyle = [
+    styles.card,
+    registered ? styles.cardRegistered : styles.cardOpen,
+    Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow,
+  ];
+
+  if (registered) {
+    return (
+      <View style={cardStyle}>
+        <View style={styles.copyRegistered}>
+          <Text style={[styles.title, styles.textCenter]}>You&apos;re pre-registered for Passover 2027</Text>
+          <Text style={[styles.sub, styles.textCenter]}>
+            You&apos;ll see what your box has in it in February
+          </Text>
+          <TouchableOpacity
+            style={styles.ctaRegistered}
+            onPress={() => navigation.navigate('Rav', { initialMessage: PASSOVER_RAV_PROMPT })}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+          >
+            <Text style={styles.ctaText}>{PASSOVER_RAV_PROMPT}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity style={cardStyle} onPress={onRegister} activeOpacity={0.9}>
+      <View style={styles.copyOpen}>
+        <Text style={styles.title}>Pre-register for Passover 2027</Text>
+        <Text style={styles.sub}>Spots are filling up. Sign up soon.</Text>
+      </View>
+      <CapacityRing percent={capacityPercent} />
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    paddingVertical: 21,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 16,
+    backgroundColor: semanticColors.bgPrimary,
+  },
+  cardOpen: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  cardRegistered: {
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  copyOpen: { flex: 1, minWidth: 0 },
+  copyRegistered: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 0,
+  },
+  title: { fontSize: typography.lg, fontWeight: '400', color: semanticColors.textPrimary, letterSpacing: -0.26 },
+  sub: {
+    fontSize: typography.sm,
+    fontWeight: '200',
+    color: semanticColors.textSecondary,
+    marginTop: spacing.xs,
+    lineHeight: 18,
+  },
+  textCenter: { textAlign: 'center' },
+  ctaRegistered: {
+    marginTop: spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.warm[200],
+    alignSelf: 'stretch',
+  },
+  ctaText: {
+    fontSize: typography.sm,
+    fontWeight: '400',
+    color: semanticColors.textPrimary,
+    letterSpacing: -0.22,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+});
