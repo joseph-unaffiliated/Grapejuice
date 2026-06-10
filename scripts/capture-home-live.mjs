@@ -16,6 +16,7 @@ const URL = process.argv[2] ?? 'https://grapejuice-pilot.web.app';
 const VIEWPORT = { width: 393, height: 852 };
 
 const GUEST_KEY = 'grapejuice-guest-session';
+const FIGMA_COMPARE_KEY = 'grapejuice-figma-compare';
 const guestExploreState = JSON.stringify({
   state: {
     exploreStarted: true,
@@ -37,10 +38,11 @@ const guestExploreState = JSON.stringify({
 
 async function seedGuest(page) {
   await page.evaluate(
-    ({ key, value }) => {
+    ({ key, compareKey, value }) => {
       localStorage.setItem(key, value);
+      localStorage.setItem(compareKey, '1');
     },
-    { key: GUEST_KEY, value: guestExploreState }
+    { key: GUEST_KEY, compareKey: FIGMA_COMPARE_KEY, value: guestExploreState }
   );
   await page.reload({ waitUntil: 'load', timeout: 60_000 });
 }

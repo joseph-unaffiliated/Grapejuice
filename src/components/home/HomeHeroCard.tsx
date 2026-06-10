@@ -11,15 +11,15 @@ type Props = {
   onPress: () => void;
 };
 
+const HERO_INNER_GAP = 24;
+const HERO_INNER_PAD = 16;
 const SHADOW_BLEED = 8;
 const HERO_HEIGHT = 194;
 const STACK_HEIGHT = 148;
-/** Pull stack up so cards sit behind headline copy (Figma 370:3426). */
-const STACK_OVERLAP = 28;
 const SHADOW =
-  Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlowSm } as object) : shadows.goldGlow;
+  Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlow } as object) : shadows.goldGlow;
 
-/** Figma 370:3426 — copy at top; stack anchored bottom-center, clipped by card. */
+/** Figma 370:3426 — copy then stack in column; card clips overflow. */
 export function HomeHeroCard({ title, subtitle, compact = false, onPress }: Props) {
   if (compact) {
     return (
@@ -45,11 +45,11 @@ export function HomeHeroCard({ title, subtitle, compact = false, onPress }: Prop
   return (
     <View style={styles.shadowWrap}>
       <TouchableOpacity style={[styles.card, SHADOW]} onPress={onPress} activeOpacity={0.92}>
-        <View style={styles.copyOverlay}>
+        <View style={styles.copyBlock}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
-        <View style={styles.imageWrap}>
+        <View style={styles.stackWrap}>
           <Image
             source={HERO_STACKED_CARDS}
             style={styles.stackImage}
@@ -61,12 +61,6 @@ export function HomeHeroCard({ title, subtitle, compact = false, onPress }: Prop
     </View>
   );
 }
-
-const stackImageBase = {
-  width: '100%' as const,
-  height: STACK_HEIGHT,
-  maxWidth: 242,
-};
 
 const styles = StyleSheet.create({
   shadowWrap: {
@@ -81,7 +75,11 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.bgPrimary,
     borderRadius: 16,
     overflow: 'hidden',
-    position: 'relative',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: HERO_INNER_GAP,
+    paddingHorizontal: HERO_INNER_PAD,
+    paddingVertical: HERO_INNER_GAP,
   },
   cardCompact: {
     height: undefined,
@@ -90,29 +88,25 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.md,
     alignItems: 'stretch',
+    gap: 0,
   },
-  copyOverlay: {
-    position: 'absolute',
-    top: spacing.lg,
-    left: spacing.md,
-    right: spacing.md,
-    zIndex: 2,
+  copyBlock: {
     alignItems: 'center',
     gap: 2,
+    width: '100%',
+    zIndex: 2,
   },
-  imageWrap: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: STACK_HEIGHT + STACK_OVERLAP,
+  stackWrap: {
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    zIndex: 1,
+    justifyContent: 'center',
+    width: '100%',
+    height: STACK_HEIGHT,
+    marginTop: -4,
   },
   stackImage: {
-    ...stackImageBase,
-    height: STACK_HEIGHT + STACK_OVERLAP,
+    width: '100%',
+    height: STACK_HEIGHT + 12,
+    maxWidth: 242,
     ...(Platform.OS === 'web'
       ? ({ objectFit: 'contain', objectPosition: 'bottom center' } as object)
       : {}),

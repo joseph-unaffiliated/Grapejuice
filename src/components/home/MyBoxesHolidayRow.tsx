@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import type { MyBoxesHoliday } from '../../constants/myBoxesHolidays';
-import { semanticColors, spacing, typography, borderRadius, colors } from '../../constants/theme';
+import { semanticColors, typography, borderRadius, colors } from '../../constants/theme';
 
-const THUMB_SIZE = 64;
+const THUMB_WIDTH = 64;
+const GOLD = colors.warm[200];
+const ROW_TINT = 'rgba(216, 201, 144, 0.22)';
 
 type Props = {
   holiday: MyBoxesHoliday;
@@ -11,111 +13,214 @@ type Props = {
   onDismiss: () => void;
 };
 
+/** Figma 370:3027+ — tinted row, 64px thumb, micro CTAs. */
 export function MyBoxesHolidayRow({ holiday, onAction, onDismiss }: Props) {
   const isGetStarted = holiday.action === 'get-started';
-  const actionLabel = isGetStarted ? 'get started' : 'pre-register';
+  const actionText = isGetStarted ? 'get started >' : 'pre-register >';
+
+  const getStartedFillStyle =
+    Platform.OS === 'web'
+      ? ({
+          backgroundImage:
+            'linear-gradient(139.92deg, rgb(63, 50, 1) 0%, rgb(0, 0, 0) 100%)',
+          boxShadow: 'inset 2px 2px 6px #d8c990, inset -2px -2px 6px #000000',
+        } as object)
+      : null;
 
   return (
     <View style={styles.row}>
-      <Image source={holiday.image} style={styles.thumb} resizeMode="cover" accessibilityIgnoresInvertColors />
-      <View style={styles.copy}>
-        <Text style={styles.date}>{holiday.dateLabel}</Text>
-        <Text style={styles.name} numberOfLines={2}>
-          {holiday.name}
-        </Text>
+      <View style={styles.thumb}>
+        <Image source={holiday.image} style={styles.thumbImage} resizeMode="cover" accessibilityIgnoresInvertColors />
       </View>
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.actionPill, isGetStarted ? styles.actionPillGetStarted : styles.actionPillPreregister]}
-          onPress={onAction}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`${actionLabel} for ${holiday.name}`}
-        >
-          <Text style={styles.actionPillText}>
-            {actionLabel}
-            <Text style={styles.actionChevron}> ›</Text>
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={onDismiss}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Dismiss ${holiday.name}`}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.dismiss}>dismiss</Text>
-        </TouchableOpacity>
-      </View>
+
+      {isGetStarted ? (
+        <View style={styles.getStartedBody}>
+          <View style={styles.getStartedLeft}>
+            <View style={styles.copy}>
+              <Text style={styles.date}>{holiday.dateLabel}</Text>
+              <Text style={styles.name} numberOfLines={2}>
+                {holiday.name}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.dismissOutline}
+              onPress={onDismiss}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Dismiss ${holiday.name}`}
+            >
+              <Text style={styles.dismissText}>dismiss</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.getStartedRight}>
+            <TouchableOpacity
+              style={[styles.getStartedBtn, !getStartedFillStyle && styles.getStartedBtnNative]}
+              onPress={onAction}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Get started for ${holiday.name}`}
+            >
+              {getStartedFillStyle ? <View style={[StyleSheet.absoluteFill, getStartedFillStyle]} /> : null}
+              <Text style={styles.getStartedText}>{actionText}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.preRegisterBody}>
+          <View style={styles.copy}>
+            <Text style={styles.date}>{holiday.dateLabel}</Text>
+            <Text style={styles.name} numberOfLines={2}>
+              {holiday.name}
+            </Text>
+          </View>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.preRegisterBtn}
+              onPress={onAction}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Pre-register for ${holiday.name}`}
+            >
+              <Text style={styles.actionText}>{actionText}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.dismissOutline}
+              onPress={onDismiss}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Dismiss ${holiday.name}`}
+            >
+              <Text style={styles.dismissText}>dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
-const thumbImageBase = {
-  width: THUMB_SIZE,
-  height: THUMB_SIZE,
-  borderRadius: borderRadius.xl,
-    backgroundColor: semanticColors.bgElevated,
-  ...(Platform.OS === 'web' ? ({ objectFit: 'cover' } as object) : {}),
-};
-
 const styles = StyleSheet.create({
   row: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: ROW_TINT,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    minHeight: 72,
+  },
+  thumb: {
+    width: THUMB_WIDTH,
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  thumbImage: {
+    width: THUMB_WIDTH,
+    height: '100%',
+    ...(Platform.OS === 'web' ? ({ objectFit: 'cover' } as object) : {}),
+  },
+  getStartedBody: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    width: '100%',
-  },
-  thumb: thumbImageBase,
-  copy: {
-    flex: 1,
+    justifyContent: 'space-between',
     minWidth: 0,
+  },
+  getStartedLeft: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 6,
+    paddingLeft: 16,
+    paddingVertical: 10,
+    minWidth: 0,
+  },
+  getStartedRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    flexShrink: 0,
+  },
+  preRegisterBody: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 6,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minWidth: 0,
+  },
+  copy: {
     gap: 2,
-    paddingVertical: 2,
   },
   date: {
-    fontSize: typography.sm,
+    fontSize: 9,
     fontWeight: '200',
-    color: semanticColors.textSecondary,
-    letterSpacing: -0.22,
+    color: semanticColors.textPrimary,
+    letterSpacing: -0.18,
   },
   name: {
     fontSize: typography.lg,
-    fontWeight: '600',
+    fontWeight: '400',
     color: semanticColors.textPrimary,
     letterSpacing: -0.26,
   },
-  actions: {
-    alignItems: 'flex-end',
-    gap: 4,
-    flexShrink: 0,
-  },
-  actionPill: {
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.pill,
-    minWidth: 96,
+  buttonRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
-  actionPillGetStarted: {
-    backgroundColor: colors.warm[300],
+  dismissOutline: {
+    alignSelf: 'flex-start',
+    backgroundColor: semanticColors.bgPrimary,
+    borderWidth: 0.5,
+    borderColor: GOLD,
+    borderRadius: borderRadius.pill,
+    paddingHorizontal: 8,
+    paddingTop: 2,
+    paddingBottom: 3,
   },
-  actionPillPreregister: {
-    backgroundColor: colors.purple[500],
-  },
-  actionPillText: {
-    fontSize: typography.sm,
+  dismissText: {
+    fontSize: 9,
     fontWeight: '400',
-    color: semanticColors.textInverse,
-    letterSpacing: -0.22,
+    color: GOLD,
+    letterSpacing: -0.18,
   },
-  actionChevron: {
-    fontWeight: '300',
+  preRegisterBtn: {
+    backgroundColor: colors.purple[500],
+    borderWidth: 0.5,
+    borderColor: GOLD,
+    borderRadius: borderRadius.pill,
+    paddingHorizontal: 8,
+    paddingTop: 2,
+    paddingBottom: 3,
   },
-  dismiss: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: semanticColors.textSecondary,
-    letterSpacing: -0.22,
+  actionText: {
+    fontSize: 9,
+    fontWeight: '400',
+    color: GOLD,
+    letterSpacing: -0.18,
+  },
+  getStartedBtn: {
+    borderWidth: 0.5,
+    borderColor: GOLD,
+    borderRadius: borderRadius.xl,
+    paddingVertical: 16,
+    paddingLeft: 20,
+    paddingRight: 16,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 88,
+    ...(Platform.OS === 'web' ? ({ boxShadow: '2px 2px 1.5px rgba(0,0,0,0.25)' } as object) : {}),
+  },
+  getStartedBtnNative: {
+    backgroundColor: '#3f3201',
+  },
+  getStartedText: {
+    fontSize: 9,
+    fontWeight: '400',
+    color: GOLD,
+    letterSpacing: -0.18,
+    zIndex: 1,
   },
 });

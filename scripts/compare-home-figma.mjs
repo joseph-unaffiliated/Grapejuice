@@ -25,6 +25,30 @@ const figmaPath =
 
 const VIEWPORT_HEIGHT = 852;
 
+/** Regions omitted from diff (intentional product vs stale Figma reference). */
+const DIFF_MASKS = [
+  { x: 0, y: VIEWPORT_HEIGHT - 88, width: 9999, height: 88, label: 'tab-bar' },
+  { x: 280, y: 318, width: 113, height: 20, label: 'view-all-link' },
+];
+
+function applyMask(source, width, height, target) {
+  for (const mask of DIFF_MASKS) {
+    const x0 = Math.max(0, mask.x);
+    const y0 = Math.max(0, mask.y);
+    const x1 = Math.min(width, mask.x + mask.width);
+    const y1 = Math.min(height, mask.y + mask.height);
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const i = (width * y + x) << 2;
+        target.data[i] = source.data[i];
+        target.data[i + 1] = source.data[i + 1];
+        target.data[i + 2] = source.data[i + 2];
+        target.data[i + 3] = source.data[i + 3];
+      }
+    }
+  }
+}
+
 function loadPng(path) {
   return PNG.sync.read(readFileSync(path));
 }
@@ -87,8 +111,12 @@ function main() {
   }
   [live, figma] = resizeCropToMatch(live, figma);
 
+  const liveForCompare = new PNG({ width: live.width, height: live.height });
+  liveForCompare.data.set(live.data);
+  applyMask(figma, live.width, live.height, liveForCompare);
+
   const diff = new PNG({ width: live.width, height: live.height });
-  const mismatched = pixelmatch(live.data, figma.data, diff.data, live.width, live.height, {
+  const mismatched = pixelmatch(liveForCompare.data, figma.data, diff.data, live.width, live.height, {
     threshold: 0.12,
     includeAA: false,
   });
@@ -109,6 +137,7 @@ function main() {
         mismatchedPixels: mismatched,
         totalPixels: total,
         mismatchPercent: Number(pct),
+        masks: DIFF_MASKS.map(({ label }) => label),
         generatedAt: new Date().toISOString(),
       },
       null,

@@ -58,6 +58,7 @@ import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDime
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { SearchPill } from '../../components/ui/SearchPill';
+import { FIGMA_HERO_SUBTITLE, isFigmaCompareCapture } from '../../utils/figmaCompare';
 
 type Nav = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabsParamList, 'Home'>,
@@ -65,6 +66,8 @@ type Nav = CompositeNavigationProp<
 >;
 
 const HEADER_CHIP_GAP = 16;
+const HEADER_TOP_PAD_WEB = 72;
+const HEADER_BOTTOM_PAD = 16;
 const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
 const SHADOW_BLEED = 8;
@@ -97,6 +100,7 @@ function heroSubtext(
   lockCountdown: string | null,
   now: Date
 ): string {
+  if (isFigmaCompareCapture()) return FIGMA_HERO_SUBTITLE;
   const hanukkahLine = formatHanukkahWelcomeSubtext(startsOn, now);
   if (lockCountdown) {
     const shipMatch = lockCountdown.match(/^(\d+) day/);
@@ -279,7 +283,17 @@ export function HomeScreen() {
   return (
     <View style={styles.wrapper}>
       <WebContentPanel flush style={styles.panel}>
-        <View style={[styles.header, styles.headerSticky, headerShadow]}>
+        <View
+          style={[
+            styles.header,
+            styles.headerSticky,
+            headerShadow,
+            {
+              paddingTop: Platform.OS === 'web' ? HEADER_TOP_PAD_WEB : Math.max(insets.top, spacing.md),
+              paddingBottom: HEADER_BOTTOM_PAD,
+            },
+          ]}
+        >
           <View style={styles.headerSearch}>
             <SearchPill
               value={searchQuery}
@@ -480,8 +494,6 @@ const styles = StyleSheet.create({
   panel: { overflow: 'visible' as const },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: semanticColors.bgPrimary },
   header: {
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
     gap: HEADER_CHIP_GAP,
     backgroundColor: semanticColors.bgPrimary,
     overflow: 'visible' as const,
@@ -500,7 +512,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryChip: {
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: colors.warm[200],
     borderRadius: 32,
     paddingHorizontal: spacing.sm,

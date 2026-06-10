@@ -5,7 +5,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MyBoxesHolidayRow } from './MyBoxesHolidayRow';
 import { MY_BOXES_HOLIDAYS } from '../../constants/myBoxesHolidays';
 import { useMyBoxesDismissedHolidays } from '../../hooks/useMyBoxesDismissedHolidays';
-import { semanticColors, spacing, typography, shadows, shadowsWeb, MOBILE_GUTTER, tabBarTotalHeight } from '../../constants/theme';
+import { semanticColors, spacing, typography, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 import type { MainTabsParamList } from '../../navigation/types';
 
 type Nav = BottomTabNavigationProp<MainTabsParamList>;
@@ -21,6 +21,11 @@ type Props = {
 };
 
 const SHADOW_BLEED = 8;
+/** Figma 370:2995 — fixed empty-state card height. */
+const WELCOME_CARD_HEIGHT = 420;
+const CARD_PAD = 16;
+const CARD_SECTION_GAP = 24;
+const HOLIDAY_ROW_GAP = 8;
 
 /** Figma 370:2995 — empty My Boxes card with interactive holiday rows. */
 export function MyBoxesWelcomeCard({
@@ -41,7 +46,7 @@ export function MyBoxesWelcomeCard({
   const wrapStyle = inCarousel ? styles.carouselWrap : styles.shadowWrap;
   const cardStyle = [
     styles.card,
-    inCarousel ? { width, minWidth: width } : null,
+    inCarousel ? { width, minWidth: width } : { minHeight: WELCOME_CARD_HEIGHT },
     cardShadow,
   ];
 
@@ -90,20 +95,17 @@ export function MyBoxesWelcomeCard({
 
         {loaded ? (
           <View style={styles.holidayList}>
-            {visibleHolidays.map((holiday, index) => (
-              <View key={holiday.id}>
-                {index > 0 ? <View style={styles.divider} /> : null}
-                <MyBoxesHolidayRow
-                  holiday={holiday}
-                  onAction={() => handleHolidayAction(holiday.id)}
-                  onDismiss={() => dismiss(holiday.id)}
-                />
-              </View>
+            {visibleHolidays.map((holiday) => (
+              <MyBoxesHolidayRow
+                key={holiday.id}
+                holiday={holiday}
+                onAction={() => handleHolidayAction(holiday.id)}
+                onDismiss={() => dismiss(holiday.id)}
+              />
             ))}
 
             {dismissedHolidays.length > 0 ? (
-              <View style={[styles.dismissedSection, styles.dismissedSectionPad]}>
-                {visibleHolidays.length > 0 ? <View style={styles.divider} /> : null}
+              <View style={styles.dismissedSection}>
                 {dismissedHolidays.map((holiday) => (
                   <TouchableOpacity
                     key={holiday.id}
@@ -139,11 +141,10 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: semanticColors.bgPrimary,
     borderRadius: 16,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: CARD_PAD,
+    paddingVertical: CARD_SECTION_GAP,
     alignItems: 'stretch',
-    gap: spacing.md,
+    gap: CARD_SECTION_GAP,
     overflow: 'hidden',
   },
   headerCopy: { alignItems: 'center', gap: 2, width: '100%' },
@@ -163,19 +164,12 @@ const styles = StyleSheet.create({
   },
   holidayList: {
     width: '100%',
-    gap: spacing.sm,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: semanticColors.border,
-    marginVertical: spacing.sm,
+    flex: 1,
+    gap: HOLIDAY_ROW_GAP,
   },
   dismissedSection: {
     gap: spacing.xs,
     paddingTop: spacing.xs,
-  },
-  dismissedSectionPad: {
-    paddingBottom: tabBarTotalHeight(0) + spacing.sm,
   },
   dismissedLabel: {
     fontSize: typography.sm,

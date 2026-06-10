@@ -19,7 +19,7 @@ export const MY_BOXES_HOLIDAYS: MyBoxesHoliday[] = [
   {
     id: 'hanukkah-2026',
     name: 'Hanukkah',
-    dateLabel: 'Dec 4–12, 2026',
+    dateLabel: 'December 4-12, 2026',
     dismissLabel: 'Hanukkah 2026',
     image: HOME_HOLIDAY_THUMBS.hanukkah,
     action: 'get-started',
@@ -27,7 +27,7 @@ export const MY_BOXES_HOLIDAYS: MyBoxesHoliday[] = [
   {
     id: 'passover-2027',
     name: 'Passover',
-    dateLabel: 'Apr 21–29, 2027',
+    dateLabel: 'April 21-29, 2027',
     dismissLabel: 'Passover 2027',
     image: HOME_HOLIDAY_THUMBS.passover,
     action: 'pre-register',
@@ -37,7 +37,7 @@ export const MY_BOXES_HOLIDAYS: MyBoxesHoliday[] = [
   {
     id: 'high-holidays-sukkot-2027',
     name: 'High Holidays + Sukkot',
-    dateLabel: 'Oct 2–23, 2027',
+    dateLabel: 'October 2-23, 2027',
     dismissLabel: 'High Holidays + Sukkot 2027',
     image: HOME_HOLIDAY_THUMBS.highHolidays,
     action: 'pre-register',
@@ -47,7 +47,7 @@ export const MY_BOXES_HOLIDAYS: MyBoxesHoliday[] = [
   {
     id: 'purim-2028',
     name: 'Purim',
-    dateLabel: 'Mar 23–24, 2028',
+    dateLabel: 'March 23-23, 2028',
     dismissLabel: 'Purim 2028',
     image: HOME_HOLIDAY_THUMBS.purim,
     action: 'pre-register',
