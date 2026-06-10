@@ -17,7 +17,13 @@ const REFS = join(ROOT, 'assets/live-refs');
 const MOCKUPS = join(ROOT, 'assets/mockup-refs');
 
 const livePath = process.argv[2] ?? join(REFS, 'home-live.png');
-const figmaPath = process.argv[3] ?? join(MOCKUPS, 'figma-home-370-2949.png');
+const figmaPath =
+  process.argv[3] ??
+  (existsSync(join(MOCKUPS, 'figma-home-370-2949-full.png'))
+    ? join(MOCKUPS, 'figma-home-370-2949-full.png')
+    : join(MOCKUPS, 'figma-home-370-2949.png'));
+
+const VIEWPORT_HEIGHT = 852;
 
 function loadPng(path) {
   return PNG.sync.read(readFileSync(path));
@@ -73,6 +79,12 @@ function main() {
 
   let live = loadPng(livePath);
   let figma = loadPng(figmaPath);
+  if (figma.height > VIEWPORT_HEIGHT) {
+    figma = cropTop(figma, VIEWPORT_HEIGHT);
+  }
+  if (live.height > VIEWPORT_HEIGHT) {
+    live = cropTop(live, VIEWPORT_HEIGHT);
+  }
   [live, figma] = resizeCropToMatch(live, figma);
 
   const diff = new PNG({ width: live.width, height: live.height });
