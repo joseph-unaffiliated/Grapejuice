@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.createPilotCheckout = exports.askPilotRav = void 0;
+exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const app_1 = require("firebase-admin/app");
@@ -9,6 +9,8 @@ const stripe_1 = require("./stripe");
 const email_1 = require("./email");
 const rav_1 = require("./rav");
 Object.defineProperty(exports, "askPilotRav", { enumerable: true, get: function () { return rav_1.askPilotRav; } });
+const beamAgeTrigger_1 = require("./beamAgeTrigger");
+Object.defineProperty(exports, "scanBeamAgeTriggers", { enumerable: true, get: function () { return beamAgeTrigger_1.scanBeamAgeTriggers; } });
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const HOLIDAY_ID = 'hanukkah-2026';

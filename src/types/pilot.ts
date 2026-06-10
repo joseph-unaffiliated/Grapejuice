@@ -1,4 +1,26 @@
-export type FamiliarityLevel = 'minimal' | 'moderate' | 'all-in';
+export type BeamStatus = 'not_eligible' | 'eligible' | 'enrolled' | 'completed';
+
+export type BeamMilestoneType = 'bat_mitzvah' | 'bar_mitzvah';
+
+export type UpcomingBeamMilestone = {
+  childId: string;
+  childName: string;
+  milestoneType: BeamMilestoneType;
+  monthsUntil: number;
+  triggeredAt: string;
+};
+
+export type ContentDepthLevel = 'introductory' | 'intermediate' | 'deep';
+
+export type BeamContentCategory =
+  | 'bible'
+  | 'diaspora'
+  | 'holocaust'
+  | 'israel'
+  | 'god'
+  | 'culture';
+
+export type RavMode = 'facilitator' | 'personal_shopper' | 'project_partner';
 export type AgeGroup = '0-2' | '3-5' | '6-8' | '9-12';
 export type CatalogSlot = 'base' | 'story' | 'gift' | 'addon' | 'keepsake';
 export type CatalogPricingTier = 'included' | 'perKid' | 'extra' | 'alaCarte';
@@ -17,6 +39,8 @@ export type UserProfile = {
   notificationsOptIn?: boolean;
   hiddenHolidays?: string[];
   collaborationName?: string;
+  /** Set by nightly age-trigger function when a child approaches b-mitzvah age. */
+  upcomingBeamMilestone?: UpcomingBeamMilestone | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -35,7 +59,13 @@ export type ChildProfile = {
   id: string;
   name?: string;
   ageGroup: AgeGroup;
+  /** ISO date YYYY-MM-DD — canonical; `birthday` is legacy alias. */
+  birthdate?: string;
+  /** @deprecated Use birthdate */
   birthday?: string;
+  hebrewName?: string;
+  barMitzvahDate?: string;
+  beamStatus?: BeamStatus;
 };
 
 export type CatalogCurationTag =

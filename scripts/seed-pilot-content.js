@@ -41,6 +41,9 @@ async function main() {
       storySnippet: n.storySnippet || null,
       linkedItemId: null,
       holiday: 'hanukkah',
+      ageRange: ['0-2', '3-5', '6-8', '9-12'],
+      depthLevel: 'introductory',
+      beamCategories: ['culture'],
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }

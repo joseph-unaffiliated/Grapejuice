@@ -6,7 +6,12 @@ import { semanticColors, spacing, typography, borderRadius } from '../../constan
 
 const AGE_GROUPS: AgeGroup[] = ['0-2', '3-5', '6-8', '9-12'];
 
-export type ChildDraft = { name: string; ageGroup: AgeGroup };
+export type ChildDraft = {
+  name: string;
+  ageGroup: AgeGroup;
+  /** ISO date YYYY-MM-DD (optional — enables Beam age trigger). */
+  birthdate?: string;
+};
 
 export function ChildrenScreen({
   onContinue,
@@ -58,6 +63,18 @@ export function ChildrenScreen({
               next[i] = { ...next[i], name: t };
               setKids(next);
             }}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Birthdate (YYYY-MM-DD, optional)"
+            value={kid.birthdate ?? ''}
+            onChangeText={(t) => {
+              const next = [...kids];
+              next[i] = { ...next[i], birthdate: t.trim() || undefined };
+              setKids(next);
+            }}
+            autoCapitalize="none"
+            keyboardType="numbers-and-punctuation"
           />
           <View style={styles.ageRow}>
             {AGE_GROUPS.map((ag) => (

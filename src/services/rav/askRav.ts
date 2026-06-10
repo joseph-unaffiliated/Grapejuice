@@ -1,12 +1,14 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
-import type { RavBlock, RavDraftAction } from '../../types/pilot';
+import type { RavBlock, RavDraftAction, RavMode } from '../../types/pilot';
 
 export type AskRavParams = {
   message: string;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   /** Current box draft summary from client (guest or authed). */
   boxDraftSummary?: string;
+  /** Rav mode — defaults to facilitator (Grapejuice holiday guide). */
+  mode?: RavMode;
 };
 
 export type AskRavResult = {

@@ -1,7 +1,22 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { AccountRole, FamiliarityLevel, UserProfile } from '../../types/pilot';
+import type { AccountRole, FamiliarityLevel, UpcomingBeamMilestone, UserProfile } from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
+
+function parseUpcomingBeamMilestone(value: unknown): UpcomingBeamMilestone | null | undefined {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object') return undefined;
+  const o = value as Record<string, unknown>;
+  if (typeof o.childId !== 'string' || typeof o.childName !== 'string') return undefined;
+  if (o.milestoneType !== 'bat_mitzvah' && o.milestoneType !== 'bar_mitzvah') return undefined;
+  return {
+    childId: o.childId,
+    childName: o.childName,
+    milestoneType: o.milestoneType,
+    monthsUntil: typeof o.monthsUntil === 'number' ? o.monthsUntil : 0,
+    triggeredAt: typeof o.triggeredAt === 'string' ? o.triggeredAt : '',
+  };
+}
 
 function toProfile(uid: string, data: Record<string, unknown>): UserProfile {
   return {
@@ -16,6 +31,7 @@ function toProfile(uid: string, data: Record<string, unknown>): UserProfile {
     notificationsOptIn: data.notificationsOptIn as boolean | undefined,
     hiddenHolidays: Array.isArray(data.hiddenHolidays) ? (data.hiddenHolidays as string[]) : [],
     collaborationName: (data.collaborationName as string | undefined) ?? undefined,
+    upcomingBeamMilestone: parseUpcomingBeamMilestone(data.upcomingBeamMilestone),
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };

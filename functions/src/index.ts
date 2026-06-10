@@ -5,8 +5,9 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { stripe, verifyWebhook } from './stripe';
 import { sendEmail } from './email';
 import { askPilotRav } from './rav';
+import { scanBeamAgeTriggers } from './beamAgeTrigger';
 
-export { askPilotRav };
+export { askPilotRav, scanBeamAgeTriggers };
 
 initializeApp();
 const db = getFirestore();

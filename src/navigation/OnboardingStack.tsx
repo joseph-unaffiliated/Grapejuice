@@ -40,6 +40,7 @@ function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
     id: `guest-${i}`,
     name: d.name || undefined,
     ageGroup: d.ageGroup,
+    birthdate: d.birthdate,
   }));
 }
 
@@ -127,7 +128,11 @@ export function OnboardingStack({ onComplete, revealOnly = false, isGuest = fals
       if (!user?.uid || !household?.id) return;
       const savedKids = await childrenService.replaceAll(
         user.uid,
-        kids.map((c) => ({ name: c.name || undefined, ageGroup: c.ageGroup }))
+        kids.map((c) => ({
+          name: c.name || undefined,
+          ageGroup: c.ageGroup,
+          birthdate: c.birthdate,
+        }))
       );
       await boxDraftService.save(household.id, user.uid, items, { familiarityLevel: level });
       await usersService.upsert(user.uid, {
