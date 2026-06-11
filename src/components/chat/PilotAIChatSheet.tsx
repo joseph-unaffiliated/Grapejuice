@@ -36,6 +36,7 @@ import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { RavBlockRenderer } from './RavBlockRenderer';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
 
 const MAX_HISTORY_TURNS = 10;
 /** Figma 366:1762 — 13px type + 12px vertical padding ≈ 37px pill height */
@@ -128,6 +129,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const useKidRavThreads =
     !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild && !!activeChild?.id && !isGuest;
   const boxLocked = isBoxLocked(lockAt);
+  const { canMutateBox, guardMutation } = usePaymentGate();
+  const paymentGated = !canMutateBox;
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
   const bottomPad = bottomInset || tabBarHeight;
   const starterChips = useMemo(() => {
@@ -210,6 +213,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         showBlockFeedback('Your box is locked — customization is closed.');
         return;
       }
+      if (!guardMutation()) return;
       const exists = lineItems.some((li) => li.itemId === item.id);
       if (exists) return;
       await persist([
@@ -224,7 +228,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       ]);
       showBlockFeedback(`Added ${item.name} to your box.`);
     },
-    [boxLocked, lineItems, persist, showBlockFeedback]
+    [boxLocked, lineItems, persist, showBlockFeedback, guardMutation]
   );
 
   const swapBlockItem = useCallback(
@@ -233,6 +237,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         showBlockFeedback('Your box is locked — customization is closed.');
         return;
       }
+      if (!guardMutation()) return;
       const next = lineItems.map((li) =>
         li.slotId === slotId
           ? {
@@ -246,7 +251,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       await persist(next);
       showBlockFeedback(`Swapped in ${item.name}.`);
     },
-    [boxLocked, lineItems, persist, showBlockFeedback]
+    [boxLocked, lineItems, persist, showBlockFeedback, guardMutation]
   );
 
   const sendMessage = useCallback(
@@ -285,10 +290,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
         let content = reply;
         if (!ravMode && !boxLocked && actions.length && catalog.length) {
-          const { lineItems: nextItems, applied } = applyRavDraftActions(actions, lineItems, catalog);
-          if (applied.length) {
-            await persist(nextItems);
-            content = `${reply}${reply.endsWith('.') ? '' : '.'} I updated your box (${applied.length} change${applied.length === 1 ? '' : 's'}).`;
+          if (!guardMutation()) {
+            content = `${reply}${reply.endsWith('.') ? '' : '.'} Add a payment method to apply box changes.`;
+          } else {
+            const { lineItems: nextItems, applied } = applyRavDraftActions(actions, lineItems, catalog);
+            if (applied.length) {
+              await persist(nextItems);
+              content = `${reply}${reply.endsWith('.') ? '' : '.'} I updated your box (${applied.length} change${applied.length === 1 ? '' : 's'}).`;
+            }
           }
         } else if (!ravMode && boxLocked && actions.length) {
           content = `${reply}${reply.endsWith('.') ? '' : '.'} Your box is locked, so I couldn't apply those changes.`;
@@ -319,7 +328,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation]
   );
 
   React.useImperativeHandle(
@@ -390,6 +399,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               blocks={item.blocks}
               lineItems={lineItems}
               boxLocked={boxLocked}
+              paymentGated={paymentGated}
+              guardMutation={guardMutation}
               onSwap={(slotId, catalogItem) => void swapBlockItem(slotId, catalogItem)}
               onAddExtra={(catalogItem) => void addBlockItem(catalogItem)}
             />
@@ -397,7 +408,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         </View>
       );
     },
-    [firstUserIndex, lineItems, swapBlockItem, addBlockItem, boxLocked]
+    [firstUserIndex, lineItems, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
   );
 
   const chatFooter = messages.length > 0 ? (

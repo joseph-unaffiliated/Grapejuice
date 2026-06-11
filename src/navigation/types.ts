@@ -21,6 +21,7 @@ export type MainStackParamList = {
   KidGuide: undefined;
   Profiles: undefined;
   AlaCarteStore: undefined;
+  CatalogProduct: { itemId: string };
   Checkout: undefined;
   OrderConfirmation: { orderId: string };
   Reflection: undefined;

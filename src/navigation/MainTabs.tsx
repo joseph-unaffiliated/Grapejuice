@@ -10,7 +10,7 @@ import { TabBarIconWithBadge } from '../components/navigation/TabBarIconWithBadg
 import { icons } from '../constants/icons';
 import { TAB_NAV } from '../constants/theme';
 import { useWebLayout } from '../hooks/useWebLayout';
-import { useGuestSessionStore } from '../stores/guestSessionStore';
+import { useAuthStore } from '../stores/authStore';
 import { useThemeMode } from '../context/ThemeContext';
 import { Icon } from '../components/ui/Icon';
 
@@ -35,8 +35,8 @@ function TabBarWrapper(props: React.ComponentProps<typeof PilotTabBar>) {
 export function MainTabs() {
   const { isDesktop } = useWebLayout();
   const { colors } = useThemeMode();
-  const guestRavPromptCount = useGuestSessionStore((s) => s.guestRavPromptCount);
-  const ravBadge = guestRavPromptCount === 0 ? 1 : 0;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const accountBadge = !isAuthenticated ? 1 : 0;
 
   return (
     <Tab.Navigator
@@ -75,7 +75,7 @@ export function MainTabs() {
               icon={icons.fingerprint}
               color={color}
               size={TAB_NAV.iconSize}
-              badge={ravBadge}
+              badge={accountBadge}
             />
           ),
         }}

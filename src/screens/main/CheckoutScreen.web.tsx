@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,8 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { useSession } from '../../hooks/useSession';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthStore } from '../../stores/authStore';
-import { createPilotCheckout } from '../../services/checkout/createPilotCheckout';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
+import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import type { MainStackParamList } from '../../navigation/types';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
@@ -26,22 +26,16 @@ import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 
-function PaymentStep({
-  total,
-  onSuccess,
-}: {
-  total: number;
-  onSuccess: () => void;
-}) {
+function SetupCardStep({ onSaved }: { onSaved: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
-  const [paying, setPaying] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handlePay = async () => {
+  const handleSave = async () => {
     if (!stripe || !elements) return;
-    setPaying(true);
+    setSaving(true);
     try {
-      const { error } = await stripe.confirmPayment({
+      const { error } = await stripe.confirmSetup({
         elements,
         confirmParams: {
           return_url: typeof window !== 'undefined' ? window.location.href : undefined,
@@ -49,30 +43,30 @@ function PaymentStep({
         redirect: 'if_required',
       });
       if (error) {
-        Alert.alert('Payment failed', error.message ?? 'Could not complete payment.');
+        Alert.alert('Could not save card', error.message ?? 'Please try again.');
         return;
       }
-      onSuccess();
+      onSaved();
     } finally {
-      setPaying(false);
+      setSaving(false);
     }
   };
 
   return (
     <View style={styles.paymentBlock}>
-      <Text style={styles.sectionTitle}>Payment</Text>
+      <Text style={styles.sectionTitle}>Payment method</Text>
       <View style={styles.paymentElementWrap}>
         <PaymentElement options={{ layout: 'tabs' }} />
       </View>
       <TouchableOpacity
-        style={[styles.payBtn, paying && styles.payBtnDisabled]}
-        onPress={handlePay}
-        disabled={paying}
+        style={[styles.payBtn, saving && styles.payBtnDisabled]}
+        onPress={handleSave}
+        disabled={saving}
       >
-        {paying ? (
+        {saving ? (
           <ActivityIndicator color={semanticColors.textInverse} />
         ) : (
-          <Text style={styles.payBtnText}>Pay {formatDollars(total)}</Text>
+          <Text style={styles.payBtnText}>Save card</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -83,7 +77,7 @@ export function CheckoutScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { household } = useSession();
+  const { household, refresh: refreshSession } = useSession();
   const { isDesktop } = useWebLayout();
   const {
     lineItems,
@@ -97,9 +91,9 @@ export function CheckoutScreen() {
     normalizedAddress,
   } = useCheckoutDraft(household?.id);
 
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [orderId, setOrderId] = useState<string | null>(null);
+  const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const [committing, setCommitting] = useState(false);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -107,58 +101,94 @@ export function CheckoutScreen() {
     () => (stripeKey ? loadStripe(stripeKey) : null),
     [stripeKey]
   );
+  const cardOnFile = !!household?.cardOnFileAt;
 
-  const handleContinueToPayment = async () => {
+  const handleCommit = useCallback(async () => {
     if (!user || !household?.id) return;
     if (locked) {
       Alert.alert('Box locked', 'The customization window has closed. Contact support for changes.');
       return;
     }
     if (!validateAddress()) return;
+
+    setCommitting(true);
+    try {
+      const { orderId } = await commitPilotBox(household.id, normalizedAddress());
+      navigation.replace('OrderConfirmation', { orderId });
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not commit your box.');
+    } finally {
+      setCommitting(false);
+    }
+  }, [user, household?.id, locked, validateAddress, normalizedAddress, navigation]);
+
+  const startSetup = async () => {
+    if (!household?.id) return;
     if (!stripeKey) {
       Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
       return;
     }
-
     setPreparing(true);
     try {
-      const result = await createPilotCheckout(household.id, normalizedAddress());
+      const result = await createPilotSetupIntent(household.id);
       if (!result.clientSecret) {
-        Alert.alert('Error', 'No payment secret returned.');
+        Alert.alert('Error', 'No setup secret returned.');
         return;
       }
-      setClientSecret(result.clientSecret);
-      setOrderId(result.orderId);
+      setSetupClientSecret(result.clientSecret);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Checkout failed.');
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not start payment setup.');
     } finally {
       setPreparing(false);
     }
   };
 
-  const checkoutForm = !clientSecret ? (
+  const onCardSaved = async () => {
+    setSetupClientSecret(null);
+    await refreshSession();
+  };
+
+  const checkoutForm = cardOnFile ? (
+    <>
+      <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <TouchableOpacity
+        style={[styles.payBtn, (committing || locked) && styles.payBtnDisabled]}
+        onPress={handleCommit}
+        disabled={committing || locked}
+      >
+        {committing ? (
+          <ActivityIndicator color={semanticColors.textInverse} />
+        ) : (
+          <Text style={styles.payBtnText}>Commit to box</Text>
+        )}
+      </TouchableOpacity>
+    </>
+  ) : setupClientSecret && stripePromise ? (
+    <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret, appearance: { theme: 'stripe' } }}>
+      <SetupCardStep
+        onSaved={async () => {
+          await onCardSaved();
+          await handleCommit();
+        }}
+      />
+      <CheckoutAddressFields address={address} onChange={updateAddress} />
+    </Elements>
+  ) : (
     <>
       <CheckoutAddressFields address={address} onChange={updateAddress} />
       <TouchableOpacity
         style={[styles.payBtn, (preparing || locked) && styles.payBtnDisabled]}
-        onPress={handleContinueToPayment}
+        onPress={startSetup}
         disabled={preparing || locked}
       >
         {preparing ? (
           <ActivityIndicator color={semanticColors.textInverse} />
         ) : (
-          <Text style={styles.payBtnText}>Continue to payment</Text>
+          <Text style={styles.payBtnText}>Save card & commit to box</Text>
         )}
       </TouchableOpacity>
     </>
-  ) : stripePromise && orderId ? (
-    <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-      <PaymentStep
-        total={total}
-        onSuccess={() => navigation.replace('OrderConfirmation', { orderId })}
-      />
-    </Elements>
-  ) : null;
+  );
 
   if (!isAuthenticated) {
     return <CheckoutAuthGate />;
@@ -190,7 +220,13 @@ export function CheckoutScreen() {
           <Text style={styles.backLink}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Checkout</Text>
+        <Text style={styles.title}>Payment & shipping</Text>
+        <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
+        {!cardOnFile ? (
+          <Text style={styles.pendingCopy}>
+            Your box will not ship until you add payment information and a shipping address.
+          </Text>
+        ) : null}
         {locked ? (
           <Text style={styles.lockBanner}>Box customization is locked. Checkout is unavailable.</Text>
         ) : null}
@@ -228,7 +264,21 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   backRow: { marginBottom: spacing.md },
   backLink: { color: semanticColors.brand, fontWeight: '600' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.md },
+  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.sm },
+  chargeBanner: {
+    backgroundColor: semanticColors.brandLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    color: semanticColors.textSecondary,
+    marginBottom: spacing.md,
+    fontSize: typography.md,
+  },
+  pendingCopy: {
+    fontSize: typography.sm,
+    color: semanticColors.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
   lockBanner: {
     backgroundColor: semanticColors.brandLight,
     padding: spacing.md,

@@ -3,6 +3,7 @@ import {
   signInWithEmail,
   signUpWithEmail,
   signInWithGoogle,
+  signInWithApple,
   signOut,
   resetPassword,
   onAuthStateChange,
@@ -46,6 +47,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   googleSignIn: () => Promise<void>;
+  appleSignIn: () => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   clearError: () => void;
@@ -98,6 +100,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signInWithGoogle();
+      await mergeGuestSession(user);
+      set({ user, isAuthenticated: true, isLoading: false });
+    } catch (error) {
+      set({ error: getErrorMessage(error), isLoading: false });
+      throw error;
+    }
+  },
+
+  appleSignIn: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await signInWithApple();
       await mergeGuestSession(user);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error) {

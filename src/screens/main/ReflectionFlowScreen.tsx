@@ -46,7 +46,7 @@ export function ReflectionFlowScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>How did Hanukkah go?</Text>
+      <Text style={styles.title}>Hanukkah debrief</Text>
       {step === 1 ? (
         <>
           <Text style={styles.prompt}>Which nights did you do something?</Text>

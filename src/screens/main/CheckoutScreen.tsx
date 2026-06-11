@@ -15,7 +15,8 @@ import Constants from 'expo-constants';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
-import { createPilotCheckout } from '../../services/checkout/createPilotCheckout';
+import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
+import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
@@ -28,7 +29,7 @@ export function CheckoutScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { household } = useSession();
+  const { household, refresh: refreshSession } = useSession();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const {
     lineItems,
@@ -45,12 +46,47 @@ export function CheckoutScreen() {
     shippingCents,
     taxCents,
   } = useCheckoutDraft(household?.id);
-  const [paying, setPaying] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
+  const cardOnFile = !!household?.cardOnFileAt;
 
-  const handlePay = async () => {
+  const handleSaveCard = useCallback(async (): Promise<boolean> => {
+    if (!household?.id) return false;
+    if (!stripeKey) {
+      Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
+      return false;
+    }
+
+    const { clientSecret } = await createPilotSetupIntent(household.id);
+    if (!clientSecret) {
+      Alert.alert('Error', 'No setup secret returned. Deploy createPilotSetupIntent Cloud Function.');
+      return false;
+    }
+
+    const { error: initError } = await initPaymentSheet({
+      setupIntentClientSecret: clientSecret,
+      merchantDisplayName: 'Grapejuice',
+    });
+    if (initError) {
+      Alert.alert('Payment setup failed', initError.message ?? 'Could not initialize payment.');
+      return false;
+    }
+
+    const { error: presentError } = await presentPaymentSheet();
+    if (presentError) {
+      if (presentError.code !== 'Canceled') {
+        Alert.alert('Payment failed', presentError.message ?? 'Could not save your card.');
+      }
+      return false;
+    }
+
+    await refreshSession();
+    return true;
+  }, [household?.id, stripeKey, initPaymentSheet, presentPaymentSheet, refreshSession]);
+
+  const handleCommit = async () => {
     if (!user || !household?.id) return;
     if (locked) {
       Alert.alert('Box locked', 'The customization window has closed. Contact support for changes.');
@@ -58,43 +94,21 @@ export function CheckoutScreen() {
     }
     if (!validateAddress()) return;
 
-    if (!stripeKey) {
-      Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
-      return;
-    }
-
-    setPaying(true);
+    setSubmitting(true);
     try {
-      const { clientSecret, orderId } = await createPilotCheckout(household.id, normalizedAddress());
-
-      if (!clientSecret) {
-        Alert.alert('Error', 'No payment secret returned. Deploy createPilotCheckout Cloud Function.');
-        return;
+      let ready = cardOnFile;
+      if (!ready) {
+        ready = await handleSaveCard();
+        if (!ready) return;
       }
 
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: clientSecret,
-        merchantDisplayName: 'Grapejuice',
-      });
-      if (initError) {
-        Alert.alert('Payment setup failed', initError.message ?? 'Could not initialize payment.');
-        return;
-      }
-
-      const { error: presentError } = await presentPaymentSheet();
-      if (presentError) {
-        if (presentError.code !== 'Canceled') {
-          Alert.alert('Payment failed', presentError.message ?? 'Payment could not be completed.');
-        }
-        return;
-      }
-
+      const { orderId } = await commitPilotBox(household.id, normalizedAddress());
       navigation.replace('OrderConfirmation', { orderId });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Checkout failed.';
       Alert.alert('Error', message);
     } finally {
-      setPaying(false);
+      setSubmitting(false);
     }
   };
 
@@ -127,7 +141,13 @@ export function CheckoutScreen() {
         <Text style={styles.backLink}>← Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Checkout</Text>
+      <Text style={styles.title}>Payment & shipping</Text>
+      <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
+      {!cardOnFile ? (
+        <Text style={styles.pendingCopy}>
+          Your box will not ship until you add payment information and a shipping address.
+        </Text>
+      ) : null}
       {locked ? (
         <Text style={styles.lockBanner}>Box customization is locked. Checkout may be unavailable.</Text>
       ) : null}
@@ -144,14 +164,16 @@ export function CheckoutScreen() {
       <CheckoutAddressFields address={address} onChange={updateAddress} />
 
       <TouchableOpacity
-        style={[styles.payBtn, (paying || locked) && styles.payBtnDisabled]}
-        onPress={handlePay}
-        disabled={paying || locked}
+        style={[styles.payBtn, (submitting || locked) && styles.payBtnDisabled]}
+        onPress={handleCommit}
+        disabled={submitting || locked}
       >
-        {paying ? (
+        {submitting ? (
           <ActivityIndicator color={semanticColors.textInverse} />
         ) : (
-          <Text style={styles.payBtnText}>Pay {formatDollars(total)}</Text>
+          <Text style={styles.payBtnText}>
+            {cardOnFile ? 'Commit to box' : 'Save card & commit to box'}
+          </Text>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -169,7 +191,21 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   backRow: { marginBottom: spacing.md },
   backLink: { color: semanticColors.brand, fontWeight: '600' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.md },
+  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.sm },
+  chargeBanner: {
+    backgroundColor: semanticColors.brandLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    color: semanticColors.textSecondary,
+    marginBottom: spacing.md,
+    fontSize: typography.md,
+  },
+  pendingCopy: {
+    fontSize: typography.sm,
+    color: semanticColors.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
   lockBanner: {
     backgroundColor: semanticColors.brandLight,
     padding: spacing.md,

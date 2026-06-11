@@ -38,6 +38,8 @@ function statusLabel(status: PilotOrder['status']): string {
   switch (status) {
     case 'pending':
       return 'Processing payment';
+    case 'committed':
+      return 'Committed — charged at ship';
     case 'confirmed':
       return 'Confirmed';
     case 'shipped':

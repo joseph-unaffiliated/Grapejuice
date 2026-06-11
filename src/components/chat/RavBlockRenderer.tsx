@@ -13,8 +13,10 @@ type Props = {
   blocks: RavBlock[];
   lineItems: BoxLineItem[];
   boxLocked?: boolean;
+  paymentGated?: boolean;
   onSwap: (slotId: string, item: CatalogItem) => void;
   onAddExtra?: (item: CatalogItem) => void;
+  guardMutation?: () => boolean;
 };
 
 const goldCardShadow = Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow;
@@ -29,6 +31,7 @@ function CurationBlock({
   onSwap,
   onAddExtra,
   styles,
+  guardMutation,
 }: {
   block: RavBlock;
   blockIndex: number;
@@ -38,6 +41,7 @@ function CurationBlock({
   onSwap: (slotId: string, item: CatalogItem) => void;
   onAddExtra?: (item: CatalogItem) => void;
   styles: ReturnType<typeof createRavBlockStyles>;
+  guardMutation?: () => boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? items : items.slice(0, CURATION_PREVIEW);
@@ -45,6 +49,7 @@ function CurationBlock({
 
   const handleItemPress = (item: CatalogItem) => {
     if (boxLocked) return;
+    if (guardMutation && !guardMutation()) return;
     const slot = lineItems.find((li) => li.itemId === item.id || li.slotId === block.slotId);
     if (slot) onSwap(slot.slotId, item);
     else onAddExtra?.(item);
@@ -77,7 +82,15 @@ function CurationBlock({
   );
 }
 
-export function RavBlockRenderer({ blocks, lineItems, boxLocked, onSwap, onAddExtra }: Props) {
+export function RavBlockRenderer({
+  blocks,
+  lineItems,
+  boxLocked,
+  paymentGated,
+  onSwap,
+  onAddExtra,
+  guardMutation,
+}: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createRavBlockStyles(colors), [colors]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -104,6 +117,7 @@ export function RavBlockRenderer({ blocks, lineItems, boxLocked, onSwap, onAddEx
               boxLocked={boxLocked}
               onSwap={onSwap}
               onAddExtra={onAddExtra}
+              guardMutation={paymentGated ? guardMutation : undefined}
               styles={styles}
             />
           );
@@ -128,6 +142,8 @@ export function RavBlockRenderer({ blocks, lineItems, boxLocked, onSwap, onAddEx
                 style={[styles.chipBtn, boxLocked && styles.chipBtnDisabled]}
                 disabled={boxLocked}
                 onPress={() => {
+                  if (boxLocked) return;
+                  if (paymentGated && guardMutation && !guardMutation()) return;
                   const slot = lineItems.find((li) => li.itemId === item.id || li.slotId === block.slotId);
                   if (slot) onSwap(slot.slotId, item);
                   else onAddExtra?.(item);
@@ -152,7 +168,11 @@ export function RavBlockRenderer({ blocks, lineItems, boxLocked, onSwap, onAddEx
               <TouchableOpacity
                 style={[styles.chipBtn, boxLocked && styles.chipBtnDisabled]}
                 disabled={boxLocked}
-                onPress={() => onSwap(block.slotId!, suggested)}
+                onPress={() => {
+                  if (boxLocked) return;
+                  if (paymentGated && guardMutation && !guardMutation()) return;
+                  onSwap(block.slotId!, suggested);
+                }}
               >
                 <Text style={styles.chipBtnText}>Make this swap</Text>
               </TouchableOpacity>

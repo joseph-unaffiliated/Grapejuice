@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
+  OAuthProvider,
   signInWithCredential,
   signInWithPopup,
   User,
@@ -11,6 +12,7 @@ import {
 } from 'firebase/auth';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { auth } from '../../lib/firebase';
 
 const FIREBASE_NOT_CONFIGURED = 'Firebase is not configured. Add EXPO_PUBLIC_FIREBASE_* to .env and restart.';
@@ -107,6 +109,39 @@ export async function signInWithGoogle(): Promise<AuthUser> {
   if (!idToken) throw new Error('No Google idToken available');
   const googleCredential = GoogleAuthProvider.credential(idToken);
   const userCredential = await signInWithCredential(auth, googleCredential);
+  return formatUser(userCredential.user);
+}
+
+export async function signInWithApple(): Promise<AuthUser> {
+  if (Platform.OS !== 'ios') {
+    throw new Error('Sign in with Apple is only available on iOS.');
+  }
+  if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
+
+  const appleCredential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+  });
+
+  if (!appleCredential.identityToken) {
+    throw new Error('No identity token from Apple.');
+  }
+
+  const provider = new OAuthProvider('apple.com');
+  const oauthCredential = provider.credential({ idToken: appleCredential.identityToken });
+  const userCredential = await signInWithCredential(auth, oauthCredential);
+
+  if (appleCredential.fullName?.givenName && !userCredential.user.displayName) {
+    const name = [appleCredential.fullName.givenName, appleCredential.fullName.familyName]
+      .filter(Boolean)
+      .join(' ');
+    if (name) {
+      await updateProfile(userCredential.user, { displayName: name });
+    }
+  }
+
   return formatUser(userCredential.user);
 }
 

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { ScreenShell } from '../../components/ui/ScreenShell';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useFirebaseReady } from '../../hooks/useFirebaseReady';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { useAuthStore } from '../../stores/authStore';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { spacing, typography } from '../../constants/theme';
 import type { AuthStackParamList } from '../../navigation/types';
@@ -18,6 +19,7 @@ export function WelcomeScreen() {
   const { ready, error, projectId } = useFirebaseReady();
   const startExplore = useGuestSessionStore((s) => s.startExplore);
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
+  const { appleSignIn, isLoading, clearError } = useAuthStore();
 
   return (
     <ScreenShell
@@ -44,6 +46,22 @@ export function WelcomeScreen() {
       <TouchableOpacity onPress={() => navigation.navigate('SignIn')} style={styles.secondaryBtn}>
         <Text style={[styles.secondaryText, { color: colors.brand }]}>Log in</Text>
       </TouchableOpacity>
+      {Platform.OS === 'ios' ? (
+        <GrapejuiceButton
+          label="Sign in with Apple"
+          variant="pillOutline"
+          onPress={async () => {
+            clearError();
+            try {
+              await appleSignIn();
+            } catch {
+              /* store */
+            }
+          }}
+          disabled={isLoading}
+          style={[styles.fullWidth, styles.gapTop]}
+        />
+      ) : null}
       {__DEV__ ? (
         <TouchableOpacity onPress={() => startExplore()} style={styles.devBtn}>
           <Text style={[styles.devText, { color: colors.textTertiary }]}>Dev: enter app</Text>

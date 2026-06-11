@@ -1,9 +1,14 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { CompositeNavigationProp } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { BoxItemImage } from '../box/BoxItemImage';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { getItemBrand } from '../../constants/catalogCuration';
 import type { CatalogItem } from '../../types/pilot';
+import type { MainTabsParamList, MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -26,10 +31,12 @@ function StageCard({
   title,
   items,
   styles,
+  onItemPress,
 }: {
   title: string;
   items: CatalogItem[];
   styles: ReturnType<typeof createSetTheStageStyles>;
+  onItemPress: (itemId: string) => void;
 }) {
   if (!items.length) return null;
 
@@ -42,7 +49,7 @@ function StageCard({
       <Text style={styles.cardTitle}>{title}</Text>
       <View style={styles.productRow}>
         {items.map((item) => (
-          <View key={item.id} style={styles.tile}>
+          <TouchableOpacity key={item.id} style={styles.tile} activeOpacity={0.85} onPress={() => onItemPress(item.id)}>
             <BoxItemImage size={CATALOG_TILE} imageUrl={item.imageUrl} itemId={item.id} style={styles.image} />
             <View style={styles.meta}>
               <Text style={styles.itemName} numberOfLines={CATALOG_PRODUCT_NAME_LINES}>
@@ -53,7 +60,7 @@ function StageCard({
               ) : null}
             </View>
             <Text style={styles.price}>{formatCatalogDollars(item.dollarCostCents)}</Text>
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
     </View>
@@ -62,8 +69,15 @@ function StageCard({
 
 /** Figma 370:3192 — Apparel / Decorations tiles in a horizontal card scrub. */
 export function SetTheStageSection({ apparel, decorations }: Props) {
+  const navigation = useNavigation<
+    CompositeNavigationProp<
+      BottomTabNavigationProp<MainTabsParamList>,
+      StackNavigationProp<MainStackParamList>
+    >
+  >();
   const { colors } = useThemeMode();
   const styles = useMemo(() => createSetTheStageStyles(colors), [colors]);
+  const openProduct = (itemId: string) => navigation.navigate('CatalogProduct', { itemId });
   const cards = [
     apparel.length ? { key: 'apparel', title: 'Apparel', items: apparel } : null,
     decorations.length ? { key: 'decorations', title: 'Decorations', items: decorations } : null,
@@ -81,7 +95,7 @@ export function SetTheStageSection({ apparel, decorations }: Props) {
         contentContainerStyle={styles.rail}
       >
         {cards.map((c) => (
-          <StageCard key={c.key} title={c.title} items={c.items} styles={styles} />
+          <StageCard key={c.key} title={c.title} items={c.items} styles={styles} onItemPress={openProduct} />
         ))}
       </ScrollView>
     </View>

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
+exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const app_1 = require("firebase-admin/app");
@@ -35,6 +35,26 @@ async function assertHouseholdMember(uid, householdId) {
     if (!memberIds.includes(uid)) {
         throw new https_1.HttpsError('permission-denied', 'Not a member of this household.');
     }
+    return snap;
+}
+async function getOrCreateStripeCustomer(householdId, uid, email) {
+    var _a;
+    const hhRef = db.doc(`households/${householdId}`);
+    const hhSnap = await hhRef.get();
+    const existing = (_a = hhSnap.data()) === null || _a === void 0 ? void 0 : _a.stripeCustomerId;
+    if (existing)
+        return existing;
+    if (!stripe_1.stripe)
+        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured.');
+    const customer = await stripe_1.stripe.customers.create({
+        email: email || undefined,
+        metadata: { householdId, userId: uid },
+    });
+    await hhRef.update({
+        stripeCustomerId: customer.id,
+        updatedAt: new Date().toISOString(),
+    });
+    return customer.id;
 }
 async function getLockAt() {
     var _a, _b;
@@ -115,8 +135,131 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
         totalCents,
     };
 });
-exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
+exports.createPilotSetupIntent = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c, _d;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    }
+    if (!stripe_1.stripe) {
+        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+    }
+    const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
+    const householdId = data.householdId;
+    if (!householdId) {
+        throw new https_1.HttpsError('invalid-argument', 'householdId is required.');
+    }
+    await assertHouseholdMember(request.auth.uid, householdId);
+    const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+    const email = (_d = (_c = userSnap.data()) === null || _c === void 0 ? void 0 : _c.email) !== null && _d !== void 0 ? _d : '';
+    const customerId = await getOrCreateStripeCustomer(householdId, request.auth.uid, email);
+    const setupIntent = await stripe_1.stripe.setupIntents.create({
+        customer: customerId,
+        automatic_payment_methods: { enabled: true },
+        metadata: {
+            householdId,
+            userId: request.auth.uid,
+        },
+    });
+    if (!setupIntent.client_secret) {
+        throw new https_1.HttpsError('internal', 'SetupIntent missing client secret.');
+    }
+    return { clientSecret: setupIntent.client_secret, customerId };
+});
+exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    }
+    if (!stripe_1.stripe) {
+        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+    }
+    const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
+    const householdId = data.householdId;
+    const shippingAddress = data.shippingAddress;
+    if (!householdId || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.line1) || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.city)) {
+        throw new https_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
+    }
+    const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);
+    const hhData = (_c = hhSnap.data()) !== null && _c !== void 0 ? _c : {};
+    const cardOnFile = !!hhData.cardOnFileAt;
+    const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
+    const lockAt = await getLockAt();
+    if (isLocked(lockAt)) {
+        throw new https_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
+    }
+    const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
+    if (!draftSnap.exists) {
+        throw new https_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
+    }
+    const draft = draftSnap.data();
+    const lineItems = (_d = draft.lineItems) !== null && _d !== void 0 ? _d : [];
+    const configSnap = await db.doc('config/hanukkah-2026').get();
+    const configData = (_e = configSnap.data()) !== null && _e !== void 0 ? _e : {};
+    const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+    const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
+    const shippingCents = SHIPPING_FLAT_CENTS;
+    const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
+    let totalCents = subtotalCents + shippingCents + taxCents;
+    const creditApplied = Math.min(giftCreditCents, totalCents);
+    totalCents -= creditApplied;
+    if (!cardOnFile && giftCreditCents < boxPriceCents) {
+        throw new https_1.HttpsError('failed-precondition', 'Save a payment method before committing your box.');
+    }
+    if (totalCents > 0 && !cardOnFile) {
+        throw new https_1.HttpsError('failed-precondition', 'Save a payment method for add-ons and shipping.');
+    }
+    if (totalCents < 0) {
+        throw new https_1.HttpsError('invalid-argument', 'Order total is invalid.');
+    }
+    const estimatedDelivery = (_f = configData.estimatedDeliveryBy) !== null && _f !== void 0 ? _f : '2026-12-07';
+    const orderRef = db.collection(`households/${householdId}/orders`).doc();
+    await orderRef.set({
+        status: 'committed',
+        lineItems,
+        subtotalCents,
+        shippingCents,
+        taxCents,
+        totalCents,
+        creditAppliedCents: creditApplied,
+        shippingAddress,
+        holidayId: HOLIDAY_ID,
+        userId: request.auth.uid,
+        lockAt,
+        estimatedDelivery,
+        committedAt: firestore_1.FieldValue.serverTimestamp(),
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    if (totalCents > 0 && cardOnFile) {
+        const customerId = (_g = hhData.stripeCustomerId) !== null && _g !== void 0 ? _g : '';
+        const paymentMethodId = hhData.stripeDefaultPaymentMethodId;
+        if (!customerId || !paymentMethodId) {
+            throw new https_1.HttpsError('failed-precondition', 'Saved card is missing. Re-add your payment method.');
+        }
+        const paymentIntent = await stripe_1.stripe.paymentIntents.create({
+            amount: totalCents,
+            currency: 'usd',
+            customer: customerId,
+            payment_method: paymentMethodId,
+            capture_method: 'manual',
+            confirm: true,
+            off_session: true,
+            metadata: {
+                householdId,
+                orderId: orderRef.id,
+                userId: request.auth.uid,
+                type: 'hanukkah_box',
+            },
+        });
+        await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
+    }
+    return {
+        orderId: orderRef.id,
+        totalCents,
+        status: 'committed',
+    };
+});
+exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
         return;
@@ -137,17 +280,31 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         return;
     }
     try {
+        if (event.type === 'setup_intent.succeeded') {
+            const si = event.data.object;
+            const householdId = (_c = si.metadata) === null || _c === void 0 ? void 0 : _c.householdId;
+            const paymentMethodId = typeof si.payment_method === 'string' ? si.payment_method : (_d = si.payment_method) === null || _d === void 0 ? void 0 : _d.id;
+            const customerId = typeof si.customer === 'string' ? si.customer : (_e = si.customer) === null || _e === void 0 ? void 0 : _e.id;
+            if (householdId && paymentMethodId) {
+                await db.doc(`households/${householdId}`).update(Object.assign(Object.assign({ cardOnFileAt: new Date().toISOString(), stripeDefaultPaymentMethodId: paymentMethodId }, (customerId ? { stripeCustomerId: customerId } : {})), { updatedAt: new Date().toISOString() }));
+                if (stripe_1.stripe && customerId) {
+                    await stripe_1.stripe.customers.update(customerId, {
+                        invoice_settings: { default_payment_method: paymentMethodId },
+                    });
+                }
+            }
+        }
         if (event.type === 'payment_intent.succeeded') {
             const pi = event.data.object;
-            const householdId = (_c = pi.metadata) === null || _c === void 0 ? void 0 : _c.householdId;
-            const orderId = (_d = pi.metadata) === null || _d === void 0 ? void 0 : _d.orderId;
+            const householdId = (_f = pi.metadata) === null || _f === void 0 ? void 0 : _f.householdId;
+            const orderId = (_g = pi.metadata) === null || _g === void 0 ? void 0 : _g.orderId;
             if (!householdId || !orderId) {
                 logger.warn('payment_intent.succeeded missing metadata', pi.metadata);
             }
             else {
                 const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
                 const orderSnap = await orderRef.get();
-                if (orderSnap.exists && ((_e = orderSnap.data()) === null || _e === void 0 ? void 0 : _e.status) !== 'confirmed') {
+                if (orderSnap.exists && ((_h = orderSnap.data()) === null || _h === void 0 ? void 0 : _h.status) !== 'confirmed') {
                     await orderRef.update({
                         status: 'confirmed',
                         confirmedAt: firestore_1.FieldValue.serverTimestamp(),
@@ -155,7 +312,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                     const order = orderSnap.data();
                     const userId = order.userId;
                     const userSnap = await db.doc(`users/${userId}`).get();
-                    const email = (_g = (_f = userSnap.data()) === null || _f === void 0 ? void 0 : _f.email) !== null && _g !== void 0 ? _g : '';
+                    const email = (_k = (_j = userSnap.data()) === null || _j === void 0 ? void 0 : _j.email) !== null && _k !== void 0 ? _k : '';
                     if (email) {
                         try {
                             await (0, email_1.sendEmail)({

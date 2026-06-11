@@ -10,6 +10,13 @@ function toHousehold(id: string, data: Record<string, unknown>): Household {
     ownerId: String(data.ownerId ?? ''),
     memberIds: Array.isArray(data.memberIds) ? (data.memberIds as string[]) : [],
     childUserIds: Array.isArray(data.childUserIds) ? (data.childUserIds as string[]) : [],
+    stripeCustomerId: data.stripeCustomerId ? String(data.stripeCustomerId) : undefined,
+    stripeDefaultPaymentMethodId: data.stripeDefaultPaymentMethodId
+      ? String(data.stripeDefaultPaymentMethodId)
+      : undefined,
+    cardOnFileAt: data.cardOnFileAt ? String(data.cardOnFileAt) : undefined,
+    giftCreditCents:
+      typeof data.giftCreditCents === 'number' ? data.giftCreditCents : undefined,
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };

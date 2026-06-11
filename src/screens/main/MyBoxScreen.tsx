@@ -56,6 +56,7 @@ import {
   topPickItemId,
 } from '../../services/box/slotVotes';
 import { PILOT_COPY } from '../../constants/pilotHolidays';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { spacing, typography, borderRadius, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -107,6 +108,7 @@ export function MyBoxScreen() {
   const [activeSection, setActiveSection] = useState<BoxDisplaySectionId>('candles');
   const [now] = useState(() => new Date());
   const locked = isBoxLocked(lockAt);
+  const { cardOnFile, guardMutation } = usePaymentGate();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,7 +178,7 @@ export function MyBoxScreen() {
   }, [lineItems, catalog]);
 
   const applySwap = async (slotId: string, newItem: CatalogItem) => {
-    if (!beforeCustomize()) return;
+    if (!beforeCustomize() || !guardMutation()) return;
     const tier = inferPricingTier(newItem);
     const next = lineItems.map((li) =>
       li.slotId === slotId
@@ -278,7 +280,7 @@ export function MyBoxScreen() {
   };
 
   const toggleExtra = async (item: CatalogItem) => {
-    if (locked || !beforeCustomize()) return;
+    if (locked || !beforeCustomize() || !guardMutation()) return;
     const existing = lineItems.find((li) => li.itemId === item.id);
     if (existing) {
       await persist(lineItems.filter((li) => li.itemId !== item.id));
@@ -298,7 +300,7 @@ export function MyBoxScreen() {
   };
 
   const addCatalogItem = async (item: CatalogItem) => {
-    if (locked || !beforeCustomize()) return;
+    if (locked || !beforeCustomize() || !guardMutation()) return;
     const tier = inferPricingTier(item);
     await persist([
       ...lineItems,
@@ -313,7 +315,7 @@ export function MyBoxScreen() {
   };
 
   const swapCatalogIn = async (item: CatalogItem) => {
-    if (locked || !beforeCustomize()) return;
+    if (locked || !beforeCustomize() || !guardMutation()) return;
     const baseSlot = catalogSlotId(item.slotId);
     const existing = lineItems.find(
       (li) => li.slotId === item.slotId || catalogSlotId(li.slotId) === baseSlot
@@ -464,7 +466,7 @@ export function MyBoxScreen() {
                     requireAuthToCustomize('signup');
                     return;
                   }
-                  navigation.navigate('AlaCarteStore');
+                  scrollToSection(sectionId);
                 }}
               >
                 <Text style={styles.browseChipText}>{chip}</Text>
@@ -526,6 +528,9 @@ export function MyBoxScreen() {
       {!isChildProfile ? (
         <>
           <Text style={styles.subtitle}>{PILOT_COPY.boxDetailTop}</Text>
+          {!cardOnFile ? (
+            <Text style={styles.paymentPending}>{PILOT_COPY.boxDetailPaymentPending}</Text>
+          ) : null}
           {!PILOT_PARENT_ONLY ? (
             <TouchableOpacity
               style={styles.guideLink}
@@ -613,7 +618,7 @@ export function MyBoxScreen() {
         }}
         disabled={locked || lineItems.length === 0}
       >
-        <Text style={styles.checkoutText}>Review box</Text>
+        <Text style={styles.checkoutText}>{cardOnFile ? 'Review shipping' : 'Add payment & shipping'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -634,7 +639,7 @@ export function MyBoxScreen() {
         }}
         disabled={locked || lineItems.length === 0}
       >
-        <Text style={styles.footerPrimaryText}>Review box</Text>
+        <Text style={styles.footerPrimaryText}>{cardOnFile ? 'Review shipping' : 'Add payment & shipping'}</Text>
       </TouchableOpacity>
     </View>
   ) : null;
@@ -726,6 +731,14 @@ function createMyBoxStyles(colors: SemanticColors) {
     marginBottom: spacing.sm,
     lineHeight: 20,
     textAlign: 'center',
+  },
+  paymentPending: {
+    fontSize: typography.sm,
+    color: colors.textTertiary,
+    marginBottom: spacing.sm,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
   },
   guideLink: { alignSelf: 'center', marginBottom: spacing.md },
   guideLinkText: {

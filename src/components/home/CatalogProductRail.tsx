@@ -79,7 +79,7 @@ export function CatalogProductRail({ title, items }: Props) {
               key={item.id}
               style={styles.tile}
               activeOpacity={0.85}
-              onPress={() => navigation.navigate('AlaCarteStore')}
+              onPress={() => navigation.navigate('CatalogProduct', { itemId: item.id })}
             >
               <BoxItemImage size={CATALOG_TILE} imageUrl={item.imageUrl} itemId={item.id} style={styles.image} />
               <Text style={styles.name} numberOfLines={CATALOG_PRODUCT_NAME_LINES}>

@@ -65,7 +65,9 @@ export const PILOT_HOLIDAYS: HolidayCard[] = [
 export const PILOT_COPY = {
   homeTagline: 'A Hanukkah box that meets your family where you are.',
   myBoxStatus: 'Kit for this season. Collection for years ahead.',
-  boxDetailTop: 'Choose what to open now, what to hold back, and what to swap.',
+  boxDetailTop: 'Refine your box',
+  boxDetailPaymentPending:
+    'Your box will not ship until you add payment information and a shipping address.',
   holidayCards: 'Tap interested holidays now so we can invite you first.',
   kitVsCollection: 'Your kit is for this year. Your collection grows each holiday.',
 };

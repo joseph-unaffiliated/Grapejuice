@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
@@ -13,7 +13,7 @@ type Nav = StackNavigationProp<AuthStackParamList, 'SignIn'>;
 
 export function SignInScreen() {
   const navigation = useNavigation<Nav>();
-  const { googleSignIn, isLoading, error, clearError } = useAuthStore();
+  const { googleSignIn, appleSignIn, isLoading, error, clearError } = useAuthStore();
 
   return (
     <WebPageContainer authCard style={styles.container}>
@@ -44,6 +44,24 @@ export function SignInScreen() {
         loading={isLoading}
         style={styles.btn}
       />
+
+      {Platform.OS === 'ios' ? (
+        <GrapejuiceButton
+          label="Sign in with Apple"
+          variant="pill"
+          onPress={async () => {
+            clearError();
+            try {
+              await appleSignIn();
+            } catch {
+              /* store */
+            }
+          }}
+          disabled={isLoading}
+          loading={isLoading}
+          style={styles.btn}
+        />
+      ) : null}
 
       <GrapejuiceButton
         label="Need an account? Create one"

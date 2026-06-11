@@ -31,13 +31,35 @@ function orderTotalCents(
   return subtotal + SHIPPING_FLAT_CENTS;
 }
 
-async function assertHouseholdMember(uid: string, householdId: string): Promise<void> {
+async function assertHouseholdMember(uid: string, householdId: string): Promise<FirebaseFirestore.DocumentSnapshot> {
   const snap = await db.doc(`households/${householdId}`).get();
   if (!snap.exists) throw new HttpsError('not-found', 'Household not found.');
   const memberIds = (snap.data()?.memberIds as string[]) ?? [];
   if (!memberIds.includes(uid)) {
     throw new HttpsError('permission-denied', 'Not a member of this household.');
   }
+  return snap;
+}
+
+async function getOrCreateStripeCustomer(
+  householdId: string,
+  uid: string,
+  email: string
+): Promise<string> {
+  const hhRef = db.doc(`households/${householdId}`);
+  const hhSnap = await hhRef.get();
+  const existing = hhSnap.data()?.stripeCustomerId as string | undefined;
+  if (existing) return existing;
+  if (!stripe) throw new HttpsError('failed-precondition', 'Stripe is not configured.');
+  const customer = await stripe.customers.create({
+    email: email || undefined,
+    metadata: { householdId, userId: uid },
+  });
+  await hhRef.update({
+    stripeCustomerId: customer.id,
+    updatedAt: new Date().toISOString(),
+  });
+  return customer.id;
 }
 
 async function getLockAt(): Promise<string | null> {
@@ -63,6 +85,15 @@ type ShippingAddress = {
 interface CreatePilotCheckoutData {
   householdId: string;
   shippingAddress: ShippingAddress;
+}
+
+interface CommitPilotBoxData {
+  householdId: string;
+  shippingAddress: ShippingAddress;
+}
+
+interface CreatePilotSetupIntentData {
+  householdId: string;
 }
 
 type PartnerInviteRecord = {
@@ -158,6 +189,150 @@ export const createPilotCheckout = onCall(async (request) => {
   };
 });
 
+export const createPilotSetupIntent = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  if (!stripe) {
+    throw new HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+  }
+
+  const data = (request.data ?? {}) as CreatePilotSetupIntentData;
+  const householdId = data.householdId;
+  if (!householdId) {
+    throw new HttpsError('invalid-argument', 'householdId is required.');
+  }
+
+  await assertHouseholdMember(request.auth.uid, householdId);
+
+  const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const email = (userSnap.data()?.email as string) ?? '';
+
+  const customerId = await getOrCreateStripeCustomer(householdId, request.auth.uid, email);
+  const setupIntent = await stripe.setupIntents.create({
+    customer: customerId,
+    automatic_payment_methods: { enabled: true },
+    metadata: {
+      householdId,
+      userId: request.auth.uid,
+    },
+  });
+
+  if (!setupIntent.client_secret) {
+    throw new HttpsError('internal', 'SetupIntent missing client secret.');
+  }
+
+  return { clientSecret: setupIntent.client_secret, customerId };
+});
+
+export const commitPilotBox = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  if (!stripe) {
+    throw new HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+  }
+
+  const data = (request.data ?? {}) as CommitPilotBoxData;
+  const householdId = data.householdId;
+  const shippingAddress = data.shippingAddress;
+  if (!householdId || !shippingAddress?.line1 || !shippingAddress?.city) {
+    throw new HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
+  }
+
+  const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);
+  const hhData = hhSnap.data() ?? {};
+  const cardOnFile = !!hhData.cardOnFileAt;
+  const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
+
+  const lockAt = await getLockAt();
+  if (isLocked(lockAt)) {
+    throw new HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
+  }
+
+  const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
+  if (!draftSnap.exists) {
+    throw new HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
+  }
+  const draft = draftSnap.data()!;
+  const lineItems = (draft.lineItems as Array<Record<string, unknown>>) ?? [];
+  const configSnap = await db.doc('config/hanukkah-2026').get();
+  const configData = configSnap.data() ?? {};
+  const boxPriceCents =
+    typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const subtotalCents = orderTotalCents(
+    lineItems as Array<{ unitCents?: number; quantity?: number; slotId?: string }>,
+    boxPriceCents
+  );
+  const shippingCents = SHIPPING_FLAT_CENTS;
+  const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
+  let totalCents = subtotalCents + shippingCents + taxCents;
+  const creditApplied = Math.min(giftCreditCents, totalCents);
+  totalCents -= creditApplied;
+
+  if (!cardOnFile && giftCreditCents < boxPriceCents) {
+    throw new HttpsError('failed-precondition', 'Save a payment method before committing your box.');
+  }
+  if (totalCents > 0 && !cardOnFile) {
+    throw new HttpsError('failed-precondition', 'Save a payment method for add-ons and shipping.');
+  }
+  if (totalCents < 0) {
+    throw new HttpsError('invalid-argument', 'Order total is invalid.');
+  }
+
+  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-12-07';
+
+  const orderRef = db.collection(`households/${householdId}/orders`).doc();
+  await orderRef.set({
+    status: 'committed',
+    lineItems,
+    subtotalCents,
+    shippingCents,
+    taxCents,
+    totalCents,
+    creditAppliedCents: creditApplied,
+    shippingAddress,
+    holidayId: HOLIDAY_ID,
+    userId: request.auth.uid,
+    lockAt,
+    estimatedDelivery,
+    committedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  if (totalCents > 0 && cardOnFile) {
+    const customerId = (hhData.stripeCustomerId as string) ?? '';
+    const paymentMethodId = hhData.stripeDefaultPaymentMethodId as string | undefined;
+    if (!customerId || !paymentMethodId) {
+      throw new HttpsError('failed-precondition', 'Saved card is missing. Re-add your payment method.');
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: totalCents,
+      currency: 'usd',
+      customer: customerId,
+      payment_method: paymentMethodId,
+      capture_method: 'manual',
+      confirm: true,
+      off_session: true,
+      metadata: {
+        householdId,
+        orderId: orderRef.id,
+        userId: request.auth.uid,
+        type: 'hanukkah_box',
+      },
+    });
+
+    await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
+  }
+
+  return {
+    orderId: orderRef.id,
+    totalCents,
+    status: 'committed' as const,
+  };
+});
+
 export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');
@@ -180,6 +355,31 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
   }
 
   try {
+    if (event.type === 'setup_intent.succeeded') {
+      const si = event.data.object as {
+        metadata?: Record<string, string>;
+        payment_method?: string | { id?: string };
+        customer?: string | { id?: string };
+      };
+      const householdId = si.metadata?.householdId;
+      const paymentMethodId =
+        typeof si.payment_method === 'string' ? si.payment_method : si.payment_method?.id;
+      const customerId = typeof si.customer === 'string' ? si.customer : si.customer?.id;
+      if (householdId && paymentMethodId) {
+        await db.doc(`households/${householdId}`).update({
+          cardOnFileAt: new Date().toISOString(),
+          stripeDefaultPaymentMethodId: paymentMethodId,
+          ...(customerId ? { stripeCustomerId: customerId } : {}),
+          updatedAt: new Date().toISOString(),
+        });
+        if (stripe && customerId) {
+          await stripe.customers.update(customerId, {
+            invoice_settings: { default_payment_method: paymentMethodId },
+          });
+        }
+      }
+    }
+
     if (event.type === 'payment_intent.succeeded') {
       const pi = event.data.object as { id: string; metadata?: Record<string, string> };
       const householdId = pi.metadata?.householdId;

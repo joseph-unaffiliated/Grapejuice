@@ -29,7 +29,7 @@ export function useHolidayPhase(
       return { phase: 'delivered', hanukkah, primaryOrder };
     }
 
-    if (primaryOrder.status === 'confirmed' || primaryOrder.status === 'shipped') {
+    if (primaryOrder.status === 'committed' || primaryOrder.status === 'confirmed' || primaryOrder.status === 'shipped') {
       return { phase: 'confirmed', hanukkah, primaryOrder };
     }
 

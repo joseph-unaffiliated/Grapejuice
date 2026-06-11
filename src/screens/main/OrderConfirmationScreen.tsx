@@ -24,8 +24,13 @@ export function OrderConfirmationScreen() {
     return ordersService.subscribe(household.id, orderId, setOrder);
   }, [household?.id, route.params.orderId]);
 
-  const confirmed = order?.status === 'confirmed' || order?.status === 'shipped' || order?.status === 'delivered';
+  const confirmed =
+    order?.status === 'committed' ||
+    order?.status === 'confirmed' ||
+    order?.status === 'shipped' ||
+    order?.status === 'delivered';
   const pending = order?.status === 'pending';
+  const committed = order?.status === 'committed';
 
   return (
     <View style={[styles.root, webFrame]}>
@@ -41,10 +46,14 @@ export function OrderConfirmationScreen() {
             </>
           ) : confirmed ? (
             <>
-              <Text style={styles.emoji}>✓</Text>
-              <Text style={styles.title}>Your Hanukkah box is on its way.</Text>
+              <Text style={styles.emoji}>{committed ? '✓' : '✓'}</Text>
+              <Text style={styles.title}>
+                {committed ? 'Your box is committed.' : 'Your Hanukkah box is on its way.'}
+              </Text>
               <Text style={styles.subtitle}>
-                We&apos;ll send a tracking link when it ships.
+                {committed
+                  ? "You won't be charged until your box ships. Keep customizing until the lock date."
+                  : "We'll send a tracking link when it ships."}
               </Text>
               {order.estimatedDelivery ? (
                 <Text style={styles.delivery}>

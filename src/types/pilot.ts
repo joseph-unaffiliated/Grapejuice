@@ -61,6 +61,12 @@ export type Household = {
   ownerId: string;
   memberIds: string[];
   childUserIds: string[];
+  stripeCustomerId?: string;
+  stripeDefaultPaymentMethodId?: string;
+  /** ISO timestamp when a card was saved via SetupIntent. */
+  cardOnFileAt?: string;
+  /** Pre-paid gift balance in cents (grandparent gift path). */
+  giftCreditCents?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -160,7 +166,7 @@ export type ShippingAddress = {
 
 export type PilotOrder = {
   id: string;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
+  status: 'pending' | 'committed' | 'confirmed' | 'shipped' | 'delivered';
   lineItems: BoxLineItem[];
   totalCents: number;
   shippingAddress: ShippingAddress;

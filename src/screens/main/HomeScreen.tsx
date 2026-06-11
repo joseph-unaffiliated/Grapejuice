@@ -43,6 +43,7 @@ import {
   filterCatalogByTag,
 } from '../../constants/catalogCuration';
 import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
+import { useHolidayPhase } from '../../hooks/useHolidayPhase';
 import type { MainTabsParamList, MainStackParamList } from '../../navigation/types';
 import type { CatalogItem, PilotOrder } from '../../types/pilot';
 import {
@@ -73,15 +74,13 @@ const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
 const SHADOW_BLEED = 8;
 
-/** Figma 370:2954 — category chip row */
+/** Category chips scroll to collection sections on Home. */
 const CATEGORY_CHIPS = [
-  { id: 'holidays', label: 'Holidays' },
-  { id: 'shabbat', label: 'Shabbat' },
-  { id: 'home', label: 'Home' },
-  { id: 'stories', label: 'Stories' },
-  { id: 'recipes', label: 'Recipes' },
-  { id: 'orders', label: 'Orders' },
-  { id: 'lists', label: 'Lists' },
+  { id: 'hanukkah', label: 'Hanukkah' },
+  { id: 'hanukkiahs', label: 'Hanukkiahs' },
+  { id: 'dreidels', label: 'Dreidels' },
+  { id: 'apparel', label: 'Apparel' },
+  { id: 'decorations', label: 'Decorations' },
 ] as const;
 
 function myBoxCardWidth(screenWidth: number) {
@@ -112,7 +111,7 @@ function heroSubtext(
 
 function statusLine(phase: string, locked: boolean, lockCountdown: string | null, hasOrder: boolean, order?: PilotOrder | null): string {
   if (phase === 'during') return 'Tonight\'s night — open the guide in your box →';
-  if (phase === 'post') return 'Share how Hanukkah went →';
+  if (phase === 'post') return 'Hanukkah debrief →';
   if (phase === 'confirmed') return order?.trackingNumber ? 'Track your shipment →' : 'Your box is on the way →';
   if (phase === 'delivered') return 'Your box arrived — get ready →';
   if (hasOrder) return 'Order placed — watch for tracking →';
@@ -137,8 +136,11 @@ export function HomeScreen() {
   const toggleGuestInterest = useGuestSessionStore((s) => s.toggleInterest);
 
   const scrollRef = useRef<ScrollView>(null);
-  const [holidaySectionY, setHolidaySectionY] = useState(0);
-  const [collectionSectionY, setCollectionSectionY] = useState(0);
+  const [hanukkahSectionY, setHanukkahSectionY] = useState(0);
+  const [hanukkiahSectionY, setHanukkiahSectionY] = useState(0);
+  const [dreidelSectionY, setDreidelSectionY] = useState(0);
+  const [apparelSectionY, setApparelSectionY] = useState(0);
+  const [decorationSectionY, setDecorationSectionY] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -162,7 +164,13 @@ export function HomeScreen() {
   const cardWidth = useMemo(() => myBoxCardWidth(contentWidth), [contentWidth]);
   const gridCell = useMemo(() => gridCellForCard(cardWidth), [cardWidth]);
   const itemCount = lineItems.length;
-  const hasOrder = orders.some((o) => o.status === 'confirmed' || o.status === 'shipped' || o.status === 'delivered');
+  const hasOrder = orders.some(
+    (o) =>
+      o.status === 'committed' ||
+      o.status === 'confirmed' ||
+      o.status === 'shipped' ||
+      o.status === 'delivered'
+  );
   const hasBoxStarted = itemCount > 0;
 
   const catalogById = useMemo(() => {
@@ -255,14 +263,16 @@ export function HomeScreen() {
   };
 
   const handleCategoryChip = (id: (typeof CATEGORY_CHIPS)[number]['id']) => {
-    if (id === 'holidays') {
-      scrollRef.current?.scrollTo({ y: holidaySectionY, animated: true });
-    } else if (id === 'home' || id === 'stories' || id === 'recipes' || id === 'lists') {
-      scrollRef.current?.scrollTo({ y: collectionSectionY, animated: true });
-    } else if (id === 'orders') {
-      navigation.navigate('Account');
-    } else if (id === 'shabbat') {
-      navigation.navigate('Rav', { initialMessage: 'Help me plan Shabbat with my family' });
+    const targets: Record<(typeof CATEGORY_CHIPS)[number]['id'], number> = {
+      hanukkah: hanukkahSectionY,
+      hanukkiahs: hanukkiahSectionY,
+      dreidels: dreidelSectionY,
+      apparel: apparelSectionY,
+      decorations: decorationSectionY,
+    };
+    const y = targets[id];
+    if (y > 0) {
+      scrollRef.current?.scrollTo({ y, animated: true });
     }
   };
 
@@ -375,13 +385,13 @@ export function HomeScreen() {
 
           {phase === 'post' ? (
             <TouchableOpacity style={styles.phaseCard} onPress={() => navigation.navigate('Reflection')}>
-              <Text style={styles.phaseTitle}>How did Hanukkah go?</Text>
-              <Text style={styles.phaseBody}>A quick reflection helps us plan next year — and Passover.</Text>
-              <Text style={styles.phaseLink}>Start reflection →</Text>
+              <Text style={styles.phaseTitle}>Hanukkah debrief</Text>
+              <Text style={styles.phaseBody}>Share how Hanukkah went — and unlock $80 toward Passover next year.</Text>
+              <Text style={styles.phaseLink}>Start debrief →</Text>
             </TouchableOpacity>
           ) : null}
 
-          <View style={styles.section} onLayout={(e) => setHolidaySectionY(e.nativeEvent.layout.y)}>
+          <View style={styles.section} onLayout={(e) => setHanukkahSectionY(e.nativeEvent.layout.y)}>
             <View style={[styles.sectionHeader, styles.gutterPad]}>
               <Text style={styles.sectionTitle}>My Boxes</Text>
             </View>
@@ -445,8 +455,7 @@ export function HomeScreen() {
             )}
           </View>
 
-          <View style={styles.collectionSection} onLayout={(e) => setCollectionSectionY(e.nativeEvent.layout.y)}>
-            <View style={styles.collectionBlock}>
+          <View style={styles.collectionBlock} onLayout={(e) => setHanukkiahSectionY(e.nativeEvent.layout.y)}>
               <Text style={[styles.collectionHeading, styles.gutterPad]}>Build your Collection</Text>
               <View style={styles.collectionRails}>
               <ScrollView
@@ -460,7 +469,10 @@ export function HomeScreen() {
                   items={hanukkiahItems}
                 />
               </ScrollView>
-              {!hasBoxStarted ? (
+              </View>
+            </View>
+            {!hasBoxStarted ? (
+              <View style={styles.collectionBlock} onLayout={(e) => setDreidelSectionY(e.nativeEvent.layout.y)}>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -472,11 +484,10 @@ export function HomeScreen() {
                     items={dreidelItems}
                   />
                 </ScrollView>
-              ) : null}
               </View>
-            </View>
+            ) : null}
             {hasBoxStarted ? (
-              <>
+              <View style={styles.collectionBlock} onLayout={(e) => setDecorationSectionY(e.nativeEvent.layout.y)}>
                 <Text style={[styles.collectionHeading, styles.gutterPad, styles.spiritHeading]}>
                   Get in the Spirit
                 </Text>
@@ -488,11 +499,12 @@ export function HomeScreen() {
                 >
                   <CatalogProductRail title="Decorations" items={decorationItems} />
                 </ScrollView>
-              </>
+              </View>
             ) : (
-              <SetTheStageSection apparel={apparelItems} decorations={decorationItems} />
+              <View style={styles.collectionBlock} onLayout={(e) => setApparelSectionY(e.nativeEvent.layout.y)}>
+                <SetTheStageSection apparel={apparelItems} decorations={decorationItems} />
+              </View>
             )}
-          </View>
 
           <View style={styles.passoverWrap}>
             <PassoverPreregisterCard
