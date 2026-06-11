@@ -16,7 +16,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '../../hooks/useSession';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
-import { useHolidayPhase } from '../../hooks/useHolidayPhase';
+import { PILOT_HIDE_IN_APP_GUIDE } from '../../constants/pilotFeatures';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
@@ -347,7 +347,7 @@ export function HomeScreen() {
             />
           )}
 
-          {phase === 'during' ? (
+          {phase === 'during' && !PILOT_HIDE_IN_APP_GUIDE ? (
             <TouchableOpacity
               style={styles.phaseCard}
               onPress={() => navigation.navigate('Guide')}
@@ -361,6 +361,16 @@ export function HomeScreen() {
               ))}
               <Text style={styles.phaseLink}>Open tonight&apos;s guide →</Text>
             </TouchableOpacity>
+          ) : phase === 'during' ? (
+            <View style={styles.phaseCard}>
+              <Text style={styles.phaseTitle}>Night {hanukkah.night} of 8</Text>
+              {HANUKKAH_TIMELINE_2026.filter((n) => n.night === hanukkah.night).map((n) => (
+                <View key={n.night}>
+                  <Text style={styles.phaseBody}>{n.title} — {n.prompt}</Text>
+                </View>
+              ))}
+              <Text style={styles.phaseBody}>Tonight&apos;s activities are in the Hanukkah guide in your box.</Text>
+            </View>
           ) : null}
 
           {phase === 'post' ? (

@@ -30,6 +30,7 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
+import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -200,13 +201,17 @@ export function AccountScreen() {
           <Text style={styles.hint}>Sign in to invite a partner and share your box.</Text>
         )}
 
-        <Text style={styles.section}>Profiles</Text>
-        <Text style={styles.hint}>
-          Active: {profileDisplayName(activeProfile, profile?.displayName, activeChild)}
-        </Text>
-        <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('Profiles')}>
-          <Text style={styles.profilesBtnText}>Who&apos;s using Grapejuice?</Text>
-        </TouchableOpacity>
+        {!PILOT_PARENT_ONLY ? (
+          <>
+            <Text style={styles.section}>Profiles</Text>
+            <Text style={styles.hint}>
+              Active: {profileDisplayName(activeProfile, profile?.displayName, activeChild)}
+            </Text>
+            <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('Profiles')}>
+              <Text style={styles.profilesBtnText}>Who&apos;s using Grapejuice?</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
 
         {hiddenHolidays.length ? (
           <>

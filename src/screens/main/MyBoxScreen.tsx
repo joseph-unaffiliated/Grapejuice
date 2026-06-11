@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSession } from '../../hooks/useSession';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
+import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../../constants/pilotFeatures';
 import { useAuthStore } from '../../stores/authStore';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
@@ -87,6 +88,7 @@ export function MyBoxScreen() {
   const { loading: sessionLoading, profile } = useSession();
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
+  const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
   const { lineItems, slotVotes, children, loading: draftLoading, persist, persistSlotVotes } =
     useBoxDraft();
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
@@ -379,9 +381,10 @@ export function MyBoxScreen() {
             !!(li.isSurprise ?? defaultIsSurprise(li.slotId));
           const showChildWrapped = wrapped;
           const showVotes =
+            !PILOT_PARENT_ONLY &&
             isVotablePerKidSlot(li.slotId) &&
-            (!isChildProfile || li.childId === activeChild?.id) &&
-            !(isChildProfile && showChildWrapped);
+            (!showKidBoxUi || li.childId === activeChild?.id) &&
+            !(showKidBoxUi && showChildWrapped);
 
           if (isChildProfile && li.childId !== activeChild?.id) return null;
           if (isChildProfile && !isVotablePerKidSlot(li.slotId)) return null;
@@ -402,7 +405,7 @@ export function MyBoxScreen() {
                       swapOptions={swapCache[li.slotId] ?? []}
                       onSwap={(opt) => void applySwap(li.slotId, opt)}
                       onToggleSurprise={
-                        isParentProfile && isWrappableSlot(li.slotId)
+                        !PILOT_PARENT_ONLY && isParentProfile && isWrappableSlot(li.slotId)
                           ? () => void toggleSurprise(li.slotId)
                           : undefined
                       }
@@ -523,13 +526,15 @@ export function MyBoxScreen() {
       {!isChildProfile ? (
         <>
           <Text style={styles.subtitle}>{PILOT_COPY.boxDetailTop}</Text>
-          <TouchableOpacity
-            style={styles.guideLink}
-            onPress={() => navigation.navigate('Guide')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.guideLinkText}>Open Hanukkah night-by-night guide →</Text>
-          </TouchableOpacity>
+          {!PILOT_PARENT_ONLY ? (
+            <TouchableOpacity
+              style={styles.guideLink}
+              onPress={() => navigation.navigate('Guide')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.guideLinkText}>Open Hanukkah night-by-night guide →</Text>
+            </TouchableOpacity>
+          ) : null}
         </>
       ) : null}
       {!isChildProfile && !guestViewOnly ? lockBanner : null}

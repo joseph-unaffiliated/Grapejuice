@@ -56,8 +56,7 @@ export function CheckoutOrderSummary({
         </View>
       ) : null}
       <Text style={styles.gapNote}>
-        Why the jump from $99 to higher totals: shipping, tax, and any add-ons are calculated at checkout.
-        Full bundles with extras typically land near $169.
+        Pilot promo box is $50 (list $80). Shipping is free; estimated tax and add-ons are calculated at checkout.
       </Text>
       {subtotal != null && subtotal !== total ? (
         <View style={styles.summaryRow}>

@@ -8,6 +8,7 @@ import {
   Platform,
 } from 'react-native';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { inferKeepOrToss } from '../../constants/boxPracticeGroups';
 import { BoxItemImage } from './BoxItemImage';
 import { ItemDetailSheet } from './ItemDetailSheet';
@@ -86,7 +87,8 @@ export function BoxItemRow({
   const [shelfOpen, setShelfOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const keepOrToss = li.keepOrToss ?? inferKeepOrToss(li.slotId);
-  const isSurprise = !!li.isSurprise;
+  const isSurprise = !PILOT_PARENT_ONLY && !!li.isSurprise;
+  const showWrapControls = !PILOT_PARENT_ONLY && !!onToggleSurprise;
   const swappable = !locked && swapOptions.length > 0;
   const displayName = li.label ?? item?.name ?? li.itemId;
 
@@ -179,7 +181,7 @@ export function BoxItemRow({
               <Text style={styles.swapText}>{shelfOpen ? 'Close' : 'Swap'}</Text>
             </TouchableOpacity>
           ) : null}
-          {onToggleSurprise && !locked ? (
+          {showWrapControls && !locked ? (
             <TouchableOpacity onPress={onToggleSurprise} style={styles.surpriseBtn}>
               <Text style={styles.surpriseBtnText}>
                 {isSurprise ? 'Wrapped ✓' : 'Wrap as surprise'}

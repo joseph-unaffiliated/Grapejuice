@@ -22,11 +22,15 @@ cp .env.example .env
 npx expo start
 ```
 
-Use **Dev: enter app** on sign-in. Open **Account → Profiles** to switch between grown-up and kid experiences.
+Sign in with email or Google (no dev bypass in production builds).
 
-## Family profiles
+## Family profiles *(deferred — tablet / post-pilot)*
 
-- **Profiles** — reached from Account only; tap a child to enter kid theme
+Build 8 ships a **parent-only shell** (`PILOT_PARENT_ONLY` in `src/constants/pilotFeatures.ts`). Kid profiles, voting, wrapped gifts, and kid Rav are implemented but hidden for the Hanukkah 2026 pilot.
+
+When re-enabled:
+
+- **Profiles** — reached from Account; tap a child to enter kid theme
 - **Thumbs-up voting** on story/gift picks (kids + grown-ups); long-press to see who voted
 - **Wrapped gifts** — parents hide gift options from kids until Hanukkah
 - **Kid Rav** — optional per child (`Allow Rav` on Profiles); server-enforced limits (no box changes)
@@ -35,8 +39,8 @@ Use **Dev: enter app** on sign-in. Open **Account → Profiles** to switch betwe
 
 - [x] Expo 54 + TypeScript + DM Sans
 - [x] Parent / kid theme tokens (`themeMode.ts`, `ThemeContext`)
-- [x] 5-tab navigation shells (Home, My Box, Rav, Guide, Account)
-- [x] Auth welcome shell + dev bypass
+- [x] 5-tab navigation shells (Home, My Box, Rav, Account — Guide hidden for pilot)
+- [x] Auth welcome shell (email + Google)
 - [x] Firebase / Functions / rules **stubs** (wire new project before real data)
 - [x] Types stub (`src/types/pilot.ts`)
 - [ ] Real auth, box engine, Stripe webhook, Customer.io, Rav tools — Phase B+
@@ -45,6 +49,8 @@ Use **Dev: enter app** on sign-in. Open **Account → Profiles** to switch betwe
 
 - [Pilot spec](../docs/PILOT_SPEC.md)
 - [Commerce baseline](../docs/COMMERCE_BASELINE.md)
+- [Pilot decisions questionnaire](./docs/PILOT_DECISIONS.md)
+- [E2E test matrix](./docs/E2E_TEST_MATRIX.md)
 
 ## Firebase
 

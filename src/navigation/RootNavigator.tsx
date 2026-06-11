@@ -13,14 +13,16 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { SessionProvider, useSession } from '../context/SessionContext';
 import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
+import { PILOT_PARENT_ONLY } from '../constants/pilotFeatures';
 import { semanticColors } from '../constants/theme';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 function MainGate() {
   const { isChildProfile } = useActiveProfile();
+  const themeMode = PILOT_PARENT_ONLY || !isChildProfile ? 'parent' : 'kid';
   return (
-    <ThemeProvider mode={isChildProfile ? 'kid' : 'parent'}>
+    <ThemeProvider mode={themeMode}>
       <MainStack />
     </ThemeProvider>
   );
@@ -35,6 +37,7 @@ function RootRoutes() {
   const buildBoxPath = useGuestSessionStore((s) => s.buildBoxPath);
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
+  const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const pendingAuth = useAuthFlowStore((s) => s.pendingReturn);
 
   const booting = authLoading || !guestHydrated || (isAuthenticated && sessionLoading);
@@ -50,7 +53,14 @@ function RootRoutes() {
   let gateKey: 'auth' | 'onboarding' | 'main' = 'auth';
 
   if (isAuthenticated) {
-    gateKey = needsOnboarding ? 'onboarding' : needsBoxReveal ? 'onboarding' : 'main';
+    const checkoutReturn =
+      pendingAuth === 'Checkout' &&
+      (guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete);
+    if (checkoutReturn) {
+      gateKey = 'main';
+    } else {
+      gateKey = needsOnboarding ? 'onboarding' : needsBoxReveal ? 'onboarding' : 'main';
+    }
   } else if (pendingAuth) {
     gateKey = 'auth';
   } else if (buildBoxPath && !guestBoxRevealComplete) {

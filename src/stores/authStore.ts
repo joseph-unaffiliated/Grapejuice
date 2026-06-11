@@ -10,6 +10,14 @@ import {
 } from '../services/auth/auth';
 import { persistGuestToAccount } from '../services/guest/persistGuestToAccount';
 
+async function mergeGuestSession(user: AuthUser): Promise<void> {
+  try {
+    await persistGuestToAccount(user);
+  } catch (error) {
+    console.warn('[auth] Guest session merge failed:', error);
+  }
+}
+
 function getErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
     const code = String((error as { code: unknown }).code);
@@ -66,7 +74,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signInWithEmail(email, password);
-      await persistGuestToAccount(user);
+      await mergeGuestSession(user);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ error: getErrorMessage(error), isLoading: false });
@@ -78,7 +86,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signUpWithEmail(email, password, displayName);
-      await persistGuestToAccount(user);
+      await mergeGuestSession(user);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ error: getErrorMessage(error), isLoading: false });
@@ -90,7 +98,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signInWithGoogle();
-      await persistGuestToAccount(user);
+      await mergeGuestSession(user);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ error: getErrorMessage(error), isLoading: false });

@@ -12,13 +12,72 @@ import type { SemanticColors } from '../../constants/themeMode';
 type Props = {
   blocks: RavBlock[];
   lineItems: BoxLineItem[];
+  boxLocked?: boolean;
   onSwap: (slotId: string, item: CatalogItem) => void;
   onAddExtra?: (item: CatalogItem) => void;
 };
 
 const goldCardShadow = Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow;
+const CURATION_PREVIEW = 6;
 
-export function RavBlockRenderer({ blocks, lineItems, onSwap, onAddExtra }: Props) {
+function CurationBlock({
+  block,
+  blockIndex,
+  items,
+  lineItems,
+  boxLocked,
+  onSwap,
+  onAddExtra,
+  styles,
+}: {
+  block: RavBlock;
+  blockIndex: number;
+  items: CatalogItem[];
+  lineItems: BoxLineItem[];
+  boxLocked?: boolean;
+  onSwap: (slotId: string, item: CatalogItem) => void;
+  onAddExtra?: (item: CatalogItem) => void;
+  styles: ReturnType<typeof createRavBlockStyles>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? items : items.slice(0, CURATION_PREVIEW);
+  const hasMore = items.length > CURATION_PREVIEW;
+
+  const handleItemPress = (item: CatalogItem) => {
+    if (boxLocked) return;
+    const slot = lineItems.find((li) => li.itemId === item.id || li.slotId === block.slotId);
+    if (slot) onSwap(slot.slotId, item);
+    else onAddExtra?.(item);
+  };
+
+  return (
+    <View key={blockIndex} style={[styles.curationCard, goldCardShadow]}>
+      <Text style={styles.curationTitle}>{block.title}</Text>
+      <View style={styles.curationGrid}>
+        {visible.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.gridItem, boxLocked && styles.gridItemDisabled]}
+            onPress={() => handleItemPress(item)}
+            disabled={boxLocked}
+          >
+            <BoxItemImage size={100} imageUrl={item.imageUrl} itemId={item.id} style={styles.gridImage} />
+            <Text style={styles.gridLabel} numberOfLines={2}>
+              {item.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {hasMore ? (
+        <TouchableOpacity onPress={() => setExpanded((v) => !v)} accessibilityRole="button">
+          <Text style={styles.seeMore}>{expanded ? 'see less' : `see more (${items.length - CURATION_PREVIEW})`}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+export function RavBlockRenderer({ blocks, lineItems, boxLocked, onSwap, onAddExtra }: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createRavBlockStyles(colors), [colors]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -36,28 +95,17 @@ export function RavBlockRenderer({ blocks, lineItems, onSwap, onAddExtra }: Prop
           const items = catalog.filter((c) => block.swapOptions!.includes(c.id));
           if (!items.length) return null;
           return (
-            <View key={i} style={[styles.curationCard, goldCardShadow]}>
-              <Text style={styles.curationTitle}>{block.title}</Text>
-              <View style={styles.curationGrid}>
-                {items.slice(0, 6).map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.gridItem}
-                    onPress={() => {
-                      const slot = lineItems.find((li) => li.itemId === item.id || li.slotId === block.slotId);
-                      if (slot) onSwap(slot.slotId, item);
-                      else onAddExtra?.(item);
-                    }}
-                  >
-                    <BoxItemImage size={100} imageUrl={item.imageUrl} itemId={item.id} style={styles.gridImage} />
-                    <Text style={styles.gridLabel} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {items.length > 6 ? <Text style={styles.seeMore}>see more</Text> : null}
-            </View>
+            <CurationBlock
+              key={i}
+              block={block}
+              blockIndex={i}
+              items={items}
+              lineItems={lineItems}
+              boxLocked={boxLocked}
+              onSwap={onSwap}
+              onAddExtra={onAddExtra}
+              styles={styles}
+            />
           );
         }
 
@@ -77,7 +125,8 @@ export function RavBlockRenderer({ blocks, lineItems, onSwap, onAddExtra }: Prop
                 {price > 0 ? <Text style={styles.price}>{formatDollars(price)}</Text> : null}
               </View>
               <TouchableOpacity
-                style={styles.chipBtn}
+                style={[styles.chipBtn, boxLocked && styles.chipBtnDisabled]}
+                disabled={boxLocked}
                 onPress={() => {
                   const slot = lineItems.find((li) => li.itemId === item.id || li.slotId === block.slotId);
                   if (slot) onSwap(slot.slotId, item);
@@ -100,7 +149,11 @@ export function RavBlockRenderer({ blocks, lineItems, onSwap, onAddExtra }: Prop
               <Text style={styles.cardBody}>
                 {current.name} → {suggested.name}
               </Text>
-              <TouchableOpacity style={styles.chipBtn} onPress={() => onSwap(block.slotId!, suggested)}>
+              <TouchableOpacity
+                style={[styles.chipBtn, boxLocked && styles.chipBtnDisabled]}
+                disabled={boxLocked}
+                onPress={() => onSwap(block.slotId!, suggested)}
+              >
                 <Text style={styles.chipBtnText}>Make this swap</Text>
               </TouchableOpacity>
             </View>
@@ -135,6 +188,7 @@ function createRavBlockStyles(colors: SemanticColors) {
     justifyContent: 'center',
   },
   gridItem: { width: 100, alignItems: 'flex-start' },
+  gridItemDisabled: { opacity: 0.5 },
   gridImage: { borderRadius: borderRadius.md },
   gridLabel: {
     fontSize: typography.sm,
@@ -168,6 +222,7 @@ function createRavBlockStyles(colors: SemanticColors) {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
+  chipBtnDisabled: { opacity: 0.5 },
   chipBtnText: { fontSize: typography.sm, fontWeight: '200', color: colors.textPrimary },
   swapCard: {
     padding: spacing.md,

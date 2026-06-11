@@ -6,13 +6,14 @@ import type { MainStackParamList } from './types';
 import { WebDesktopFrame } from '../components/layout/WebDesktopFrame';
 import { MainTabs } from './MainTabs';
 import { MyBoxScreen } from '../screens/main/MyBoxScreen';
-import { GuideScreen } from '../screens/main/GuideScreen';
-import { KidGuideScreen } from '../screens/kids/KidGuideScreen';
 import { AlaCarteStoreScreen } from '../screens/main/AlaCarteStoreScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
+import { GuideScreen } from '../screens/main/GuideScreen';
+import { KidGuideScreen } from '../screens/kids/KidGuideScreen';
 import { ProfilesScreen } from '../screens/profiles/ProfilesScreen';
+import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFeatures';
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
@@ -58,7 +59,11 @@ function AuthReturnHandler() {
     }
     if (pendingReturn === 'Profiles') {
       clearPending();
-      navigation.navigate('Profiles');
+      if (PILOT_PARENT_ONLY) {
+        navigation.navigate('MainTabs', { screen: 'Account' });
+      } else {
+        navigation.navigate('Profiles');
+      }
       return;
     }
     if (pendingReturn === 'MyBox') {
@@ -78,12 +83,16 @@ export function MainStack() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="MyBox" component={MyBoxScreen} />
-        <Stack.Screen name="Guide" component={GuideScreen} />
-        <Stack.Screen name="KidGuide" component={KidGuideScreen} />
+        {!PILOT_HIDE_IN_APP_GUIDE ? <Stack.Screen name="Guide" component={GuideScreen} /> : null}
+        {!PILOT_PARENT_ONLY ? (
+          <>
+            <Stack.Screen name="KidGuide" component={KidGuideScreen} />
+            <Stack.Screen name="Profiles" component={ProfilesScreen} />
+          </>
+        ) : null}
         <Stack.Screen name="AlaCarteStore" component={AlaCarteStoreScreen} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
-        <Stack.Screen name="Profiles" component={ProfilesScreen} />
         <Stack.Screen name="Reflection" component={ReflectionFlowScreen} />
       </Stack.Navigator>
     </WebDesktopFrame>

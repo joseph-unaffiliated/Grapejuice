@@ -5,6 +5,7 @@ import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
+import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { spacing, typography, shadowsWeb } from '../../constants/theme';
 import type { MainTabsParamList } from '../../navigation/types';
 import { navigateMainTab } from '../../navigation/mainStackNavigation';
@@ -61,7 +62,7 @@ export function WebDesktopNav({ width }: Props) {
   const { isChildProfile, ravEnabledForActiveChild } = useActiveProfile();
   const navState = useNavigationState((s) => s);
   const activeTab = useMemo(() => resolveActiveTab(navState), [navState]);
-  const navItems = isChildProfile ? childNav(ravEnabledForActiveChild) : PARENT_NAV;
+  const navItems = PILOT_PARENT_ONLY ? PARENT_NAV : isChildProfile ? childNav(ravEnabledForActiveChild) : PARENT_NAV;
 
   return (
     <View

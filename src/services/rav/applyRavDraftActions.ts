@@ -30,14 +30,19 @@ function findLineIndex(lineItems: BoxLineItem[], slotId?: string, itemId?: strin
   return -1;
 }
 
+export type ApplyRavActionsOptions = {
+  locked?: boolean;
+};
+
 /** Apply Rav-returned draft mutations locally (never checkout). */
 export function applyRavDraftActions(
   actions: RavDraftAction[] | undefined,
   lineItems: BoxLineItem[],
-  catalog: CatalogItem[]
+  catalog: CatalogItem[],
+  options?: ApplyRavActionsOptions
 ): ApplyRavActionsResult {
-  if (!actions?.length) {
-    return { lineItems, applied: [], skipped: [] };
+  if (!actions?.length || options?.locked) {
+    return { lineItems, applied: [], skipped: options?.locked ? actions ?? [] : [] };
   }
 
   let next = [...lineItems];

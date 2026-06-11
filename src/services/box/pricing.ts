@@ -3,11 +3,14 @@ import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 /** Flat add-on fee for optional extras (extra gelt, extra candles, etc.). */
 export const EXTRA_FLAT_CENTS = 500;
 
-/** Pilot flat-rate shipping (US). */
-export const SHIPPING_FLAT_CENTS = 1299;
+/** Standard shipping — free for pilot (expedited tier adds fee later). */
+export const SHIPPING_FLAT_CENTS = 0;
 
-/** Default Hanukkah curated box price when config has no override. */
-export const DEFAULT_BOX_PRICE_CENTS = 9900;
+/** List price shown in catalog / marketing copy. */
+export const LIST_BOX_PRICE_CENTS = 8000;
+
+/** Pilot promotional checkout price when config has no override. */
+export const DEFAULT_BOX_PRICE_CENTS = 5000;
 
 /** À la carte items never ship in the default box. */
 export const ALA_CARTE_SLOT_IDS = new Set(['keepsake-dreidel', 'family-hanukkiah', 'ala-dreidel', 'ala-hanukkiah']);

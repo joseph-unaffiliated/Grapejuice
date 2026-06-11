@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../stores/authStore';
 import { childrenService } from '../services/firestore/children';
+import { PILOT_PARENT_ONLY } from '../constants/pilotFeatures';
 import type { ActiveProfile, ChildProfile } from '../types/pilot';
 
 const STORAGE_KEY = 'grapejuice_active_profile_v1';
@@ -23,6 +24,7 @@ type ActiveProfileContextValue = {
 const ActiveProfileContext = createContext<ActiveProfileContextValue | null>(null);
 
 function parseStored(raw: string | null): ActiveProfile {
+  if (PILOT_PARENT_ONLY) return { type: 'parent' };
   if (!raw) return { type: 'parent' };
   try {
     const parsed = JSON.parse(raw) as ActiveProfile;
@@ -48,8 +50,9 @@ export function ActiveProfileProvider({ children: node }: { children: React.Reac
   }, []);
 
   const persistProfile = useCallback(async (next: ActiveProfile) => {
-    setActiveProfile(next);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const profile = PILOT_PARENT_ONLY ? ({ type: 'parent' } as const) : next;
+    setActiveProfile(profile);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
   }, []);
 
   const refreshChildren = useCallback(async () => {
@@ -83,6 +86,7 @@ export function ActiveProfileProvider({ children: node }: { children: React.Reac
 
   const enterChildProfile = useCallback(
     async (childId: string) => {
+      if (PILOT_PARENT_ONLY) return;
       await persistProfile({ type: 'child', childId });
     },
     [persistProfile]
@@ -106,8 +110,8 @@ export function ActiveProfileProvider({ children: node }: { children: React.Reac
     activeProfile,
     children,
     activeChild,
-    isChildProfile: activeProfile.type === 'child',
-    isParentProfile: activeProfile.type === 'parent',
+    isChildProfile: !PILOT_PARENT_ONLY && activeProfile.type === 'child',
+    isParentProfile: PILOT_PARENT_ONLY || activeProfile.type === 'parent',
     ravEnabledForActiveChild: activeChild?.ravEnabled === true,
     loading: loading || !hydrated,
     enterParentProfile,

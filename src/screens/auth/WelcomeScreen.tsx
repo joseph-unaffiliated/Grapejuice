@@ -44,6 +44,11 @@ export function WelcomeScreen() {
       <TouchableOpacity onPress={() => navigation.navigate('SignIn')} style={styles.secondaryBtn}>
         <Text style={[styles.secondaryText, { color: colors.brand }]}>Log in</Text>
       </TouchableOpacity>
+      {__DEV__ ? (
+        <TouchableOpacity onPress={() => startExplore()} style={styles.devBtn}>
+          <Text style={[styles.devText, { color: colors.textTertiary }]}>Dev: enter app</Text>
+        </TouchableOpacity>
+      ) : null}
       <Text style={[styles.hint, { color: colors.textTertiary }]}>
         Explore holidays and talk to Rav without an account. Build a box when you are ready — sign up at checkout.
       </Text>
@@ -57,5 +62,7 @@ const styles = StyleSheet.create({
   gapTop: { marginTop: spacing.md },
   secondaryBtn: { marginTop: spacing.md, alignItems: 'center' },
   secondaryText: { fontSize: typography.lg, fontWeight: '600' },
+  devBtn: { marginTop: spacing.sm, alignItems: 'center' },
+  devText: { fontSize: typography.sm, fontWeight: '400' },
   hint: { fontSize: typography.sm, textAlign: 'center', marginTop: spacing.lg, lineHeight: 18 },
 });

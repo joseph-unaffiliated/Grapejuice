@@ -20,7 +20,7 @@ import { aiChatService } from '../../services/firestore/aiChat';
 import { kidRavChatService } from '../../services/firestore/kidRavChat';
 import { askRav } from '../../services/rav/askRav';
 import { applyRavDraftActions, summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
-import { getHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { catalogService } from '../../services/firestore/catalog';
 import { formatHanukkahWelcomeSubtext, formatRelativeTime, formatThreadListDate } from '../../services/hanukkah/dates';
 import type { AIChatMessage, AIChatThreadSummary } from '../../types/aiChat';
@@ -33,6 +33,7 @@ import { icons } from '../../constants/icons';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
+import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { RavBlockRenderer } from './RavBlockRenderer';
 
@@ -116,18 +117,21 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [recentChats, setRecentChats] = useState<AIChatThreadSummary[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [hanukkahStartsOn, setHanukkahStartsOn] = useState<string | null>(null);
+  const [lockAt, setLockAt] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
   const [lastActivityAt, setLastActivityAt] = useState(() => new Date());
   const initialSent = useRef(false);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList<AIChatMessage>>(null);
   const isGuest = !user?.uid;
   const useKidRavThreads =
-    isChildProfile && ravEnabledForActiveChild && !!activeChild?.id && !isGuest;
-
+    !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild && !!activeChild?.id && !isGuest;
+  const boxLocked = isBoxLocked(lockAt);
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
   const bottomPad = bottomInset || tabBarHeight;
   const starterChips = useMemo(() => {
-    if (isChildProfile && ravEnabledForActiveChild) {
+    if (isChildProfile && ravEnabledForActiveChild && !PILOT_PARENT_ONLY) {
       return buildKidStarterChips(activeChild?.name ?? 'friend');
     }
     return buildStarterChips(hanukkahStartsOn);
@@ -147,23 +151,37 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     setRecentChats(await aiChatService.listThreads(user.uid));
   }, [user?.uid, useKidRavThreads]);
 
+  const showBlockFeedback = useCallback((message: string) => {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    setBlockFeedback(message);
+    feedbackTimer.current = setTimeout(() => setBlockFeedback(null), 3200);
+  }, []);
+
   const resetToWelcome = useCallback(() => {
     setMessages([]);
     setError(null);
     setInput('');
+    setBlockFeedback(null);
     if (!user?.uid) return;
     void refreshThreads();
     if (useKidRavThreads && activeChild?.id) {
-      kidRavChatService
-        .getOrCreateDefaultThread(user.uid, activeChild.id)
-        .then(({ threadId: id }) => setThreadId(id));
+      kidRavChatService.createThread(user.uid, activeChild.id).then((id) => setThreadId(id));
       return;
     }
-    aiChatService.getOrCreateDefaultThread(user.uid).then(({ threadId: id }) => setThreadId(id));
+    aiChatService.createThread(user.uid).then((id) => setThreadId(id));
   }, [user?.uid, refreshThreads, useKidRavThreads, activeChild?.id]);
 
   useEffect(() => {
-    getHanukkahConfig().then((c) => setHanukkahStartsOn(c.startsOn ?? null));
+    return () => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    getHanukkahConfig().then((c) => {
+      setHanukkahStartsOn(c.startsOn ?? null);
+      setLockAt(c.lockAt);
+    });
     catalogService.getAll().then(setCatalog);
   }, []);
 
@@ -188,6 +206,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
   const addBlockItem = useCallback(
     async (item: CatalogItem) => {
+      if (boxLocked) {
+        showBlockFeedback('Your box is locked — customization is closed.');
+        return;
+      }
       const exists = lineItems.some((li) => li.itemId === item.id);
       if (exists) return;
       await persist([
@@ -200,12 +222,17 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           label: item.name,
         },
       ]);
+      showBlockFeedback(`Added ${item.name} to your box.`);
     },
-    [lineItems, persist]
+    [boxLocked, lineItems, persist, showBlockFeedback]
   );
 
   const swapBlockItem = useCallback(
     async (slotId: string, item: CatalogItem) => {
+      if (boxLocked) {
+        showBlockFeedback('Your box is locked — customization is closed.');
+        return;
+      }
       const next = lineItems.map((li) =>
         li.slotId === slotId
           ? {
@@ -217,8 +244,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           : li
       );
       await persist(next);
+      showBlockFeedback(`Swapped in ${item.name}.`);
     },
-    [lineItems, persist]
+    [boxLocked, lineItems, persist, showBlockFeedback]
   );
 
   const sendMessage = useCallback(
@@ -245,7 +273,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             await refreshThreads();
           }
         }
-        const ravMode = isChildProfile && ravEnabledForActiveChild ? 'facilitator_kid' : undefined;
+        const ravMode =
+          !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild ? 'facilitator_kid' : undefined;
         const { reply, blocks = [], actions = [] } = await askRav({
           message: trimmed,
           conversationHistory: prior.slice(-MAX_HISTORY_TURNS * 2),
@@ -255,12 +284,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         });
 
         let content = reply;
-        if (!ravMode && actions.length && catalog.length) {
+        if (!ravMode && !boxLocked && actions.length && catalog.length) {
           const { lineItems: nextItems, applied } = applyRavDraftActions(actions, lineItems, catalog);
           if (applied.length) {
             await persist(nextItems);
             content = `${reply}${reply.endsWith('.') ? '' : '.'} I updated your box (${applied.length} change${applied.length === 1 ? '' : 's'}).`;
           }
+        } else if (!ravMode && boxLocked && actions.length) {
+          content = `${reply}${reply.endsWith('.') ? '' : '.'} Your box is locked, so I couldn't apply those changes.`;
         }
 
         const assistantMsg: AIChatMessage = { role: 'assistant', content, blocks };
@@ -288,7 +319,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked]
   );
 
   React.useImperativeHandle(
@@ -358,6 +389,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             <RavBlockRenderer
               blocks={item.blocks}
               lineItems={lineItems}
+              boxLocked={boxLocked}
               onSwap={(slotId, catalogItem) => void swapBlockItem(slotId, catalogItem)}
               onAddExtra={(catalogItem) => void addBlockItem(catalogItem)}
             />
@@ -365,7 +397,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         </View>
       );
     },
-    [firstUserIndex, lineItems, swapBlockItem, addBlockItem]
+    [firstUserIndex, lineItems, swapBlockItem, addBlockItem, boxLocked]
   );
 
   const chatFooter = messages.length > 0 ? (
@@ -463,7 +495,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 {historyThreads.slice(0, 5).map((t) => (
                   <TouchableOpacity
                     key={t.id}
-                    style={styles.recentRow}
+                    style={[styles.recentRow, t.id === threadId && styles.historyRowActive]}
                     onPress={() => void openThread(t.id)}
                   >
                     <Text style={styles.recentRowTitle} numberOfLines={1}>
@@ -535,6 +567,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         )}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {blockFeedback ? (
+          <View style={styles.boxToast} pointerEvents="none">
+            <Text style={styles.boxToastText}>{blockFeedback}</Text>
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
 
       <Modal visible={historyOpen} animationType="slide" transparent onRequestClose={() => setHistoryOpen(false)}>
@@ -547,9 +584,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             {historyThreads.map((t) => (
               <TouchableOpacity
                 key={t.id}
-                style={styles.historyRow}
+                style={[styles.historyRow, t.id === threadId && styles.historyRowActive]}
                 onPress={() => {
                   setHistoryOpen(false);
+                  setBlockFeedback(null);
                   void openThread(t.id);
                 }}
               >
@@ -808,5 +846,28 @@ function createPilotStyles(colors: SemanticColors) {
   },
   historyRowTitle: { flex: 1, fontSize: typography.md, color: colors.textPrimary },
   historyRowDate: { fontSize: typography.sm, fontWeight: '200', color: colors.goldMuted, opacity: 0.5 },
+  historyRowActive: {
+    backgroundColor: colors.brandLight,
+    borderRadius: borderRadius.chip,
+    paddingHorizontal: spacing.sm,
+    marginHorizontal: -spacing.sm,
+  },
+  boxToast: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    backgroundColor: colors.textPrimary,
+    borderRadius: borderRadius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    maxWidth: '90%',
+    zIndex: 10,
+  },
+  boxToastText: {
+    fontSize: typography.sm,
+    fontWeight: '400',
+    color: colors.bgPrimary,
+    textAlign: 'center',
+  },
   });
 }

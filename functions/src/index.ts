@@ -13,8 +13,8 @@ initializeApp();
 const db = getFirestore();
 
 const HOLIDAY_ID = 'hanukkah-2026';
-const DEFAULT_BOX_PRICE_CENTS = 9900;
-const SHIPPING_FLAT_CENTS = 1299;
+const DEFAULT_BOX_PRICE_CENTS = 5000;
+const SHIPPING_FLAT_CENTS = 0;
 const CHECKOUT_TAX_RATE = 0.075;
 
 function chargeableLineTotal(lineItems: Array<{ unitCents?: number; quantity?: number }>): number {
@@ -28,7 +28,7 @@ function orderTotalCents(
   const hasIncluded = lineItems.some((li) => li.unitCents === 0 || li.slotId);
   const base = hasIncluded ? boxPriceCents : 0;
   const subtotal = base + chargeableLineTotal(lineItems as Array<{ unitCents?: number; quantity?: number }>);
-  return subtotal + 1299; // SHIPPING_FLAT_CENTS
+  return subtotal + SHIPPING_FLAT_CENTS;
 }
 
 async function assertHouseholdMember(uid: string, householdId: string): Promise<void> {
@@ -104,7 +104,14 @@ export const createPilotCheckout = onCall(async (request) => {
   }
   const draft = draftSnap.data()!;
   const lineItems = (draft.lineItems as Array<Record<string, unknown>>) ?? [];
-  const subtotalCents = orderTotalCents(lineItems as Array<{ unitCents?: number; quantity?: number; slotId?: string }>);
+  const configSnap = await db.doc('config/hanukkah-2026').get();
+  const configData = configSnap.data() ?? {};
+  const boxPriceCents =
+    typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const subtotalCents = orderTotalCents(
+    lineItems as Array<{ unitCents?: number; quantity?: number; slotId?: string }>,
+    boxPriceCents
+  );
   const shippingCents = SHIPPING_FLAT_CENTS;
   const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
   const totalCents = subtotalCents + shippingCents + taxCents;
@@ -112,8 +119,7 @@ export const createPilotCheckout = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Order total is too small.');
   }
 
-  const configSnap = await db.doc('config/hanukkah-2026').get();
-  const estimatedDelivery = (configSnap.data()?.estimatedDeliveryBy as string) ?? '2026-12-07';
+  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-12-07';
 
   const orderRef = db.collection(`households/${householdId}/orders`).doc();
   await orderRef.set({

@@ -24,6 +24,7 @@ import { semanticColors, spacing, typography, borderRadius } from '../../constan
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
+import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 
 function PaymentStep({
   total,
@@ -81,11 +82,11 @@ function PaymentStep({
 export function CheckoutScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household } = useSession();
   const { isDesktop } = useWebLayout();
   const {
     lineItems,
-    catalog,
     address,
     updateAddress,
     loading,
@@ -159,6 +160,10 @@ export function CheckoutScreen() {
     </Elements>
   ) : null;
 
+  if (!isAuthenticated) {
+    return <CheckoutAuthGate />;
+  }
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -181,28 +186,28 @@ export function CheckoutScreen() {
   return (
     <WebContentPanel wide>
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-        <Text style={styles.backLink}>← Back</Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
+          <Text style={styles.backLink}>← Back</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.title}>Checkout</Text>
-      {locked ? (
-        <Text style={styles.lockBanner}>Box customization is locked. Checkout is unavailable.</Text>
-      ) : null}
+        <Text style={styles.title}>Checkout</Text>
+        {locked ? (
+          <Text style={styles.lockBanner}>Box customization is locked. Checkout is unavailable.</Text>
+        ) : null}
 
-      {isDesktop ? (
-        <View style={styles.desktopColumns}>
-          <View style={styles.desktopLeft}>
-            <CheckoutOrderSummary lineItems={lineItems} total={total} />
+        {isDesktop ? (
+          <View style={styles.desktopColumns}>
+            <View style={styles.desktopLeft}>
+              <CheckoutOrderSummary lineItems={lineItems} total={total} boxPriceCents={boxPriceCents} />
+            </View>
+            <View style={styles.desktopRight}>{checkoutForm}</View>
           </View>
-          <View style={styles.desktopRight}>{checkoutForm}</View>
-        </View>
-      ) : (
-        <>
-          <CheckoutOrderSummary lineItems={lineItems} total={total} />
-          {checkoutForm}
-        </>
-      )}
+        ) : (
+          <>
+            <CheckoutOrderSummary lineItems={lineItems} total={total} boxPriceCents={boxPriceCents} />
+            {checkoutForm}
+          </>
+        )}
       </ScrollView>
     </WebContentPanel>
   );

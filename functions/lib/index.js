@@ -14,8 +14,8 @@ Object.defineProperty(exports, "scanBeamAgeTriggers", { enumerable: true, get: f
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const HOLIDAY_ID = 'hanukkah-2026';
-const DEFAULT_BOX_PRICE_CENTS = 9900;
-const SHIPPING_FLAT_CENTS = 1299;
+const DEFAULT_BOX_PRICE_CENTS = 5000;
+const SHIPPING_FLAT_CENTS = 0;
 const CHECKOUT_TAX_RATE = 0.075;
 function chargeableLineTotal(lineItems) {
     return lineItems.reduce((s, li) => { var _a, _b; return s + ((_a = li.unitCents) !== null && _a !== void 0 ? _a : 0) * ((_b = li.quantity) !== null && _b !== void 0 ? _b : 1); }, 0);
@@ -24,7 +24,7 @@ function orderTotalCents(lineItems, boxPriceCents = DEFAULT_BOX_PRICE_CENTS) {
     const hasIncluded = lineItems.some((li) => li.unitCents === 0 || li.slotId);
     const base = hasIncluded ? boxPriceCents : 0;
     const subtotal = base + chargeableLineTotal(lineItems);
-    return subtotal + 1299; // SHIPPING_FLAT_CENTS
+    return subtotal + SHIPPING_FLAT_CENTS;
 }
 async function assertHouseholdMember(uid, householdId) {
     var _a, _b;
@@ -71,15 +71,17 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
     }
     const draft = draftSnap.data();
     const lineItems = (_c = draft.lineItems) !== null && _c !== void 0 ? _c : [];
-    const subtotalCents = orderTotalCents(lineItems);
+    const configSnap = await db.doc('config/hanukkah-2026').get();
+    const configData = (_d = configSnap.data()) !== null && _d !== void 0 ? _d : {};
+    const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+    const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
     const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
     const totalCents = subtotalCents + shippingCents + taxCents;
     if (totalCents < 50) {
         throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
     }
-    const configSnap = await db.doc('config/hanukkah-2026').get();
-    const estimatedDelivery = (_e = (_d = configSnap.data()) === null || _d === void 0 ? void 0 : _d.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-12-07';
+    const estimatedDelivery = (_e = configData.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-12-07';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set({
         status: 'pending',
