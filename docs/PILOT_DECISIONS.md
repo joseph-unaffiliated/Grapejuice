@@ -1,6 +1,37 @@
 # Grapejuice Pilot — Decision Questionnaire
 
-Answer these in a voice note (or inline). Each question includes context, considerations, and a **recommended default** if you want to move fast.
+**Status:** Locked from voice note (June 2026). Answers below unblock Builds 1–7, 9–10.
+
+---
+
+## Locked summary
+
+| # | Topic | Decision |
+|---|--------|----------|
+| Q1 | Grandparent price | **$50** — same as pilot/discount price; charge covers full gift box |
+| Q2 | Expedited fee | **Deferred** — long term distance-based at cost; short term flat fee, **no markup** |
+| Q3 | Expedited lock offset | **~7 days** later than standard (7–10 OK); standard ~10–14 day ship window, expedited ~4 days; exact dates when lock set |
+| Q4 | $80 credit storage | **Firestore balance** → applied at **Stripe checkout**; full checkout in Stripe long term |
+| Q5 | Amazon fallback outreach | **2** attempts over 2 weeks → **3rd** touch is $20 Amazon offer (**in subject line**) |
+| Q6 | Swap gate | **Browse** swap options OK; **block mutation** until card on file (prompt on item select) |
+| Q7 | Card vs confirm | **One step** — card on file = box commitment; **no separate confirm**; **charge at ship** only |
+| Q8 | Gift recipient card | **No card** if gift credit covers box; card only for expedited / paid extras |
+| Q9 | Revealed copy | Self-serve: “Refine your box” + won’t ship until payment + address; Gift: confirm shipping address |
+| Q10 | Gift expedited payer | **Parent (recipient)** |
+| Q11 | Gift fields | Email, name, message, child ages, **grandparent enters ship address** |
+| Q12 | Link expiry | **Never** |
+| Q13 | My Box tab | **No 4th tab** — Home is the box hub (3 tabs: Home, Rav, Account) |
+| Q14 | Ala carte store | **Hide store link**; items on Home + box browse; add-to-box only |
+| Q15 | Home chips | **Category anchors** (Hanukkah, Dreidels, Apparel…) scroll to section |
+| Q16 | Guest home | **Same layout**; Account tab badge if not signed in |
+| Q17 | Debrief name | **Hanukkah debrief** |
+| Q18 | Account edits | Display name, notifications, familiarity, kids/ages (onboarding fields) |
+| Q19 | `content/nights` | Keep seed; **no app UI**; **not Rav context** until print material exists |
+| Q20 | Fulfillment | **ShipStation** |
+| Q21 | SMS | **Customer.io SMS** (connected) |
+| Q22 | Push | **Yes if App Store ships**; email + SMS sufficient for web-only |
+| Q23 | App Store | **Sign in with Apple** required; **12+** rating if it helps acceptance |
+| Q24 | Legal URLs | **contact@grapejuice.co** · terms: `unaffiliated.co/terms/network` · privacy: `unaffiliated.co/privacy/network` (adapt) |
 
 ---
 
@@ -17,7 +48,7 @@ When a grandparent purchases a gift box, should they pay the **pilot promotional
 
 **Recommendation:** **$50** for the pilot (same as parent checkout).
 
-**Your answer:**
+**Your answer:** **$50** — same as the pilot/discount price. The $50 charge on the gift-giver’s card must fully cover the pilot box.
 
 ---
 
@@ -32,7 +63,7 @@ How much should **expedited shipping** cost (on top of the free standard option)
 
 **Recommendation:** **$12** flat expedited fee for pilot (adjust after first carrier quotes).
 
-**Your answer:**
+**Your answer:** **Deferred for now.** Long term: fee should reflect actual carrier cost (distance-based). Short term: a flat fee at cost is fine — **no markup**.
 
 ---
 
@@ -47,7 +78,7 @@ How much **extra customization time** does expedited shipping buy vs standard (i
 
 **Recommendation:** **10 calendar days** later lock date for expedited (exact dates in `config/hanukkah-2026` once standard lock is set).
 
-**Your answer:**
+**Your answer:** Plan for **~10 days** (maybe 2 weeks) shipping window for **standard** lock; **~4 days** for expedited ship time. Expedited lock date **~7 days later** than standard (7–10 acceptable; lean **7**). Set exact dates when the standard lock date is confirmed.
 
 ---
 
@@ -63,7 +94,7 @@ When a family completes the post-Hanukkah debrief, how should the **$80 platform
 
 **Recommendation:** **Firestore `household.creditBalanceCents`** + checkout applies credit before Stripe charge; migrate to Stripe balance later if needed.
 
-**Your answer:**
+**Your answer:** Prefer **checkout entirely in Stripe** long term (liability/storage). OK to store credit in **Firestore** now and **apply it at Stripe checkout** when they purchase Passover. Gift recipients may not have a Stripe customer yet — Firestore ledger + Stripe checkout deduction is the preferred path. Avoid storing cards in-platform.
 
 ---
 
@@ -78,7 +109,7 @@ How many **reminder outreaches** before offering the **$20 Amazon gift card** fa
 
 **Recommendation:** **3** outreach attempts over **2 weeks** post-holiday, then offer $20 Amazon card on the 4th touch.
 
-**Your answer:**
+**Your answer:** **2** outreach attempts over **2 weeks** post-holiday. The **3rd** touch **is** the $20 Amazon offer — put it **in the subject line** so it’s obvious.
 
 ---
 
@@ -95,7 +126,7 @@ Should **all box customization (swaps, adds, Rav mutations)** be blocked until a
 
 **Recommendation:** **Yes** — block swaps until card on file (or gift credit applied).
 
-**Your answer:**
+**Your answer:** **Partial gate.** Users can open swap UI and **see options**, but **cannot complete a swap** until card on file — selecting an item prompts payment. Don’t store convoluted boxes for people who never commit.
 
 ---
 
@@ -110,7 +141,7 @@ Should adding a card and **confirming the order** be two distinct steps, or one 
 
 **Recommendation:** **Two steps** — (1) save card to unlock customization, (2) confirm order + address + shipping tier before lock.
 
-**Your answer:**
+**Your answer:** **One step — no separate confirm.** Putting card on file **is** committing to the Hanukkah box. They customize during the window; if untouched, it ships as-is. **Not charged until ship.** Card stays on file for future boxes. Provide a way to say “I don’t want this” before ship. No separate “confirm order” step.
 
 ---
 
@@ -125,7 +156,7 @@ When a parent opens a **grandparent gift link**, should they skip payment entire
 
 **Recommendation:** **Skip box payment**; **optional card** only if they choose expedited shipping or add paid extras later. **Swaps allowed without card** for fully pre-paid gift boxes (exception to Q6).
 
-**Your answer:**
+**Your answer:** **No card required** if gift credit covers the box. Swaps and customization allowed without card. Card only if they choose **expedited shipping** or add **paid extras** (prompt at add-to-box if needed).
 
 ---
 
@@ -141,6 +172,8 @@ What should families see on Home / My Box when the box is **revealed** but **not
 **Recommendation:** Status line: **“Your box is ready — add a card to customize”** (self-serve) or **“Your gift box is ready — confirm shipping to customize”** (gift).
 
 **Your answer:**
+- **Gift path:** Once revealed, box **is committed to ship** (editable until lock). Grandparent enters shipping address; recipient sees **“Confirm your shipping address”** — address was entered by the gift-giver. Not “confirm shipping to customize” — customize freely; confirm **address** before it sends.
+- **Self-serve, no card yet:** Same primary copy as card-on-file users (**“Refine your box”**). Subtext: **“Your box will not ship until you add payment information and a shipping address.”** Show this on the payment/card step too.
 
 ---
 
@@ -157,7 +190,7 @@ If the recipient chooses **expedited shipping**, who is charged?
 
 **Recommendation:** **Parent (recipient)** pays expedited fee at confirm — grandparent gift covers standard box + standard shipping only.
 
-**Your answer:**
+**Your answer:** **Parent (recipient)** — aligns with Q8 (card when choosing expedited).
 
 ---
 
@@ -172,7 +205,7 @@ What should the grandparent be able to include?
 
 **Recommendation:** **Recipient name + email** (required), **optional 200-char message**, **child ages** (same as parent flow).
 
-**Your answer:**
+**Your answer:** **Required:** recipient email, recipient name, child names/ages, **shipping address**. **Optional:** gift message (~200 chars OK, can be longer). Grandparent provides the ship-to address.
 
 ---
 
@@ -187,7 +220,7 @@ Should the magic link in the recipient email **expire**?
 
 **Recommendation:** Expire **60 days after send** or at **standard lock date**, whichever is sooner.
 
-**Your answer:**
+**Your answer:** **Never expire** — even if they find the email after the box arrives at their door.
 
 ---
 
@@ -204,7 +237,7 @@ For **parents**, should My Box be a **bottom tab** or only reachable from **Home
 
 **Recommendation:** **Add My Box as a tab** for parent mode (4 tabs: Home, My Box, Rav, Account) — customization is the hero action.
 
-**Your answer:**
+**Your answer:** **Keep 3 tabs** (Home, Rav, Account). **Home is the My Box hub** — shows all boxes + broader e-commerce. Do not add a fourth tab.
 
 ---
 
@@ -223,7 +256,7 @@ The home catalog rails link to an **Ala Carte store** screen. For pilot, should 
 
 **Recommendation:** **B — Hide store link** for pilot; rails scroll horizontally on Home only. Revisit for Passover.
 
-**Your answer:**
+**Your answer:** **Hide the store link.** All à-la-carte items visible on **Home** and from **box browse** (e.g. “Browse Hanukkias”). Each item needs a **product page**. **No separate checkout** — add to box. If no card on file (e.g. gift), prompt for card when adding a paid item; charge at ship; adjustable until ship.
 
 ---
 
@@ -243,7 +276,7 @@ Which chips appear under the search bar for Hanukkah pilot, and what happens on 
 
 Remove Stories, Recipes, Lists, Home for pilot.
 
-**Your answer:**
+**Your answer:** **Product category chips** (Hanukkah, Dreidels, Apparel, etc.) — tap **scrolls to that section** on the Home page (collection categories).
 
 ---
 
@@ -258,7 +291,7 @@ Should **guests** (not signed in) see the **same home layout** as signed-in user
 
 **Recommendation:** **Same layout** with guest-specific hero copy + prominent “Build your box” / sign-in CTA; branch on order/box state only.
 
-**Your answer:**
+**Your answer:** **Same layout.** Signed-in users are further along (Rav chats, boxes in progress). Show a **notification/badge on Account tab** when not signed in.
 
 ---
 
@@ -274,7 +307,7 @@ Should the post-holiday survey be called **Debrief**, **Reflection**, or somethi
 
 **Recommendation:** User-facing: **“Hanukkah debrief”**; keep internal route name as-is.
 
-**Your answer:**
+**Your answer:** **Hanukkah debrief** (user-facing).
 
 ---
 
@@ -289,7 +322,7 @@ Which fields can families edit from Account during pilot? (No kid management.)
 
 **Recommendation:** Editable: **display name**, **notification channels**, **familiarity level** (with “updates future suggestions” copy). Read-only: email. **No** household rename in pilot unless ops need it.
 
-**Your answer:**
+**Your answer:** Agree — **display name**, **notification channels**, **familiarity level**, **family structure** (kids, count, ages). Anything captured in onboarding.
 
 ---
 
@@ -304,7 +337,7 @@ The Hanukkah Guide is **print-only**. What should we do with seeded `content/nig
 
 **Recommendation:** **Keep seed for ops/Rav optional context** but **remove all app UI** that reads it. Document as non-user-facing.
 
-**Your answer:**
+**Your answer:** Remove all app UI. **Do not delete** Firestore seed. **Do not feed to Rav** for now — keep as reference until print material is designed in Figma; then provide print version to Rav.
 
 ---
 
@@ -323,7 +356,7 @@ How should confirmed orders get to packing/shipping?
 
 **Recommendation:** **ShipStation** if ops already uses or can adopt it; else **weekly CSV export + manual tracking upload** for pilot with Firestore admin script as fallback.
 
-**Your answer:**
+**Your answer:** **ShipStation** — used before; proceed if API integration is viable.
 
 ---
 
@@ -338,7 +371,7 @@ How should **text message** reminders be sent?
 
 **Recommendation:** **Customer.io SMS** if available on your account; else **Twilio** via Cloud Function. Email-only for pilot v1 if SMS compliance slows launch.
 
-**Your answer:**
+**Your answer:** **Customer.io SMS** — already connected.
 
 ---
 
@@ -353,7 +386,7 @@ Should **in-app push** reminders be in scope for Hanukkah pilot?
 
 **Recommendation:** **Defer push to post-pilot** unless App Store ships early; implement **email + SMS** preference toggles first.
 
-**Your answer:**
+**Your answer:** **Push if App Store ships** — want to try App Store; then include push. Web-only pilot: **email + SMS** is sufficient.
 
 ---
 
@@ -370,7 +403,7 @@ For iOS submission:
 
 **Recommendation:** Rating **4+**; **implement Sign in with Apple** before App Store submit (Google sign-in already exists).
 
-**Your answer:**
+**Your answer:** **Sign in with Apple — required.** Age rating **12+** is fine if it improves acceptance odds (4+ also acceptable — pick what helps approval).
 
 ---
 
@@ -385,25 +418,29 @@ What URLs should store listings and the app use for **privacy policy**, **terms*
 **Recommendation:** Use **untraditionall.com** or dedicated **grapejuice** landing legal pages; support **hello@** shared inbox — confirm exact URLs before store submit.
 
 **Your answer:**
+- **Support:** contact@grapejuice.co (domain: **grapejuice.co**)
+- **Terms (template):** https://unaffiliated.co/terms/network
+- **Privacy (template):** https://unaffiliated.co/privacy/network  
+  Adapt from Untraditional newsletter-network copy for Grapejuice before store submit.
 
 ---
 
-## Already decided (confirm or override)
+## Already decided (confirmed)
 
-| Topic | Current decision |
-|-------|------------------|
-| Standard / pilot box price | $80 / $50 |
+| Topic | Decision |
+|-------|----------|
+| Standard / discount box price | **$80** list · **$50** discount/pilot (same for gift-givers) |
 | Kids accounts | Tabled — hidden for pilot |
-| Hanukkah Guide in app | No — print in box |
-| Passover card hold | Tabled |
-| Standard shipping | Free |
-| Feedback complete reward | $80 platform credit |
-| Non-responder fallback | $20 Amazon (after outreach — see Q5) |
-| Reveal before payment | Yes |
-| Reminder channels (concept) | Email and/or SMS and/or push |
+| Hanukkah Guide in app | No — **print in box** |
+| Passover card hold | Tabled — notify only |
+| Standard shipping | **Free** |
+| Feedback complete reward | **$80** platform credit |
+| Non-responder fallback | **$20** Amazon (after outreach — see Q5) |
+| Reveal before payment | **Yes** |
+| Reminder channels | Email / SMS / push (user picks any combination) |
 
-**Overrides:**
+**Overrides:** None — all confirmed as stated.
 
 ---
 
-*After you record your voice note, we’ll lock answers in this file and unblock the major builds.*
+*Decisions locked June 2026 from voice note. Next: Figma for card-gate + gift flows, then Builds 1 → 3 → 2 → 5.*
