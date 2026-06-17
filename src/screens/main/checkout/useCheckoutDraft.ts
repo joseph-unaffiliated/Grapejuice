@@ -2,14 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { useAuthStore } from '../../../stores/authStore';
 import { useGuestSessionStore } from '../../../stores/guestSessionStore';
+import { useSession } from '../../../hooks/useSession';
 import { boxDraftService } from '../../../services/firestore/boxDraft';
 import { catalogService } from '../../../services/firestore/catalog';
-import { getHanukkahConfig, isBoxLocked } from '../../../services/firestore/config';
+import { getHanukkahConfig, isBoxLocked, effectiveLockAt } from '../../../services/firestore/config';
 import {
   totalCents,
   DEFAULT_BOX_PRICE_CENTS,
   SHIPPING_FLAT_CENTS,
 } from '../../../services/box/buildDefaultBox';
+import { EXPEDITED_SHIPPING_CENTS } from '../../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../../types/pilot';
 
 export const emptyShippingAddress: ShippingAddress = {
@@ -24,6 +26,7 @@ export const emptyShippingAddress: ShippingAddress = {
 
 export function useCheckoutDraft(householdId: string | undefined) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { household } = useSession();
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
@@ -32,13 +35,18 @@ export function useCheckoutDraft(householdId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [locked, setLocked] = useState(false);
   const [boxPriceCents, setBoxPriceCents] = useState(DEFAULT_BOX_PRICE_CENTS);
+  const [expeditedAvailable, setExpeditedAvailable] = useState(false);
+  const [expeditedShipping, setExpeditedShipping] = useState(false);
+  const [hanukkahConfig, setHanukkahConfig] = useState<Awaited<ReturnType<typeof getHanukkahConfig>> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     const [config, items] = await Promise.all([getHanukkahConfig(), catalogService.getAll()]);
+    setHanukkahConfig(config);
     setCatalog(items);
     setBoxPriceCents(config.boxPriceCents ?? DEFAULT_BOX_PRICE_CENTS);
-    setLocked(isBoxLocked(config.lockAt));
+    setExpeditedAvailable(config.expeditedShippingEnabled === true);
+    setLocked(isBoxLocked(effectiveLockAt(config, false)));
 
     if (!isAuthenticated) {
       setLineItems(guestLineItems);
@@ -56,6 +64,11 @@ export function useCheckoutDraft(householdId: string | undefined) {
     setLineItems(draft?.lineItems ?? []);
     setLoading(false);
   }, [householdId, isAuthenticated, guestLineItems]);
+
+  useEffect(() => {
+    if (!hanukkahConfig) return;
+    setLocked(isBoxLocked(effectiveLockAt(hanukkahConfig, expeditedShipping)));
+  }, [hanukkahConfig, expeditedShipping]);
 
   useEffect(() => {
     load();
@@ -88,8 +101,16 @@ export function useCheckoutDraft(householdId: string | undefined) {
   };
 
   const subtotal = totalCents(lineItems, boxPriceCents);
-  const shippingCents = SHIPPING_FLAT_CENTS;
+  const shippingCents = SHIPPING_FLAT_CENTS + (expeditedShipping ? EXPEDITED_SHIPPING_CENTS : 0);
   const taxCents = Math.round((subtotal + shippingCents) * 0.075);
+  const preCreditTotal = subtotal + shippingCents + taxCents;
+  const giftCreditCents = household?.giftCreditCents ?? 0;
+  const platformCreditCents = household?.platformCreditCents ?? 0;
+  const giftCreditApplied = Math.min(giftCreditCents, preCreditTotal);
+  const remainingAfterGift = preCreditTotal - giftCreditApplied;
+  const platformCreditApplied = Math.min(platformCreditCents, remainingAfterGift);
+  const creditApplied = giftCreditApplied + platformCreditApplied;
+  const total = preCreditTotal - creditApplied;
 
   return {
     lineItems,
@@ -100,10 +121,17 @@ export function useCheckoutDraft(householdId: string | undefined) {
     loading,
     locked,
     boxPriceCents,
-    total: subtotal + shippingCents + taxCents,
+    expeditedAvailable,
+    expeditedShipping,
+    setExpeditedShipping,
+    total,
     subtotal,
     shippingCents,
     taxCents,
+    preCreditTotal,
+    giftCreditApplied,
+    platformCreditApplied,
+    creditApplied,
     validateAddress,
     normalizedAddress,
   };

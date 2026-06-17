@@ -13,8 +13,10 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-const LOCK_AT = '2026-11-25T05:00:00.000Z'; // fixed lock — Eastern interpret in ops
-const HANUKKAH_START = '2026-12-14';
+const LOCK_AT = '2026-11-07T05:00:00.000Z'; // 14 days before estimated delivery — Eastern interpret in ops
+const EXPEDITED_LOCK_AT = '2026-11-14T05:00:00.000Z'; // ~7 days after standard lock
+const HANUKKAH_START = '2026-12-05';
+const ESTIMATED_DELIVERY_BY = '2026-11-21'; // 14 days before Hanukkah start
 
 const nights = [
   { night: 1, title: 'Night 1', suggestion: 'Light the first candle. Use the lyric sheet in your box — try singing together.', songTitle: 'Maoz Tzur', storySnippet: 'A small start counts.' },
@@ -53,7 +55,8 @@ async function main() {
     displayName: 'Hanukkah 2026',
     startsOn: HANUKKAH_START,
     lockAt: LOCK_AT,
-    estimatedDeliveryBy: '2026-12-07',
+    expeditedLockAt: EXPEDITED_LOCK_AT,
+    estimatedDeliveryBy: ESTIMATED_DELIVERY_BY,
     passoverWaitlistOpens: '2027-02-01',
   });
 

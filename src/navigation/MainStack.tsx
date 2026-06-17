@@ -11,6 +11,11 @@ import { CatalogProductScreen } from '../screens/main/CatalogProductScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
+import { AboutHanukkahScreen } from '../screens/main/AboutHanukkahScreen';
+import { GiftGiveScreen } from '../screens/gift/GiftGiveScreen';
+import { GiftGiverCustomizeScreen } from '../screens/gift/GiftGiverCustomizeScreen';
+import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
+import { GiftRecipientRevealScreen } from '../screens/gift/GiftRecipientRevealScreen';
 import { GuideScreen } from '../screens/main/GuideScreen';
 import { KidGuideScreen } from '../screens/kids/KidGuideScreen';
 import { ProfilesScreen } from '../screens/profiles/ProfilesScreen';
@@ -39,6 +44,7 @@ function AuthReturnHandler() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
+  const pendingGiftClaimToken = useAuthFlowStore((s) => s.pendingGiftClaimToken);
   const clearPending = useAuthFlowStore((s) => s.clearPending);
 
   useEffect(() => {
@@ -70,8 +76,14 @@ function AuthReturnHandler() {
     if (pendingReturn === 'MyBox') {
       clearPending();
       navigation.navigate('MyBox');
+      return;
     }
-  }, [isAuthenticated, pendingReturn, clearPending, navigation]);
+    if (pendingReturn === 'GiftClaim') {
+      const token = pendingGiftClaimToken;
+      clearPending();
+      if (token) navigation.navigate('GiftClaim', { token });
+    }
+  }, [isAuthenticated, pendingReturn, pendingGiftClaimToken, clearPending, navigation]);
 
   return null;
 }
@@ -96,6 +108,11 @@ export function MainStack() {
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
         <Stack.Screen name="Reflection" component={ReflectionFlowScreen} />
+        <Stack.Screen name="AboutHanukkah" component={AboutHanukkahScreen} />
+        <Stack.Screen name="GiftGive" component={GiftGiveScreen} />
+        <Stack.Screen name="GiftGiverCustomize" component={GiftGiverCustomizeScreen} />
+        <Stack.Screen name="GiftClaim" component={GiftClaimScreen} />
+        <Stack.Screen name="GiftRecipientReveal" component={GiftRecipientRevealScreen} />
       </Stack.Navigator>
     </WebDesktopFrame>
   );

@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
+exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.claimGiftInvite = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
+const scheduler_1 = require("firebase-functions/v2/scheduler");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const stripe_1 = require("./stripe");
@@ -11,12 +12,19 @@ const rav_1 = require("./rav");
 Object.defineProperty(exports, "askPilotRav", { enumerable: true, get: function () { return rav_1.askPilotRav; } });
 const beamAgeTrigger_1 = require("./beamAgeTrigger");
 Object.defineProperty(exports, "scanBeamAgeTriggers", { enumerable: true, get: function () { return beamAgeTrigger_1.scanBeamAgeTriggers; } });
+const shipstation_1 = require("./shipstation");
+const giftPayment_1 = require("./giftPayment");
+const debriefReminders_1 = require("./debriefReminders");
+const lockReminders_1 = require("./lockReminders");
+const crypto_1 = require("crypto");
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const HOLIDAY_ID = 'hanukkah-2026';
 const DEFAULT_BOX_PRICE_CENTS = 5000;
 const SHIPPING_FLAT_CENTS = 0;
+const EXPEDITED_SHIPPING_CENTS = 1500;
 const CHECKOUT_TAX_RATE = 0.075;
+const DEFAULT_GIFT_CREDIT_CENTS = 5000;
 function chargeableLineTotal(lineItems) {
     return lineItems.reduce((s, li) => { var _a, _b; return s + ((_a = li.unitCents) !== null && _a !== void 0 ? _a : 0) * ((_b = li.quantity) !== null && _b !== void 0 ? _b : 1); }, 0);
 }
@@ -101,7 +109,7 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
     if (totalCents < 50) {
         throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
     }
-    const estimatedDelivery = (_e = configData.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-12-07';
+    const estimatedDelivery = (_e = configData.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-11-21';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set({
         status: 'pending',
@@ -166,7 +174,7 @@ exports.createPilotSetupIntent = (0, https_1.onCall)(async (request) => {
     return { clientSecret: setupIntent.client_secret, customerId };
 });
 exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
@@ -183,6 +191,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const hhData = (_c = hhSnap.data()) !== null && _c !== void 0 ? _c : {};
     const cardOnFile = !!hhData.cardOnFileAt;
     const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
+    const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
     const lockAt = await getLockAt();
     if (isLocked(lockAt)) {
         throw new https_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
@@ -196,13 +205,18 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = (_e = configSnap.data()) !== null && _e !== void 0 ? _e : {};
     const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+    const expeditedShipping = data.expeditedShipping === true && configData.expeditedShippingEnabled === true;
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
-    const shippingCents = SHIPPING_FLAT_CENTS;
+    const shippingCents = SHIPPING_FLAT_CENTS + (expeditedShipping ? EXPEDITED_SHIPPING_CENTS : 0);
     const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
-    let totalCents = subtotalCents + shippingCents + taxCents;
-    const creditApplied = Math.min(giftCreditCents, totalCents);
-    totalCents -= creditApplied;
-    if (!cardOnFile && giftCreditCents < boxPriceCents) {
+    let preCreditTotal = subtotalCents + shippingCents + taxCents;
+    const giftCreditApplied = Math.min(giftCreditCents, preCreditTotal);
+    preCreditTotal -= giftCreditApplied;
+    const platformCreditApplied = Math.min(platformCreditCents, preCreditTotal);
+    let totalCents = preCreditTotal - platformCreditApplied;
+    const creditApplied = giftCreditApplied + platformCreditApplied;
+    const totalAvailableCredit = giftCreditCents + platformCreditCents;
+    if (!cardOnFile && totalAvailableCredit < boxPriceCents) {
         throw new https_1.HttpsError('failed-precondition', 'Save a payment method before committing your box.');
     }
     if (totalCents > 0 && !cardOnFile) {
@@ -211,7 +225,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     if (totalCents < 0) {
         throw new https_1.HttpsError('invalid-argument', 'Order total is invalid.');
     }
-    const estimatedDelivery = (_f = configData.estimatedDeliveryBy) !== null && _f !== void 0 ? _f : '2026-12-07';
+    const estimatedDelivery = (_f = (expeditedShipping ? configData.expeditedDeliveryBy : configData.estimatedDeliveryBy)) !== null && _f !== void 0 ? _f : '2026-11-21';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set({
         status: 'committed',
@@ -221,6 +235,9 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         taxCents,
         totalCents,
         creditAppliedCents: creditApplied,
+        giftCreditAppliedCents: giftCreditApplied,
+        platformCreditAppliedCents: platformCreditApplied,
+        expeditedShipping,
         shippingAddress,
         holidayId: HOLIDAY_ID,
         userId: request.auth.uid,
@@ -229,6 +246,9 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         committedAt: firestore_1.FieldValue.serverTimestamp(),
         createdAt: firestore_1.FieldValue.serverTimestamp(),
     });
+    if (giftCreditApplied > 0 || platformCreditApplied > 0) {
+        await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
+    }
     if (totalCents > 0 && cardOnFile) {
         const customerId = (_g = hhData.stripeCustomerId) !== null && _g !== void 0 ? _g : '';
         const paymentMethodId = hhData.stripeDefaultPaymentMethodId;
@@ -252,6 +272,20 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         });
         await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
     }
+    try {
+        await (0, shipstation_1.exportOrderToShipStation)({
+            orderId: orderRef.id,
+            householdId,
+            shippingAddress,
+            lineItems,
+            totalCents,
+            expeditedShipping,
+        });
+    }
+    catch (shipErr) {
+        logger.error('ShipStation export failed', shipErr);
+    }
+    await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_h = data.contactPhone) === null || _h === void 0 ? void 0 : _h.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
     return {
         orderId: orderRef.id,
         totalCents,
@@ -259,7 +293,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     };
 });
 exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
         return;
@@ -296,37 +330,51 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         if (event.type === 'payment_intent.succeeded') {
             const pi = event.data.object;
-            const householdId = (_f = pi.metadata) === null || _f === void 0 ? void 0 : _f.householdId;
-            const orderId = (_g = pi.metadata) === null || _g === void 0 ? void 0 : _g.orderId;
-            if (!householdId || !orderId) {
-                logger.warn('payment_intent.succeeded missing metadata', pi.metadata);
+            const giftType = (_f = pi.metadata) === null || _f === void 0 ? void 0 : _f.type;
+            if (giftType === 'pilot_gift') {
+                const giftInviteId = (_g = pi.metadata) === null || _g === void 0 ? void 0 : _g.giftInviteId;
+                if (giftInviteId) {
+                    try {
+                        await (0, giftPayment_1.finalizeGiftInvitePayment)(db, giftInviteId);
+                    }
+                    catch (giftErr) {
+                        logger.error('Gift payment finalization failed', { giftInviteId, giftErr });
+                    }
+                }
             }
             else {
-                const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
-                const orderSnap = await orderRef.get();
-                if (orderSnap.exists && ((_h = orderSnap.data()) === null || _h === void 0 ? void 0 : _h.status) !== 'confirmed') {
-                    await orderRef.update({
-                        status: 'confirmed',
-                        confirmedAt: firestore_1.FieldValue.serverTimestamp(),
-                    });
-                    const order = orderSnap.data();
-                    const userId = order.userId;
-                    const userSnap = await db.doc(`users/${userId}`).get();
-                    const email = (_k = (_j = userSnap.data()) === null || _j === void 0 ? void 0 : _j.email) !== null && _k !== void 0 ? _k : '';
-                    if (email) {
-                        try {
-                            await (0, email_1.sendEmail)({
-                                to: email,
-                                template: 'order-confirmed',
-                                data: {
-                                    orderId,
-                                    totalCents: order.totalCents,
-                                    estimatedDelivery: order.estimatedDelivery,
-                                },
-                            });
-                        }
-                        catch (emailErr) {
-                            logger.error('Order confirmation email failed', emailErr);
+                const householdId = (_h = pi.metadata) === null || _h === void 0 ? void 0 : _h.householdId;
+                const orderId = (_j = pi.metadata) === null || _j === void 0 ? void 0 : _j.orderId;
+                if (!householdId || !orderId) {
+                    logger.warn('payment_intent.succeeded missing metadata', pi.metadata);
+                }
+                else {
+                    const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+                    const orderSnap = await orderRef.get();
+                    if (orderSnap.exists && ((_k = orderSnap.data()) === null || _k === void 0 ? void 0 : _k.status) !== 'confirmed') {
+                        await orderRef.update({
+                            status: 'confirmed',
+                            confirmedAt: firestore_1.FieldValue.serverTimestamp(),
+                        });
+                        const order = orderSnap.data();
+                        const userId = order.userId;
+                        const userSnap = await db.doc(`users/${userId}`).get();
+                        const email = (_m = (_l = userSnap.data()) === null || _l === void 0 ? void 0 : _l.email) !== null && _m !== void 0 ? _m : '';
+                        if (email) {
+                            try {
+                                await (0, email_1.sendEmail)({
+                                    to: email,
+                                    template: 'order-confirmed',
+                                    data: {
+                                        orderId,
+                                        totalCents: order.totalCents,
+                                        estimatedDelivery: order.estimatedDelivery,
+                                    },
+                                });
+                            }
+                            catch (emailErr) {
+                                logger.error('Order confirmation email failed', emailErr);
+                            }
                         }
                     }
                 }
@@ -413,5 +461,182 @@ exports.acceptPartnerInvite = (0, https_1.onCall)(async (request) => {
         acceptedByUid: request.auth.uid,
     });
     return { ok: true };
+});
+exports.writeOrderTracking = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
+        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+    const householdId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.householdId) !== null && _c !== void 0 ? _c : '');
+    const orderId = String((_e = (_d = request.data) === null || _d === void 0 ? void 0 : _d.orderId) !== null && _e !== void 0 ? _e : '');
+    const trackingNumber = String((_g = (_f = request.data) === null || _f === void 0 ? void 0 : _f.trackingNumber) !== null && _g !== void 0 ? _g : '').trim();
+    const carrier = String((_j = (_h = request.data) === null || _h === void 0 ? void 0 : _h.carrier) !== null && _j !== void 0 ? _j : 'USPS').trim();
+    if (!householdId || !orderId || !trackingNumber) {
+        throw new https_1.HttpsError('invalid-argument', 'householdId, orderId, and trackingNumber are required.');
+    }
+    await assertHouseholdMember(request.auth.uid, householdId);
+    await (0, shipstation_1.applyShipStationTracking)(db, householdId, orderId, { trackingNumber, carrier });
+    return { ok: true };
+});
+exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
+        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+    if (!stripe_1.stripe)
+        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured.');
+    const recipientEmail = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.recipientEmail) !== null && _c !== void 0 ? _c : '').trim().toLowerCase();
+    const giverName = String((_e = (_d = request.data) === null || _d === void 0 ? void 0 : _d.giverName) !== null && _e !== void 0 ? _e : 'Someone who loves you').trim();
+    const message = String((_g = (_f = request.data) === null || _f === void 0 ? void 0 : _f.message) !== null && _g !== void 0 ? _g : '').trim();
+    const creditCents = typeof ((_h = request.data) === null || _h === void 0 ? void 0 : _h.creditCents) === 'number' ? request.data.creditCents : DEFAULT_GIFT_CREDIT_CENTS;
+    const customize = ((_j = request.data) === null || _j === void 0 ? void 0 : _j.customize) === true;
+    const lineItems = Array.isArray((_k = request.data) === null || _k === void 0 ? void 0 : _k.lineItems) ? request.data.lineItems : undefined;
+    const childInterests = Array.isArray((_l = request.data) === null || _l === void 0 ? void 0 : _l.childInterests) ? request.data.childInterests : undefined;
+    const childAgeGroups = Array.isArray((_m = request.data) === null || _m === void 0 ? void 0 : _m.childAgeGroups) ? request.data.childAgeGroups : undefined;
+    if (!recipientEmail.includes('@')) {
+        throw new https_1.HttpsError('invalid-argument', 'A valid recipient email is required.');
+    }
+    const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+    const giverEmail = String((_p = (_o = userSnap.data()) === null || _o === void 0 ? void 0 : _o.email) !== null && _p !== void 0 ? _p : '').trim().toLowerCase();
+    const claimToken = (0, crypto_1.randomBytes)(24).toString('hex');
+    const inviteRef = db.collection('giftInvites').doc();
+    const payload = Object.assign(Object.assign(Object.assign(Object.assign({ giverUid: request.auth.uid, giverName,
+        giverEmail,
+        recipientEmail, message: message || undefined, creditCents,
+        claimToken, status: 'pending', paymentStatus: 'pending' }, (customize && lineItems ? { lineItems } : {})), (childInterests ? { childInterests } : {})), (childAgeGroups ? { childAgeGroups } : {})), { createdAt: new Date().toISOString() });
+    await inviteRef.set(payload);
+    const paymentIntent = await stripe_1.stripe.paymentIntents.create({
+        amount: creditCents,
+        currency: 'usd',
+        metadata: {
+            type: 'pilot_gift',
+            giftInviteId: inviteRef.id,
+            giverUid: request.auth.uid,
+        },
+        receipt_email: giverEmail || undefined,
+        automatic_payment_methods: { enabled: true },
+    });
+    await inviteRef.update({ stripePaymentIntentId: paymentIntent.id });
+    const appBase = (_q = process.env.PILOT_APP_BASE_URL) !== null && _q !== void 0 ? _q : 'https://app.grapejuice.co';
+    const claimUrl = `${appBase}/gift/claim?token=${claimToken}`;
+    return {
+        giftInviteId: inviteRef.id,
+        clientSecret: paymentIntent.client_secret,
+        claimToken,
+        claimUrl,
+    };
+});
+exports.finalizePilotGiftPayment = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
+        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+    const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
+    if (!giftInviteId)
+        throw new https_1.HttpsError('invalid-argument', 'giftInviteId is required.');
+    const inviteSnap = await db.collection('giftInvites').doc(giftInviteId).get();
+    if (!inviteSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Gift invite not found.');
+    const invite = inviteSnap.data();
+    if (invite.giverUid !== request.auth.uid) {
+        throw new https_1.HttpsError('permission-denied', 'Only the giver can finalize this gift.');
+    }
+    try {
+        const result = await (0, giftPayment_1.finalizeGiftInvitePayment)(db, giftInviteId);
+        return { ok: true, claimUrl: result.claimUrl, alreadyFinalized: result.alreadyFinalized };
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : 'Payment not completed';
+        throw new https_1.HttpsError('failed-precondition', message);
+    }
+});
+exports.claimGiftInvite = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
+        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+    const token = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.token) !== null && _c !== void 0 ? _c : '').trim();
+    if (!token)
+        throw new https_1.HttpsError('invalid-argument', 'token is required.');
+    const snap = await db.collection('giftInvites').where('claimToken', '==', token).limit(1).get();
+    if (snap.empty)
+        throw new https_1.HttpsError('not-found', 'Gift invite not found.');
+    const inviteDoc = snap.docs[0];
+    const invite = inviteDoc.data();
+    if (invite.status === 'claimed') {
+        throw new https_1.HttpsError('failed-precondition', 'This gift has already been claimed.');
+    }
+    if (invite.paymentStatus === 'pending') {
+        throw new https_1.HttpsError('failed-precondition', 'This gift has not been paid for yet.');
+    }
+    const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+    let householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
+    if (!householdId) {
+        const hhRef = db.collection('households').doc();
+        const now = new Date().toISOString();
+        await hhRef.set({
+            name: 'Our household',
+            ownerId: request.auth.uid,
+            memberIds: [request.auth.uid],
+            childUserIds: [],
+            giftCreditCents: invite.creditCents,
+            createdAt: now,
+            updatedAt: now,
+        });
+        householdId = hhRef.id;
+        await db.doc(`users/${request.auth.uid}`).set({ householdId, updatedAt: now }, { merge: true });
+    }
+    else {
+        const hhRef = db.doc(`households/${householdId}`);
+        const hhSnap = await hhRef.get();
+        const currentGift = typeof ((_e = hhSnap.data()) === null || _e === void 0 ? void 0 : _e.giftCreditCents) === 'number' ? hhSnap.data().giftCreditCents : 0;
+        await hhRef.update({
+            giftCreditCents: currentGift + invite.creditCents,
+            updatedAt: new Date().toISOString(),
+        });
+    }
+    if ((_f = invite.lineItems) === null || _f === void 0 ? void 0 : _f.length) {
+        await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).set({
+            holidayId: HOLIDAY_ID,
+            lineItems: invite.lineItems,
+            childInterests: (_g = invite.childInterests) !== null && _g !== void 0 ? _g : [],
+            updatedAt: new Date().toISOString(),
+            updatedBy: request.auth.uid,
+        }, { merge: true });
+    }
+    await inviteDoc.ref.update({
+        status: 'claimed',
+        claimedAt: new Date().toISOString(),
+        claimedByHouseholdId: householdId,
+        claimedByUid: request.auth.uid,
+    });
+    await db.doc(`users/${request.auth.uid}`).set({
+        onboardingComplete: true,
+        boxRevealComplete: false,
+        lockReminderEligible: true,
+        lockReminderAttempts: 0,
+        updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return { householdId, giftCreditCents: invite.creditCents, giverName: invite.giverName, message: invite.message, hasGiverDraft: !!((_h = invite.lineItems) === null || _h === void 0 ? void 0 : _h.length) };
+});
+/** Manual trigger for ops — send debrief reminder to one email. */
+exports.sendDebriefReminders = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c, _d, _e;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
+        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+    const to = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.email) !== null && _c !== void 0 ? _c : '').trim();
+    const attempt = ((_d = request.data) === null || _d === void 0 ? void 0 : _d.attempt) === 2 ? 2 : 1;
+    if (!to.includes('@'))
+        throw new https_1.HttpsError('invalid-argument', 'email is required.');
+    const claimUrl = `${(_e = process.env.PILOT_APP_BASE_URL) !== null && _e !== void 0 ? _e : 'https://app.grapejuice.co'}/?preview=debrief`;
+    await (0, email_1.sendDebriefReminderEmail)({ to, attempt, claimUrl });
+    return { ok: true, attempt };
+});
+/** Daily batch — eligible users who have not completed debrief (up to 2 attempts). */
+exports.scheduledDebriefReminders = (0, scheduler_1.onSchedule)('every day 10:00', async () => {
+    await (0, debriefReminders_1.runDebriefReminderBatch)(db);
+});
+/** Daily batch — lock countdown for users with uncommitted box drafts. */
+exports.scheduledLockReminders = (0, scheduler_1.onSchedule)('every day 09:00', async () => {
+    const lockAt = await getLockAt();
+    if (!lockAt || isLocked(lockAt))
+        return;
+    await (0, lockReminders_1.runLockReminderBatch)(db, lockAt);
 });
 //# sourceMappingURL=index.js.map

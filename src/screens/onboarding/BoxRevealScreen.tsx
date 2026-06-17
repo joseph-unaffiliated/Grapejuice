@@ -1,10 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
-  TouchableOpacity,
-  Animated,
   ScrollView,
   Platform,
   ActivityIndicator,
@@ -13,15 +10,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChildProfile, FamiliarityLevel } from '../../types/pilot';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { catalogService } from '../../services/firestore/catalog';
+import { getHanukkahConfig } from '../../services/firestore/config';
+import { formatDollars } from '../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../services/box/pricing';
-import { BoxItemImage } from '../../components/box/BoxItemImage';
-import { semanticColors, spacing, typography, borderRadius, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
-
-const FAMILIARITY_LABEL: Record<FamiliarityLevel, string> = {
-  minimal: 'keeping it simple',
-  moderate: 'somewhere in the middle',
-  'all-in': 'all in',
-};
+import { BoxItemRow } from '../../components/box/BoxItemRow';
+import { StickySectionNav } from '../../components/box/StickySectionNav';
+import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
+import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
+import { BoxDetailReviewCta } from '../../components/box/BoxDetailReviewCta';
+import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import {
+  BOX_DISPLAY_SECTIONS,
+  groupLineItemsByDisplaySection,
+  type BoxDisplaySectionId,
+} from '../../constants/boxDisplaySections';
+import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
+import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 
 type Props = {
   children: ChildProfile[];
@@ -31,141 +37,116 @@ type Props = {
   completing?: boolean;
 };
 
-export function BoxRevealScreen({ children, familiarity, lineItems, onDone, completing }: Props) {
-  const [phase, setPhase] = useState<'recap' | 'reveal' | 'done'>('recap');
+/** Figma 370:3514 — curated box reveal with section tabs and item cards. */
+export function BoxRevealScreen({ children, lineItems, onDone, completing }: Props) {
+  const { colors } = useThemeMode();
+  const detailStyles = useMemo(() => createBoxDetailStyles(colors), [colors]);
+  const styles = useMemo(() => createRevealStyles(colors), [colors]);
+  const { scrollRef, activeSection, onSectionLayout, onScroll, scrollToSection } = useBoxDetailScroll();
+
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(24)).current;
+  const [loading, setLoading] = useState(true);
+  const [lockAt, setLockAt] = useState<string | null>(null);
+  const [startsOn, setStartsOn] = useState<string | null>(null);
+  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  const [now] = useState(() => new Date());
 
   useEffect(() => {
-    catalogService.getAll().then(setCatalog);
+    Promise.all([catalogService.getAll(), getHanukkahConfig()]).then(([items, config]) => {
+      setCatalog(items);
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+      setEstimatedDeliveryBy(config.estimatedDeliveryBy);
+      setLoading(false);
+    });
   }, []);
 
-  useEffect(() => {
-    if (phase !== 'reveal') return;
-    fade.setValue(0);
-    slide.setValue(24);
-    const useNative = Platform.OS !== 'web';
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 600, useNativeDriver: useNative }),
-      Animated.timing(slide, { toValue: 0, duration: 600, useNativeDriver: useNative }),
-    ]).start(({ finished }) => {
-      if (finished) setPhase('done');
-    });
-  }, [phase, fade, slide]);
+  const includedItems = useMemo(
+    () =>
+      lineItems.filter((li) => {
+        const item = catalog.find((c) => c.id === li.itemId);
+        if (!item) return true;
+        const tier = inferPricingTier(item);
+        return tier === 'included' || tier === 'perKid';
+      }),
+    [lineItems, catalog]
+  );
 
-  const kidSummary =
-    children.length === 0
-      ? 'your household'
-      : children.map((c) => `${c.name || 'Kid'} (${c.ageGroup})`).join(', ');
+  const grouped = useMemo(() => groupLineItemsByDisplaySection(includedItems), [includedItems]);
 
-  const includedItems = lineItems.filter((li) => {
-    const item = catalog.find((c) => c.id === li.itemId);
-    if (!item) return true;
-    const tier = inferPricingTier(item);
-    return tier === 'included' || tier === 'perKid';
-  });
+  const renderSection = (sectionId: BoxDisplaySectionId) => {
+    const items = grouped[sectionId];
+    if (!items.length) return null;
+
+    return (
+      <BoxDetailSectionBlock
+        key={sectionId}
+        sectionId={sectionId}
+        onLayout={onSectionLayout(sectionId)}
+      >
+        {items.map((li) => {
+          const item = catalog.find((c) => c.id === li.itemId);
+          const kid = children.find((c) => c.id === li.childId);
+          return (
+            <BoxItemRow
+              key={li.slotId + li.itemId}
+              variant="card"
+              li={li}
+              item={item}
+              meta={kid ? `For ${kid.name || 'your kid'}` : undefined}
+              locked
+              previewChips
+              swapOptions={[]}
+              onSwap={() => {}}
+              formatPrice={formatDollars}
+            />
+          );
+        })}
+      </BoxDetailSectionBlock>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.brand} />
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.root}>
-        {phase === 'recap' ? (
-        <View style={styles.centerBlock}>
-          <Text style={styles.eyebrow}>Curated for you</Text>
-          <Text style={styles.title}>We built your Hanukkah box</Text>
-          <Text style={styles.body}>
-            Based on what you told us: {kidSummary}. You&apos;re {FAMILIARITY_LABEL[familiarity]} —
-            so we picked items that match that energy.
-          </Text>
-          <TouchableOpacity
-            style={[styles.button, Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : undefined]}
-            onPress={() => setPhase('reveal')}
-          >
-            <Text style={styles.buttonText}>Reveal my box</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <Animated.View
-          style={[
-            styles.revealBlock,
-            { opacity: fade, transform: [{ translateY: slide }] },
-          ]}
+    <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? [] : ['top']}>
+      <WebContentPanel gutter>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.root}
+          contentContainerStyle={detailStyles.scrollContent}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
         >
-          <Text style={styles.title}>Your Hanukkah box</Text>
-          <Text style={styles.sub}>{includedItems.length} items inside</Text>
-          <Text style={styles.hint}>You can swap kid picks and add extras from My Box on Home.</Text>
-          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-            {includedItems.map((li) => {
-              const item = catalog.find((c) => c.id === li.itemId);
-              return (
-                <View key={li.slotId + li.itemId} style={styles.row}>
-                  <BoxItemImage size={56} imageUrl={item?.imageUrl} itemId={item?.id ?? li.itemId} />
-                  <View style={styles.rowText}>
-                    <Text style={styles.itemName}>{li.label ?? item?.name ?? li.itemId}</Text>
-                    {li.childId ? (
-                      <Text style={styles.itemMeta}>For {children.find((c) => c.id === li.childId)?.name ?? 'your kid'}</Text>
-                    ) : null}
-                  </View>
-                </View>
-              );
-            })}
-          </ScrollView>
-          {phase === 'done' ? (
-            <TouchableOpacity
-              style={[styles.button, completing && styles.buttonDisabled]}
-              onPress={() => void onDone()}
-              disabled={completing}
-            >
-              {completing ? (
-                <ActivityIndicator color={semanticColors.textPrimary} />
-              ) : (
-                <Text style={styles.buttonText}>Go to Home</Text>
-              )}
-            </TouchableOpacity>
-          ) : null}
-        </Animated.View>
-      )}
-      </View>
+          <BoxDetailToolbar
+            lockAt={lockAt}
+            now={now}
+            startsOn={startsOn}
+            estimatedDeliveryBy={estimatedDeliveryBy}
+          />
+          <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} />
+          {BOX_DISPLAY_SECTIONS.map((s) => renderSection(s.id))}
+          <BoxDetailReviewCta
+            onPress={() => void onDone()}
+            disabled={completing}
+            loading={completing}
+          />
+        </ScrollView>
+      </WebContentPanel>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  root: {
-    flex: 1,
-    backgroundColor: semanticColors.bgPrimary,
-    paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.md,
-  },
-  centerBlock: { flex: 1, justifyContent: 'center' },
-  revealBlock: { flex: 1 },
-  eyebrow: { fontSize: typography.sm, color: semanticColors.goldMuted, fontWeight: '600', textTransform: 'uppercase' },
-  title: { fontSize: 26, fontWeight: '700', color: semanticColors.textPrimary, marginTop: spacing.sm, marginBottom: spacing.md },
-  sub: { fontSize: typography.md, color: semanticColors.textSecondary, marginBottom: spacing.xs },
-  hint: { fontSize: typography.sm, color: semanticColors.goldMuted, marginBottom: spacing.lg, lineHeight: 18 },
-  body: { fontSize: typography.lg, lineHeight: 22, color: semanticColors.textSecondary, marginBottom: spacing.xl },
-  button: {
-    backgroundColor: semanticColors.brand,
-    borderRadius: borderRadius.pill,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.lg,
-  },
-  buttonText: { fontSize: typography.xl, fontWeight: '600', color: semanticColors.textPrimary },
-  buttonDisabled: { opacity: 0.7 },
-  list: { flex: 1 },
-  listContent: { paddingBottom: spacing.lg },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.md,
-    padding: spacing.sm,
-    borderRadius: borderRadius.lg,
-    backgroundColor: semanticColors.accentCream,
-  },
-  rowText: { flex: 1 },
-  itemName: { fontSize: typography.lg, fontWeight: '600', color: semanticColors.textPrimary },
-  itemMeta: { fontSize: typography.sm, color: semanticColors.goldMuted, marginTop: 2 },
-});
+function createRevealStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: colors.bgPrimary },
+    root: { flex: 1, backgroundColor: colors.bgPrimary },
+    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgPrimary },
+  });
+}

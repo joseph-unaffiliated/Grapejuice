@@ -43,12 +43,25 @@ export const HORIZONTAL_RAIL_SHADOW_BLEED = 16;
 /** Web class for index.html touch-action overrides on horizontal rails. */
 export const HORIZONTAL_RAIL_SCROLL_CLASS = 'gj-horizontal-rail-scroll';
 
+/** Expands rail into horizontal margins so left/right shadow isn't clipped at screen edge. */
+export function horizontalRailOuterStyle(): object {
+  return {
+    overflow: 'visible' as const,
+    marginHorizontal: -HORIZONTAL_RAIL_SHADOW_BLEED,
+  };
+}
+
 /** Shared horizontal ScrollView style for catalog / stage rails. */
 export function horizontalRailScrollStyle(): object {
   return {
     width: '100%',
     flexGrow: 0,
     flexShrink: 0,
+    alignSelf: 'flex-start' as const,
+    // Padding paints gold-glow bleed; negative margin keeps it out of layout gaps.
+    paddingVertical: HORIZONTAL_RAIL_SHADOW_BLEED,
+    marginVertical: -HORIZONTAL_RAIL_SHADOW_BLEED,
+    paddingHorizontal: HORIZONTAL_RAIL_SHADOW_BLEED,
     ...(Platform.OS === 'web'
       ? ({
           overflowX: 'auto',
@@ -61,15 +74,19 @@ export function horizontalRailScrollStyle(): object {
   };
 }
 
-/** Content container padding so card shadows fit inside the scroll clip region. */
+/** Row layout inside the rail; pair with scroll padding + gutter offset from callers. */
 export function horizontalRailContentStyle(extra?: object): object {
   return {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: HORIZONTAL_RAIL_SHADOW_BLEED,
-    marginVertical: -HORIZONTAL_RAIL_SHADOW_BLEED,
     ...extra,
   };
+}
+
+/** Gutter padding when scroll viewport already has horizontal shadow bleed. */
+export function horizontalRailGutterPadding(gutter: number): { paddingLeft: number; paddingRight: number } {
+  const inset = Math.max(0, gutter - HORIZONTAL_RAIL_SHADOW_BLEED);
+  return { paddingLeft: inset, paddingRight: inset };
 }
 export const CATALOG_PRODUCT_NAME_LINES = 3;
 
@@ -102,8 +119,8 @@ export function CatalogProductRail({ title, items }: Props) {
     Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow;
 
   return (
-    <View style={styles.carouselWrap}>
-      <View style={[styles.card, cardShadow, { width: cardWidth, minWidth: cardWidth }]}>
+    <View style={[styles.carouselWrap, cardShadow, { width: cardWidth, minWidth: cardWidth }]}>
+      <View style={styles.card}>
         <Text style={styles.title}>{title}</Text>
         <View style={styles.productRow}>
           {items.map((item) => (
@@ -130,6 +147,7 @@ export function CatalogProductRail({ title, items }: Props) {
 function createCatalogRailStyles(colors: SemanticColors) {
   return StyleSheet.create({
     carouselWrap: {
+      borderRadius: 16,
       overflow: 'visible' as const,
     },
     card: {

@@ -11,7 +11,9 @@ export function usePaymentGate() {
 
   const cardOnFile = !!household?.cardOnFileAt;
   const giftCreditCents = household?.giftCreditCents ?? 0;
-  const canMutateBox = cardOnFile || giftCreditCents >= DEFAULT_BOX_PRICE_CENTS;
+  const platformCreditCents = household?.platformCreditCents ?? 0;
+  const totalCreditCents = giftCreditCents + platformCreditCents;
+  const canMutateBox = cardOnFile || totalCreditCents >= DEFAULT_BOX_PRICE_CENTS;
 
   const guardMutation = (): boolean => {
     if (canMutateBox) return true;
@@ -26,5 +28,5 @@ export function usePaymentGate() {
     return false;
   };
 
-  return { canMutateBox, cardOnFile, giftCreditCents, guardMutation };
+  return { canMutateBox, cardOnFile, giftCreditCents, platformCreditCents, totalCreditCents, guardMutation };
 }

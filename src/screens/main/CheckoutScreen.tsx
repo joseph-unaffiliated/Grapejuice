@@ -18,12 +18,14 @@ import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { formatDollars } from '../../services/box/buildDefaultBox';
+import { EXPEDITED_SHIPPING_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
+import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 
 export function CheckoutScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
@@ -45,8 +47,15 @@ export function CheckoutScreen() {
     subtotal,
     shippingCents,
     taxCents,
+    giftCreditApplied,
+    platformCreditApplied,
+    expeditedAvailable,
+    expeditedShipping,
+    setExpeditedShipping,
   } = useCheckoutDraft(household?.id);
   const [submitting, setSubmitting] = useState(false);
+  const [contactPhone, setContactPhone] = useState('');
+  const [smsOptIn, setSmsOptIn] = useState(false);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -102,7 +111,11 @@ export function CheckoutScreen() {
         if (!ready) return;
       }
 
-      const { orderId } = await commitPilotBox(household.id, normalizedAddress());
+      const { orderId } = await commitPilotBox(household.id, normalizedAddress(), {
+        expeditedShipping,
+        contactPhone: contactPhone.trim() || undefined,
+        smsOptIn: smsOptIn && contactPhone.trim().length > 0,
+      });
       navigation.replace('OrderConfirmation', { orderId });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Checkout failed.';
@@ -160,8 +173,30 @@ export function CheckoutScreen() {
         taxCents={taxCents}
         boxPriceCents={boxPriceCents}
         catalog={catalog}
+        giftCreditApplied={giftCreditApplied}
+        platformCreditApplied={platformCreditApplied}
+        expeditedShipping={expeditedShipping}
       />
+      {expeditedAvailable ? (
+        <TouchableOpacity
+          style={styles.expeditedRow}
+          onPress={() => setExpeditedShipping((v) => !v)}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.checkbox, expeditedShipping && styles.checkboxOn]} />
+          <View style={styles.expeditedCopy}>
+            <Text style={styles.expeditedTitle}>Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})</Text>
+            <Text style={styles.expeditedBody}>Arrives sooner — for last-minute planners.</Text>
+          </View>
+        </TouchableOpacity>
+      ) : null}
       <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutSmsOptIn
+        phone={contactPhone}
+        smsOptIn={smsOptIn}
+        onPhoneChange={setContactPhone}
+        onSmsOptInChange={setSmsOptIn}
+      />
 
       <TouchableOpacity
         style={[styles.payBtn, (submitting || locked) && styles.payBtnDisabled]}
@@ -223,4 +258,26 @@ const styles = StyleSheet.create({
   payBtnDisabled: { opacity: 0.6 },
   payBtnText: { fontWeight: '700', color: semanticColors.textInverse, fontSize: typography.lg },
   emptyText: { textAlign: 'center', color: semanticColors.textSecondary, marginBottom: spacing.md },
+  expeditedRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: semanticColors.border,
+    borderRadius: borderRadius.md,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: semanticColors.border,
+    marginTop: 2,
+  },
+  checkboxOn: { backgroundColor: semanticColors.brand, borderColor: semanticColors.brand },
+  expeditedCopy: { flex: 1 },
+  expeditedTitle: { fontSize: typography.md, fontWeight: '600' },
+  expeditedBody: { fontSize: typography.sm, color: semanticColors.textSecondary, marginTop: 4, lineHeight: 18 },
 });

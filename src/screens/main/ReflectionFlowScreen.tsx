@@ -3,7 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
+import { useSession } from '../../hooks/useSession';
 import { reflectionsService } from '../../services/firestore/reflections';
+import { householdsService } from '../../services/firestore/households';
+import { usersService } from '../../services/firestore/users';
+import { DEBRIEF_PLATFORM_CREDIT_CENTS } from '../../services/box/pricing';
 import { HOLIDAY_ID } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
@@ -14,6 +18,7 @@ type Step = 1 | 2 | 3 | 4;
 export function ReflectionFlowScreen() {
   const navigation = useNavigation<Nav>();
   const user = useAuthStore((s) => s.user);
+  const { household, refresh } = useSession();
   const [step, setStep] = useState<Step>(1);
   const [nights, setNights] = useState<boolean[]>(Array(8).fill(false));
   const [wins, setWins] = useState('');
@@ -30,14 +35,31 @@ export function ReflectionFlowScreen() {
     if (!user?.uid) return;
     setSaving(true);
     try {
+      const existing = await reflectionsService.get(user.uid, HOLIDAY_ID);
+      const alreadyAwarded = (existing?.platformCreditAwardedCents ?? 0) > 0;
+      const now = new Date().toISOString();
+
       await reflectionsService.save(user.uid, {
         holidayId: HOLIDAY_ID,
         wins: `${wins}\nNights: ${nights.map((v, i) => (v ? i + 1 : null)).filter(Boolean).join(', ') || 'none'}`,
         hardMoments,
         nextYearShift: nextYear ?? 'maybe',
         favoriteNight: oneWord,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
+        platformCreditAwardedCents: alreadyAwarded
+          ? existing!.platformCreditAwardedCents
+          : DEBRIEF_PLATFORM_CREDIT_CENTS,
       });
+
+      if (!alreadyAwarded && household?.id) {
+        await householdsService.addPlatformCredit(household.id, DEBRIEF_PLATFORM_CREDIT_CENTS);
+        await refresh();
+      }
+
+      await usersService.upsert(user.uid, {
+        debriefReminderEligible: false,
+      } as Parameters<typeof usersService.upsert>[1]);
+
       navigation.goBack();
     } finally {
       setSaving(false);
@@ -88,7 +110,10 @@ export function ReflectionFlowScreen() {
               <Text style={styles.choiceText}>{v === 'yes' ? 'Yes' : v === 'maybe' ? 'Maybe' : 'No'}</Text>
             </TouchableOpacity>
           ))}
-          <Text style={styles.thanks}>Thank you — this helps us plan Passover and next Hanukkah.</Text>
+          <Text style={styles.thanks}>
+            Thank you — this helps us plan Passover and next Hanukkah.
+            {!household?.platformCreditCents ? ' You will unlock $80 toward your next box.' : ''}
+          </Text>
         </>
       ) : null}
 

@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { BOX_DISPLAY_SECTIONS } from '../../constants/boxDisplaySections';
-import { typography, spacing, MOBILE_GUTTER } from '../../constants/theme';
+import { typography, spacing, typeface } from '../../constants/theme';
+import { BOX_DETAIL_TAB_GUTTER } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
@@ -85,7 +86,7 @@ function createNavStyles(colors: SemanticColors) {
   return StyleSheet.create({
     wrap: {
       paddingVertical: spacing.lg,
-      paddingHorizontal: MOBILE_GUTTER,
+      paddingHorizontal: BOX_DETAIL_TAB_GUTTER,
       backgroundColor: colors.bgPrimary,
       zIndex: 10,
       ...(Platform.OS === 'web' ? { position: 'sticky' as const, top: 0 } : {}),
@@ -106,14 +107,12 @@ function createNavStyles(colors: SemanticColors) {
     },
     tabText: {
       fontSize: typography.sm,
-      fontWeight: '200',
-      color: colors.goldMuted,
+      ...typeface('light'),
+      color: colors.textPrimary,
       letterSpacing: -0.22,
-      fontFamily: typography.fontFamily.light,
     },
     tabTextActive: {
-      color: colors.textPrimary,
-      fontWeight: '400',
+      ...typeface('regular'),
     },
     indicator: {
       position: 'absolute',

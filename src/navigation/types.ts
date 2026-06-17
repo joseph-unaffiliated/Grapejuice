@@ -1,4 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { GiftChildDraft, GiftGiveFormValues } from '../screens/gift/giftGiveTypes';
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -25,6 +26,19 @@ export type MainStackParamList = {
   Checkout: undefined;
   OrderConfirmation: { orderId: string };
   Reflection: undefined;
+  AboutHanukkah: undefined;
+  GiftGive: undefined;
+  GiftGiverCustomize: {
+    form: GiftGiveFormValues;
+    childDrafts: GiftChildDraft[];
+  };
+  GiftClaim: { token?: string };
+  GiftRecipientReveal: {
+    giverName: string;
+    message?: string;
+    giftCreditCents: number;
+    hasGiverDraft: boolean;
+  };
 };
 
 export type RootStackParamList = {

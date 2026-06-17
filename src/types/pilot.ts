@@ -47,6 +47,10 @@ export type UserProfile = {
   onboardingComplete: boolean;
   boxRevealComplete?: boolean;
   notificationsOptIn?: boolean;
+  phone?: string;
+  smsOptIn?: boolean;
+  lockReminderEligible?: boolean;
+  lockReminderAttempts?: number;
   hiddenHolidays?: string[];
   collaborationName?: string;
   /** Set by nightly age-trigger function when a child approaches b-mitzvah age. */
@@ -67,6 +71,8 @@ export type Household = {
   cardOnFileAt?: string;
   /** Pre-paid gift balance in cents (grandparent gift path). */
   giftCreditCents?: number;
+  /** Debrief / platform credits (e.g. $80 Passover incentive). */
+  platformCreditCents?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -148,6 +154,8 @@ export type BoxDraft = {
   updatedAt: string;
   updatedBy: string;
   lockedAt?: string | null;
+  /** Research panel — reading, crafts, games, cooking */
+  childInterests?: string[];
 };
 
 export type ActiveProfile =
@@ -219,6 +227,23 @@ export type PartnerInvite = {
   acceptedByUid?: string;
 };
 
+export type GiftInvite = {
+  id: string;
+  giverUid: string;
+  giverName: string;
+  giverEmail: string;
+  recipientEmail: string;
+  message?: string;
+  creditCents: number;
+  claimToken: string;
+  status: 'pending' | 'claimed';
+  lineItems?: BoxLineItem[];
+  childInterests?: string[];
+  createdAt: string;
+  claimedAt?: string;
+  claimedByHouseholdId?: string;
+};
+
 export type HolidayReflection = {
   holidayId: string;
   wins: string;
@@ -226,6 +251,7 @@ export type HolidayReflection = {
   nextYearShift: string;
   favoriteNight: string;
   updatedAt: string;
+  platformCreditAwardedCents?: number;
 };
 
 export const HOLIDAY_ID = 'hanukkah-2026';

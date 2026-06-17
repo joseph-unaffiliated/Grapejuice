@@ -6,6 +6,7 @@ import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
+import type { ChildInterestId } from '../constants/childInterests';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import type { BoxLineItem, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
@@ -25,6 +26,7 @@ export function useBoxDraft() {
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const guestFamiliarity = useGuestSessionStore((s) => s.familiarityLevel);
   const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
+  const guestChildInterests = useGuestSessionStore((s) => s.childInterests);
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
@@ -43,7 +45,7 @@ export function useBoxDraft() {
         setLineItems(guestLineItems);
       } else if (guestDrafts.length) {
         const catalog = await catalogService.getAll();
-        const items = buildDefaultLineItems(catalog, kids);
+        const items = buildDefaultLineItems(catalog, kids, guestChildInterests);
         setLineItems(items);
         setGuestLineItems(items);
       } else {
@@ -70,7 +72,7 @@ export function useBoxDraft() {
     if (draft?.lineItems?.length) {
       setLineItems(draft.lineItems);
     } else if (catalog.length) {
-      setLineItems(buildDefaultLineItems(catalog, kids));
+      setLineItems(buildDefaultLineItems(catalog, kids, (draft?.childInterests ?? []) as ChildInterestId[]));
     } else {
       setLineItems([]);
     }

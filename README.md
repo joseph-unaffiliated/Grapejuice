@@ -52,6 +52,7 @@ When re-enabled:
 - [Pilot decisions questionnaire](./docs/PILOT_DECISIONS.md)
 - [E2E test matrix](./docs/E2E_TEST_MATRIX.md)
 - [Figma design inventory](./docs/FIGMA_DESIGN_INVENTORY.md)
+- [Research panel → build backlog](./docs/RESEARCH_PANEL_BUILD_BACKLOG.md)
 
 ## Firebase
 

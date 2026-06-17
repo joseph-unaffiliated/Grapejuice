@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { MyBoxesCardHeader } from './MyBoxesCardHeader';
 import { MyBoxesHolidayRow } from './MyBoxesHolidayRow';
 import { MY_BOXES_HOLIDAYS } from '../../constants/myBoxesHolidays';
 import { useMyBoxesDismissedHolidays } from '../../hooks/useMyBoxesDismissedHolidays';
@@ -27,6 +28,8 @@ const SHADOW_BLEED = 8;
 const WELCOME_CARD_HEIGHT = 420;
 const CARD_PAD = 16;
 const CARD_SECTION_GAP = 24;
+/** Figma 388:369 — gap between peek header and holiday rows */
+const PEEK_CARD_GAP = 16;
 const HOLIDAY_ROW_GAP = 8;
 
 /** Figma 370:2995 — empty My Boxes card with interactive holiday rows. */
@@ -50,7 +53,9 @@ export function MyBoxesWelcomeCard({
   const wrapStyle = inCarousel ? styles.carouselWrap : styles.shadowWrap;
   const cardStyle = [
     styles.card,
-    inCarousel ? { width, minWidth: width } : { minHeight: WELCOME_CARD_HEIGHT },
+    inCarousel
+      ? { width, minWidth: width, gap: PEEK_CARD_GAP, paddingVertical: CARD_PAD }
+      : { minHeight: WELCOME_CARD_HEIGHT },
     cardShadow,
   ];
 
@@ -90,12 +95,14 @@ export function MyBoxesWelcomeCard({
   return (
     <View style={wrapStyle}>
       <View style={cardStyle}>
-        {!peek ? (
+        {peek ? (
+          <MyBoxesCardHeader title="Add More" subtitle="A Box for Each Holiday" />
+        ) : (
           <TouchableOpacity style={styles.headerCopy} onPress={onPress} activeOpacity={0.92}>
             <Text style={styles.headerTitle}>You don&apos;t have any boxes yet</Text>
             <Text style={styles.headerSub}>Start your first box now</Text>
           </TouchableOpacity>
-        ) : null}
+        )}
 
         {loaded ? (
           <View style={styles.holidayList}>

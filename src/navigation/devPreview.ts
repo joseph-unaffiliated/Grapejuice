@@ -7,6 +7,7 @@ import { useAuthFlowStore } from '../stores/authFlowStore';
 import { catalogService } from '../services/firestore/catalog';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from '../screens/gift/giftGiveTypes';
 
 const DEFAULT_CATALOG_ITEM_ID = 'graphic-novel-hanukkah';
 
@@ -58,8 +59,8 @@ async function seedGuestReveal() {
 }
 
 function setMainNav(
-  screen: 'MainTabs' | 'MyBox' | 'CatalogProduct' | 'Checkout' | 'Reflection' | 'OrderConfirmation',
-  params?: Record<string, unknown>,
+  screen: keyof MainStackParamList,
+  params?: MainStackParamList[keyof MainStackParamList],
   tab?: 'Home' | 'Rav' | 'Account',
   tabParams?: Record<string, unknown>
 ) {
@@ -193,6 +194,34 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
           orderId: search.get('orderId') ?? 'preview-order',
         })
       );
+      break;
+    case 'gift-give':
+      setGuestExplore();
+      setMainNav('GiftGive');
+      break;
+    case 'gift-giver-customize': {
+      const form: GiftGiveFormValues = {
+        recipientEmail: 'parent@example.com',
+        giverName: 'Grandma',
+        message: 'Happy Hanukkah!',
+        giftPath: 'customize',
+      };
+      setGuestExplore();
+      setMainNav('GiftGiverCustomize', { form, childDrafts: DEFAULT_GIFT_CHILDREN });
+      break;
+    }
+    case 'gift-claim':
+      setGuestExplore();
+      setMainNav('GiftClaim', { token: search.get('token') ?? 'preview-gift-token' });
+      break;
+    case 'gift-reveal':
+      setGuestExplore();
+      setMainNav('GiftRecipientReveal', {
+        giverName: search.get('giver') ?? 'Grandma',
+        message: search.get('message') ?? 'Happy Hanukkah!',
+        giftCreditCents: 5000,
+        hasGiverDraft: true,
+      });
       break;
     default:
       useDevPreviewStore.getState().reset();

@@ -13,6 +13,9 @@ export function CheckoutOrderSummary({
   taxCents,
   boxPriceCents,
   catalog = [],
+  giftCreditApplied = 0,
+  platformCreditApplied = 0,
+  expeditedShipping = false,
 }: {
   lineItems: BoxLineItem[];
   total: number;
@@ -21,6 +24,9 @@ export function CheckoutOrderSummary({
   taxCents?: number;
   boxPriceCents: number;
   catalog?: CatalogItem[];
+  giftCreditApplied?: number;
+  platformCreditApplied?: number;
+  expeditedShipping?: boolean;
 }) {
   const chargeable = useMemo(() => {
     return lineItems.filter((li) => {
@@ -45,8 +51,22 @@ export function CheckoutOrderSummary({
       ))}
       {shippingCents ? (
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryName}>Shipping (US)</Text>
+          <Text style={styles.summaryName}>
+            {expeditedShipping ? 'Expedited shipping (US)' : 'Shipping (US)'}
+          </Text>
           <Text style={styles.summaryPrice}>{formatDollars(shippingCents)}</Text>
+        </View>
+      ) : null}
+      {giftCreditApplied ? (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryName}>Gift credit</Text>
+          <Text style={styles.creditPrice}>-{formatDollars(giftCreditApplied)}</Text>
+        </View>
+      ) : null}
+      {platformCreditApplied ? (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryName}>Platform credit</Text>
+          <Text style={styles.creditPrice}>-{formatDollars(platformCreditApplied)}</Text>
         </View>
       ) : null}
       {taxCents ? (
@@ -77,6 +97,7 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
   summaryName: { flex: 1, fontSize: typography.md },
   summaryPrice: { fontWeight: '600' },
+  creditPrice: { fontWeight: '600', color: semanticColors.brand },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

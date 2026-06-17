@@ -15,6 +15,7 @@ function toDraft(data: Record<string, unknown>): BoxDraft {
     lineItems: Array.isArray(data.lineItems) ? (data.lineItems as BoxLineItem[]) : [],
     slotVotes: parseSlotVotes(data.slotVotes),
     familiarityLevel: data.familiarityLevel as BoxDraft['familiarityLevel'],
+    childInterests: Array.isArray(data.childInterests) ? (data.childInterests as string[]) : undefined,
     updatedAt: String(data.updatedAt ?? ''),
     updatedBy: String(data.updatedBy ?? ''),
     lockedAt: (data.lockedAt as string | null) ?? null,
@@ -37,7 +38,7 @@ export const boxDraftService = {
     householdId: string,
     uid: string,
     lineItems: BoxLineItem[],
-    extra?: Partial<Pick<BoxDraft, 'familiarityLevel' | 'lockedAt' | 'slotVotes'>>
+    extra?: Partial<Pick<BoxDraft, 'familiarityLevel' | 'lockedAt' | 'slotVotes' | 'childInterests'>>
   ): Promise<BoxDraft> {
     if (!db) throw new Error('Firestore not configured');
     await ensureAuthTokenReady(uid);

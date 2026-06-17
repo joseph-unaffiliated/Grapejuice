@@ -1,8 +1,8 @@
 const HANUKKAH_NIGHTS = 8;
 const MS_PER_DAY = 86_400_000;
 
-/** First candle — Dec 4, 2026 (Hebcal); used when Firestore config has no startsOn. */
-const HANUKKAH_2026_START = '2026-12-04';
+/** First day of Hanukkah 2026 — Dec 5 (Hebcal); used when Firestore config has no startsOn. */
+const HANUKKAH_2026_START = '2026-12-05';
 
 export type HanukkahPhase = 'before' | 'during' | 'after';
 
@@ -35,7 +35,7 @@ export function getHebcalHanukkahStart(year: number): Date | null {
 }
 
 export function getHanukkahWindow(startsOn: string | null, year = 2026): { startDate: Date; endDate: Date } {
-  const startDate = startsOn ? parseDateOnly(startsOn) : getHebcalHanukkahStart(year) ?? parseDateOnly(`${year}-12-14`);
+  const startDate = startsOn ? parseDateOnly(startsOn) : getHebcalHanukkahStart(year) ?? parseDateOnly(`${year}-12-05`);
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + HANUKKAH_NIGHTS - 1);
   return { startDate, endDate };

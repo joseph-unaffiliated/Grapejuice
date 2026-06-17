@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BoxLineItem, FamiliarityLevel } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import type { ChildInterestId } from '../constants/childInterests';
 
 export function familiarityScoreToLevel(score: number): FamiliarityLevel {
   if (score <= 33) return 'minimal';
@@ -21,6 +22,7 @@ export type GuestOnboardingStep =
   | 'practices'
   | 'box-intro'
   | 'children'
+  | 'child-interests'
   | 'familiarity'
   | 'rav-question'
   | 'building'
@@ -34,6 +36,7 @@ type GuestSessionState = {
   /** Last onboarding screen reached — resume after refresh */
   onboardingStep: GuestOnboardingStep | null;
   childDrafts: ChildDraft[];
+  childInterests: ChildInterestId[];
   familiarityScore: number;
   familiarityLevel: FamiliarityLevel;
   lineItems: BoxLineItem[];
@@ -51,6 +54,7 @@ type GuestSessionState = {
   /** Leave onboarding and browse the app without finishing box setup. */
   exitOnboardingToExplore: () => void;
   setChildDrafts: (drafts: ChildDraft[]) => void;
+  setChildInterests: (interests: ChildInterestId[]) => void;
   setFamiliarityScore: (score: number) => void;
   setRavNotes: (notes: string) => void;
   setLineItems: (items: BoxLineItem[]) => void;
@@ -71,6 +75,7 @@ const initialState = {
   buildBoxPath: false,
   onboardingStep: null as GuestOnboardingStep | null,
   childDrafts: [] as ChildDraft[],
+  childInterests: [] as ChildInterestId[],
   familiarityScore: 50,
   familiarityLevel: 'moderate' as FamiliarityLevel,
   lineItems: [] as BoxLineItem[],
@@ -94,6 +99,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       exitOnboardingToExplore: () =>
         set({ exploreStarted: true, buildBoxPath: false, onboardingStep: null }),
       setChildDrafts: (childDrafts) => set({ childDrafts }),
+      setChildInterests: (childInterests) => set({ childInterests }),
       setFamiliarityScore: (score) => {
         const clamped = Math.max(0, Math.min(100, score));
         set({ familiarityScore: clamped, familiarityLevel: familiarityScoreToLevel(clamped) });
@@ -134,6 +140,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         buildBoxPath: state.buildBoxPath,
         onboardingStep: state.onboardingStep,
         childDrafts: state.childDrafts,
+        childInterests: state.childInterests,
         familiarityScore: state.familiarityScore,
         familiarityLevel: state.familiarityLevel,
         lineItems: state.lineItems,

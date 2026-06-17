@@ -41,6 +41,7 @@ export function MainTabs() {
   return (
     <Tab.Navigator
       initialRouteName="Home"
+      backBehavior={Platform.OS === 'web' ? 'history' : 'firstRoute'}
       tabBar={isDesktop ? EmptyTabBar : (props) => <TabBarWrapper {...props} />}
       safeAreaInsets={Platform.OS === 'web' ? { bottom: 0 } : undefined}
       screenOptions={{

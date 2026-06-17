@@ -1,4 +1,5 @@
 import type { AgeGroup, BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
+import type { ChildInterestId } from '../../constants/childInterests';
 import {
   ALA_CARTE_SLOT_IDS,
   inferPricingTier,
@@ -21,19 +22,44 @@ const TREAT_SLOTS = [
 ] as const;
 const INCLUDED_KEEPSAKE_SLOTS = ['recipe-binder', 'storage-box'] as const;
 
-function pickForSlot(items: CatalogItem[], slotId: string, ageGroup?: AgeGroup): CatalogItem | undefined {
+function interestScore(item: CatalogItem, interests: ChildInterestId[]): number {
+  if (!interests.length) return 0;
+  const id = item.id.toLowerCase();
+  const slot = item.slotId.toLowerCase();
+  const name = item.name.toLowerCase();
+  let score = 0;
+  if (interests.includes('reading') && (slot.startsWith('story') || name.includes('book'))) score += 3;
+  if (interests.includes('crafts') && (id.includes('craft') || name.includes('craft') || name.includes('make your own'))) score += 3;
+  if (interests.includes('games') && (slot.includes('dreidel') || slot === 'gelt' || name.includes('dreidel') || name.includes('gelt'))) score += 3;
+  if (interests.includes('cooking') && (slot.includes('latke') || slot.includes('sufganiyot') || name.includes('latke') || name.includes('sufganiyot'))) score += 3;
+  return score;
+}
+
+function pickForSlot(
+  items: CatalogItem[],
+  slotId: string,
+  ageGroup?: AgeGroup,
+  interests: ChildInterestId[] = []
+): CatalogItem | undefined {
   const pool = items.filter((i) => i.slotId === slotId && !ALA_CARTE_SLOT_IDS.has(i.slotId));
   if (!pool.length) return undefined;
+  let candidates = pool;
   if (ageGroup) {
     const ageEligible = pool.filter((i) => i.ageGroups.includes(ageGroup));
-    const candidates = ageEligible.length ? ageEligible : pool;
+    if (ageEligible.length) candidates = ageEligible;
+  }
+  if (interests.length) {
+    const scored = [...candidates].sort((a, b) => interestScore(b, interests) - interestScore(a, interests));
+    if (interestScore(scored[0], interests) > 0) return scored[0];
+  }
+  if (ageGroup) {
     return (
       candidates.find((i) => i.defaultFor.includes(ageGroup)) ??
       candidates.find((i) => i.defaultFor.length === 0) ??
       candidates[0]
     );
   }
-  return pool.find((i) => i.defaultFor.length > 0) ?? pool.find((i) => i.defaultFor.length === 0) ?? pool[0];
+  return candidates.find((i) => i.defaultFor.length > 0) ?? candidates.find((i) => i.defaultFor.length === 0) ?? candidates[0];
 }
 
 function pushLineItem(lineItems: BoxLineItem[], slotId: string, item: CatalogItem, childId?: string) {
@@ -54,7 +80,11 @@ function pushLineItemById(lineItems: BoxLineItem[], catalog: CatalogItem[], item
   pushLineItem(lineItems, item.slotId || fallbackSlotId, item);
 }
 
-export function buildDefaultLineItems(catalog: CatalogItem[], children: ChildProfile[]): BoxLineItem[] {
+export function buildDefaultLineItems(
+  catalog: CatalogItem[],
+  children: ChildProfile[],
+  childInterests: ChildInterestId[] = []
+): BoxLineItem[] {
   const lineItems: BoxLineItem[] = [];
 
   for (const slotId of [...BASE_SLOTS, ...TREAT_SLOTS, ...INCLUDED_KEEPSAKE_SLOTS]) {
@@ -77,10 +107,10 @@ export function buildDefaultLineItems(catalog: CatalogItem[], children: ChildPro
   }
 
   for (const child of children) {
-    const story = pickForSlot(catalog, 'story', child.ageGroup);
+    const story = pickForSlot(catalog, 'story', child.ageGroup, childInterests);
     if (story) pushLineItem(lineItems, 'story', story, child.id);
 
-    const gift = pickForSlot(catalog, 'gift', child.ageGroup);
+    const gift = pickForSlot(catalog, 'gift', child.ageGroup, childInterests);
     if (gift) pushLineItem(lineItems, 'gift', gift, child.id);
   }
 

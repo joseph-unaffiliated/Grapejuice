@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import type { AuthStackParamList } from '../navigation/types';
 
-export type AuthReturnRoute = 'Checkout' | 'Rav' | 'Account' | 'Profiles' | 'MyBox';
+export type AuthReturnRoute = 'Checkout' | 'Rav' | 'Account' | 'Profiles' | 'MyBox' | 'GiftClaim';
 
 type AuthEntry = 'signup' | 'signin';
 
 type AuthFlowState = {
   pendingReturn: AuthReturnRoute | null;
+  pendingGiftClaimToken: string | null;
   authEntry: AuthEntry;
   authScreen: keyof AuthStackParamList | null;
   startAuthForCheckout: (entry?: AuthEntry) => void;
@@ -16,11 +17,13 @@ type AuthFlowState = {
     entry?: AuthEntry,
     screen?: keyof AuthStackParamList
   ) => void;
+  setPendingGiftClaimToken: (token: string | null) => void;
   clearPending: () => void;
 };
 
 export const useAuthFlowStore = create<AuthFlowState>((set) => ({
   pendingReturn: null,
+  pendingGiftClaimToken: null,
   authEntry: 'signup',
   authScreen: null,
   startAuthForCheckout: (entry = 'signup') =>
@@ -33,5 +36,6 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
       authEntry: entry,
       authScreen: screen ?? (entry === 'signin' ? 'SignIn' : 'SignUp'),
     }),
-  clearPending: () => set({ pendingReturn: null, authScreen: null }),
+  setPendingGiftClaimToken: (token) => set({ pendingGiftClaimToken: token }),
+  clearPending: () => set({ pendingReturn: null, authScreen: null, pendingGiftClaimToken: null }),
 }));

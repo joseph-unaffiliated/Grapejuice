@@ -11,8 +11,9 @@ import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { inferKeepOrToss } from '../../constants/boxPracticeGroups';
 import { BoxItemImage } from './BoxItemImage';
+import { ProductStarRating } from '../home/ProductStarRating';
 import { ItemDetailSheet } from './ItemDetailSheet';
-import { spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
+import { spacing, typography, borderRadius, shadowsWeb, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { KeepOrToss } from '../../types/pilot';
@@ -34,6 +35,8 @@ type Props = {
   formatPrice: (cents: number) => string;
   variant?: 'default' | 'card';
   onRemove?: () => void;
+  /** Read-only reveal: show swap / add more / remove chips without handlers. */
+  previewChips?: boolean;
 };
 
 function itemTag(item?: CatalogItem, keepOrToss?: KeepOrToss): string {
@@ -81,6 +84,7 @@ export function BoxItemRow({
   formatPrice,
   variant = 'default',
   onRemove,
+  previewChips = false,
 }: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createBoxItemRowStyles(colors), [colors]);
@@ -97,7 +101,12 @@ export function BoxItemRow({
       <>
         <View style={styles.cardRow}>
           <TouchableOpacity style={styles.cardImageWrap} onPress={() => setDetailOpen(true)} activeOpacity={0.9}>
-            <BoxItemImage size={130} imageUrl={item?.imageUrl} itemId={item?.id ?? li.itemId} />
+            <BoxItemImage
+              size={130}
+              imageUrl={item?.imageUrl}
+              itemId={item?.id ?? li.itemId}
+              style={styles.cardImage}
+            />
           </TouchableOpacity>
           <View style={styles.cardBody}>
             <View style={styles.cardTop}>
@@ -107,20 +116,31 @@ export function BoxItemRow({
                 <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
               ) : null}
               {meta ? <Text style={styles.cardMeta}>{meta}</Text> : null}
+              <ProductStarRating />
               {isSurprise ? <Text style={styles.surpriseBadge}>Night-of surprise</Text> : null}
               {showPrice ? <Text style={styles.price}>{formatPrice(li.unitCents)}</Text> : null}
             </View>
             <View style={styles.cardActions}>
               <ActionChip label="In box" primary styles={styles} />
-              {swappable ? (
-                <ActionChip label="Swap" onPress={() => setShelfOpen((v) => !v)} styles={styles} />
-              ) : null}
-              {showAddAnother && onAddAnother && !locked ? (
-                <ActionChip label="Add more" onPress={onAddAnother} styles={styles} />
-              ) : null}
-              {onRemove && !locked ? (
-                <ActionChip label="Remove" onPress={onRemove} styles={styles} />
-              ) : null}
+              {previewChips ? (
+                <>
+                  <ActionChip label="Swap" styles={styles} disabled />
+                  <ActionChip label="Add more" styles={styles} disabled />
+                  <ActionChip label="Remove" styles={styles} disabled />
+                </>
+              ) : (
+                <>
+                  {swappable ? (
+                    <ActionChip label="Swap" onPress={() => setShelfOpen((v) => !v)} styles={styles} />
+                  ) : null}
+                  {showAddAnother && onAddAnother && !locked ? (
+                    <ActionChip label="Add more" onPress={onAddAnother} styles={styles} />
+                  ) : null}
+                  {onRemove && !locked ? (
+                    <ActionChip label="Remove" onPress={onRemove} styles={styles} />
+                  ) : null}
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -249,14 +269,15 @@ export function BoxItemRow({
 
 function createBoxItemRowStyles(colors: SemanticColors) {
   return StyleSheet.create({
-    cardRow: { flexDirection: 'row', gap: spacing.md, paddingVertical: spacing.sm },
-    cardImageWrap: { width: 130 },
-    cardBody: { flex: 1, justifyContent: 'space-between', paddingVertical: spacing.xs },
+    cardRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'stretch', width: '100%' },
+    cardImageWrap: { flex: 1, minHeight: 130, maxHeight: 130, borderRadius: borderRadius.md, overflow: 'hidden' },
+    cardImage: { width: '100%', height: '100%', borderRadius: borderRadius.md },
+    cardBody: { flex: 1, justifyContent: 'space-between', gap: spacing.sm },
     cardTop: { gap: 4 },
-    cardTag: { fontSize: typography.sm, color: colors.goldMuted },
-    cardName: { fontWeight: '600', fontSize: typography.md, color: colors.textPrimary },
-    cardDesc: { fontSize: typography.sm, color: colors.textSecondary, lineHeight: 16 },
-    cardMeta: { fontSize: typography.sm, color: colors.goldMuted },
+    cardTag: { fontSize: typography.sm, color: colors.goldMuted, ...typeface('regular'), letterSpacing: -0.33 },
+    cardName: { fontSize: typography.lg, color: colors.textPrimary, ...typeface('regular'), letterSpacing: -0.26 },
+    cardDesc: { fontSize: typography.sm, color: colors.textPrimary, lineHeight: 16.5, ...typeface('light'), letterSpacing: -0.33 },
+    cardMeta: { fontSize: typography.sm, color: colors.goldMuted, ...typeface('light') },
     cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.sm },
     chip: {
       borderWidth: 0.5,
@@ -268,7 +289,7 @@ function createBoxItemRowStyles(colors: SemanticColors) {
     },
     chipPrimary: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
     chipDisabled: { opacity: 0.6 },
-    chipText: { fontSize: 9, color: colors.goldMuted, fontWeight: '500', textTransform: 'lowercase' },
+    chipText: { fontSize: 9, color: colors.goldMuted, ...typeface('regular'), letterSpacing: -0.18, textTransform: 'lowercase' },
     chipTextPrimary: { color: colors.goldMuted },
     row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
     body: { flex: 1, flexDirection: 'row', gap: spacing.sm },

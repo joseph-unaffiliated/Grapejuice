@@ -12,6 +12,12 @@ export const LIST_BOX_PRICE_CENTS = 8000;
 /** Pilot promotional checkout price when config has no override. */
 export const DEFAULT_BOX_PRICE_CENTS = 5000;
 
+/** Awarded on Hanukkah debrief completion (panel Jun 10). */
+export const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;
+
+/** Flat expedited shipping add-on (Build 3). */
+export const EXPEDITED_SHIPPING_CENTS = 1500;
+
 /** À la carte items never ship in the default box. */
 export const ALA_CARTE_SLOT_IDS = new Set(['keepsake-dreidel', 'family-hanukkiah', 'ala-dreidel', 'ala-hanukkiah']);
 

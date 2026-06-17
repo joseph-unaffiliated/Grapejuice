@@ -226,6 +226,12 @@ export function AccountScreen() {
           </>
         ) : null}
 
+        <Text style={styles.section}>Gift a box</Text>
+        <Text style={styles.hint}>Send a $50 Hanukkah box credit to another family (grandparent flow).</Text>
+        <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('GiftGive')}>
+          <Text style={styles.profilesBtnText}>Send a gift</Text>
+        </TouchableOpacity>
+
         <Text style={styles.section}>Orders</Text>
         {orders.length === 0 ? (
           <Text style={styles.hint}>No orders yet. Configure your box and check out from My Box.</Text>

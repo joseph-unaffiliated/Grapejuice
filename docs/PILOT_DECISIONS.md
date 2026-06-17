@@ -72,7 +72,7 @@ How much should **expedited shipping** cost (on top of the free standard option)
 How much **extra customization time** does expedited shipping buy vs standard (i.e. how much later is the expedited lock date)?
 
 **Considerations:**
-- Standard lock must still allow warehouse lead time before Hanukkah (Dec 14, 2026 start).
+- Standard lock must still allow warehouse lead time before Hanukkah (Dec 5, 2026 start).
 - Expedited should feel meaningfully different — at least **7–10 days** later than standard.
 - Warehouse must support two cutoffs without confusion.
 

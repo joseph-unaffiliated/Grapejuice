@@ -18,6 +18,8 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
+import { formatDollars } from '../../services/box/buildDefaultBox';
+import { EXPEDITED_SHIPPING_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
@@ -25,6 +27,7 @@ import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
+import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 
 function SetupCardStep({ onSaved }: { onSaved: () => void }) {
   const stripe = useStripe();
@@ -89,11 +92,21 @@ export function CheckoutScreen() {
     total,
     validateAddress,
     normalizedAddress,
+    subtotal,
+    shippingCents,
+    taxCents,
+    giftCreditApplied,
+    platformCreditApplied,
+    expeditedAvailable,
+    expeditedShipping,
+    setExpeditedShipping,
   } = useCheckoutDraft(household?.id);
 
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [contactPhone, setContactPhone] = useState('');
+  const [smsOptIn, setSmsOptIn] = useState(false);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -113,14 +126,18 @@ export function CheckoutScreen() {
 
     setCommitting(true);
     try {
-      const { orderId } = await commitPilotBox(household.id, normalizedAddress());
+      const { orderId } = await commitPilotBox(household.id, normalizedAddress(), {
+        expeditedShipping,
+        contactPhone: contactPhone.trim() || undefined,
+        smsOptIn: smsOptIn && contactPhone.trim().length > 0,
+      });
       navigation.replace('OrderConfirmation', { orderId });
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not commit your box.');
     } finally {
       setCommitting(false);
     }
-  }, [user, household?.id, locked, validateAddress, normalizedAddress, navigation]);
+  }, [user, household?.id, locked, validateAddress, normalizedAddress, navigation, expeditedShipping]);
 
   const startSetup = async () => {
     if (!household?.id) return;
@@ -234,13 +251,53 @@ export function CheckoutScreen() {
         {isDesktop ? (
           <View style={styles.desktopColumns}>
             <View style={styles.desktopLeft}>
-              <CheckoutOrderSummary lineItems={lineItems} total={total} boxPriceCents={boxPriceCents} />
+              <CheckoutOrderSummary
+                lineItems={lineItems}
+                total={total}
+                subtotal={subtotal}
+                shippingCents={shippingCents}
+                taxCents={taxCents}
+                boxPriceCents={boxPriceCents}
+                giftCreditApplied={giftCreditApplied}
+                platformCreditApplied={platformCreditApplied}
+                expeditedShipping={expeditedShipping}
+              />
+              {expeditedAvailable ? (
+                <TouchableOpacity
+                  style={styles.expeditedRow}
+                  onPress={() => setExpeditedShipping((v) => !v)}
+                >
+                  <Text style={styles.expeditedTitle}>
+                    Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
             <View style={styles.desktopRight}>{checkoutForm}</View>
           </View>
         ) : (
           <>
-            <CheckoutOrderSummary lineItems={lineItems} total={total} boxPriceCents={boxPriceCents} />
+            <CheckoutOrderSummary
+              lineItems={lineItems}
+              total={total}
+              subtotal={subtotal}
+              shippingCents={shippingCents}
+              taxCents={taxCents}
+              boxPriceCents={boxPriceCents}
+              giftCreditApplied={giftCreditApplied}
+              platformCreditApplied={platformCreditApplied}
+              expeditedShipping={expeditedShipping}
+            />
+            {expeditedAvailable ? (
+              <TouchableOpacity
+                style={styles.expeditedRow}
+                onPress={() => setExpeditedShipping((v) => !v)}
+              >
+                <Text style={styles.expeditedTitle}>
+                  Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             {checkoutForm}
           </>
         )}
@@ -299,4 +356,6 @@ const styles = StyleSheet.create({
   payBtnDisabled: { opacity: 0.6 },
   payBtnText: { fontWeight: '700', color: semanticColors.textInverse, fontSize: typography.lg },
   emptyText: { textAlign: 'center', color: semanticColors.textSecondary, marginBottom: spacing.md },
+  expeditedRow: { marginTop: spacing.md, marginBottom: spacing.md },
+  expeditedTitle: { fontSize: typography.md, fontWeight: '600', color: semanticColors.brand },
 });

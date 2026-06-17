@@ -1,5 +1,4 @@
 import { catalogSlotId } from '../services/box/buildDefaultBox';
-import { inferPricingTier } from '../services/box/pricing';
 import type { BoxLineItem, CatalogItem } from '../types/pilot';
 
 /** Figma 370:3514 — five scroll sections on Your Hanukkah Box. */
@@ -11,7 +10,6 @@ export type BoxDisplaySection = {
   title: string;
   description: string;
   browseChips: string[];
-  moreOptionsTitle: string;
 };
 
 export const BOX_DISPLAY_SECTIONS: BoxDisplaySection[] = [
@@ -19,9 +17,9 @@ export const BOX_DISPLAY_SECTIONS: BoxDisplaySection[] = [
     id: 'candles',
     navLabel: 'Candles',
     title: 'Light the Candles',
-    description: 'Candles, songs, and hanukkiahs for eight nights.',
+    description:
+      'Hanukkah is a tradition of lighting candles, singing songs, and telling the story of the Maccabees — we picked candles, lyrics, and hanukkiahs for your family.',
     browseChips: ['browse hanukkiahs', 'browse fancy candles', 'browse toys & crafts'],
-    moreOptionsTitle: 'More Candle Options',
   },
   {
     id: 'dreidel',
@@ -29,7 +27,6 @@ export const BOX_DISPLAY_SECTIONS: BoxDisplaySection[] = [
     title: 'Spin the Dreidel',
     description: 'Gelt, dreidels, and a quick how-to for game night.',
     browseChips: ['browse dreidels', 'browse fancy gelt'],
-    moreOptionsTitle: 'More Dreidel Options',
   },
   {
     id: 'food',
@@ -37,7 +34,6 @@ export const BOX_DISPLAY_SECTIONS: BoxDisplaySection[] = [
     title: 'Eat Latkes and Sufganiyot',
     description: 'Fried treats and recipe cards — pick your path.',
     browseChips: ['browse all foods', 'browse drinks'],
-    moreOptionsTitle: 'More Food Options',
   },
   {
     id: 'presents',
@@ -45,7 +41,6 @@ export const BOX_DISPLAY_SECTIONS: BoxDisplaySection[] = [
     title: 'Give Presents',
     description: 'Wrapping, cozy gifts, and surprises for each kid.',
     browseChips: ['choose a wrapping paper', 'hanukkah style gifts'],
-    moreOptionsTitle: 'More Present Options',
   },
   {
     id: 'story',
@@ -53,7 +48,6 @@ export const BOX_DISPLAY_SECTIONS: BoxDisplaySection[] = [
     title: 'Tell the Story',
     description: 'Age-matched books to read together each night.',
     browseChips: ['browse story books', 'tell the story of the Maccabees'],
-    moreOptionsTitle: 'More Story Options',
   },
 ];
 
@@ -138,19 +132,4 @@ export function groupLineItemsByDisplaySection(
     groups[displaySectionForLineItem(li)].push(li);
   }
   return groups;
-}
-
-/** Catalog items in this section that are not already in the box draft. */
-export function catalogAlternatesForSection(
-  sectionId: BoxDisplaySectionId,
-  catalog: CatalogItem[],
-  lineItems: BoxLineItem[]
-): CatalogItem[] {
-  const inBox = new Set(lineItems.map((li) => li.itemId));
-  return catalog.filter((item) => {
-    if (inBox.has(item.id)) return false;
-    const tier = inferPricingTier(item);
-    if (tier === 'extra') return false;
-    return displaySectionForCatalogItem(item) === sectionId;
-  });
 }

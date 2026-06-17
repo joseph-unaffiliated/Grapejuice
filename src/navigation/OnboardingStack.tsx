@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
 import { ChildrenScreen, type ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import { ChildInterestsScreen } from '../screens/onboarding/ChildInterestsScreen';
 import { FamiliaritySliderScreen } from '../screens/onboarding/FamiliaritySliderScreen';
 import { HanukkahIntroScreen } from '../screens/onboarding/HanukkahIntroScreen';
 import { HanukkahPracticesScreen } from '../screens/onboarding/HanukkahPracticesScreen';
@@ -18,6 +19,7 @@ import { catalogService } from '../services/firestore/catalog';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import type { BoxLineItem, FamiliarityLevel, ChildProfile } from '../types/pilot';
+import type { ChildInterestId } from '../constants/childInterests';
 import { semanticColors, spacing, typography } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
 import { clearDevPreview } from './devPreview';
@@ -62,6 +64,7 @@ export function OnboardingStack({
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const guestChildDrafts = useGuestSessionStore((s) => s.childDrafts);
+  const guestChildInterests = useGuestSessionStore((s) => s.childInterests);
   const guestFamiliarityLevel = useGuestSessionStore((s) => s.familiarityLevel);
   const guestFamiliarityScore = useGuestSessionStore((s) => s.familiarityScore);
   const guestRavNotes = useGuestSessionStore((s) => s.ravNotes);
@@ -70,6 +73,7 @@ export function OnboardingStack({
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const persistedOnboardingStep = useGuestSessionStore((s) => s.onboardingStep);
   const setGuestChildDrafts = useGuestSessionStore((s) => s.setChildDrafts);
+  const setGuestChildInterests = useGuestSessionStore((s) => s.setChildInterests);
   const setGuestFamiliarityScore = useGuestSessionStore((s) => s.setFamiliarityScore);
   const setGuestRavNotes = useGuestSessionStore((s) => s.setRavNotes);
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
@@ -91,6 +95,7 @@ export function OnboardingStack({
     })
   );
   const [childDrafts, setChildDrafts] = useState<ChildDraft[]>(guestChildDrafts);
+  const [childInterests, setChildInterests] = useState<ChildInterestId[]>(guestChildInterests);
   const [savedChildren, setSavedChildren] = useState<ChildProfile[]>(() =>
     guestChildDrafts.length ? draftsToProfiles(guestChildDrafts) : []
   );
@@ -113,6 +118,7 @@ export function OnboardingStack({
 
   useEffect(() => {
     if (guestChildDrafts.length) setChildDrafts(guestChildDrafts);
+    setChildInterests(guestChildInterests);
     setFamiliarity(guestFamiliarityLevel);
     setFamiliarityScore(guestFamiliarityScore);
     setRavNotes(guestRavNotes);
@@ -122,6 +128,7 @@ export function OnboardingStack({
     }
   }, [
     guestChildDrafts,
+    guestChildInterests,
     guestFamiliarityLevel,
     guestFamiliarityScore,
     guestRavNotes,
@@ -147,7 +154,9 @@ export function OnboardingStack({
         ]);
         if (cancelled) return;
         const items =
-          draft?.lineItems?.length ? draft.lineItems : buildDefaultLineItems(catalog, kids);
+          draft?.lineItems?.length
+            ? draft.lineItems
+            : buildDefaultLineItems(catalog, kids, (draft?.childInterests ?? []) as ChildInterestId[]);
         setSavedChildren(kids);
         setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
         setLineItems(items);
@@ -173,7 +182,13 @@ export function OnboardingStack({
     goToStep,
   ]);
 
-  const buildBox = async (level: FamiliarityLevel, score: number, kids: ChildDraft[], notes: string) => {
+  const buildBox = async (
+    level: FamiliarityLevel,
+    score: number,
+    kids: ChildDraft[],
+    interests: ChildInterestId[],
+    notes: string
+  ) => {
     setBuildError(null);
     setSaving(true);
     try {
@@ -184,12 +199,13 @@ export function OnboardingStack({
         );
       }
       const profiles = draftsToProfiles(kids);
-      const items = buildDefaultLineItems(catalog, profiles);
+      const items = buildDefaultLineItems(catalog, profiles, interests);
       if (!items.length) {
         throw new Error('We could not build a default box from the catalog. Please try again later.');
       }
 
       setGuestChildDrafts(kids);
+      setGuestChildInterests(interests);
       setGuestFamiliarityScore(score);
       setGuestRavNotes(notes);
 
@@ -218,11 +234,16 @@ export function OnboardingStack({
           birthdate: c.birthdate,
         }))
       );
-      await boxDraftService.save(householdId, user.uid, items, { familiarityLevel: level });
+      await boxDraftService.save(householdId, user.uid, items, {
+        familiarityLevel: level,
+        childInterests: interests,
+      });
       await usersService.upsert(user.uid, {
         familiarityLevel: level,
         onboardingComplete: true,
         boxRevealComplete: false,
+        lockReminderEligible: true,
+        lockReminderAttempts: 0,
       });
       setSavedChildren(savedKids);
       setFamiliarity(level);
@@ -253,7 +274,7 @@ export function OnboardingStack({
         return;
       }
       if (!user?.uid) return;
-      await usersService.upsert(user.uid, { boxRevealComplete: true });
+      await usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 });
       await refresh();
       clearDevPreview();
       onComplete?.();
@@ -308,6 +329,17 @@ export function OnboardingStack({
           onContinue={(kids) => {
             setChildDrafts(kids);
             setGuestChildDrafts(kids);
+            goToStep('child-interests');
+          }}
+        />
+      );
+    case 'child-interests':
+      return wrapWithEscape(
+        <ChildInterestsScreen
+          initialSelected={childInterests}
+          onContinue={(selected) => {
+            setChildInterests(selected);
+            setGuestChildInterests(selected);
             goToStep('familiarity');
           }}
         />
@@ -334,7 +366,7 @@ export function OnboardingStack({
           onContinue={(notes) => {
             setRavNotes(notes);
             setGuestRavNotes(notes);
-            void buildBox(familiarity, familiarityScore, childDrafts, notes);
+            void buildBox(familiarity, familiarityScore, childDrafts, childInterests, notes);
           }}
         />
       );

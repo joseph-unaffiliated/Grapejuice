@@ -35,13 +35,17 @@ import {
   CatalogProductRail,
   COLLECTION_RAIL_GAP,
   horizontalRailContentStyle,
+  horizontalRailGutterPadding,
+  horizontalRailOuterStyle,
   horizontalRailScrollStyle,
-  HORIZONTAL_RAIL_SCROLL_CLASS,
 } from '../../components/home/CatalogProductRail';
+import { HorizontalDragScrollView } from '../../components/home/HorizontalDragScrollView';
+import { MyBoxesCardHeader } from '../../components/home/MyBoxesCardHeader';
 import { HomeHeroCard } from '../../components/home/HomeHeroCard';
 import { MyBoxesWelcomeCard } from '../../components/home/MyBoxesWelcomeCard';
 import { SetTheStageSection } from '../../components/home/SetTheStageSection';
 import { DeliveryTrackingCard } from '../../components/home/DeliveryTrackingCard';
+import { AddToCalendarMenu } from '../../components/holiday/AddToCalendarMenu';
 import { PassoverPreregisterCard } from '../../components/home/PassoverPreregisterCard';
 import { HANUKKAH_TIMELINE_2026 } from '../../constants/hanukkahTimeline';
 import {
@@ -74,7 +78,6 @@ type Nav = CompositeNavigationProp<
 >;
 
 const HEADER_CHIP_GAP = 16;
-const HEADER_TOP_PAD_WEB = 72;
 const HEADER_BOTTOM_PAD = 16;
 const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
@@ -93,9 +96,18 @@ function myBoxCardWidth(screenWidth: number) {
   return Math.floor((screenWidth * 3) / 5);
 }
 
+/** Align active box card height with peek welcome card in the My Boxes carousel. */
+const MY_BOXES_CAROUSEL_MAX_HEIGHT = 360;
+
 function gridCellForCard(cardWidth: number) {
-  const content = cardWidth - 32;
-  return Math.floor((content - 4) / 2);
+  const horizontalPad = 32;
+  const content = cardWidth - horizontalPad;
+  const widthBased = Math.floor((content - 4) / 2);
+  const headerBlock = 94;
+  const rowGaps = 8;
+  const maxGridHeight = MY_BOXES_CAROUSEL_MAX_HEIGHT - headerBlock - rowGaps;
+  const heightBased = Math.floor(maxGridHeight / 3);
+  return Math.min(widthBased, heightBased);
 }
 
 function heroSubtext(
@@ -146,7 +158,6 @@ export function HomeScreen() {
   const [hanukkiahSectionY, setHanukkiahSectionY] = useState(0);
   const [dreidelSectionY, setDreidelSectionY] = useState(0);
   const [apparelSectionY, setApparelSectionY] = useState(0);
-  const [decorationSectionY, setDecorationSectionY] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -274,7 +285,7 @@ export function HomeScreen() {
       hanukkiahs: hanukkiahSectionY,
       dreidels: dreidelSectionY,
       apparel: apparelSectionY,
-      decorations: decorationSectionY,
+      decorations: apparelSectionY,
     };
     const y = targets[id];
     if (y > 0) {
@@ -312,7 +323,7 @@ export function HomeScreen() {
             styles.headerSticky,
             headerShadow,
             {
-              paddingTop: Platform.OS === 'web' ? HEADER_TOP_PAD_WEB : Math.max(insets.top, spacing.md),
+              paddingTop: Platform.OS === 'web' ? spacing.md : Math.max(insets.top, spacing.md),
               paddingBottom: HEADER_BOTTOM_PAD,
             },
           ]}
@@ -397,6 +408,27 @@ export function HomeScreen() {
             </TouchableOpacity>
           ) : null}
 
+          {phase !== 'post' ? (
+            <TouchableOpacity
+              style={styles.aboutHanukkahLink}
+              onPress={() => navigation.navigate('AboutHanukkah')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.phaseLink}>About Hanukkah — light primer →</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {!locked && lockAt ? (
+            <View style={[styles.gutterPad, styles.calendarWrap]}>
+              <AddToCalendarMenu
+                startsOn={startsOn}
+                lockAt={lockAt}
+                estimatedDeliveryBy={primaryOrder?.estimatedDelivery ?? estimatedDelivery}
+                compact
+              />
+            </View>
+          ) : null}
+
           <View style={styles.section} onLayout={(e) => setHanukkahSectionY(e.nativeEvent.layout.y)}>
             <View style={[styles.sectionHeader, styles.gutterPad]}>
               <Text style={styles.sectionTitle}>My Boxes</Text>
@@ -422,12 +454,14 @@ export function HomeScreen() {
                     onPress={openBox}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.myBoxCardTitle}>Hanukkah</Text>
-                    <Text style={styles.myBoxCardSub}>
-                      {hasBoxStarted
-                        ? `Annual • ${itemCount} item${itemCount === 1 ? '' : 's'}`
-                        : statusLine(phase, locked, lockCountdown, hasOrder, primaryOrder)}
-                    </Text>
+                    <MyBoxesCardHeader
+                      title="Hanukkah"
+                      subtitle={
+                        hasBoxStarted
+                          ? `Annual  •  ${itemCount} item${itemCount === 1 ? '' : 's'}`
+                          : statusLine(phase, locked, lockCountdown, hasOrder, primaryOrder)
+                      }
+                    />
                     <View style={styles.myBoxGrid}>
                       {[0, 1, 2].map((row) => (
                         <View key={row} style={styles.myBoxGridRow}>
@@ -461,65 +495,46 @@ export function HomeScreen() {
             )}
           </View>
 
-          <View style={styles.collectionBlock} onLayout={(e) => setHanukkiahSectionY(e.nativeEvent.layout.y)}>
+          <View style={styles.collectionSection}>
+            <View style={styles.collectionBlock} onLayout={(e) => setHanukkiahSectionY(e.nativeEvent.layout.y)}>
               <Text style={[styles.collectionHeading, styles.gutterPad]}>Build your Collection</Text>
-              <View style={styles.collectionRails}>
-              <ScrollView
+              <View style={styles.collectionRailOuter}>
+              <HorizontalDragScrollView
                 horizontal
                 nestedScrollEnabled
                 directionalLockEnabled
                 showsHorizontalScrollIndicator={false}
                 style={styles.collectionScroll}
                 contentContainerStyle={styles.collectionRow}
-                {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
               >
                 <CatalogProductRail
                   title={COLLECTION_RAILS[0]?.title ?? 'Hanukkiahs'}
                   items={hanukkiahItems}
                 />
-              </ScrollView>
+              </HorizontalDragScrollView>
               </View>
             </View>
-            {!hasBoxStarted ? (
-              <View style={styles.collectionBlock} onLayout={(e) => setDreidelSectionY(e.nativeEvent.layout.y)}>
-                <ScrollView
-                  horizontal
-                  nestedScrollEnabled
-                  directionalLockEnabled
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.collectionScroll}
-                  contentContainerStyle={styles.collectionRow}
-                  {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
-                >
-                  <CatalogProductRail
-                    title={COLLECTION_RAILS[1]?.title ?? 'Dreidels'}
-                    items={dreidelItems}
-                  />
-                </ScrollView>
+            <View onLayout={(e) => setDreidelSectionY(e.nativeEvent.layout.y)}>
+              <View style={styles.collectionRailOuter}>
+              <HorizontalDragScrollView
+                horizontal
+                nestedScrollEnabled
+                directionalLockEnabled
+                showsHorizontalScrollIndicator={false}
+                style={styles.collectionScroll}
+                contentContainerStyle={styles.collectionRow}
+              >
+                <CatalogProductRail
+                  title={COLLECTION_RAILS[1]?.title ?? 'Dreidels'}
+                  items={dreidelItems}
+                />
+              </HorizontalDragScrollView>
               </View>
-            ) : null}
-            {hasBoxStarted ? (
-              <View style={styles.collectionBlock} onLayout={(e) => setDecorationSectionY(e.nativeEvent.layout.y)}>
-                <Text style={[styles.collectionHeading, styles.gutterPad, styles.spiritHeading]}>
-                  Get in the Spirit
-                </Text>
-                <ScrollView
-                  horizontal
-                  nestedScrollEnabled
-                  directionalLockEnabled
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.collectionScroll}
-                  contentContainerStyle={styles.collectionRow}
-                  {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
-                >
-                  <CatalogProductRail title="Decorations" items={decorationItems} />
-                </ScrollView>
-              </View>
-            ) : (
-              <View style={styles.collectionBlock} onLayout={(e) => setApparelSectionY(e.nativeEvent.layout.y)}>
-                <SetTheStageSection apparel={apparelItems} decorations={decorationItems} />
-              </View>
-            )}
+            </View>
+            <View onLayout={(e) => setApparelSectionY(e.nativeEvent.layout.y)}>
+              <SetTheStageSection apparel={apparelItems} decorations={decorationItems} />
+            </View>
+          </View>
 
           <View style={styles.passoverWrap}>
             <PassoverPreregisterCard
@@ -589,6 +604,7 @@ function createHomeStyles(colors: SemanticColors) {
   phaseTitle: { fontSize: typography.xl, fontWeight: '600', color: colors.textPrimary },
   phaseBody: { fontSize: typography.md, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 },
   phaseLink: { fontSize: typography.sm, color: colors.brand, marginTop: spacing.sm, fontWeight: '600' },
+  aboutHanukkahLink: { marginHorizontal: MOBILE_GUTTER, marginBottom: spacing.md },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',
@@ -604,15 +620,11 @@ function createHomeStyles(colors: SemanticColors) {
   collectionSection: { gap: COLLECTION_RAIL_GAP, overflow: 'visible' as const },
   /** Matches SetTheStageSection — 12px from section title to first card. */
   collectionBlock: { gap: COLLECTION_RAIL_GAP, overflow: 'visible' as const },
-  collectionRails: {
-    gap: COLLECTION_RAIL_GAP,
-    overflow: 'visible' as const,
-  },
+  collectionRailOuter: horizontalRailOuterStyle(),
   collectionScroll: horizontalRailScrollStyle(),
   collectionRow: horizontalRailContentStyle({
     gap: COLLECTION_RAIL_GAP,
-    paddingLeft: MOBILE_GUTTER,
-    paddingRight: MOBILE_GUTTER,
+    ...horizontalRailGutterPadding(MOBILE_GUTTER),
   }),
   collectionHeading: {
     fontSize: typography.lg,
@@ -620,7 +632,6 @@ function createHomeStyles(colors: SemanticColors) {
     color: colors.textPrimary,
     letterSpacing: -0.26,
   },
-  spiritHeading: { marginTop: spacing.xs },
   myBoxesScroll: { overflow: 'visible' as const, paddingVertical: SHADOW_BLEED, marginVertical: -SHADOW_BLEED },
   myBoxesRow: { gap: spacing.md, paddingLeft: MOBILE_GUTTER, paddingRight: MOBILE_GUTTER, alignItems: 'flex-start' },
   myBoxShadowWrap: {
@@ -632,10 +643,12 @@ function createHomeStyles(colors: SemanticColors) {
     borderRadius: 16,
     padding: spacing.md,
     minHeight: 280,
+    maxHeight: MY_BOXES_CAROUSEL_MAX_HEIGHT,
+    overflow: 'hidden',
+    gap: 16,
+    alignItems: 'center',
   },
-  myBoxCardTitle: { fontSize: typography.lg, fontWeight: '400', color: colors.textPrimary, letterSpacing: -0.26 },
-  myBoxCardSub: { fontSize: typography.sm, fontWeight: '200', color: colors.textSecondary, marginTop: 4, marginBottom: spacing.sm },
-  myBoxGrid: { marginTop: spacing.sm, gap: 4 },
+  myBoxGrid: { gap: 4, width: '100%', alignItems: 'center' },
   myBoxGridRow: { flexDirection: 'row', gap: 4 },
   myBoxGridCell: { backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: borderRadius.sm },
   passoverWrap: {

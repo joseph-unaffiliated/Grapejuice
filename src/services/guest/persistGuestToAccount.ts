@@ -51,6 +51,7 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
     if (shouldSaveGuestDraft) {
       await boxDraftService.save(householdId, user.uid, guest.lineItems, {
         familiarityLevel: guest.familiarityLevel,
+        childInterests: guest.childInterests.length ? guest.childInterests : undefined,
       });
     }
   }

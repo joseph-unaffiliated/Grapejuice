@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  type LayoutChangeEvent,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSession } from '../../hooks/useSession';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
-import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../../constants/pilotFeatures';
+import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { useAuthStore } from '../../stores/authStore';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
@@ -38,14 +35,15 @@ import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
+import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
+import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
+import { BoxDetailReviewCta } from '../../components/box/BoxDetailReviewCta';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
   BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
-  catalogAlternatesForSection,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
-import { BoxBrowseGrid } from '../../components/box/BoxBrowseGrid';
 import { GuestBoxAuthBanner } from '../../components/box/GuestBoxAuthBanner';
 import { defaultIsSurprise } from '../../constants/boxPracticeGroups';
 import {
@@ -55,36 +53,17 @@ import {
   toggleSlotVote,
   topPickItemId,
 } from '../../services/box/slotVotes';
-import { PILOT_COPY } from '../../constants/pilotHolidays';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
+import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
 import { spacing, typography, borderRadius, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
-const SCROLL_SPY_OFFSET = 56;
-
-function formatLockDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-function headerSubtext(lockAt: string | null, now: Date): string {
-  const dateLabel = lockAt
-    ? formatLockDate(lockAt)
-    : new Date(now.getFullYear(), 11, 4).toLocaleDateString(undefined, {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      });
-  const daysAway = lockAt
-    ? Math.max(0, Math.ceil((new Date(lockAt).getTime() - now.getTime()) / 86_400_000))
-    : null;
-  return daysAway != null ? `${dateLabel}  •  ${daysAway} days away` : dateLabel;
-}
-
 export function MyBoxScreen() {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createMyBoxStyles(colors), [colors]);
+  const detailStyles = useMemo(() => createBoxDetailStyles(colors), [colors]);
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { loading: sessionLoading, profile } = useSession();
   const user = useAuthStore((s) => s.user);
@@ -95,17 +74,15 @@ export function MyBoxScreen() {
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
   const { isDesktop } = useWebLayout();
-  const scrollRef = useRef<ScrollView>(null);
-  const sectionOffsets = useRef<Partial<Record<BoxDisplaySectionId, number>>>({});
-  const scrollingToSection = useRef(false);
-  const scrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { scrollRef, activeSection, onSectionLayout, onScroll, scrollToSection } = useBoxDetailScroll();
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [swapCache, setSwapCache] = useState<Record<string, CatalogItem[]>>({});
   const [lockAt, setLockAt] = useState<string | null>(null);
+  const [startsOn, setStartsOn] = useState<string | null>(null);
+  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
   const [boxPriceCents, setBoxPriceCents] = useState(DEFAULT_BOX_PRICE_CENTS);
-  const [activeSection, setActiveSection] = useState<BoxDisplaySectionId>('candles');
   const [now] = useState(() => new Date());
   const locked = isBoxLocked(lockAt);
   const { cardOnFile, guardMutation } = usePaymentGate();
@@ -114,6 +91,8 @@ export function MyBoxScreen() {
     setLoading(true);
     const [items, config] = await Promise.all([catalogService.getAll(), getHanukkahConfig()]);
     setLockAt(config.lockAt);
+    setStartsOn(config.startsOn);
+    setEstimatedDeliveryBy(config.estimatedDeliveryBy);
     setBoxPriceCents(config.boxPriceCents ?? DEFAULT_BOX_PRICE_CENTS);
     setCatalog(items);
     setLoading(false);
@@ -299,79 +278,35 @@ export function MyBoxScreen() {
     }
   };
 
-  const addCatalogItem = async (item: CatalogItem) => {
-    if (locked || !beforeCustomize() || !guardMutation()) return;
-    const tier = inferPricingTier(item);
-    await persist([
-      ...lineItems,
-      {
-        slotId: item.slotId,
-        itemId: item.id,
-        quantity: 1,
-        unitCents: unitCentsForTier(tier, item.dollarCostCents),
-        label: item.name,
-      },
-    ]);
-  };
-
-  const swapCatalogIn = async (item: CatalogItem) => {
-    if (locked || !beforeCustomize() || !guardMutation()) return;
-    const baseSlot = catalogSlotId(item.slotId);
-    const existing = lineItems.find(
-      (li) => li.slotId === item.slotId || catalogSlotId(li.slotId) === baseSlot
-    );
-    if (existing) {
-      await applySwap(existing.slotId, item);
-    } else {
-      await addCatalogItem(item);
+  const goToCheckout = () => {
+    if (guestViewOnly) {
+      requireAuthToCustomize('signup');
+      return;
     }
+    navigation.navigate('Checkout');
   };
 
-  const onSectionLayout = (id: BoxDisplaySectionId) => (e: LayoutChangeEvent) => {
-    sectionOffsets.current[id] = e.nativeEvent.layout.y;
-  };
-
-  const updateActiveFromScroll = (scrollY: number) => {
-    if (scrollingToSection.current) return;
-    const probe = scrollY + SCROLL_SPY_OFFSET;
-    let next: BoxDisplaySectionId = BOX_DISPLAY_SECTIONS[0].id;
-    for (const { id } of BOX_DISPLAY_SECTIONS) {
-      const y = sectionOffsets.current[id];
-      if (y !== undefined && y <= probe) next = id;
+  const onBrowseChipPress = (chip: string, sectionId: BoxDisplaySectionId) => {
+    if (guestViewOnly) {
+      requireAuthToCustomize('signup');
+      return;
     }
-    setActiveSection((prev) => (prev === next ? prev : next));
-  };
-
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    updateActiveFromScroll(e.nativeEvent.contentOffset.y);
-  };
-
-  const scrollToSection = (id: BoxDisplaySectionId) => {
-    const y = sectionOffsets.current[id];
-    if (y === undefined) return;
-    setActiveSection(id);
-    scrollingToSection.current = true;
-    scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
-    if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
-    scrollEndTimer.current = setTimeout(() => {
-      scrollingToSection.current = false;
-    }, 450);
+    void chip;
+    scrollToSection(sectionId);
   };
 
   const renderSection = (sectionId: BoxDisplaySectionId) => {
-    const meta = BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)!;
     const items = grouped[sectionId];
+    if (!items.length && !isChildProfile) return null;
 
     return (
-      <View
+      <BoxDetailSectionBlock
         key={sectionId}
-        style={styles.sectionBlock}
+        sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
+        showBrowseChips={!isChildProfile}
+        onBrowseChipPress={!isChildProfile ? onBrowseChipPress : undefined}
       >
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{meta.title}</Text>
-          <Text style={styles.sectionDesc}>{meta.description}</Text>
-        </View>
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);
           const kid = children.find((c) => c.id === li.childId);
@@ -455,36 +390,7 @@ export function MyBoxScreen() {
             </View>
           );
         })}
-        {!isChildProfile && meta.browseChips.length ? (
-          <View style={styles.browseChips}>
-            {meta.browseChips.map((chip) => (
-              <TouchableOpacity
-                key={chip}
-                style={styles.browseChip}
-                onPress={() => {
-                  if (guestViewOnly) {
-                    requireAuthToCustomize('signup');
-                    return;
-                  }
-                  scrollToSection(sectionId);
-                }}
-              >
-                <Text style={styles.browseChipText}>{chip}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : null}
-        {!isChildProfile ? (
-          <BoxBrowseGrid
-            title={meta.moreOptionsTitle}
-            items={catalogAlternatesForSection(sectionId, catalog, lineItems)}
-            locked={locked}
-            formatPrice={formatDollars}
-            onAdd={(item) => void addCatalogItem(item)}
-            onSwapIn={(item) => void swapCatalogIn(item)}
-          />
-        ) : null}
-      </View>
+      </BoxDetailSectionBlock>
     );
   };
 
@@ -501,56 +407,44 @@ export function MyBoxScreen() {
   const chargeableExtras = extraLineItems.reduce((s, li) => s + li.unitCents, 0);
   const chargeableAlaCarte = alaCarteItems.reduce((s, li) => s + li.unitCents, 0);
 
-  const lockBanner = lockAt ? (
-    <Text style={[styles.lockBanner, locked && styles.lockBannerClosed]}>
-      {locked
-        ? `Customization closed on ${formatLockDate(lockAt)}. Contact support to change your box.`
-        : `Customize until ${formatLockDate(lockAt)}`}
+  const lockBanner = locked && lockAt ? (
+    <Text style={[styles.lockBanner, styles.lockBannerClosed]}>
+      Customization closed. Contact support to change your box.
     </Text>
   ) : null;
 
-  const scrollHeader = (
+  const parentScrollHeader = (
     <>
-      <View style={styles.pageHeader}>
-        <Text style={styles.title}>
-          {isChildProfile ? `${activeChild?.name?.trim() || 'Your'} picks` : 'Your Hanukkah box'}
-        </Text>
-        {!isChildProfile ? (
-          <Text style={styles.headerMeta}>
-            {guestViewOnly
-              ? 'Browse your box — sign in to swap items and add extras'
-              : headerSubtext(lockAt, now)}
-          </Text>
-        ) : (
-          <Text style={styles.headerMeta}>Tap 👍 on what you like — a grown-up picks at checkout</Text>
-        )}
-      </View>
-      {!isChildProfile ? (
-        <>
-          <Text style={styles.subtitle}>{PILOT_COPY.boxDetailTop}</Text>
-          {!cardOnFile ? (
-            <Text style={styles.paymentPending}>{PILOT_COPY.boxDetailPaymentPending}</Text>
-          ) : null}
-          {!PILOT_PARENT_ONLY ? (
-            <TouchableOpacity
-              style={styles.guideLink}
-              onPress={() => navigation.navigate('Guide')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.guideLinkText}>Open Hanukkah night-by-night guide →</Text>
-            </TouchableOpacity>
-          ) : null}
-        </>
+      <BoxDetailToolbar
+        lockAt={lockAt}
+        now={now}
+        onBack={() => navigation.goBack()}
+        title="Your Hanukkah Box"
+        startsOn={startsOn}
+        estimatedDeliveryBy={estimatedDeliveryBy}
+      />
+      {guestViewOnly ? (
+        <View style={detailStyles.headerExtras}>
+          <GuestBoxAuthBanner
+            onCreateAccount={() => requireAuthToCustomize('signup')}
+            onSignIn={() => requireAuthToCustomize('signin')}
+          />
+        </View>
       ) : null}
-      {!isChildProfile && !guestViewOnly ? lockBanner : null}
-      {!isChildProfile && guestViewOnly ? (
-        <GuestBoxAuthBanner
-          onCreateAccount={() => requireAuthToCustomize('signup')}
-          onSignIn={() => requireAuthToCustomize('signin')}
-        />
+      {!guestViewOnly && lockBanner ? (
+        <View style={detailStyles.headerExtras}>{lockBanner}</View>
       ) : null}
     </>
   );
+
+  const kidScrollHeader = (
+    <View style={styles.pageHeader}>
+      <Text style={styles.title}>{`${activeChild?.name?.trim() || 'Your'} picks`}</Text>
+      <Text style={styles.headerMeta}>Tap 👍 on what you like — a grown-up picks at checkout</Text>
+    </View>
+  );
+
+  const scrollHeader = isChildProfile ? kidScrollHeader : parentScrollHeader;
 
   const sectionIds = isChildProfile
     ? (['presents', 'story'] as BoxDisplaySectionId[])
@@ -609,40 +503,13 @@ export function MyBoxScreen() {
       </View>
       <TouchableOpacity
         style={[styles.checkoutCta, locked && styles.checkoutCtaDisabled]}
-        onPress={() => {
-          if (guestViewOnly) {
-            requireAuthToCustomize('signup');
-            return;
-          }
-          navigation.navigate('Checkout');
-        }}
+        onPress={goToCheckout}
         disabled={locked || lineItems.length === 0}
       >
         <Text style={styles.checkoutText}>{cardOnFile ? 'Review shipping' : 'Add payment & shipping'}</Text>
       </TouchableOpacity>
     </View>
   );
-
-  const footerCta = !isDesktop && !isChildProfile ? (
-    <View style={[styles.footerBar, Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : undefined]}>
-      <TouchableOpacity style={styles.footerSecondary} onPress={() => navigation.goBack()}>
-        <Text style={styles.footerSecondaryText}>Not ready</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.footerPrimary, (locked || lineItems.length === 0) && styles.checkoutCtaDisabled]}
-        onPress={() => {
-          if (guestViewOnly) {
-            requireAuthToCustomize('signup');
-            return;
-          }
-          navigation.navigate('Checkout');
-        }}
-        disabled={locked || lineItems.length === 0}
-      >
-        <Text style={styles.footerPrimaryText}>{cardOnFile ? 'Review shipping' : 'Add payment & shipping'}</Text>
-      </TouchableOpacity>
-    </View>
-  ) : null;
 
   const kidEmptyState =
     isChildProfile && (kidVotableSlots.length === 0 || kidAllWrapped) ? (
@@ -664,8 +531,12 @@ export function MyBoxScreen() {
       {kidEmptyState}
       {!isChildProfile ? <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} /> : null}
       {kidEmptyState ? null : sections}
-      {!isChildProfile ? addOnsBlock : null}
-      {!isDesktop && !isChildProfile ? summaryPanel : null}
+      {!isDesktop && !isChildProfile ? (
+        <BoxDetailReviewCta
+          onPress={goToCheckout}
+          disabled={locked || lineItems.length === 0}
+        />
+      ) : null}
     </>
   );
 
@@ -677,13 +548,16 @@ export function MyBoxScreen() {
             <ScrollView
               ref={scrollRef}
               style={styles.desktopList}
-              contentContainerStyle={styles.desktopListContent}
+              contentContainerStyle={detailStyles.scrollContent}
               onScroll={onScroll}
               scrollEventThrottle={16}
             >
               {scrollBody}
             </ScrollView>
-            <View style={styles.desktopSummary}>{summaryPanel}</View>
+            <View style={styles.desktopSummary}>
+              {summaryPanel}
+              {addOnsBlock}
+            </View>
           </View>
         </View>
       </WebContentPanel>
@@ -691,20 +565,17 @@ export function MyBoxScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <WebContentPanel wide gutter>
-        <View style={styles.mobileWrap}>
-          <ScrollView
-            ref={scrollRef}
-            style={styles.root}
-            contentContainerStyle={styles.content}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-          >
-            {scrollBody}
-          </ScrollView>
-          {footerCta}
-        </View>
+    <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? [] : ['top']}>
+      <WebContentPanel gutter>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.root}
+          contentContainerStyle={detailStyles.scrollContent}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        >
+          {scrollBody}
+        </ScrollView>
       </WebContentPanel>
     </SafeAreaView>
   );
@@ -776,6 +647,7 @@ function createMyBoxStyles(colors: SemanticColors) {
   sectionBlock: {
     borderBottomWidth: 0.5,
     borderBottomColor: colors.goldMuted,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
     marginBottom: spacing.lg,
   },
@@ -786,14 +658,16 @@ function createMyBoxStyles(colors: SemanticColors) {
     padding: spacing.md,
     marginBottom: spacing.lg,
   },
-  sectionTitle: { fontSize: typography.md, fontWeight: '600', textAlign: 'center' },
+  sectionTitle: { fontSize: typography.md, fontWeight: '400', textAlign: 'center', color: colors.textPrimary },
   sectionSub: { fontSize: typography.sm, color: colors.goldMuted, marginBottom: spacing.sm },
   sectionDesc: {
     fontSize: typography.sm,
+    fontWeight: '200',
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
     maxWidth: 280,
+    fontFamily: typography.fontFamily.light,
   },
   browseChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center', marginTop: spacing.sm },
   browseChip: {

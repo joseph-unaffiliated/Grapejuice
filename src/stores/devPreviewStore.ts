@@ -8,6 +8,7 @@ export type OnboardingPreviewStep =
   | 'practices'
   | 'box-intro'
   | 'children'
+  | 'child-interests'
   | 'familiarity'
   | 'rav-question'
   | 'building'

@@ -18,6 +18,9 @@ import { semanticColors } from '../constants/theme';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { DevPreviewEffect } from './DevPreviewEffect';
 import { readDevPreviewFromWindow } from './devPreview';
+import { WebBrowserHistoryBridge } from './WebBrowserHistoryBridge';
+import { GiftClaimLinkEffect } from './GiftClaimLinkEffect';
+import { onWebNavigationStateChange } from './webBrowserHistory';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -113,7 +116,12 @@ export function RootNavigator() {
   return (
     <SessionProvider>
       <ActiveProfileProvider>
-        <NavigationContainer ref={navigationRef}>
+        <NavigationContainer
+          ref={navigationRef}
+          onStateChange={onWebNavigationStateChange}
+        >
+          <WebBrowserHistoryBridge />
+          <GiftClaimLinkEffect />
           <DevPreviewEffect />
           <RootRoutes />
         </NavigationContainer>

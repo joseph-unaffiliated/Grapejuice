@@ -6,7 +6,7 @@ export const PILOT_HOLIDAYS: HolidayCard[] = [
   {
     id: 'hanukkah-2026',
     title: 'Hanukkah 2026',
-    gregorianDateLabel: 'Dec 14–22, 2026',
+    gregorianDateLabel: 'Dec 5–12, 2026',
     explainer: 'Your live family box for eight nights of light, food, stories, and play.',
     status: 'active',
   },

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -21,9 +21,11 @@ import {
   catalogProductNameStyle,
   collectionCardWidth,
   horizontalRailContentStyle,
+  horizontalRailGutterPadding,
+  horizontalRailOuterStyle,
   horizontalRailScrollStyle,
-  HORIZONTAL_RAIL_SCROLL_CLASS,
 } from './CatalogProductRail';
+import { HorizontalDragScrollView } from './HorizontalDragScrollView';
 
 type Props = {
   apparel: CatalogItem[];
@@ -48,23 +50,25 @@ function StageCard({
     Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow;
 
   return (
-    <View style={[styles.card, { width: cardWidth, minWidth: cardWidth }, cardShadow]}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <View style={styles.productRow}>
-        {items.map((item) => (
-          <TouchableOpacity key={item.id} style={styles.tile} activeOpacity={0.85} onPress={() => onItemPress(item.id)}>
-            <BoxItemImage size={CATALOG_TILE} imageUrl={item.imageUrl} itemId={item.id} style={styles.image} />
-            <View style={styles.meta}>
-              <Text style={styles.itemName} numberOfLines={CATALOG_PRODUCT_NAME_LINES}>
-                {item.name}
-              </Text>
-              {getItemBrand(item) ? (
-                <Text style={styles.brand}>{getItemBrand(item)}</Text>
-              ) : null}
-            </View>
-            <Text style={styles.price}>{formatCatalogDollars(item.dollarCostCents)}</Text>
-          </TouchableOpacity>
-        ))}
+    <View style={[styles.stageCardOuter, cardShadow, { width: cardWidth, minWidth: cardWidth }]}>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <View style={styles.productRow}>
+          {items.map((item) => (
+            <TouchableOpacity key={item.id} style={styles.tile} activeOpacity={0.85} onPress={() => onItemPress(item.id)}>
+              <BoxItemImage size={CATALOG_TILE} imageUrl={item.imageUrl} itemId={item.id} style={styles.image} />
+              <View style={styles.meta}>
+                <Text style={styles.itemName} numberOfLines={CATALOG_PRODUCT_NAME_LINES}>
+                  {item.name}
+                </Text>
+                {getItemBrand(item) ? (
+                  <Text style={styles.brand}>{getItemBrand(item)}</Text>
+                ) : null}
+              </View>
+              <Text style={styles.price}>{formatCatalogDollars(item.dollarCostCents)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -91,19 +95,20 @@ export function SetTheStageSection({ apparel, decorations }: Props) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Set the Stage</Text>
-      <ScrollView
+      <View style={styles.railOuter}>
+      <HorizontalDragScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         directionalLockEnabled
         nestedScrollEnabled
         style={styles.scrollBleed}
         contentContainerStyle={styles.rail}
-        {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
       >
         {cards.map((c) => (
           <StageCard key={c.key} title={c.title} items={c.items} styles={styles} onItemPress={openProduct} />
         ))}
-      </ScrollView>
+      </HorizontalDragScrollView>
+      </View>
     </View>
   );
 }
@@ -119,12 +124,19 @@ function createSetTheStageStyles(colors: SemanticColors) {
       paddingHorizontal: MOBILE_GUTTER,
     },
     scrollBleed: horizontalRailScrollStyle(),
+    railOuter: horizontalRailOuterStyle(),
     rail: horizontalRailContentStyle({
       gap: COLLECTION_RAIL_GAP,
-      paddingLeft: MOBILE_GUTTER,
-      paddingRight: MOBILE_GUTTER,
+      alignItems: 'stretch',
+      ...horizontalRailGutterPadding(MOBILE_GUTTER),
     }),
+    stageCardOuter: {
+      borderRadius: 16,
+      overflow: 'visible' as const,
+      alignSelf: 'stretch',
+    },
     card: {
+      flex: 1,
       backgroundColor: colors.bgPrimary,
       borderRadius: 16,
       padding: COLLECTION_CARD_PADDING,

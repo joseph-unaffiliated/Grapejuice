@@ -44,12 +44,16 @@
       #root > div {
         overflow: visible !important;
       }
-      /* Horizontal catalog rails — lock to pan-x so nested vertical page scroll doesn't steal swipes */
+      /* Horizontal catalog rails — pan-x only; vertical bleed comes from scroll padding */
       #root .gj-horizontal-rail-scroll {
         overflow-x: auto !important;
-        overflow-y: hidden !important;
         touch-action: pan-x;
         -webkit-overflow-scrolling: touch;
+        cursor: grab;
+      }
+      #root .gj-horizontal-rail-scroll.gj-horizontal-rail-dragging {
+        cursor: grabbing;
+        user-select: none;
       }
       #main-tab-bar button,
       #main-tab-bar [role="button"],

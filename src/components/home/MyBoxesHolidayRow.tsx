@@ -106,13 +106,14 @@ export function MyBoxesHolidayRow({ holiday, onAction, onDismiss }: Props) {
 function createHolidayRowStyles(colors: SemanticColors) {
   return StyleSheet.create({
     row: {
-      flex: 1,
+      width: '100%',
       flexDirection: 'row',
       alignItems: 'stretch',
       backgroundColor: ROW_TINT,
       borderRadius: borderRadius.xl,
       overflow: 'hidden',
       minHeight: 72,
+      flexShrink: 0,
     },
     thumb: {
       width: THUMB_WIDTH,
@@ -129,15 +130,13 @@ function createHolidayRowStyles(colors: SemanticColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      minWidth: 0,
     },
     getStartedLeft: {
-      flex: 1,
       flexDirection: 'column',
       gap: 6,
       paddingLeft: 16,
       paddingVertical: 10,
-      minWidth: 0,
+      flexShrink: 0,
     },
     getStartedRight: {
       alignItems: 'center',
@@ -152,22 +151,26 @@ function createHolidayRowStyles(colors: SemanticColors) {
       justifyContent: 'center',
       paddingHorizontal: 16,
       paddingVertical: 10,
-      minWidth: 0,
+      flexShrink: 0,
     },
     copy: {
       gap: 2,
+      flexShrink: 0,
     },
     date: {
       fontSize: 9,
       fontWeight: '200',
       color: colors.textPrimary,
       letterSpacing: -0.18,
+      flexShrink: 0,
+      ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : {}),
     },
     name: {
       fontSize: typography.lg,
       fontWeight: '400',
       color: colors.textPrimary,
       letterSpacing: -0.26,
+      flexShrink: 0,
     },
     buttonRow: {
       flexDirection: 'row',
