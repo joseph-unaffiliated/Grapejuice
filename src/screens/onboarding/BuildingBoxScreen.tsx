@@ -16,7 +16,12 @@ const BUILD_STEPS = [
 
 export function BuildingBoxScreen({ onComplete }: Props) {
   const fade = useRef(new Animated.Value(0)).current;
+  const onCompleteRef = useRef(onComplete);
   const [stepIndex, setStepIndex] = React.useState(0);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     const useNative = Platform.OS !== 'web';
@@ -26,13 +31,13 @@ export function BuildingBoxScreen({ onComplete }: Props) {
       setStepIndex((i) => (i < BUILD_STEPS.length - 1 ? i + 1 : i));
     }, 700);
 
-    const doneTimer = setTimeout(onComplete, 2800);
+    const doneTimer = setTimeout(() => onCompleteRef.current(), 2800);
 
     return () => {
       clearInterval(stepTimer);
       clearTimeout(doneTimer);
     };
-  }, [fade, onComplete]);
+  }, [fade]);
 
   return (
     <WebPageContainer style={styles.wrapper}>

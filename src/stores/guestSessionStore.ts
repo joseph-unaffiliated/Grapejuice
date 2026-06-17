@@ -16,11 +16,23 @@ export function familiarityLevelToScore(level: FamiliarityLevel): number {
   return 85;
 }
 
+export type GuestOnboardingStep =
+  | 'hanukkah-intro'
+  | 'practices'
+  | 'box-intro'
+  | 'children'
+  | 'familiarity'
+  | 'rav-question'
+  | 'building'
+  | 'reveal';
+
 type GuestSessionState = {
   _hasHydrated: boolean;
   exploreStarted: boolean;
   /** True when guest chose "build your box" — routes through onboarding */
   buildBoxPath: boolean;
+  /** Last onboarding screen reached — resume after refresh */
+  onboardingStep: GuestOnboardingStep | null;
   childDrafts: ChildDraft[];
   familiarityScore: number;
   familiarityLevel: FamiliarityLevel;
@@ -36,10 +48,13 @@ type GuestSessionState = {
   guestRavPromptCount: number;
   startExplore: () => void;
   startBuildBox: () => void;
+  /** Leave onboarding and browse the app without finishing box setup. */
+  exitOnboardingToExplore: () => void;
   setChildDrafts: (drafts: ChildDraft[]) => void;
   setFamiliarityScore: (score: number) => void;
   setRavNotes: (notes: string) => void;
   setLineItems: (items: BoxLineItem[]) => void;
+  setOnboardingStep: (step: GuestOnboardingStep | null) => void;
   completeOnboarding: () => void;
   completeBoxReveal: () => void;
   consumeOpenMyBoxAfterReveal: () => void;
@@ -54,6 +69,7 @@ type GuestSessionState = {
 const initialState = {
   exploreStarted: false,
   buildBoxPath: false,
+  onboardingStep: null as GuestOnboardingStep | null,
   childDrafts: [] as ChildDraft[],
   familiarityScore: 50,
   familiarityLevel: 'moderate' as FamiliarityLevel,
@@ -73,8 +89,10 @@ export const useGuestSessionStore = create<GuestSessionState>()(
     (set, get) => ({
       _hasHydrated: false,
       ...initialState,
-      startExplore: () => set({ exploreStarted: true, buildBoxPath: false }),
+      startExplore: () => set({ exploreStarted: true, buildBoxPath: false, onboardingStep: null }),
       startBuildBox: () => set({ exploreStarted: true, buildBoxPath: true }),
+      exitOnboardingToExplore: () =>
+        set({ exploreStarted: true, buildBoxPath: false, onboardingStep: null }),
       setChildDrafts: (childDrafts) => set({ childDrafts }),
       setFamiliarityScore: (score) => {
         const clamped = Math.max(0, Math.min(100, score));
@@ -82,8 +100,10 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       },
       setRavNotes: (ravNotes) => set({ ravNotes }),
       setLineItems: (lineItems) => set({ lineItems }),
+      setOnboardingStep: (onboardingStep) => set({ onboardingStep }),
       completeOnboarding: () => set({ onboardingComplete: true }),
-      completeBoxReveal: () => set({ boxRevealComplete: true, openMyBoxAfterReveal: true }),
+      completeBoxReveal: () =>
+        set({ boxRevealComplete: true, openMyBoxAfterReveal: true, onboardingStep: null }),
       consumeOpenMyBoxAfterReveal: () => set({ openMyBoxAfterReveal: false }),
       toggleInterest: (interest) => {
         const current = get().interests;
@@ -112,6 +132,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       partialize: (state) => ({
         exploreStarted: state.exploreStarted,
         buildBoxPath: state.buildBoxPath,
+        onboardingStep: state.onboardingStep,
         childDrafts: state.childDrafts,
         familiarityScore: state.familiarityScore,
         familiarityLevel: state.familiarityLevel,

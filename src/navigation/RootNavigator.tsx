@@ -15,6 +15,9 @@ import { SessionProvider, useSession } from '../context/SessionContext';
 import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../constants/pilotFeatures';
 import { semanticColors } from '../constants/theme';
+import { useDevPreviewStore } from '../stores/devPreviewStore';
+import { DevPreviewEffect } from './DevPreviewEffect';
+import { readDevPreviewFromWindow } from './devPreview';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -39,6 +42,8 @@ function RootRoutes() {
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const pendingAuth = useAuthFlowStore((s) => s.pendingReturn);
+  const previewGate = useDevPreviewStore((s) => s.forceGate);
+  const previewActive = readDevPreviewFromWindow() != null;
 
   const booting = authLoading || !guestHydrated || (isAuthenticated && sessionLoading);
 
@@ -52,7 +57,9 @@ function RootRoutes() {
 
   let gateKey: 'auth' | 'onboarding' | 'main' = 'auth';
 
-  if (isAuthenticated) {
+  if (previewActive && previewGate) {
+    gateKey = previewGate;
+  } else if (isAuthenticated) {
     const checkoutReturn =
       pendingAuth === 'Checkout' &&
       (guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete);
@@ -86,6 +93,7 @@ function RootRoutes() {
               <OnboardingStack
                 isGuest={!isAuthenticated}
                 revealOnly={isAuthenticated && needsBoxReveal && !needsOnboarding}
+                initialStep={useDevPreviewStore.getState().onboardingInitialStep ?? undefined}
                 onComplete={refresh}
               />
             </ThemeProvider>
@@ -106,6 +114,7 @@ export function RootNavigator() {
     <SessionProvider>
       <ActiveProfileProvider>
         <NavigationContainer ref={navigationRef}>
+          <DevPreviewEffect />
           <RootRoutes />
         </NavigationContainer>
       </ActiveProfileProvider>

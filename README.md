@@ -51,6 +51,7 @@ When re-enabled:
 - [Commerce baseline](../docs/COMMERCE_BASELINE.md)
 - [Pilot decisions questionnaire](./docs/PILOT_DECISIONS.md)
 - [E2E test matrix](./docs/E2E_TEST_MATRIX.md)
+- [Figma design inventory](./docs/FIGMA_DESIGN_INVENTORY.md)
 
 ## Firebase
 

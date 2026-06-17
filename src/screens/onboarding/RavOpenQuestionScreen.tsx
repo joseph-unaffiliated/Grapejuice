@@ -6,10 +6,18 @@ import { semanticColors, spacing, typography, borderRadius, shadowsWeb } from '.
 type Props = {
   initialNotes?: string;
   isAuthenticated?: boolean;
+  buildError?: string | null;
+  building?: boolean;
   onContinue: (notes: string) => void;
 };
 
-export function RavOpenQuestionScreen({ initialNotes = '', isAuthenticated = false, onContinue }: Props) {
+export function RavOpenQuestionScreen({
+  initialNotes = '',
+  isAuthenticated = false,
+  buildError = null,
+  building = false,
+  onContinue,
+}: Props) {
   const [notes, setNotes] = useState(initialNotes);
 
   return (
@@ -34,11 +42,22 @@ export function RavOpenQuestionScreen({ initialNotes = '', isAuthenticated = fal
         />
 
         <TouchableOpacity
-          style={[styles.cta, Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : undefined]}
+          style={[
+            styles.cta,
+            building && styles.ctaDisabled,
+            Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : undefined,
+          ]}
           onPress={() => onContinue(notes.trim())}
+          disabled={building}
         >
-          <Text style={styles.ctaText}>{notes.trim() ? 'Build my box' : 'Skip — build my box'}</Text>
+          {building ? (
+            <Text style={styles.ctaText}>Building your box…</Text>
+          ) : (
+            <Text style={styles.ctaText}>{notes.trim() ? 'Build my box' : 'Skip — build my box'}</Text>
+          )}
         </TouchableOpacity>
+
+        {buildError ? <Text style={styles.error}>{buildError}</Text> : null}
       </ScrollView>
     </WebPageContainer>
   );
@@ -68,5 +87,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.xl,
   },
+  ctaDisabled: { opacity: 0.7 },
   ctaText: { fontWeight: '700', color: semanticColors.textInverse },
+  error: {
+    marginTop: spacing.md,
+    fontSize: typography.md,
+    color: semanticColors.error,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
 });

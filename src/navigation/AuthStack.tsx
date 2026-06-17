@@ -6,6 +6,7 @@ import { SignInScreen } from '../screens/auth/SignInScreen';
 import { SignInEmailScreen } from '../screens/auth/SignInEmailScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
 import { useAuthFlowStore } from '../stores/authFlowStore';
+import { useDevPreviewStore } from '../stores/devPreviewStore';
 
 const Stack = createStackNavigator<AuthStackParamList>();
 
@@ -16,9 +17,12 @@ type Props = {
 export function AuthStack({ checkoutAuth = false }: Props) {
   const authScreen = useAuthFlowStore((s) => s.authScreen);
   const authEntry = useAuthFlowStore((s) => s.authEntry);
-  const initialRoute = checkoutAuth
-    ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
-    : 'Welcome';
+  const previewRoute = useDevPreviewStore((s) => s.authInitialRoute);
+  const initialRoute =
+    previewRoute ??
+    (checkoutAuth
+      ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
+      : 'Welcome');
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
