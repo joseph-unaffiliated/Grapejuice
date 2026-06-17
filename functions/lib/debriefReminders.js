@@ -7,9 +7,10 @@ const email_1 = require("./email");
 const sms_1 = require("./sms");
 const HOLIDAY_ID = 'hanukkah-2026';
 const APP_BASE = (_a = process.env.PILOT_APP_BASE_URL) !== null && _a !== void 0 ? _a : 'https://app.grapejuice.co';
-const MAX_ATTEMPTS = 2;
-/** Minimum days between reminder attempts. */
+const MAX_ATTEMPTS = 3;
+/** Minimum days between reminder attempts 1→2 and 2→3. */
 const ATTEMPT_GAP_DAYS = 7;
+const AMAZON_FALLBACK_GAP_DAYS = 14;
 function daysSince(iso) {
     return (Date.now() - new Date(iso).getTime()) / 86400000;
 }
@@ -36,9 +37,12 @@ async function runDebriefReminderBatch(db) {
             skipped += 1;
             continue;
         }
-        if (user.debriefReminderLastSentAt && daysSince(user.debriefReminderLastSentAt) < ATTEMPT_GAP_DAYS) {
-            skipped += 1;
-            continue;
+        if (user.debriefReminderLastSentAt) {
+            const gap = attempts === 2 ? AMAZON_FALLBACK_GAP_DAYS : ATTEMPT_GAP_DAYS;
+            if (daysSince(user.debriefReminderLastSentAt) < gap) {
+                skipped += 1;
+                continue;
+            }
         }
         const attempt = (attempts + 1);
         const claimUrl = `${APP_BASE}/?preview=debrief`;
@@ -48,15 +52,16 @@ async function runDebriefReminderBatch(db) {
             continue;
         }
         try {
-            await (0, email_1.sendDebriefReminderEmail)({ to: email, attempt, claimUrl });
-            if (user.smsOptIn && user.phone) {
-                await (0, sms_1.sendDebriefReminderSms)({ to: user.phone, attempt, claimUrl }).catch((err) => logger.warn('Debrief SMS failed', { uid, err }));
+            if (attempt === 3) {
+                await (0, email_1.sendDebriefAmazonFallbackEmail)({ to: email, claimUrl });
             }
-            await userDoc.ref.update({
-                debriefReminderAttempts: attempt,
-                debriefReminderLastSentAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            });
+            else {
+                await (0, email_1.sendDebriefReminderEmail)({ to: email, attempt, claimUrl });
+                if (user.smsOptIn && user.phone) {
+                    await (0, sms_1.sendDebriefReminderSms)({ to: user.phone, attempt, claimUrl }).catch((err) => logger.warn('Debrief SMS failed', { uid, err }));
+                }
+            }
+            await userDoc.ref.update(Object.assign(Object.assign({ debriefReminderAttempts: attempt, debriefReminderLastSentAt: new Date().toISOString() }, (attempt >= MAX_ATTEMPTS ? { debriefReminderEligible: false } : {})), { updatedAt: new Date().toISOString() }));
             sent += 1;
         }
         catch (err) {

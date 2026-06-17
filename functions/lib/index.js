@@ -64,10 +64,14 @@ async function getOrCreateStripeCustomer(householdId, uid, email) {
     });
     return customer.id;
 }
-async function getLockAt() {
-    var _a, _b;
+async function getLockAt(expedited) {
+    var _a, _b, _c;
     const snap = await db.doc('config/hanukkah-2026').get();
-    return (_b = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.lockAt) !== null && _b !== void 0 ? _b : null;
+    const data = (_a = snap.data()) !== null && _a !== void 0 ? _a : {};
+    if (expedited && data.expeditedLockAt) {
+        return (_b = data.expeditedLockAt) !== null && _b !== void 0 ? _b : null;
+    }
+    return (_c = data.lockAt) !== null && _c !== void 0 ? _c : null;
 }
 function isLocked(lockAt) {
     if (!lockAt)
@@ -192,7 +196,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const cardOnFile = !!hhData.cardOnFileAt;
     const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
     const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
-    const lockAt = await getLockAt();
+    const lockAt = await getLockAt(data.expeditedShipping === true);
     if (isLocked(lockAt)) {
         throw new https_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
@@ -314,6 +318,13 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         return;
     }
     try {
+        const eventRef = db.doc(`stripeWebhookEvents/${event.id}`);
+        const prior = await eventRef.get();
+        if (prior.exists) {
+            logger.info('Stripe webhook duplicate skipped', { eventId: event.id, type: event.type });
+            res.json({ received: true, duplicate: true });
+            return;
+        }
         if (event.type === 'setup_intent.succeeded') {
             const si = event.data.object;
             const householdId = (_c = si.metadata) === null || _c === void 0 ? void 0 : _c.householdId;
@@ -380,6 +391,10 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                 }
             }
         }
+        await eventRef.set({
+            type: event.type,
+            processedAt: new Date().toISOString(),
+        });
         res.json({ received: true });
     }
     catch (err) {

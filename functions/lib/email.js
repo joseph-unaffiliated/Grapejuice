@@ -1,9 +1,10 @@
 "use strict";
-var _a, _b, _c, _d, _e, _f, _g;
+var _a, _b, _c, _d, _e, _f, _g, _h;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendEmail = sendEmail;
 exports.sendDebriefReminderEmail = sendDebriefReminderEmail;
 exports.sendGiftClaimEmail = sendGiftClaimEmail;
+exports.sendDebriefAmazonFallbackEmail = sendDebriefAmazonFallbackEmail;
 exports.sendLockReminderEmail = sendLockReminderEmail;
 const apiKey = (_a = process.env.CUSTOMERIO_APP_API_KEY) !== null && _a !== void 0 ? _a : '';
 const BASE_URL = 'https://api.customer.io/v1';
@@ -14,6 +15,7 @@ const TEMPLATE_IDS = {
     'debrief-reminder': parseInt((_e = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER) !== null && _e !== void 0 ? _e : '0', 10) || 0,
     'lock-reminder': parseInt((_f = process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER) !== null && _f !== void 0 ? _f : '0', 10) || 0,
     'gift-claim': parseInt((_g = process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM) !== null && _g !== void 0 ? _g : '0', 10) || 0,
+    'debrief-amazon': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _h !== void 0 ? _h : '0', 10) || 0,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY, CUSTOMERIO_FROM_EMAIL
@@ -75,6 +77,20 @@ async function sendGiftClaimEmail({ to, giverName, claimUrl, message, }) {
         return;
     }
     await sendEmail({ to, template, data: { giverName, claimUrl, message: message !== null && message !== void 0 ? message : '' } });
+}
+/** Q5 panel — $20 Amazon gift card fallback after 2 debrief nudges + 14 days. */
+async function sendDebriefAmazonFallbackEmail({ to, claimUrl, }) {
+    var _a;
+    const templateId = parseInt((_a = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _a !== void 0 ? _a : '0', 10) || 0;
+    if (!templateId || !apiKey) {
+        console.warn('sendDebriefAmazonFallbackEmail: stub (template not configured)', { to, claimUrl });
+        return;
+    }
+    await sendEmail({
+        to,
+        template: 'debrief-amazon',
+        data: { claimUrl: claimUrl !== null && claimUrl !== void 0 ? claimUrl : 'https://app.grapejuice.co' },
+    });
 }
 /** Lock countdown — up to 2 reminder attempts before customization closes. */
 async function sendLockReminderEmail({ to, attempt, daysRemaining, myBoxUrl, }) {

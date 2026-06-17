@@ -137,7 +137,7 @@ export function CheckoutScreen() {
     } finally {
       setCommitting(false);
     }
-  }, [user, household?.id, locked, validateAddress, normalizedAddress, navigation, expeditedShipping]);
+  }, [user, household?.id, locked, validateAddress, normalizedAddress, navigation, expeditedShipping, contactPhone, smsOptIn]);
 
   const startSetup = async () => {
     if (!household?.id) return;
@@ -168,6 +168,12 @@ export function CheckoutScreen() {
   const checkoutForm = cardOnFile ? (
     <>
       <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutSmsOptIn
+        phone={contactPhone}
+        smsOptIn={smsOptIn}
+        onPhoneChange={setContactPhone}
+        onSmsOptInChange={setSmsOptIn}
+      />
       <TouchableOpacity
         style={[styles.payBtn, (committing || locked) && styles.payBtnDisabled]}
         onPress={handleCommit}
@@ -189,10 +195,22 @@ export function CheckoutScreen() {
         }}
       />
       <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutSmsOptIn
+        phone={contactPhone}
+        smsOptIn={smsOptIn}
+        onPhoneChange={setContactPhone}
+        onSmsOptInChange={setSmsOptIn}
+      />
     </Elements>
   ) : (
     <>
       <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutSmsOptIn
+        phone={contactPhone}
+        smsOptIn={smsOptIn}
+        onPhoneChange={setContactPhone}
+        onSmsOptInChange={setSmsOptIn}
+      />
       <TouchableOpacity
         style={[styles.payBtn, (preparing || locked) && styles.payBtnDisabled]}
         onPress={startSetup}

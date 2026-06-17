@@ -605,6 +605,7 @@ function createHomeStyles(colors: SemanticColors) {
   phaseBody: { fontSize: typography.md, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 },
   phaseLink: { fontSize: typography.sm, color: colors.brand, marginTop: spacing.sm, fontWeight: '600' },
   aboutHanukkahLink: { marginHorizontal: MOBILE_GUTTER, marginBottom: spacing.md },
+  calendarWrap: { marginBottom: spacing.md },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',
