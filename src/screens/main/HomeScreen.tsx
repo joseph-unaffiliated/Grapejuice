@@ -31,7 +31,13 @@ import {
   heroTitleForLifecycle,
 } from '../../services/box/boxLifecycle';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
-import { CatalogProductRail, COLLECTION_RAIL_GAP } from '../../components/home/CatalogProductRail';
+import {
+  CatalogProductRail,
+  COLLECTION_RAIL_GAP,
+  horizontalRailContentStyle,
+  horizontalRailScrollStyle,
+  HORIZONTAL_RAIL_SCROLL_CLASS,
+} from '../../components/home/CatalogProductRail';
 import { HomeHeroCard } from '../../components/home/HomeHeroCard';
 import { MyBoxesWelcomeCard } from '../../components/home/MyBoxesWelcomeCard';
 import { SetTheStageSection } from '../../components/home/SetTheStageSection';
@@ -460,9 +466,12 @@ export function HomeScreen() {
               <View style={styles.collectionRails}>
               <ScrollView
                 horizontal
+                nestedScrollEnabled
+                directionalLockEnabled
                 showsHorizontalScrollIndicator={false}
                 style={styles.collectionScroll}
                 contentContainerStyle={styles.collectionRow}
+                {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
               >
                 <CatalogProductRail
                   title={COLLECTION_RAILS[0]?.title ?? 'Hanukkiahs'}
@@ -475,9 +484,12 @@ export function HomeScreen() {
               <View style={styles.collectionBlock} onLayout={(e) => setDreidelSectionY(e.nativeEvent.layout.y)}>
                 <ScrollView
                   horizontal
+                  nestedScrollEnabled
+                  directionalLockEnabled
                   showsHorizontalScrollIndicator={false}
                   style={styles.collectionScroll}
                   contentContainerStyle={styles.collectionRow}
+                  {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
                 >
                   <CatalogProductRail
                     title={COLLECTION_RAILS[1]?.title ?? 'Dreidels'}
@@ -493,9 +505,12 @@ export function HomeScreen() {
                 </Text>
                 <ScrollView
                   horizontal
+                  nestedScrollEnabled
+                  directionalLockEnabled
                   showsHorizontalScrollIndicator={false}
                   style={styles.collectionScroll}
                   contentContainerStyle={styles.collectionRow}
+                  {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
                 >
                   <CatalogProductRail title="Decorations" items={decorationItems} />
                 </ScrollView>
@@ -593,26 +608,12 @@ function createHomeStyles(colors: SemanticColors) {
     gap: COLLECTION_RAIL_GAP,
     overflow: 'visible' as const,
   },
-  collectionScroll: {
-    overflow: 'visible' as const,
-    flexGrow: 0,
-    flexShrink: 0,
-    alignSelf: 'flex-start' as const,
-    ...(Platform.OS === 'web'
-      ? ({
-          overflow: 'visible',
-          overflowX: 'auto',
-          overflowY: 'visible',
-        } as object)
-      : {}),
-  },
-  collectionRow: {
-    flexDirection: 'row',
+  collectionScroll: horizontalRailScrollStyle(),
+  collectionRow: horizontalRailContentStyle({
     gap: COLLECTION_RAIL_GAP,
     paddingLeft: MOBILE_GUTTER,
     paddingRight: MOBILE_GUTTER,
-    alignItems: 'flex-start',
-  },
+  }),
   collectionHeading: {
     fontSize: typography.lg,
     fontWeight: '400',

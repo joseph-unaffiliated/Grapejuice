@@ -44,11 +44,12 @@
       #root > div {
         overflow: visible !important;
       }
-      /* RN Web horizontal ScrollView clips vertical shadow bleed unless overflow-y stays visible */
-      #root div[style*="overflow-x: auto"],
-      #root div[style*="overflow-x: scroll"],
-      #root div[style*="overflow: auto"] {
-        overflow-y: visible !important;
+      /* Horizontal catalog rails — lock to pan-x so nested vertical page scroll doesn't steal swipes */
+      #root .gj-horizontal-rail-scroll {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        touch-action: pan-x;
+        -webkit-overflow-scrolling: touch;
       }
       #main-tab-bar button,
       #main-tab-bar [role="button"],

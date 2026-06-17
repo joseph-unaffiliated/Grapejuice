@@ -37,8 +37,40 @@ export const COLLECTION_CARD_PADDING = 16;
 export const COLLECTION_CARD_GAP = 16;
 /** Figma 384:775 — vertical gap between collection cards / horizontal gap between stage cards. */
 export const COLLECTION_RAIL_GAP = 12;
-/** Gold-glow shadow bleed — negative margin keeps layout gap at COLLECTION_RAIL_GAP. */
-const SHADOW_BLEED = 12;
+/** Gold-glow shadow radius — content padding on horizontal rails so glow isn't clipped. */
+export const HORIZONTAL_RAIL_SHADOW_BLEED = 16;
+
+/** Web class for index.html touch-action overrides on horizontal rails. */
+export const HORIZONTAL_RAIL_SCROLL_CLASS = 'gj-horizontal-rail-scroll';
+
+/** Shared horizontal ScrollView style for catalog / stage rails. */
+export function horizontalRailScrollStyle(): object {
+  return {
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
+    ...(Platform.OS === 'web'
+      ? ({
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x',
+          overscrollBehaviorX: 'contain',
+        } as object)
+      : {}),
+  };
+}
+
+/** Content container padding so card shadows fit inside the scroll clip region. */
+export function horizontalRailContentStyle(extra?: object): object {
+  return {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: HORIZONTAL_RAIL_SHADOW_BLEED,
+    marginVertical: -HORIZONTAL_RAIL_SHADOW_BLEED,
+    ...extra,
+  };
+}
 export const CATALOG_PRODUCT_NAME_LINES = 3;
 
 /** Shared product title typography for catalog tiles (rails + Set the Stage). */
@@ -99,8 +131,6 @@ function createCatalogRailStyles(colors: SemanticColors) {
   return StyleSheet.create({
     carouselWrap: {
       overflow: 'visible' as const,
-      paddingBottom: SHADOW_BLEED,
-      marginBottom: -SHADOW_BLEED,
     },
     card: {
       backgroundColor: colors.bgPrimary,

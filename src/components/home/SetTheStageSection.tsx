@@ -20,6 +20,9 @@ import {
   COLLECTION_RAIL_GAP,
   catalogProductNameStyle,
   collectionCardWidth,
+  horizontalRailContentStyle,
+  horizontalRailScrollStyle,
+  HORIZONTAL_RAIL_SCROLL_CLASS,
 } from './CatalogProductRail';
 
 type Props = {
@@ -91,8 +94,11 @@ export function SetTheStageSection({ apparel, decorations }: Props) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        directionalLockEnabled
+        nestedScrollEnabled
         style={styles.scrollBleed}
         contentContainerStyle={styles.rail}
+        {...(Platform.OS === 'web' ? { className: HORIZONTAL_RAIL_SCROLL_CLASS } : {})}
       >
         {cards.map((c) => (
           <StageCard key={c.key} title={c.title} items={c.items} styles={styles} onItemPress={openProduct} />
@@ -112,17 +118,12 @@ function createSetTheStageStyles(colors: SemanticColors) {
       letterSpacing: -0.26,
       paddingHorizontal: MOBILE_GUTTER,
     },
-    scrollBleed: {
-      overflow: 'visible' as const,
-      paddingBottom: 12,
-      marginBottom: -12,
-    },
-    rail: {
-      flexDirection: 'row',
+    scrollBleed: horizontalRailScrollStyle(),
+    rail: horizontalRailContentStyle({
       gap: COLLECTION_RAIL_GAP,
       paddingLeft: MOBILE_GUTTER,
       paddingRight: MOBILE_GUTTER,
-    },
+    }),
     card: {
       backgroundColor: colors.bgPrimary,
       borderRadius: 16,
