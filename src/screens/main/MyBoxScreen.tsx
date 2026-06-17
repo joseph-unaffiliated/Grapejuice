@@ -69,7 +69,7 @@ export function MyBoxScreen() {
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
   const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
-  const { lineItems, slotVotes, children, loading: draftLoading, persist, persistSlotVotes } =
+  const { lineItems, slotVotes, sealedSectionIds, children, loading: draftLoading, persist, persistSlotVotes } =
     useBoxDraft();
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
@@ -298,14 +298,15 @@ export function MyBoxScreen() {
   const renderSection = (sectionId: BoxDisplaySectionId) => {
     const items = grouped[sectionId];
     if (!items.length && !isChildProfile) return null;
+    const sectionSealed = sealedSectionIds?.includes(sectionId) ?? false;
 
     return (
       <BoxDetailSectionBlock
         key={sectionId}
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
-        showBrowseChips={!isChildProfile}
-        onBrowseChipPress={!isChildProfile ? onBrowseChipPress : undefined}
+        showBrowseChips={!isChildProfile && !sectionSealed}
+        onBrowseChipPress={!isChildProfile && !sectionSealed ? onBrowseChipPress : undefined}
       >
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);
@@ -338,7 +339,7 @@ export function MyBoxScreen() {
                       li={li}
                       item={item}
                       meta={kid ? `For ${kid.name || 'your kid'}` : undefined}
-                      locked={locked}
+                      locked={locked || sectionSealed}
                       swapOptions={swapCache[li.slotId] ?? []}
                       onSwap={(opt) => void applySwap(li.slotId, opt)}
                       onToggleSurprise={

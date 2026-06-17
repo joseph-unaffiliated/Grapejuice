@@ -106,12 +106,10 @@ export function buildDefaultLineItems(
     pushLineItemById(lineItems, catalog, 'sufganiyot-recipe-printed', 'sufganiyot-recipe-printed');
   }
 
+  // Thin presents default — wrapping is in BASE_SLOTS; per-kid books only (heirloom gifts → à la carte).
   for (const child of children) {
     const story = pickForSlot(catalog, 'story', child.ageGroup, childInterests);
     if (story) pushLineItem(lineItems, 'story', story, child.id);
-
-    const gift = pickForSlot(catalog, 'gift', child.ageGroup, childInterests);
-    if (gift) pushLineItem(lineItems, 'gift', gift, child.id);
   }
 
   return lineItems;

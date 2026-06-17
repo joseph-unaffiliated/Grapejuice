@@ -56,6 +56,7 @@ async function main() {
     startsOn: HANUKKAH_START,
     lockAt: LOCK_AT,
     expeditedLockAt: EXPEDITED_LOCK_AT,
+    expeditedShippingEnabled: true,
     estimatedDeliveryBy: ESTIMATED_DELIVERY_BY,
     passoverWaitlistOpens: '2027-02-01',
   });

@@ -39,7 +39,7 @@ export const BOX_DISPLAY_SECTIONS: BoxDisplaySection[] = [
     id: 'presents',
     navLabel: 'Presents',
     title: 'Give Presents',
-    description: 'Wrapping, cozy gifts, and surprises for each kid.',
+    description: 'Wrapping paper and cozy add-ons — heirloom gifts via browse chips.',
     browseChips: ['choose a wrapping paper', 'hanukkah style gifts'],
   },
   {

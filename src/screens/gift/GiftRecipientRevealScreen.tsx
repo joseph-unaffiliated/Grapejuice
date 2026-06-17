@@ -99,7 +99,9 @@ export function GiftRecipientRevealScreen() {
         }
         return li;
       });
-      await boxDraftService.save(household.id, user.uid, next);
+      await boxDraftService.save(household.id, user.uid, next, {
+        sealedSectionIds: ['presents', 'story'],
+      });
       await refresh();
       navigation.replace('MyBox');
     } finally {

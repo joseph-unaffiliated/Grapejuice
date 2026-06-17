@@ -34,7 +34,7 @@ Implementation: `src/navigation/devPreview.ts` · `DevPreviewEffect.tsx`
 - **Account — signed in** — log in on [account preview](http://localhost:8081/?preview=account), then use Google/email
 - **Home — during / post / shipped** — depends on order + calendar; sign in after placing a test order, or mock in Firestore
 - **Order confirmation** — use a real `orderId` after checkout: `?preview=order&orderId=YOUR_ORDER_ID`
-- **Gift flows** — not built yet
+- **Gift flows** — [gift-give](http://localhost:8081/?preview=gift-give) · [gift-giver-customize](http://localhost:8081/?preview=gift-giver-customize) · [gift-claim](http://localhost:8081/?preview=gift-claim) · [gift-reveal](http://localhost:8081/?preview=gift-reveal)
 - **Desktop** — same preview URLs at viewport ≥1024px
 
 ---
@@ -142,8 +142,8 @@ Hero title swaps (Start → Refine → On its way → Arrived) are **text varian
 
 | #   | Frame                | Status | Localhost preview | Purpose                                 |
 | --- | -------------------- | ------ | ----------------- | --------------------------------------- |
-| 16  | **Gift — giver**     | ⬜      | *Not in app yet*  | $50 purchase + grandparent ship address |
-| 17  | **Gift — recipient** | ⬜      | *Not in app yet*  | Open link, confirm address, reveal box  |
+| 16  | **Gift — giver**     | ✅      | [gift-give](http://localhost:8081/?preview=gift-give) · [gift-giver-customize](http://localhost:8081/?preview=gift-giver-customize) | $50 purchase + optional giver customization |
+| 17  | **Gift — recipient** | ✅      | [gift-claim](http://localhost:8081/?preview=gift-claim) · [gift-reveal](http://localhost:8081/?preview=gift-reveal) | Open link, surprise fork, box reveal |
 
 
 ---
@@ -422,11 +422,12 @@ Expanded purpose / description for each numbered frame. Use when implementing or
 **Description:** Four step variants: Night 1–8 toggles → wins/misses text areas → one word → Yes/Maybe/No + thank you. Continue / Done / Skip.  
 **Code:** `ReflectionFlowScreen.tsx`
 
-### Frames 16–17 — Grandparent gift ⬜
+### Frames 16–17 — Grandparent gift ✅
 
-**Purpose:** Giver purchases $50 box with ship address; recipient claims link without card if prepaid.  
-**Description:** Giver: recipient fields + message + address + pay. Recipient: gift message, address confirm, box reveal entry.  
-**Code:** Not built yet (Build 2)
+**Preview:** [gift-give](http://localhost:8081/?preview=gift-give) · [gift-giver-customize](http://localhost:8081/?preview=gift-giver-customize) · [gift-claim](http://localhost:8081/?preview=gift-claim) · [gift-reveal](http://localhost:8081/?preview=gift-reveal)  
+**Purpose:** Giver purchases $50 box; recipient claims link without card if prepaid.  
+**Description:** Giver: recipient fields + message + customize path + pay. Recipient: gift message, surprise/customize fork, box reveal entry.  
+**Code:** `GiftGiveScreen.tsx`, `GiftGiverCustomizeScreen.tsx`, `GiftClaimScreen.tsx`, `GiftRecipientRevealScreen.tsx`
 
 ### Frames 18–19 — Desktop ⬜ (optional)
 

@@ -27,18 +27,18 @@ Nothing in the panels requires abandoning Build 8 (`PILOT_PARENT_ONLY`) or the c
 | **Pilot cohort** | 20–50 families (brief) | **30–60** families | N/A (ops) | **Ops** — align recruiting copy |
 | **Subscription auto-ship** | Card on file = commitment; charge at ship | Annual auto-ship unless user customizes in window | Single-holiday commit + waitlist | **Messaging** for pilot; true subscription billing with Passover |
 | **Expedited shipping** | Q2–Q3 deferred | Wanted for procrastinators; flat fee ok | Not built | **Build 3** — after lock reminders |
-| **Reminders** | Q21 Customer.io SMS | **Text + link** preferred; clear lock countdown | Email partial; no SMS | **Tier 1** — in-app countdown + SMS templates |
-| **Calendar** | Not in decisions | Tap holiday date → **add to calendar** | Not built | **Tier 1** — low effort, high panel ask |
+| **Reminders** | Q21 Customer.io SMS | **Text + link** preferred; clear lock countdown | Lock + debrief SMS/email templates wired | **Done** — ops verify send |
+| **Calendar** | Not in decisions | Tap holiday date → **add to calendar** | `AddToCalendarMenu` on Home | **Done** |
 | **In-app guide** | Q19 print only; `PILOT_HIDE_IN_APP_GUIDE` | **Light holiday primer** in app (Darlene, Vlad) | Guide route hidden | **Tier 2** — “About Hanukkah” sheet, not 8-night guide |
 | **Q9 reveal copy** | “Refine your box” + payment pending | Figma toolbar only in latest UI | Copy removed from box screens | **Update Q9 note** — Figma-aligned toolbar; payment copy on checkout only |
-| **Presents in core box** | Per-kid gifts in curation | **May blow $50–$80**; gifts → **gift shop / add-ons** | Presents section with per-kid items | **Tier 2** — thin default presents (wrap + books); push heirlooms to à la carte |
+| **Presents in core box** | Per-kid gifts in curation | **May blow $50–$80**; gifts → **gift shop / add-ons** | Thin default: wrap + books only | **Done** |
 | **À la carte store** | Q14 hide store link | Curated **gift shop** ok; not in core box | `AlaCarteStore` exists, link hidden | **Keep** browse chips + rails; optional “gift shop” framing later |
-| **Grandparent gift** | Q1 $50; Q11 fields; Q12 never expire; Q8 no recipient card if credited | **Giver first pass** (swap/add) → recipient reveal → recipient **surprise or customize**; gift credit / wish list | `giftCreditCents` only; no UI | **Build 2** — expand spec (see below) |
-| **Keep surprise** | Not in decisions | Per-section **sealed until arrival**; disables swap for that section | Not built | **Tier 2** — needs ops “box within box” |
+| **Grandparent gift** | Q1 $50; Q11 fields; Q12 never expire; Q8 no recipient card if credited | **Giver first pass** (swap/add) → recipient reveal → recipient **surprise or customize**; gift credit / wish list | Giver + recipient flows shipped (Build 2) | **Done** — polish + CIO gift email |
+| **Keep surprise** | Not in decisions | Per-section **sealed until arrival**; disables swap for that section | `sealedSectionIds` on draft + gift reveal fork | **Done** (pilot preview) |
 | **Item wrapping** | Not in decisions | Wrap dreidel / book / etc. | Not built | **Tier 3** or ops-only pilot |
 | **Donate / tzedakah opt-out** | Not in decisions | Remove item → **donate value** to charity / subsidize boxes | Not built | **Post-pilot** — complex |
 | **Dietary restrictions** | Not in decisions | **Gluten etc.** on food swaps | Not built | **Post-pilot** or onboarding field only |
-| **Debrief incentive** | Q4 Firestore credit; Q5 Amazon fallback | **Voluntary** only; **$80 credit** primary; **$20 Amazon** after 2 weeks non-response | Survey saves; **no credit ledger**; Home promises $80 | **Tier 1** — implement credit OR soften Home copy |
+| **Debrief incentive** | Q4 Firestore credit; Q5 Amazon fallback | **Voluntary** only; **$80 credit** primary; **$20 Amazon** after 2 weeks non-response | `platformCreditCents` on reflection save; debrief reminders scheduled | **Done** — verify CIO templates |
 | **Feedback mandatory** | — | **Do not** punitive clawback | No clawback | **Keep** voluntary model |
 | **Section nav labels** | Holiday-specific (Hanukkah) | **Standardize** Play / Eat / Read across holidays | Hanukkah-specific nav labels | **2027** when Passover ships |
 | **Storage / binder** | Physical product | **Add-on** post-checkout, not core | Not in app | **Ops / post-pilot** |

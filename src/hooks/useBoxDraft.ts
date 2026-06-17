@@ -8,7 +8,7 @@ import { childrenService } from '../services/firestore/children';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import type { ChildInterestId } from '../constants/childInterests';
 import { emptySlotVotes } from '../services/box/slotVotes';
-import type { BoxLineItem, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
+import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
 
 function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
@@ -31,6 +31,7 @@ export function useBoxDraft() {
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
   const [slotVotes, setSlotVotes] = useState<SlotVotes>(emptySlotVotes());
+  const [sealedSectionIds, setSealedSectionIds] = useState<BoxDraft['sealedSectionIds']>();
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>('moderate');
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,7 @@ export function useBoxDraft() {
       setChildren(kids);
       setFamiliarity(guestFamiliarity);
       setSlotVotes(emptySlotVotes());
+      setSealedSectionIds(undefined);
       if (guestLineItems.length) {
         setLineItems(guestLineItems);
       } else if (guestDrafts.length) {
@@ -69,6 +71,7 @@ export function useBoxDraft() {
     setChildren(kids);
     setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
     setSlotVotes(draft?.slotVotes ?? emptySlotVotes());
+    setSealedSectionIds(draft?.sealedSectionIds);
     if (draft?.lineItems?.length) {
       setLineItems(draft.lineItems);
     } else if (catalog.length) {
@@ -121,6 +124,7 @@ export function useBoxDraft() {
   return {
     lineItems,
     slotVotes,
+    sealedSectionIds,
     children,
     familiarity,
     loading: loading || (isAuthenticated && sessionLoading),

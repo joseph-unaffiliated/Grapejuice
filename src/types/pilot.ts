@@ -156,6 +156,8 @@ export type BoxDraft = {
   lockedAt?: string | null;
   /** Research panel — reading, crafts, games, cooking */
   childInterests?: string[];
+  /** Gift recipient "keep surprise" — disables swaps for these display sections until arrival. */
+  sealedSectionIds?: Array<'candles' | 'dreidel' | 'food' | 'presents' | 'story'>;
 };
 
 export type ActiveProfile =
