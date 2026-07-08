@@ -55,7 +55,7 @@ export function AddToCalendarMenu({ startsOn, lockAt, estimatedDeliveryBy, compa
             style={styles.chip}
             onPress={() => void Linking.openURL(googleCalendarUrl(event))}
           >
-            <Text style={styles.chipText} numberOfLines={2}>
+            <Text style={styles.chipText} numberOfLines={1}>
               {event.title.replace('Hanukkah ', '').replace('Customize your ', 'Lock ')}
             </Text>
           </TouchableOpacity>
@@ -83,8 +83,14 @@ function createStyles(colors: ReturnType<typeof useThemeMode>['colors']) {
       borderRadius: borderRadius.pill,
       paddingHorizontal: spacing.sm,
       paddingVertical: 4,
-      maxWidth: 140,
+      flexShrink: 0,
+      alignSelf: 'flex-start',
     },
-    chipText: { fontSize: 9, color: colors.textPrimary, textAlign: 'center' },
+    chipText: {
+      fontSize: 9,
+      color: colors.textPrimary,
+      textAlign: 'center',
+      ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : {}),
+    },
   });
 }

@@ -20,6 +20,43 @@ const TAB_META: Record<
 /** Left rail navigation for tablet/desktop web. */
 export function DesktopSideRail({ state, navigation }: BottomTabBarProps) {
   const { colors } = useThemeMode();
+  const primaryRoutes = state.routes.filter((route) => route.name !== 'Account');
+  const accountRoute = state.routes.find((route) => route.name === 'Account');
+
+  const renderRoute = (route: (typeof state.routes)[number], index: number) => {
+    const focused = state.index === index;
+    const meta = TAB_META[route.name] ?? { label: route.name, icon: icons.explosion };
+    const onPress = () => {
+      const event = navigation.emit({
+        type: 'tabPress',
+        target: route.key,
+        canPreventDefault: true,
+      });
+      if (!focused && !event.defaultPrevented) {
+        navigation.navigate(route.name);
+      }
+    };
+    return (
+      <TouchableOpacity
+        key={route.key}
+        onPress={onPress}
+        style={[styles.item, focused && { backgroundColor: colors.brandLight }]}
+        accessibilityRole="button"
+        accessibilityState={{ selected: focused }}
+      >
+        <Icon icon={meta.icon} size={20} color={focused ? colors.brand : colors.textTertiary} />
+        <Text
+          style={[
+            styles.label,
+            { color: focused ? colors.brand : colors.textSecondary },
+            focused && styles.labelActive,
+          ]}
+        >
+          {meta.label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View
@@ -35,49 +72,17 @@ export function DesktopSideRail({ state, navigation }: BottomTabBarProps) {
       testID="desktop-side-rail"
     >
       <Text style={[styles.brand, { color: colors.textPrimary }]}>Grapejuice</Text>
-      <View style={styles.nav}>
-        {state.routes.map((route, index) => {
-          const focused = state.index === index;
-          const meta = TAB_META[route.name] ?? { label: route.name, icon: icons.explosion };
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!focused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
-          return (
-            <TouchableOpacity
-              key={route.key}
-              onPress={onPress}
-              style={[
-                styles.item,
-                focused && { backgroundColor: colors.brandLight },
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: focused }}
-            >
-              <Icon
-                icon={meta.icon}
-                size={20}
-                color={focused ? colors.brand : colors.textTertiary}
-              />
-              <Text
-                style={[
-                  styles.label,
-                  { color: focused ? colors.brand : colors.textSecondary },
-                  focused && styles.labelActive,
-                ]}
-              >
-                {meta.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.navPrimary}>
+        {primaryRoutes.map((route) => renderRoute(route, state.routes.indexOf(route)))}
       </View>
+      {accountRoute ? (
+        <>
+          <View style={styles.navSpacer} />
+          <View style={styles.navBottom}>
+            {renderRoute(accountRoute, state.routes.indexOf(accountRoute))}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -91,15 +96,20 @@ const styles = StyleSheet.create({
     zIndex: 10,
     borderRightWidth: 1,
     paddingTop: spacing.lg,
-    paddingHorizontal: spacing.sm,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.md,
+    paddingBottom: spacing.lg,
   },
   brand: {
     fontSize: typography.titleLg,
     fontWeight: '700',
-    paddingHorizontal: spacing.sm,
+    paddingLeft: spacing.sm,
+    paddingRight: spacing.sm,
     marginBottom: spacing.lg,
   },
-  nav: { gap: spacing.xs },
+  navPrimary: { gap: spacing.xs },
+  navSpacer: { flex: 1 },
+  navBottom: { paddingTop: spacing.md },
   item: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -12,18 +12,20 @@ import { navigateMainTab } from '../../navigation/mainStackNavigation';
 
 type TabName = keyof MainTabsParamList;
 
-const PARENT_NAV: {
+type NavItem = {
   name: TabName;
   label: string;
   icon: (typeof icons)[keyof typeof icons];
-}[] = [
+};
+
+const PARENT_NAV: NavItem[] = [
   { name: 'Home', label: 'Home', icon: icons.explosion },
   { name: 'Rav', label: 'Rav', icon: icons.childReaching },
   { name: 'Account', label: 'Account', icon: icons.fingerprint },
 ];
 
-function childNav(ravEnabled: boolean) {
-  const items: typeof PARENT_NAV = [
+function childNav(ravEnabled: boolean): NavItem[] {
+  const items: NavItem[] = [
     { name: 'Home', label: 'Home', icon: icons.explosion },
     { name: 'Box', label: 'My picks', icon: icons.boxOpen },
   ];
@@ -55,6 +57,40 @@ function resolveActiveTab(state: ReturnType<typeof useNavigationState> | undefin
   return null;
 }
 
+function splitNavItems(items: NavItem[]) {
+  const accountItem = items.find((item) => item.name === 'Account') ?? null;
+  const primaryItems = items.filter((item) => item.name !== 'Account');
+  return { primaryItems, accountItem };
+}
+
+type NavLinkProps = {
+  item: NavItem;
+  focused: boolean;
+  colors: ReturnType<typeof useThemeMode>['colors'];
+};
+
+function NavLink({ item, focused, colors }: NavLinkProps) {
+  return (
+    <TouchableOpacity
+      onPress={() => navigateMainTab(item.name)}
+      style={[styles.item, focused && { backgroundColor: colors.brandLight }]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: focused }}
+    >
+      <Icon icon={item.icon} size={20} color={focused ? colors.brand : colors.textTertiary} />
+      <Text
+        style={[
+          styles.label,
+          { color: focused ? colors.brand : colors.textSecondary },
+          focused && styles.labelActive,
+        ]}
+      >
+        {item.label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 type Props = { width: number };
 
 export function WebDesktopNav({ width }: Props) {
@@ -63,6 +99,7 @@ export function WebDesktopNav({ width }: Props) {
   const navState = useNavigationState((s) => s);
   const activeTab = useMemo(() => resolveActiveTab(navState), [navState]);
   const navItems = PILOT_PARENT_ONLY ? PARENT_NAV : isChildProfile ? childNav(ravEnabledForActiveChild) : PARENT_NAV;
+  const { primaryItems, accountItem } = useMemo(() => splitNavItems(navItems), [navItems]);
 
   return (
     <View
@@ -78,49 +115,42 @@ export function WebDesktopNav({ width }: Props) {
       testID="desktop-side-rail"
     >
       <Text style={[styles.brand, { color: colors.textPrimary }]}>Grapejuice</Text>
-      <View style={styles.nav}>
-        {navItems.map(({ name, label, icon }) => {
-          const focused = activeTab === name;
-          return (
-            <TouchableOpacity
-              key={name}
-              onPress={() => navigateMainTab(name)}
-              style={[styles.item, focused && { backgroundColor: colors.brandLight }]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: focused }}
-            >
-              <Icon icon={icon} size={20} color={focused ? colors.brand : colors.textTertiary} />
-              <Text
-                style={[
-                  styles.label,
-                  { color: focused ? colors.brand : colors.textSecondary },
-                  focused && styles.labelActive,
-                ]}
-              >
-                {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.navPrimary}>
+        {primaryItems.map((item) => (
+          <NavLink key={item.name} item={item} focused={activeTab === item.name} colors={colors} />
+        ))}
       </View>
+      {accountItem ? (
+        <>
+          <View style={styles.navSpacer} />
+          <View style={styles.navBottom}>
+            <NavLink item={accountItem} focused={activeTab === accountItem.name} colors={colors} />
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   rail: {
+    alignSelf: 'stretch',
     borderRightWidth: 1,
     paddingTop: spacing.xl,
-    paddingHorizontal: spacing.sm,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.md,
     paddingBottom: spacing.lg,
   },
   brand: {
     fontSize: typography.titleLg,
     fontWeight: '700',
-    paddingHorizontal: spacing.sm,
+    paddingLeft: spacing.sm,
+    paddingRight: spacing.sm,
     marginBottom: spacing.xl,
   },
-  nav: { gap: spacing.xs },
+  navPrimary: { gap: spacing.xs },
+  navSpacer: { flex: 1 },
+  navBottom: { paddingTop: spacing.md },
   item: {
     flexDirection: 'row',
     alignItems: 'center',

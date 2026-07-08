@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { View, StyleSheet, Platform, type ViewStyle } from 'react-native';
 import { useWebLayout } from '../../hooks/useWebLayout';
-import { spacing, MOBILE_GUTTER } from '../../constants/theme';
+import { spacing, MOBILE_GUTTER, LAYOUT } from '../../constants/theme';
 
 type Props = {
   children: ReactNode;
@@ -12,12 +12,26 @@ type Props = {
   flush?: boolean;
   /** Apply Figma 24px horizontal gutter on phone / mobile web. */
   gutter?: boolean;
+  /** Drop desktop top padding when a full-bleed bar sits above this panel (e.g. Home header). */
+  omitDesktopTopPadding?: boolean;
+  /** Center the content panel horizontally on desktop web. */
+  centerDesktop?: boolean;
+  desktopContentMaxWidth?: number;
 };
 
 /** Constrains main content to a readable panel on desktop web. */
-export function WebContentPanel({ children, style, wide = false, flush = false, gutter = false }: Props) {
+export function WebContentPanel({
+  children,
+  style,
+  wide = false,
+  flush = false,
+  gutter = false,
+  omitDesktopTopPadding = false,
+  centerDesktop = false,
+  desktopContentMaxWidth,
+}: Props) {
   const { isDesktop, contentMaxWidth, widePanelMaxWidth } = useWebLayout();
-  const maxWidth = wide ? widePanelMaxWidth : contentMaxWidth;
+  const maxWidth = desktopContentMaxWidth ?? (wide ? widePanelMaxWidth : contentMaxWidth);
 
   if (Platform.OS !== 'web' || !isDesktop) {
     return (
@@ -26,8 +40,24 @@ export function WebContentPanel({ children, style, wide = false, flush = false, 
   }
 
   return (
-    <View style={[styles.desktopOuter, flush && styles.desktopOuterFlush, style]}>
-      <View style={[styles.desktopPanel, { maxWidth, width: '100%' }]}>{children}</View>
+    <View
+      style={[
+        styles.desktopOuter,
+        flush && styles.desktopOuterFlush,
+        omitDesktopTopPadding && styles.desktopOuterNoTopPad,
+        centerDesktop && styles.desktopOuterCentered,
+        style,
+      ]}
+    >
+      <View
+        style={[
+          styles.desktopPanel,
+          centerDesktop && styles.desktopPanelCentered,
+          { maxWidth, width: '100%' },
+        ]}
+      >
+        {children}
+      </View>
     </View>
   );
 }
@@ -44,6 +74,16 @@ const styles = StyleSheet.create({
   },
   desktopOuterFlush: {
     paddingHorizontal: spacing.lg,
+  },
+  desktopOuterNoTopPad: {
+    paddingTop: 0,
+  },
+  desktopOuterCentered: {
+    alignItems: 'center',
+    paddingHorizontal: LAYOUT.WEB_CONTENT_GUTTER,
+  },
+  desktopPanelCentered: {
+    alignSelf: 'center',
   },
   desktopPanel: {
     flex: 1,

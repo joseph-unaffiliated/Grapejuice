@@ -62,6 +62,7 @@ import {
   shadows,
   typography,
   MOBILE_GUTTER,
+  LAYOUT,
   tabBarTotalHeight,
 } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -79,6 +80,10 @@ type Nav = CompositeNavigationProp<
 
 const HEADER_CHIP_GAP = 16;
 const HEADER_BOTTOM_PAD = 16;
+/** Desktop web — space above search pill / below category chips (Figma). */
+const HEADER_DESKTOP_TOP_PAD = 72;
+const HEADER_DESKTOP_BOTTOM_PAD = 48;
+const HEADER_DESKTOP_INNER_MAX_WIDTH = 480;
 const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
 const SHADOW_BLEED = 8;
@@ -140,11 +145,11 @@ function statusLine(phase: string, locked: boolean, lockCountdown: string | null
 
 export function HomeScreen() {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createHomeStyles(colors), [colors]);
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useEffectiveWindowDimensions();
   const { isDesktop, layoutWidth } = useWebLayout();
+  const styles = useMemo(() => createHomeStyles(colors, isDesktop), [colors, isDesktop]);
   const contentWidth = isDesktop ? layoutWidth : screenWidth;
   const { household, loading: sessionLoading } = useSession();
   const { lineItems, loading: draftLoading } = useBoxDraft();
@@ -314,44 +319,73 @@ export function HomeScreen() {
     );
   }
 
+  const headerInner = (
+    <>
+      <View style={[styles.headerSearch, isDesktop && styles.headerSearchFlush]}>
+        <SearchPill
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmitEditing={submitSearch}
+        />
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipsScroll}
+        contentContainerStyle={[
+          styles.categoryChips,
+          isDesktop && styles.categoryChipsFlush,
+          isDesktop && styles.categoryChipsDesktopCenter,
+        ]}
+      >
+        {CATEGORY_CHIPS.map((chip) => (
+          <TouchableOpacity
+            key={chip.id}
+            style={styles.categoryChip}
+            onPress={() => handleCategoryChip(chip.id)}
+          >
+            <Text style={styles.categoryChipText}>{chip.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </>
+  );
+
+  const headerBlock = (
+    <View
+      style={[
+        styles.header,
+        !isDesktop && styles.headerSticky,
+        isDesktop && styles.headerDesktopBar,
+        headerShadow,
+        {
+          paddingTop: isDesktop
+            ? HEADER_DESKTOP_TOP_PAD
+            : Platform.OS === 'web'
+              ? spacing.md
+              : Math.max(insets.top, spacing.md),
+          paddingBottom: isDesktop ? HEADER_DESKTOP_BOTTOM_PAD : HEADER_BOTTOM_PAD,
+        },
+      ]}
+    >
+      {isDesktop ? (
+        <View style={styles.headerDesktopInner}>{headerInner}</View>
+      ) : (
+        headerInner
+      )}
+    </View>
+  );
+
   return (
     <View style={styles.wrapper}>
-      <WebContentPanel flush style={styles.panel}>
-        <View
-          style={[
-            styles.header,
-            styles.headerSticky,
-            headerShadow,
-            {
-              paddingTop: Platform.OS === 'web' ? spacing.md : Math.max(insets.top, spacing.md),
-              paddingBottom: HEADER_BOTTOM_PAD,
-            },
-          ]}
-        >
-          <View style={styles.headerSearch}>
-            <SearchPill
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={submitSearch}
-            />
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipsScroll}
-            contentContainerStyle={styles.categoryChips}
-          >
-            {CATEGORY_CHIPS.map((chip) => (
-              <TouchableOpacity
-                key={chip.id}
-                style={styles.categoryChip}
-                onPress={() => handleCategoryChip(chip.id)}
-              >
-                <Text style={styles.categoryChipText}>{chip.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+      {isDesktop ? headerBlock : null}
+      <WebContentPanel
+        flush
+        omitDesktopTopPadding={isDesktop}
+        centerDesktop={isDesktop}
+        style={styles.panel}
+      >
+        {!isDesktop ? headerBlock : null}
 
         <ScrollView
           ref={scrollRef}
@@ -550,7 +584,7 @@ export function HomeScreen() {
   );
 }
 
-function createHomeStyles(colors: SemanticColors) {
+function createHomeStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.bgPrimary, overflow: 'visible' as const },
   panel: { overflow: 'visible' as const },
@@ -561,7 +595,22 @@ function createHomeStyles(colors: SemanticColors) {
     overflow: 'visible' as const,
   },
   headerSticky: Platform.OS === 'web' ? ({ position: 'sticky' as const, top: 0, zIndex: 20 }) : {},
+  headerDesktopBar: {
+    width: '100%',
+    alignSelf: 'stretch',
+    zIndex: 20,
+    paddingHorizontal: LAYOUT.WEB_CONTENT_GUTTER,
+    alignItems: 'center',
+  },
+  headerDesktopInner: {
+    width: '100%',
+    maxWidth: HEADER_DESKTOP_INNER_MAX_WIDTH,
+    gap: HEADER_CHIP_GAP,
+    overflow: 'visible' as const,
+    alignSelf: 'center',
+  },
   headerSearch: { paddingHorizontal: MOBILE_GUTTER },
+  headerSearchFlush: { paddingHorizontal: 0 },
   chipsScroll: {
     overflow: 'visible' as const,
     marginHorizontal: 0,
@@ -572,6 +621,12 @@ function createHomeStyles(colors: SemanticColors) {
     paddingLeft: MOBILE_GUTTER,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  categoryChipsFlush: { paddingLeft: 0 },
+  categoryChipsDesktopCenter: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? ({ minWidth: '100%' } as object) : {}),
   },
   categoryChip: {
     borderWidth: 0.5,
@@ -595,6 +650,7 @@ function createHomeStyles(colors: SemanticColors) {
   },
   gutterPad: { paddingHorizontal: MOBILE_GUTTER },
   phaseCard: {
+    marginHorizontal: MOBILE_GUTTER,
     padding: spacing.lg,
     borderRadius: 16,
     backgroundColor: colors.bgElevated,
