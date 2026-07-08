@@ -1,6 +1,7 @@
 import { Platform, useWindowDimensions } from 'react-native';
 import { LAYOUT } from '../constants/theme';
 import { getWebContentMaxWidth } from './useEffectiveWindowDimensions';
+import { useWebSidebar } from '../context/WebSidebarContext';
 
 export type WebLayoutTier = 'native' | 'mobile-web' | 'tablet-web' | 'desktop-web';
 
@@ -32,7 +33,10 @@ export function useWebLayout() {
         : 'mobile-web';
 
   const isTabletUp = width >= LAYOUT.BREAKPOINT_TABLET;
-  const sidebarWidth = isTabletUp ? LAYOUT.WEB_SIDEBAR_WIDTH : 0;
+  const sidebar = useWebSidebar();
+  const sidebarWidth = isTabletUp
+    ? (sidebar?.sidebarWidth ?? LAYOUT.WEB_SIDEBAR_WIDTH)
+    : 0;
   const mainAreaWidth = Math.max(0, width - sidebarWidth);
   const gutter = isTabletUp ? LAYOUT.WEB_CONTENT_GUTTER : 0;
   const contentMaxWidth = Math.min(getWebContentMaxWidth(width), mainAreaWidth - gutter * 2);

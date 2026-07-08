@@ -39,6 +39,22 @@ export function WebContentPanel({
     );
   }
 
+  if (centerDesktop) {
+    return (
+      <View
+        style={[
+          styles.desktopOuter,
+          flush && styles.desktopOuterFlush,
+          omitDesktopTopPadding && styles.desktopOuterNoTopPad,
+          styles.desktopOuterCentered,
+          style,
+        ]}
+      >
+        <View style={styles.desktopFullWidthHost}>{children}</View>
+      </View>
+    );
+  }
+
   return (
     <View
       style={[
@@ -84,6 +100,14 @@ const styles = StyleSheet.create({
   },
   desktopPanelCentered: {
     alignSelf: 'center',
+  },
+  /** Full-width scroll host when content is centered inside screen scroll views. */
+  desktopFullWidthHost: {
+    flex: 1,
+    width: '100%',
+    minWidth: 0,
+    alignSelf: 'stretch',
+    overflow: 'visible' as const,
   },
   desktopPanel: {
     flex: 1,

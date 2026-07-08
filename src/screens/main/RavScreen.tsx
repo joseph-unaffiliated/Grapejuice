@@ -45,7 +45,7 @@ export function RavScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <WebContentPanel>
+      <WebContentPanel flush centerDesktop={isDesktop} style={styles.panel}>
         <PilotAIChatSheet ref={ref} embedded bottomInset={bottomInset} initialMessage={initialMessage} />
       </WebContentPanel>
     </SafeAreaView>
@@ -57,5 +57,6 @@ const spacingBottomDesktop = 24;
 function createRavStyles(colors: SemanticColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgPrimary },
+    panel: { overflow: 'visible' as const },
   });
 }

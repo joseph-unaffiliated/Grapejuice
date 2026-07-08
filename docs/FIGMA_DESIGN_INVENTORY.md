@@ -8,13 +8,19 @@ This doc is organized for how you actually work in Figma: **~20 full mobile fram
 
 ## Localhost preview
 
-Start the web app: 
+Start the web app from the **pilot app root** (where `package.json` and `src/` live):
 
-`cd /Users/joseph/Dropbox/Untraditional/grapejuice/pilot-app`
+```bash
+# GitHub clone (joseph-unaffiliated/Grapejuice) — repo root *is* pilot-app
+cd /Users/brendanfox/Code/Grapejuice
 
-`npm run web` 
+# Joseph's Dropbox monorepo — nested path instead
+# cd …/Untraditional/grapejuice/pilot-app
 
-(default port **8081**, override with `EXPO_WEB_PORT`).
+npm run web
+```
+
+Default port **8081** (override with `EXPO_WEB_PORT`).
 
 Each frame has a **preview URL** using the `?preview=` query param (web only). This seeds guest session state and navigates to the matching screen — useful for Figma side-by-side review.
 

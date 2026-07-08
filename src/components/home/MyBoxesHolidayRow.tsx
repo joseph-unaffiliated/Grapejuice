@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import type { MyBoxesHoliday } from '../../constants/myBoxesHolidays';
 import { typography, borderRadius, colors as palette } from '../../constants/theme';
+import { TextWithChevron } from '../ui/TextWithChevron';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
@@ -20,7 +21,7 @@ export function MyBoxesHolidayRow({ holiday, onAction, onDismiss }: Props) {
   const { colors: themeColors } = useThemeMode();
   const styles = useMemo(() => createHolidayRowStyles(themeColors), [themeColors]);
   const isGetStarted = holiday.action === 'get-started';
-  const actionText = isGetStarted ? 'get started >' : 'pre-register >';
+  const actionLabel = isGetStarted ? 'get started' : 'pre-register';
 
   const getStartedFillStyle =
     Platform.OS === 'web'
@@ -65,7 +66,14 @@ export function MyBoxesHolidayRow({ holiday, onAction, onDismiss }: Props) {
               accessibilityLabel={`Get started for ${holiday.name}`}
             >
               {getStartedFillStyle ? <View style={[StyleSheet.absoluteFill, getStartedFillStyle]} /> : null}
-              <Text style={styles.getStartedText}>{actionText}</Text>
+              <TextWithChevron
+                text={actionLabel}
+                chevron="always"
+                textStyle={styles.getStartedText}
+                iconSize={8}
+                iconColor={GOLD}
+                gap={3}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -85,7 +93,14 @@ export function MyBoxesHolidayRow({ holiday, onAction, onDismiss }: Props) {
               accessibilityRole="button"
               accessibilityLabel={`Pre-register for ${holiday.name}`}
             >
-              <Text style={styles.actionText}>{actionText}</Text>
+              <TextWithChevron
+                text={actionLabel}
+                chevron="always"
+                textStyle={styles.actionText}
+                iconSize={8}
+                iconColor={GOLD}
+                gap={3}
+              />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.dismissOutline}
@@ -219,7 +234,7 @@ function createHolidayRowStyles(colors: SemanticColors) {
       alignItems: 'center',
       justifyContent: 'center',
       minWidth: 88,
-      ...(Platform.OS === 'web' ? ({ boxShadow: '2px 2px 1.5px rgba(0,0,0,0.25)' } as object) : {}),
+      ...(Platform.OS === 'web' ? ({ boxShadow: '2px 2px 2px rgba(0, 0, 0, 0.2)' } as object) : {}),
     },
     getStartedBtnNative: {
       backgroundColor: '#3f3201',

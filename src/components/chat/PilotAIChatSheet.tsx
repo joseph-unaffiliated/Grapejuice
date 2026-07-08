@@ -29,6 +29,7 @@ import { spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER, 
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { Icon } from '../ui/Icon';
+import { TextWithChevron } from '../ui/TextWithChevron';
 import { icons } from '../../constants/icons';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
@@ -37,6 +38,7 @@ import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { RavBlockRenderer } from './RavBlockRenderer';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { useWebLayout } from '../../hooks/useWebLayout';
 
 const MAX_HISTORY_TURNS = 10;
 /** Figma 366:1762 — 13px type + 12px vertical padding ≈ 37px pill height */
@@ -102,6 +104,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   ref
 ) {
   const { colors } = useThemeMode();
+  const { isDesktop, layoutWidth } = useWebLayout();
   const styles = useMemo(() => createPilotStyles(colors), [colors]);
   const user = useAuthStore((s) => s.user);
   const startAuthForRav = useAuthFlowStore((s) => s.startAuthForRav);
@@ -434,13 +437,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           </View>
         ) : showWelcome ? (
           <ScrollView
+            style={styles.scrollHost}
             contentContainerStyle={[
               styles.welcome,
+              isDesktop && styles.welcomeDesktop,
               hasThreadHistory && styles.welcomeReturning,
               { paddingBottom: bottomPad + 80 },
             ]}
             keyboardShouldPersistTaps="handled"
           >
+            <View style={[styles.welcomeColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
             <GrapejuiceBrandMark markOnly={hasThreadHistory} />
             <View style={styles.welcomeHeadings}>
               <Text style={styles.welcomeTitle}>What&apos;s on your mind?</Text>
@@ -500,7 +506,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                     }}
                     accessibilityLabel="View all chats"
                   >
-                    <Text style={styles.viewAll}>View All {'>'}</Text>
+                    <TextWithChevron
+                      text="View All"
+                      chevron="always"
+                      textStyle={styles.viewAll}
+                      iconSize={10}
+                      iconColor={colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 </View>
                 {historyThreads.slice(0, 5).map((t) => (
@@ -517,6 +529,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 ))}
               </View>
             ) : null}
+            </View>
           </ScrollView>
         ) : (
           <>
@@ -533,14 +546,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
             <FlatList
               ref={listRef}
+              style={styles.scrollHost}
               data={messages}
               keyExtractor={(_, i) => String(i)}
-              contentContainerStyle={{
-                paddingHorizontal: spacing.lg,
-                paddingTop: spacing.xxxl,
-                paddingBottom: bottomPad + 88,
-                gap: spacing.lg,
-              }}
+              contentContainerStyle={[
+                styles.threadContent,
+                { paddingBottom: bottomPad + 88 },
+              ]}
               renderItem={renderMessage}
               ListFooterComponent={chatFooter}
               onContentSizeChange={scrollToEnd}
@@ -622,17 +634,31 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
 function createPilotStyles(colors: SemanticColors) {
   return StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bgPrimary },
+  root: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
   flex: { flex: 1, width: '100%' },
+  scrollHost: { flex: 1, width: '100%' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   welcome: {
-    paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.xxl,
+  },
+  welcomeDesktop: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  welcomeColumn: {
+    width: '100%',
+    paddingHorizontal: MOBILE_GUTTER,
     alignItems: 'center',
     gap: spacing.xl,
   },
   welcomeReturning: {
     paddingTop: 96,
+  },
+  threadContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xxxl,
+    gap: spacing.lg,
+    width: '100%',
   },
   welcomeHeadings: { alignItems: 'center', gap: spacing.xs },
   welcomeTitle: {

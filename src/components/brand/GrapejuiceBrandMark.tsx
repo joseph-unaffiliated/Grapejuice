@@ -7,8 +7,8 @@ const LOGOMARK = require('../../../assets/brand/grapejuice-logomark.png');
 type Props = {
   compact?: boolean;
   markOnly?: boolean;
-  /** Figma 366:1375 — small left-aligned footer mark in chat threads */
-  variant?: 'default' | 'footer';
+  /** Figma Rav welcome — compact sidebar wordmark */
+  variant?: 'default' | 'footer' | 'sidebar';
   align?: 'left' | 'center';
 };
 
@@ -23,7 +23,9 @@ export function GrapejuiceBrandMark({
   const size =
     variant === 'footer'
       ? styles.logomarkFooter
-      : markOnly
+      : variant === 'sidebar'
+        ? styles.wordmarkSidebar
+        : markOnly
         ? compact
           ? styles.logomarkCompact
           : styles.logomark
@@ -48,6 +50,7 @@ const styles = StyleSheet.create({
   wrapLeft: { alignItems: 'flex-start', alignSelf: 'flex-start' },
   wordmark: { width: 75, height: 59 },
   wordmarkCompact: { width: 61, height: 56 },
+  wordmarkSidebar: { width: 16, height: 14.5 },
   logomark: { width: 30, height: 28 },
   logomarkCompact: { width: 24, height: 22 },
   /** Figma 366:1375 — 16×14.5pt display from 48×44 @3x asset */

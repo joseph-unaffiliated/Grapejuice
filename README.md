@@ -14,8 +14,10 @@ The **commerce app is preserved** at [`../app/`](../app/) — do not edit it for
 
 ## Setup
 
+This repo **is** the Hanukkah pilot app (`pilot-app` in Joseph's Dropbox monorepo). There is no nested `pilot-app/` folder here — run commands from the repo root.
+
 ```bash
-cd pilot-app
+cd Grapejuice   # repo root
 npm install
 cp .env.example .env
 # Create Firebase project → paste EXPO_PUBLIC_FIREBASE_* into .env
@@ -47,11 +49,14 @@ When re-enabled:
 
 ## Docs
 
-- [Pilot spec](../docs/PILOT_SPEC.md)
-- [Commerce baseline](../docs/COMMERCE_BASELINE.md)
+- [**Start here — Brendan's Cursor agent**](./docs/starthere-brendansagent.md)
+- [Technical brief](./docs/GRAPEJUICE_TECHNICAL_BRIEF.md)
+- [Pilot spec](./docs/PILOT_SPEC.md)
+- [Commerce baseline](./docs/COMMERCE_BASELINE.md)
 - [Pilot decisions questionnaire](./docs/PILOT_DECISIONS.md)
 - [E2E test matrix](./docs/E2E_TEST_MATRIX.md)
 - [Figma design inventory](./docs/FIGMA_DESIGN_INVENTORY.md)
+- [Stripe setup / account switch](./docs/STRIPE_SETUP.md)
 - [Research panel → build backlog](./docs/RESEARCH_PANEL_BUILD_BACKLOG.md)
 
 ## Firebase

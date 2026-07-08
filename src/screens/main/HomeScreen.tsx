@@ -71,6 +71,7 @@ import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDime
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { SearchPill } from '../../components/ui/SearchPill';
+import { TextWithChevron } from '../../components/ui/TextWithChevron';
 import { FIGMA_HERO_SUBTITLE, isFigmaCompareCapture } from '../../utils/figmaCompare';
 
 type Nav = CompositeNavigationProp<
@@ -86,6 +87,8 @@ const HEADER_DESKTOP_BOTTOM_PAD = 48;
 const HEADER_DESKTOP_INNER_MAX_WIDTH = 480;
 const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
+const CONTENT_TOP_GAP_DESKTOP = 41;
+const SCROLL_GAP_DESKTOP = 41;
 const SHADOW_BLEED = 8;
 
 /** Category chips scroll to collection sections on Home. */
@@ -390,9 +393,14 @@ export function HomeScreen() {
         <ScrollView
           ref={scrollRef}
           style={styles.scrollView}
-          contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPad }]}
+          contentContainerStyle={[
+            styles.content,
+            isDesktop && styles.contentDesktop,
+            { paddingBottom: scrollBottomPad },
+          ]}
           showsVerticalScrollIndicator={false}
         >
+          <View style={[styles.contentColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
           {showDeliveryTracking ? (
             <DeliveryTrackingCard
               title={heroTitle}
@@ -420,7 +428,12 @@ export function HomeScreen() {
                   <Text style={styles.phaseBody}>{n.title} — {n.prompt}</Text>
                 </View>
               ))}
-              <Text style={styles.phaseLink}>Open tonight&apos;s guide →</Text>
+              <TextWithChevron
+                text={"Open tonight's guide →"}
+                textStyle={styles.phaseLink}
+                style={styles.phaseLinkRow}
+                iconColor={colors.brand}
+              />
             </TouchableOpacity>
           ) : phase === 'during' ? (
             <View style={styles.phaseCard}>
@@ -438,7 +451,12 @@ export function HomeScreen() {
             <TouchableOpacity style={styles.phaseCard} onPress={() => navigation.navigate('Reflection')}>
               <Text style={styles.phaseTitle}>Hanukkah debrief</Text>
               <Text style={styles.phaseBody}>Share how Hanukkah went — and unlock $80 toward Passover next year.</Text>
-              <Text style={styles.phaseLink}>Start debrief →</Text>
+              <TextWithChevron
+                text="Start debrief →"
+                textStyle={styles.phaseLink}
+                style={styles.phaseLinkRow}
+                iconColor={colors.brand}
+              />
             </TouchableOpacity>
           ) : null}
 
@@ -448,7 +466,12 @@ export function HomeScreen() {
               onPress={() => navigation.navigate('AboutHanukkah')}
               activeOpacity={0.85}
             >
-              <Text style={styles.phaseLink}>About Hanukkah — light primer →</Text>
+              <TextWithChevron
+                text="About Hanukkah — light primer →"
+                textStyle={styles.phaseLink}
+                style={styles.phaseLinkRow}
+                iconColor={colors.brand}
+              />
             </TouchableOpacity>
           ) : null}
 
@@ -577,6 +600,7 @@ export function HomeScreen() {
               onRegister={handlePassoverPreregister}
             />
           </View>
+          </View>
 
         </ScrollView>
       </WebContentPanel>
@@ -642,10 +666,18 @@ function createHomeStyles(colors: SemanticColors, isDesktop: boolean) {
     letterSpacing: -0.22,
     fontFamily: typography.fontFamily.light,
   },
-  scrollView: { flex: 1, overflow: 'visible' as const },
+  scrollView: { flex: 1, width: '100%', overflow: 'visible' as const },
   content: {
-    gap: SCROLL_GAP,
-    paddingTop: CONTENT_TOP_GAP,
+    paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
+    overflow: 'visible' as const,
+  },
+  contentDesktop: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  contentColumn: {
+    width: '100%',
+    gap: isDesktop ? SCROLL_GAP_DESKTOP : SCROLL_GAP,
     overflow: 'visible' as const,
   },
   gutterPad: { paddingHorizontal: MOBILE_GUTTER },
@@ -659,9 +691,10 @@ function createHomeStyles(colors: SemanticColors, isDesktop: boolean) {
   },
   phaseTitle: { fontSize: typography.xl, fontWeight: '600', color: colors.textPrimary },
   phaseBody: { fontSize: typography.md, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 },
-  phaseLink: { fontSize: typography.sm, color: colors.brand, marginTop: spacing.sm, fontWeight: '600' },
-  aboutHanukkahLink: { marginHorizontal: MOBILE_GUTTER, marginBottom: spacing.md },
-  calendarWrap: { marginBottom: spacing.md },
+  phaseLink: { fontSize: typography.sm, color: colors.brand, fontWeight: '600' },
+  phaseLinkRow: { marginTop: spacing.sm },
+  aboutHanukkahLink: { marginHorizontal: MOBILE_GUTTER, marginBottom: isDesktop ? 0 : spacing.md },
+  calendarWrap: { marginBottom: isDesktop ? 0 : spacing.md },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',
