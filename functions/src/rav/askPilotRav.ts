@@ -10,6 +10,37 @@ import type { AskPilotRavData, RavResponse } from './types';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
+/** Sonnet sometimes wraps the schema in ```json fences — strip and extract the object. */
+function parseRavResponse(raw: string): RavResponse | null {
+  let candidate = raw.trim();
+  if (!candidate) return null;
+
+  const fenced = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced?.[1]) candidate = fenced[1].trim();
+
+  const tryParse = (s: string): RavResponse | null => {
+    try {
+      const parsed = JSON.parse(s) as RavResponse;
+      if (parsed && typeof parsed === 'object' && typeof (parsed as RavResponse).text === 'string') {
+        return parsed;
+      }
+    } catch {
+      /* continue */
+    }
+    return null;
+  };
+
+  const direct = tryParse(candidate);
+  if (direct) return direct;
+
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    return tryParse(candidate.slice(start, end + 1));
+  }
+  return null;
+}
+
 export const askPilotRav = onCall(
   { secrets: [anthropicApiKey], maxInstances: 10 },
   async (request) => {
@@ -76,19 +107,14 @@ export const askPilotRav = onCall(
 
     try {
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         system: `${system}\n\n${modeConfig.jsonInstructions}`,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
       });
       const textBlock = response.content.find((b) => b.type === 'text');
       const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
-      let parsed: RavResponse | null = null;
-      try {
-        parsed = JSON.parse(raw) as RavResponse;
-      } catch {
-        parsed = null;
-      }
+      const parsed = parseRavResponse(raw);
       const text = parsed?.text?.trim() || raw.trim() || 'Sorry, I could not generate a reply.';
       const blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.blocks) ? parsed!.blocks : [];
       const actions = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.actions) ? parsed!.actions : [];

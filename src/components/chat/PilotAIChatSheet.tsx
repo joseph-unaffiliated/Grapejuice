@@ -110,7 +110,6 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     return buildRavStarterChips(hanukkahStartsOn);
   }, [isChildProfile, ravEnabledForActiveChild, activeChild?.name, hanukkahStartsOn]);
   const welcomeSubtext = useMemo(() => formatHanukkahWelcomeSubtext(hanukkahStartsOn), [hanukkahStartsOn]);
-  const firstUserIndex = useMemo(() => messages.findIndex((m) => m.role === 'user'), [messages]);
 
   const goldGlow = Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm } : shadows.goldGlow;
   const hasInput = input.trim().length > 0;
@@ -301,6 +300,20 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation]
   );
 
+  /** Web: Enter sends, Shift+Enter inserts a newline.
+   * RN Web overwrites `onKeyDown` and only submits Enter when `!multiline || blurOnSubmit`.
+   * Use `onKeyPress` (called inside their handler) and preventDefault to block the newline. */
+  const handleComposerKeyPress = useCallback(
+    (e: { nativeEvent?: { key?: string }; key?: string; shiftKey?: boolean; preventDefault?: () => void }) => {
+      if (Platform.OS !== 'web') return;
+      const key = e.key ?? e.nativeEvent?.key;
+      if (key !== 'Enter' || e.shiftKey) return;
+      e.preventDefault?.();
+      void sendMessage(input);
+    },
+    [input, sendMessage],
+  );
+
   React.useImperativeHandle(
     ref,
     () => ({
@@ -342,21 +355,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   );
 
   const renderMessage = useCallback(
-    ({ item, index }: { item: AIChatMessage; index: number }) => {
+    ({ item }: { item: AIChatMessage; index: number }) => {
       if (item.role === 'user') {
-        const isFirstUser = index === firstUserIndex;
-        if (isFirstUser) {
-          return (
-            <View style={styles.userChipWrap}>
-              <View style={styles.userChip}>
-                <Text style={styles.userChipText}>{item.content}</Text>
-              </View>
-            </View>
-          );
-        }
         return (
-          <View style={styles.userReplyWrap}>
-            <Text style={styles.userReplyText}>{item.content}</Text>
+          <View style={styles.userChipWrap}>
+            <View style={styles.userChip}>
+              <Text style={styles.userChipText}>{item.content}</Text>
+            </View>
           </View>
         );
       }
@@ -378,20 +383,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         </View>
       );
     },
-    [firstUserIndex, lineItems, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
+    [lineItems, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
   );
 
   const chatFooter = messages.length > 0 ? (
     <View style={styles.threadFooter}>
-      <View style={styles.threadMeta}>
-        <Text style={styles.timestamp}>{formatRelativeTime(lastActivityAt)}</Text>
-        {showGuestSaveChip ? (
-          <TouchableOpacity style={styles.saveChip} onPress={() => startAuthForRav('signin')}>
-            <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      <GrapejuiceBrandMark variant="footer" align="left" markOnly />
+      <Text style={styles.timestamp}>{formatRelativeTime(lastActivityAt)}</Text>
+      <GrapejuiceBrandMark variant="footer" align="left" markOnly animating={loading} />
     </View>
   ) : null;
 
@@ -414,7 +412,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             keyboardShouldPersistTaps="handled"
           >
             <View style={[styles.welcomeColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
-            <GrapejuiceBrandMark markOnly={hasThreadHistory} />
+            <GrapejuiceBrandMark markOnly={hasThreadHistory} animating={loading} />
             <View style={styles.welcomeHeadings}>
               <Text style={styles.welcomeTitle}>What&apos;s on your mind?</Text>
               <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>
@@ -433,7 +431,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 onChangeText={setInput}
                 multiline={hasInput}
                 scrollEnabled={hasInput}
+                blurOnSubmit={!hasInput}
                 onSubmitEditing={() => sendMessage(input)}
+                onKeyPress={handleComposerKeyPress}
               />
               {hasInput ? (
                 <TouchableOpacity
@@ -526,6 +526,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             />
 
             <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, spacing.sm) + (bottomInset || tabBarHeight - 48) }]}>
+              {showGuestSaveChip ? (
+                <TouchableOpacity
+                  style={styles.saveChipAboveComposer}
+                  onPress={() => startAuthForRav('signin')}
+                >
+                  <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
+                </TouchableOpacity>
+              ) : null}
               <View style={[styles.replyPill, goldGlow]}>
                 <TextInput
                   style={styles.replyInput}
@@ -534,7 +542,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   value={input}
                   onChangeText={setInput}
                   multiline
+                  blurOnSubmit={false}
                   fontSize={typography.lg}
+                  onKeyPress={handleComposerKeyPress}
                 />
                 <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
                   <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
@@ -757,14 +767,6 @@ function createPilotStyles(colors: SemanticColors) {
     textAlign: 'center',
     letterSpacing: -0.26,
   },
-  userReplyWrap: { paddingLeft: spacing.xl },
-  userReplyText: {
-    fontSize: typography.lg,
-    fontWeight: '400',
-    color: colors.goldMuted,
-    lineHeight: 20,
-    letterSpacing: -0.39,
-  },
   assistantWrap: { paddingRight: spacing.xl },
   assistantText: {
     fontSize: typography.lg,
@@ -773,19 +775,20 @@ function createPilotStyles(colors: SemanticColors) {
     letterSpacing: -0.39,
   },
   threadFooter: { gap: spacing.sm, marginTop: spacing.sm, alignItems: 'flex-start', width: '100%' },
-  threadMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   timestamp: {
     fontSize: typography.sm,
     fontWeight: '200',
     color: colors.goldMuted,
     letterSpacing: -0.22,
   },
-  saveChip: {
+  saveChipAboveComposer: {
+    alignSelf: 'center',
     borderWidth: 0.5,
     borderColor: colors.brand,
     borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
+    marginBottom: spacing.sm,
   },
   saveChipWide: {
     marginTop: spacing.md,

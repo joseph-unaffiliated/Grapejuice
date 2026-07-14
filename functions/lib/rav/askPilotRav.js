@@ -10,6 +10,36 @@ const modeRegistry_1 = require("./modeRegistry");
 const context_1 = require("./context");
 const kidRavGuard_1 = require("./kidRavGuard");
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
+/** Sonnet sometimes wraps the schema in ```json fences — strip and extract the object. */
+function parseRavResponse(raw) {
+    let candidate = raw.trim();
+    if (!candidate)
+        return null;
+    const fenced = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    if (fenced === null || fenced === void 0 ? void 0 : fenced[1])
+        candidate = fenced[1].trim();
+    const tryParse = (s) => {
+        try {
+            const parsed = JSON.parse(s);
+            if (parsed && typeof parsed === 'object' && typeof parsed.text === 'string') {
+                return parsed;
+            }
+        }
+        catch (_a) {
+            /* continue */
+        }
+        return null;
+    };
+    const direct = tryParse(candidate);
+    if (direct)
+        return direct;
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+        return tryParse(candidate.slice(start, end + 1));
+    }
+    return null;
+}
 exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInstances: 10 }, async (request) => {
     var _a, _b, _c, _d, _e;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
@@ -61,20 +91,14 @@ exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInsta
     ];
     try {
         const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 1024,
             system: `${system}\n\n${modeConfig.jsonInstructions}`,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
         });
         const textBlock = response.content.find((b) => b.type === 'text');
         const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
-        let parsed = null;
-        try {
-            parsed = JSON.parse(raw);
-        }
-        catch (_f) {
-            parsed = null;
-        }
+        const parsed = parseRavResponse(raw);
         const text = ((_e = parsed === null || parsed === void 0 ? void 0 : parsed.text) === null || _e === void 0 ? void 0 : _e.trim()) || raw.trim() || 'Sorry, I could not generate a reply.';
         const blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.blocks) ? parsed.blocks : [];
         const actions = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.actions) ? parsed.actions : [];

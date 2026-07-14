@@ -39,6 +39,8 @@ export type MainStackParamList = {
     giftCreditCents: number;
     hasGiverDraft: boolean;
   };
+  /** Dev: large grape mark + wobble knobs (`?preview=grape-wobble`). */
+  GrapeWobblePreview: undefined;
 };
 
 export type RootStackParamList = {

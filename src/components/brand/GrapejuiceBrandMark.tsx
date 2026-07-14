@@ -1,6 +1,10 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { GrapejuiceLogomarkSvg, LOGOMARK_ASPECT } from './GrapejuiceLogomarkSvg';
+import {
+  GrapejuiceLogomarkSvg,
+  LOGOMARK_ASPECT,
+  type GrapeWobbleTune,
+} from './GrapejuiceLogomarkSvg';
 
 type Props = {
   compact?: boolean;
@@ -12,6 +16,10 @@ type Props = {
   decorative?: boolean;
   /** Override mark color (defaults to black). */
   color?: string;
+  /** Per-grape wobble — used while Rav is generating a reply. */
+  animating?: boolean;
+  /** Override wobble timing / amplitude. */
+  wobble?: GrapeWobbleTune;
 };
 
 function sizeForVariant(
@@ -39,6 +47,8 @@ export function GrapejuiceBrandMark({
   align = 'center',
   decorative = variant === 'sidebar',
   color = '#000000',
+  animating = false,
+  wobble,
 }: Props) {
   const { width, height } = sizeForVariant(variant, markOnly, compact);
 
@@ -49,7 +59,13 @@ export function GrapejuiceBrandMark({
       accessibilityLabel={decorative ? undefined : 'Grapejuice'}
       accessibilityRole={decorative ? undefined : 'image'}
     >
-      <GrapejuiceLogomarkSvg width={width} height={height} color={color} />
+      <GrapejuiceLogomarkSvg
+        width={width}
+        height={height}
+        color={color}
+        animating={animating}
+        wobble={wobble}
+      />
     </View>
   );
 }
