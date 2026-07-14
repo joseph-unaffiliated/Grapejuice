@@ -12,6 +12,7 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  Animated,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
@@ -37,6 +38,7 @@ import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { RavBlockRenderer } from './RavBlockRenderer';
+import { FormattedChatText } from './FormattedChatText';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import {
@@ -87,6 +89,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [error, setError] = useState<string | null>(null);
   const [recentChats, setRecentChats] = useState<AIChatThreadSummary[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const historyBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const historySheetY = useRef(new Animated.Value(480)).current;
+  const historyClosingRef = useRef(false);
   const [hanukkahStartsOn, setHanukkahStartsOn] = useState<string | null>(null);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -314,6 +319,44 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     [input, sendMessage],
   );
 
+  useEffect(() => {
+    if (!historyOpen || historyClosingRef.current) return;
+    historyBackdropOpacity.setValue(0);
+    historySheetY.setValue(480);
+    Animated.parallel([
+      Animated.timing(historyBackdropOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(historySheetY, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [historyOpen, historyBackdropOpacity, historySheetY]);
+
+  const closeHistory = useCallback(() => {
+    if (historyClosingRef.current || !historyOpen) return;
+    historyClosingRef.current = true;
+    Animated.parallel([
+      Animated.timing(historyBackdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(historySheetY, {
+        toValue: 480,
+        duration: 240,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      historyClosingRef.current = false;
+      if (finished) setHistoryOpen(false);
+    });
+  }, [historyOpen, historyBackdropOpacity, historySheetY]);
+
   React.useImperativeHandle(
     ref,
     () => ({
@@ -368,7 +411,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
       return (
         <View style={styles.assistantWrap}>
-          <Text style={styles.assistantText}>{item.content}</Text>
+          <FormattedChatText text={item.content} style={styles.assistantText} />
           {item.blocks?.length ? (
             <RavBlockRenderer
               blocks={item.blocks}
@@ -574,9 +617,22 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         ) : null}
       </KeyboardAvoidingView>
 
-      <Modal visible={historyOpen} animationType="slide" transparent onRequestClose={() => setHistoryOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setHistoryOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+      <Modal
+        visible={historyOpen}
+        animationType="none"
+        transparent
+        onRequestClose={closeHistory}
+      >
+        <View style={styles.modalRoot}>
+          <Animated.View
+            pointerEvents="box-none"
+            style={[styles.modalBackdropFill, { opacity: historyBackdropOpacity }]}
+          >
+            <Pressable style={StyleSheet.absoluteFill} onPress={closeHistory} />
+          </Animated.View>
+          <Animated.View
+            style={[styles.modalSheet, { transform: [{ translateY: historySheetY }] }]}
+          >
             <Text style={styles.modalTitle}>Recent chats</Text>
             {!user?.uid ? (
               <Text style={styles.modalHint}>Sign in to save and browse past Rav conversations.</Text>
@@ -586,7 +642,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 key={t.id}
                 style={[styles.historyRow, t.id === threadId && styles.historyRowActive]}
                 onPress={() => {
-                  setHistoryOpen(false);
+                  closeHistory();
                   setBlockFeedback(null);
                   void openThread(t.id);
                 }}
@@ -598,12 +654,18 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               </TouchableOpacity>
             ))}
             {isGuest ? (
-              <TouchableOpacity style={styles.saveChipWide} onPress={() => { setHistoryOpen(false); startAuthForRav('signin'); }}>
+              <TouchableOpacity
+                style={styles.saveChipWide}
+                onPress={() => {
+                  closeHistory();
+                  startAuthForRav('signin');
+                }}
+              >
                 <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
               </TouchableOpacity>
             ) : null}
-          </Pressable>
-        </Pressable>
+          </Animated.View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -832,7 +894,11 @@ function createPilotStyles(colors: SemanticColors) {
     paddingHorizontal: 2,
   },
   error: { color: colors.error, fontSize: typography.sm, padding: spacing.md, textAlign: 'center' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  modalBackdropFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
   modalSheet: {
     backgroundColor: colors.bgPrimary,
     borderTopLeftRadius: borderRadius.xxl,
