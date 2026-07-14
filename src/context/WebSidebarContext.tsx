@@ -1,11 +1,13 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
 import { LAYOUT } from '../constants/theme';
 
 type WebSidebarContextValue = {
   collapsed: boolean;
   toggleCollapsed: () => void;
-  /** Width for layout math — updates when the sidebar width animation finishes. */
+  /**
+   * Width for layout math — matches the animated rail after each collapse finishes
+   * so centered content can settle with the live main-area width.
+   */
   layoutSidebarWidth: number;
   setLayoutSidebarWidth: (width: number) => void;
 };

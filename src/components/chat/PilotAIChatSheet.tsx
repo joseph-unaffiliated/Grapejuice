@@ -39,47 +39,14 @@ import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { RavBlockRenderer } from './RavBlockRenderer';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import {
+  buildKidRavStarterChips,
+  buildRavStarterChips,
+} from '../../constants/ravStarterPrompts';
 
 const MAX_HISTORY_TURNS = 10;
 /** Figma 366:1762 — 13px type + 12px vertical padding ≈ 37px pill height */
 const WELCOME_SEARCH_LINE_HEIGHT = typography.lg;
-
-type StarterChip = {
-  lines: string[];
-  message: string;
-};
-
-function buildKidStarterChips(childName: string): StarterChip[] {
-  const name = childName.trim() || 'friend';
-  return [
-    { lines: ['What should we do', 'tonight?'], message: 'What should we do tonight?' },
-    { lines: ['Tell me about', 'Hanukkah candles'], message: 'Tell me about Hanukkah candles' },
-    { lines: [`Hi Rav, I'm ${name}`], message: `Hi Rav, I'm ${name}` },
-  ];
-}
-
-function buildStarterChips(hanukkahStartsOn: string | null): StarterChip[] {
-  const countdown = formatHanukkahWelcomeSubtext(hanukkahStartsOn);
-  const planMessage =
-    countdown.startsWith('Hanukkah is in') || countdown.startsWith('Night')
-      ? `${countdown.replace(/\.$/, '')}, help me make a plan`
-      : 'Help me make a Hanukkah plan';
-  const commaIdx = planMessage.indexOf(',');
-  const planLines =
-    commaIdx >= 0
-      ? [planMessage.slice(0, commaIdx + 1), planMessage.slice(commaIdx + 1).trim()]
-      : [planMessage];
-
-  return [
-    { lines: planLines, message: planMessage },
-    { lines: ["I'm looking for books", 'to read with my kids'], message: "I'm looking for books to read with my kids" },
-    { lines: ['What should we do', 'on night 1?'], message: 'What should we do on night 1?' },
-    { lines: ["We just had a baby, I don't", 'know where to start'], message: "We just had a baby, I don't know where to start" },
-    { lines: ['Help me choose', 'latkes or sufganiyot'], message: 'Help me choose latkes or sufganiyot' },
-    { lines: ['Ideas for kids', 'who are new to Hanukkah'], message: 'Ideas for kids who are new to Hanukkah' },
-    { lines: ['I want to do a', 'family game night'], message: 'I want to do a family game night' },
-  ];
-}
 
 function titleFromMessage(text: string): string {
   const trimmed = text.trim().replace(/\s+/g, ' ');
@@ -138,9 +105,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const bottomPad = bottomInset || tabBarHeight;
   const starterChips = useMemo(() => {
     if (isChildProfile && ravEnabledForActiveChild && !PILOT_PARENT_ONLY) {
-      return buildKidStarterChips(activeChild?.name ?? 'friend');
+      return buildKidRavStarterChips(activeChild?.name ?? 'friend');
     }
-    return buildStarterChips(hanukkahStartsOn);
+    return buildRavStarterChips(hanukkahStartsOn);
   }, [isChildProfile, ravEnabledForActiveChild, activeChild?.name, hanukkahStartsOn]);
   const welcomeSubtext = useMemo(() => formatHanukkahWelcomeSubtext(hanukkahStartsOn), [hanukkahStartsOn]);
   const firstUserIndex = useMemo(() => messages.findIndex((m) => m.role === 'user'), [messages]);

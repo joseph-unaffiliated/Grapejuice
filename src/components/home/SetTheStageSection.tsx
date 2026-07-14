@@ -31,6 +31,8 @@ import { HorizontalDragScrollView } from './HorizontalDragScrollView';
 type Props = {
   apparel: CatalogItem[];
   decorations: CatalogItem[];
+  /** Live measured inset so rails track sidebar collapse (same as Home collection rails). */
+  contentColumnOffset?: number;
 };
 
 function StageCard({
@@ -76,8 +78,13 @@ function StageCard({
 }
 
 /** Figma 370:3192 — Apparel / Decorations tiles in a horizontal card scrub. */
-export function SetTheStageSection({ apparel, decorations }: Props) {
-  const { isDesktop, contentColumnOffset } = useWebLayout();
+export function SetTheStageSection({
+  apparel,
+  decorations,
+  contentColumnOffset: contentColumnOffsetProp,
+}: Props) {
+  const { isDesktop, contentColumnOffset: layoutContentOffset } = useWebLayout();
+  const contentColumnOffset = contentColumnOffsetProp ?? layoutContentOffset;
   const navigation = useNavigation<
     CompositeNavigationProp<
       BottomTabNavigationProp<MainTabsParamList>,

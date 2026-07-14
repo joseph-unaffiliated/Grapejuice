@@ -10,6 +10,7 @@ import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { LAYOUT, spacing, typography, shadowsWeb } from '../../constants/theme';
 import type { MainTabsParamList } from '../../navigation/types';
 import { navigateMainTab } from '../../navigation/mainStackNavigation';
+import { useWebSidebar } from '../../context/WebSidebarContext';
 
 type TabName = keyof MainTabsParamList;
 
@@ -160,6 +161,7 @@ type Props = {
 
 export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
   const { colors } = useThemeMode();
+  const { setLayoutSidebarWidth } = useWebSidebar()!;
   const { isChildProfile, ravEnabledForActiveChild } = useActiveProfile();
   const navState = useNavigationState((s) => s);
   const activeTab = useMemo(() => resolveActiveTab(navState), [navState]);
@@ -199,7 +201,9 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
       Animated.timing(labelSlotWidth, { ...anim, toValue: collapsed ? 0 : LABEL_SLOT_WIDTH }),
       Animated.timing(labelMargin, { ...anim, toValue: collapsed ? 0 : spacing.sm }),
       Animated.timing(collapseProgress, { ...anim, toValue: collapsed ? 1 : 0 }),
-    ]).start();
+    ]).start(({ finished }) => {
+      if (finished) setLayoutSidebarWidth(railWidthFor(collapsed));
+    });
   }, [
     collapseProgress,
     collapsed,
@@ -210,6 +214,7 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
     railPadLeft,
     railPadRight,
     railWidth,
+    setLayoutSidebarWidth,
   ]);
 
   return (

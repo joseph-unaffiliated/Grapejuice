@@ -71,6 +71,7 @@ export function BoxDetailToolbar({
           lockAt={lockAt}
           estimatedDeliveryBy={estimatedDeliveryBy}
           compact
+          align={align}
         />
       ) : null}
     </View>

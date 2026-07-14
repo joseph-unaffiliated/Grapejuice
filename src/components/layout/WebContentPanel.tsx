@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
   desktopOuter: {
     flex: 1,
     width: '100%',
+    minHeight: 0,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
     alignItems: 'flex-start',
@@ -107,12 +108,14 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     minWidth: 0,
+    minHeight: 0,
     alignSelf: 'stretch',
     overflow: 'visible' as const,
   },
   desktopPanel: {
     flex: 1,
     minWidth: 0,
+    minHeight: 0,
     overflow: 'visible' as const,
   },
 });

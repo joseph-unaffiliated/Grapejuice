@@ -14,6 +14,8 @@ type Props = {
   lockAt: string | null;
   estimatedDeliveryBy: string | null;
   compact?: boolean;
+  /** Match box toolbar alignment on desktop. */
+  align?: 'left' | 'center';
 };
 
 function openIcs(event: CalendarEvent) {
@@ -31,7 +33,13 @@ function openIcs(event: CalendarEvent) {
   void Linking.openURL(`data:text/calendar;charset=utf-8,${encodeURIComponent(body)}`);
 }
 
-export function AddToCalendarMenu({ startsOn, lockAt, estimatedDeliveryBy, compact }: Props) {
+export function AddToCalendarMenu({
+  startsOn,
+  lockAt,
+  estimatedDeliveryBy,
+  compact,
+  align = 'center',
+}: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const events = useMemo(
@@ -45,10 +53,12 @@ export function AddToCalendarMenu({ startsOn, lockAt, estimatedDeliveryBy, compa
     events.forEach((e) => void Linking.openURL(googleCalendarUrl(e)));
   };
 
+  const left = align === 'left';
+
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
-      <Text style={styles.label}>Add to calendar</Text>
-      <View style={styles.row}>
+      <Text style={[styles.label, left && styles.labelLeft]}>Add to calendar</Text>
+      <View style={[styles.row, left && styles.rowLeft]}>
         {events.map((event) => (
           <TouchableOpacity
             key={event.title}
@@ -76,7 +86,9 @@ function createStyles(colors: ReturnType<typeof useThemeMode>['colors']) {
     wrap: { gap: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
     wrapCompact: { paddingHorizontal: 0 },
     label: { fontSize: typography.sm, color: colors.goldMuted, textAlign: 'center' },
+    labelLeft: { textAlign: 'left' },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center' },
+    rowLeft: { justifyContent: 'flex-start' },
     chip: {
       borderWidth: 0.5,
       borderColor: colors.goldMuted,

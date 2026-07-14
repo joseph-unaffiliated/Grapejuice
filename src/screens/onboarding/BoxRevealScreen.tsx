@@ -52,7 +52,8 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
     [colors, isDesktop]
   );
   const styles = useMemo(() => createRevealStyles(colors, isDesktop), [colors, isDesktop]);
-  const { scrollRef, activeSection, onSectionLayout, onScroll, scrollToSection } = useBoxDetailScroll();
+  const { scrollRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
+    useBoxDetailScroll();
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +94,7 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
         key={sectionId}
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
+        onSectionRef={registerSection}
       >
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);

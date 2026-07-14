@@ -14,6 +14,8 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
 export const HOME_HEADER_COLLAPSE_RANGE = 80;
+/** Timed expand/collapse once scroll crosses the threshold (not scrubbed to scrollY). */
+export const HOME_HEADER_COLLAPSE_MS = 280;
 const HEADER_CHIP_GAP = 16;
 const HEADER_DESKTOP_INNER_MAX_WIDTH = 480;
 const HEADER_DESKTOP_COLLAPSED_MAX_WIDTH = 300;
@@ -25,7 +27,7 @@ const CHIP_ROW_HEIGHT = 36;
 type Chip = { id: string; label: string };
 
 type Props = {
-  collapseProgress: Animated.AnimatedInterpolation<number>;
+  collapseProgress: Animated.Value | Animated.AnimatedInterpolation<number>;
   isDesktop: boolean;
   contentWidth: number;
   expandedPaddingTop: number;
