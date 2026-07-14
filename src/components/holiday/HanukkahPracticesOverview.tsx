@@ -25,6 +25,12 @@ const GRID_GAP = spacing.sm;
 const CARD_INNER_WIDTH = 2 * THUMB_SIZE + GRID_GAP;
 const CARD_WIDTH = CARD_INNER_WIDTH + spacing.md * 2;
 const ACCORDION_MS = 260;
+/** Matches goldGlowSm blur (8px) so ScrollView overflowX doesn't clip the side glow. */
+const STACK_SHADOW_BLEED = 8;
+/** Accordion body always animates against this ceiling — keep in sync with maxHeight below. */
+const STACK_BODY_MAX_HEIGHT = 280;
+/** stackHeader paddingVertical sm×2 + title (typography.xl). */
+const STACK_ROW_HEADER_HEIGHT = spacing.sm * 2 + typography.xl;
 
 const PRACTICE_ICONS: Record<string, (typeof icons)[keyof typeof icons]> = {
   candles: icons.candle,
@@ -35,6 +41,14 @@ const PRACTICE_ICONS: Record<string, (typeof icons)[keyof typeof icons]> = {
 
 const goldGlowStyle =
   Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlowSm } as object) : shadows.goldGlow;
+
+/** Mouse clicks should not move focus — avoids the browser focus-ring flash on press. */
+const WEB_SUPPRESS_MOUSE_FOCUS =
+  Platform.OS === 'web'
+    ? ({
+        onMouseDown: (e: { preventDefault(): void }) => e.preventDefault(),
+      } as object)
+    : {};
 
 type Props = {
   layout?: 'carousel' | 'stack';
@@ -117,47 +131,51 @@ function PracticeAccordionRow({
   });
 
   return (
-    <View style={[styles.stackRow, goldGlowStyle]}>
-      <TouchableOpacity
-        onPress={onToggle}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={practice.title}
-        style={styles.stackHeader}
-      >
-        <View style={styles.stackTitleRow}>
-          <Icon icon={icon} size={14} color={semanticColors.goldMuted} />
-          <Text style={styles.stackTitle}>{practice.title}</Text>
-        </View>
-        <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
-          <Icon icon={icons.chevronDown} size={10} color={semanticColors.goldMuted} />
-        </Animated.View>
-      </TouchableOpacity>
-
-      {bodyMounted ? (
-        <Animated.View
-          style={[
-            styles.stackBodyWrap,
-            {
-              opacity: bodyProgress,
-              maxHeight: bodyProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 280],
-              }),
-            },
-          ]}
+    // Glow on the outer wrap — stackRow keeps overflow:hidden for the accordion clip.
+    <View style={[styles.stackRowOuter, goldGlowStyle]}>
+      <View style={styles.stackRow}>
+        <TouchableOpacity
+          onPress={onToggle}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={practice.title}
+          style={styles.stackHeader}
+          {...WEB_SUPPRESS_MOUSE_FOCUS}
         >
-          <Text style={styles.stackTagline}>{practice.tagline}</Text>
-          <Text style={styles.stackBody}>{practice.description}</Text>
-          <Text style={styles.stackBoxLabel}>In your box</Text>
-          {practice.boxItems.map((item) => (
-            <Text key={item} style={styles.stackBoxItem}>
-              · {item}
-            </Text>
-          ))}
-        </Animated.View>
-      ) : null}
+          <View style={styles.stackTitleRow}>
+            <Icon icon={icon} size={14} color={semanticColors.goldMuted} />
+            <Text style={styles.stackTitle}>{practice.title}</Text>
+          </View>
+          <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+            <Icon icon={icons.chevronDown} size={10} color={semanticColors.goldMuted} />
+          </Animated.View>
+        </TouchableOpacity>
+
+        {bodyMounted ? (
+          <Animated.View
+            style={[
+              styles.stackBodyWrap,
+              {
+                opacity: bodyProgress,
+                maxHeight: bodyProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, STACK_BODY_MAX_HEIGHT],
+                }),
+              },
+            ]}
+          >
+            <Text style={styles.stackTagline}>{practice.tagline}</Text>
+            <Text style={styles.stackBody}>{practice.description}</Text>
+            <Text style={styles.stackBoxLabel}>In your box</Text>
+            {practice.boxItems.map((item) => (
+              <Text key={item} style={styles.stackBoxItem}>
+                · {item}
+              </Text>
+            ))}
+          </Animated.View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -177,6 +195,16 @@ export function HanukkahPracticesOverview({
   const [openPracticeId, setOpenPracticeId] = useState<string>(HANUKKAH_PRACTICES[0]?.id ?? 'candles');
 
   if (layout === 'stack') {
+    const practiceCount = HANUKKAH_PRACTICES.length;
+    // Desktop only: reserve N headers + one body so onboarding chrome doesn't shift.
+    // Mobile lets the list size naturally — the shell scrolls behind sticky CTAs.
+    const stackListHeight = isDesktop
+      ? practiceCount * STACK_ROW_HEADER_HEIGHT +
+        Math.max(0, practiceCount - 1) * GRID_GAP +
+        STACK_BODY_MAX_HEIGHT +
+        STACK_SHADOW_BLEED * 2
+      : undefined;
+
     return (
       <View style={styles.stackSection}>
         {showIntro ? (
@@ -185,16 +213,18 @@ export function HanukkahPracticesOverview({
             <Text style={styles.intro}>{HANUKKAH_PRACTICES_INTRO}</Text>
           </>
         ) : null}
-        {HANUKKAH_PRACTICES.map((practice) => (
-          <PracticeAccordionRow
-            key={practice.id}
-            practice={practice}
-            expanded={openPracticeId === practice.id}
-            onToggle={() => {
-              if (practice.id !== openPracticeId) setOpenPracticeId(practice.id);
-            }}
-          />
-        ))}
+        <View style={[styles.stackList, stackListHeight != null ? { height: stackListHeight } : null]}>
+          {HANUKKAH_PRACTICES.map((practice) => (
+            <PracticeAccordionRow
+              key={practice.id}
+              practice={practice}
+              expanded={openPracticeId === practice.id}
+              onToggle={() => {
+                if (practice.id !== openPracticeId) setOpenPracticeId(practice.id);
+              }}
+            />
+          ))}
+        </View>
       </View>
     );
   }
@@ -291,6 +321,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
+  stackList: {
+    gap: GRID_GAP,
+    // Inset so goldGlowSm clears ScrollView overflowX / vertical overflow clip.
+    paddingHorizontal: STACK_SHADOW_BLEED,
+    paddingVertical: STACK_SHADOW_BLEED,
+    marginVertical: -STACK_SHADOW_BLEED,
+    overflow: 'visible' as const,
+  },
+  stackRowOuter: {
+    borderRadius: borderRadius.xl,
+    overflow: 'visible' as const,
+  },
   stackRow: {
     borderRadius: borderRadius.xl,
     backgroundColor: semanticColors.bgPrimary,
@@ -303,6 +345,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
     gap: spacing.sm,
+    ...(Platform.OS === 'web'
+      ? ({ outlineStyle: 'none', outlineWidth: 0, boxShadow: 'none' } as object)
+      : {}),
   },
   stackTitleRow: {
     flex: 1,

@@ -5,24 +5,21 @@ import { LAYOUT } from '../constants/theme';
 type WebSidebarContextValue = {
   collapsed: boolean;
   toggleCollapsed: () => void;
-  sidebarWidth: number;
+  /** Width for layout math — updates when the sidebar width animation finishes. */
+  layoutSidebarWidth: number;
+  setLayoutSidebarWidth: (width: number) => void;
 };
 
 const WebSidebarContext = createContext<WebSidebarContextValue | null>(null);
 
 export function WebSidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [layoutSidebarWidth, setLayoutSidebarWidth] = useState(LAYOUT.WEB_SIDEBAR_WIDTH);
   const toggleCollapsed = useCallback(() => setCollapsed((v) => !v), []);
-  const sidebarWidth =
-    Platform.OS === 'web'
-      ? collapsed
-        ? LAYOUT.WEB_SIDEBAR_COLLAPSED_WIDTH
-        : LAYOUT.WEB_SIDEBAR_WIDTH
-      : 0;
 
   const value = useMemo(
-    () => ({ collapsed, toggleCollapsed, sidebarWidth }),
-    [collapsed, toggleCollapsed, sidebarWidth]
+    () => ({ collapsed, toggleCollapsed, layoutSidebarWidth, setLayoutSidebarWidth }),
+    [collapsed, toggleCollapsed, layoutSidebarWidth],
   );
 
   return <WebSidebarContext.Provider value={value}>{children}</WebSidebarContext.Provider>;

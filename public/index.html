@@ -57,21 +57,31 @@
       #root [data-testid="desktop-side-rail"] {
         z-index: 30 !important;
       }
-      #root [data-testid="home-scroll-host"],
-      #root [data-testid="home-scroll-content"],
-      #root [data-testid="home-content-column"],
+      /* Panel host clips to its box; do not use overflow-x:hidden + overflow-y:visible
+         elsewhere — CSS forces the visible axis to auto and creates a nested Y scrollport. */
+      #root [data-testid="home-scroll-host"] {
+        overflow: hidden !important;
+      }
       #root [data-testid="home-rail-bleed"] {
         overflow: visible !important;
       }
-      #root [data-testid="home-vertical-scroll"],
-      #root [data-testid="home-vertical-scroll"] > div {
-        overflow-x: visible !important;
+      /* Vertical home scroll — fixed width; never grow horizontally when rails pan */
+      #root .gj-home-scroll,
+      #root [data-testid="home-vertical-scroll"] {
+        overflow-x: hidden !important;
         overflow-y: auto !important;
+        scrollbar-gutter: stable;
       }
-      /* Horizontal catalog rails — pan-x only; vertical bleed comes from scroll padding */
+      /* Content wrapper must stay overflow:visible so rail shadow bleed isn't a nested scroller */
+      #root .gj-home-scroll > div,
+      #root [data-testid="home-vertical-scroll"] > div {
+        overflow: visible !important;
+      }
+      /* Horizontal catalog rails — pan-x only; contain so vertical page doesn't jolt */
       #root .gj-horizontal-rail-scroll {
         overflow-x: auto !important;
-        overflow-y: visible !important;
+        overflow-y: hidden !important;
+        overscroll-behavior-x: contain;
         touch-action: pan-x;
         -webkit-overflow-scrolling: touch;
         cursor: grab;

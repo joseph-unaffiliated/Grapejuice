@@ -372,6 +372,8 @@ export function HomeScreen() {
             styles.scrollHost,
             isDesktop && {
               width: mainAreaWidth,
+              maxWidth: mainAreaWidth,
+              minWidth: mainAreaWidth,
               marginLeft: -LAYOUT.WEB_CONTENT_GUTTER,
             },
           ]}
@@ -379,10 +381,10 @@ export function HomeScreen() {
         >
         <Animated.ScrollView
           ref={scrollRef}
-          style={styles.scrollView}
+          style={[styles.scrollView, isDesktop && { width: mainAreaWidth, maxWidth: mainAreaWidth }]}
           contentContainerStyle={[
-            styles.content,
-            isDesktop && styles.contentDesktop,
+            styles.scrollBody,
+            isDesktop && styles.scrollBodyDesktop,
             { paddingBottom: scrollBottomPad },
           ]}
           showsVerticalScrollIndicator={false}
@@ -392,7 +394,10 @@ export function HomeScreen() {
           })}
           {...(Platform.OS === 'web' ? { className: 'gj-home-scroll', testID: 'home-vertical-scroll' } : {})}
         >
-          <View style={styles.scrollContent} testID="home-scroll-content">
+          <View
+            style={[styles.scrollContent, isDesktop && { width: mainAreaWidth, maxWidth: mainAreaWidth }]}
+            testID="home-scroll-content"
+          >
           <View
             style={[styles.contentColumn, isDesktop ? { maxWidth: layoutWidth, alignSelf: 'center' as const } : null]}
             testID="home-content-column"
@@ -628,27 +633,30 @@ function createHomeStyles(
   scrollHost: {
     flex: 1,
     width: '100%',
-    overflow: 'visible' as const,
+    overflow: 'hidden' as const,
   },
-  scrollView: { flex: 1, width: '100%', overflow: 'visible' as const },
+  scrollView: { flex: 1, width: '100%', overflow: 'hidden' as const },
   scrollContent: {
     width: '100%',
+    paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
     gap: isDesktop ? SCROLL_GAP_DESKTOP : SCROLL_GAP,
     overflow: 'visible' as const,
   },
-  content: {
-    paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
+  /** RN Web scroll content wrapper — fixed width; horizontal motion stays in rail scroll views. */
+  scrollBody: {
+    flexGrow: 1,
     overflow: 'visible' as const,
   },
-  contentDesktop: {
-    alignItems: 'stretch',
-    width: '100%',
+  scrollBodyDesktop: {
+    alignItems: 'stretch' as const,
+    overflow: 'visible' as const,
   },
   contentColumn: {
     width: '100%',
     gap: isDesktop ? SCROLL_GAP_DESKTOP : SCROLL_GAP,
     overflow: 'visible' as const,
   },
+  /** Must stay visible — overflow-x:hidden here becomes overflow-y:auto and nests a Y scroller. */
   railBleedSection: {
     width: '100%',
     overflow: 'visible' as const,

@@ -37,18 +37,20 @@ export const COLLECTION_CARD_PADDING = 16;
 export const COLLECTION_CARD_GAP = 16;
 /** Figma 384:775 — vertical gap between collection cards / horizontal gap between stage cards. */
 export const COLLECTION_RAIL_GAP = 12;
-/** Gold-glow shadow radius — content padding on horizontal rails so glow isn't clipped. */
-export const HORIZONTAL_RAIL_SHADOW_BLEED = 16;
+/**
+ * Gold-glow bleed — slightly larger than shadowsWeb.goldGlow (16px blur) so the soft
+ * edge isn't clipped by overflowY:hidden on horizontal rails.
+ */
+export const HORIZONTAL_RAIL_SHADOW_BLEED = 20;
 
 /** Web class for index.html touch-action overrides on horizontal rails. */
 export const HORIZONTAL_RAIL_SCROLL_CLASS = 'gj-horizontal-rail-scroll';
 
-/** Expands rail past the right edge so shadow isn't clipped; left stays flush for gutter alignment. */
+/** Rail wrapper — no negative margins (they cause instant layout shifts during horizontal pan). */
 export function horizontalRailOuterStyle(): object {
   return {
     overflow: 'visible' as const,
-    marginLeft: 0,
-    marginRight: -HORIZONTAL_RAIL_SHADOW_BLEED,
+    width: '100%',
   };
 }
 
@@ -59,9 +61,9 @@ export function horizontalRailScrollStyle(): object {
     flexGrow: 0,
     flexShrink: 0,
     alignSelf: 'flex-start' as const,
-    // Padding paints gold-glow bleed; negative margin keeps it out of layout gaps.
-    paddingVertical: HORIZONTAL_RAIL_SHADOW_BLEED,
+    // Cancels content-container vertical bleed so gaps between sections stay tight.
     marginVertical: -HORIZONTAL_RAIL_SHADOW_BLEED,
+    // Horizontal pad on the scrollport so side glow clears overflowX clip while scrolling.
     paddingHorizontal: HORIZONTAL_RAIL_SHADOW_BLEED,
     ...(Platform.OS === 'web'
       ? ({
@@ -69,21 +71,27 @@ export function horizontalRailScrollStyle(): object {
           overflowY: 'hidden',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-x',
+          overscrollBehaviorX: 'contain',
         } as object)
       : {}),
   };
 }
 
-/** Row layout inside the rail; pair with scroll padding + gutter offset from callers. */
+/**
+ * Row layout inside the rail. Vertical bleed must live here (content container), not on
+ * the ScrollView style — scrollport padding does not reliably reserve space inside
+ * overflowY:hidden for descendant box-shadows on web.
+ */
 export function horizontalRailContentStyle(extra?: object): object {
   return {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    paddingVertical: HORIZONTAL_RAIL_SHADOW_BLEED,
     ...extra,
   };
 }
 
-/** Gutter inset after scroll shadow padding (16px pad + inset = gutter). */
+/** Gutter inset after scroll shadow padding (bleed pad + inset = gutter). */
 export function horizontalRailGutterPadding(
   gutter: number,
   options?: { centerOffset?: number },

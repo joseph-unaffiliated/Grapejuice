@@ -30,7 +30,14 @@ const TAN_MEDIA_GRADIENT = `linear-gradient(135deg, ${colors.warm[50]} 0%, ${col
 
 /** Gentle white seam from copy pane into the tan media pane. */
 const COPY_INTO_MEDIA_FADE =
-  'linear-gradient(90deg, #FFFFFF 0%, rgba(255,255,255,0.88) 18%, rgba(255,255,255,0.35) 42%, rgba(255,255,255,0) 68%)';
+  'linear-gradient(90deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.45) 12%, rgba(255,255,255,0) 28%)';
+
+/** Desktop two-pane — equal columns with comfortable copy inset and CTA spacing. */
+const DESKTOP_PANE_SHARE = '50%';
+const DESKTOP_COPY_HORIZONTAL_PAD = spacing.xxl + spacing.lg;
+const DESKTOP_COPY_FOOTER_GAP = spacing.xxxl + spacing.lg;
+/** CTA column — wide enough for long labels, narrower than the copy pane. */
+const ONBOARDING_CTA_MAX_WIDTH = 360;
 
 type Props = {
   kicker?: string;
@@ -81,14 +88,17 @@ export function OnboardingScreenLayout({
   const leftAlignHeader = isDesktopWeb || !centerHeader;
 
   const bottomPad = Math.max(insets.bottom, spacing.sm) + (Platform.OS === 'web' ? (isDesktopWeb ? 64 : 40) : 16);
+  const logoTop = Platform.OS === 'web' ? spacing.lg : Math.max(insets.top, spacing.sm) + spacing.sm;
   /** Room below the corner logo; title stays top-anchored on desktop (not vertically centered). */
   const topPad = isDesktopWeb
     ? spacing.xxl + spacing.xl
+    // Mobile: clear the 30px markOnly logomark + a little breathing room.
+    : logoTop + 30 + spacing.lg;
+  const logoLeft = isDesktopWeb
+    ? DESKTOP_COPY_HORIZONTAL_PAD
     : Platform.OS === 'web'
-      ? 40
-      : Math.max(insets.top, 24) + 40;
-  const logoTop = Platform.OS === 'web' ? spacing.lg : Math.max(insets.top, spacing.sm) + spacing.sm;
-  const logoLeft = Platform.OS === 'web' ? spacing.lg : MOBILE_GUTTER;
+      ? spacing.lg
+      : MOBILE_GUTTER;
 
   const showFooter = !hideFooter && !!primaryLabel && !!onPrimary;
 
@@ -96,24 +106,31 @@ export function OnboardingScreenLayout({
     <View
       style={[
         styles.footer,
-        isDesktopWeb ? styles.footerDesktop : null,
+        isDesktopWeb ? styles.footerDesktop : styles.footerMobile,
         { paddingBottom: bottomPad },
       ]}
     >
-      <OnboardingPrimaryButton
-        label={primaryLabel!}
-        onPress={onPrimary!}
-        loading={primaryLoading}
-        disabled={primaryDisabled}
-      />
-      {secondaryLabel && onSecondary ? (
-        <OnboardingSecondaryButton
-          label={secondaryLabel}
-          onPress={onSecondary}
-          disabled={secondaryDisabled}
-          style={styles.secondaryGap}
+      <View
+        style={[
+          styles.footerCtaWrap,
+          { alignSelf: leftAlignHeader ? 'flex-start' : 'center' },
+        ]}
+      >
+        <OnboardingPrimaryButton
+          label={primaryLabel!}
+          onPress={onPrimary!}
+          loading={primaryLoading}
+          disabled={primaryDisabled}
         />
-      ) : null}
+        {secondaryLabel && onSecondary ? (
+          <OnboardingSecondaryButton
+            label={secondaryLabel}
+            onPress={onSecondary}
+            disabled={secondaryDisabled}
+            style={styles.secondaryGap}
+          />
+        ) : null}
+      </View>
     </View>
   ) : null;
 
@@ -121,7 +138,8 @@ export function OnboardingScreenLayout({
     <View
       style={[
         styles.copyPane,
-        isDesktopWeb && styles.copyPaneDesktop,
+        isDesktopWeb ? styles.copyPaneDesktop : styles.copyPaneMobile,
+        isDesktopWeb && { paddingHorizontal: DESKTOP_COPY_HORIZONTAL_PAD },
         { paddingTop: topPad, paddingBottom: hideFooter && !isDesktopWeb ? bottomPad : 0 },
       ]}
     >
@@ -134,16 +152,24 @@ export function OnboardingScreenLayout({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.header, !leftAlignHeader && styles.headerCentered]}>
+        <View
+          style={[
+            styles.header,
+            !leftAlignHeader && styles.headerCentered,
+            isDesktopWeb && styles.headerDesktop,
+          ]}
+        >
           {kicker ? (
             <Text style={[styles.kicker, leftAlignHeader && styles.kickerLeft]}>{kicker}</Text>
           ) : null}
           <Text style={[styles.title, !leftAlignHeader && styles.titleCentered]}>{title}</Text>
         </View>
-        {children ? <View style={styles.body}>{children}</View> : null}
+        {children ? (
+          <View style={[styles.body, isDesktopWeb && styles.bodyDesktop]}>{children}</View>
+        ) : null}
       </ScrollView>
 
-      {/* Desktop: CTAs anchored to the bottom of the pane (space-between with top copy). */}
+      {/* Mobile: pinned under the scrollport. Desktop: follows copy with a deliberate gap. */}
       {footer}
     </View>
   );
@@ -195,6 +221,9 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.bgPrimary,
     width: '100%',
     minHeight: 0,
+    ...(Platform.OS === 'web'
+      ? ({ height: '100%', maxHeight: '100vh' } as object)
+      : null),
   },
   rootDesktop: {
     flexDirection: 'row',
@@ -211,27 +240,38 @@ const styles = StyleSheet.create({
   copyPane: {
     flex: 1,
     width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
     backgroundColor: semanticColors.bgPrimary,
     minHeight: 0,
   },
+  /** Single column — fills the viewport; CTAs pin below a flex scrollport. */
+  copyPaneMobile: {
+    maxWidth: 440,
+    alignSelf: 'center',
+    ...(Platform.OS === 'web'
+      ? ({ height: '100%', maxHeight: '100vh' } as object)
+      : null),
+  },
   copyPaneDesktop: {
-    maxWidth: 480,
-    width: '42%',
-    minWidth: 360,
-    flexGrow: 0,
-    flexShrink: 0,
-    alignSelf: 'stretch',
+    flex: 1,
+    flexBasis: DESKTOP_PANE_SHARE,
+    width: DESKTOP_PANE_SHARE,
+    maxWidth: DESKTOP_PANE_SHARE,
+    minWidth: 0,
+    alignSelf: 'center',
     zIndex: 2,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: DESKTOP_COPY_FOOTER_GAP,
     minHeight: 0,
     overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? ({ maxHeight: '100vh' } as object)
+      : { maxHeight: '100%' }),
   },
+  /** Mobile: fill space above sticky CTAs so tall screens (practices) can scroll. */
   scroll: { flex: 1, minHeight: 0 },
+  /** Desktop: size to content; gap below separates CTAs without pinning to the viewport. */
   scrollDesktop: {
-    flex: 1,
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 1,
     minHeight: 0,
   },
@@ -241,11 +281,14 @@ const styles = StyleSheet.create({
   },
   scrollContentDesktop: {
     flexGrow: 0,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
   },
   header: {
     paddingHorizontal: MOBILE_GUTTER + 8,
     paddingBottom: 8,
+  },
+  headerDesktop: {
+    paddingHorizontal: 0,
   },
   headerCentered: {
     alignItems: 'center',
@@ -276,21 +319,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: MOBILE_GUTTER + 8,
     paddingTop: spacing.sm,
   },
+  bodyDesktop: {
+    paddingHorizontal: 0,
+    paddingTop: spacing.md,
+    maxWidth: 440,
+  },
   footer: {
     paddingHorizontal: MOBILE_GUTTER + 8,
     paddingTop: spacing.sm,
     gap: 8,
     backgroundColor: semanticColors.bgPrimary,
   },
-  footerDesktop: {
-    paddingTop: spacing.lg,
+  footerMobile: {
     flexShrink: 0,
+    zIndex: 2,
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: '0px -8px 24px rgba(255,255,255,0.92)',
+        } as object)
+      : null),
+  },
+  footerDesktop: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    flexShrink: 0,
+  },
+  footerCtaWrap: {
+    width: '100%',
+    maxWidth: ONBOARDING_CTA_MAX_WIDTH,
+    gap: 8,
   },
   secondaryGap: {
     marginTop: 0,
   },
   mediaPane: {
     flex: 1,
+    flexBasis: DESKTOP_PANE_SHARE,
+    width: DESKTOP_PANE_SHARE,
+    maxWidth: DESKTOP_PANE_SHARE,
     minWidth: 0,
     minHeight: 0,
     alignSelf: 'stretch',
@@ -302,7 +368,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-    opacity: 0.28,
+    opacity: 0.22,
   },
 });
 

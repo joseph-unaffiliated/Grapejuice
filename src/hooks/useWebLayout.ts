@@ -37,7 +37,7 @@ export function useWebLayout() {
   const isTabletUp = width >= LAYOUT.BREAKPOINT_TABLET;
   const sidebar = useWebSidebar();
   const sidebarWidth = isTabletUp
-    ? (sidebar?.sidebarWidth ?? LAYOUT.WEB_SIDEBAR_WIDTH)
+    ? (sidebar?.layoutSidebarWidth ?? LAYOUT.WEB_SIDEBAR_WIDTH)
     : 0;
   const mainAreaWidth = Math.max(0, width - sidebarWidth);
   const gutter = isTabletUp ? LAYOUT.WEB_CONTENT_GUTTER : 0;
