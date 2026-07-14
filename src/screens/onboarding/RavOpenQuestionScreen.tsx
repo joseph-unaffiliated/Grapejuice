@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform } from 'react-native';
-import { WebPageContainer } from '../../components/ui/WebPageContainer';
-import { semanticColors, spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
+import { Text, StyleSheet, TextInput } from 'react-native';
+import {
+  OnboardingScreenLayout,
+  onboardingBodyText,
+} from '../../components/onboarding/OnboardingScreenLayout';
+import { semanticColors, spacing, borderRadius, typography, typeface } from '../../constants/theme';
 
 type Props = {
   initialNotes?: string;
@@ -9,6 +12,7 @@ type Props = {
   buildError?: string | null;
   building?: boolean;
   onContinue: (notes: string) => void;
+  onExplore?: () => void;
 };
 
 export function RavOpenQuestionScreen({
@@ -17,83 +21,64 @@ export function RavOpenQuestionScreen({
   buildError = null,
   building = false,
   onContinue,
+  onExplore,
 }: Props) {
   const [notes, setNotes] = useState(initialNotes);
 
   return (
-    <WebPageContainer authCard style={styles.wrapper}>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        <Text style={styles.kicker}>Before we build your box</Text>
-        <Text style={styles.title}>Anything Rav should know?</Text>
-        <Text style={styles.subtitle}>
-          Worried about a picky eater? Never lit candles before? Tell us — or skip. We will use this to
-          personalize your guide{isAuthenticated ? ' (Rav can reference it in chat)' : ''}.
-        </Text>
+    <OnboardingScreenLayout
+      kicker="Before we build your box"
+      title="Anything Rav should know?"
+      centerHeader={false}
+      primaryLabel={
+        building ? 'Building your box…' : notes.trim() ? 'Build my box' : 'Skip — build my box'
+      }
+      onPrimary={() => onContinue(notes.trim())}
+      primaryLoading={building}
+      primaryDisabled={building}
+      secondaryLabel={onExplore ? 'Explore without building a box' : undefined}
+      onSecondary={onExplore}
+      secondaryDisabled={building}
+    >
+      <Text style={[onboardingBodyText.lead, styles.subtitle]}>
+        Worried about a picky eater? Never lit candles before? Tell us — or skip. We will use this to
+        personalize your guide{isAuthenticated ? ' (Rav can reference it in chat)' : ''}.
+      </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. My kid is nervous about fire. We are vegetarian."
-          placeholderTextColor={semanticColors.textTertiary}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-        />
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. My kid is nervous about fire. We are vegetarian."
+        placeholderTextColor={semanticColors.textTertiary}
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+        numberOfLines={4}
+        textAlignVertical="top"
+      />
 
-        <TouchableOpacity
-          style={[
-            styles.cta,
-            building && styles.ctaDisabled,
-            Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : undefined,
-          ]}
-          onPress={() => onContinue(notes.trim())}
-          disabled={building}
-        >
-          {building ? (
-            <Text style={styles.ctaText}>Building your box…</Text>
-          ) : (
-            <Text style={styles.ctaText}>{notes.trim() ? 'Build my box' : 'Skip — build my box'}</Text>
-          )}
-        </TouchableOpacity>
-
-        {buildError ? <Text style={styles.error}>{buildError}</Text> : null}
-      </ScrollView>
-    </WebPageContainer>
+      {buildError ? <Text style={styles.error}>{buildError}</Text> : null}
+    </OnboardingScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  content: { padding: spacing.lg, paddingTop: spacing.xxl, paddingBottom: spacing.xxl },
-  kicker: { fontSize: typography.sm, color: semanticColors.goldMuted, fontWeight: '600', textTransform: 'uppercase' },
-  title: { fontSize: 24, fontWeight: '700', marginTop: spacing.sm },
-  subtitle: { fontSize: typography.lg, color: semanticColors.textSecondary, marginTop: spacing.sm, marginBottom: spacing.lg, lineHeight: 22 },
+  subtitle: { marginBottom: spacing.md },
   input: {
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    borderRadius: borderRadius.xl,
+    padding: spacing.sm,
+    fontSize: 15,
     minHeight: 120,
-    backgroundColor: semanticColors.bgElevated,
-    color: semanticColors.textPrimary,
+    backgroundColor: semanticColors.bgPrimary,
+    color: '#000000',
+    ...typeface('light'),
   },
-  cta: {
-    backgroundColor: semanticColors.brand,
-    padding: spacing.md,
-    borderRadius: borderRadius.pill,
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  ctaDisabled: { opacity: 0.7 },
-  ctaText: { fontWeight: '700', color: semanticColors.textInverse },
   error: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     fontSize: typography.md,
     color: semanticColors.error,
-    lineHeight: 20,
+    lineHeight: 18,
     textAlign: 'center',
   },
 });

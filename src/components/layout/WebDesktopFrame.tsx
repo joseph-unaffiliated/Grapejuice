@@ -48,5 +48,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     backgroundColor: semanticColors.bgPrimary,
+    overflow: 'visible' as const,
   },
 });

@@ -97,6 +97,7 @@ const styles = StyleSheet.create({
   desktopOuterCentered: {
     alignItems: 'center',
     paddingHorizontal: LAYOUT.WEB_CONTENT_GUTTER,
+    overflow: 'visible' as const,
   },
   desktopPanelCentered: {
     alignSelf: 'center',

@@ -40,13 +40,38 @@
       #root [role="tab"]:focus {
         outline: none !important;
       }
+      #root [data-testid="sidebar-collapse-btn"]:focus:not(:focus-visible),
+      #root [data-testid="sidebar-collapse-btn"]:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      #root [data-testid="desktop-side-rail"] img:focus,
+      #root [data-testid="desktop-side-rail"] img:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+      }
       #root,
       #root > div {
         overflow: visible !important;
       }
+      #root [data-testid="desktop-side-rail"] {
+        z-index: 30 !important;
+      }
+      #root [data-testid="home-scroll-host"],
+      #root [data-testid="home-scroll-content"],
+      #root [data-testid="home-content-column"],
+      #root [data-testid="home-rail-bleed"] {
+        overflow: visible !important;
+      }
+      #root [data-testid="home-vertical-scroll"],
+      #root [data-testid="home-vertical-scroll"] > div {
+        overflow-x: visible !important;
+        overflow-y: auto !important;
+      }
       /* Horizontal catalog rails — pan-x only; vertical bleed comes from scroll padding */
       #root .gj-horizontal-rail-scroll {
         overflow-x: auto !important;
+        overflow-y: visible !important;
         touch-action: pan-x;
         -webkit-overflow-scrolling: touch;
         cursor: grab;

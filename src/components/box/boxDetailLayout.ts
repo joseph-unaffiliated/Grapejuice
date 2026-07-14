@@ -36,7 +36,12 @@ export function boxHeaderSubtext(lockAt: string | null, now: Date): string {
 }
 
 /** Shared styles for Hanukkah box detail (Figma 370:3514). */
-export function createBoxDetailStyles(colors: SemanticColors) {
+export function createBoxDetailStyles(
+  colors: SemanticColors,
+  options?: { desktop?: boolean }
+) {
+  const desktop = options?.desktop ?? false;
+
   return StyleSheet.create({
     scrollContent: {
       paddingBottom: spacing.xxl,
@@ -45,11 +50,16 @@ export function createBoxDetailStyles(colors: SemanticColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: desktop ? 0 : spacing.md,
       paddingBottom: spacing.md,
+    },
+    toolbarLeft: {
+      justifyContent: 'flex-start',
     },
     toolbarSide: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
     toolbarCenter: { flex: 1, alignItems: 'center', gap: 2 },
+    toolbarCenterLeft: { alignItems: 'flex-start' },
+    toolbarBackInline: { marginBottom: spacing.xs },
     toolbarTitle: {
       fontSize: typography.xxl,
       ...typeface('regular'),
@@ -57,12 +67,20 @@ export function createBoxDetailStyles(colors: SemanticColors) {
       letterSpacing: -0.45,
       textAlign: 'center',
     },
+    toolbarTitleLeft: {
+      textAlign: 'left',
+      fontSize: typography.titleLg,
+      letterSpacing: -0.32,
+    },
     toolbarMeta: {
       fontSize: typography.sm,
       ...typeface('light'),
       color: colors.goldMuted,
       letterSpacing: -0.33,
       textAlign: 'center',
+    },
+    toolbarMetaLeft: {
+      textAlign: 'left',
     },
     backText: {
       fontSize: typography.xxl,
@@ -74,23 +92,27 @@ export function createBoxDetailStyles(colors: SemanticColors) {
       borderBottomColor: colors.goldMuted,
       paddingTop: spacing.xs,
       paddingBottom: spacing.xl,
-      paddingHorizontal: BOX_DETAIL_SECTION_GUTTER,
+      paddingHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
     },
-    sectionHeader: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xs },
+    sectionHeader: {
+      alignItems: desktop ? 'flex-start' : 'center',
+      marginBottom: spacing.md,
+      gap: spacing.xs,
+    },
     sectionTitle: {
       fontSize: typography.lg,
       ...typeface('regular'),
       color: colors.textPrimary,
       letterSpacing: -0.26,
-      textAlign: 'center',
+      textAlign: desktop ? 'left' : 'center',
     },
     sectionDesc: {
       fontSize: typography.sm,
       ...typeface('light'),
       color: colors.textPrimary,
-      textAlign: 'center',
+      textAlign: desktop ? 'left' : 'center',
       lineHeight: 16.5,
-      maxWidth: 255,
+      maxWidth: desktop ? 480 : 255,
       letterSpacing: -0.33,
     },
     itemList: { gap: spacing.md, paddingBottom: spacing.lg, width: '100%' },
@@ -98,7 +120,7 @@ export function createBoxDetailStyles(colors: SemanticColors) {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: spacing.xs,
-      justifyContent: 'center',
+      justifyContent: desktop ? 'flex-start' : 'center',
     },
     browseChip: {
       borderWidth: 0.5,
@@ -120,7 +142,7 @@ export function createBoxDetailStyles(colors: SemanticColors) {
       borderRadius: borderRadius.md,
       alignItems: 'center',
       marginTop: spacing.lg,
-      marginHorizontal: BOX_DETAIL_SECTION_GUTTER,
+      marginHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
       borderWidth: 0.5,
       borderColor: colors.goldMuted,
     },
@@ -133,7 +155,7 @@ export function createBoxDetailStyles(colors: SemanticColors) {
       textAlign: 'center',
     },
     headerExtras: {
-      paddingHorizontal: BOX_DETAIL_SECTION_GUTTER,
+      paddingHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
       gap: spacing.sm,
       marginBottom: spacing.sm,
     },

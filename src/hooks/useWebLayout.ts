@@ -21,6 +21,8 @@ export function useWebLayout() {
       isDesktop: false,
       isTabletUp: false,
       sidebarWidth: 0,
+      mainAreaWidth: width,
+      contentColumnOffset: 0,
       sceneInsetLeft: 0,
     };
   }
@@ -42,6 +44,9 @@ export function useWebLayout() {
   const contentMaxWidth = Math.min(getWebContentMaxWidth(width), mainAreaWidth - gutter * 2);
   const widePanelMaxWidth = Math.min(LAYOUT.WEB_WIDE_PANEL_MAX_WIDTH, mainAreaWidth - gutter * 2);
   const layoutWidth = isTabletUp ? contentMaxWidth : width;
+  const contentColumnOffset = isTabletUp
+    ? Math.max(0, (mainAreaWidth - layoutWidth) / 2)
+    : 0;
 
   return {
     tier,
@@ -51,6 +56,10 @@ export function useWebLayout() {
     widePanelMaxWidth,
     /** Width for cards/carousels inside the content panel. */
     layoutWidth,
+    /** Full width of the main area beside the sidebar. */
+    mainAreaWidth,
+    /** Left inset when a max-width column is centered in the main area. */
+    contentColumnOffset,
     isDesktop: isTabletUp,
     isTabletUp,
     sidebarWidth,

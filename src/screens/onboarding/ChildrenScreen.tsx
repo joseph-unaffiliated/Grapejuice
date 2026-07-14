@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import type { AgeGroup } from '../../types/pilot';
-import { WebPageContainer } from '../../components/ui/WebPageContainer';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import {
+  OnboardingScreenLayout,
+  onboardingBodyText,
+} from '../../components/onboarding/OnboardingScreenLayout';
+import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
 
 const AGE_GROUPS: AgeGroup[] = ['0-2', '3-5', '6-8', '9-12'];
 
@@ -15,8 +18,10 @@ export type ChildDraft = {
 
 export function ChildrenScreen({
   onContinue,
+  onExplore,
 }: {
   onContinue: (children: ChildDraft[]) => void;
+  onExplore?: () => void;
 }) {
   const [count, setCount] = useState(1);
   const [kids, setKids] = useState<ChildDraft[]>([{ name: '', ageGroup: '3-5' }]);
@@ -33,20 +38,27 @@ export function ChildrenScreen({
   };
 
   return (
-    <WebPageContainer authCard style={styles.wrapper}>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Who&apos;s celebrating?</Text>
-      <Text style={styles.subtitle}>We match books and activities to your kids&apos; ages.</Text>
+    <OnboardingScreenLayout
+      title="Who's celebrating?"
+      centerHeader={false}
+      primaryLabel="Continue"
+      onPrimary={() => onContinue(kids)}
+      secondaryLabel={onExplore ? 'Explore without building a box' : undefined}
+      onSecondary={onExplore}
+    >
+      <Text style={[onboardingBodyText.lead, styles.subtitle]}>
+        We match books and activities to your kids&apos; ages.
+      </Text>
 
       <View style={styles.row}>
         <Text style={styles.label}>How many kids?</Text>
         <View style={styles.stepper}>
           <TouchableOpacity onPress={() => syncCount(count - 1)} style={styles.stepBtn}>
-            <Text>−</Text>
+            <Text style={styles.stepBtnText}>−</Text>
           </TouchableOpacity>
           <Text style={styles.count}>{count}</Text>
           <TouchableOpacity onPress={() => syncCount(count + 1)} style={styles.stepBtn}>
-            <Text>+</Text>
+            <Text style={styles.stepBtnText}>+</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -57,6 +69,7 @@ export function ChildrenScreen({
           <TextInput
             style={styles.input}
             placeholder="Name (optional)"
+            placeholderTextColor={semanticColors.textTertiary}
             value={kid.name}
             onChangeText={(t) => {
               const next = [...kids];
@@ -67,6 +80,7 @@ export function ChildrenScreen({
           <TextInput
             style={styles.input}
             placeholder="Birthdate (YYYY-MM-DD, optional)"
+            placeholderTextColor={semanticColors.textTertiary}
             value={kid.birthdate ?? ''}
             onChangeText={(t) => {
               const next = [...kids];
@@ -93,34 +107,81 @@ export function ChildrenScreen({
           </View>
         </View>
       ))}
-
-      <TouchableOpacity style={styles.cta} onPress={() => onContinue(kids)}>
-        <Text style={styles.ctaText}>Continue</Text>
-      </TouchableOpacity>
-      </ScrollView>
-    </WebPageContainer>
+    </OnboardingScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  content: { padding: spacing.lg, paddingTop: spacing.xxl },
-  title: { fontSize: 24, fontWeight: '700', color: semanticColors.textPrimary },
-  subtitle: { fontSize: typography.lg, color: semanticColors.textSecondary, marginTop: spacing.sm, marginBottom: spacing.xl },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
-  label: { fontSize: typography.lg, fontWeight: '600' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: semanticColors.bgElevated, alignItems: 'center', justifyContent: 'center' },
-  count: { fontSize: typography.xl, fontWeight: '700', minWidth: 24, textAlign: 'center' },
-  kidCard: { backgroundColor: semanticColors.bgElevated, borderRadius: borderRadius.card, padding: spacing.md, marginBottom: spacing.md },
-  kidLabel: { fontWeight: '600', marginBottom: spacing.sm },
-  input: { borderWidth: 1, borderColor: semanticColors.border, borderRadius: borderRadius.md, padding: spacing.sm, marginBottom: spacing.sm, fontSize: 16 },
+  subtitle: { marginBottom: spacing.md },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  label: {
+    ...typeface('regular'),
+    fontSize: typography.lg,
+    color: '#000000',
+  },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  stepBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBtnText: { fontSize: 18, color: '#000000' },
+  count: {
+    ...typeface('regular'),
+    fontSize: typography.xxl,
+    minWidth: 24,
+    textAlign: 'center',
+    color: '#000000',
+  },
+  kidCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    borderRadius: borderRadius.xl,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    backgroundColor: semanticColors.bgPrimary,
+  },
+  kidLabel: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    color: '#000000',
+    marginBottom: spacing.sm,
+  },
+  input: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    borderRadius: borderRadius.xl,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    fontSize: 15,
+    color: '#000000',
+  },
   ageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  ageChip: { paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: borderRadius.chip, backgroundColor: semanticColors.bgPrimary },
-  ageChipOn: { backgroundColor: semanticColors.brand },
-  ageText: { fontSize: typography.md },
-  ageTextOn: { color: semanticColors.textInverse, fontWeight: '600' },
-  cta: { backgroundColor: semanticColors.brand, padding: spacing.md, borderRadius: borderRadius.pill, alignItems: 'center', marginTop: spacing.lg },
-  ctaText: { fontWeight: '700', color: semanticColors.textInverse },
+  ageChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.bgPrimary,
+  },
+  ageChipOn: { backgroundColor: '#000000' },
+  ageText: {
+    ...typeface('light'),
+    fontSize: typography.md,
+    color: '#000000',
+  },
+  ageTextOn: {
+    ...typeface('regular'),
+    color: semanticColors.brand,
+  },
 });

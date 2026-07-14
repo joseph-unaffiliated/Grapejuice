@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
@@ -60,6 +61,7 @@ import {
   spacing,
   borderRadius,
   shadows,
+  shadowsWeb,
   typography,
   MOBILE_GUTTER,
   LAYOUT,
@@ -70,7 +72,11 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDimensions';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { SearchPill } from '../../components/ui/SearchPill';
+import {
+  HomeStickySearchHeader,
+  HEADER_DESKTOP_TOP_PAD,
+  HOME_HEADER_COLLAPSE_RANGE,
+} from '../../components/home/HomeStickySearchHeader';
 import { TextWithChevron } from '../../components/ui/TextWithChevron';
 import { FIGMA_HERO_SUBTITLE, isFigmaCompareCapture } from '../../utils/figmaCompare';
 
@@ -79,12 +85,6 @@ type Nav = CompositeNavigationProp<
   StackNavigationProp<MainStackParamList>
 >;
 
-const HEADER_CHIP_GAP = 16;
-const HEADER_BOTTOM_PAD = 16;
-/** Desktop web — space above search pill / below category chips (Figma). */
-const HEADER_DESKTOP_TOP_PAD = 72;
-const HEADER_DESKTOP_BOTTOM_PAD = 48;
-const HEADER_DESKTOP_INNER_MAX_WIDTH = 480;
 const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
 const CONTENT_TOP_GAP_DESKTOP = 41;
@@ -151,8 +151,11 @@ export function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useEffectiveWindowDimensions();
-  const { isDesktop, layoutWidth } = useWebLayout();
-  const styles = useMemo(() => createHomeStyles(colors, isDesktop), [colors, isDesktop]);
+  const { isDesktop, layoutWidth, mainAreaWidth, contentColumnOffset } = useWebLayout();
+  const styles = useMemo(
+    () => createHomeStyles(colors, isDesktop, contentColumnOffset),
+    [colors, isDesktop, contentColumnOffset],
+  );
   const contentWidth = isDesktop ? layoutWidth : screenWidth;
   const { household, loading: sessionLoading } = useSession();
   const { lineItems, loading: draftLoading } = useBoxDraft();
@@ -162,6 +165,16 @@ export function HomeScreen() {
   const toggleGuestInterest = useGuestSessionStore((s) => s.toggleInterest);
 
   const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const collapseProgress = useMemo(
+    () =>
+      scrollY.interpolate({
+        inputRange: [0, HOME_HEADER_COLLAPSE_RANGE],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+      }),
+    [scrollY],
+  );
   const [hanukkahSectionY, setHanukkahSectionY] = useState(0);
   const [hanukkiahSectionY, setHanukkiahSectionY] = useState(0);
   const [dreidelSectionY, setDreidelSectionY] = useState(0);
@@ -309,8 +322,29 @@ export function HomeScreen() {
 
   const headerShadow =
     Platform.OS === 'web'
-      ? ({ boxShadow: '0px 4px 12px rgba(216, 201, 144, 0.50)' } as object)
+      ? ({ boxShadow: shadowsWeb.goldBar } as object)
       : shadows.goldGlow;
+
+  const expandedHeaderPaddingTop = isDesktop
+    ? HEADER_DESKTOP_TOP_PAD
+    : Platform.OS === 'web'
+      ? spacing.md
+      : Math.max(insets.top, spacing.md);
+
+  const headerBlock = (
+    <HomeStickySearchHeader
+      collapseProgress={collapseProgress}
+      isDesktop={isDesktop}
+      contentWidth={contentWidth}
+      expandedPaddingTop={expandedHeaderPaddingTop}
+      searchQuery={searchQuery}
+      onChangeSearch={setSearchQuery}
+      onSubmitSearch={submitSearch}
+      chips={CATEGORY_CHIPS}
+      onChipPress={handleCategoryChip}
+      headerShadow={headerShadow}
+    />
+  );
 
   const scrollBottomPad = tabBarTotalHeight(Math.max(insets.bottom, 0)) + spacing.lg;
 
@@ -321,63 +355,6 @@ export function HomeScreen() {
       </View>
     );
   }
-
-  const headerInner = (
-    <>
-      <View style={[styles.headerSearch, isDesktop && styles.headerSearchFlush]}>
-        <SearchPill
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmitEditing={submitSearch}
-        />
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipsScroll}
-        contentContainerStyle={[
-          styles.categoryChips,
-          isDesktop && styles.categoryChipsFlush,
-          isDesktop && styles.categoryChipsDesktopCenter,
-        ]}
-      >
-        {CATEGORY_CHIPS.map((chip) => (
-          <TouchableOpacity
-            key={chip.id}
-            style={styles.categoryChip}
-            onPress={() => handleCategoryChip(chip.id)}
-          >
-            <Text style={styles.categoryChipText}>{chip.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </>
-  );
-
-  const headerBlock = (
-    <View
-      style={[
-        styles.header,
-        !isDesktop && styles.headerSticky,
-        isDesktop && styles.headerDesktopBar,
-        headerShadow,
-        {
-          paddingTop: isDesktop
-            ? HEADER_DESKTOP_TOP_PAD
-            : Platform.OS === 'web'
-              ? spacing.md
-              : Math.max(insets.top, spacing.md),
-          paddingBottom: isDesktop ? HEADER_DESKTOP_BOTTOM_PAD : HEADER_BOTTOM_PAD,
-        },
-      ]}
-    >
-      {isDesktop ? (
-        <View style={styles.headerDesktopInner}>{headerInner}</View>
-      ) : (
-        headerInner
-      )}
-    </View>
-  );
 
   return (
     <View style={styles.wrapper}>
@@ -390,7 +367,17 @@ export function HomeScreen() {
       >
         {!isDesktop ? headerBlock : null}
 
-        <ScrollView
+        <View
+          style={[
+            styles.scrollHost,
+            isDesktop && {
+              width: mainAreaWidth,
+              marginLeft: -LAYOUT.WEB_CONTENT_GUTTER,
+            },
+          ]}
+          testID="home-scroll-host"
+        >
+        <Animated.ScrollView
           ref={scrollRef}
           style={styles.scrollView}
           contentContainerStyle={[
@@ -399,8 +386,17 @@ export function HomeScreen() {
             { paddingBottom: scrollBottomPad },
           ]}
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+            useNativeDriver: false,
+          })}
+          {...(Platform.OS === 'web' ? { className: 'gj-home-scroll', testID: 'home-vertical-scroll' } : {})}
         >
-          <View style={[styles.contentColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
+          <View style={styles.scrollContent} testID="home-scroll-content">
+          <View
+            style={[styles.contentColumn, isDesktop ? { maxWidth: layoutWidth, alignSelf: 'center' as const } : null]}
+            testID="home-content-column"
+          >
           {showDeliveryTracking ? (
             <DeliveryTrackingCard
               title={heroTitle}
@@ -551,48 +547,58 @@ export function HomeScreen() {
               </ScrollView>
             )}
           </View>
+          </View>
 
+          <View
+            style={styles.railBleedSection}
+            testID="home-rail-bleed"
+          >
           <View style={styles.collectionSection}>
-            <View style={styles.collectionBlock} onLayout={(e) => setHanukkiahSectionY(e.nativeEvent.layout.y)}>
-              <Text style={[styles.collectionHeading, styles.gutterPad]}>Build your Collection</Text>
-              <View style={styles.collectionRailOuter}>
-              <HorizontalDragScrollView
-                horizontal
-                nestedScrollEnabled
-                directionalLockEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.collectionScroll}
-                contentContainerStyle={styles.collectionRow}
+            <View
+              style={styles.collectionBlock}
+              onLayout={(e) => {
+                const y = e.nativeEvent.layout.y;
+                setHanukkiahSectionY(y);
+                setDreidelSectionY(y);
+              }}
+            >
+              <Text
+                style={[
+                  styles.collectionHeading,
+                  isDesktop ? styles.sectionTitleInset : styles.gutterPad,
+                ]}
               >
-                <CatalogProductRail
-                  title={COLLECTION_RAILS[0]?.title ?? 'Hanukkiahs'}
-                  items={hanukkiahItems}
-                />
-              </HorizontalDragScrollView>
-              </View>
-            </View>
-            <View onLayout={(e) => setDreidelSectionY(e.nativeEvent.layout.y)}>
+                Build your Collection
+              </Text>
               <View style={styles.collectionRailOuter}>
-              <HorizontalDragScrollView
-                horizontal
-                nestedScrollEnabled
-                directionalLockEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.collectionScroll}
-                contentContainerStyle={styles.collectionRow}
-              >
-                <CatalogProductRail
-                  title={COLLECTION_RAILS[1]?.title ?? 'Dreidels'}
-                  items={dreidelItems}
-                />
-              </HorizontalDragScrollView>
+                <HorizontalDragScrollView
+                  horizontal
+                  nestedScrollEnabled
+                  directionalLockEnabled
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.collectionScroll}
+                  contentContainerStyle={styles.collectionRow}
+                >
+                  <CatalogProductRail
+                    title={COLLECTION_RAILS[0]?.title ?? 'Hanukkiahs'}
+                    items={hanukkiahItems}
+                  />
+                  <CatalogProductRail
+                    title={COLLECTION_RAILS[1]?.title ?? 'Dreidels'}
+                    items={dreidelItems}
+                  />
+                </HorizontalDragScrollView>
               </View>
             </View>
             <View onLayout={(e) => setApparelSectionY(e.nativeEvent.layout.y)}>
               <SetTheStageSection apparel={apparelItems} decorations={decorationItems} />
             </View>
           </View>
+          </View>
 
+          <View
+            style={[styles.contentColumn, isDesktop ? { maxWidth: layoutWidth, alignSelf: 'center' as const } : null]}
+          >
           <View style={styles.passoverWrap}>
             <PassoverPreregisterCard
               capacityPercent={passoverCapacity}
@@ -601,78 +607,41 @@ export function HomeScreen() {
             />
           </View>
           </View>
+          </View>
 
-        </ScrollView>
+        </Animated.ScrollView>
+        </View>
       </WebContentPanel>
     </View>
   );
 }
 
-function createHomeStyles(colors: SemanticColors, isDesktop: boolean) {
+function createHomeStyles(
+  colors: SemanticColors,
+  isDesktop: boolean,
+  contentColumnOffset: number,
+) {
   return StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.bgPrimary, overflow: 'visible' as const },
   panel: { overflow: 'visible' as const },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgPrimary },
-  header: {
-    gap: HEADER_CHIP_GAP,
-    backgroundColor: colors.bgPrimary,
-    overflow: 'visible' as const,
-  },
-  headerSticky: Platform.OS === 'web' ? ({ position: 'sticky' as const, top: 0, zIndex: 20 }) : {},
-  headerDesktopBar: {
+  scrollHost: {
+    flex: 1,
     width: '100%',
-    alignSelf: 'stretch',
-    zIndex: 20,
-    paddingHorizontal: LAYOUT.WEB_CONTENT_GUTTER,
-    alignItems: 'center',
-  },
-  headerDesktopInner: {
-    width: '100%',
-    maxWidth: HEADER_DESKTOP_INNER_MAX_WIDTH,
-    gap: HEADER_CHIP_GAP,
     overflow: 'visible' as const,
-    alignSelf: 'center',
-  },
-  headerSearch: { paddingHorizontal: MOBILE_GUTTER },
-  headerSearchFlush: { paddingHorizontal: 0 },
-  chipsScroll: {
-    overflow: 'visible' as const,
-    marginHorizontal: 0,
-    width: '100%',
-  },
-  categoryChips: {
-    gap: 6,
-    paddingLeft: MOBILE_GUTTER,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryChipsFlush: { paddingLeft: 0 },
-  categoryChipsDesktopCenter: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    ...(Platform.OS === 'web' ? ({ minWidth: '100%' } as object) : {}),
-  },
-  categoryChip: {
-    borderWidth: 0.5,
-    borderColor: colors.brand,
-    borderRadius: 32,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-  },
-  categoryChipText: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: colors.textPrimary,
-    letterSpacing: -0.22,
-    fontFamily: typography.fontFamily.light,
   },
   scrollView: { flex: 1, width: '100%', overflow: 'visible' as const },
+  scrollContent: {
+    width: '100%',
+    gap: isDesktop ? SCROLL_GAP_DESKTOP : SCROLL_GAP,
+    overflow: 'visible' as const,
+  },
   content: {
     paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
     overflow: 'visible' as const,
   },
   contentDesktop: {
-    alignItems: 'center',
+    alignItems: 'stretch',
     width: '100%',
   },
   contentColumn: {
@@ -680,7 +649,14 @@ function createHomeStyles(colors: SemanticColors, isDesktop: boolean) {
     gap: isDesktop ? SCROLL_GAP_DESKTOP : SCROLL_GAP,
     overflow: 'visible' as const,
   },
+  railBleedSection: {
+    width: '100%',
+    overflow: 'visible' as const,
+  },
   gutterPad: { paddingHorizontal: MOBILE_GUTTER },
+  sectionTitleInset: {
+    paddingHorizontal: contentColumnOffset + MOBILE_GUTTER,
+  },
   phaseCard: {
     marginHorizontal: MOBILE_GUTTER,
     padding: spacing.lg,
@@ -714,7 +690,7 @@ function createHomeStyles(colors: SemanticColors, isDesktop: boolean) {
   collectionScroll: horizontalRailScrollStyle(),
   collectionRow: horizontalRailContentStyle({
     gap: COLLECTION_RAIL_GAP,
-    ...horizontalRailGutterPadding(MOBILE_GUTTER),
+    ...horizontalRailGutterPadding(MOBILE_GUTTER, { centerOffset: contentColumnOffset }),
   }),
   collectionHeading: {
     fontSize: typography.lg,

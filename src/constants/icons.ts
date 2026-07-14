@@ -36,6 +36,8 @@ import {
   faPaperPlane,
   faArrowUp,
   faThumbsUp,
+  faUtensils,
+  faDice,
 } from '@fortawesome/free-solid-svg-icons';
 
 export const icons = {
@@ -73,6 +75,8 @@ export const icons = {
   paperPlane: faPaperPlane,
   arrowUp: faArrowUp,
   thumbsUp: faThumbsUp,
+  utensils: faUtensils,
+  dice: faDice,
 } as const;
 
 export type IconName = keyof typeof icons;

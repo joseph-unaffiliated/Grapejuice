@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, type LayoutChangeEvent } from 'react-nati
 import { BOX_DISPLAY_SECTIONS, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { createBoxDetailStyles } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 
 type Props = {
   sectionId: BoxDisplaySectionId;
@@ -21,7 +22,8 @@ export function BoxDetailSectionBlock({
   showBrowseChips = true,
 }: Props) {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createBoxDetailStyles(colors), [colors]);
+  const { isDesktop } = useWebLayout();
+  const styles = useMemo(() => createBoxDetailStyles(colors, { desktop: isDesktop }), [colors, isDesktop]);
   const meta = BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)!;
 
   return (

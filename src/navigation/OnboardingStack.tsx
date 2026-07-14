@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
 import { ChildrenScreen, type ChildDraft } from '../screens/onboarding/ChildrenScreen';
 import { ChildInterestsScreen } from '../screens/onboarding/ChildInterestsScreen';
 import { FamiliaritySliderScreen } from '../screens/onboarding/FamiliaritySliderScreen';
@@ -20,11 +20,10 @@ import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import type { BoxLineItem, FamiliarityLevel, ChildProfile } from '../types/pilot';
 import type { ChildInterestId } from '../constants/childInterests';
-import { semanticColors, spacing, typography } from '../constants/theme';
+import { semanticColors } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
 import { clearDevPreview } from './devPreview';
 import { onboardingErrorMessage, resolveOnboardingStep, type OnboardingStep } from './onboardingSteps';
-import { OnboardingEscapeBar } from '../components/onboarding/OnboardingEscapeBar';
 
 type Props = {
   onComplete?: () => void;
@@ -301,15 +300,16 @@ export function OnboardingStack({
     onComplete?.();
   }, [exitGuestOnboarding, guestMode, onComplete, refresh, user?.uid]);
 
-  const wrapWithEscape = (content: React.ReactNode, hideEscape = false) => (
+  const explore = saving ? undefined : () => void exitOnboarding();
+
+  const wrap = (content: React.ReactNode) => (
     <View style={styles.shell}>
-      {!hideEscape ? <OnboardingEscapeBar onExit={() => void exitOnboarding()} disabled={saving} /> : null}
       <View style={styles.shellBody}>{content}</View>
     </View>
   );
 
   if (loadingReveal) {
-    return wrapWithEscape(
+    return wrap(
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={semanticColors.brand} />
       </View>
@@ -318,14 +318,19 @@ export function OnboardingStack({
 
   switch (step) {
     case 'hanukkah-intro':
-      return wrapWithEscape(<HanukkahIntroScreen onContinue={() => goToStep('practices')} />);
+      return wrap(
+        <HanukkahIntroScreen onContinue={() => goToStep('practices')} onExplore={explore} />
+      );
     case 'practices':
-      return wrapWithEscape(<HanukkahPracticesScreen onContinue={() => goToStep('box-intro')} />);
+      return wrap(
+        <HanukkahPracticesScreen onContinue={() => goToStep('box-intro')} onExplore={explore} />
+      );
     case 'box-intro':
-      return wrapWithEscape(<BoxIntroScreen onContinue={() => goToStep('children')} />);
+      return wrap(<BoxIntroScreen onContinue={() => goToStep('children')} onExplore={explore} />);
     case 'children':
-      return wrapWithEscape(
+      return wrap(
         <ChildrenScreen
+          onExplore={explore}
           onContinue={(kids) => {
             setChildDrafts(kids);
             setGuestChildDrafts(kids);
@@ -334,9 +339,10 @@ export function OnboardingStack({
         />
       );
     case 'child-interests':
-      return wrapWithEscape(
+      return wrap(
         <ChildInterestsScreen
           initialSelected={childInterests}
+          onExplore={explore}
           onContinue={(selected) => {
             setChildInterests(selected);
             setGuestChildInterests(selected);
@@ -345,9 +351,10 @@ export function OnboardingStack({
         />
       );
     case 'familiarity':
-      return wrapWithEscape(
+      return wrap(
         <FamiliaritySliderScreen
           initialScore={familiarityScore || familiarityLevelToScore(familiarity)}
+          onExplore={explore}
           onContinue={(level, score) => {
             setFamiliarity(level);
             setFamiliarityScore(score);
@@ -357,12 +364,13 @@ export function OnboardingStack({
         />
       );
     case 'rav-question':
-      return wrapWithEscape(
+      return wrap(
         <RavOpenQuestionScreen
           initialNotes={ravNotes}
           isAuthenticated={!guestMode}
           buildError={buildError}
           building={saving}
+          onExplore={explore}
           onContinue={(notes) => {
             setRavNotes(notes);
             setGuestRavNotes(notes);
@@ -371,9 +379,9 @@ export function OnboardingStack({
         />
       );
     case 'building':
-      return wrapWithEscape(<BuildingBoxScreen onComplete={goToReveal} />, true);
+      return wrap(<BuildingBoxScreen onComplete={goToReveal} />);
     case 'reveal':
-      return wrapWithEscape(
+      return wrap(
         <BoxRevealScreen
           children={savedChildren}
           familiarity={familiarity}
@@ -388,7 +396,7 @@ export function OnboardingStack({
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  shellBody: { flex: 1 },
+  shell: { flex: 1, backgroundColor: semanticColors.bgPrimary, minHeight: 0 },
+  shellBody: { flex: 1, minHeight: 0 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: semanticColors.bgPrimary },
 });

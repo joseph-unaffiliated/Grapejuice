@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, PanResponder, LayoutChangeEvent } from 'react-native';
 import type { FamiliarityLevel } from '../../types/pilot';
-import { WebPageContainer } from '../../components/ui/WebPageContainer';
-import { semanticColors, spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
+import {
+  OnboardingScreenLayout,
+  onboardingBodyText,
+} from '../../components/onboarding/OnboardingScreenLayout';
+import { semanticColors, spacing, typography, typeface } from '../../constants/theme';
 import { familiarityScoreToLevel } from '../../stores/guestSessionStore';
 
 type Props = {
   initialScore?: number;
   onContinue: (level: FamiliarityLevel, score: number) => void;
+  onExplore?: () => void;
 };
 
 function FamiliaritySliderControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -46,7 +50,7 @@ function FamiliaritySliderControl({ value, onChange }: { value: number; onChange
   );
 }
 
-export function FamiliaritySliderScreen({ initialScore = 50, onContinue }: Props) {
+export function FamiliaritySliderScreen({ initialScore = 50, onContinue, onExplore }: Props) {
   const [score, setScore] = useState(initialScore);
   const level = familiarityScoreToLevel(score);
 
@@ -58,42 +62,41 @@ export function FamiliaritySliderScreen({ initialScore = 50, onContinue }: Props
         : 'Full eight nights — we will match that energy.';
 
   return (
-    <WebPageContainer authCard style={styles.wrapper}>
-      <View style={styles.root}>
-        <Text style={styles.title}>How does Hanukkah usually go?</Text>
-        <Text style={styles.subtitle}>
-          Slide to where you are — not where you think you should be. This shapes your box and your guide.
-        </Text>
+    <OnboardingScreenLayout
+      title="How does Hanukkah usually go?"
+      centerHeader={false}
+      primaryLabel="Continue"
+      onPrimary={() => onContinue(level, score)}
+      secondaryLabel={onExplore ? 'Explore without building a box' : undefined}
+      onSecondary={onExplore}
+    >
+      <Text style={[onboardingBodyText.lead, styles.subtitle]}>
+        Slide to where you are — not where you think you should be. This shapes your box and your guide.
+      </Text>
 
-        <View style={styles.sliderLabels}>
-          <Text style={styles.sliderLabel}>Our first Hanukkah</Text>
-          <Text style={[styles.sliderLabel, styles.sliderLabelRight]}>We do all eight nights</Text>
-        </View>
-
-        <FamiliaritySliderControl value={score} onChange={setScore} />
-
-        <Text style={styles.hint}>{levelHint}</Text>
-
-        <TouchableOpacity
-          style={[styles.cta, Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : undefined]}
-          onPress={() => onContinue(level, score)}
-        >
-          <Text style={styles.ctaText}>Continue</Text>
-        </TouchableOpacity>
+      <View style={styles.sliderLabels}>
+        <Text style={styles.sliderLabel}>Our first Hanukkah</Text>
+        <Text style={[styles.sliderLabel, styles.sliderLabelRight]}>We do all eight nights</Text>
       </View>
-    </WebPageContainer>
+
+      <FamiliaritySliderControl value={score} onChange={setScore} />
+
+      <Text style={styles.hint}>{levelHint}</Text>
+    </OnboardingScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  root: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl, backgroundColor: semanticColors.bgPrimary },
-  title: { fontSize: 24, fontWeight: '700' },
-  subtitle: { fontSize: typography.lg, color: semanticColors.textSecondary, marginTop: spacing.sm, marginBottom: spacing.xl },
+  subtitle: { marginBottom: spacing.md },
   sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
-  sliderLabel: { fontSize: typography.sm, color: semanticColors.textSecondary, flex: 1 },
+  sliderLabel: {
+    ...typeface('light'),
+    fontSize: typography.sm,
+    color: semanticColors.goldMuted,
+    flex: 1,
+  },
   sliderLabelRight: { textAlign: 'right' },
-  sliderWrap: { marginVertical: spacing.md },
+  sliderWrap: { marginVertical: spacing.sm },
   track: {
     height: 8,
     borderRadius: 4,
@@ -106,35 +109,28 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     borderRadius: 4,
-    backgroundColor: semanticColors.brand,
+    backgroundColor: '#000000',
   },
   thumb: {
     position: 'absolute',
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: semanticColors.brand,
+    backgroundColor: '#000000',
     top: -8,
-    borderWidth: 2,
-    borderColor: semanticColors.bgPrimary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
   },
-  stepRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.lg },
-  stepBtn: { padding: spacing.xs },
+  stepRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md },
+  stepBtn: { padding: 6 },
   stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: semanticColors.border },
-  stepDotOn: { backgroundColor: semanticColors.brand },
+  stepDotOn: { backgroundColor: '#000000' },
   hint: {
-    fontSize: typography.md,
+    ...typeface('light'),
+    fontSize: typography.sm,
     color: semanticColors.goldMuted,
-    marginTop: spacing.lg,
-    lineHeight: 20,
+    marginTop: spacing.md,
+    lineHeight: 16.5,
     textAlign: 'center',
   },
-  cta: {
-    backgroundColor: semanticColors.brand,
-    padding: spacing.md,
-    borderRadius: borderRadius.pill,
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  ctaText: { fontWeight: '700', color: semanticColors.textInverse },
 });

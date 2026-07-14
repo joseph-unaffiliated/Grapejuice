@@ -43,11 +43,12 @@ export const HORIZONTAL_RAIL_SHADOW_BLEED = 16;
 /** Web class for index.html touch-action overrides on horizontal rails. */
 export const HORIZONTAL_RAIL_SCROLL_CLASS = 'gj-horizontal-rail-scroll';
 
-/** Expands rail into horizontal margins so left/right shadow isn't clipped at screen edge. */
+/** Expands rail past the right edge so shadow isn't clipped; left stays flush for gutter alignment. */
 export function horizontalRailOuterStyle(): object {
   return {
     overflow: 'visible' as const,
-    marginHorizontal: -HORIZONTAL_RAIL_SHADOW_BLEED,
+    marginLeft: 0,
+    marginRight: -HORIZONTAL_RAIL_SHADOW_BLEED,
   };
 }
 
@@ -68,7 +69,6 @@ export function horizontalRailScrollStyle(): object {
           overflowY: 'hidden',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-x',
-          overscrollBehaviorX: 'contain',
         } as object)
       : {}),
   };
@@ -83,10 +83,17 @@ export function horizontalRailContentStyle(extra?: object): object {
   };
 }
 
-/** Gutter padding when scroll viewport already has horizontal shadow bleed. */
-export function horizontalRailGutterPadding(gutter: number): { paddingLeft: number; paddingRight: number } {
+/** Gutter inset after scroll shadow padding (16px pad + inset = gutter). */
+export function horizontalRailGutterPadding(
+  gutter: number,
+  options?: { centerOffset?: number },
+): { paddingLeft: number; paddingRight: number } {
+  const centerOffset = options?.centerOffset ?? 0;
   const inset = Math.max(0, gutter - HORIZONTAL_RAIL_SHADOW_BLEED);
-  return { paddingLeft: inset, paddingRight: inset };
+  return {
+    paddingLeft: centerOffset + inset,
+    paddingRight: inset,
+  };
 }
 export const CATALOG_PRODUCT_NAME_LINES = 3;
 

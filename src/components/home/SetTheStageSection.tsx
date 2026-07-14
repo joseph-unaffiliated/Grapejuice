@@ -10,6 +10,7 @@ import { getItemBrand } from '../../constants/catalogCuration';
 import type { CatalogItem } from '../../types/pilot';
 import type { MainTabsParamList, MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import {
@@ -76,6 +77,7 @@ function StageCard({
 
 /** Figma 370:3192 — Apparel / Decorations tiles in a horizontal card scrub. */
 export function SetTheStageSection({ apparel, decorations }: Props) {
+  const { isDesktop, contentColumnOffset } = useWebLayout();
   const navigation = useNavigation<
     CompositeNavigationProp<
       BottomTabNavigationProp<MainTabsParamList>,
@@ -83,7 +85,10 @@ export function SetTheStageSection({ apparel, decorations }: Props) {
     >
   >();
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createSetTheStageStyles(colors), [colors]);
+  const styles = useMemo(
+    () => createSetTheStageStyles(colors, contentColumnOffset),
+    [colors, contentColumnOffset],
+  );
   const openProduct = (itemId: string) => navigation.navigate('CatalogProduct', { itemId });
   const cards = [
     apparel.length ? { key: 'apparel', title: 'Apparel', items: apparel } : null,
@@ -94,7 +99,14 @@ export function SetTheStageSection({ apparel, decorations }: Props) {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Set the Stage</Text>
+      <Text
+        style={[
+          styles.sectionTitle,
+          isDesktop ? styles.sectionTitleInset : null,
+        ]}
+      >
+        Set the Stage
+      </Text>
       <View style={styles.railOuter}>
       <HorizontalDragScrollView
         horizontal
@@ -113,7 +125,7 @@ export function SetTheStageSection({ apparel, decorations }: Props) {
   );
 }
 
-function createSetTheStageStyles(colors: SemanticColors) {
+function createSetTheStageStyles(colors: SemanticColors, contentColumnOffset: number) {
   return StyleSheet.create({
     section: { gap: COLLECTION_RAIL_GAP, overflow: 'visible' as const },
     sectionTitle: {
@@ -123,12 +135,15 @@ function createSetTheStageStyles(colors: SemanticColors) {
       letterSpacing: -0.26,
       paddingHorizontal: MOBILE_GUTTER,
     },
+    sectionTitleInset: {
+      paddingHorizontal: contentColumnOffset + MOBILE_GUTTER,
+    },
     scrollBleed: horizontalRailScrollStyle(),
     railOuter: horizontalRailOuterStyle(),
     rail: horizontalRailContentStyle({
       gap: COLLECTION_RAIL_GAP,
       alignItems: 'stretch',
-      ...horizontalRailGutterPadding(MOBILE_GUTTER),
+      ...horizontalRailGutterPadding(MOBILE_GUTTER, { centerOffset: contentColumnOffset }),
     }),
     stageCardOuter: {
       borderRadius: 16,

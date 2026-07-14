@@ -278,6 +278,8 @@ export const shadowsWeb = {
   fab: '0px 2px 4px rgba(0,0,0,0.2)',
   goldGlow: '0px 0px 16px rgba(216, 201, 144, 0.50)',
   goldGlowSm: '0px 0px 8px rgba(216, 201, 144, 0.50)',
+  /** Sticky header / desktop sidebar — downward gold bar shadow */
+  goldBar: '0px 4px 12px rgba(216, 201, 144, 0.50)',
 };
 
 export const themeColors = {

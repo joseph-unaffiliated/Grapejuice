@@ -49,6 +49,8 @@ export function MainTabs() {
         tabBarActiveTintColor: colors.textPrimary,
         tabBarInactiveTintColor: colors.goldMuted,
         tabBarShowLabel: false,
+        sceneContainerStyle:
+          Platform.OS === 'web' && isDesktop ? { overflow: 'visible' as const } : undefined,
       }}
     >
       <Tab.Screen

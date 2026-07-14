@@ -27,7 +27,13 @@ import {
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
 import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
+import { spacing, MOBILE_GUTTER } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
+
+/** Matches HomeScreen desktop content top gap. */
+const CONTENT_TOP_GAP_DESKTOP = 41;
+const CONTENT_TOP_GAP = 24;
 
 type Props = {
   children: ChildProfile[];
@@ -37,11 +43,15 @@ type Props = {
   completing?: boolean;
 };
 
-/** Figma 370:3514 — curated box reveal with section tabs and item cards. */
+/** Figma 370:3514 — curated box reveal; desktop mirrors homepage centered content column. */
 export function BoxRevealScreen({ children, lineItems, onDone, completing }: Props) {
   const { colors } = useThemeMode();
-  const detailStyles = useMemo(() => createBoxDetailStyles(colors), [colors]);
-  const styles = useMemo(() => createRevealStyles(colors), [colors]);
+  const { isDesktop, layoutWidth } = useWebLayout();
+  const detailStyles = useMemo(
+    () => createBoxDetailStyles(colors, { desktop: isDesktop }),
+    [colors, isDesktop]
+  );
+  const styles = useMemo(() => createRevealStyles(colors, isDesktop), [colors, isDesktop]);
   const { scrollRef, activeSection, onSectionLayout, onScroll, scrollToSection } = useBoxDetailScroll();
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -114,39 +124,80 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
     );
   }
 
+  const body = (
+    <>
+      <BoxDetailToolbar
+        lockAt={lockAt}
+        now={now}
+        startsOn={startsOn}
+        estimatedDeliveryBy={estimatedDeliveryBy}
+        align={isDesktop ? 'left' : 'center'}
+      />
+      <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} />
+      {BOX_DISPLAY_SECTIONS.map((s) => renderSection(s.id))}
+      <BoxDetailReviewCta
+        onPress={() => void onDone()}
+        disabled={completing}
+        loading={completing}
+      />
+    </>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? [] : ['top']}>
-      <WebContentPanel gutter>
+      <WebContentPanel
+        flush={isDesktop}
+        gutter={!isDesktop}
+        centerDesktop={isDesktop}
+        omitDesktopTopPadding={isDesktop}
+        style={styles.panel}
+      >
         <ScrollView
           ref={scrollRef}
           style={styles.root}
-          contentContainerStyle={detailStyles.scrollContent}
+          contentContainerStyle={[
+            detailStyles.scrollContent,
+            styles.scrollContent,
+            isDesktop && styles.scrollContentDesktop,
+          ]}
           onScroll={onScroll}
           scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
         >
-          <BoxDetailToolbar
-            lockAt={lockAt}
-            now={now}
-            startsOn={startsOn}
-            estimatedDeliveryBy={estimatedDeliveryBy}
-          />
-          <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} />
-          {BOX_DISPLAY_SECTIONS.map((s) => renderSection(s.id))}
-          <BoxDetailReviewCta
-            onPress={() => void onDone()}
-            disabled={completing}
-            loading={completing}
-          />
+          {isDesktop ? (
+            <View style={[styles.contentColumn, { maxWidth: layoutWidth }]}>{body}</View>
+          ) : (
+            body
+          )}
         </ScrollView>
       </WebContentPanel>
     </SafeAreaView>
   );
 }
 
-function createRevealStyles(colors: SemanticColors) {
+function createRevealStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: colors.bgPrimary },
-    root: { flex: 1, backgroundColor: colors.bgPrimary },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgPrimary },
+    safeArea: { flex: 1, backgroundColor: colors.bgPrimary, minHeight: 0 },
+    panel: { overflow: 'visible' as const },
+    root: { flex: 1, backgroundColor: colors.bgPrimary, width: '100%' },
+    scrollContent: {
+      paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
+      paddingBottom: spacing.xxl,
+      width: '100%',
+    },
+    scrollContentDesktop: {
+      alignItems: 'stretch',
+    },
+    contentColumn: {
+      width: '100%',
+      alignSelf: 'center',
+      paddingHorizontal: MOBILE_GUTTER,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgPrimary,
+    },
   });
 }
