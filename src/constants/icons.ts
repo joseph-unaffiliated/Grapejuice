@@ -28,12 +28,16 @@ import {
   faImage,
   faStar,
   faChevronDown,
+  faAnglesLeft,
+  faAnglesRight,
   faFilter,
   faTrash,
   faPlus,
   faPaperPlane,
   faArrowUp,
   faThumbsUp,
+  faUtensils,
+  faDice,
 } from '@fortawesome/free-solid-svg-icons';
 
 export const icons = {
@@ -63,12 +67,16 @@ export const icons = {
   image: faImage,
   star: faStar,
   chevronDown: faChevronDown,
+  chevronsLeft: faAnglesLeft,
+  chevronsRight: faAnglesRight,
   filter: faFilter,
   trash: faTrash,
   plus: faPlus,
   paperPlane: faPaperPlane,
   arrowUp: faArrowUp,
   thumbsUp: faThumbsUp,
+  utensils: faUtensils,
+  dice: faDice,
 } as const;
 
 export type IconName = keyof typeof icons;

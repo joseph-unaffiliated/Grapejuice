@@ -59,7 +59,8 @@ export function GiftGiverCustomizeContent({
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { colors } = useThemeMode();
   const detailStyles = useMemo(() => createBoxDetailStyles(colors), [colors]);
-  const { scrollRef, activeSection, onSectionLayout, onScroll, scrollToSection } = useBoxDetailScroll();
+  const { scrollRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
+    useBoxDetailScroll();
   const [catalogById, setCatalogById] = useState<Record<string, CatalogItem>>({});
 
   useEffect(() => {
@@ -88,7 +89,12 @@ export function GiftGiverCustomizeContent({
     if (!items.length) return null;
 
     return (
-      <BoxDetailSectionBlock key={sectionId} sectionId={sectionId} onLayout={onSectionLayout(sectionId)}>
+      <BoxDetailSectionBlock
+        key={sectionId}
+        sectionId={sectionId}
+        onLayout={onSectionLayout(sectionId)}
+        onSectionRef={registerSection}
+      >
         {items.map((li) => {
           const item = catalogById[li.itemId];
           const kid = kidProfiles.find((c) => c.id === li.childId);

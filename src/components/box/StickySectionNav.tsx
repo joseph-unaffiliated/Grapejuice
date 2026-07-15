@@ -13,6 +13,7 @@ import { BOX_DISPLAY_SECTIONS } from '../../constants/boxDisplaySections';
 import { typography, spacing, typeface } from '../../constants/theme';
 import { BOX_DETAIL_TAB_GUTTER } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
 
 type Props = {
@@ -22,7 +23,8 @@ type Props = {
 
 export function StickySectionNav({ activeSection, onSelect }: Props) {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createNavStyles(colors), [colors]);
+  const { isDesktop } = useWebLayout();
+  const styles = useMemo(() => createNavStyles(colors, isDesktop), [colors, isDesktop]);
   const tabLayouts = useRef<Partial<Record<BoxDisplaySectionId, { x: number; width: number }>>>({});
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorW = useRef(new Animated.Value(0)).current;
@@ -82,11 +84,11 @@ export function StickySectionNav({ activeSection, onSelect }: Props) {
 }
 
 /** Figma 370:3524 — section tab row (sentence case, gold rule + black active bar). */
-function createNavStyles(colors: SemanticColors) {
+function createNavStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
     wrap: {
       paddingVertical: spacing.lg,
-      paddingHorizontal: BOX_DETAIL_TAB_GUTTER,
+      paddingHorizontal: isDesktop ? 0 : BOX_DETAIL_TAB_GUTTER,
       backgroundColor: colors.bgPrimary,
       zIndex: 10,
       ...(Platform.OS === 'web' ? { position: 'sticky' as const, top: 0 } : {}),
@@ -97,13 +99,15 @@ function createNavStyles(colors: SemanticColors) {
       position: 'relative',
       borderBottomWidth: 0.5,
       borderBottomColor: 'rgba(216,201,144,0.5)',
+      ...(isDesktop ? { justifyContent: 'flex-start', gap: spacing.lg } : null),
     },
     tab: {
-      flex: 1,
-      alignItems: 'center',
+      flex: isDesktop ? undefined : 1,
+      alignItems: isDesktop ? 'flex-start' : 'center',
       justifyContent: 'center',
       paddingBottom: 8,
-      minWidth: 0,
+      minWidth: isDesktop ? undefined : 0,
+      paddingRight: isDesktop ? spacing.sm : 0,
     },
     tabText: {
       fontSize: typography.sm,

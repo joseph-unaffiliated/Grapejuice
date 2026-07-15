@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Platform, ActivityIndicator } from 'react-native';
-import { WebPageContainer } from '../../components/ui/WebPageContainer';
-import { semanticColors, spacing, typography } from '../../constants/theme';
+import {
+  OnboardingScreenLayout,
+  onboardingBodyText,
+} from '../../components/onboarding/OnboardingScreenLayout';
+import { semanticColors, spacing, typography, typeface } from '../../constants/theme';
 
 type Props = {
   onComplete: () => void;
@@ -40,30 +43,35 @@ export function BuildingBoxScreen({ onComplete }: Props) {
   }, [fade]);
 
   return (
-    <WebPageContainer style={styles.wrapper}>
+    <OnboardingScreenLayout title="Building your box" hideFooter>
       <Animated.View style={[styles.root, { opacity: fade }]}>
         <ActivityIndicator size="large" color={semanticColors.brand} />
-        <Text style={styles.title}>Building your box</Text>
         <Text style={styles.step}>{BUILD_STEPS[stepIndex]}</Text>
-        <Text style={styles.body}>
+        <Text style={[onboardingBodyText.text, styles.body]}>
           We are curating candles, treats, kid picks, and a printed guide — matched to what you told us.
         </Text>
       </Animated.View>
-    </WebPageContainer>
+    </OnboardingScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  root: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  title: { fontSize: 24, fontWeight: '700', color: semanticColors.textPrimary, marginTop: spacing.xl },
-  step: { fontSize: typography.lg, color: semanticColors.goldMuted, marginTop: spacing.md },
-  body: {
-    fontSize: typography.md,
-    color: semanticColors.textSecondary,
+  root: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
+  step: {
+    ...typeface('regular'),
+    fontSize: typography.lg,
+    color: semanticColors.goldMuted,
+    marginTop: spacing.md,
     textAlign: 'center',
-    marginTop: spacing.lg,
-    lineHeight: 20,
+  },
+  body: {
+    textAlign: 'center',
+    marginTop: spacing.md,
     maxWidth: 320,
   },
 });

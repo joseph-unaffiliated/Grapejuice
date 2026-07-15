@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { CapacityRing } from './CapacityRing';
+import { useInViewOnce } from '../../hooks/useInViewOnce';
 import { spacing, typography, shadows, shadowsWeb, borderRadius, colors as palette } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -23,6 +24,7 @@ export function PassoverPreregisterCard({ capacityPercent, onRegister, registere
   const navigation = useNavigation<Nav>();
   const { colors: themeColors } = useThemeMode();
   const styles = useMemo(() => createPassoverCardStyles(themeColors), [themeColors]);
+  const { ref: inViewRef, inView } = useInViewOnce(0.4);
 
   const cardStyle = [
     styles.card,
@@ -52,13 +54,15 @@ export function PassoverPreregisterCard({ capacityPercent, onRegister, registere
   }
 
   return (
-    <TouchableOpacity style={cardStyle} onPress={onRegister} activeOpacity={0.9}>
-      <View style={styles.copyOpen}>
-        <Text style={styles.title}>Pre-register for Passover 2027</Text>
-        <Text style={styles.sub}>Spots are filling up. Sign up soon.</Text>
-      </View>
-      <CapacityRing percent={capacityPercent} />
-    </TouchableOpacity>
+    <View ref={inViewRef} collapsable={false}>
+      <TouchableOpacity style={cardStyle} onPress={onRegister} activeOpacity={0.9}>
+        <View style={styles.copyOpen}>
+          <Text style={styles.title}>Pre-register for Passover 2027</Text>
+          <Text style={styles.sub}>Spots are filling up. Sign up soon.</Text>
+        </View>
+        <CapacityRing percent={capacityPercent} animate={inView} deferUntilAnimate />
+      </TouchableOpacity>
+    </View>
   );
 }
 

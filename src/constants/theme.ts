@@ -201,7 +201,11 @@ export const LAYOUT = {
   WEB_WIDE_PANEL_MAX_WIDTH: 1120,
   WEB_CONTENT_GUTTER: 32,
   WEB_AUTH_CARD_MAX_WIDTH: 440,
-  WEB_SIDEBAR_WIDTH: 168,
+  WEB_SIDEBAR_WIDTH: 242,
+  /** icon column + equal gutters when collapsed (18 + 36 + 18). */
+  WEB_SIDEBAR_COLLAPSED_WIDTH: 72,
+  WEB_SIDEBAR_COLLAPSED_GUTTER: 18,
+  WEB_SIDEBAR_COLLAPSED_ITEM: 36,
   BREAKPOINT_TABLET: 768,
   BREAKPOINT_DESKTOP: 1024,
 } as const;
@@ -274,6 +278,8 @@ export const shadowsWeb = {
   fab: '0px 2px 4px rgba(0,0,0,0.2)',
   goldGlow: '0px 0px 16px rgba(216, 201, 144, 0.50)',
   goldGlowSm: '0px 0px 8px rgba(216, 201, 144, 0.50)',
+  /** Sticky header / desktop sidebar — downward gold bar shadow */
+  goldBar: '0px 4px 12px rgba(216, 201, 144, 0.50)',
 };
 
 export const themeColors = {

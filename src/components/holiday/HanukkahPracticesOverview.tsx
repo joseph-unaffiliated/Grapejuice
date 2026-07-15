@@ -1,16 +1,21 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Platform,
+  TouchableOpacity,
+  Animated,
+  Easing,
 } from 'react-native';
 import {
   HANUKKAH_PRACTICES,
   HANUKKAH_PRACTICES_INTRO,
   type HanukkahPractice,
 } from '../../constants/hanukkahPractices';
+import { icons } from '../../constants/icons';
+import { Icon } from '../ui/Icon';
 import { semanticColors, spacing, typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
 import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDimensions';
 import { useWebLayout } from '../../hooks/useWebLayout';
@@ -19,6 +24,31 @@ const THUMB_SIZE = 72;
 const GRID_GAP = spacing.sm;
 const CARD_INNER_WIDTH = 2 * THUMB_SIZE + GRID_GAP;
 const CARD_WIDTH = CARD_INNER_WIDTH + spacing.md * 2;
+const ACCORDION_MS = 260;
+/** Matches goldGlowSm blur (8px) so ScrollView overflowX doesn't clip the side glow. */
+const STACK_SHADOW_BLEED = 8;
+/** Accordion body always animates against this ceiling — keep in sync with maxHeight below. */
+const STACK_BODY_MAX_HEIGHT = 280;
+/** stackHeader paddingVertical sm×2 + title (typography.xl). */
+const STACK_ROW_HEADER_HEIGHT = spacing.sm * 2 + typography.xl;
+
+const PRACTICE_ICONS: Record<string, (typeof icons)[keyof typeof icons]> = {
+  candles: icons.candle,
+  latkes: icons.utensils,
+  story: icons.book,
+  dreidel: icons.dice,
+};
+
+const goldGlowStyle =
+  Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlowSm } as object) : shadows.goldGlow;
+
+/** Mouse clicks should not move focus — avoids the browser focus-ring flash on press. */
+const WEB_SUPPRESS_MOUSE_FOCUS =
+  Platform.OS === 'web'
+    ? ({
+        onMouseDown: (e: { preventDefault(): void }) => e.preventDefault(),
+      } as object)
+    : {};
 
 type Props = {
   layout?: 'carousel' | 'stack';
@@ -46,13 +76,8 @@ function PracticeThumbGrid({ items }: { items: string[] }) {
 }
 
 function PracticeCard({ practice }: { practice: HanukkahPractice }) {
-  const cardStyle = [
-    styles.practiceCard,
-    { width: CARD_WIDTH, minWidth: CARD_WIDTH },
-    Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlow } : shadows.goldGlow,
-  ];
   return (
-    <View style={cardStyle}>
+    <View style={[styles.practiceCard, { width: CARD_WIDTH, minWidth: CARD_WIDTH }, goldGlowStyle]}>
       <Text style={styles.practiceTitle}>{practice.title}</Text>
       <Text style={styles.practiceTagline}>{practice.tagline}</Text>
       <PracticeThumbGrid items={practice.boxItems} />
@@ -60,18 +85,97 @@ function PracticeCard({ practice }: { practice: HanukkahPractice }) {
   );
 }
 
-function PracticeStackRow({ practice }: { practice: HanukkahPractice }) {
+function PracticeAccordionRow({
+  practice,
+  expanded,
+  onToggle,
+}: {
+  practice: HanukkahPractice;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const chevron = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const bodyProgress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const [bodyMounted, setBodyMounted] = useState(expanded);
+  const icon = PRACTICE_ICONS[practice.id] ?? icons.star;
+
+  useEffect(() => {
+    Animated.timing(chevron, {
+      toValue: expanded ? 1 : 0,
+      duration: ACCORDION_MS,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [chevron, expanded]);
+
+  useEffect(() => {
+    if (expanded) setBodyMounted(true);
+
+    const anim = Animated.timing(bodyProgress, {
+      toValue: expanded ? 1 : 0,
+      duration: ACCORDION_MS,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: false,
+    });
+
+    anim.start(({ finished }) => {
+      if (finished && !expanded) setBodyMounted(false);
+    });
+
+    return () => anim.stop();
+  }, [bodyProgress, expanded]);
+
+  const chevronRotate = chevron.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
   return (
-    <View style={styles.stackRow}>
-      <Text style={styles.stackTitle}>{practice.title}</Text>
-      <Text style={styles.stackTagline}>{practice.tagline}</Text>
-      <Text style={styles.stackBody}>{practice.description}</Text>
-      <Text style={styles.stackBoxLabel}>In your box</Text>
-      {practice.boxItems.map((item) => (
-        <Text key={item} style={styles.stackBoxItem}>
-          · {item}
-        </Text>
-      ))}
+    // Glow on the outer wrap — stackRow keeps overflow:hidden for the accordion clip.
+    <View style={[styles.stackRowOuter, goldGlowStyle]}>
+      <View style={styles.stackRow}>
+        <TouchableOpacity
+          onPress={onToggle}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={practice.title}
+          style={styles.stackHeader}
+          {...WEB_SUPPRESS_MOUSE_FOCUS}
+        >
+          <View style={styles.stackTitleRow}>
+            <Icon icon={icon} size={14} color={semanticColors.goldMuted} />
+            <Text style={styles.stackTitle}>{practice.title}</Text>
+          </View>
+          <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+            <Icon icon={icons.chevronDown} size={10} color={semanticColors.goldMuted} />
+          </Animated.View>
+        </TouchableOpacity>
+
+        {bodyMounted ? (
+          <Animated.View
+            style={[
+              styles.stackBodyWrap,
+              {
+                opacity: bodyProgress,
+                maxHeight: bodyProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, STACK_BODY_MAX_HEIGHT],
+                }),
+              },
+            ]}
+          >
+            <Text style={styles.stackTagline}>{practice.tagline}</Text>
+            <Text style={styles.stackBody}>{practice.description}</Text>
+            <Text style={styles.stackBoxLabel}>In your box</Text>
+            {practice.boxItems.map((item) => (
+              <Text key={item} style={styles.stackBoxItem}>
+                · {item}
+              </Text>
+            ))}
+          </Animated.View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -88,8 +192,19 @@ export function HanukkahPracticesOverview({
     () => Math.min(CARD_WIDTH, Math.floor(contentWidth * 0.82)),
     [contentWidth]
   );
+  const [openPracticeId, setOpenPracticeId] = useState<string>(HANUKKAH_PRACTICES[0]?.id ?? 'candles');
 
   if (layout === 'stack') {
+    const practiceCount = HANUKKAH_PRACTICES.length;
+    // Desktop only: reserve N headers + one body so onboarding chrome doesn't shift.
+    // Mobile lets the list size naturally — the shell scrolls behind sticky CTAs.
+    const stackListHeight = isDesktop
+      ? practiceCount * STACK_ROW_HEADER_HEIGHT +
+        Math.max(0, practiceCount - 1) * GRID_GAP +
+        STACK_BODY_MAX_HEIGHT +
+        STACK_SHADOW_BLEED * 2
+      : undefined;
+
     return (
       <View style={styles.stackSection}>
         {showIntro ? (
@@ -98,9 +213,18 @@ export function HanukkahPracticesOverview({
             <Text style={styles.intro}>{HANUKKAH_PRACTICES_INTRO}</Text>
           </>
         ) : null}
-        {HANUKKAH_PRACTICES.map((practice) => (
-          <PracticeStackRow key={practice.id} practice={practice} />
-        ))}
+        <View style={[styles.stackList, stackListHeight != null ? { height: stackListHeight } : null]}>
+          {HANUKKAH_PRACTICES.map((practice) => (
+            <PracticeAccordionRow
+              key={practice.id}
+              practice={practice}
+              expanded={openPracticeId === practice.id}
+              onToggle={() => {
+                if (practice.id !== openPracticeId) setOpenPracticeId(practice.id);
+              }}
+            />
+          ))}
+        </View>
       </View>
     );
   }
@@ -194,40 +318,78 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   stackSection: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  stackList: {
+    gap: GRID_GAP,
+    // Inset so goldGlowSm clears ScrollView overflowX / vertical overflow clip.
+    paddingHorizontal: STACK_SHADOW_BLEED,
+    paddingVertical: STACK_SHADOW_BLEED,
+    marginVertical: -STACK_SHADOW_BLEED,
+    overflow: 'visible' as const,
+  },
+  stackRowOuter: {
+    borderRadius: borderRadius.xl,
+    overflow: 'visible' as const,
   },
   stackRow: {
-    backgroundColor: semanticColors.accentCream,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    borderRadius: borderRadius.xl,
+    backgroundColor: semanticColors.bgPrimary,
+    overflow: 'hidden',
+  },
+  stackHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.sm,
+    ...(Platform.OS === 'web'
+      ? ({ outlineStyle: 'none', outlineWidth: 0, boxShadow: 'none' } as object)
+      : {}),
+  },
+  stackTitleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minWidth: 0,
   },
   stackTitle: {
+    flex: 1,
     fontSize: typography.xl,
-    fontWeight: '700',
-    color: semanticColors.textPrimary,
+    fontWeight: '400',
+    color: '#000000',
+  },
+  stackBodyWrap: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+    overflow: 'hidden',
   },
   stackTagline: {
     fontSize: typography.sm,
+    fontWeight: '200',
     color: semanticColors.goldMuted,
-    marginTop: 2,
     marginBottom: spacing.sm,
   },
   stackBody: {
-    fontSize: typography.md,
-    color: semanticColors.textSecondary,
-    lineHeight: 18,
+    fontSize: typography.sm,
+    fontWeight: '200',
+    color: '#000000',
+    lineHeight: 16.5,
     marginBottom: spacing.sm,
   },
   stackBoxLabel: {
     fontSize: typography.sm,
-    fontWeight: '600',
-    color: semanticColors.textPrimary,
+    fontWeight: '400',
+    color: semanticColors.goldMuted,
     marginBottom: spacing.xs,
   },
   stackBoxItem: {
     fontSize: typography.sm,
-    color: semanticColors.textSecondary,
-    lineHeight: 18,
+    fontWeight: '200',
+    color: '#000000',
+    lineHeight: 16.5,
   },
 });

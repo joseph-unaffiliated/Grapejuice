@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import type { DeliveryTimelineStep } from '../../types/pilot';
-import { spacing, typography, shadows, shadowsWeb } from '../../constants/theme';
+import { spacing, typography, shadows, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
@@ -20,37 +20,46 @@ export function DeliveryTrackingCard({ title, subtitle, steps }: Props) {
   ];
 
   return (
-    <View style={cardStyle}>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      <View style={styles.timeline}>
-        {steps.map((step, index) => (
-          <View key={step.id} style={styles.stepRow}>
-            <View style={styles.stepRail}>
-              <View
-                style={[
-                  styles.dot,
-                  step.completed && styles.dotCompleted,
-                  step.active && styles.dotActive,
-                ]}
-              />
-              {index < steps.length - 1 ? (
-                <View style={[styles.line, step.completed && styles.lineCompleted]} />
-              ) : null}
+    <View style={styles.shadowWrap}>
+      <View style={cardStyle}>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        <View style={styles.timeline}>
+          {steps.map((step, index) => (
+            <View key={step.id} style={styles.stepRow}>
+              <View style={styles.stepRail}>
+                <View
+                  style={[
+                    styles.dot,
+                    step.completed && styles.dotCompleted,
+                    step.active && styles.dotActive,
+                  ]}
+                />
+                {index < steps.length - 1 ? (
+                  <View style={[styles.line, step.completed && styles.lineCompleted]} />
+                ) : null}
+              </View>
+              <View style={styles.stepBody}>
+                <Text style={[styles.stepLabel, step.active && styles.stepLabelActive]}>{step.label}</Text>
+                {step.detail ? <Text style={styles.stepDetail}>{step.detail}</Text> : null}
+              </View>
             </View>
-            <View style={styles.stepBody}>
-              <Text style={[styles.stepLabel, step.active && styles.stepLabelActive]}>{step.label}</Text>
-              {step.detail ? <Text style={styles.stepDetail}>{step.detail}</Text> : null}
-            </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </View>
     </View>
   );
 }
 
 function createDeliveryStyles(colors: SemanticColors) {
+  const SHADOW_BLEED = 8;
   return StyleSheet.create({
+    shadowWrap: {
+      overflow: 'visible' as const,
+      paddingHorizontal: MOBILE_GUTTER,
+      paddingBottom: SHADOW_BLEED,
+      marginBottom: -SHADOW_BLEED,
+    },
     card: {
       padding: spacing.lg,
       borderRadius: 16,

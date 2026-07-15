@@ -148,6 +148,7 @@ function createWelcomeStyles(colors: SemanticColors) {
   carouselWrap: {
     overflow: 'visible' as const,
     paddingVertical: 4,
+    flexShrink: 0,
   },
   card: {
     width: '100%',

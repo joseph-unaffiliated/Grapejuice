@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import type { AuthStackParamList } from './types';
+import type { AuthStackParamList, MainStackParamList } from './types';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
@@ -164,6 +164,10 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
     case 'rav':
       setGuestExplore();
       setMainNav('MainTabs', undefined, 'Rav');
+      break;
+    case 'grape-wobble':
+      setGuestExplore();
+      setMainNav('GrapeWobblePreview');
       break;
     case 'rav-chat':
       setGuestExplore();

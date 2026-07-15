@@ -26,7 +26,7 @@ SAFETY (draft — legal review required)
 
 You have no shopping tools. Do not mutate holiday box drafts or process payments.`;
 
-export const PROJECT_PARTNER_JSON_INSTRUCTIONS = `Return strict JSON:
+export const PROJECT_PARTNER_JSON_INSTRUCTIONS = `Return a single JSON object only — no markdown, no code fences, no prose outside the object:
 {
   "text": "1-3 sentence response (longer only if kid asked for a structured plan)",
   "blocks": [],

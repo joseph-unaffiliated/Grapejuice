@@ -8,6 +8,8 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
@@ -45,7 +47,6 @@ import { HomeHeroCard } from '../../components/home/HomeHeroCard';
 import { MyBoxesWelcomeCard } from '../../components/home/MyBoxesWelcomeCard';
 import { SetTheStageSection } from '../../components/home/SetTheStageSection';
 import { DeliveryTrackingCard } from '../../components/home/DeliveryTrackingCard';
-import { AddToCalendarMenu } from '../../components/holiday/AddToCalendarMenu';
 import { PassoverPreregisterCard } from '../../components/home/PassoverPreregisterCard';
 import { HANUKKAH_TIMELINE_2026 } from '../../constants/hanukkahTimeline';
 import {
@@ -60,16 +61,25 @@ import {
   spacing,
   borderRadius,
   shadows,
+  shadowsWeb,
   typography,
   MOBILE_GUTTER,
+  LAYOUT,
   tabBarTotalHeight,
 } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDimensions';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useMeasuredContentColumnOffset } from '../../hooks/useMeasuredContentColumnOffset';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { SearchPill } from '../../components/ui/SearchPill';
+import {
+  HomeStickySearchHeader,
+  HEADER_DESKTOP_TOP_PAD,
+  HOME_HEADER_COLLAPSE_MS,
+  HOME_HEADER_COLLAPSE_RANGE,
+} from '../../components/home/HomeStickySearchHeader';
+import { TextWithChevron } from '../../components/ui/TextWithChevron';
 import { FIGMA_HERO_SUBTITLE, isFigmaCompareCapture } from '../../utils/figmaCompare';
 
 type Nav = CompositeNavigationProp<
@@ -77,10 +87,10 @@ type Nav = CompositeNavigationProp<
   StackNavigationProp<MainStackParamList>
 >;
 
-const HEADER_CHIP_GAP = 16;
-const HEADER_BOTTOM_PAD = 16;
 const CONTENT_TOP_GAP = 24;
 const SCROLL_GAP = 24;
+const CONTENT_TOP_GAP_DESKTOP = 41;
+const SCROLL_GAP_DESKTOP = 41;
 const SHADOW_BLEED = 8;
 
 /** Category chips scroll to collection sections on Home. */
@@ -92,22 +102,20 @@ const CATEGORY_CHIPS = [
   { id: 'decorations', label: 'Decorations' },
 ] as const;
 
-function myBoxCardWidth(screenWidth: number) {
-  return Math.floor((screenWidth * 3) / 5);
-}
-
-/** Align active box card height with peek welcome card in the My Boxes carousel. */
-const MY_BOXES_CAROUSEL_MAX_HEIGHT = 360;
+/** Active Hanukkah card is content-sized (grid), not a screen-width fraction. */
+const MY_BOXES_GRID_CELL_TARGET = 100;
+const MY_BOXES_ACTIVE_CARD_WIDTH = spacing.md * 2 + MY_BOXES_GRID_CELL_TARGET * 2 + 4;
+/**
+ * Peek “Add More” needs room for holiday rows (64px thumb + copy + CTAs).
+ * Keep this wider than the Hanukkah card — do not share the same width formula.
+ */
+const MY_BOXES_PEEK_CARD_WIDTH = 400;
 
 function gridCellForCard(cardWidth: number) {
-  const horizontalPad = 32;
+  const horizontalPad = spacing.md * 2;
   const content = cardWidth - horizontalPad;
   const widthBased = Math.floor((content - 4) / 2);
-  const headerBlock = 94;
-  const rowGaps = 8;
-  const maxGridHeight = MY_BOXES_CAROUSEL_MAX_HEIGHT - headerBlock - rowGaps;
-  const heightBased = Math.floor(maxGridHeight / 3);
-  return Math.min(widthBased, heightBased);
+  return Math.min(widthBased, MY_BOXES_GRID_CELL_TARGET);
 }
 
 function heroSubtext(
@@ -140,11 +148,19 @@ function statusLine(phase: string, locked: boolean, lockCountdown: string | null
 
 export function HomeScreen() {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createHomeStyles(colors), [colors]);
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useEffectiveWindowDimensions();
-  const { isDesktop, layoutWidth } = useWebLayout();
+  const { isDesktop, layoutWidth, contentColumnOffset: layoutContentOffset } = useWebLayout();
+  const { contentColumnOffset: measuredContentOffset, onLayoutContainer } =
+    useMeasuredContentColumnOffset(layoutWidth, isDesktop);
+  // Prefer the live-measured main-area width so rails stay aligned while the sidebar animates.
+  const contentColumnOffset =
+    measuredContentOffset > 0 ? measuredContentOffset : layoutContentOffset;
+  const styles = useMemo(
+    () => createHomeStyles(colors, isDesktop, contentColumnOffset),
+    [colors, isDesktop, contentColumnOffset],
+  );
   const contentWidth = isDesktop ? layoutWidth : screenWidth;
   const { household, loading: sessionLoading } = useSession();
   const { lineItems, loading: draftLoading } = useBoxDraft();
@@ -154,6 +170,32 @@ export function HomeScreen() {
   const toggleGuestInterest = useGuestSessionStore((s) => s.toggleInterest);
 
   const scrollRef = useRef<ScrollView>(null);
+  const collapseProgress = useRef(new Animated.Value(0)).current;
+  const headerCollapsedRef = useRef(false);
+  const headerCollapseAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const setHeaderCollapsed = useCallback((collapsed: boolean) => {
+    if (headerCollapsedRef.current === collapsed) return;
+    headerCollapsedRef.current = collapsed;
+    headerCollapseAnimRef.current?.stop();
+    headerCollapseAnimRef.current = Animated.timing(collapseProgress, {
+      toValue: collapsed ? 1 : 0,
+      duration: HOME_HEADER_COLLAPSE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    headerCollapseAnimRef.current.start();
+  }, [collapseProgress]);
+
+  const onHomeScroll = useCallback(
+    (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const y = event.nativeEvent.contentOffset.y;
+      // Hysteresis: fire a full timed transition instead of scrubbing with scroll.
+      if (y >= HOME_HEADER_COLLAPSE_RANGE) setHeaderCollapsed(true);
+      else if (y <= 8) setHeaderCollapsed(false);
+    },
+    [setHeaderCollapsed],
+  );
   const [hanukkahSectionY, setHanukkahSectionY] = useState(0);
   const [hanukkiahSectionY, setHanukkiahSectionY] = useState(0);
   const [dreidelSectionY, setDreidelSectionY] = useState(0);
@@ -178,7 +220,7 @@ export function HomeScreen() {
     }
   }, [beginBoxBuild, navigation]);
 
-  const cardWidth = useMemo(() => myBoxCardWidth(contentWidth), [contentWidth]);
+  const cardWidth = MY_BOXES_ACTIVE_CARD_WIDTH;
   const gridCell = useMemo(() => gridCellForCard(cardWidth), [cardWidth]);
   const itemCount = lineItems.length;
   const hasOrder = orders.some(
@@ -301,8 +343,29 @@ export function HomeScreen() {
 
   const headerShadow =
     Platform.OS === 'web'
-      ? ({ boxShadow: '0px 4px 12px rgba(216, 201, 144, 0.50)' } as object)
+      ? ({ boxShadow: shadowsWeb.goldBar } as object)
       : shadows.goldGlow;
+
+  const expandedHeaderPaddingTop = isDesktop
+    ? HEADER_DESKTOP_TOP_PAD
+    : Platform.OS === 'web'
+      ? spacing.md
+      : Math.max(insets.top, spacing.md);
+
+  const headerBlock = (
+    <HomeStickySearchHeader
+      collapseProgress={collapseProgress}
+      isDesktop={isDesktop}
+      contentWidth={contentWidth}
+      expandedPaddingTop={expandedHeaderPaddingTop}
+      searchQuery={searchQuery}
+      onChangeSearch={setSearchQuery}
+      onSubmitSearch={submitSearch}
+      chips={CATEGORY_CHIPS}
+      onChipPress={handleCategoryChip}
+      headerShadow={headerShadow}
+    />
+  );
 
   const scrollBottomPad = tabBarTotalHeight(Math.max(insets.bottom, 0)) + spacing.lg;
 
@@ -316,49 +379,38 @@ export function HomeScreen() {
 
   return (
     <View style={styles.wrapper}>
-      <WebContentPanel flush style={styles.panel}>
-        <View
-          style={[
-            styles.header,
-            styles.headerSticky,
-            headerShadow,
-            {
-              paddingTop: Platform.OS === 'web' ? spacing.md : Math.max(insets.top, spacing.md),
-              paddingBottom: HEADER_BOTTOM_PAD,
-            },
-          ]}
-        >
-          <View style={styles.headerSearch}>
-            <SearchPill
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={submitSearch}
-            />
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipsScroll}
-            contentContainerStyle={styles.categoryChips}
-          >
-            {CATEGORY_CHIPS.map((chip) => (
-              <TouchableOpacity
-                key={chip.id}
-                style={styles.categoryChip}
-                onPress={() => handleCategoryChip(chip.id)}
-              >
-                <Text style={styles.categoryChipText}>{chip.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+      {isDesktop ? headerBlock : null}
+      <WebContentPanel
+        flush
+        omitDesktopTopPadding={isDesktop}
+        centerDesktop={isDesktop}
+        style={styles.panel}
+      >
+        {!isDesktop ? headerBlock : null}
 
-        <ScrollView
+        <View
+          style={[styles.scrollHost, isDesktop && styles.scrollHostDesktopBleed]}
+          onLayout={isDesktop ? onLayoutContainer : undefined}
+          testID="home-scroll-host"
+        >
+        <Animated.ScrollView
           ref={scrollRef}
           style={styles.scrollView}
-          contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPad }]}
+          contentContainerStyle={[
+            styles.scrollBody,
+            isDesktop && styles.scrollBodyDesktop,
+            { paddingBottom: scrollBottomPad },
+          ]}
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onHomeScroll}
+          {...(Platform.OS === 'web' ? { className: 'gj-home-scroll', testID: 'home-vertical-scroll' } : {})}
         >
+          <View style={styles.scrollContent} testID="home-scroll-content">
+          <View
+            style={[styles.contentColumn, isDesktop ? { maxWidth: layoutWidth, alignSelf: 'center' as const } : null]}
+            testID="home-content-column"
+          >
           {showDeliveryTracking ? (
             <DeliveryTrackingCard
               title={heroTitle}
@@ -386,7 +438,12 @@ export function HomeScreen() {
                   <Text style={styles.phaseBody}>{n.title} — {n.prompt}</Text>
                 </View>
               ))}
-              <Text style={styles.phaseLink}>Open tonight&apos;s guide →</Text>
+              <TextWithChevron
+                text={"Open tonight's guide →"}
+                textStyle={styles.phaseLink}
+                style={styles.phaseLinkRow}
+                iconColor={colors.brand}
+              />
             </TouchableOpacity>
           ) : phase === 'during' ? (
             <View style={styles.phaseCard}>
@@ -404,7 +461,12 @@ export function HomeScreen() {
             <TouchableOpacity style={styles.phaseCard} onPress={() => navigation.navigate('Reflection')}>
               <Text style={styles.phaseTitle}>Hanukkah debrief</Text>
               <Text style={styles.phaseBody}>Share how Hanukkah went — and unlock $80 toward Passover next year.</Text>
-              <Text style={styles.phaseLink}>Start debrief →</Text>
+              <TextWithChevron
+                text="Start debrief →"
+                textStyle={styles.phaseLink}
+                style={styles.phaseLinkRow}
+                iconColor={colors.brand}
+              />
             </TouchableOpacity>
           ) : null}
 
@@ -414,128 +476,152 @@ export function HomeScreen() {
               onPress={() => navigation.navigate('AboutHanukkah')}
               activeOpacity={0.85}
             >
-              <Text style={styles.phaseLink}>About Hanukkah — light primer →</Text>
+              <TextWithChevron
+                text="About Hanukkah — light primer →"
+                textStyle={styles.phaseLink}
+                style={styles.phaseLinkRow}
+                iconColor={colors.brand}
+              />
             </TouchableOpacity>
           ) : null}
+          </View>
 
-          {!locked && lockAt ? (
-            <View style={[styles.gutterPad, styles.calendarWrap]}>
-              <AddToCalendarMenu
-                startsOn={startsOn}
-                lockAt={lockAt}
-                estimatedDeliveryBy={primaryOrder?.estimatedDelivery ?? estimatedDelivery}
-                compact
-              />
-            </View>
-          ) : null}
-
-          <View style={styles.section} onLayout={(e) => setHanukkahSectionY(e.nativeEvent.layout.y)}>
-            <View style={[styles.sectionHeader, styles.gutterPad]}>
-              <Text style={styles.sectionTitle}>My Boxes</Text>
-            </View>
+          <View style={styles.railBleedSection} testID="home-my-boxes-rail">
+          <View
+            style={styles.collectionBlock}
+            onLayout={(e) => setHanukkahSectionY(e.nativeEvent.layout.y)}
+          >
+            <Text
+              style={[
+                styles.collectionHeading,
+                isDesktop ? styles.sectionTitleInset : styles.gutterPad,
+              ]}
+            >
+              My Boxes
+            </Text>
 
             {!hasBoxStarted && !hasOrder ? (
-              <MyBoxesWelcomeCard
-                onPress={openBox}
-                passoverRegistered={passoverNotified}
-                onPassoverPreregister={handlePassoverPreregister}
-                onPreregisterInterest={handleToggleInterest}
-              />
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.myBoxesScroll}
-                contentContainerStyle={styles.myBoxesRow}
-              >
-                <View style={styles.myBoxShadowWrap}>
-                  <TouchableOpacity
-                    style={myBoxCardStyle}
-                    onPress={openBox}
-                    activeOpacity={0.85}
-                  >
-                    <MyBoxesCardHeader
-                      title="Hanukkah"
-                      subtitle={
-                        hasBoxStarted
-                          ? `Annual  •  ${itemCount} item${itemCount === 1 ? '' : 's'}`
-                          : statusLine(phase, locked, lockCountdown, hasOrder, primaryOrder)
-                      }
-                    />
-                    <View style={styles.myBoxGrid}>
-                      {[0, 1, 2].map((row) => (
-                        <View key={row} style={styles.myBoxGridRow}>
-                          {[0, 1].map((col) => {
-                            const idx = row * 2 + col;
-                            const item = previewItems[idx];
-                            return (
-                              <BoxItemImage
-                                key={col}
-                                size={gridCell}
-                                imageUrl={item?.imageUrl}
-                                itemId={item?.id}
-                                style={styles.myBoxGridCell}
-                              />
-                            );
-                          })}
-                        </View>
-                      ))}
-                    </View>
-                  </TouchableOpacity>
-                </View>
+              <View style={isDesktop ? styles.sectionTitleInset : styles.gutterPad}>
                 <MyBoxesWelcomeCard
-                  width={Math.floor(cardWidth * 0.92)}
-                  peek
                   onPress={openBox}
                   passoverRegistered={passoverNotified}
                   onPassoverPreregister={handlePassoverPreregister}
                   onPreregisterInterest={handleToggleInterest}
                 />
-              </ScrollView>
+              </View>
+            ) : (
+              <View style={styles.collectionRailOuter}>
+                <HorizontalDragScrollView
+                  horizontal
+                  nestedScrollEnabled
+                  directionalLockEnabled
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.collectionScroll}
+                  contentContainerStyle={styles.myBoxesRow}
+                >
+                  <View style={styles.myBoxShadowWrap}>
+                    <TouchableOpacity
+                      style={myBoxCardStyle}
+                      onPress={openBox}
+                      activeOpacity={0.85}
+                    >
+                      <MyBoxesCardHeader
+                        title="Hanukkah"
+                        subtitle={
+                          hasBoxStarted
+                            ? `Annual  •  ${itemCount} item${itemCount === 1 ? '' : 's'}`
+                            : statusLine(phase, locked, lockCountdown, hasOrder, primaryOrder)
+                        }
+                      />
+                      <View style={styles.myBoxGrid}>
+                        {[0, 1, 2].map((row) => (
+                          <View key={row} style={styles.myBoxGridRow}>
+                            {[0, 1].map((col) => {
+                              const idx = row * 2 + col;
+                              const item = previewItems[idx];
+                              return (
+                                <BoxItemImage
+                                  key={col}
+                                  size={gridCell}
+                                  imageUrl={item?.imageUrl}
+                                  itemId={item?.id}
+                                  style={styles.myBoxGridCell}
+                                />
+                              );
+                            })}
+                          </View>
+                        ))}
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                  <MyBoxesWelcomeCard
+                    width={MY_BOXES_PEEK_CARD_WIDTH}
+                    peek
+                    onPress={openBox}
+                    passoverRegistered={passoverNotified}
+                    onPassoverPreregister={handlePassoverPreregister}
+                    onPreregisterInterest={handleToggleInterest}
+                  />
+                </HorizontalDragScrollView>
+              </View>
             )}
           </View>
+          </View>
 
+          <View
+            style={styles.railBleedSection}
+            testID="home-rail-bleed"
+          >
           <View style={styles.collectionSection}>
-            <View style={styles.collectionBlock} onLayout={(e) => setHanukkiahSectionY(e.nativeEvent.layout.y)}>
-              <Text style={[styles.collectionHeading, styles.gutterPad]}>Build your Collection</Text>
-              <View style={styles.collectionRailOuter}>
-              <HorizontalDragScrollView
-                horizontal
-                nestedScrollEnabled
-                directionalLockEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.collectionScroll}
-                contentContainerStyle={styles.collectionRow}
+            <View
+              style={styles.collectionBlock}
+              onLayout={(e) => {
+                const y = e.nativeEvent.layout.y;
+                setHanukkiahSectionY(y);
+                setDreidelSectionY(y);
+              }}
+            >
+              <Text
+                style={[
+                  styles.collectionHeading,
+                  isDesktop ? styles.sectionTitleInset : styles.gutterPad,
+                ]}
               >
-                <CatalogProductRail
-                  title={COLLECTION_RAILS[0]?.title ?? 'Hanukkiahs'}
-                  items={hanukkiahItems}
-                />
-              </HorizontalDragScrollView>
-              </View>
-            </View>
-            <View onLayout={(e) => setDreidelSectionY(e.nativeEvent.layout.y)}>
+                Build your Collection
+              </Text>
               <View style={styles.collectionRailOuter}>
-              <HorizontalDragScrollView
-                horizontal
-                nestedScrollEnabled
-                directionalLockEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.collectionScroll}
-                contentContainerStyle={styles.collectionRow}
-              >
-                <CatalogProductRail
-                  title={COLLECTION_RAILS[1]?.title ?? 'Dreidels'}
-                  items={dreidelItems}
-                />
-              </HorizontalDragScrollView>
+                <HorizontalDragScrollView
+                  horizontal
+                  nestedScrollEnabled
+                  directionalLockEnabled
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.collectionScroll}
+                  contentContainerStyle={styles.collectionRow}
+                >
+                  <CatalogProductRail
+                    title={COLLECTION_RAILS[0]?.title ?? 'Hanukkiahs'}
+                    items={hanukkiahItems}
+                  />
+                  <CatalogProductRail
+                    title={COLLECTION_RAILS[1]?.title ?? 'Dreidels'}
+                    items={dreidelItems}
+                  />
+                </HorizontalDragScrollView>
               </View>
             </View>
             <View onLayout={(e) => setApparelSectionY(e.nativeEvent.layout.y)}>
-              <SetTheStageSection apparel={apparelItems} decorations={decorationItems} />
+              <SetTheStageSection
+                apparel={apparelItems}
+                decorations={decorationItems}
+                contentColumnOffset={contentColumnOffset}
+              />
             </View>
           </View>
+          </View>
 
+          <View
+            style={[styles.contentColumn, isDesktop ? { maxWidth: layoutWidth, alignSelf: 'center' as const } : null]}
+          >
           <View style={styles.passoverWrap}>
             <PassoverPreregisterCard
               capacityPercent={passoverCapacity}
@@ -543,58 +629,72 @@ export function HomeScreen() {
               onRegister={handlePassoverPreregister}
             />
           </View>
+          </View>
+          </View>
 
-        </ScrollView>
+        </Animated.ScrollView>
+        </View>
       </WebContentPanel>
     </View>
   );
 }
 
-function createHomeStyles(colors: SemanticColors) {
+function createHomeStyles(
+  colors: SemanticColors,
+  isDesktop: boolean,
+  contentColumnOffset: number,
+) {
   return StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.bgPrimary, overflow: 'visible' as const },
   panel: { overflow: 'visible' as const },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgPrimary },
-  header: {
-    gap: HEADER_CHIP_GAP,
-    backgroundColor: colors.bgPrimary,
-    overflow: 'visible' as const,
-  },
-  headerSticky: Platform.OS === 'web' ? ({ position: 'sticky' as const, top: 0, zIndex: 20 }) : {},
-  headerSearch: { paddingHorizontal: MOBILE_GUTTER },
-  chipsScroll: {
-    overflow: 'visible' as const,
-    marginHorizontal: 0,
+  scrollHost: {
+    flex: 1,
     width: '100%',
+    overflow: 'hidden' as const,
   },
-  categoryChips: {
-    gap: 6,
-    paddingLeft: MOBILE_GUTTER,
-    flexDirection: 'row',
-    alignItems: 'center',
+  /**
+   * Cancel panel gutter and span the live main-area width (tracks sidebar collapse)
+   * so the content column stays centered with the search header.
+   */
+  scrollHostDesktopBleed: {
+    marginHorizontal: -LAYOUT.WEB_CONTENT_GUTTER,
+    ...(Platform.OS === 'web'
+      ? ({ width: `calc(100% + ${LAYOUT.WEB_CONTENT_GUTTER * 2}px)` } as object)
+      : { alignSelf: 'stretch' as const }),
   },
-  categoryChip: {
-    borderWidth: 0.5,
-    borderColor: colors.brand,
-    borderRadius: 32,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+  scrollView: { flex: 1, width: '100%', overflow: 'hidden' as const },
+  scrollContent: {
+    width: '100%',
+    paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
+    gap: isDesktop ? SCROLL_GAP_DESKTOP : SCROLL_GAP,
+    overflow: 'visible' as const,
   },
-  categoryChipText: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: colors.textPrimary,
-    letterSpacing: -0.22,
-    fontFamily: typography.fontFamily.light,
+  /** RN Web scroll content wrapper — fixed width; horizontal motion stays in rail scroll views. */
+  scrollBody: {
+    flexGrow: 1,
+    overflow: 'visible' as const,
   },
-  scrollView: { flex: 1, overflow: 'visible' as const },
-  content: {
-    gap: SCROLL_GAP,
-    paddingTop: CONTENT_TOP_GAP,
+  scrollBodyDesktop: {
+    alignItems: 'stretch' as const,
+    overflow: 'visible' as const,
+  },
+  contentColumn: {
+    width: '100%',
+    gap: isDesktop ? SCROLL_GAP_DESKTOP : SCROLL_GAP,
+    overflow: 'visible' as const,
+  },
+  /** Must stay visible — overflow-x:hidden here becomes overflow-y:auto and nests a Y scroller. */
+  railBleedSection: {
+    width: '100%',
     overflow: 'visible' as const,
   },
   gutterPad: { paddingHorizontal: MOBILE_GUTTER },
+  sectionTitleInset: {
+    paddingHorizontal: contentColumnOffset + MOBILE_GUTTER,
+  },
   phaseCard: {
+    marginHorizontal: MOBILE_GUTTER,
     padding: spacing.lg,
     borderRadius: 16,
     backgroundColor: colors.bgElevated,
@@ -603,9 +703,9 @@ function createHomeStyles(colors: SemanticColors) {
   },
   phaseTitle: { fontSize: typography.xl, fontWeight: '600', color: colors.textPrimary },
   phaseBody: { fontSize: typography.md, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 },
-  phaseLink: { fontSize: typography.sm, color: colors.brand, marginTop: spacing.sm, fontWeight: '600' },
-  aboutHanukkahLink: { marginHorizontal: MOBILE_GUTTER, marginBottom: spacing.md },
-  calendarWrap: { marginBottom: spacing.md },
+  phaseLink: { fontSize: typography.sm, color: colors.brand, fontWeight: '600' },
+  phaseLinkRow: { marginTop: spacing.sm },
+  aboutHanukkahLink: { marginHorizontal: MOBILE_GUTTER, marginBottom: isDesktop ? 0 : spacing.md },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',
@@ -625,7 +725,7 @@ function createHomeStyles(colors: SemanticColors) {
   collectionScroll: horizontalRailScrollStyle(),
   collectionRow: horizontalRailContentStyle({
     gap: COLLECTION_RAIL_GAP,
-    ...horizontalRailGutterPadding(MOBILE_GUTTER),
+    ...horizontalRailGutterPadding(MOBILE_GUTTER, { centerOffset: contentColumnOffset }),
   }),
   collectionHeading: {
     fontSize: typography.lg,
@@ -633,21 +733,27 @@ function createHomeStyles(colors: SemanticColors) {
     color: colors.textPrimary,
     letterSpacing: -0.26,
   },
-  myBoxesScroll: { overflow: 'visible' as const, paddingVertical: SHADOW_BLEED, marginVertical: -SHADOW_BLEED },
-  myBoxesRow: { gap: spacing.md, paddingLeft: MOBILE_GUTTER, paddingRight: MOBILE_GUTTER, alignItems: 'flex-start' },
+  myBoxesRow: horizontalRailContentStyle({
+    gap: spacing.md,
+    // Stretch the Hanukkah card to the natural height of the Add More peek card.
+    alignItems: 'stretch' as const,
+    ...horizontalRailGutterPadding(MOBILE_GUTTER, { centerOffset: contentColumnOffset }),
+  }),
   myBoxShadowWrap: {
     overflow: 'visible' as const,
     paddingVertical: 4,
+    alignSelf: 'stretch' as const,
   },
   myBoxCard: {
     backgroundColor: colors.bgPrimary,
     borderRadius: 16,
     padding: spacing.md,
-    minHeight: 280,
-    maxHeight: MY_BOXES_CAROUSEL_MAX_HEIGHT,
     overflow: 'hidden',
     gap: 16,
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    flex: 1,
+    alignSelf: 'stretch' as const,
   },
   myBoxGrid: { gap: 4, width: '100%', alignItems: 'center' },
   myBoxGridRow: { flexDirection: 'row', gap: 4 },

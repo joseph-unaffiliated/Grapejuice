@@ -23,7 +23,7 @@ YOU MUST NOT
 TONE: Warm, brief, curious. No exclamation points. One question at a time when clarifying.
 
 If they want something you cannot do, say: "Ask your grown-up — they can help with that."`;
-exports.FACILITATOR_KID_JSON_INSTRUCTIONS = `Return strict JSON only:
+exports.FACILITATOR_KID_JSON_INSTRUCTIONS = `Return a single JSON object only — no markdown, no code fences, no prose outside the object:
 {
   "text": "1-2 sentence kid-friendly response",
   "blocks": []

@@ -60,10 +60,17 @@ import { spacing, typography, borderRadius, shadowsWeb, MOBILE_GUTTER } from '..
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
+/** Home-matching top inset on desktop My Box. */
+const DESKTOP_CONTENT_TOP = 41;
+
 export function MyBoxScreen() {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createMyBoxStyles(colors), [colors]);
-  const detailStyles = useMemo(() => createBoxDetailStyles(colors), [colors]);
+  const { isDesktop, widePanelMaxWidth } = useWebLayout();
+  const styles = useMemo(() => createMyBoxStyles(colors, isDesktop), [colors, isDesktop]);
+  const detailStyles = useMemo(
+    () => createBoxDetailStyles(colors, { desktop: isDesktop }),
+    [colors, isDesktop],
+  );
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { loading: sessionLoading, profile } = useSession();
   const user = useAuthStore((s) => s.user);
@@ -73,8 +80,8 @@ export function MyBoxScreen() {
     useBoxDraft();
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
-  const { isDesktop } = useWebLayout();
-  const { scrollRef, activeSection, onSectionLayout, onScroll, scrollToSection } = useBoxDetailScroll();
+  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
+    useBoxDetailScroll();
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,6 +312,7 @@ export function MyBoxScreen() {
         key={sectionId}
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
+        onSectionRef={registerSection}
         showBrowseChips={!isChildProfile && !sectionSealed}
         onBrowseChipPress={!isChildProfile && !sectionSealed ? onBrowseChipPress : undefined}
       >
@@ -423,6 +431,7 @@ export function MyBoxScreen() {
         title="Your Hanukkah Box"
         startsOn={startsOn}
         estimatedDeliveryBy={estimatedDeliveryBy}
+        align={isDesktop ? 'left' : 'center'}
       />
       {guestViewOnly ? (
         <View style={detailStyles.headerExtras}>
@@ -543,21 +552,25 @@ export function MyBoxScreen() {
 
   if (isDesktop && !isChildProfile) {
     return (
-      <WebContentPanel wide>
+      <WebContentPanel flush centerDesktop omitDesktopTopPadding style={styles.panel}>
         <View style={[styles.root, styles.desktopRoot]}>
-          <View style={styles.desktopColumns}>
-            <ScrollView
-              ref={scrollRef}
-              style={styles.desktopList}
-              contentContainerStyle={detailStyles.scrollContent}
-              onScroll={onScroll}
-              scrollEventThrottle={16}
-            >
-              {scrollBody}
-            </ScrollView>
-            <View style={styles.desktopSummary}>
-              {summaryPanel}
-              {addOnsBlock}
+          <View style={[styles.desktopShell, { maxWidth: widePanelMaxWidth }]}>
+            <View style={styles.desktopColumns}>
+              <ScrollView
+                ref={scrollRef}
+                style={styles.desktopList}
+                contentContainerStyle={detailStyles.scrollContent}
+                onScroll={onScroll}
+                scrollEventThrottle={16}
+              >
+                <View ref={contentRef} collapsable={false}>
+                  {scrollBody}
+                </View>
+              </ScrollView>
+              <View style={styles.desktopSummary}>
+                {summaryPanel}
+                {addOnsBlock}
+              </View>
             </View>
           </View>
         </View>
@@ -575,23 +588,46 @@ export function MyBoxScreen() {
           onScroll={onScroll}
           scrollEventThrottle={16}
         >
-          {scrollBody}
+          <View ref={contentRef} collapsable={false}>
+            {scrollBody}
+          </View>
         </ScrollView>
       </WebContentPanel>
     </SafeAreaView>
   );
 }
 
-function createMyBoxStyles(colors: SemanticColors) {
+function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
+  const cardSurface = isDesktop ? colors.bgElevated : colors.accentCream;
   return StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.bgPrimary },
   root: { flex: 1, backgroundColor: colors.bgPrimary },
+  panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
   mobileWrap: { flex: 1 },
-  desktopRoot: { flex: 1 },
+  desktopRoot: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+    backgroundColor: colors.bgPrimary,
+  },
+  desktopShell: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'center',
+    minHeight: 0,
+    paddingTop: DESKTOP_CONTENT_TOP,
+  },
   desktopColumns: { flex: 1, flexDirection: 'row', minHeight: 0, gap: spacing.lg },
-  desktopList: { flex: 2 },
+  /** minHeight:0 is required on web so this column scrolls instead of growing with content. */
+  desktopList: { flex: 2, minWidth: 0, minHeight: 0 },
   desktopListContent: { paddingBottom: spacing.xxl },
-  desktopSummary: { flex: 1, maxWidth: 360, paddingTop: spacing.md },
+  desktopSummary: {
+    flex: 1,
+    maxWidth: 360,
+    minWidth: 280,
+    minHeight: 0,
+    paddingTop: spacing.xs,
+  },
   content: { paddingTop: spacing.sm, paddingBottom: 160 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   pageHeader: { alignItems: 'center', marginBottom: spacing.sm },
@@ -654,10 +690,11 @@ function createMyBoxStyles(colors: SemanticColors) {
   },
   sectionHeader: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xs },
   sectionCard: {
-    backgroundColor: colors.accentCream,
+    backgroundColor: cardSurface,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
+    ...(isDesktop ? { borderWidth: 1, borderColor: colors.border } : {}),
   },
   sectionTitle: { fontSize: typography.md, fontWeight: '400', textAlign: 'center', color: colors.textPrimary },
   sectionSub: { fontSize: typography.sm, color: colors.goldMuted, marginBottom: spacing.sm },
@@ -694,10 +731,11 @@ function createMyBoxStyles(colors: SemanticColors) {
   toggleText: { fontWeight: '600', color: colors.brand, fontSize: typography.sm },
   toggleTextOn: { color: colors.textPrimary },
   summaryCard: {
-    backgroundColor: colors.accentCream,
+    backgroundColor: cardSurface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    marginTop: spacing.md,
+    marginTop: isDesktop ? 0 : spacing.md,
+    ...(isDesktop ? { borderWidth: 1, borderColor: colors.border } : {}),
   },
   summaryHeading: { fontSize: typography.xl, fontWeight: '700', marginBottom: spacing.md },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },

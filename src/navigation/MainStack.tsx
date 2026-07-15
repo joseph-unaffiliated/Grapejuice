@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -19,6 +20,7 @@ import { GiftRecipientRevealScreen } from '../screens/gift/GiftRecipientRevealSc
 import { GuideScreen } from '../screens/main/GuideScreen';
 import { KidGuideScreen } from '../screens/kids/KidGuideScreen';
 import { ProfilesScreen } from '../screens/profiles/ProfilesScreen';
+import { GrapeWobblePreviewScreen } from '../screens/dev/GrapeWobblePreviewScreen';
 import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFeatures';
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
@@ -93,7 +95,12 @@ export function MainStack() {
     <WebDesktopFrame>
       <GuestBoxRevealHandler />
       <AuthReturnHandler />
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          ...(Platform.OS === 'web' ? { cardStyle: { overflow: 'visible' as const } } : {}),
+        }}
+      >
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="MyBox" component={MyBoxScreen} />
         {!PILOT_HIDE_IN_APP_GUIDE ? <Stack.Screen name="Guide" component={GuideScreen} /> : null}
@@ -113,6 +120,9 @@ export function MainStack() {
         <Stack.Screen name="GiftGiverCustomize" component={GiftGiverCustomizeScreen} />
         <Stack.Screen name="GiftClaim" component={GiftClaimScreen} />
         <Stack.Screen name="GiftRecipientReveal" component={GiftRecipientRevealScreen} />
+        {__DEV__ ? (
+          <Stack.Screen name="GrapeWobblePreview" component={GrapeWobblePreviewScreen} />
+        ) : null}
       </Stack.Navigator>
     </WebDesktopFrame>
   );

@@ -1,43 +1,70 @@
 import React from 'react';
-import { View, Image, StyleSheet, Platform } from 'react-native';
-
-const WORDMARK = require('../../../assets/brand/grapejuice-wordmark.png');
-const LOGOMARK = require('../../../assets/brand/grapejuice-logomark.png');
+import { View, StyleSheet } from 'react-native';
+import {
+  GrapejuiceLogomarkSvg,
+  LOGOMARK_ASPECT,
+  type GrapeWobbleTune,
+} from './GrapejuiceLogomarkSvg';
 
 type Props = {
   compact?: boolean;
   markOnly?: boolean;
-  /** Figma 366:1375 — small left-aligned footer mark in chat threads */
-  variant?: 'default' | 'footer';
+  /** Figma Rav welcome — compact sidebar wordmark */
+  variant?: 'default' | 'footer' | 'sidebar';
   align?: 'left' | 'center';
+  /** Decorative marks (e.g. sidebar) are not focusable and have no a11y label. */
+  decorative?: boolean;
+  /** Override mark color (defaults to black). */
+  color?: string;
+  /** Per-grape wobble — used while Rav is generating a reply. */
+  animating?: boolean;
+  /** Override wobble timing / amplitude. */
+  wobble?: GrapeWobbleTune;
 };
 
-/** Wordmark + grape logomark — Figma Rav welcome header assets. */
+function sizeForVariant(
+  variant: NonNullable<Props['variant']>,
+  markOnly: boolean,
+  compact: boolean
+): { width: number; height: number } {
+  if (variant === 'footer' || variant === 'sidebar') {
+    const width = 16;
+    return { width, height: width / LOGOMARK_ASPECT };
+  }
+  if (markOnly) {
+    const width = compact ? 24 : 30;
+    return { width, height: width / LOGOMARK_ASPECT };
+  }
+  const width = compact ? 61 : 75;
+  return { width, height: width / LOGOMARK_ASPECT };
+}
+
+/** Grape cluster logomark — SVG mark used across home sidebar, Rav, auth, onboarding. */
 export function GrapejuiceBrandMark({
   compact = false,
   markOnly = false,
   variant = 'default',
   align = 'center',
+  decorative = variant === 'sidebar',
+  color = '#000000',
+  animating = false,
+  wobble,
 }: Props) {
-  const source = markOnly || variant === 'footer' ? LOGOMARK : WORDMARK;
-  const size =
-    variant === 'footer'
-      ? styles.logomarkFooter
-      : markOnly
-        ? compact
-          ? styles.logomarkCompact
-          : styles.logomark
-        : compact
-          ? styles.wordmarkCompact
-          : styles.wordmark;
+  const { width, height } = sizeForVariant(variant, markOnly, compact);
 
   return (
-    <View style={[styles.wrap, align === 'left' && styles.wrapLeft]}>
-      <Image
-        source={source}
-        style={[size, Platform.OS === 'web' ? styles.crisp : null]}
-        resizeMode="contain"
-        accessibilityLabel="Grapejuice"
+    <View
+      style={[styles.wrap, align === 'left' && styles.wrapLeft]}
+      accessible={!decorative}
+      accessibilityLabel={decorative ? undefined : 'Grapejuice'}
+      accessibilityRole={decorative ? undefined : 'image'}
+    >
+      <GrapejuiceLogomarkSvg
+        width={width}
+        height={height}
+        color={color}
+        animating={animating}
+        wobble={wobble}
       />
     </View>
   );
@@ -46,11 +73,4 @@ export function GrapejuiceBrandMark({
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
   wrapLeft: { alignItems: 'flex-start', alignSelf: 'flex-start' },
-  wordmark: { width: 75, height: 59 },
-  wordmarkCompact: { width: 61, height: 56 },
-  logomark: { width: 30, height: 28 },
-  logomarkCompact: { width: 24, height: 22 },
-  /** Figma 366:1375 — 16×14.5pt display from 48×44 @3x asset */
-  logomarkFooter: { width: 16, height: 15 },
-  crisp: Platform.OS === 'web' ? ({ imageRendering: 'crisp-edges' } as object) : {},
 });

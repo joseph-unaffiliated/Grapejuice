@@ -20,6 +20,7 @@ import { formatHanukkahWelcomeSubtext } from '../../services/hanukkah/dates';
 import { HANUKKAH_TIMELINE_2026 } from '../../constants/hanukkahTimeline';
 import { useHolidayPhase } from '../../hooks/useHolidayPhase';
 import { HomeHeroCard } from '../../components/home/HomeHeroCard';
+import { TextWithChevron } from '../../components/ui/TextWithChevron';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import type { MainTabsParamList, MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius, MOBILE_GUTTER, tabBarTotalHeight } from '../../constants/theme';
@@ -100,7 +101,12 @@ export function KidHomeScreen() {
                   </Text>
                 </View>
               ))}
-              <Text style={[styles.phaseLink, { color: colors.brand }]}>Open tonight&apos;s guide →</Text>
+              <TextWithChevron
+                text={"Open tonight's guide →"}
+                textStyle={[styles.phaseLink, { color: colors.brand }]}
+                style={styles.phaseLinkRow}
+                iconColor={colors.brand}
+              />
             </TouchableOpacity>
           ) : null}
 
@@ -140,7 +146,12 @@ export function KidHomeScreen() {
                     {votableCount} stor{votableCount === 1 ? 'y' : 'ies'} & gift{votableCount === 1 ? '' : 's'} waiting
                     for your 👍
                   </Text>
-                  <Text style={[styles.myPicksLink, { color: colors.brand }]}>Open My picks →</Text>
+                  <TextWithChevron
+                    text="Open My picks →"
+                    textStyle={[styles.myPicksLink, { color: colors.brand }]}
+                    style={styles.myPicksLinkRow}
+                    iconColor={colors.brand}
+                  />
                 </TouchableOpacity>
               </View>
             )}
@@ -169,7 +180,8 @@ const styles = StyleSheet.create({
   },
   phaseTitle: { fontSize: typography.xl, fontWeight: '600' },
   phaseBody: { fontSize: typography.md, marginTop: spacing.xs, lineHeight: 20 },
-  phaseLink: { fontSize: typography.sm, marginTop: spacing.sm, fontWeight: '600' },
+  phaseLink: { fontSize: typography.sm, fontWeight: '600' },
+  phaseLinkRow: { marginTop: spacing.sm },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: 'row',
@@ -188,7 +200,8 @@ const styles = StyleSheet.create({
   },
   myPicksTitle: { fontSize: typography.lg, fontWeight: '400', letterSpacing: -0.26 },
   myPicksSub: { fontSize: typography.sm, fontWeight: '200', marginTop: 4 },
-  myPicksLink: { fontSize: typography.sm, fontWeight: '600', marginTop: spacing.sm },
+  myPicksLink: { fontSize: typography.sm, fontWeight: '600' },
+  myPicksLinkRow: { marginTop: spacing.sm },
   emptyCard: {
     borderWidth: 1,
     borderRadius: borderRadius.md,

@@ -12,6 +12,7 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  Animated,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
@@ -29,6 +30,7 @@ import { spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER, 
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { Icon } from '../ui/Icon';
+import { TextWithChevron } from '../ui/TextWithChevron';
 import { icons } from '../../constants/icons';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
@@ -36,48 +38,17 @@ import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { RavBlockRenderer } from './RavBlockRenderer';
+import { FormattedChatText } from './FormattedChatText';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { useWebLayout } from '../../hooks/useWebLayout';
+import {
+  buildKidRavStarterChips,
+  buildRavStarterChips,
+} from '../../constants/ravStarterPrompts';
 
 const MAX_HISTORY_TURNS = 10;
 /** Figma 366:1762 — 13px type + 12px vertical padding ≈ 37px pill height */
 const WELCOME_SEARCH_LINE_HEIGHT = typography.lg;
-
-type StarterChip = {
-  lines: string[];
-  message: string;
-};
-
-function buildKidStarterChips(childName: string): StarterChip[] {
-  const name = childName.trim() || 'friend';
-  return [
-    { lines: ['What should we do', 'tonight?'], message: 'What should we do tonight?' },
-    { lines: ['Tell me about', 'Hanukkah candles'], message: 'Tell me about Hanukkah candles' },
-    { lines: [`Hi Rav, I'm ${name}`], message: `Hi Rav, I'm ${name}` },
-  ];
-}
-
-function buildStarterChips(hanukkahStartsOn: string | null): StarterChip[] {
-  const countdown = formatHanukkahWelcomeSubtext(hanukkahStartsOn);
-  const planMessage =
-    countdown.startsWith('Hanukkah is in') || countdown.startsWith('Night')
-      ? `${countdown.replace(/\.$/, '')}, help me make a plan`
-      : 'Help me make a Hanukkah plan';
-  const commaIdx = planMessage.indexOf(',');
-  const planLines =
-    commaIdx >= 0
-      ? [planMessage.slice(0, commaIdx + 1), planMessage.slice(commaIdx + 1).trim()]
-      : [planMessage];
-
-  return [
-    { lines: planLines, message: planMessage },
-    { lines: ["I'm looking for books", 'to read with my kids'], message: "I'm looking for books to read with my kids" },
-    { lines: ['What should we do', 'on night 1?'], message: 'What should we do on night 1?' },
-    { lines: ["We just had a baby, I don't", 'know where to start'], message: "We just had a baby, I don't know where to start" },
-    { lines: ['Help me choose', 'latkes or sufganiyot'], message: 'Help me choose latkes or sufganiyot' },
-    { lines: ['Ideas for kids', 'who are new to Hanukkah'], message: 'Ideas for kids who are new to Hanukkah' },
-    { lines: ['I want to do a', 'family game night'], message: 'I want to do a family game night' },
-  ];
-}
 
 function titleFromMessage(text: string): string {
   const trimmed = text.trim().replace(/\s+/g, ' ');
@@ -102,6 +73,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   ref
 ) {
   const { colors } = useThemeMode();
+  const { isDesktop, layoutWidth } = useWebLayout();
   const styles = useMemo(() => createPilotStyles(colors), [colors]);
   const user = useAuthStore((s) => s.user);
   const startAuthForRav = useAuthFlowStore((s) => s.startAuthForRav);
@@ -117,6 +89,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [error, setError] = useState<string | null>(null);
   const [recentChats, setRecentChats] = useState<AIChatThreadSummary[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const historyBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const historySheetY = useRef(new Animated.Value(480)).current;
+  const historyClosingRef = useRef(false);
   const [hanukkahStartsOn, setHanukkahStartsOn] = useState<string | null>(null);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -135,12 +110,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const bottomPad = bottomInset || tabBarHeight;
   const starterChips = useMemo(() => {
     if (isChildProfile && ravEnabledForActiveChild && !PILOT_PARENT_ONLY) {
-      return buildKidStarterChips(activeChild?.name ?? 'friend');
+      return buildKidRavStarterChips(activeChild?.name ?? 'friend');
     }
-    return buildStarterChips(hanukkahStartsOn);
+    return buildRavStarterChips(hanukkahStartsOn);
   }, [isChildProfile, ravEnabledForActiveChild, activeChild?.name, hanukkahStartsOn]);
   const welcomeSubtext = useMemo(() => formatHanukkahWelcomeSubtext(hanukkahStartsOn), [hanukkahStartsOn]);
-  const firstUserIndex = useMemo(() => messages.findIndex((m) => m.role === 'user'), [messages]);
 
   const goldGlow = Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm } : shadows.goldGlow;
   const hasInput = input.trim().length > 0;
@@ -331,6 +305,58 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation]
   );
 
+  /** Web: Enter sends, Shift+Enter inserts a newline.
+   * RN Web overwrites `onKeyDown` and only submits Enter when `!multiline || blurOnSubmit`.
+   * Use `onKeyPress` (called inside their handler) and preventDefault to block the newline. */
+  const handleComposerKeyPress = useCallback(
+    (e: { nativeEvent?: { key?: string }; key?: string; shiftKey?: boolean; preventDefault?: () => void }) => {
+      if (Platform.OS !== 'web') return;
+      const key = e.key ?? e.nativeEvent?.key;
+      if (key !== 'Enter' || e.shiftKey) return;
+      e.preventDefault?.();
+      void sendMessage(input);
+    },
+    [input, sendMessage],
+  );
+
+  useEffect(() => {
+    if (!historyOpen || historyClosingRef.current) return;
+    historyBackdropOpacity.setValue(0);
+    historySheetY.setValue(480);
+    Animated.parallel([
+      Animated.timing(historyBackdropOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(historySheetY, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [historyOpen, historyBackdropOpacity, historySheetY]);
+
+  const closeHistory = useCallback(() => {
+    if (historyClosingRef.current || !historyOpen) return;
+    historyClosingRef.current = true;
+    Animated.parallel([
+      Animated.timing(historyBackdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(historySheetY, {
+        toValue: 480,
+        duration: 240,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      historyClosingRef.current = false;
+      if (finished) setHistoryOpen(false);
+    });
+  }, [historyOpen, historyBackdropOpacity, historySheetY]);
+
   React.useImperativeHandle(
     ref,
     () => ({
@@ -372,28 +398,20 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   );
 
   const renderMessage = useCallback(
-    ({ item, index }: { item: AIChatMessage; index: number }) => {
+    ({ item }: { item: AIChatMessage; index: number }) => {
       if (item.role === 'user') {
-        const isFirstUser = index === firstUserIndex;
-        if (isFirstUser) {
-          return (
-            <View style={styles.userChipWrap}>
-              <View style={styles.userChip}>
-                <Text style={styles.userChipText}>{item.content}</Text>
-              </View>
-            </View>
-          );
-        }
         return (
-          <View style={styles.userReplyWrap}>
-            <Text style={styles.userReplyText}>{item.content}</Text>
+          <View style={styles.userChipWrap}>
+            <View style={styles.userChip}>
+              <Text style={styles.userChipText}>{item.content}</Text>
+            </View>
           </View>
         );
       }
 
       return (
         <View style={styles.assistantWrap}>
-          <Text style={styles.assistantText}>{item.content}</Text>
+          <FormattedChatText text={item.content} style={styles.assistantText} />
           {item.blocks?.length ? (
             <RavBlockRenderer
               blocks={item.blocks}
@@ -408,20 +426,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         </View>
       );
     },
-    [firstUserIndex, lineItems, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
+    [lineItems, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
   );
 
   const chatFooter = messages.length > 0 ? (
     <View style={styles.threadFooter}>
-      <View style={styles.threadMeta}>
-        <Text style={styles.timestamp}>{formatRelativeTime(lastActivityAt)}</Text>
-        {showGuestSaveChip ? (
-          <TouchableOpacity style={styles.saveChip} onPress={() => startAuthForRav('signin')}>
-            <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      <GrapejuiceBrandMark variant="footer" align="left" markOnly />
+      <Text style={styles.timestamp}>{formatRelativeTime(lastActivityAt)}</Text>
+      <GrapejuiceBrandMark variant="footer" align="left" markOnly animating={loading} />
     </View>
   ) : null;
 
@@ -434,14 +445,17 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           </View>
         ) : showWelcome ? (
           <ScrollView
+            style={styles.scrollHost}
             contentContainerStyle={[
               styles.welcome,
+              isDesktop && styles.welcomeDesktop,
               hasThreadHistory && styles.welcomeReturning,
               { paddingBottom: bottomPad + 80 },
             ]}
             keyboardShouldPersistTaps="handled"
           >
-            <GrapejuiceBrandMark markOnly={hasThreadHistory} />
+            <View style={[styles.welcomeColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
+            <GrapejuiceBrandMark markOnly={hasThreadHistory} animating={loading} />
             <View style={styles.welcomeHeadings}>
               <Text style={styles.welcomeTitle}>What&apos;s on your mind?</Text>
               <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>
@@ -460,7 +474,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 onChangeText={setInput}
                 multiline={hasInput}
                 scrollEnabled={hasInput}
+                blurOnSubmit={!hasInput}
                 onSubmitEditing={() => sendMessage(input)}
+                onKeyPress={handleComposerKeyPress}
               />
               {hasInput ? (
                 <TouchableOpacity
@@ -500,7 +516,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                     }}
                     accessibilityLabel="View all chats"
                   >
-                    <Text style={styles.viewAll}>View All {'>'}</Text>
+                    <TextWithChevron
+                      text="View All"
+                      chevron="always"
+                      textStyle={styles.viewAll}
+                      iconSize={10}
+                      iconColor={colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 </View>
                 {historyThreads.slice(0, 5).map((t) => (
@@ -517,6 +539,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 ))}
               </View>
             ) : null}
+            </View>
           </ScrollView>
         ) : (
           <>
@@ -533,20 +556,27 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
             <FlatList
               ref={listRef}
+              style={styles.scrollHost}
               data={messages}
               keyExtractor={(_, i) => String(i)}
-              contentContainerStyle={{
-                paddingHorizontal: spacing.lg,
-                paddingTop: spacing.xxxl,
-                paddingBottom: bottomPad + 88,
-                gap: spacing.lg,
-              }}
+              contentContainerStyle={[
+                styles.threadContent,
+                { paddingBottom: bottomPad + 88 },
+              ]}
               renderItem={renderMessage}
               ListFooterComponent={chatFooter}
               onContentSizeChange={scrollToEnd}
             />
 
             <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, spacing.sm) + (bottomInset || tabBarHeight - 48) }]}>
+              {showGuestSaveChip ? (
+                <TouchableOpacity
+                  style={styles.saveChipAboveComposer}
+                  onPress={() => startAuthForRav('signin')}
+                >
+                  <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
+                </TouchableOpacity>
+              ) : null}
               <View style={[styles.replyPill, goldGlow]}>
                 <TextInput
                   style={styles.replyInput}
@@ -555,7 +585,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   value={input}
                   onChangeText={setInput}
                   multiline
+                  blurOnSubmit={false}
                   fontSize={typography.lg}
+                  onKeyPress={handleComposerKeyPress}
                 />
                 <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
                   <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
@@ -585,9 +617,22 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         ) : null}
       </KeyboardAvoidingView>
 
-      <Modal visible={historyOpen} animationType="slide" transparent onRequestClose={() => setHistoryOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setHistoryOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+      <Modal
+        visible={historyOpen}
+        animationType="none"
+        transparent
+        onRequestClose={closeHistory}
+      >
+        <View style={styles.modalRoot}>
+          <Animated.View
+            pointerEvents="box-none"
+            style={[styles.modalBackdropFill, { opacity: historyBackdropOpacity }]}
+          >
+            <Pressable style={StyleSheet.absoluteFill} onPress={closeHistory} />
+          </Animated.View>
+          <Animated.View
+            style={[styles.modalSheet, { transform: [{ translateY: historySheetY }] }]}
+          >
             <Text style={styles.modalTitle}>Recent chats</Text>
             {!user?.uid ? (
               <Text style={styles.modalHint}>Sign in to save and browse past Rav conversations.</Text>
@@ -597,7 +642,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 key={t.id}
                 style={[styles.historyRow, t.id === threadId && styles.historyRowActive]}
                 onPress={() => {
-                  setHistoryOpen(false);
+                  closeHistory();
                   setBlockFeedback(null);
                   void openThread(t.id);
                 }}
@@ -609,12 +654,18 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               </TouchableOpacity>
             ))}
             {isGuest ? (
-              <TouchableOpacity style={styles.saveChipWide} onPress={() => { setHistoryOpen(false); startAuthForRav('signin'); }}>
+              <TouchableOpacity
+                style={styles.saveChipWide}
+                onPress={() => {
+                  closeHistory();
+                  startAuthForRav('signin');
+                }}
+              >
                 <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
               </TouchableOpacity>
             ) : null}
-          </Pressable>
-        </Pressable>
+          </Animated.View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -622,17 +673,31 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
 function createPilotStyles(colors: SemanticColors) {
   return StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bgPrimary },
+  root: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
   flex: { flex: 1, width: '100%' },
+  scrollHost: { flex: 1, width: '100%' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   welcome: {
-    paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.xxl,
+  },
+  welcomeDesktop: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  welcomeColumn: {
+    width: '100%',
+    paddingHorizontal: MOBILE_GUTTER,
     alignItems: 'center',
     gap: spacing.xl,
   },
   welcomeReturning: {
     paddingTop: 96,
+  },
+  threadContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xxxl,
+    gap: spacing.lg,
+    width: '100%',
   },
   welcomeHeadings: { alignItems: 'center', gap: spacing.xs },
   welcomeTitle: {
@@ -764,14 +829,6 @@ function createPilotStyles(colors: SemanticColors) {
     textAlign: 'center',
     letterSpacing: -0.26,
   },
-  userReplyWrap: { paddingLeft: spacing.xl },
-  userReplyText: {
-    fontSize: typography.lg,
-    fontWeight: '400',
-    color: colors.goldMuted,
-    lineHeight: 20,
-    letterSpacing: -0.39,
-  },
   assistantWrap: { paddingRight: spacing.xl },
   assistantText: {
     fontSize: typography.lg,
@@ -780,19 +837,20 @@ function createPilotStyles(colors: SemanticColors) {
     letterSpacing: -0.39,
   },
   threadFooter: { gap: spacing.sm, marginTop: spacing.sm, alignItems: 'flex-start', width: '100%' },
-  threadMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   timestamp: {
     fontSize: typography.sm,
     fontWeight: '200',
     color: colors.goldMuted,
     letterSpacing: -0.22,
   },
-  saveChip: {
+  saveChipAboveComposer: {
+    alignSelf: 'center',
     borderWidth: 0.5,
     borderColor: colors.brand,
     borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
+    marginBottom: spacing.sm,
   },
   saveChipWide: {
     marginTop: spacing.md,
@@ -836,7 +894,11 @@ function createPilotStyles(colors: SemanticColors) {
     paddingHorizontal: 2,
   },
   error: { color: colors.error, fontSize: typography.sm, padding: spacing.md, textAlign: 'center' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  modalBackdropFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
   modalSheet: {
     backgroundColor: colors.bgPrimary,
     borderTopLeftRadius: borderRadius.xxl,

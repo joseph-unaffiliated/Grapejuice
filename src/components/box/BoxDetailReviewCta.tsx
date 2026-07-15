@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { createBoxDetailStyles } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 
 type Props = {
   onPress: () => void;
@@ -18,7 +19,8 @@ export function BoxDetailReviewCta({
   label = 'Review Box',
 }: Props) {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createBoxDetailStyles(colors), [colors]);
+  const { isDesktop } = useWebLayout();
+  const styles = useMemo(() => createBoxDetailStyles(colors, { desktop: isDesktop }), [colors, isDesktop]);
 
   return (
     <TouchableOpacity

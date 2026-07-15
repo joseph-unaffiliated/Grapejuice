@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { typography } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
+import { TextWithChevron } from '../ui/TextWithChevron';
 
 type Props = {
   title: string;
@@ -17,7 +18,14 @@ export function MyBoxesCardHeader({ title, subtitle }: Props) {
   return (
     <View style={styles.block}>
       <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      <TextWithChevron
+        text={subtitle}
+        textStyle={styles.subtitle}
+        style={styles.subtitleRow}
+        iconSize={9}
+        iconColor={colors.textPrimary}
+        gap={3}
+      />
     </View>
   );
 }
@@ -42,6 +50,9 @@ function createHeaderStyles(colors: SemanticColors) {
       color: colors.textPrimary,
       letterSpacing: -0.22,
       textAlign: 'center',
+    },
+    subtitleRow: {
+      justifyContent: 'center',
     },
   });
 }
