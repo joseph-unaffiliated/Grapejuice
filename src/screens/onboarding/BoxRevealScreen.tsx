@@ -20,8 +20,8 @@ import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBloc
 import { BoxDetailReviewCta } from '../../components/box/BoxDetailReviewCta';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
-  BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
+  nonEmptyDisplaySectionIds,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
@@ -52,8 +52,6 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
     [colors, isDesktop]
   );
   const styles = useMemo(() => createRevealStyles(colors, isDesktop), [colors, isDesktop]);
-  const { scrollRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
-    useBoxDetailScroll();
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +82,18 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
   );
 
   const grouped = useMemo(() => groupLineItemsByDisplaySection(includedItems), [includedItems]);
+  const visibleSectionIds = useMemo(
+    () => nonEmptyDisplaySectionIds(grouped),
+    [grouped],
+  );
+  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection, remeasureSections } =
+    useBoxDetailScroll({ visibleSectionIds, contentReady: !loading });
+
+  useEffect(() => {
+    if (loading) return;
+    const frame = requestAnimationFrame(() => remeasureSections());
+    return () => cancelAnimationFrame(frame);
+  }, [loading, remeasureSections, visibleSectionIds]);
 
   const renderSection = (sectionId: BoxDisplaySectionId) => {
     const items = grouped[sectionId];
@@ -95,6 +105,7 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
+        itemCount={items.length}
       >
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);
@@ -135,8 +146,14 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
         estimatedDeliveryBy={estimatedDeliveryBy}
         align={isDesktop ? 'left' : 'center'}
       />
-      <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} />
-      {BOX_DISPLAY_SECTIONS.map((s) => renderSection(s.id))}
+      {visibleSectionIds.length > 0 ? (
+        <StickySectionNav
+          activeSection={activeSection}
+          onSelect={scrollToSection}
+          sectionIds={visibleSectionIds}
+        />
+      ) : null}
+      {visibleSectionIds.map((id) => renderSection(id))}
       <BoxDetailReviewCta
         onPress={() => void onDone()}
         disabled={completing}
@@ -166,11 +183,16 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
-          {isDesktop ? (
-            <View style={[styles.contentColumn, { maxWidth: layoutWidth }]}>{body}</View>
-          ) : (
-            body
-          )}
+          <View
+            ref={contentRef}
+            collapsable={false}
+            style={[
+              styles.contentRoot,
+              isDesktop && [styles.contentColumn, { maxWidth: layoutWidth }],
+            ]}
+          >
+            {body}
+          </View>
         </ScrollView>
       </WebContentPanel>
     </SafeAreaView>
@@ -180,18 +202,21 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
 function createRevealStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.bgPrimary, minHeight: 0 },
-    panel: { overflow: 'visible' as const },
-    root: { flex: 1, backgroundColor: colors.bgPrimary, width: '100%' },
+    panel: { flex: 1, width: '100%', minHeight: 0, overflow: 'visible' as const },
+    root: { flex: 1, backgroundColor: colors.bgPrimary, width: '100%', minHeight: 0 },
     scrollContent: {
-      paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
       paddingBottom: spacing.xxl,
       width: '100%',
     },
     scrollContentDesktop: {
       alignItems: 'stretch',
     },
-    contentColumn: {
+    /** Top inset on this node (not ScrollView contentContainer) so scroll-to-section offsets match. */
+    contentRoot: {
       width: '100%',
+      paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
+    },
+    contentColumn: {
       alignSelf: 'center',
       paddingHorizontal: MOBILE_GUTTER,
     },

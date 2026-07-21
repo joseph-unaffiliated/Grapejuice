@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -13,6 +13,9 @@ type Nav = BottomTabNavigationProp<MainTabsParamList>;
 
 export const PASSOVER_RAV_PROMPT = "I'd like to start thinking about Passover";
 
+/** Pause after the card enters view so attention lands before the ring fills. */
+const RING_ANIM_DELAY_MS = 550;
+
 type Props = {
   capacityPercent: number;
   onRegister: () => void;
@@ -25,6 +28,13 @@ export function PassoverPreregisterCard({ capacityPercent, onRegister, registere
   const { colors: themeColors } = useThemeMode();
   const styles = useMemo(() => createPassoverCardStyles(themeColors), [themeColors]);
   const { ref: inViewRef, inView } = useInViewOnce(0.4);
+  const [animateRing, setAnimateRing] = useState(false);
+
+  useEffect(() => {
+    if (!inView || animateRing) return;
+    const timer = setTimeout(() => setAnimateRing(true), RING_ANIM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [inView, animateRing]);
 
   const cardStyle = [
     styles.card,
@@ -60,7 +70,7 @@ export function PassoverPreregisterCard({ capacityPercent, onRegister, registere
           <Text style={styles.title}>Pre-register for Passover 2027</Text>
           <Text style={styles.sub}>Spots are filling up. Sign up soon.</Text>
         </View>
-        <CapacityRing percent={capacityPercent} animate={inView} deferUntilAnimate />
+        <CapacityRing percent={capacityPercent} animate={animateRing} deferUntilAnimate />
       </TouchableOpacity>
     </View>
   );

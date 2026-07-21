@@ -21,8 +21,8 @@ import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
-  BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
+  nonEmptyDisplaySectionIds,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
@@ -59,8 +59,6 @@ export function GiftGiverCustomizeContent({
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { colors } = useThemeMode();
   const detailStyles = useMemo(() => createBoxDetailStyles(colors), [colors]);
-  const { scrollRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
-    useBoxDetailScroll();
   const [catalogById, setCatalogById] = useState<Record<string, CatalogItem>>({});
 
   useEffect(() => {
@@ -83,6 +81,12 @@ export function GiftGiverCustomizeContent({
   );
 
   const grouped = useMemo(() => groupLineItemsByDisplaySection(includedItems), [includedItems]);
+  const visibleSectionIds = useMemo(
+    () => nonEmptyDisplaySectionIds(grouped),
+    [grouped],
+  );
+  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
+    useBoxDetailScroll({ visibleSectionIds });
 
   const renderSection = (sectionId: BoxDisplaySectionId) => {
     const items = grouped[sectionId];
@@ -94,6 +98,7 @@ export function GiftGiverCustomizeContent({
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
+        itemCount={items.length}
       >
         {items.map((li) => {
           const item = catalogById[li.itemId];
@@ -157,22 +162,30 @@ export function GiftGiverCustomizeContent({
           onScroll={onScroll}
           scrollEventThrottle={16}
         >
-          <BoxDetailToolbar
-            lockAt={null}
-            now={new Date()}
-            title="Pick their box"
-            onBack={() => navigation.goBack()}
-            showCalendar={false}
-          />
-          <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} />
-          {BOX_DISPLAY_SECTIONS.map((s) => renderSection(s.id))}
-          <TouchableOpacity style={styles.cta} onPress={onPay} disabled={submitting}>
-            {submitting ? (
-              <ActivityIndicator color={semanticColors.textInverse} />
-            ) : (
-              <Text style={styles.ctaText}>Continue to payment</Text>
-            )}
-          </TouchableOpacity>
+          <View ref={contentRef} collapsable={false}>
+            <BoxDetailToolbar
+              lockAt={null}
+              now={new Date()}
+              title="Pick their box"
+              onBack={() => navigation.goBack()}
+              showCalendar={false}
+            />
+            {visibleSectionIds.length > 0 ? (
+              <StickySectionNav
+                activeSection={activeSection}
+                onSelect={scrollToSection}
+                sectionIds={visibleSectionIds}
+              />
+            ) : null}
+            {visibleSectionIds.map((id) => renderSection(id))}
+            <TouchableOpacity style={styles.cta} onPress={onPay} disabled={submitting}>
+              {submitting ? (
+                <ActivityIndicator color={semanticColors.textInverse} />
+              ) : (
+                <Text style={styles.ctaText}>Continue to payment</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </WebContentPanel>
     </SafeAreaView>

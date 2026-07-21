@@ -25,12 +25,13 @@ import {
   OnboardingSecondaryButton,
 } from './OnboardingButtons';
 
-/** Soft warm tan field — cream → beige → muted gold (platform warm palette). */
-const TAN_MEDIA_GRADIENT = `linear-gradient(135deg, ${colors.warm[50]} 0%, ${colors.warm[100]} 52%, ${colors.warm[200]} 100%)`;
-
-/** Gentle white seam from copy pane into the tan media pane. */
-const COPY_INTO_MEDIA_FADE =
-  'linear-gradient(90deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.45) 12%, rgba(255,255,255,0) 28%)';
+/** Matches HomeHeroCard — deep indigo scrim over the photo, heavy at the copy seam. */
+const MEDIA_HERO_SCRIM = colors.purple[500];
+const MEDIA_HERO_SCRIM_GRADIENT =
+  Platform.OS === 'web'
+    ? (`linear-gradient(90deg, rgba(9, 1, 19, 0.92) 0%, rgba(9, 1, 19, 0.55) 42%, rgba(9, 1, 19, 0.18) 72%, rgba(9, 1, 19, 0) 100%)` as const)
+    : null;
+const MEDIA_GOLD_WASH = 'rgba(216, 201, 144, 0.38)';
 
 /** Desktop two-pane — equal columns with comfortable copy inset and CTA spacing. */
 const DESKTOP_PANE_SHARE = '50%';
@@ -62,7 +63,7 @@ type Props = {
 
 /**
  * Mobile: single-column Figma shell (100:395) with bottom-pinned CTAs.
- * Desktop web: two-pane — left copy packed with CTAs, right soft tan media + fade from copy.
+ * Desktop web: two-pane — left copy, right holiday photo with indigo scrim + gold wash.
  */
 export function OnboardingScreenLayout({
   kicker,
@@ -191,26 +192,27 @@ export function OnboardingScreenLayout({
 
   return (
     <View style={[styles.root, styles.rootDesktop]}>
-      {logo}
       {copyPane}
       <View style={styles.mediaPane} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Image source={mediaSource} style={styles.mediaImage} resizeMode="cover" accessibilityIgnoresInvertColors />
         <View
+          pointerEvents="none"
           style={[
-            StyleSheet.absoluteFillObject,
-            Platform.OS === 'web'
-              ? ({ backgroundImage: TAN_MEDIA_GRADIENT } as object)
-              : { backgroundColor: colors.warm[100] },
+            styles.goldWash,
+            Platform.OS === 'web' ? ({ mixBlendMode: 'soft-light' } as object) : null,
           ]}
         />
-        <Image source={mediaSource} style={styles.mediaImage} resizeMode="cover" />
         <View
+          pointerEvents="none"
           style={[
             StyleSheet.absoluteFillObject,
-            Platform.OS === 'web' ? ({ backgroundImage: COPY_INTO_MEDIA_FADE } as object) : null,
+            Platform.OS === 'web' && MEDIA_HERO_SCRIM_GRADIENT
+              ? ({ backgroundImage: MEDIA_HERO_SCRIM_GRADIENT } as object)
+              : { backgroundColor: MEDIA_HERO_SCRIM, opacity: 0.55 },
           ]}
-          pointerEvents="none"
         />
       </View>
+      {logo}
     </View>
   );
 }
@@ -258,11 +260,13 @@ const styles = StyleSheet.create({
     maxWidth: DESKTOP_PANE_SHARE,
     minWidth: 0,
     alignSelf: 'center',
-    zIndex: 2,
+    position: 'relative',
+    zIndex: 4,
     justifyContent: 'flex-start',
     gap: DESKTOP_COPY_FOOTER_GAP,
     minHeight: 0,
     overflow: 'hidden',
+    backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
       ? ({ maxHeight: '100vh' } as object)
       : { maxHeight: '100%' }),
@@ -361,14 +365,18 @@ const styles = StyleSheet.create({
     minHeight: 0,
     alignSelf: 'stretch',
     position: 'relative',
+    zIndex: 1,
     overflow: 'hidden',
-    backgroundColor: colors.warm[100],
+    backgroundColor: MEDIA_HERO_SCRIM,
   },
   mediaImage: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-    opacity: 0.22,
+  },
+  goldWash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: MEDIA_GOLD_WASH,
   },
 });
 

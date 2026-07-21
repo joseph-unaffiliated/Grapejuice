@@ -179,14 +179,14 @@ export function SearchPill({
           style={[
             styles.fauxBase,
             isDemo ? styles.fauxDemo : styles.fauxIdle,
-            { color: isDemo ? colors.goldMuted : colors.textPrimary },
+            { color: isDemo ? colors.textTertiary : colors.textPrimary },
           ]}
           numberOfLines={1}
           pointerEvents="none"
         >
           {fauxText}
           {isDemo ? (
-            <Text style={[styles.caret, { color: colors.goldMuted }]}>|</Text>
+            <Text style={[styles.caret, { color: colors.textTertiary }]}>|</Text>
           ) : null}
         </Text>
       ) : null}

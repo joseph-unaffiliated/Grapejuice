@@ -161,7 +161,7 @@ function VoterListModal({
 export function WrappedGiftPlaceholder() {
   const { colors } = useThemeMode();
   return (
-    <View style={[styles.wrappedBlock, { backgroundColor: colors.bgElevated, borderColor: colors.border }]}>
+    <View style={[styles.wrappedBlock, { backgroundColor: colors.bgElevated }]}>
       <Icon icon={icons.gift} size={32} color={colors.brand} />
       <Text style={[styles.wrappedBlockTitle, { color: colors.textPrimary }]}>Wrapped surprise</Text>
       <Text style={[styles.wrappedBlockSub, { color: colors.textTertiary }]}>
@@ -215,7 +215,6 @@ const styles = StyleSheet.create({
   modalClose: { marginTop: spacing.lg, alignSelf: 'flex-end' },
   modalCloseText: { fontWeight: '600', fontSize: typography.lg },
   wrappedBlock: {
-    borderWidth: 1,
     borderRadius: borderRadius.md,
     padding: spacing.lg,
     alignItems: 'center',

@@ -12,7 +12,7 @@ export function GuestBoxAuthBanner({ onCreateAccount, onSignIn }: Props) {
   const { colors } = useThemeMode();
 
   return (
-    <View style={[styles.banner, { backgroundColor: colors.brandLight, borderColor: colors.border }]}>
+    <View style={[styles.banner, { backgroundColor: colors.brandLight }]}>
       <Text style={[styles.title, { color: colors.textPrimary }]}>Sign in to customize your box</Text>
       <Text style={[styles.body, { color: colors.textSecondary }]}>
         You can browse what we picked — create a free account to swap items, add extras, and check out.
@@ -35,14 +35,13 @@ export function GuestBoxAuthBanner({ onCreateAccount, onSignIn }: Props) {
 
 const styles = StyleSheet.create({
   banner: {
-    marginHorizontal: spacing.md,
     marginBottom: spacing.md,
     padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderRadius: 16,
+    alignSelf: 'stretch',
   },
-  title: { fontSize: typography.xl, fontWeight: '700' },
-  body: { fontSize: typography.md, marginTop: spacing.xs, lineHeight: 20 },
+  title: { fontSize: typography.xl, fontWeight: '700', textAlign: 'left' },
+  body: { fontSize: typography.md, marginTop: spacing.xs, lineHeight: 20, textAlign: 'left' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
   primaryBtn: {
     paddingVertical: spacing.sm,

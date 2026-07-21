@@ -15,6 +15,7 @@ import {
   type HanukkahPractice,
 } from '../../constants/hanukkahPractices';
 import { icons } from '../../constants/icons';
+import { DreidelIcon } from '../ui/DreidelIcon';
 import { Icon } from '../ui/Icon';
 import { semanticColors, spacing, typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
 import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDimensions';
@@ -33,11 +34,19 @@ const STACK_BODY_MAX_HEIGHT = 280;
 const STACK_ROW_HEADER_HEIGHT = spacing.sm * 2 + typography.xl;
 
 const PRACTICE_ICONS: Record<string, (typeof icons)[keyof typeof icons]> = {
-  candles: icons.candle,
+  candles: icons.menorah,
   latkes: icons.utensils,
   story: icons.book,
-  dreidel: icons.dice,
 };
+
+function PracticeRowIcon({ practiceId }: { practiceId: string }) {
+  const color = semanticColors.goldMuted;
+  const size = 14;
+  if (practiceId === 'dreidel') {
+    return <DreidelIcon size={size} color={color} />;
+  }
+  return <Icon icon={PRACTICE_ICONS[practiceId] ?? icons.star} size={size} color={color} />;
+}
 
 const goldGlowStyle =
   Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlowSm } as object) : shadows.goldGlow;
@@ -97,8 +106,6 @@ function PracticeAccordionRow({
   const chevron = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   const bodyProgress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   const [bodyMounted, setBodyMounted] = useState(expanded);
-  const icon = PRACTICE_ICONS[practice.id] ?? icons.star;
-
   useEffect(() => {
     Animated.timing(chevron, {
       toValue: expanded ? 1 : 0,
@@ -144,7 +151,7 @@ function PracticeAccordionRow({
           {...WEB_SUPPRESS_MOUSE_FOCUS}
         >
           <View style={styles.stackTitleRow}>
-            <Icon icon={icon} size={14} color={semanticColors.goldMuted} />
+            <PracticeRowIcon practiceId={practice.id} />
             <Text style={styles.stackTitle}>{practice.title}</Text>
           </View>
           <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>

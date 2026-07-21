@@ -19,12 +19,21 @@ import type { SemanticColors } from '../../constants/themeMode';
 type Props = {
   activeSection: BoxDisplaySectionId;
   onSelect: (id: BoxDisplaySectionId) => void;
+  /** Tabs to show — omit empty sections. Defaults to all five. */
+  sectionIds?: BoxDisplaySectionId[];
 };
 
-export function StickySectionNav({ activeSection, onSelect }: Props) {
+export function StickySectionNav({ activeSection, onSelect, sectionIds }: Props) {
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createNavStyles(colors, isDesktop), [colors, isDesktop]);
+  const tabs = useMemo(
+    () =>
+      (sectionIds ?? BOX_DISPLAY_SECTIONS.map((section) => section.id))
+        .map((id) => BOX_DISPLAY_SECTIONS.find((section) => section.id === id))
+        .filter((section): section is (typeof BOX_DISPLAY_SECTIONS)[number] => section != null),
+    [sectionIds],
+  );
   const tabLayouts = useRef<Partial<Record<BoxDisplaySectionId, { x: number; width: number }>>>({});
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorW = useRef(new Animated.Value(0)).current;
@@ -54,7 +63,7 @@ export function StickySectionNav({ activeSection, onSelect }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
-        {BOX_DISPLAY_SECTIONS.map(({ id, navLabel }) => {
+        {tabs.map(({ id, navLabel }) => {
           const active = id === activeSection;
           return (
             <TouchableOpacity
@@ -87,7 +96,7 @@ export function StickySectionNav({ activeSection, onSelect }: Props) {
 function createNavStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
     wrap: {
-      paddingVertical: spacing.lg,
+      paddingTop: spacing.lg,
       paddingHorizontal: isDesktop ? 0 : BOX_DETAIL_TAB_GUTTER,
       backgroundColor: colors.bgPrimary,
       zIndex: 10,

@@ -179,6 +179,10 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       setGuestExplore();
       setMainNav('MainTabs', undefined, 'Account');
       break;
+    case 'account-signed-in':
+      setGuestExplore();
+      setMainNav('MainTabs', undefined, 'Account');
+      break;
     case 'catalog':
       void seedGuestBoxStarted().then(() =>
         setMainNav('CatalogProduct', {
