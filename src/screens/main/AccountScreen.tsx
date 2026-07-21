@@ -35,6 +35,7 @@ import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
+import { isAdminEmail } from '../../constants/admin';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -325,6 +326,19 @@ export function AccountScreen() {
         <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('GiftGive')}>
           <Text style={styles.profilesBtnText}>Send a gift</Text>
         </TouchableOpacity>
+
+        {isAdminEmail(user?.email) ? (
+          <>
+            <Text style={styles.section}>Ops</Text>
+            <Text style={styles.hint}>Add or edit Hanukkah catalog SKUs (books, menorahs, etc.).</Text>
+            <TouchableOpacity
+              style={styles.profilesBtn}
+              onPress={() => navigation.navigate('AdminCatalog')}
+            >
+              <Text style={styles.profilesBtnText}>Catalog admin</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
 
         <Text style={styles.section}>Orders</Text>
         {orders.length === 0 ? (

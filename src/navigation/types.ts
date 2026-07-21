@@ -39,6 +39,10 @@ export type MainStackParamList = {
     giftCreditCents: number;
     hasGiverDraft: boolean;
   };
+  /** Ops: list Hanukkah catalog items (admin allowlist). */
+  AdminCatalog: undefined;
+  /** Ops: create or edit a catalog item. Omit itemId to create. */
+  AdminCatalogItem: { itemId?: string };
   /** Dev: large grape mark + wobble knobs (`?preview=grape-wobble`). */
   GrapeWobblePreview: undefined;
 };
