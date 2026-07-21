@@ -18,11 +18,18 @@ const COMPACT_HERO_HEIGHT = 160;
 /** Brand off-black / “deep indigo” — gold-safe dark from BRAND_RULES. */
 const HERO_SCRIM = colors.purple[500];
 const GOLD = colors.warm[200];
-/** Figma 388:343 — compact hero card shadow */
 const COMPACT_HERO_SHADOW_WEB = '0px 0px 12px rgba(216, 201, 144, 0.50)';
 const HERO_SHADOW_WEB = '0px 0px 16px rgba(216, 201, 144, 0.50)';
+const HOVER_MS = 400;
+const HOVER_ZOOM = 1.04;
+const FADE_SIZE_REST = '68% 100%';
+const FADE_SIZE_HOVER = '92% 100%';
 
-function HeroScrim({ width, height }: { width: number; height: number }) {
+const FADE_CSS =
+  `linear-gradient(to right, ${HERO_SCRIM}eb 0%, ${HERO_SCRIM}8c 42%, ${HERO_SCRIM}2e 72%, ${HERO_SCRIM}00 100%)`;
+
+/** Native fallback — fixed SVG scrim. */
+function HeroScrimSvg({ width, height }: { width: number; height: number }) {
   const rawId = useId().replace(/:/g, '');
   const gradId = `heroScrim-${rawId}`;
   if (width <= 0 || height <= 0) return null;
@@ -45,11 +52,12 @@ function HeroScrim({ width, height }: { width: number; height: number }) {
 /** Full-bleed glamour hero — gold-washed photo + left→right dark fade for copy. */
 export function HomeHeroCard({ title, subtitle, compact = false, onPress }: Props) {
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [hovered, setHovered] = useState(false);
   const height = compact ? COMPACT_HERO_HEIGHT : HERO_HEIGHT;
-  const shadow =
-    Platform.OS === 'web'
-      ? ({ boxShadow: compact ? COMPACT_HERO_SHADOW_WEB : HERO_SHADOW_WEB } as object)
-      : shadows.goldGlow;
+  const isWeb = Platform.OS === 'web';
+  const shadow = isWeb
+    ? ({ boxShadow: compact ? COMPACT_HERO_SHADOW_WEB : HERO_SHADOW_WEB } as object)
+    : shadows.goldGlow;
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height: h } = e.nativeEvent.layout;
@@ -62,25 +70,79 @@ export function HomeHeroCard({ title, subtitle, compact = false, onPress }: Prop
         style={[styles.card, { height }, shadow]}
         onPress={onPress}
         onLayout={onLayout}
-        activeOpacity={0.92}
+        activeOpacity={0.95}
         accessibilityRole="button"
         accessibilityLabel={`${title}. ${subtitle}`}
+        {...(isWeb
+          ? ({
+              onMouseEnter: () => setHovered(true),
+              onMouseLeave: () => setHovered(false),
+            } as object)
+          : {})}
       >
-        <Image
-          source={HERO_GLAMOUR}
-          style={styles.photo}
-          resizeMode="cover"
-          accessibilityIgnoresInvertColors
-        />
-        {/* Soft gold wash over the photo */}
+        <View style={styles.photoClip} pointerEvents="none">
+          {/*
+            Bottom-anchored crop: pin the img to the bottom of an oversized box so
+            cover crops from the top (bottom of the photo stays in view).
+          */}
+          <View
+            style={[
+              styles.photoStage,
+              isWeb
+                ? ({
+                    transform: [{ scale: hovered ? HOVER_ZOOM : 1 }],
+                    transitionProperty: 'transform',
+                    transitionDuration: `${HOVER_MS}ms`,
+                    transitionTimingFunction: 'ease',
+                    transformOrigin: 'center bottom',
+                    willChange: 'transform',
+                    backfaceVisibility: 'hidden',
+                  } as object)
+                : null,
+            ]}
+          >
+            <Image
+              source={HERO_GLAMOUR}
+              style={[
+                styles.photo,
+                isWeb
+                  ? ({
+                      objectFit: 'cover',
+                      objectPosition: 'center bottom',
+                    } as object)
+                  : null,
+              ]}
+              resizeMode="cover"
+              accessibilityIgnoresInvertColors
+            />
+          </View>
+        </View>
         <View
           pointerEvents="none"
           style={[
             styles.goldWash,
-            Platform.OS === 'web' ? ({ mixBlendMode: 'soft-light' } as object) : null,
+            isWeb ? ({ mixBlendMode: 'soft-light' } as object) : null,
           ]}
         />
-        <HeroScrim width={size.w} height={size.h} />
+        {isWeb ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.fadeBand,
+              {
+                backgroundImage: FADE_CSS,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'left center',
+                backgroundSize: hovered ? FADE_SIZE_HOVER : FADE_SIZE_REST,
+                transitionProperty: 'background-size',
+                transitionDuration: `${HOVER_MS}ms`,
+                transitionTimingFunction: 'ease',
+              } as object,
+            ]}
+          />
+        ) : (
+          <HeroScrimSvg width={size.w} height={size.h} />
+        )}
         <View style={[styles.copy, compact ? styles.copyCompact : styles.copyTall]}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
@@ -104,14 +166,33 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: HERO_SCRIM,
   },
-  photo: {
+  photoClip: {
     ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  /** Taller than the card; pinned to bottom so cover keeps the photo's bottom in frame. */
+  photoStage: {
+    position: 'absolute',
+    left: -8,
+    right: -8,
+    bottom: -8,
+    height: '135%',
+  },
+  photo: {
     width: '100%',
     height: '100%',
   },
   goldWash: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(216, 201, 144, 0.38)',
+  },
+  fadeBand: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: '100%',
+    zIndex: 1,
   },
   copy: {
     position: 'absolute',

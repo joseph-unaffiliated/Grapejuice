@@ -141,6 +141,9 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       break;
     case 'onboarding-building':
       setOnboarding('building');
+      if (search.get('hold') === '1') {
+        useDevPreviewStore.setState({ onboardingBuildingHold: true });
+      }
       break;
     case 'onboarding-reveal':
       setGuestFresh();

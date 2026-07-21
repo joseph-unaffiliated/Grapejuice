@@ -2,13 +2,13 @@ import React, { useEffect } from 'react';
 import Svg, { G, Path } from 'react-native-svg';
 import Animated, {
   cancelAnimation,
+  Easing,
   useAnimatedProps,
   useSharedValue,
-  withDelay,
   withRepeat,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 
 /** Intrinsic SVG ratio from the brand file (1487 × 1360). */
 export const LOGOMARK_ASPECT = 1487 / 1360;
@@ -55,6 +55,8 @@ type Props = {
   color?: string;
   /** Wobbly per-grape rotation while Rav (or similar) is thinking. */
   animating?: boolean;
+  /** Loop the wobble while animating (default). Set false to play a single pass. */
+  loop?: boolean;
   /** Override timing / amplitude (preview + tuning). */
   wobble?: GrapeWobbleTune;
 };
@@ -140,172 +142,122 @@ const GRAPES: Grape[] = [
 const GRAPE_COUNT = GRAPES.length;
 /** Gap between successive berry pulses in sequence mode (phase lead-in). */
 const SEQUENCE_STEP_MS = 95;
-/** How long each snap pose is held (stop-motion frame). */
-const ROT_HOLD_MS = 70;
-const PULSE_HOLD_MS = 85;
+/** How long a single berry pop lasts (squash → stretch → settle). */
+const PULSE_MS = 255;
+/** Calm beat before the cascade restarts so the loop never parks on a squash frame. */
+const LOOP_REST_MS = 140;
+/** Each held pose in the stop-motion tilt loop — long enough to read as a frame. */
+const ROT_FRAME_MS = 70;
+/** Full tilt loop: 4 tilt poses + 1 rest pose, held stop-motion style. */
+const ROT_CYCLE_MS = ROT_FRAME_MS * 5;
 
-/** Instant pose change — no interpolation. */
-function snapTo(value: number) {
-  return withTiming(value, { duration: 0 });
-}
+/** Timing + pose config shared by every berry — derived once per cluster. */
+type WobbleConfig = {
+  /** Fraction of the cycle a single pop occupies. */
+  pulseFrac: number;
+  /** Fraction of the cycle between successive berry pops (sequence lead-in). */
+  stepFrac: number;
+  /** Quiet lead-in at the start of each cycle (all berries at rest). */
+  restFrac: number;
+  /** Full cycle length (ms) — used to normalize per-berry random offsets. */
+  cycleMs: number;
+  /** Tilt loop length (ms) — used to normalize per-berry rotation offsets. */
+  rotCycleMs: number;
+  baseMin: number;
+  baseMax: number;
+  sq: number;
+  ampScale: number;
+  pulseMode: GrapePulseMode;
+};
 
-/** Snap to value, then hold still for `holdMs`. */
-function snapHold(value: number, holdMs: number) {
-  const hold = Math.max(0, holdMs);
-  if (hold <= 0) return snapTo(value);
-  return withSequence(snapTo(value), withTiming(value, { duration: hold }));
-}
-
+/**
+ * A single berry, driven entirely by two shared clocks (each 0→1 looping):
+ * `clock` sequences the pops, `rotClock` runs the tilt loop. Its pose is a pure
+ * function of those clocks, so all six berries stay in lockstep no matter how
+ * the RAF timeline is paused/resumed (tab blur, etc.). Nothing is tweened —
+ * every value snaps between held frames for a stop-motion, illustrated feel.
+ */
 function WobbleGrape({
   grape,
   index,
   color,
-  animating,
-  ampScale,
-  speedScale,
-  pauseMs,
-  pulseMode,
-  pulseDepth,
-  squash,
+  clock,
+  rotClock,
+  active,
+  config,
 }: {
   grape: Grape;
   index: number;
   color: string;
-  animating: boolean;
-  ampScale: number;
-  speedScale: number;
-  pauseMs: number;
-  pulseMode: GrapePulseMode;
-  pulseDepth: number;
-  squash: number;
+  clock: SharedValue<number>;
+  rotClock: SharedValue<number>;
+  /** 1 while wobbling, 0 at rest — forces default size when off. */
+  active: SharedValue<number>;
+  config: WobbleConfig;
 }) {
-  const rot = useSharedValue(0);
-  const scaleX = useSharedValue(1);
-  const scaleY = useSharedValue(1);
-  const speed = Math.max(0.25, speedScale);
-  const depth = Math.min(0.85, Math.max(0, pulseDepth));
-  const baseMin = 1 - depth;
-  const baseMax = 1 + depth * 0.35;
-  /** Axis bias — kept in range so berries don't invert. */
-  const sq = Math.min(0.55, Math.max(0, squash)) * 0.85;
+  const { pulseFrac, stepFrac, restFrac, cycleMs, rotCycleMs, baseMin, baseMax, sq, ampScale, pulseMode } =
+    config;
+  const a = grape.amp * ampScale;
   // Alternate which axis flattens first so the cluster feels less symmetrical.
   const horizontalFirst = index % 2 === 0;
+  const clampAxis = (v: number) => Math.max(0.18, v);
+  const squashX = clampAxis(horizontalFirst ? baseMin * (1 + sq) : baseMin * (1 - sq));
+  const squashY = clampAxis(horizontalFirst ? baseMin * (1 - sq) : baseMin * (1 + sq));
+  const stretchX = clampAxis(horizontalFirst ? baseMax * (1 - sq) : baseMax * (1 + sq));
+  const stretchY = clampAxis(horizontalFirst ? baseMax * (1 + sq) : baseMax * (1 - sq));
 
-  useEffect(() => {
-    if (!animating) {
-      cancelAnimation(rot);
-      cancelAnimation(scaleX);
-      cancelAnimation(scaleY);
-      rot.value = snapTo(0);
-      scaleX.value = snapTo(1);
-      scaleY.value = snapTo(1);
-      return;
-    }
+  // Cascade starts after the shared rest beat so clock≈0 (loop wrap) is never a squash.
+  const popStart =
+    pulseMode === 'sequence'
+      ? restFrac + index * stepFrac
+      : (((restFrac + index * stepFrac + grape.randomOffsetMs / cycleMs) % 1) + 1) % 1;
+  // Small per-berry lead on the tilt loop so they don't all tilt in unison.
+  const rotOffset = (((grape.delayMs / rotCycleMs) % 1) + 1) % 1;
 
-    const a = grape.amp * ampScale;
-    /** Hold durations only — speed shortens how long each frame sits, not a tween. */
-    const hold = (ms: number) => Math.max(16, Math.round(ms / speed));
-    const clampAxis = (v: number) => Math.max(0.18, v);
-
-    const squashX = clampAxis(horizontalFirst ? baseMin * (1 + sq) : baseMin * (1 - sq));
-    const squashY = clampAxis(horizontalFirst ? baseMin * (1 - sq) : baseMin * (1 + sq));
-    const stretchX = clampAxis(horizontalFirst ? baseMax * (1 - sq) : baseMax * (1 + sq));
-    const stretchY = clampAxis(horizontalFirst ? baseMax * (1 + sq) : baseMax * (1 - sq));
-
-    const rotHold = hold(ROT_HOLD_MS);
-    rot.value = withDelay(
-      hold(grape.delayMs),
-      withRepeat(
-        withSequence(
-          snapHold(a, rotHold),
-          snapHold(-a * 0.85, rotHold),
-          snapHold(a * 0.55, rotHold),
-          snapHold(-a * 0.35, rotHold),
-          snapHold(0, hold(pauseMs + grape.delayMs)),
-        ),
-        -1,
-        false,
-      ),
-    );
-
-    const pulseHold = hold(PULSE_HOLD_MS);
-    const pulseX = withSequence(
-      snapHold(squashX, pulseHold),
-      snapHold(stretchX, pulseHold),
-      snapHold(1, pulseHold),
-    );
-    const pulseY = withSequence(
-      snapHold(squashY, pulseHold),
-      snapHold(stretchY, pulseHold),
-      snapHold(1, pulseHold),
-    );
-    const pulseLen = pulseHold * 3;
-
-    if (pulseMode === 'sequence') {
-      // Same cycle length for every berry; only the lead-in phase differs.
-      const step = hold(SEQUENCE_STEP_MS);
-      const cycleLen = (GRAPE_COUNT - 1) * step + pulseLen + hold(pauseMs);
-      const leadIn = index * step;
-      const trail = Math.max(0, cycleLen - leadIn - pulseLen);
-
-      scaleX.value = withRepeat(
-        withSequence(snapHold(1, leadIn), pulseX, snapHold(1, trail)),
-        -1,
-        false,
-      );
-      scaleY.value = withRepeat(
-        withSequence(snapHold(1, leadIn), pulseY, snapHold(1, trail)),
-        -1,
-        false,
-      );
-    } else {
-      const rest = hold(grape.randomPauseMs + pauseMs);
-      scaleX.value = withDelay(
-        hold(grape.randomOffsetMs),
-        withRepeat(withSequence(pulseX, snapHold(1, rest)), -1, false),
-      );
-      scaleY.value = withDelay(
-        hold(grape.randomOffsetMs),
-        withRepeat(withSequence(pulseY, snapHold(1, rest)), -1, false),
-      );
-    }
-
-    return () => {
-      cancelAnimation(rot);
-      cancelAnimation(scaleX);
-      cancelAnimation(scaleY);
-    };
-  }, [
-    animating,
-    ampScale,
-    speed,
-    pauseMs,
-    pulseMode,
-    depth,
-    baseMin,
-    baseMax,
-    sq,
-    horizontalFirst,
-    grape.amp,
-    grape.delayMs,
-    grape.randomOffsetMs,
-    grape.randomPauseMs,
-    index,
-    rot,
-    scaleX,
-    scaleY,
-  ]);
+  const { cx, cy, d } = grape;
+  const pf = pulseFrac;
 
   const animatedProps = useAnimatedProps(() => {
-    const { cx, cy } = grape;
+    // Rest pose — clock=0 otherwise parks grape 0 inside the squash window.
+    if (active.value < 0.5) {
+      return {
+        transform: `translate(${cx} ${cy}) rotate(0) scale(1 1) translate(${-cx} ${-cy})`,
+      };
+    }
+
+    // Pop window: snap to squash, then stretch, then settle — no tween between.
+    const phase = (((clock.value - popStart) % 1) + 1) % 1;
+    let sx = 1;
+    let sy = 1;
+    if (phase < pf / 3) {
+      sx = squashX;
+      sy = squashY;
+    } else if (phase < (pf * 2) / 3) {
+      sx = stretchX;
+      sy = stretchY;
+    }
+
+    // Tilt loop: four held tilt poses then a rest, each a discrete frame.
+    const rp = (((rotClock.value - rotOffset) % 1) + 1) % 1;
+    let rot = 0;
+    if (rp < 0.2) {
+      rot = a;
+    } else if (rp < 0.4) {
+      rot = -a * 0.85;
+    } else if (rp < 0.6) {
+      rot = a * 0.55;
+    } else if (rp < 0.8) {
+      rot = -a * 0.35;
+    }
+
     return {
-      transform: `translate(${cx} ${cy}) rotate(${rot.value}) scale(${scaleX.value} ${scaleY.value}) translate(${-cx} ${-cy})`,
+      transform: `translate(${cx} ${cy}) rotate(${rot}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`,
     };
   });
 
   return (
     <AnimatedG animatedProps={animatedProps}>
-      <Path d={grape.d} fill={color} />
+      <Path d={d} fill={color} />
     </AnimatedG>
   );
 }
@@ -319,6 +271,7 @@ export function GrapejuiceLogomarkSvg({
   height,
   color = '#000000',
   animating = false,
+  loop = true,
   wobble,
 }: Props) {
   const h = height ?? width / LOGOMARK_ASPECT;
@@ -329,6 +282,70 @@ export function GrapejuiceLogomarkSvg({
   const pulseDepth = wobble?.pulseDepth ?? DEFAULT_GRAPE_WOBBLE.pulseDepth;
   const squash = wobble?.squash ?? DEFAULT_GRAPE_WOBBLE.squash;
 
+  const speed = Math.max(0.25, speedScale);
+  const scaleMs = (ms: number) => Math.max(16, Math.round(ms / speed));
+  const stepMs = scaleMs(SEQUENCE_STEP_MS);
+  const pulseMs = scaleMs(PULSE_MS);
+  const pauseMsScaled = scaleMs(pauseMs);
+  // Quiet beat at the start of every cycle (covers pauseMs + a minimum loop rest).
+  const restMs = Math.max(pauseMsScaled, scaleMs(LOOP_REST_MS));
+  // One cycle: rest → cascade → last berry pops → wrap back into rest.
+  const cycleMs = restMs + (GRAPE_COUNT - 1) * stepMs + pulseMs;
+  // Tilt runs on its own faster loop so berries keep a little life between pops.
+  const rotCycleMs = scaleMs(ROT_CYCLE_MS);
+
+  const depth = Math.min(0.85, Math.max(0, pulseDepth));
+  const config: WobbleConfig = {
+    pulseFrac: pulseMs / cycleMs,
+    stepFrac: stepMs / cycleMs,
+    restFrac: restMs / cycleMs,
+    cycleMs,
+    rotCycleMs,
+    baseMin: 1 - depth,
+    baseMax: 1 + depth * 0.35,
+    /** Axis bias — kept in range so berries don't invert. */
+    sq: Math.min(0.55, Math.max(0, squash)) * 0.85,
+    ampScale,
+    pulseMode,
+  };
+
+  // Two parent-owned clocks are the sole sources of timing truth: `clock`
+  // sequences the pops (its order can never desync — all berries read it),
+  // `rotClock` drives the continuous tilt loop.
+  const clock = useSharedValue(0);
+  const rotClock = useSharedValue(0);
+  const active = useSharedValue(animating ? 1 : 0);
+
+  useEffect(() => {
+    cancelAnimation(clock);
+    cancelAnimation(rotClock);
+    if (!animating) {
+      active.value = 0;
+      clock.value = 0;
+      rotClock.value = 0;
+      return;
+    }
+    // Restart from 0 so the cascade always begins top-left, in order.
+    active.value = 1;
+    clock.value = 0;
+    clock.value = withRepeat(
+      withTiming(1, { duration: cycleMs, easing: Easing.linear }),
+      loop ? -1 : 1,
+      false,
+    );
+    rotClock.value = 0;
+    rotClock.value = withRepeat(
+      withTiming(1, { duration: rotCycleMs, easing: Easing.linear }),
+      loop ? -1 : 1,
+      false,
+    );
+    return () => {
+      cancelAnimation(clock);
+      cancelAnimation(rotClock);
+      active.value = 0;
+    };
+  }, [animating, loop, cycleMs, rotCycleMs, clock, rotClock, active]);
+
   return (
     <Svg width={width} height={h} viewBox="0 0 1487 1360" fill="none">
       {GRAPES.map((grape, i) => (
@@ -337,13 +354,10 @@ export function GrapejuiceLogomarkSvg({
           index={i}
           grape={grape}
           color={color}
-          animating={animating}
-          ampScale={ampScale}
-          speedScale={speedScale}
-          pauseMs={pauseMs}
-          pulseMode={pulseMode}
-          pulseDepth={pulseDepth}
-          squash={squash}
+          clock={clock}
+          rotClock={rotClock}
+          active={active}
+          config={config}
         />
       ))}
     </Svg>

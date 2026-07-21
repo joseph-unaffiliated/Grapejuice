@@ -27,6 +27,8 @@ type DevPreviewState = {
   forceGate: DevPreviewGate | null;
   authInitialRoute: keyof AuthStackParamList | null;
   onboardingInitialStep: OnboardingPreviewStep | null;
+  /** `?preview=onboarding-building&hold=1` — stay on building screen for design tweaks. */
+  onboardingBuildingHold: boolean;
   pendingMainNav: PendingMainNav | null;
   reset: () => void;
   applyPreview: (key: string) => void;
@@ -39,6 +41,7 @@ const initial = {
   forceGate: null as DevPreviewGate | null,
   authInitialRoute: null as keyof AuthStackParamList | null,
   onboardingInitialStep: null as OnboardingPreviewStep | null,
+  onboardingBuildingHold: false,
   pendingMainNav: null as PendingMainNav | null,
 };
 

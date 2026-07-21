@@ -1,26 +1,42 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Platform, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Animated, Platform } from 'react-native';
 import {
-  OnboardingScreenLayout,
-  onboardingBodyText,
-} from '../../components/onboarding/OnboardingScreenLayout';
-import { semanticColors, spacing, typography, typeface } from '../../constants/theme';
+  OnboardingBuildLoader,
+  BUILD_LOADER_REST_MESSAGE,
+} from '../../components/onboarding/OnboardingBuildLoader';
+import { semanticColors } from '../../constants/theme';
 
 type Props = {
   onComplete: () => void;
+  /** Design preview — keep cycling copy but do not advance to box reveal. */
+  hold?: boolean;
+  /** Box data is ready; advance to the reveal once the minimum splash elapses. */
+  ready?: boolean;
 };
 
 const BUILD_STEPS = [
   'Reading your family…',
   'Matching stories to ages…',
   'Picking treats and candles…',
-  'Almost there…',
+  BUILD_LOADER_REST_MESSAGE,
 ];
 
-export function BuildingBoxScreen({ onComplete }: Props) {
-  const fade = useRef(new Animated.Value(0)).current;
+const MESSAGE_INTERVAL_MS = 700;
+/** Hold the splash long enough to read, even when the box builds instantly. */
+const MIN_SPLASH_MS = 2200;
+
+/**
+ * Loader splash. Renders bare (no screen chrome) so it centers within the
+ * onboarding left pane and tracks the pane as it expands to full width.
+ * Mounts the moment the build starts so it rides the expansion; advances to
+ * the reveal once the box data is `ready` and the minimum splash has elapsed.
+ * The corner logo is faded out by the building transition, so it is omitted here.
+ */
+export function BuildingBoxScreen({ onComplete, hold = false, ready = true }: Props) {
+  const contentOpacity = useRef(new Animated.Value(0)).current;
   const onCompleteRef = useRef(onComplete);
-  const [stepIndex, setStepIndex] = React.useState(0);
+  const mountedAt = useRef(Date.now());
+  const [stepIndex, setStepIndex] = useState(0);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -28,50 +44,42 @@ export function BuildingBoxScreen({ onComplete }: Props) {
 
   useEffect(() => {
     const useNative = Platform.OS !== 'web';
-    Animated.timing(fade, { toValue: 1, duration: 400, useNativeDriver: useNative }).start();
+    Animated.timing(contentOpacity, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: useNative,
+    }).start();
 
     const stepTimer = setInterval(() => {
       setStepIndex((i) => (i < BUILD_STEPS.length - 1 ? i + 1 : i));
-    }, 700);
+    }, MESSAGE_INTERVAL_MS);
 
-    const doneTimer = setTimeout(() => onCompleteRef.current(), 2800);
+    return () => clearInterval(stepTimer);
+  }, [contentOpacity]);
 
-    return () => {
-      clearInterval(stepTimer);
-      clearTimeout(doneTimer);
-    };
-  }, [fade]);
+  useEffect(() => {
+    if (hold || !ready) return;
+    const wait = Math.max(0, MIN_SPLASH_MS - (Date.now() - mountedAt.current));
+    const doneTimer = setTimeout(() => onCompleteRef.current(), wait);
+    return () => clearTimeout(doneTimer);
+  }, [hold, ready]);
 
   return (
-    <OnboardingScreenLayout title="Building your box" hideFooter>
-      <Animated.View style={[styles.root, { opacity: fade }]}>
-        <ActivityIndicator size="large" color={semanticColors.brand} />
-        <Text style={styles.step}>{BUILD_STEPS[stepIndex]}</Text>
-        <Text style={[onboardingBodyText.text, styles.body]}>
-          We are curating candles, treats, kid picks, and a printed guide — matched to what you told us.
-        </Text>
+    <View style={styles.fill}>
+      <Animated.View style={{ opacity: contentOpacity }}>
+        <OnboardingBuildLoader message={BUILD_STEPS[stepIndex]} />
       </Animated.View>
-    </OnboardingScreenLayout>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  fill: {
+    flex: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xl,
-  },
-  step: {
-    ...typeface('regular'),
-    fontSize: typography.lg,
-    color: semanticColors.goldMuted,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  body: {
-    textAlign: 'center',
-    marginTop: spacing.md,
-    maxWidth: 320,
+    backgroundColor: semanticColors.bgPrimary,
+    minHeight: 0,
   },
 });

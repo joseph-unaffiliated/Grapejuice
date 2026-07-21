@@ -586,24 +586,26 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   onChangeText={setInput}
                   multiline
                   blurOnSubmit={false}
-                  fontSize={typography.lg}
                   onKeyPress={handleComposerKeyPress}
+                  {...(Platform.OS === 'web' ? ({ rows: 1 } as object) : null)}
                 />
-                <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
-                  <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.pillIconBtn}
-                  onPress={() => sendMessage(input)}
-                  disabled={!input.trim() || loading}
-                  accessibilityLabel="Send message"
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color={colors.textPrimary} />
-                  ) : (
-                    <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
-                  )}
-                </TouchableOpacity>
+                <View style={styles.replyActions}>
+                  <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
+                    <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.pillIconBtn}
+                    onPress={() => sendMessage(input)}
+                    disabled={!input.trim() || loading}
+                    accessibilityLabel="Send message"
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color={colors.textPrimary} />
+                    ) : (
+                      <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </>
@@ -873,7 +875,8 @@ function createPilotStyles(colors: SemanticColors) {
   },
   replyPill: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
     backgroundColor: colors.bgPrimary,
     borderRadius: 20,
     paddingHorizontal: spacing.lg,
@@ -883,15 +886,35 @@ function createPilotStyles(colors: SemanticColors) {
   },
   replyInput: {
     flex: 1,
+    // Web <textarea> won't shrink in a row without this — otherwise icons wrap under.
+    minWidth: 0,
+    width: 0,
     fontSize: typography.lg,
+    lineHeight: typography.lg,
     color: colors.textPrimary,
     maxHeight: 180,
-    paddingVertical: spacing.xs,
+    // Match welcome search: zero vertical padding so text shares the icon midline.
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    margin: 0,
     ...typeface('regular'),
+    ...(Platform.OS === 'web'
+      ? ({ outlineStyle: 'none', minHeight: typography.lg } as object)
+      : { includeFontPadding: false, textAlignVertical: 'center' }),
+  },
+  replyActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    gap: spacing.sm,
+    height: typography.lg,
   },
   pillIconBtn: {
-    paddingBottom: 4,
-    paddingHorizontal: 2,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   error: { color: colors.error, fontSize: typography.sm, padding: spacing.md, textAlign: 'center' },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },

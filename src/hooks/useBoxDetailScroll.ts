@@ -91,23 +91,34 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
   );
 
   const resolveScrollContainer = useCallback((sectionEl: HTMLElement): HTMLElement => {
-    const fromParent = findScrollParent(sectionEl);
-    if (fromParent.scrollHeight > fromParent.clientHeight + 1) return fromParent;
-
+    // Prefer this screen's ScrollView — stacked routes can leave other box
+    // screens mounted, and walking the DOM can latch onto the wrong scroller.
     const host = scrollRef.current as unknown as HostNode | null;
     const fromRef = host?.getScrollableNode?.();
     if (fromRef && fromRef.scrollHeight > fromRef.clientHeight + 1) return fromRef;
 
-    return fromParent;
+    const fromParent = findScrollParent(sectionEl);
+    if (fromParent.scrollHeight > fromParent.clientHeight + 1) return fromParent;
+
+    return fromRef ?? fromParent;
   }, []);
 
   const resolveSectionElement = useCallback((id: BoxDisplaySectionId): HTMLElement | null => {
+    // Prefer the node registered by *this* screen. Global getElementById is unsafe
+    // when onboarding reveal + My Box both mount `box-section-*` ids.
+    const registered = sectionNodes.current[id];
+    if (isDomElement(registered)) return registered;
+
     if (Platform.OS === 'web') {
-      const byId = document.getElementById(sectionDomId(id));
-      if (byId) return byId;
+      const host = scrollRef.current as unknown as HostNode | null;
+      const root = host?.getScrollableNode?.();
+      if (root) {
+        const scoped = root.querySelector(`#${sectionDomId(id)}`);
+        if (scoped instanceof HTMLElement) return scoped;
+      }
+      return document.getElementById(sectionDomId(id));
     }
-    const node = sectionNodes.current[id];
-    return isDomElement(node) ? node : null;
+    return null;
   }, []);
 
   const registerSection = useCallback((id: BoxDisplaySectionId, node: unknown) => {
@@ -204,18 +215,19 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
     const attach = () => {
       if (cancelled) return;
 
-      scrollEl = null;
-      for (const id of visibleSectionIds) {
-        const sectionEl = document.getElementById(sectionDomId(id));
-        if (sectionEl) {
-          scrollEl = resolveScrollContainer(sectionEl);
-          break;
-        }
-      }
+      // Prefer this instance's ScrollView before probing the document — avoids
+      // attaching spy listeners to a still-mounted previous box screen.
+      const host = scrollRef.current as unknown as HostNode | null;
+      scrollEl = host?.getScrollableNode?.() ?? null;
 
       if (!scrollEl) {
-        const host = scrollRef.current as unknown as HostNode | null;
-        scrollEl = host?.getScrollableNode?.() ?? null;
+        for (const id of visibleSectionIds) {
+          const sectionEl = resolveSectionElement(id);
+          if (sectionEl) {
+            scrollEl = resolveScrollContainer(sectionEl);
+            break;
+          }
+        }
       }
 
       if (!scrollEl) {
@@ -236,7 +248,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
       cancelAnimationFrame(raf);
       removeListener?.();
     };
-  }, [contentReady, resolveScrollContainer, updateActiveFromDom, visibleSectionIds]);
+  }, [contentReady, resolveScrollContainer, resolveSectionElement, updateActiveFromDom, visibleSectionIds]);
 
   const scrollToSection = useCallback(
     (id: BoxDisplaySectionId) => {

@@ -22,8 +22,10 @@ import type { BoxLineItem, FamiliarityLevel, ChildProfile } from '../types/pilot
 import type { ChildInterestId } from '../constants/childInterests';
 import { semanticColors } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
+import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { clearDevPreview } from './devPreview';
 import { onboardingErrorMessage, resolveOnboardingStep, type OnboardingStep } from './onboardingSteps';
+import { OnboardingMediaHost } from '../components/onboarding/OnboardingMediaHost';
 
 type Props = {
   onComplete?: () => void;
@@ -223,7 +225,8 @@ export function OnboardingStack({
         throw new Error('You must be signed in to save your box. Try signing in and building again.');
       }
 
-      await refresh();
+      // Silent: keep the building splash up instead of flashing the boot spinner.
+      await refresh({ silent: true });
       const householdId = await ensureHouseholdId(user.uid, household?.id ?? profile?.householdId);
       const savedKids = await childrenService.replaceAll(
         user.uid,
@@ -300,13 +303,39 @@ export function OnboardingStack({
     onComplete?.();
   }, [exitGuestOnboarding, guestMode, onComplete, refresh, user?.uid]);
 
-  const explore = saving ? undefined : () => void exitOnboarding();
+  const explore = useCallback(() => void exitOnboarding(), [exitOnboarding]);
+  const buildingPreviewHold = useDevPreviewStore((s) => s.onboardingBuildingHold);
 
-  const wrap = (content: React.ReactNode) => (
+  const wrap = (
+    content: React.ReactNode,
+    options?: { persistMedia?: boolean; buildingPhase?: boolean; buildingLoader?: boolean }
+  ) => (
     <View style={styles.shell}>
-      <View style={styles.shellBody}>{content}</View>
+      <View style={styles.shellBody}>
+        {options?.persistMedia ? (
+          <OnboardingMediaHost
+            buildingPhase={options.buildingPhase}
+            buildingLoader={options.buildingLoader}
+          >
+            {content}
+          </OnboardingMediaHost>
+        ) : (
+          content
+        )}
+      </View>
     </View>
   );
+
+  const persistMediaSteps: OnboardingStep[] = [
+    'hanukkah-intro',
+    'practices',
+    'box-intro',
+    'children',
+    'child-interests',
+    'familiarity',
+    'rav-question',
+    'building',
+  ];
 
   if (loadingReveal) {
     return wrap(
@@ -316,19 +345,24 @@ export function OnboardingStack({
     );
   }
 
+  let stepContent: React.ReactNode = null;
+
   switch (step) {
     case 'hanukkah-intro':
-      return wrap(
+      stepContent = (
         <HanukkahIntroScreen onContinue={() => goToStep('practices')} onExplore={explore} />
       );
+      break;
     case 'practices':
-      return wrap(
+      stepContent = (
         <HanukkahPracticesScreen onContinue={() => goToStep('box-intro')} onExplore={explore} />
       );
+      break;
     case 'box-intro':
-      return wrap(<BoxIntroScreen onContinue={() => goToStep('children')} onExplore={explore} />);
+      stepContent = <BoxIntroScreen onContinue={() => goToStep('children')} onExplore={explore} />;
+      break;
     case 'children':
-      return wrap(
+      stepContent = (
         <ChildrenScreen
           onExplore={explore}
           onContinue={(kids) => {
@@ -338,8 +372,9 @@ export function OnboardingStack({
           }}
         />
       );
+      break;
     case 'child-interests':
-      return wrap(
+      stepContent = (
         <ChildInterestsScreen
           initialSelected={childInterests}
           onExplore={explore}
@@ -350,8 +385,9 @@ export function OnboardingStack({
           }}
         />
       );
+      break;
     case 'familiarity':
-      return wrap(
+      stepContent = (
         <FamiliaritySliderScreen
           initialScore={familiarityScore || familiarityLevelToScore(familiarity)}
           onExplore={explore}
@@ -363,8 +399,13 @@ export function OnboardingStack({
           }}
         />
       );
+      break;
     case 'rav-question':
-      return wrap(
+      // On build, swap straight to the loader so it rides the pane expansion
+      // instead of leaving the form on screen through the whole catalog fetch.
+      stepContent = saving ? (
+        <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready={false} />
+      ) : (
         <RavOpenQuestionScreen
           initialNotes={ravNotes}
           isAuthenticated={!guestMode}
@@ -378,10 +419,12 @@ export function OnboardingStack({
           }}
         />
       );
+      break;
     case 'building':
-      return wrap(<BuildingBoxScreen onComplete={goToReveal} />);
+      stepContent = <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready />;
+      break;
     case 'reveal':
-      return wrap(
+      stepContent = (
         <BoxRevealScreen
           children={savedChildren}
           familiarity={familiarity}
@@ -390,9 +433,16 @@ export function OnboardingStack({
           completing={completingReveal}
         />
       );
+      break;
     default:
       return null;
   }
+
+  return wrap(stepContent, {
+    persistMedia: persistMediaSteps.includes(step),
+    buildingPhase: step === 'building' || saving,
+    buildingLoader: step === 'building',
+  });
 }
 
 const styles = StyleSheet.create({

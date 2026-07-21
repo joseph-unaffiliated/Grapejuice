@@ -573,28 +573,37 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   return StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.bgPrimary },
   root: { flex: 1, backgroundColor: colors.bgPrimary },
-  panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
+  panel: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: colors.bgPrimary,
+    overflow: 'visible' as const,
+  },
   mobileWrap: { flex: 1 },
   desktopRoot: {
     flex: 1,
     width: '100%',
     backgroundColor: colors.bgPrimary,
+    overflow: 'visible' as const,
   },
   desktopScrollContent: {
     flexGrow: 1,
     paddingBottom: spacing.xxl,
+    overflow: 'visible' as const,
   },
   desktopShell: {
     width: '100%',
     alignSelf: 'center',
     paddingTop: DESKTOP_CONTENT_TOP,
+    overflow: 'visible' as const,
   },
   desktopColumns: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.lg,
+    overflow: 'visible' as const,
   },
-  desktopList: { flex: 2, minWidth: 0 },
+  desktopList: { flex: 2, minWidth: 0, overflow: 'visible' as const },
   desktopListContent: { paddingBottom: spacing.xxl },
   desktopSummary: {
     flex: 1,

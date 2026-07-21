@@ -278,7 +278,7 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
                 } as object)
               : {})}
           >
-            <GrapejuiceBrandMark variant="sidebar" align="left" animating={logoHover} />
+            <GrapejuiceBrandMark variant="sidebar" align="left" animating={logoHover} loop={false} />
           </Animated.View>
         </View>
       </View>

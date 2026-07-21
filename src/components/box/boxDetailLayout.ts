@@ -192,6 +192,8 @@ export function createBoxDetailStyles(
       paddingHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
       gap: spacing.sm,
       marginBottom: spacing.sm,
+      // Let guest-auth gold glow bleed; RN Views default to overflow:hidden.
+      overflow: 'visible' as const,
     },
   });
 }
