@@ -10,9 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
-  Pressable,
-  Animated,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
@@ -41,14 +38,18 @@ import { RavBlockRenderer } from './RavBlockRenderer';
 import { FormattedChatText } from './FormattedChatText';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useWebSidebar } from '../../context/WebSidebarContext';
 import {
   buildKidRavStarterChips,
   buildRavStarterChips,
 } from '../../constants/ravStarterPrompts';
 
 const MAX_HISTORY_TURNS = 10;
-/** Figma 366:1762 — 13px type + 12px vertical padding ≈ 37px pill height */
-const WELCOME_SEARCH_LINE_HEIGHT = typography.lg;
+/** Fixed pill — same idea as Home SearchPill; never grow on focus. */
+const WELCOME_SEARCH_LINE = typography.lg;
+const WELCOME_SEND_SIZE = 32;
+
+type RavView = 'welcome' | 'recent' | 'thread';
 
 function titleFromMessage(text: string): string {
   const trimmed = text.trim().replace(/\s+/g, ' ');
@@ -58,6 +59,10 @@ function titleFromMessage(text: string): string {
 
 export type PilotAIChatSheetRef = {
   resetToWelcome: () => void;
+  showWelcome: () => void;
+  startNewChat: (initialMessage?: string) => void;
+  showRecentChats: () => void;
+  openThread: (threadId: string, fromRecent?: boolean) => void;
   sendMessage: (text: string) => void;
   setInputText: (text: string) => void;
 };
@@ -65,15 +70,16 @@ export type PilotAIChatSheetRef = {
 type Props = {
   embedded?: boolean;
   bottomInset?: number;
-  initialMessage?: string;
 };
 
 export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(function PilotAIChatSheet(
-  { embedded = true, bottomInset = 0, initialMessage },
+  { embedded: _embedded = true, bottomInset = 0 },
   ref
 ) {
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
+  const webSidebar = useWebSidebar();
+  const setRavSubnav = webSidebar?.setRavSubnav;
   const styles = useMemo(() => createPilotStyles(colors), [colors]);
   const user = useAuthStore((s) => s.user);
   const startAuthForRav = useAuthFlowStore((s) => s.startAuthForRav);
@@ -81,6 +87,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const { lineItems, persist } = useBoxDraft();
   const { isChildProfile, activeChild, ravEnabledForActiveChild } = useActiveProfile();
   const insets = useSafeAreaInsets();
+  const [view, setView] = useState<RavView>('welcome');
+  const [returnToRecent, setReturnToRecent] = useState(false);
   const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -88,16 +96,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recentChats, setRecentChats] = useState<AIChatThreadSummary[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const historyBackdropOpacity = useRef(new Animated.Value(0)).current;
-  const historySheetY = useRef(new Animated.Value(480)).current;
-  const historyClosingRef = useRef(false);
   const [hanukkahStartsOn, setHanukkahStartsOn] = useState<string | null>(null);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
   const [lastActivityAt, setLastActivityAt] = useState(() => new Date());
-  const initialSent = useRef(false);
+  const [welcomeFocused, setWelcomeFocused] = useState(false);
+  const pendingInitialMessage = useRef<string | null>(null);
+  const [pendingSendNonce, setPendingSendNonce] = useState(0);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList<AIChatMessage>>(null);
   const isGuest = !user?.uid;
@@ -118,6 +124,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
   const goldGlow = Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm } : shadows.goldGlow;
   const hasInput = input.trim().length > 0;
+  /** Active on focus (not first keystroke) so layout/send don't remount mid-type. */
+  const welcomeActive = welcomeFocused || hasInput;
 
   const scrollToEnd = useCallback(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -134,19 +142,60 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     feedbackTimer.current = setTimeout(() => setBlockFeedback(null), 3200);
   }, []);
 
-  const resetToWelcome = useCallback(() => {
+  const clearComposer = useCallback(() => {
     setMessages([]);
     setError(null);
     setInput('');
     setBlockFeedback(null);
-    if (!user?.uid) return;
-    void refreshThreads();
-    if (useKidRavThreads && activeChild?.id) {
-      kidRavChatService.createThread(user.uid, activeChild.id).then((id) => setThreadId(id));
-      return;
-    }
-    aiChatService.createThread(user.uid).then((id) => setThreadId(id));
-  }, [user?.uid, refreshThreads, useKidRavThreads, activeChild?.id]);
+    setThreadId(null);
+    setReturnToRecent(false);
+    setWelcomeFocused(false);
+    setView('welcome');
+  }, []);
+
+  const showWelcome = useCallback(() => {
+    clearComposer();
+    if (!isGuest) void refreshThreads();
+  }, [clearComposer, isGuest, refreshThreads]);
+
+  const startNewChat = useCallback((initialMessage?: string) => {
+    clearComposer();
+    // Don't create a Firestore thread until the first message — empty stubs were
+    // filling listThreads(limit 20) and pushing real chats out of Recent.
+    const pending = initialMessage?.trim();
+    if (!pending) return;
+    pendingInitialMessage.current = pending;
+    setPendingSendNonce((n) => n + 1);
+  }, [clearComposer]);
+
+  const resetToWelcome = startNewChat;
+
+  const showRecentChats = useCallback(() => {
+    setView('recent');
+    setReturnToRecent(false);
+    setError(null);
+    setBlockFeedback(null);
+    if (!isGuest) void refreshThreads();
+  }, [isGuest, refreshThreads]);
+
+  const loadThread = useCallback(
+    async (id: string, fromRecent = false) => {
+      if (!user?.uid) return;
+      const thread = useKidRavThreads && activeChild?.id
+        ? await kidRavChatService.getThread(user.uid, activeChild.id, id)
+        : await aiChatService.getThread(user.uid, id);
+      if (!thread) return;
+      setThreadId(thread.id);
+      setMessages(thread.messages);
+      setLastActivityAt(new Date(thread.updatedAt));
+      setReturnToRecent(fromRecent);
+      setView(thread.messages.length > 0 ? 'thread' : 'welcome');
+      setError(null);
+      setInput('');
+      setBlockFeedback(null);
+    },
+    [user?.uid, useKidRavThreads, activeChild?.id]
+  );
 
   useEffect(() => {
     return () => {
@@ -162,24 +211,26 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     catalogService.getAll().then(setCatalog);
   }, []);
 
+  /** Open on welcome — do not auto-resume the previous thread. */
   useEffect(() => {
     if (isGuest) {
       setThreadId(null);
       setMessages([]);
+      setView('welcome');
       setInitializing(false);
       return;
     }
     if (!user?.uid) return;
-    const loadThread = useKidRavThreads && activeChild?.id
-      ? kidRavChatService.getOrCreateDefaultThread(user.uid, activeChild.id)
-      : aiChatService.getOrCreateDefaultThread(user.uid);
-    loadThread.then(({ threadId: id, thread }) => {
-      setThreadId(id);
-      setMessages(thread.messages);
-      refreshThreads();
-      setInitializing(false);
-    });
-  }, [isGuest, user?.uid, refreshThreads, useKidRavThreads, activeChild?.id]);
+    void refreshThreads();
+    setInitializing(false);
+  }, [isGuest, user?.uid, refreshThreads]);
+
+  useEffect(() => {
+    if (!setRavSubnav) return;
+    if (view === 'recent') setRavSubnav('recent');
+    else if (view === 'welcome') setRavSubnav('new');
+    else setRavSubnav(returnToRecent ? 'recent' : 'new');
+  }, [view, returnToRecent, setRavSubnav]);
 
   const addBlockItem = useCallback(
     async (item: CatalogItem) => {
@@ -232,10 +283,20 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || loading) return;
-      if (!isGuest && (!user?.uid || !threadId)) return;
+      if (!isGuest && !user?.uid) return;
+
+      let activeThreadId = threadId;
+      if (!isGuest && user?.uid && !activeThreadId) {
+        activeThreadId =
+          useKidRavThreads && activeChild?.id
+            ? await kidRavChatService.createThread(user.uid, activeChild.id)
+            : await aiChatService.createThread(user.uid);
+        setThreadId(activeThreadId);
+      }
 
       setError(null);
       setInput('');
+      setView('thread');
       const userMsg: AIChatMessage = { role: 'user', content: trimmed };
       const prior = messages;
       setMessages([...prior, userMsg]);
@@ -244,11 +305,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       scrollToEnd();
 
       try {
-        if (!isGuest && prior.length === 0 && threadId) {
+        if (!isGuest && prior.length === 0 && activeThreadId && user?.uid) {
           if (useKidRavThreads && activeChild?.id) {
-            await kidRavChatService.updateTitle(user.uid, activeChild.id, threadId, titleFromMessage(trimmed));
+            await kidRavChatService.updateTitle(user.uid, activeChild.id, activeThreadId, titleFromMessage(trimmed));
           } else {
-            await aiChatService.updateTitle(user.uid, threadId, titleFromMessage(trimmed));
+            await aiChatService.updateTitle(user.uid, activeThreadId, titleFromMessage(trimmed));
             await refreshThreads();
           }
         }
@@ -280,14 +341,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         const assistantMsg: AIChatMessage = { role: 'assistant', content, blocks };
         setMessages((m) => [...m, assistantMsg]);
         setLastActivityAt(new Date());
-        if (!isGuest && threadId) {
+        if (!isGuest && activeThreadId && user?.uid) {
           if (useKidRavThreads && activeChild?.id) {
-            await kidRavChatService.appendMessages(user.uid, activeChild.id, threadId, [
+            await kidRavChatService.appendMessages(user.uid, activeChild.id, activeThreadId, [
               userMsg,
               assistantMsg,
             ]);
           } else {
-            await aiChatService.appendMessages(user.uid, threadId, [userMsg, assistantMsg]);
+            await aiChatService.appendMessages(user.uid, activeThreadId, [userMsg, assistantMsg]);
             await refreshThreads();
           }
         } else if (prior.length >= 1) {
@@ -319,83 +380,43 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     [input, sendMessage],
   );
 
-  useEffect(() => {
-    if (!historyOpen || historyClosingRef.current) return;
-    historyBackdropOpacity.setValue(0);
-    historySheetY.setValue(480);
-    Animated.parallel([
-      Animated.timing(historyBackdropOpacity, {
-        toValue: 1,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-      Animated.timing(historySheetY, {
-        toValue: 0,
-        duration: 280,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [historyOpen, historyBackdropOpacity, historySheetY]);
-
-  const closeHistory = useCallback(() => {
-    if (historyClosingRef.current || !historyOpen) return;
-    historyClosingRef.current = true;
-    Animated.parallel([
-      Animated.timing(historyBackdropOpacity, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-      Animated.timing(historySheetY, {
-        toValue: 480,
-        duration: 240,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      historyClosingRef.current = false;
-      if (finished) setHistoryOpen(false);
-    });
-  }, [historyOpen, historyBackdropOpacity, historySheetY]);
-
   React.useImperativeHandle(
     ref,
     () => ({
       resetToWelcome,
+      showWelcome,
+      startNewChat,
+      showRecentChats,
+      openThread: (id: string, fromRecent = true) => {
+        void loadThread(id, fromRecent);
+      },
       sendMessage,
       setInputText: setInput,
     }),
-    [resetToWelcome, sendMessage]
+    [resetToWelcome, showWelcome, startNewChat, showRecentChats, loadThread, sendMessage]
   );
 
   useEffect(() => {
-    if (!initialMessage?.trim() || initialSent.current) return;
-    initialSent.current = true;
-    setTimeout(() => {
-      void sendMessage(initialMessage.trim());
-    }, 100);
-  }, [initialMessage, sendMessage]);
+    if (!pendingSendNonce) return;
+    const pending = pendingInitialMessage.current;
+    if (!pending || loading) return;
+    pendingInitialMessage.current = null;
+    const t = setTimeout(() => {
+      void sendMessage(pending);
+    }, 50);
+    return () => clearTimeout(t);
+  }, [pendingSendNonce, loading, sendMessage]);
 
-  const showWelcome = messages.length === 0 && !loading;
+  const showWelcomeUi = view === 'welcome' && messages.length === 0 && !loading;
+  const showRecentUi = view === 'recent';
+  const showThreadUi = view === 'thread' || (messages.length > 0 && view !== 'recent');
   const showGuestSaveChip = isGuest && messages.length >= 2;
 
   const historyThreads = useMemo(
-    () => recentChats.filter((t) => !(t.id === 'default' && t.title === 'Chat')),
+    () => recentChats.filter((t) => t.preview.length > 0),
     [recentChats]
   );
   const hasThreadHistory = !isGuest && !useKidRavThreads && historyThreads.length > 0;
-
-  const openThread = useCallback(
-    async (threadId: string) => {
-      if (!user?.uid) return;
-      const thread = await aiChatService.getThread(user.uid, threadId);
-      if (thread) {
-        setThreadId(thread.id);
-        setMessages(thread.messages);
-        setLastActivityAt(new Date(thread.updatedAt));
-      }
-    },
-    [user?.uid]
-  );
 
   const renderMessage = useCallback(
     ({ item }: { item: AIChatMessage; index: number }) => {
@@ -443,7 +464,67 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           <View style={styles.centered}>
             <ActivityIndicator color={colors.brand} />
           </View>
-        ) : showWelcome ? (
+        ) : showRecentUi ? (
+          <ScrollView
+            style={styles.scrollHost}
+            contentContainerStyle={[
+              styles.recentPage,
+              isDesktop && styles.welcomeDesktop,
+              { paddingBottom: bottomPad + 80 },
+            ]}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={[styles.recentPageColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
+              <View style={styles.recentPageHeader}>
+                <TouchableOpacity
+                  style={[styles.headerIconBtn, goldGlow]}
+                  onPress={showWelcome}
+                  accessibilityLabel="Back to Rav"
+                >
+                  <Icon icon={icons.arrowLeft} size={14} color={colors.textPrimary} />
+                </TouchableOpacity>
+                <Text style={styles.recentPageTitle}>Recent chats</Text>
+              </View>
+              {isGuest ? (
+                <View style={styles.recentEmpty}>
+                  <Text style={styles.recentEmptyText}>Sign in to save and browse past Rav conversations.</Text>
+                  <TouchableOpacity style={styles.saveChipWide} onPress={() => startAuthForRav('signin')}>
+                    <Text style={styles.saveChipText}>log in / create account</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : historyThreads.length === 0 ? (
+                <View style={styles.recentEmpty}>
+                  <Text style={styles.recentEmptyText}>No chats yet. Start a new conversation with Rav.</Text>
+                  <TouchableOpacity style={styles.saveChipWide} onPress={() => startNewChat()}>
+                    <Text style={styles.saveChipText}>New chat</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.recentList}>
+                  {historyThreads.map((t) => (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[styles.recentListRow, t.id === threadId && styles.historyRowActive]}
+                      onPress={() => void loadThread(t.id, true)}
+                    >
+                      <View style={styles.recentListCopy}>
+                        <Text style={styles.recentListTitle} numberOfLines={1}>
+                          {t.title}
+                        </Text>
+                        {t.preview ? (
+                          <Text style={styles.recentListPreview} numberOfLines={2}>
+                            {t.preview}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.recentListDate}>{formatThreadListDate(t.updatedAt)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        ) : showWelcomeUi ? (
           <ScrollView
             style={styles.scrollHost}
             contentContainerStyle={[
@@ -465,29 +546,34 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               <TextInput
                 style={[
                   styles.welcomeInput,
-                  !hasInput && styles.welcomeInputEmpty,
-                  hasInput && styles.welcomeInputActive,
+                  welcomeActive ? styles.welcomeInputActive : styles.welcomeInputEmpty,
                 ]}
-                placeholder="Search or ask a question"
+                placeholder={welcomeActive ? '' : 'Search or ask a question'}
                 placeholderTextColor={colors.textPrimary}
                 value={input}
                 onChangeText={setInput}
-                multiline={hasInput}
-                scrollEnabled={hasInput}
-                blurOnSubmit={!hasInput}
+                onFocus={() => setWelcomeFocused(true)}
+                onBlur={() => setWelcomeFocused(false)}
+                multiline={false}
+                blurOnSubmit
                 onSubmitEditing={() => sendMessage(input)}
                 onKeyPress={handleComposerKeyPress}
               />
-              {hasInput ? (
+              {welcomeActive ? (
                 <TouchableOpacity
                   style={styles.sendCircle}
                   onPress={() => sendMessage(input)}
-                  disabled={loading}
+                  disabled={!hasInput || loading}
+                  accessibilityLabel="Send"
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color={colors.textPrimary} />
                   ) : (
-                    <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
+                    <Icon
+                      icon={icons.arrowUp}
+                      size={14}
+                      color={hasInput ? colors.textPrimary : colors.goldMuted}
+                    />
                   )}
                 </TouchableOpacity>
               ) : null}
@@ -509,13 +595,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               <View style={styles.recentSection}>
                 <View style={styles.recentHeader}>
                   <Text style={styles.recentTitle}>Recent Chats</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      refreshThreads();
-                      setHistoryOpen(true);
-                    }}
-                    accessibilityLabel="View all chats"
-                  >
+                  <TouchableOpacity onPress={showRecentChats} accessibilityLabel="View all chats">
                     <TextWithChevron
                       text="View All"
                       chevron="always"
@@ -529,7 +609,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   <TouchableOpacity
                     key={t.id}
                     style={[styles.recentRow, t.id === threadId && styles.historyRowActive]}
-                    onPress={() => void openThread(t.id)}
+                    onPress={() => void loadThread(t.id, false)}
                   >
                     <Text style={styles.recentRowTitle} numberOfLines={1}>
                       {t.title}
@@ -541,18 +621,17 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             ) : null}
             </View>
           </ScrollView>
-        ) : (
+        ) : showThreadUi ? (
           <>
-            <TouchableOpacity
-              style={[styles.menuBtn, goldGlow]}
-              onPress={() => {
-                refreshThreads();
-                setHistoryOpen(true);
-              }}
-              accessibilityLabel="Chat menu"
-            >
-              <Icon icon={icons.menu} size={16} color={colors.textPrimary} />
-            </TouchableOpacity>
+            {returnToRecent ? (
+              <TouchableOpacity
+                style={[styles.menuBtn, goldGlow]}
+                onPress={showRecentChats}
+                accessibilityLabel="Back to recent chats"
+              >
+                <Icon icon={icons.arrowLeft} size={14} color={colors.textPrimary} />
+              </TouchableOpacity>
+            ) : null}
 
             <FlatList
               ref={listRef}
@@ -609,7 +688,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               </View>
             </View>
           </>
-        )}
+        ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {blockFeedback ? (
@@ -618,57 +697,6 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           </View>
         ) : null}
       </KeyboardAvoidingView>
-
-      <Modal
-        visible={historyOpen}
-        animationType="none"
-        transparent
-        onRequestClose={closeHistory}
-      >
-        <View style={styles.modalRoot}>
-          <Animated.View
-            pointerEvents="box-none"
-            style={[styles.modalBackdropFill, { opacity: historyBackdropOpacity }]}
-          >
-            <Pressable style={StyleSheet.absoluteFill} onPress={closeHistory} />
-          </Animated.View>
-          <Animated.View
-            style={[styles.modalSheet, { transform: [{ translateY: historySheetY }] }]}
-          >
-            <Text style={styles.modalTitle}>Recent chats</Text>
-            {!user?.uid ? (
-              <Text style={styles.modalHint}>Sign in to save and browse past Rav conversations.</Text>
-            ) : null}
-            {historyThreads.map((t) => (
-              <TouchableOpacity
-                key={t.id}
-                style={[styles.historyRow, t.id === threadId && styles.historyRowActive]}
-                onPress={() => {
-                  closeHistory();
-                  setBlockFeedback(null);
-                  void openThread(t.id);
-                }}
-              >
-                <Text style={styles.historyRowTitle} numberOfLines={1}>
-                  {t.title}
-                </Text>
-                <Text style={styles.historyRowDate}>{formatThreadListDate(t.updatedAt)}</Text>
-              </TouchableOpacity>
-            ))}
-            {isGuest ? (
-              <TouchableOpacity
-                style={styles.saveChipWide}
-                onPress={() => {
-                  closeHistory();
-                  startAuthForRav('signin');
-                }}
-              >
-                <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
-              </TouchableOpacity>
-            ) : null}
-          </Animated.View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 });
@@ -716,18 +744,22 @@ function createPilotStyles(colors: SemanticColors) {
   },
   searchPill: {
     width: '100%',
+    // Fixed — do not use minHeight / height:auto; focus must not resize the pill.
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.bgPrimary,
     borderRadius: borderRadius.pill,
     paddingHorizontal: MOBILE_GUTTER,
-    paddingVertical: spacing.sm,
+    position: 'relative',
   },
   welcomeInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: typography.lg,
-    lineHeight: WELCOME_SEARCH_LINE_HEIGHT,
+    height: WELCOME_SEARCH_LINE,
+    lineHeight: WELCOME_SEARCH_LINE,
     color: colors.textPrimary,
     paddingVertical: 0,
     paddingHorizontal: 0,
@@ -735,25 +767,26 @@ function createPilotStyles(colors: SemanticColors) {
     letterSpacing: -0.26,
     ...typeface('regular'),
     ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', height: WELCOME_SEARCH_LINE_HEIGHT } as object)
+      ? ({ outlineStyle: 'none', border: 'none', backgroundColor: 'transparent' } as object)
       : { includeFontPadding: false, textAlignVertical: 'center' }),
   },
   welcomeInputEmpty: {
     textAlign: 'center',
-    flex: 0,
-    flexGrow: 1,
   },
   welcomeInputActive: {
     textAlign: 'left',
-    maxHeight: 120,
+    // Room for the absolutely positioned send control — keeps pill width/height stable.
+    paddingRight: WELCOME_SEND_SIZE + spacing.sm,
   },
   sendCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    position: 'absolute',
+    right: MOBILE_GUTTER,
+    top: (44 - WELCOME_SEND_SIZE) / 2,
+    width: WELCOME_SEND_SIZE,
+    height: WELCOME_SEND_SIZE,
+    borderRadius: WELCOME_SEND_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: spacing.sm,
   },
   recentSection: { width: '100%', gap: 6 },
   recentHeader: {
@@ -769,10 +802,11 @@ function createPilotStyles(colors: SemanticColors) {
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 0.5,
-    borderColor: colors.goldMuted,
+    // Softer than goldMuted — same gold family as brand at reduced strength.
+    borderColor: 'rgba(216, 201, 144, 0.45)',
     borderRadius: borderRadius.chip,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     gap: spacing.sm,
   },
   recentRowTitle: {
@@ -786,6 +820,80 @@ function createPilotStyles(colors: SemanticColors) {
     fontWeight: '200',
     color: colors.goldMuted,
     opacity: 0.5,
+  },
+  recentPage: {
+    paddingTop: spacing.lg,
+  },
+  recentPageColumn: {
+    width: '100%',
+    paddingHorizontal: MOBILE_GUTTER,
+    gap: spacing.lg,
+  },
+  recentPageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  headerIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.bgPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentPageTitle: {
+    fontSize: 24,
+    fontWeight: '400',
+    color: colors.textPrimary,
+    letterSpacing: -0.72,
+  },
+  recentList: { width: '100%', gap: spacing.sm },
+  recentListRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    borderWidth: 0.5,
+    borderColor: 'rgba(216, 201, 144, 0.45)',
+    borderRadius: borderRadius.chip,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  recentListCopy: { flex: 1, gap: 4, minWidth: 0 },
+  recentListTitle: {
+    fontSize: typography.md,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    letterSpacing: -0.26,
+  },
+  recentListPreview: {
+    fontSize: typography.sm,
+    fontWeight: '200',
+    color: colors.goldMuted,
+    lineHeight: 18,
+    letterSpacing: -0.22,
+  },
+  recentListDate: {
+    fontSize: typography.sm,
+    fontWeight: '200',
+    color: colors.goldMuted,
+    opacity: 0.6,
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  recentEmpty: {
+    width: '100%',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingTop: spacing.xl,
+  },
+  recentEmptyText: {
+    fontSize: typography.md,
+    fontWeight: '200',
+    color: colors.goldMuted,
+    textAlign: 'center',
+    letterSpacing: -0.26,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
   chip: {
@@ -917,36 +1025,8 @@ function createPilotStyles(colors: SemanticColors) {
     justifyContent: 'center',
   },
   error: { color: colors.error, fontSize: typography.sm, padding: spacing.md, textAlign: 'center' },
-  modalRoot: { flex: 1, justifyContent: 'flex-end' },
-  modalBackdropFill: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  modalSheet: {
-    backgroundColor: colors.bgPrimary,
-    borderTopLeftRadius: borderRadius.xxl,
-    borderTopRightRadius: borderRadius.xxl,
-    padding: spacing.lg,
-    maxHeight: '60%',
-  },
-  modalTitle: { fontSize: typography.titleLg, fontWeight: '700', marginBottom: spacing.md },
-  modalHint: { fontSize: typography.sm, color: colors.textSecondary, marginBottom: spacing.md },
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    gap: spacing.sm,
-  },
-  historyRowTitle: { flex: 1, fontSize: typography.md, color: colors.textPrimary },
-  historyRowDate: { fontSize: typography.sm, fontWeight: '200', color: colors.goldMuted, opacity: 0.5 },
   historyRowActive: {
     backgroundColor: colors.brandLight,
-    borderRadius: borderRadius.chip,
-    paddingHorizontal: spacing.sm,
-    marginHorizontal: -spacing.sm,
   },
   boxToast: {
     position: 'absolute',

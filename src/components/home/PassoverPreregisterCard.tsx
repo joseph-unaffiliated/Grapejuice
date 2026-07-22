@@ -52,7 +52,7 @@ export function PassoverPreregisterCard({ capacityPercent, onRegister, registere
           </Text>
           <TouchableOpacity
             style={styles.ctaRegistered}
-            onPress={() => navigation.navigate('Rav', { initialMessage: PASSOVER_RAV_PROMPT })}
+            onPress={() => navigation.navigate('Rav', { newChat: true, initialMessage: PASSOVER_RAV_PROMPT })}
             activeOpacity={0.85}
             accessibilityRole="button"
           >

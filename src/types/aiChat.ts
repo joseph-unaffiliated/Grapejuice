@@ -19,4 +19,6 @@ export type AIChatThreadSummary = {
   id: string;
   title: string;
   updatedAt: string;
+  /** Snippet of the last message for list previews. */
+  preview: string;
 };

@@ -26,8 +26,11 @@ export function RavScreen() {
   const ref = useRef<PilotAIChatSheetRef>(null);
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
   const bottomInset = isDesktop ? spacingBottomDesktop : tabBarHeight;
-  const initialMessage = route.params?.initialMessage;
   const recordGuestRavPrompt = useGuestSessionStore((s) => s.recordGuestRavPrompt);
+  const view = route.params?.view;
+  const newChat = route.params?.newChat;
+  const threadId = route.params?.threadId;
+  const initialMessage = route.params?.initialMessage;
 
   useEffect(() => {
     recordGuestRavPrompt();
@@ -37,11 +40,52 @@ export function RavScreen() {
   useEffect(() => {
     const unsub = navigation.addListener('tabPress', () => {
       if (navigation.isFocused()) {
-        ref.current?.resetToWelcome();
+        ref.current?.showWelcome();
       }
     });
     return unsub;
   }, [navigation]);
+
+  useEffect(() => {
+    const hasIntent = Boolean(view || newChat || threadId || initialMessage);
+    if (!hasIntent) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const apply = () => {
+      if (cancelled) return;
+      const sheet = ref.current;
+      if (!sheet) {
+        if (attempts++ < 20) {
+          requestAnimationFrame(apply);
+        }
+        return;
+      }
+
+      if (view === 'recent') {
+        sheet.showRecentChats();
+      } else if (threadId) {
+        sheet.openThread(threadId, true);
+      } else if (newChat || initialMessage) {
+        sheet.startNewChat(initialMessage);
+      } else if (view === 'welcome') {
+        sheet.showWelcome();
+      }
+
+      navigation.setParams({
+        view: undefined,
+        newChat: undefined,
+        threadId: undefined,
+        initialMessage: undefined,
+      });
+    };
+
+    apply();
+    return () => {
+      cancelled = true;
+    };
+  }, [view, newChat, threadId, initialMessage, navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -51,7 +95,7 @@ export function RavScreen() {
         desktopContentMaxWidth={LAYOUT.WEB_TABLET_MAX_WIDTH}
         style={[styles.panel, isDesktop ? styles.panelDesktop : null]}
       >
-        <PilotAIChatSheet ref={ref} embedded bottomInset={bottomInset} initialMessage={initialMessage} />
+        <PilotAIChatSheet ref={ref} embedded bottomInset={bottomInset} />
       </WebContentPanel>
     </SafeAreaView>
   );

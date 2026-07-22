@@ -4,8 +4,12 @@ import { navigationRef } from './navigationRef';
 type TabName = keyof MainTabsParamList;
 type StackName = keyof MainStackParamList;
 
-export function navigateMainTab(tab: TabName) {
+export function navigateMainTab(tab: TabName, params?: MainTabsParamList[TabName]) {
   if (!navigationRef.isReady()) return;
+  if (params !== undefined) {
+    navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: tab, params } });
+    return;
+  }
   navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: tab } });
 }
 

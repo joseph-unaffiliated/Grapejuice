@@ -113,44 +113,102 @@ type NavLinkProps = {
   labelSlotWidth: Animated.Value;
   labelMargin: Animated.Value;
   colors: ReturnType<typeof useThemeMode>['colors'];
+  collapsed: boolean;
+  ravSubnav: 'new' | 'recent' | null;
+  setRavSubnav: (value: 'new' | 'recent' | null) => void;
 };
 
-function NavLink({ item, focused, iconShift, fadeOpacity, labelSlotWidth, labelMargin, colors }: NavLinkProps) {
+function NavLink({
+  item,
+  focused,
+  iconShift,
+  fadeOpacity,
+  labelSlotWidth,
+  labelMargin,
+  colors,
+  collapsed,
+  ravSubnav,
+  setRavSubnav,
+}: NavLinkProps) {
+  const showRavSubnav = item.name === 'Rav' && !collapsed;
+  const iconColor = focused ? colors.textPrimary : colors.brand;
+  const labelColor = focused ? colors.textPrimary : colors.textSecondary;
+
+  const openRavNewChat = () => {
+    setRavSubnav('new');
+    navigateMainTab('Rav', { newChat: true, view: 'welcome' });
+  };
+
   return (
-    <TouchableOpacity
-      onPress={() => navigateMainTab(item.name)}
-      style={[styles.item, focused && { backgroundColor: colors.brandLight }]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: focused }}
-      accessibilityLabel={item.label}
-    >
-      <Animated.View style={[styles.iconSlot, { transform: [{ translateX: iconShift }] }]}>
-        <Icon
-          icon={item.icon}
-          size={NAV_ICON_SIZE}
-          color={focused ? colors.brand : colors.textTertiary}
-        />
-      </Animated.View>
-      <Animated.View
-        style={{
-          opacity: fadeOpacity,
-          width: labelSlotWidth,
-          marginLeft: labelMargin,
-          overflow: 'hidden',
-        }}
+    <View style={styles.navItemGroup}>
+      <TouchableOpacity
+        onPress={() => (item.name === 'Rav' ? openRavNewChat() : navigateMainTab(item.name))}
+        style={styles.item}
+        accessibilityRole="button"
+        accessibilityState={{ selected: focused }}
+        accessibilityLabel={item.label}
       >
-        <Text
-          style={[
-            styles.label,
-            { color: focused ? colors.brand : colors.textSecondary },
-            focused && styles.labelActive,
-          ]}
-          numberOfLines={1}
+        <Animated.View style={[styles.iconSlot, { transform: [{ translateX: iconShift }] }]}>
+          <Icon icon={item.icon} size={NAV_ICON_SIZE} color={iconColor} />
+        </Animated.View>
+        <Animated.View
+          style={{
+            opacity: fadeOpacity,
+            width: labelSlotWidth,
+            marginLeft: labelMargin,
+            overflow: 'hidden',
+          }}
         >
-          {item.label}
-        </Text>
-      </Animated.View>
-    </TouchableOpacity>
+          <Text
+            style={[styles.label, { color: labelColor }, focused && styles.labelActive]}
+            numberOfLines={1}
+          >
+            {item.label}
+          </Text>
+        </Animated.View>
+      </TouchableOpacity>
+      {showRavSubnav ? (
+        <Animated.View style={[styles.subnav, { opacity: fadeOpacity }]}>
+          <TouchableOpacity
+            onPress={openRavNewChat}
+            style={styles.subnavItem}
+            accessibilityRole="button"
+            accessibilityState={{ selected: ravSubnav === 'new' }}
+            accessibilityLabel="New chat"
+          >
+            <Text
+              style={[
+                styles.subnavLabel,
+                { color: ravSubnav === 'new' ? colors.textPrimary : colors.brand },
+                ravSubnav === 'new' && styles.subnavLabelActive,
+              ]}
+            >
+              New chat
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setRavSubnav('recent');
+              navigateMainTab('Rav', { view: 'recent' });
+            }}
+            style={styles.subnavItem}
+            accessibilityRole="button"
+            accessibilityState={{ selected: ravSubnav === 'recent' }}
+            accessibilityLabel="Recent chats"
+          >
+            <Text
+              style={[
+                styles.subnavLabel,
+                { color: ravSubnav === 'recent' ? colors.textPrimary : colors.brand },
+                ravSubnav === 'recent' && styles.subnavLabelActive,
+              ]}
+            >
+              Recent chats
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      ) : null}
+    </View>
   );
 }
 
@@ -161,7 +219,7 @@ type Props = {
 
 export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
   const { colors } = useThemeMode();
-  const { setLayoutSidebarWidth } = useWebSidebar()!;
+  const { setLayoutSidebarWidth, ravSubnav, setRavSubnav } = useWebSidebar()!;
   const { isChildProfile, ravEnabledForActiveChild } = useActiveProfile();
   const navState = useNavigationState((s) => s);
   const activeTab = useMemo(() => resolveActiveTab(navState), [navState]);
@@ -172,6 +230,10 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
   useEffect(() => {
     if (collapsed) setLogoHover(false);
   }, [collapsed]);
+
+  useEffect(() => {
+    if (activeTab !== 'Rav') setRavSubnav(null);
+  }, [activeTab, setRavSubnav]);
 
   const railWidth = useRef(new Animated.Value(railWidthFor(collapsed))).current;
   const railPadLeft = useRef(new Animated.Value(railPadLeftFor(collapsed))).current;
@@ -294,6 +356,9 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
             labelSlotWidth={labelSlotWidth}
             labelMargin={labelMargin}
             colors={colors}
+            collapsed={collapsed}
+            ravSubnav={item.name === 'Rav' ? ravSubnav : null}
+            setRavSubnav={setRavSubnav}
           />
         ))}
       </View>
@@ -309,6 +374,9 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
               labelSlotWidth={labelSlotWidth}
               labelMargin={labelMargin}
               colors={colors}
+              collapsed={collapsed}
+              ravSubnav={null}
+              setRavSubnav={setRavSubnav}
             />
           </View>
         </>
@@ -363,6 +431,7 @@ const styles = StyleSheet.create({
   navPrimary: { gap: spacing.xs, width: '100%', alignItems: 'stretch' },
   navSpacer: { flex: 1 },
   navBottom: { paddingTop: spacing.md, width: '100%', alignItems: 'stretch' },
+  navItemGroup: { width: '100%', alignItems: 'stretch' },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -384,4 +453,21 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : {}),
   },
   labelActive: { fontWeight: '700' },
+  subnav: {
+    paddingLeft: NAV_ICON_SIZE + spacing.sm * 2,
+    paddingBottom: spacing.xs,
+    gap: 2,
+  },
+  subnavItem: {
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 6,
+  },
+  subnavLabel: {
+    fontSize: typography.sm,
+    fontWeight: '500',
+    letterSpacing: -0.2,
+    ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : {}),
+  },
+  subnavLabelActive: { fontWeight: '700' },
 });

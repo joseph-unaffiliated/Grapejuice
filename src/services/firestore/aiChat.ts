@@ -36,6 +36,16 @@ function dataToThread(id: string, data: Record<string, unknown>): AIChatThread {
   };
 }
 
+function previewFromMessages(messages: unknown): string {
+  if (!Array.isArray(messages) || messages.length === 0) return '';
+  const last = messages[messages.length - 1] as { content?: unknown };
+  const text = String(last?.content ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!text) return '';
+  return text.length <= 100 ? text : `${text.slice(0, 97)}…`;
+}
+
 export const aiChatService = {
   async getThread(uid: string, threadId: string): Promise<AIChatThread | null> {
     if (!db) return null;
@@ -77,12 +87,21 @@ export const aiChatService = {
 
   async listThreads(uid: string): Promise<AIChatThreadSummary[]> {
     if (!db) return [];
-    const q = query(collection(db, 'users', uid, 'aiChats'), orderBy('updatedAt', 'desc'), limit(20));
+    // Fetch extra so empty "New chat" stubs don't crowd real threads out of the window.
+    const q = query(collection(db, 'users', uid, 'aiChats'), orderBy('updatedAt', 'desc'), limit(50));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
-      const data = d.data() as Record<string, unknown>;
-      return { id: d.id, title: String(data.title ?? 'Chat'), updatedAt: toIso(data.updatedAt) };
-    });
+    return snap.docs
+      .map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return {
+          id: d.id,
+          title: String(data.title ?? 'Chat'),
+          updatedAt: toIso(data.updatedAt),
+          preview: previewFromMessages(data.messages),
+        };
+      })
+      .filter((t) => t.preview.length > 0)
+      .slice(0, 20);
   },
 
   async getOrCreateDefaultThread(uid: string): Promise<{ threadId: string; thread: AIChatThread }> {

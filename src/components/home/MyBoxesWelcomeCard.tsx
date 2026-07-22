@@ -86,7 +86,7 @@ export function MyBoxesWelcomeCard({
       }
 
       if (holiday.ravPrompt) {
-        navigation.navigate('Rav', { initialMessage: holiday.ravPrompt });
+        navigation.navigate('Rav', { newChat: true, initialMessage: holiday.ravPrompt });
       }
     },
     [navigation, onPassoverPreregister, onPreregisterInterest, onPress, passoverRegistered]

@@ -10,7 +10,16 @@ export type AuthStackParamList = {
 
 export type MainTabsParamList = {
   Home: undefined;
-  Rav: { initialMessage?: string } | undefined;
+  Rav:
+    | {
+        initialMessage?: string;
+        /** Start a fresh thread (Home search, sidebar New chat). */
+        newChat?: boolean;
+        /** welcome = empty Rav home; recent = thread list; thread = open by id. */
+        view?: 'welcome' | 'recent' | 'thread';
+        threadId?: string;
+      }
+    | undefined;
   Account: undefined;
   Box: undefined;
 };

@@ -305,10 +305,10 @@ export function HomeScreen() {
   const submitSearch = () => {
     const msg = searchQuery.trim();
     if (!msg) {
-      navigation.navigate('Rav');
+      navigation.navigate('Rav', { view: 'welcome' });
       return;
     }
-    navigation.navigate('Rav', { initialMessage: msg });
+    navigation.navigate('Rav', { newChat: true, initialMessage: msg });
     setSearchQuery('');
   };
 
