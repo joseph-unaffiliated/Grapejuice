@@ -530,13 +530,12 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             contentContainerStyle={[
               styles.welcome,
               isDesktop && styles.welcomeDesktop,
-              hasThreadHistory && styles.welcomeReturning,
               { paddingBottom: bottomPad + 80 },
             ]}
             keyboardShouldPersistTaps="handled"
           >
             <View style={[styles.welcomeColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
-            <GrapejuiceBrandMark markOnly={hasThreadHistory} animating={loading} />
+            <GrapejuiceBrandMark animating={loading} />
             <View style={styles.welcomeHeadings}>
               <Text style={styles.welcomeTitle}>What&apos;s on your mind?</Text>
               <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>
@@ -719,9 +718,6 @@ function createPilotStyles(colors: SemanticColors) {
     paddingHorizontal: MOBILE_GUTTER,
     alignItems: 'center',
     gap: spacing.xl,
-  },
-  welcomeReturning: {
-    paddingTop: 96,
   },
   threadContent: {
     paddingHorizontal: spacing.lg,
