@@ -70,9 +70,16 @@ export function AdminCatalogScreen() {
     );
   }, [items, query]);
 
+  const panelProps = {
+    flush: isDesktop,
+    centerDesktop: isDesktop,
+    omitDesktopTopPadding: isDesktop,
+    style: styles.panel,
+  } as const;
+
   if (!allowed) {
     return (
-      <WebContentPanel>
+      <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
           <Text style={styles.deniedTitle}>Admin only</Text>
           <Text style={styles.deniedBody}>This tooling is limited to allowlisted ops accounts.</Text>
@@ -85,85 +92,95 @@ export function AdminCatalogScreen() {
   }
 
   return (
-    <WebContentPanel>
+    <WebContentPanel {...panelProps}>
       <View style={styles.root}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-            <Text style={styles.backLink}>← Account</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Catalog admin</Text>
-          <Text style={styles.subtitle}>{items.length} Hanukkah items</Text>
-        </View>
-
-        <View style={styles.toolbar}>
-          <TextInput
-            style={styles.search}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search name, id, slot…"
-            placeholderTextColor={colors.textTertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => navigation.navigate('AdminCatalogItem', {})}
-          >
-            <Text style={styles.addBtnText}>Add item</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={colors.brand} />
+        <View style={styles.column}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
+              <Text style={styles.backLink}>← Account</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Catalog admin</Text>
+            <Text style={styles.subtitle}>{items.length} Hanukkah items</Text>
           </View>
-        ) : error ? (
-          <View style={styles.centered}>
-            <Text style={styles.error}>{error}</Text>
-            <TouchableOpacity onPress={() => void load()}>
-              <Text style={styles.retry}>Retry</Text>
+
+          <View style={styles.toolbar}>
+            <TextInput
+              style={styles.search}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search name, id, slot…"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => navigation.navigate('AdminCatalogItem', {})}
+            >
+              <Text style={styles.addBtnText}>Add item</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <ScrollView
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {filtered.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.row}
-                onPress={() => navigation.navigate('AdminCatalogItem', { itemId: item.id })}
-              >
-                <BoxItemImage itemId={item.id} imageUrl={item.imageUrl} size={48} />
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.rowMeta} numberOfLines={1}>
-                    {item.slot} · {item.slotId} · {formatDollars(item.dollarCostCents)}
-                  </Text>
-                  <Text style={styles.rowId} numberOfLines={1}>
-                    {item.id}
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
+
+          {loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color={colors.brand} />
+            </View>
+          ) : error ? (
+            <View style={styles.centered}>
+              <Text style={styles.error}>{error}</Text>
+              <TouchableOpacity onPress={() => void load()}>
+                <Text style={styles.retry}>Retry</Text>
               </TouchableOpacity>
-            ))}
-            {filtered.length === 0 ? (
-              <Text style={styles.empty}>No items match “{query.trim()}”.</Text>
-            ) : null}
-          </ScrollView>
-        )}
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.list}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filtered.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.row}
+                  onPress={() => navigation.navigate('AdminCatalogItem', { itemId: item.id })}
+                >
+                  <BoxItemImage itemId={item.id} imageUrl={item.imageUrl} size={48} />
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.rowMeta} numberOfLines={1}>
+                      {item.slot} · {item.slotId} · {formatDollars(item.dollarCostCents)}
+                    </Text>
+                    <Text style={styles.rowId} numberOfLines={1}>
+                      {item.id}
+                    </Text>
+                  </View>
+                  <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+              ))}
+              {filtered.length === 0 ? (
+                <Text style={styles.empty}>No items match “{query.trim()}”.</Text>
+              ) : null}
+            </ScrollView>
+          )}
+        </View>
       </View>
     </WebContentPanel>
   );
 }
 
 function createStyles(colors: SemanticColors, isDesktop: boolean) {
+  const columnMax = isDesktop ? 720 : undefined;
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bgPrimary },
+    panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
+    root: { flex: 1, backgroundColor: colors.bgPrimary, width: '100%' },
+    column: {
+      flex: 1,
+      width: '100%',
+      maxWidth: columnMax,
+      alignSelf: 'center',
+    },
     centered: {
       flex: 1,
       alignItems: 'center',
@@ -175,9 +192,6 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.lg,
       paddingBottom: spacing.sm,
-      maxWidth: isDesktop ? 720 : undefined,
-      width: '100%',
-      alignSelf: 'center',
     },
     backLink: { fontSize: typography.md, color: colors.brand, marginBottom: spacing.sm },
     title: { fontSize: typography.titleLg, fontWeight: '700', color: colors.textPrimary },
@@ -187,9 +201,6 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       gap: spacing.sm,
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.sm,
-      maxWidth: isDesktop ? 720 : undefined,
-      width: '100%',
-      alignSelf: 'center',
       alignItems: 'center',
     },
     search: {
@@ -214,9 +225,6 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     listContent: {
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.xxl,
-      maxWidth: isDesktop ? 720 : undefined,
-      width: '100%',
-      alignSelf: 'center',
       gap: spacing.sm,
     },
     row: {

@@ -2,7 +2,11 @@
  * Pilot ops allowlist — keep short. Emails are compared lowercased.
  * Add teammates here when they need catalog admin access.
  */
-export const ADMIN_EMAILS = ['brendan@unaffiliated.co', 'joseph@unaffiliated.co'] as const;
+export const ADMIN_EMAILS = [
+  'brendan@unaffiliated.co',
+  'joseph@unaffiliated.co',
+  'maya@unaffiliated.co',
+] as const;
 
 export function isAdminEmail(email?: string | null): boolean {
   if (!email) return false;

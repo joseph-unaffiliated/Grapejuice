@@ -195,9 +195,16 @@ export function AdminCatalogItemScreen() {
     }
   };
 
+  const panelProps = {
+    flush: isDesktop,
+    centerDesktop: isDesktop,
+    omitDesktopTopPadding: isDesktop,
+    style: styles.panel,
+  } as const;
+
   if (!allowed) {
     return (
-      <WebContentPanel>
+      <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
           <Text style={styles.deniedTitle}>Admin only</Text>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -210,7 +217,7 @@ export function AdminCatalogItemScreen() {
 
   if (loading) {
     return (
-      <WebContentPanel>
+      <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
           <ActivityIndicator color={colors.brand} />
         </View>
@@ -219,7 +226,7 @@ export function AdminCatalogItemScreen() {
   }
 
   return (
-    <WebContentPanel>
+    <WebContentPanel {...panelProps}>
       <ScrollView
         style={styles.root}
         contentContainerStyle={styles.content}
@@ -457,6 +464,7 @@ const chipStyles = StyleSheet.create({
 
 function createStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
+    panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
       padding: spacing.lg,
