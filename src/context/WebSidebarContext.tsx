@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { LAYOUT } from '../constants/theme';
 
+export type RavSubnav = 'new' | 'recent' | null;
+
 type WebSidebarContextValue = {
   collapsed: boolean;
   toggleCollapsed: () => void;
@@ -10,6 +12,9 @@ type WebSidebarContextValue = {
    */
   layoutSidebarWidth: number;
   setLayoutSidebarWidth: (width: number) => void;
+  /** Which Rav sidebar sub-link is active (desktop). */
+  ravSubnav: RavSubnav;
+  setRavSubnav: (value: RavSubnav) => void;
 };
 
 const WebSidebarContext = createContext<WebSidebarContextValue | null>(null);
@@ -17,11 +22,19 @@ const WebSidebarContext = createContext<WebSidebarContextValue | null>(null);
 export function WebSidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [layoutSidebarWidth, setLayoutSidebarWidth] = useState(LAYOUT.WEB_SIDEBAR_WIDTH);
+  const [ravSubnav, setRavSubnav] = useState<RavSubnav>(null);
   const toggleCollapsed = useCallback(() => setCollapsed((v) => !v), []);
 
   const value = useMemo(
-    () => ({ collapsed, toggleCollapsed, layoutSidebarWidth, setLayoutSidebarWidth }),
-    [collapsed, toggleCollapsed, layoutSidebarWidth],
+    () => ({
+      collapsed,
+      toggleCollapsed,
+      layoutSidebarWidth,
+      setLayoutSidebarWidth,
+      ravSubnav,
+      setRavSubnav,
+    }),
+    [collapsed, toggleCollapsed, layoutSidebarWidth, ravSubnav],
   );
 
   return <WebSidebarContext.Provider value={value}>{children}</WebSidebarContext.Provider>;
