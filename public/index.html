@@ -77,6 +77,20 @@
       #root [data-testid="home-vertical-scroll"] > div {
         overflow: visible !important;
       }
+      /* My Box / box-detail section tabs — same constrained scrollport pattern as Home */
+      #root [data-testid="box-scroll-host"] {
+        overflow: hidden !important;
+      }
+      #root .gj-box-scroll,
+      #root [data-testid="box-vertical-scroll"] {
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        scrollbar-gutter: stable;
+      }
+      #root .gj-box-scroll > div,
+      #root [data-testid="box-vertical-scroll"] > div {
+        overflow: visible !important;
+      }
       /* Horizontal catalog rails — pan-x only; contain so vertical page doesn't jolt */
       #root .gj-horizontal-rail-scroll {
         overflow-x: auto !important;
@@ -108,7 +122,11 @@
     <link rel="icon" href="/favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,400&display=swap" rel="stylesheet" />
+    <!-- display=block avoids FOUT layout jump; include all weights the app uses (200–700). -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,400;0,9..40,500;0,9..40,700&display=block"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

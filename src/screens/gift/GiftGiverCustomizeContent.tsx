@@ -161,6 +161,9 @@ export function GiftGiverCustomizeContent({
           contentContainerStyle={detailStyles.scrollContent}
           onScroll={onScroll}
           scrollEventThrottle={16}
+          {...(Platform.OS === 'web'
+            ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
+            : null)}
         >
           <View ref={contentRef} collapsable={false}>
             <BoxDetailToolbar

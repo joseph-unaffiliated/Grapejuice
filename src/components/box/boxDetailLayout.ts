@@ -189,10 +189,11 @@ export function createBoxDetailStyles(
       textAlign: 'center',
     },
     headerExtras: {
-      paddingHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
+      paddingHorizontal: desktop ? 16 : BOX_DETAIL_SECTION_GUTTER,
+      paddingVertical: 16,
       gap: spacing.sm,
       marginBottom: spacing.sm,
-      // Let guest-auth gold glow bleed; RN Views default to overflow:hidden.
+      // Glow lives here only — never put overflow:visible on the ScrollView.
       overflow: 'visible' as const,
     },
   });
