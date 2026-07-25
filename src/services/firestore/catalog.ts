@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -147,5 +148,13 @@ export const catalogService = {
     if (!db) return false;
     const snap = await getDoc(doc(db, 'catalog', CATALOG_HOLIDAY, 'items', itemId));
     return snap.exists();
+  },
+
+  /** Permanently remove a catalog item. Admin-only (Firestore rules). */
+  async remove(itemId: string): Promise<void> {
+    if (!db) throw new Error('Firebase is not configured.');
+    const id = itemId.trim();
+    if (!id) throw new Error('Item id is required.');
+    await deleteDoc(doc(db, 'catalog', CATALOG_HOLIDAY, 'items', id));
   },
 };

@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -90,6 +92,8 @@ export function AdminCatalogItemScreen() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [loading, setLoading] = useState(!isCreate);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [idTouched, setIdTouched] = useState(false);
 
@@ -192,6 +196,22 @@ export function AdminCatalogItemScreen() {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const removeItem = async () => {
+    if (isCreate || !form.id.trim()) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await catalogService.remove(form.id.trim());
+      setConfirmDeleteOpen(false);
+      navigation.navigate('AdminCatalog');
+    } catch (err) {
+      setConfirmDeleteOpen(false);
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -385,13 +405,59 @@ export function AdminCatalogItemScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+          style={[styles.saveBtn, (saving || deleting) && styles.saveBtnDisabled]}
           onPress={() => void save()}
-          disabled={saving}
+          disabled={saving || deleting}
         >
           <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save item'}</Text>
         </TouchableOpacity>
+
+        {!isCreate ? (
+          <TouchableOpacity
+            style={[styles.deleteBtn, (saving || deleting) && styles.saveBtnDisabled]}
+            onPress={() => setConfirmDeleteOpen(true)}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.deleteBtnText}>Delete item</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
+
+      <Modal
+        visible={confirmDeleteOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !deleting && setConfirmDeleteOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => !deleting && setConfirmDeleteOpen(false)}
+          />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Delete this item?</Text>
+            <Text style={styles.modalBody}>
+              “{form.name || form.id}” will be removed from the catalog. This can’t be undone.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setConfirmDeleteOpen(false)}
+                disabled={deleting}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalDeleteBtn, deleting && styles.saveBtnDisabled]}
+                onPress={() => void removeItem()}
+                disabled={deleting}
+              >
+                <Text style={styles.modalDeleteText}>{deleting ? 'Deleting…' : 'Delete'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </WebContentPanel>
   );
 }
@@ -516,6 +582,61 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     saveBtnDisabled: { opacity: 0.7 },
     saveBtnText: { color: colors.textInverse, fontWeight: '700', fontSize: typography.lg },
+    deleteBtn: {
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: borderRadius.pill,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.md,
+    },
+    deleteBtnText: { color: colors.error, fontWeight: '700', fontSize: typography.lg },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing.lg,
+    },
+    modalCard: {
+      width: '100%',
+      maxWidth: 400,
+      backgroundColor: colors.bgPrimary,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      gap: spacing.sm,
+      zIndex: 1,
+    },
+    modalTitle: {
+      fontSize: typography.titleLg,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    modalBody: {
+      fontSize: typography.md,
+      color: colors.textSecondary,
+      lineHeight: 22,
+      marginBottom: spacing.sm,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    modalCancelBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.pill,
+    },
+    modalCancelText: { color: colors.textSecondary, fontWeight: '600', fontSize: typography.md },
+    modalDeleteBtn: {
+      backgroundColor: colors.error,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.pill,
+    },
+    modalDeleteText: { color: colors.textInverse, fontWeight: '700', fontSize: typography.md },
     deniedTitle: { fontSize: typography.titleLg, fontWeight: '700', color: colors.textPrimary },
   });
 }
