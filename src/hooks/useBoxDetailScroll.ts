@@ -27,18 +27,8 @@ function sectionDomId(id: BoxDisplaySectionId): string {
   return `box-section-${id}`;
 }
 
-/** Nearest DOM ancestor that actually scrolls (RN ScrollView often isn't it on web). */
-function findScrollParent(el: HTMLElement): HTMLElement {
-  let node: HTMLElement | null = el.parentElement;
-  while (node && node !== document.body) {
-    const style = window.getComputedStyle(node);
-    const oy = style.overflowY;
-    const canScroll =
-      (oy === 'auto' || oy === 'scroll' || oy === 'overlay') && node.scrollHeight > node.clientHeight + 1;
-    if (canScroll) return node;
-    node = node.parentElement;
-  }
-  return (document.scrollingElement as HTMLElement) || document.documentElement;
+function sectionDataSelector(id: BoxDisplaySectionId): string {
+  return `[data-gj-section="${id}"]`;
 }
 
 function isDomElement(node: unknown): node is HTMLElement {
@@ -64,17 +54,28 @@ function scrollWebContainer(scrollEl: HTMLElement, top: number) {
     window.scrollTo({ top: y, behavior: 'smooth' });
     return;
   }
-  scrollEl.scrollTo({ top: y, behavior: 'smooth' });
+  // Direct assignment is reliable on RN Web; scrollTo({behavior}) is often a no-op there.
+  scrollEl.scrollTop = y;
 }
 
 function asView(node: unknown): View | null {
   return node && typeof node === 'object' && 'measureLayout' in node ? (node as View) : null;
 }
 
+function sectionOffsetInScrollport(sectionEl: HTMLElement, scrollEl: HTMLElement): number {
+  return (
+    sectionEl.getBoundingClientRect().top -
+    scrollEl.getBoundingClientRect().top +
+    readScrollTop(scrollEl)
+  );
+}
+
 /**
  * Scroll-spy + scroll-to for box section tabs (not a content filter).
- * Offsets are measured against `contentRef` (top of ScrollView content) so nested
- * desktop columns don't break scrollTo.
+ *
+ * Web: always scroll THIS screen's ScrollView node (`.gj-box-scroll`). Do not walk
+ * ancestors looking for overflow:visible parents — that was a guest-banner glow
+ * compromise that made every tab jump clamp to y=0 (Candles / top).
  */
 export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
   const visibleSectionIds =
@@ -90,58 +91,65 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
     options.initialSection ?? visibleSectionIds[0] ?? 'candles',
   );
 
-  const resolveScrollContainer = useCallback((sectionEl: HTMLElement): HTMLElement => {
-    // Prefer this screen's ScrollView — stacked routes can leave other box
-    // screens mounted, and walking the DOM can latch onto the wrong scroller.
+  const getScrollElement = useCallback((): HTMLElement | null => {
+    if (Platform.OS !== 'web') return null;
     const host = scrollRef.current as unknown as HostNode | null;
-    const fromRef = host?.getScrollableNode?.();
-    if (fromRef && fromRef.scrollHeight > fromRef.clientHeight + 1) return fromRef;
-
-    const fromParent = findScrollParent(sectionEl);
-    if (fromParent.scrollHeight > fromParent.clientHeight + 1) return fromParent;
-
-    return fromRef ?? fromParent;
+    return host?.getScrollableNode?.() ?? null;
   }, []);
 
-  const resolveSectionElement = useCallback((id: BoxDisplaySectionId): HTMLElement | null => {
-    // Prefer the node registered by *this* screen. Global getElementById is unsafe
-    // when onboarding reveal + My Box both mount `box-section-*` ids.
-    const registered = sectionNodes.current[id];
-    if (isDomElement(registered)) return registered;
+  const resolveSectionElement = useCallback(
+    (id: BoxDisplaySectionId): HTMLElement | null => {
+      const registered = sectionNodes.current[id];
+      if (isDomElement(registered)) return registered;
 
-    if (Platform.OS === 'web') {
-      const host = scrollRef.current as unknown as HostNode | null;
-      const root = host?.getScrollableNode?.();
+      if (Platform.OS !== 'web') return null;
+
+      const root = getScrollElement();
       if (root) {
-        const scoped = root.querySelector(`#${sectionDomId(id)}`);
-        if (scoped instanceof HTMLElement) return scoped;
+        const byData = root.querySelector(sectionDataSelector(id));
+        if (byData instanceof HTMLElement) return byData;
+        const byId = root.querySelector(`#${sectionDomId(id)}`);
+        if (byId instanceof HTMLElement) return byId;
       }
-      return document.getElementById(sectionDomId(id));
-    }
-    return null;
-  }, []);
+      return null;
+    },
+    [getScrollElement],
+  );
 
   const registerSection = useCallback((id: BoxDisplaySectionId, node: unknown) => {
     sectionNodes.current[id] = node ?? null;
   }, []);
 
-  const measureSectionOffset = useCallback((id: BoxDisplaySectionId) => {
-    const sectionNode = asView(sectionNodes.current[id]);
-    const contentNode = contentRef.current;
-    if (!sectionNode || !contentNode) return;
+  const measureSectionOffset = useCallback(
+    (id: BoxDisplaySectionId) => {
+      if (Platform.OS === 'web') {
+        const sectionEl = resolveSectionElement(id);
+        const scrollEl = getScrollElement();
+        if (sectionEl && scrollEl) {
+          sectionOffsets.current[id] = sectionOffsetInScrollport(sectionEl, scrollEl);
+          return;
+        }
+      }
 
-    sectionNode.measureLayout(
-      contentNode,
-      (_x, y) => {
-        sectionOffsets.current[id] = y;
-      },
-      () => {},
-    );
-  }, []);
+      const sectionNode = asView(sectionNodes.current[id]);
+      const contentNode = contentRef.current;
+      if (!sectionNode || !contentNode) return;
+
+      sectionNode.measureLayout(
+        contentNode,
+        (_x, y) => {
+          sectionOffsets.current[id] = y;
+        },
+        () => {},
+      );
+    },
+    [getScrollElement, resolveSectionElement],
+  );
 
   const onSectionLayout = useCallback(
-    (id: BoxDisplaySectionId) => (e: LayoutChangeEvent) => {
-      sectionOffsets.current[id] = e.nativeEvent.layout.y;
+    (id: BoxDisplaySectionId) => (_e: LayoutChangeEvent) => {
+      // Do not trust e.nativeEvent.layout.y — on desktop it is relative to the
+      // list column, not the ScrollView content root, so every tab looked like y≈0.
       measureSectionOffset(id);
     },
     [measureSectionOffset],
@@ -159,7 +167,6 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
     }
   }, [measureSectionOffset, visibleSectionIds]);
 
-  /** Re-run after async content (e.g. catalog) mounts section blocks. */
   const remeasureSections = useCallback(() => {
     for (const id of visibleSectionIds) {
       measureSectionOffset(id);
@@ -190,8 +197,8 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
       for (const id of visibleSectionIds) {
         const el = resolveSectionElement(id);
         if (!el) continue;
-        const top =
-          el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollTop;
+        const top = sectionOffsetInScrollport(el, scrollEl);
+        sectionOffsets.current[id] = top;
         if (top <= probe) next = id;
       }
 
@@ -215,21 +222,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
     const attach = () => {
       if (cancelled) return;
 
-      // Prefer this instance's ScrollView before probing the document — avoids
-      // attaching spy listeners to a still-mounted previous box screen.
-      const host = scrollRef.current as unknown as HostNode | null;
-      scrollEl = host?.getScrollableNode?.() ?? null;
-
-      if (!scrollEl) {
-        for (const id of visibleSectionIds) {
-          const sectionEl = resolveSectionElement(id);
-          if (sectionEl) {
-            scrollEl = resolveScrollContainer(sectionEl);
-            break;
-          }
-        }
-      }
-
+      scrollEl = getScrollElement();
       if (!scrollEl) {
         raf = requestAnimationFrame(attach);
         return;
@@ -239,6 +232,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
       const scrollTarget = isRootScrollElement(scrollEl) ? window : scrollEl;
       scrollTarget.addEventListener('scroll', onScrollEvent, { passive: true });
       removeListener = () => scrollTarget.removeEventListener('scroll', onScrollEvent);
+      updateActiveFromDom(scrollEl);
     };
 
     attach();
@@ -248,7 +242,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
       cancelAnimationFrame(raf);
       removeListener?.();
     };
-  }, [contentReady, resolveScrollContainer, resolveSectionElement, updateActiveFromDom, visibleSectionIds]);
+  }, [contentReady, getScrollElement, updateActiveFromDom]);
 
   const scrollToSection = useCallback(
     (id: BoxDisplaySectionId) => {
@@ -260,17 +254,25 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
       if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
       scrollEndTimer.current = setTimeout(() => {
         scrollingToSection.current = false;
-      }, 500);
+        // Re-measure after the smooth scroll settles so spy stays accurate.
+        measureSectionOffset(id);
+      }, 600);
 
       if (Platform.OS === 'web') {
         const sectionEl = resolveSectionElement(id);
-        if (sectionEl) {
-          const scrollEl = resolveScrollContainer(sectionEl);
-          const sectionTop =
-            sectionEl.getBoundingClientRect().top -
-            scrollEl.getBoundingClientRect().top +
-            readScrollTop(scrollEl);
-          scrollWebContainer(scrollEl, sectionTop - BOX_DETAIL_SCROLL_SPY_OFFSET);
+        const scrollEl = getScrollElement();
+        if (sectionEl && scrollEl) {
+          const y = Math.max(
+            0,
+            sectionOffsetInScrollport(sectionEl, scrollEl) - BOX_DETAIL_SCROLL_SPY_OFFSET,
+          );
+          // Prefer RN ScrollView.scrollTo so animated scroll + onScroll stay in sync.
+          const host = scrollRef.current as unknown as HostNode | null;
+          if (host?.scrollTo) {
+            host.scrollTo({ y, animated: true });
+          } else {
+            scrollWebContainer(scrollEl, y);
+          }
           return;
         }
       }
@@ -284,6 +286,12 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
         return false;
       };
 
+      const measuredY = sectionOffsets.current[id];
+      if (measuredY !== undefined) {
+        scrollToY(measuredY);
+        return;
+      }
+
       const sectionNode = asView(sectionNodes.current[id]);
       const contentNode = contentRef.current;
       if (sectionNode && contentNode) {
@@ -293,18 +301,11 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
             sectionOffsets.current[id] = y;
             scrollToY(y);
           },
-          () => {
-            const measuredY = sectionOffsets.current[id];
-            if (measuredY !== undefined) scrollToY(measuredY);
-          },
+          () => {},
         );
-        return;
       }
-
-      const measuredY = sectionOffsets.current[id];
-      if (measuredY !== undefined) scrollToY(measuredY);
     },
-    [resolveScrollContainer, resolveSectionElement, visibleSectionIds],
+    [getScrollElement, measureSectionOffset, resolveSectionElement, visibleSectionIds],
   );
 
   return {

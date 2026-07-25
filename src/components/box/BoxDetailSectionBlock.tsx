@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, Platform, type LayoutChangeEvent } from 'react-native';
 import { BOX_DISPLAY_SECTIONS, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
-import { createBoxDetailStyles } from './boxDetailLayout';
+import { BOX_DETAIL_SCROLL_SPY_OFFSET, createBoxDetailStyles } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 
@@ -36,11 +36,23 @@ export function BoxDetailSectionBlock({
   return (
     <View
       ref={(node) => onSectionRef?.(sectionId, node)}
-      style={styles.sectionBlock}
+      style={[
+        styles.sectionBlock,
+        Platform.OS === 'web'
+          ? ({ scrollMarginTop: BOX_DETAIL_SCROLL_SPY_OFFSET } as object)
+          : null,
+      ]}
       onLayout={onLayout}
       collapsable={false}
       nativeID={`box-section-${sectionId}`}
-      {...(Platform.OS === 'web' ? ({ id: `box-section-${sectionId}` } as object) : null)}
+      {...(Platform.OS === 'web'
+        ? ({
+            id: `box-section-${sectionId}`,
+            // Prefer data-* for queries — more reliable than id on RN Web.
+            dataSet: { gjSection: sectionId },
+            'data-gj-section': sectionId,
+          } as object)
+        : null)}
     >
       <View style={styles.sectionHeader}>
         <View style={styles.sectionTitleRow}>

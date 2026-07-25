@@ -257,6 +257,9 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
           onScroll={onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
+          {...(Platform.OS === 'web'
+            ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
+            : null)}
         >
           <View
             ref={contentRef}

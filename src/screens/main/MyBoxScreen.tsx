@@ -523,28 +523,33 @@ export function MyBoxScreen() {
   if (isDesktop && !isChildProfile) {
     return (
       <WebContentPanel flush centerDesktop omitDesktopTopPadding style={styles.panel}>
-        <ScrollView
-          ref={scrollRef}
-          style={[styles.root, styles.desktopRoot]}
-          contentContainerStyle={styles.desktopScrollContent}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-        >
-          <View
-            style={[styles.desktopShell, { maxWidth: widePanelMaxWidth }]}
-            ref={contentRef}
-            collapsable={false}
+        <View style={styles.scrollHost} testID="box-scroll-host">
+          <ScrollView
+            ref={scrollRef}
+            style={[styles.root, styles.desktopRoot]}
+            contentContainerStyle={styles.desktopScrollContent}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            {...(Platform.OS === 'web'
+              ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
+              : null)}
           >
-            <View style={styles.desktopColumns}>
-              <View style={styles.desktopList}>
-                {scrollBody}
-              </View>
-              <View style={styles.desktopSummary}>
-                {summaryPanel}
+            <View
+              style={[styles.desktopShell, { maxWidth: widePanelMaxWidth }]}
+              ref={contentRef}
+              collapsable={false}
+            >
+              <View style={styles.desktopColumns}>
+                <View style={styles.desktopList}>
+                  {scrollBody}
+                </View>
+                <View style={styles.desktopSummary}>
+                  {summaryPanel}
+                </View>
               </View>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </WebContentPanel>
     );
   }
@@ -552,17 +557,22 @@ export function MyBoxScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? [] : ['top']}>
       <WebContentPanel gutter>
-        <ScrollView
-          ref={scrollRef}
-          style={styles.root}
-          contentContainerStyle={detailStyles.scrollContent}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-        >
-          <View ref={contentRef} collapsable={false}>
-            {scrollBody}
-          </View>
-        </ScrollView>
+        <View style={styles.scrollHost} testID="box-scroll-host">
+          <ScrollView
+            ref={scrollRef}
+            style={styles.root}
+            contentContainerStyle={detailStyles.scrollContent}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            {...(Platform.OS === 'web'
+              ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
+              : null)}
+          >
+            <View ref={contentRef} collapsable={false}>
+              {scrollBody}
+            </View>
+          </ScrollView>
+        </View>
       </WebContentPanel>
     </SafeAreaView>
   );
@@ -576,34 +586,45 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   panel: {
     flex: 1,
     width: '100%',
+    minHeight: 0,
     backgroundColor: colors.bgPrimary,
-    overflow: 'visible' as const,
+  },
+  scrollHost: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    overflow: 'hidden' as const,
   },
   mobileWrap: { flex: 1 },
   desktopRoot: {
     flex: 1,
     width: '100%',
+    minHeight: 0,
     backgroundColor: colors.bgPrimary,
-    overflow: 'visible' as const,
   },
   desktopScrollContent: {
     flexGrow: 1,
     paddingBottom: spacing.xxl,
-    overflow: 'visible' as const,
+    // Room for guest-banner gold glow; content (not ScrollView) may overflow visible.
+    ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },
   desktopShell: {
     width: '100%',
     alignSelf: 'center',
     paddingTop: DESKTOP_CONTENT_TOP,
-    overflow: 'visible' as const,
+    ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },
   desktopColumns: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.lg,
-    overflow: 'visible' as const,
+    ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },
-  desktopList: { flex: 2, minWidth: 0, overflow: 'visible' as const },
+  desktopList: {
+    flex: 2,
+    minWidth: 0,
+    ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
+  },
   desktopListContent: { paddingBottom: spacing.xxl },
   desktopSummary: {
     flex: 1,
