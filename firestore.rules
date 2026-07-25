@@ -12,6 +12,17 @@ service cloud.firestore {
         request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.memberIds;
     }
 
+    /** Pilot ops allowlist — keep in sync with src/constants/admin.ts */
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email in [
+          'brendan@unaffiliated.co',
+          'joseph@unaffiliated.co',
+          'maya@unaffiliated.co'
+        ];
+    }
+
     match /users/{userId} {
       allow read, write: if isUser(userId);
       match /children/{childId} {
@@ -55,7 +66,7 @@ service cloud.firestore {
 
     match /catalog/{holidayId}/items/{itemId} {
       allow read: if true;
-      allow write: if false;
+      allow create, update, delete: if isAdmin();
     }
 
     match /waitlist/{entryId} {

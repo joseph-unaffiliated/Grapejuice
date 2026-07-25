@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -9,7 +9,7 @@ import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../../components/cha
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { MainTabsParamList } from '../../navigation/types';
-import { tabBarTotalHeight } from '../../constants/theme';
+import { LAYOUT, tabBarTotalHeight } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
@@ -45,7 +45,12 @@ export function RavScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <WebContentPanel flush centerDesktop={isDesktop} style={styles.panel}>
+      {/* Desktop: centered readable column (not full main-area width). */}
+      <WebContentPanel
+        flush
+        desktopContentMaxWidth={LAYOUT.WEB_TABLET_MAX_WIDTH}
+        style={[styles.panel, isDesktop ? styles.panelDesktop : null]}
+      >
         <PilotAIChatSheet ref={ref} embedded bottomInset={bottomInset} initialMessage={initialMessage} />
       </WebContentPanel>
     </SafeAreaView>
@@ -58,5 +63,8 @@ function createRavStyles(colors: SemanticColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgPrimary },
     panel: { overflow: 'visible' as const },
+    panelDesktop: {
+      alignItems: 'center',
+    },
   });
 }

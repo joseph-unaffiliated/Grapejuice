@@ -38,6 +38,7 @@ import {
   faThumbsUp,
   faUtensils,
   faDice,
+  faMenorah,
 } from '@fortawesome/free-solid-svg-icons';
 
 export const icons = {
@@ -52,6 +53,7 @@ export const icons = {
   boxOpen: faBoxOpen,
   calendar: faCalendar,
   candle: faFire,
+  menorah: faMenorah,
   book: faBook,
   chevronRight: faChevronRight,
   camera: faCamera,

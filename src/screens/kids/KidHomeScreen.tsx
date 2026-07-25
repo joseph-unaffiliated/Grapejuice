@@ -120,7 +120,7 @@ export function KidHomeScreen() {
                 style={[
                   styles.emptyCard,
                   styles.gutterPad,
-                  { backgroundColor: colors.bgElevated, borderColor: colors.border },
+                  { backgroundColor: colors.bgElevated },
                 ]}
               >
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Nothing to vote on yet</Text>
@@ -203,7 +203,6 @@ const styles = StyleSheet.create({
   myPicksLink: { fontSize: typography.sm, fontWeight: '600' },
   myPicksLinkRow: { marginTop: spacing.sm },
   emptyCard: {
-    borderWidth: 1,
     borderRadius: borderRadius.md,
     padding: spacing.lg,
   },

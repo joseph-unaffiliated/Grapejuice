@@ -25,6 +25,29 @@ function toDraft(data: Record<string, unknown>): BoxDraft {
   };
 }
 
+/** Firestore rejects `undefined` anywhere in a document — drop those keys. */
+function omitUndefined<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function sanitizeLineItem(li: BoxLineItem): Record<string, unknown> {
+  return omitUndefined({
+    slotId: li.slotId,
+    itemId: li.itemId,
+    quantity: li.quantity,
+    unitCents: li.unitCents,
+    childId: li.childId,
+    label: li.label,
+    keepOrToss: li.keepOrToss,
+    isSurprise: li.isSurprise,
+  });
+}
+
 export const boxDraftService = {
   draftPath(householdId: string) {
     return `households/${householdId}/boxDrafts/${HOLIDAY_ID}`;
@@ -47,13 +70,17 @@ export const boxDraftService = {
     await ensureAuthTokenReady(uid);
     const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
     const now = new Date().toISOString();
-    const payload = {
+    const payload = omitUndefined({
       holidayId: HOLIDAY_ID,
-      lineItems,
+      lineItems: lineItems.map(sanitizeLineItem),
       updatedAt: now,
       updatedBy: uid,
-      ...extra,
-    };
+      familiarityLevel: extra?.familiarityLevel,
+      lockedAt: extra?.lockedAt,
+      slotVotes: extra?.slotVotes,
+      childInterests: extra?.childInterests,
+      sealedSectionIds: extra?.sealedSectionIds,
+    });
     await setDoc(ref, payload, { merge: true });
     const snap = await getDoc(ref);
     return toDraft(snap.data() as Record<string, unknown>);

@@ -13,6 +13,8 @@ type Props = {
   children: React.ReactNode;
   onBrowseChipPress?: (chip: string, sectionId: BoxDisplaySectionId) => void;
   showBrowseChips?: boolean;
+  /** Line items shown under this section — tan count pill beside the title. */
+  itemCount?: number;
 };
 
 /** Figma 370:3534 — one scroll section (title, items, browse chips). */
@@ -23,11 +25,13 @@ export function BoxDetailSectionBlock({
   children,
   onBrowseChipPress,
   showBrowseChips = true,
+  itemCount,
 }: Props) {
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createBoxDetailStyles(colors, { desktop: isDesktop }), [colors, isDesktop]);
   const meta = BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)!;
+  const showCount = typeof itemCount === 'number' && itemCount > 0;
 
   return (
     <View
@@ -39,7 +43,17 @@ export function BoxDetailSectionBlock({
       {...(Platform.OS === 'web' ? ({ id: `box-section-${sectionId}` } as object) : null)}
     >
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{meta.title}</Text>
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>{meta.title}</Text>
+          {showCount ? (
+            <View
+              style={styles.sectionCountBadge}
+              accessibilityLabel={`${itemCount} item${itemCount === 1 ? '' : 's'}`}
+            >
+              <Text style={styles.sectionCountText}>{itemCount}</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={styles.sectionDesc}>{meta.description}</Text>
       </View>
       <View style={styles.itemList}>{children}</View>

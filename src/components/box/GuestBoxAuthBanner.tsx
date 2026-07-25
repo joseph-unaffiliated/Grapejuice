@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useThemeMode } from '../../context/ThemeContext';
 import { spacing, typography, borderRadius } from '../../constants/theme';
+import { designPresets } from '../../constants/designPresets';
 
 type Props = {
   onCreateAccount: () => void;
@@ -12,7 +13,7 @@ export function GuestBoxAuthBanner({ onCreateAccount, onSignIn }: Props) {
   const { colors } = useThemeMode();
 
   return (
-    <View style={[styles.banner, { backgroundColor: colors.brandLight, borderColor: colors.border }]}>
+    <View style={[styles.banner, designPresets.cardHero(colors)]}>
       <Text style={[styles.title, { color: colors.textPrimary }]}>Sign in to customize your box</Text>
       <Text style={[styles.body, { color: colors.textSecondary }]}>
         You can browse what we picked — create a free account to swap items, add extras, and check out.
@@ -35,14 +36,13 @@ export function GuestBoxAuthBanner({ onCreateAccount, onSignIn }: Props) {
 
 const styles = StyleSheet.create({
   banner: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
     padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
+    alignSelf: 'stretch',
   },
-  title: { fontSize: typography.xl, fontWeight: '700' },
-  body: { fontSize: typography.md, marginTop: spacing.xs, lineHeight: 20 },
+  title: { fontSize: typography.xl, fontWeight: '700', textAlign: 'left' },
+  body: { fontSize: typography.md, marginTop: spacing.xs, lineHeight: 20, textAlign: 'left' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
   primaryBtn: {
     paddingVertical: spacing.sm,

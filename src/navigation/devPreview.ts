@@ -141,6 +141,9 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       break;
     case 'onboarding-building':
       setOnboarding('building');
+      if (search.get('hold') === '1') {
+        useDevPreviewStore.setState({ onboardingBuildingHold: true });
+      }
       break;
     case 'onboarding-reveal':
       setGuestFresh();
@@ -176,6 +179,10 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       });
       break;
     case 'account':
+      setGuestExplore();
+      setMainNav('MainTabs', undefined, 'Account');
+      break;
+    case 'account-signed-in':
       setGuestExplore();
       setMainNav('MainTabs', undefined, 'Account');
       break;

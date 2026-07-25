@@ -37,7 +37,7 @@ Implementation: `src/navigation/devPreview.ts` · `DevPreviewEffect.tsx`
 
 **Not previewable via URL (need real sign-in / data):**
 
-- **Account — signed in** — log in on [account preview](http://localhost:8081/?preview=account), then use Google/email
+- **Account — signed in** — [account-signed-in](http://localhost:8081/?preview=account-signed-in) (mock UI; no auth) or real Google/email on [account](http://localhost:8081/?preview=account)
 - **Home — during / post / shipped** — depends on order + calendar; sign in after placing a test order, or mock in Firestore
 - **Order confirmation** — use a real `orderId` after checkout: `?preview=order&orderId=YOUR_ORDER_ID`
 - **Gift flows** — [gift-give](http://localhost:8081/?preview=gift-give) · [gift-giver-customize](http://localhost:8081/?preview=gift-giver-customize) · [gift-claim](http://localhost:8081/?preview=gift-claim) · [gift-reveal](http://localhost:8081/?preview=gift-reveal)
@@ -101,7 +101,7 @@ Frame 1 already contains most Home components (hero `370:3426`, My Boxes card `3
 | 11  | **Rav — chat thread**      | 🟡     | [rav-chat](http://localhost:8081/?preview=rav-chat)                                                                                                                                                                       | Conversation + product cards                             | `PilotAIChatSheet.tsx`                  |
 | 12  | **Checkout**               | ⬜      | [checkout](http://localhost:8081/?preview=checkout) (shows auth gate until signed in)                                                                                                                                     | Payment & shipping                                       | `CheckoutScreen.tsx`                    |
 | 13  | **Order confirmation**     | ⬜      | `?preview=order&orderId=…` after test checkout                                                                                                                                                                            | Post-commit success                                      | `OrderConfirmationScreen.tsx`           |
-| 14  | **Account — signed in**    | 🟡     | Sign in via [account](http://localhost:8081/?preview=account)                                                                                                                                                             | Orders + household                                       | `AccountScreen.tsx`                     |
+| 14  | **Account — signed in**    | 🟡     | [?preview=account-signed-in](http://localhost:8081/?preview=account-signed-in) (mock)                                                                                                                                     | Orders + household                                       | `AccountScreen.tsx`                     |
 | 15  | **Hanukkah debrief**       | ⬜      | [debrief](http://localhost:8081/?preview=debrief)                                                                                                                                                                         | 4-step survey variants                                   | `ReflectionFlowScreen.tsx`              |
 
 
@@ -416,7 +416,7 @@ Expanded purpose / description for each numbered frame. Use when implementing or
 
 ### Frame 14 — Account — signed in 🟡
 
-**Preview:** Sign in from [account](http://localhost:8081/?preview=account)  
+**Preview:** [http://localhost:8081/?preview=account-signed-in](http://localhost:8081/?preview=account-signed-in) (mock; no auth)  
 **Purpose:** Orders, partner invite, sign out.  
 **Description:** Email/name, order rows with status (“Committed — charged at ship”), invite by email + accept code, sign out.  
 **Code:** `AccountScreen.tsx`

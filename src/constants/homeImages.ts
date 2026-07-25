@@ -1,6 +1,8 @@
 /** Figma homepage composites — file rGzXYb1rNVxqGHz81835Jn */
 export const HERO_STACKED_CARDS = require('../../assets/home/hero-stacked-cards.png');
 export const HERO_STACKED_CARDS_SM = require('../../assets/home/hero-stacked-cards-sm.png');
+/** Lifestyle glamour for in-progress / refine-box hero. */
+export const HERO_GLAMOUR = require('../../assets/catalog/family-hanukkiah-keepsake.png');
 
 export const HOME_HOLIDAY_THUMBS = {
   hanukkah: require('../../assets/home/holiday-hanukkah.png'),

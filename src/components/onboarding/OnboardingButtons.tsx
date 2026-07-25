@@ -72,6 +72,7 @@ export function OnboardingSecondaryButton({
 const styles = StyleSheet.create({
   primary: {
     width: '100%',
+    minHeight: 48,
     backgroundColor: '#000000',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,

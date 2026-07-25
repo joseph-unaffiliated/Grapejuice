@@ -133,3 +133,11 @@ export function groupLineItemsByDisplaySection(
   }
   return groups;
 }
+
+/** Section tabs / scroll targets — only sections that have line items in the box. */
+export function nonEmptyDisplaySectionIds(
+  grouped: Record<BoxDisplaySectionId, BoxLineItem[]>,
+  candidates: readonly BoxDisplaySectionId[] = BOX_DISPLAY_SECTIONS.map((s) => s.id),
+): BoxDisplaySectionId[] {
+  return candidates.filter((id) => grouped[id].length > 0);
+}

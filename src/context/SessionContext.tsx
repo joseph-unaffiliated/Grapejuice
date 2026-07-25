@@ -12,7 +12,7 @@ type SessionContextValue = {
   isKid: boolean;
   needsOnboarding: boolean;
   needsBoxReveal: boolean;
-  refresh: () => Promise<void>;
+  refresh: (options?: { silent?: boolean }) => Promise<void>;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -24,14 +24,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    // Silent refreshes update session data without flipping the global boot
+    // flag (avoids a full-screen spinner interrupting flows like onboarding).
+    const silent = options?.silent ?? false;
     if (!user) {
       setProfile(null);
       setHousehold(null);
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       let prof = await usersService.get(user.uid);
@@ -57,7 +60,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Session error');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [user]);
 
@@ -65,9 +68,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     load();
   }, [load]);
 
-  const refresh = useCallback(async () => {
-    await load();
-  }, [load]);
+  const refresh = useCallback(
+    async (options?: { silent?: boolean }) => {
+      await load(options);
+    },
+    [load]
+  );
 
   const value: SessionContextValue = {
     profile,

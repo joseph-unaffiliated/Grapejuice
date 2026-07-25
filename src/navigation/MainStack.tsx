@@ -21,6 +21,8 @@ import { GuideScreen } from '../screens/main/GuideScreen';
 import { KidGuideScreen } from '../screens/kids/KidGuideScreen';
 import { ProfilesScreen } from '../screens/profiles/ProfilesScreen';
 import { GrapeWobblePreviewScreen } from '../screens/dev/GrapeWobblePreviewScreen';
+import { AdminCatalogScreen } from '../screens/admin/AdminCatalogScreen';
+import { AdminCatalogItemScreen } from '../screens/admin/AdminCatalogItemScreen';
 import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFeatures';
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
@@ -120,6 +122,8 @@ export function MainStack() {
         <Stack.Screen name="GiftGiverCustomize" component={GiftGiverCustomizeScreen} />
         <Stack.Screen name="GiftClaim" component={GiftClaimScreen} />
         <Stack.Screen name="GiftRecipientReveal" component={GiftRecipientRevealScreen} />
+        <Stack.Screen name="AdminCatalog" component={AdminCatalogScreen} />
+        <Stack.Screen name="AdminCatalogItem" component={AdminCatalogItemScreen} />
         {__DEV__ ? (
           <Stack.Screen name="GrapeWobblePreview" component={GrapeWobblePreviewScreen} />
         ) : null}

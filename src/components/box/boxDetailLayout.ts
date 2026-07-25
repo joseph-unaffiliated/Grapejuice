@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { spacing, typography, borderRadius, MOBILE_GUTTER, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 
@@ -90,21 +90,55 @@ export function createBoxDetailStyles(
     sectionBlock: {
       borderBottomWidth: 0.5,
       borderBottomColor: colors.goldMuted,
-      paddingTop: spacing.xs,
+      paddingTop: spacing.xl,
       paddingBottom: spacing.xl,
       paddingHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
+      ...(Platform.OS === 'web' ? { scrollMarginTop: BOX_DETAIL_SCROLL_SPY_OFFSET } : null),
     },
     sectionHeader: {
       alignItems: desktop ? 'flex-start' : 'center',
       marginBottom: spacing.md,
       gap: spacing.xs,
     },
+    sectionTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      justifyContent: desktop ? 'flex-start' : 'center',
+    },
     sectionTitle: {
-      fontSize: typography.lg,
-      ...typeface('regular'),
+      fontSize: typography.titleLg,
+      ...typeface('medium'),
       color: colors.textPrimary,
-      letterSpacing: -0.26,
+      letterSpacing: -0.32,
       textAlign: desktop ? 'left' : 'center',
+    },
+    sectionCountBadge: {
+      minWidth: 16,
+      height: 16,
+      paddingHorizontal: 4,
+      borderRadius: borderRadius.pill,
+      backgroundColor: colors.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sectionCountText: {
+      fontSize: 9,
+      ...typeface('medium'),
+      color: colors.textInverse,
+      letterSpacing: -0.18,
+      lineHeight: 16,
+      textAlign: 'center',
+      ...(Platform.OS === 'android' ? { includeFontPadding: false, textAlignVertical: 'center' } : null),
+      ...(Platform.OS === 'web'
+        ? ({
+            lineHeight: '16px',
+            marginTop: 0,
+            marginBottom: 0,
+            paddingTop: 0,
+            paddingBottom: 0,
+          } as object)
+        : null),
     },
     sectionDesc: {
       fontSize: typography.sm,
@@ -158,6 +192,8 @@ export function createBoxDetailStyles(
       paddingHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
       gap: spacing.sm,
       marginBottom: spacing.sm,
+      // Let guest-auth gold glow bleed; RN Views default to overflow:hidden.
+      overflow: 'visible' as const,
     },
   });
 }

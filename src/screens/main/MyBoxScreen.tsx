@@ -42,6 +42,7 @@ import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
   BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
+  nonEmptyDisplaySectionIds,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { GuestBoxAuthBanner } from '../../components/box/GuestBoxAuthBanner';
@@ -80,8 +81,6 @@ export function MyBoxScreen() {
     useBoxDraft();
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
-  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
-    useBoxDetailScroll();
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,6 +124,16 @@ export function MyBoxScreen() {
 
   const grouped = useMemo(() => groupLineItemsByDisplaySection(lineItems), [lineItems]);
 
+  const visibleSectionIds = useMemo(() => {
+    const candidates = isChildProfile
+      ? (['presents', 'story'] as BoxDisplaySectionId[])
+      : BOX_DISPLAY_SECTIONS.map((section) => section.id);
+    return nonEmptyDisplaySectionIds(grouped, candidates);
+  }, [grouped, isChildProfile]);
+
+  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
+    useBoxDetailScroll({ visibleSectionIds });
+
   const extraLineItems = useMemo(
     () => lineItems.filter((li) => li.itemId.startsWith('extra-') || li.slotId.startsWith('extra-')),
     [lineItems]
@@ -137,11 +146,6 @@ export function MyBoxScreen() {
         return item && inferPricingTier(item) === 'alaCarte';
       }),
     [lineItems, catalog]
-  );
-
-  const extraCatalog = useMemo(
-    () => catalog.filter((c) => inferPricingTier(c) === 'extra'),
-    [catalog]
   );
 
   const loadSwapOptions = async (li: BoxLineItem): Promise<CatalogItem[]> => {
@@ -265,26 +269,6 @@ export function MyBoxScreen() {
     ]);
   };
 
-  const toggleExtra = async (item: CatalogItem) => {
-    if (locked || !beforeCustomize() || !guardMutation()) return;
-    const existing = lineItems.find((li) => li.itemId === item.id);
-    if (existing) {
-      await persist(lineItems.filter((li) => li.itemId !== item.id));
-    } else {
-      const tier = inferPricingTier(item);
-      await persist([
-        ...lineItems,
-        {
-          slotId: item.slotId,
-          itemId: item.id,
-          quantity: 1,
-          unitCents: unitCentsForTier(tier, item.dollarCostCents),
-          label: item.name,
-        },
-      ]);
-    }
-  };
-
   const goToCheckout = () => {
     if (guestViewOnly) {
       requireAuthToCustomize('signup');
@@ -306,6 +290,11 @@ export function MyBoxScreen() {
     const items = grouped[sectionId];
     if (!items.length && !isChildProfile) return null;
     const sectionSealed = sealedSectionIds?.includes(sectionId) ?? false;
+    const visibleItems = isChildProfile
+      ? items.filter(
+          (li) => li.childId === activeChild?.id && isVotablePerKidSlot(li.slotId),
+        )
+      : items;
 
     return (
       <BoxDetailSectionBlock
@@ -313,6 +302,7 @@ export function MyBoxScreen() {
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
+        itemCount={visibleItems.length}
         showBrowseChips={!isChildProfile && !sectionSealed}
         onBrowseChipPress={!isChildProfile && !sectionSealed ? onBrowseChipPress : undefined}
       >
@@ -456,33 +446,7 @@ export function MyBoxScreen() {
 
   const scrollHeader = isChildProfile ? kidScrollHeader : parentScrollHeader;
 
-  const sectionIds = isChildProfile
-    ? (['presents', 'story'] as BoxDisplaySectionId[])
-    : BOX_DISPLAY_SECTIONS.map((s) => s.id);
-
-  const sections = sectionIds.map((id) => renderSection(id));
-
-  const addOnsBlock = (
-    <View style={[styles.sectionCard, Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined]}>
-      <Text style={styles.sectionTitle}>Optional add-ons</Text>
-      <Text style={styles.sectionSub}>{formatDollars(EXTRA_FLAT_CENTS)} each — parent guide, decor, extras</Text>
-      {extraCatalog.map((item) => {
-        const added = lineItems.some((li) => li.itemId === item.id);
-        return (
-          <View key={item.id} style={styles.extraRow}>
-            <Text style={styles.itemName}>{item.name}</Text>
-            <TouchableOpacity
-              style={[styles.toggleBtn, added && styles.toggleBtnOn, locked && styles.toggleBtnDisabled]}
-              onPress={() => toggleExtra(item)}
-              disabled={locked}
-            >
-              <Text style={[styles.toggleText, added && styles.toggleTextOn]}>{added ? 'Added' : 'Add'}</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      })}
-    </View>
-  );
+  const sections = visibleSectionIds.map((id) => renderSection(id));
 
   const summaryPanel = (
     <View style={[styles.summaryCard, Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined]}>
@@ -539,7 +503,13 @@ export function MyBoxScreen() {
     <>
       {scrollHeader}
       {kidEmptyState}
-      {!isChildProfile ? <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} /> : null}
+      {!isChildProfile && visibleSectionIds.length > 0 ? (
+        <StickySectionNav
+          activeSection={activeSection}
+          onSelect={scrollToSection}
+          sectionIds={visibleSectionIds}
+        />
+      ) : null}
       {kidEmptyState ? null : sections}
       {!isDesktop && !isChildProfile ? (
         <BoxDetailReviewCta
@@ -553,27 +523,28 @@ export function MyBoxScreen() {
   if (isDesktop && !isChildProfile) {
     return (
       <WebContentPanel flush centerDesktop omitDesktopTopPadding style={styles.panel}>
-        <View style={[styles.root, styles.desktopRoot]}>
-          <View style={[styles.desktopShell, { maxWidth: widePanelMaxWidth }]}>
+        <ScrollView
+          ref={scrollRef}
+          style={[styles.root, styles.desktopRoot]}
+          contentContainerStyle={styles.desktopScrollContent}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        >
+          <View
+            style={[styles.desktopShell, { maxWidth: widePanelMaxWidth }]}
+            ref={contentRef}
+            collapsable={false}
+          >
             <View style={styles.desktopColumns}>
-              <ScrollView
-                ref={scrollRef}
-                style={styles.desktopList}
-                contentContainerStyle={detailStyles.scrollContent}
-                onScroll={onScroll}
-                scrollEventThrottle={16}
-              >
-                <View ref={contentRef} collapsable={false}>
-                  {scrollBody}
-                </View>
-              </ScrollView>
+              <View style={styles.desktopList}>
+                {scrollBody}
+              </View>
               <View style={styles.desktopSummary}>
                 {summaryPanel}
-                {addOnsBlock}
               </View>
             </View>
           </View>
-        </View>
+        </ScrollView>
       </WebContentPanel>
     );
   }
@@ -602,31 +573,47 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   return StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.bgPrimary },
   root: { flex: 1, backgroundColor: colors.bgPrimary },
-  panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
+  panel: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: colors.bgPrimary,
+    overflow: 'visible' as const,
+  },
   mobileWrap: { flex: 1 },
   desktopRoot: {
     flex: 1,
-    minHeight: 0,
     width: '100%',
     backgroundColor: colors.bgPrimary,
+    overflow: 'visible' as const,
+  },
+  desktopScrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xxl,
+    overflow: 'visible' as const,
   },
   desktopShell: {
-    flex: 1,
     width: '100%',
     alignSelf: 'center',
-    minHeight: 0,
     paddingTop: DESKTOP_CONTENT_TOP,
+    overflow: 'visible' as const,
   },
-  desktopColumns: { flex: 1, flexDirection: 'row', minHeight: 0, gap: spacing.lg },
-  /** minHeight:0 is required on web so this column scrolls instead of growing with content. */
-  desktopList: { flex: 2, minWidth: 0, minHeight: 0 },
+  desktopColumns: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.lg,
+    overflow: 'visible' as const,
+  },
+  desktopList: { flex: 2, minWidth: 0, overflow: 'visible' as const },
   desktopListContent: { paddingBottom: spacing.xxl },
   desktopSummary: {
     flex: 1,
     maxWidth: 360,
     minWidth: 280,
-    minHeight: 0,
     paddingTop: spacing.xs,
+    alignSelf: 'flex-start',
+    ...(Platform.OS === 'web'
+      ? ({ position: 'sticky' as const, top: DESKTOP_CONTENT_TOP, zIndex: 5 } as object)
+      : {}),
   },
   content: { paddingTop: spacing.sm, paddingBottom: 160 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -659,8 +646,6 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     padding: spacing.lg,
     borderRadius: 16,
     backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   kidEmptyTitle: { fontSize: typography.xl, fontWeight: '700', color: colors.textPrimary },
   kidEmptyBody: {
@@ -689,15 +674,6 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     marginBottom: spacing.lg,
   },
   sectionHeader: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xs },
-  sectionCard: {
-    backgroundColor: cardSurface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    ...(isDesktop ? { borderWidth: 1, borderColor: colors.border } : {}),
-  },
-  sectionTitle: { fontSize: typography.md, fontWeight: '400', textAlign: 'center', color: colors.textPrimary },
-  sectionSub: { fontSize: typography.sm, color: colors.goldMuted, marginBottom: spacing.sm },
   sectionDesc: {
     fontSize: typography.sm,
     fontWeight: '200',
@@ -717,25 +693,11 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     backgroundColor: colors.bgPrimary,
   },
   browseChipText: { fontSize: 9, color: colors.textPrimary },
-  extraRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
-  itemName: { fontWeight: '600', flex: 1 },
-  toggleBtn: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.pill,
-    borderWidth: 1,
-    borderColor: colors.brand,
-  },
-  toggleBtnOn: { backgroundColor: colors.brand },
-  toggleBtnDisabled: { opacity: 0.5 },
-  toggleText: { fontWeight: '600', color: colors.brand, fontSize: typography.sm },
-  toggleTextOn: { color: colors.textPrimary },
   summaryCard: {
     backgroundColor: cardSurface,
-    borderRadius: borderRadius.lg,
+    borderRadius: 16,
     padding: spacing.lg,
     marginTop: isDesktop ? 0 : spacing.md,
-    ...(isDesktop ? { borderWidth: 1, borderColor: colors.border } : {}),
   },
   summaryHeading: { fontSize: typography.xl, fontWeight: '700', marginBottom: spacing.md },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
@@ -744,8 +706,8 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   summaryTotalRow: {
     marginTop: spacing.sm,
     paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopWidth: 0.5,
+    borderTopColor: colors.goldMuted,
   },
   totalLabel: { fontSize: typography.xl, fontWeight: '600' },
   totalValue: { fontSize: typography.xl, fontWeight: '700' },

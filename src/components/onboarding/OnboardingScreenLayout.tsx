@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Platform,
-  Image,
   type ImageSourcePropType,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,26 +15,23 @@ import {
   typography,
   typeface,
   MOBILE_GUTTER,
-  colors,
 } from '../../constants/theme';
 import { HOME_HOLIDAY_THUMBS } from '../../constants/homeImages';
-import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import {
   OnboardingPrimaryButton,
   OnboardingSecondaryButton,
 } from './OnboardingButtons';
-
-/** Soft warm tan field — cream → beige → muted gold (platform warm palette). */
-const TAN_MEDIA_GRADIENT = `linear-gradient(135deg, ${colors.warm[50]} 0%, ${colors.warm[100]} 52%, ${colors.warm[200]} 100%)`;
-
-/** Gentle white seam from copy pane into the tan media pane. */
-const COPY_INTO_MEDIA_FADE =
-  'linear-gradient(90deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.45) 12%, rgba(255,255,255,0) 28%)';
+import { OnboardingMediaPane } from './OnboardingMediaPane';
+import { OnboardingCornerLogo } from './OnboardingCornerLogo';
+import { useOnboardingMediaHost } from './onboardingMediaHostContext';
 
 /** Desktop two-pane — equal columns with comfortable copy inset and CTA spacing. */
 const DESKTOP_PANE_SHARE = '50%';
 const DESKTOP_COPY_HORIZONTAL_PAD = spacing.xxl + spacing.lg;
 const DESKTOP_COPY_FOOTER_GAP = spacing.xxxl + spacing.lg;
+/** Matches primary + secondary CTAs + desktop bottom inset when footer is hidden. */
+const DESKTOP_FOOTER_RESERVE =
+  DESKTOP_COPY_FOOTER_GAP + 48 + spacing.sm + 8 + 40 + spacing.lg + 64;
 /** CTA column — wide enough for long labels, narrower than the copy pane. */
 const ONBOARDING_CTA_MAX_WIDTH = 360;
 
@@ -58,11 +54,15 @@ type Props = {
   mediaSource?: ImageSourcePropType;
   /** Hide the desktop media pane (forms that need full width). */
   hideMedia?: boolean;
+  /** Center body content in the scrollport (e.g. building spinner). */
+  centerBody?: boolean;
+  /** Keep desktop footer gap when hideFooter (avoids CTA → loader jump). */
+  reserveFooterSpace?: boolean;
 };
 
 /**
  * Mobile: single-column Figma shell (100:395) with bottom-pinned CTAs.
- * Desktop web: two-pane — left copy packed with CTAs, right soft tan media + fade from copy.
+ * Desktop web: two-pane — left copy, right holiday photo with indigo scrim + gold wash.
  */
 export function OnboardingScreenLayout({
   kicker,
@@ -79,28 +79,27 @@ export function OnboardingScreenLayout({
   hideFooter = false,
   mediaSource = HOME_HOLIDAY_THUMBS.hanukkah,
   hideMedia = false,
+  centerBody = false,
+  reserveFooterSpace = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { tier } = useWebLayout();
+  const mediaProvidedByParent = useOnboardingMediaHost();
   /** Two-pane only at desktop (≥1024); tablet keeps the mobile single column. */
   const isDesktopWeb = Platform.OS === 'web' && tier === 'desktop-web';
-  const showMedia = isDesktopWeb && !hideMedia;
+  const showMedia = isDesktopWeb && !hideMedia && !mediaProvidedByParent;
+  /** Desktop is left-aligned; mobile follows centerHeader. */
   const leftAlignHeader = isDesktopWeb || !centerHeader;
 
   const bottomPad = Math.max(insets.bottom, spacing.sm) + (Platform.OS === 'web' ? (isDesktopWeb ? 64 : 40) : 16);
-  const logoTop = Platform.OS === 'web' ? spacing.lg : Math.max(insets.top, spacing.sm) + spacing.sm;
   /** Room below the corner logo; title stays top-anchored on desktop (not vertically centered). */
   const topPad = isDesktopWeb
     ? spacing.xxl + spacing.xl
-    // Mobile: clear the 30px markOnly logomark + a little breathing room.
-    : logoTop + 30 + spacing.lg;
-  const logoLeft = isDesktopWeb
-    ? DESKTOP_COPY_HORIZONTAL_PAD
-    : Platform.OS === 'web'
-      ? spacing.lg
-      : MOBILE_GUTTER;
+    : Math.max(insets.top, spacing.sm) + spacing.sm + 30 + spacing.lg;
 
   const showFooter = !hideFooter && !!primaryLabel && !!onPrimary;
+  /** Hosted desktop renders the logo on the media host (viewport-pinned). */
+  const showCornerLogo = !mediaProvidedByParent;
 
   const footer = showFooter ? (
     <View
@@ -137,8 +136,12 @@ export function OnboardingScreenLayout({
   const copyPane = (
     <View
       style={[
-        styles.copyPane,
-        isDesktopWeb ? styles.copyPaneDesktop : styles.copyPaneMobile,
+        isDesktopWeb && mediaProvidedByParent ? styles.copyPaneInHost : styles.copyPane,
+        isDesktopWeb
+          ? mediaProvidedByParent
+            ? styles.copyPaneDesktopHosted
+            : styles.copyPaneDesktop
+          : styles.copyPaneMobile,
         isDesktopWeb && { paddingHorizontal: DESKTOP_COPY_HORIZONTAL_PAD },
         { paddingTop: topPad, paddingBottom: hideFooter && !isDesktopWeb ? bottomPad : 0 },
       ]}
@@ -148,6 +151,7 @@ export function OnboardingScreenLayout({
         contentContainerStyle={[
           styles.scrollContent,
           isDesktopWeb && styles.scrollContentDesktop,
+          centerBody && styles.scrollContentCentered,
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -165,25 +169,38 @@ export function OnboardingScreenLayout({
           <Text style={[styles.title, !leftAlignHeader && styles.titleCentered]}>{title}</Text>
         </View>
         {children ? (
-          <View style={[styles.body, isDesktopWeb && styles.bodyDesktop]}>{children}</View>
+          <View
+            style={[
+              styles.body,
+              isDesktopWeb && styles.bodyDesktop,
+              centerBody && styles.bodyCentered,
+            ]}
+          >
+            {children}
+          </View>
         ) : null}
       </ScrollView>
 
-      {/* Mobile: pinned under the scrollport. Desktop: follows copy with a deliberate gap. */}
+      {/* Mobile: pinned under the scrollport. Desktop: deliberate gap, then CTAs. */}
       {footer}
+      {hideFooter && reserveFooterSpace && isDesktopWeb ? (
+        <View style={styles.footerReserve} accessibilityElementsHidden />
+      ) : null}
     </View>
   );
 
-  const logo = (
-    <View style={[styles.logoCorner, { top: logoTop, left: logoLeft }]} pointerEvents="none">
-      <GrapejuiceBrandMark markOnly align="left" decorative />
-    </View>
-  );
+  if (mediaProvidedByParent) {
+    return (
+      <View style={styles.rootHosted}>
+        {copyPane}
+      </View>
+    );
+  }
 
   if (!showMedia) {
     return (
       <View style={styles.root}>
-        {logo}
+        {showCornerLogo ? <OnboardingCornerLogo /> : null}
         {copyPane}
       </View>
     );
@@ -191,26 +208,9 @@ export function OnboardingScreenLayout({
 
   return (
     <View style={[styles.root, styles.rootDesktop]}>
-      {logo}
       {copyPane}
-      <View style={styles.mediaPane} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <View
-          style={[
-            StyleSheet.absoluteFillObject,
-            Platform.OS === 'web'
-              ? ({ backgroundImage: TAN_MEDIA_GRADIENT } as object)
-              : { backgroundColor: colors.warm[100] },
-          ]}
-        />
-        <Image source={mediaSource} style={styles.mediaImage} resizeMode="cover" />
-        <View
-          style={[
-            StyleSheet.absoluteFillObject,
-            Platform.OS === 'web' ? ({ backgroundImage: COPY_INTO_MEDIA_FADE } as object) : null,
-          ]}
-          pointerEvents="none"
-        />
-      </View>
+      <OnboardingMediaPane source={mediaSource} />
+      {showCornerLogo ? <OnboardingCornerLogo /> : null}
     </View>
   );
 }
@@ -233,15 +233,22 @@ const styles = StyleSheet.create({
       ? ({ height: '100%', maxHeight: '100vh' } as object)
       : null),
   },
-  logoCorner: {
-    position: 'absolute',
-    zIndex: 5,
+  /** Left pane only — media is rendered by `OnboardingMediaHost`. */
+  rootHosted: {
+    width: '100%',
+    position: 'relative',
   },
   copyPane: {
     flex: 1,
     width: '100%',
     backgroundColor: semanticColors.bgPrimary,
     minHeight: 0,
+  },
+  /** In media host the parent is a column — do not inherit row-axis flex:1 (fills height). */
+  copyPaneInHost: {
+    width: '100%',
+    backgroundColor: semanticColors.bgPrimary,
+    minWidth: 0,
   },
   /** Single column — fills the viewport; CTAs pin below a flex scrollport. */
   copyPaneMobile: {
@@ -258,11 +265,29 @@ const styles = StyleSheet.create({
     maxWidth: DESKTOP_PANE_SHARE,
     minWidth: 0,
     alignSelf: 'center',
-    zIndex: 2,
+    position: 'relative',
+    zIndex: 4,
     justifyContent: 'flex-start',
     gap: DESKTOP_COPY_FOOTER_GAP,
     minHeight: 0,
     overflow: 'hidden',
+    backgroundColor: semanticColors.bgPrimary,
+    ...(Platform.OS === 'web'
+      ? ({ maxHeight: '100vh' } as object)
+      : { maxHeight: '100%' }),
+  },
+  copyPaneDesktopHosted: {
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    alignSelf: 'stretch',
+    position: 'relative',
+    zIndex: 4,
+    justifyContent: 'flex-start',
+    gap: DESKTOP_COPY_FOOTER_GAP,
+    minHeight: 0,
+    overflow: 'hidden',
+    backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
       ? ({ maxHeight: '100vh' } as object)
       : { maxHeight: '100%' }),
@@ -282,6 +307,12 @@ const styles = StyleSheet.create({
   scrollContentDesktop: {
     flexGrow: 0,
     paddingBottom: spacing.lg,
+  },
+  scrollContentCentered: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   header: {
     paddingHorizontal: MOBILE_GUTTER + 8,
@@ -324,6 +355,12 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     maxWidth: 440,
   },
+  bodyCentered: {
+    width: '100%',
+    maxWidth: '100%',
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
   footer: {
     paddingHorizontal: MOBILE_GUTTER + 8,
     paddingTop: spacing.sm,
@@ -344,6 +381,10 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     flexShrink: 0,
   },
+  footerReserve: {
+    height: DESKTOP_FOOTER_RESERVE,
+    flexShrink: 0,
+  },
   footerCtaWrap: {
     width: '100%',
     maxWidth: ONBOARDING_CTA_MAX_WIDTH,
@@ -351,24 +392,6 @@ const styles = StyleSheet.create({
   },
   secondaryGap: {
     marginTop: 0,
-  },
-  mediaPane: {
-    flex: 1,
-    flexBasis: DESKTOP_PANE_SHARE,
-    width: DESKTOP_PANE_SHARE,
-    maxWidth: DESKTOP_PANE_SHARE,
-    minWidth: 0,
-    minHeight: 0,
-    alignSelf: 'stretch',
-    position: 'relative',
-    overflow: 'hidden',
-    backgroundColor: colors.warm[100],
-  },
-  mediaImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-    opacity: 0.22,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { useNavigationState } from '@react-navigation/native';
 import { Icon } from '../ui/Icon';
@@ -167,6 +167,11 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
   const activeTab = useMemo(() => resolveActiveTab(navState), [navState]);
   const navItems = PILOT_PARENT_ONLY ? PARENT_NAV : isChildProfile ? childNav(ravEnabledForActiveChild) : PARENT_NAV;
   const { primaryItems, accountItem } = useMemo(() => splitNavItems(navItems), [navItems]);
+  const [logoHover, setLogoHover] = useState(false);
+
+  useEffect(() => {
+    if (collapsed) setLogoHover(false);
+  }, [collapsed]);
 
   const railWidth = useRef(new Animated.Value(railWidthFor(collapsed))).current;
   const railPadLeft = useRef(new Animated.Value(railPadLeftFor(collapsed))).current;
@@ -262,11 +267,18 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
                 opacity: fadeOpacity,
                 transform: [{ translateX: iconShift }],
               },
+              Platform.OS === 'web' ? ({ cursor: 'default' } as object) : null,
             ]}
             pointerEvents={collapsed ? 'none' : 'auto'}
-            {...(Platform.OS === 'web' ? { 'aria-hidden': collapsed } : {})}
+            {...(Platform.OS === 'web'
+              ? ({
+                  'aria-hidden': collapsed,
+                  onMouseEnter: () => setLogoHover(true),
+                  onMouseLeave: () => setLogoHover(false),
+                } as object)
+              : {})}
           >
-            <GrapejuiceBrandMark variant="sidebar" align="left" />
+            <GrapejuiceBrandMark variant="sidebar" align="left" animating={logoHover} loop={false} />
           </Animated.View>
         </View>
       </View>

@@ -11,7 +11,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -149,6 +149,7 @@ function statusLine(phase: string, locked: boolean, lockCountdown: string | null
 export function HomeScreen() {
   const { colors } = useThemeMode();
   const navigation = useNavigation<Nav>();
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useEffectiveWindowDimensions();
   const { isDesktop, layoutWidth, contentColumnOffset: layoutContentOffset } = useWebLayout();
@@ -173,10 +174,13 @@ export function HomeScreen() {
   const collapseProgress = useRef(new Animated.Value(0)).current;
   const headerCollapsedRef = useRef(false);
   const headerCollapseAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  /** True only at the top / fully expanded header — drives SearchPill typewriter. */
+  const [headerExpanded, setHeaderExpanded] = useState(true);
 
   const setHeaderCollapsed = useCallback((collapsed: boolean) => {
     if (headerCollapsedRef.current === collapsed) return;
     headerCollapsedRef.current = collapsed;
+    setHeaderExpanded(!collapsed);
     headerCollapseAnimRef.current?.stop();
     headerCollapseAnimRef.current = Animated.timing(collapseProgress, {
       toValue: collapsed ? 1 : 0,
@@ -364,6 +368,7 @@ export function HomeScreen() {
       chips={CATEGORY_CHIPS}
       onChipPress={handleCategoryChip}
       headerShadow={headerShadow}
+      animatePlaceholder={headerExpanded && isFocused}
     />
   );
 
@@ -501,7 +506,9 @@ export function HomeScreen() {
             </Text>
 
             {!hasBoxStarted && !hasOrder ? (
-              <View style={isDesktop ? styles.sectionTitleInset : styles.gutterPad}>
+              // Solo empty-state card: match hero width (content column − card gutter).
+              // Don't add MOBILE_GUTTER here — MyBoxesWelcomeCard's shadowWrap already has it.
+              <View style={isDesktop ? { paddingHorizontal: contentColumnOffset } : undefined}>
                 <MyBoxesWelcomeCard
                   onPress={openBox}
                   passoverRegistered={passoverNotified}

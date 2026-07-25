@@ -5,6 +5,8 @@ import {
   TextInput,
   StyleSheet,
   Platform,
+  AppState,
+  type AppStateStatus,
 } from 'react-native';
 import {
   borderRadius,
@@ -56,6 +58,13 @@ function pickPromptBatch(previous: string, count: number): string[] {
   return batch;
 }
 
+function readPageVisible(): boolean {
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    return document.visibilityState === 'visible';
+  }
+  return AppState.currentState === 'active';
+}
+
 export function SearchPill({
   value,
   onChangeText,
@@ -70,99 +79,125 @@ export function SearchPill({
   const [fauxText, setFauxText] = useState(placeholder);
   /** Italic muted type only while typing/holding demo questions — not while clearing or restoring default. */
   const [isDemo, setIsDemo] = useState(false);
-  const cancelledRef = useRef(false);
+  /** Browser tab / app foreground — background timers burst on resume and scramble the loop. */
+  const [pageVisible, setPageVisible] = useState(readPageVisible);
   const lastPromptRef = useRef('');
-
-  const runTypewriter = useCallback(async () => {
-    const sleep = (ms: number) =>
-      new Promise<void>((resolve) => {
-        setTimeout(resolve, ms);
-      });
-
-    const setText = (next: string) => {
-      if (!cancelledRef.current) setFauxText(next);
-    };
-    const setDemo = (next: boolean) => {
-      if (!cancelledRef.current) setIsDemo(next);
-    };
-
-    const backspace = async (from: string) => {
-      for (let i = from.length; i >= 0; i -= 1) {
-        if (cancelledRef.current) return;
-        setText(from.slice(0, i));
-        await sleep(DELETE_MS);
-      }
-    };
-
-    const typeOut = async (to: string) => {
-      for (let i = 1; i <= to.length; i += 1) {
-        if (cancelledRef.current) return;
-        setText(to.slice(0, i));
-        await sleep(TYPE_MS);
-      }
-    };
-
-    setDemo(false);
-    setText(placeholder);
-
-    while (!cancelledRef.current) {
-      // Idle: normal placeholder, held for a few seconds.
-      await sleep(HOLD_DEFAULT_MS);
-      if (cancelledRef.current) break;
-
-      // Clear default in normal type — don't switch to italic yet.
-      await backspace(placeholder);
-      if (cancelledRef.current) break;
-      await sleep(GAP_MS);
-      if (cancelledRef.current) break;
-
-      const batch = pickPromptBatch(lastPromptRef.current, DEMO_QUESTIONS_PER_ROUND);
-      lastPromptRef.current = batch[batch.length - 1] ?? lastPromptRef.current;
-
-      for (let q = 0; q < batch.length; q += 1) {
-        const prompt = batch[q]!;
-        setDemo(true);
-        await typeOut(prompt);
-        if (cancelledRef.current) break;
-
-        await sleep(HOLD_DEMO_MS);
-        if (cancelledRef.current) break;
-
-        await backspace(prompt);
-        if (cancelledRef.current) break;
-
-        // Stay in demo style only if another question follows.
-        if (q < batch.length - 1) {
-          await sleep(GAP_MS);
-          if (cancelledRef.current) break;
-        }
-      }
-      if (cancelledRef.current) break;
-
-      // Switch back to normal, then retype the resting placeholder.
-      setDemo(false);
-      await sleep(GAP_MS);
-      if (cancelledRef.current) break;
-      await typeOut(placeholder);
-    }
-  }, [placeholder]);
+  /** Monotonic run id — stale async loops bailed even if a newer run already started. */
+  const runIdRef = useRef(0);
 
   useEffect(() => {
-    if (!animatePlaceholder || hasText || focused) {
-      cancelledRef.current = true;
-      if (hasText || focused) {
-        setFauxText(placeholder);
-        setIsDemo(false);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const onVis = () => setPageVisible(document.visibilityState === 'visible');
+      document.addEventListener('visibilitychange', onVis);
+      return () => document.removeEventListener('visibilitychange', onVis);
+    }
+    const onApp = (state: AppStateStatus) => setPageVisible(state === 'active');
+    const sub = AppState.addEventListener('change', onApp);
+    return () => sub.remove();
+  }, []);
+
+  const runTypewriter = useCallback(
+    async (isCurrent: () => boolean) => {
+      const sleep = (ms: number) =>
+        new Promise<void>((resolve) => {
+          const started = Date.now();
+          const tick = () => {
+            if (!isCurrent()) {
+              resolve();
+              return;
+            }
+            // Wall-clock sleep: after tab throttle, don't fire a backlog of short sleeps at once.
+            if (Date.now() - started >= ms) {
+              resolve();
+              return;
+            }
+            setTimeout(tick, Math.min(50, ms));
+          };
+          setTimeout(tick, Math.min(ms, 50));
+        });
+
+      const setText = (next: string) => {
+        if (isCurrent()) setFauxText(next);
+      };
+      const setDemo = (next: boolean) => {
+        if (isCurrent()) setIsDemo(next);
+      };
+
+      const backspace = async (from: string) => {
+        for (let i = from.length; i >= 0; i -= 1) {
+          if (!isCurrent()) return;
+          setText(from.slice(0, i));
+          await sleep(DELETE_MS);
+        }
+      };
+
+      const typeOut = async (to: string) => {
+        for (let i = 1; i <= to.length; i += 1) {
+          if (!isCurrent()) return;
+          setText(to.slice(0, i));
+          await sleep(TYPE_MS);
+        }
+      };
+
+      setDemo(false);
+      setText(placeholder);
+
+      while (isCurrent()) {
+        await sleep(HOLD_DEFAULT_MS);
+        if (!isCurrent()) break;
+
+        await backspace(placeholder);
+        if (!isCurrent()) break;
+        await sleep(GAP_MS);
+        if (!isCurrent()) break;
+
+        const batch = pickPromptBatch(lastPromptRef.current, DEMO_QUESTIONS_PER_ROUND);
+        lastPromptRef.current = batch[batch.length - 1] ?? lastPromptRef.current;
+
+        for (let q = 0; q < batch.length; q += 1) {
+          const prompt = batch[q]!;
+          setDemo(true);
+          await typeOut(prompt);
+          if (!isCurrent()) break;
+
+          await sleep(HOLD_DEMO_MS);
+          if (!isCurrent()) break;
+
+          await backspace(prompt);
+          if (!isCurrent()) break;
+
+          if (q < batch.length - 1) {
+            await sleep(GAP_MS);
+            if (!isCurrent()) break;
+          }
+        }
+        if (!isCurrent()) break;
+
+        setDemo(false);
+        await sleep(GAP_MS);
+        if (!isCurrent()) break;
+        await typeOut(placeholder);
       }
+    },
+    [placeholder],
+  );
+
+  useEffect(() => {
+    const shouldRun = animatePlaceholder && !hasText && !focused && pageVisible;
+
+    if (!shouldRun) {
+      runIdRef.current += 1;
+      setFauxText(placeholder);
+      setIsDemo(false);
       return;
     }
 
-    cancelledRef.current = false;
-    void runTypewriter();
+    const runId = ++runIdRef.current;
+    void runTypewriter(() => runIdRef.current === runId);
     return () => {
-      cancelledRef.current = true;
+      runIdRef.current += 1;
     };
-  }, [animatePlaceholder, hasText, focused, placeholder, runTypewriter]);
+  }, [animatePlaceholder, hasText, focused, pageVisible, placeholder, runTypewriter]);
 
   const showFaux = animatePlaceholder && !hasText && !focused;
   const alignLeft = hasText || focused;
@@ -179,14 +214,14 @@ export function SearchPill({
           style={[
             styles.fauxBase,
             isDemo ? styles.fauxDemo : styles.fauxIdle,
-            { color: isDemo ? colors.goldMuted : colors.textPrimary },
+            { color: isDemo ? colors.textTertiary : colors.textPrimary },
           ]}
           numberOfLines={1}
           pointerEvents="none"
         >
           {fauxText}
           {isDemo ? (
-            <Text style={[styles.caret, { color: colors.goldMuted }]}>|</Text>
+            <Text style={[styles.caret, { color: colors.textTertiary }]}>|</Text>
           ) : null}
         </Text>
       ) : null}

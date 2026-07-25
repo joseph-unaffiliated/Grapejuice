@@ -8,12 +8,15 @@ import {
   ActivityIndicator,
   Linking,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { useDevPreviewStore } from '../../stores/devPreviewStore';
+import { clearDevPreview } from '../../navigation/devPreview';
 import { ordersService } from '../../services/firestore/orders';
 import { usersService } from '../../services/firestore/users';
 import {
@@ -22,7 +25,7 @@ import {
   acceptPartnerInvite,
 } from '../../services/householdInvites';
 import { formatDollars } from '../../services/box/buildDefaultBox';
-import type { PilotOrder, PartnerInvite } from '../../types/pilot';
+import type { PilotOrder, PartnerInvite, Household, UserProfile } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -30,9 +33,57 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
+import { isAdminEmail } from '../../constants/admin';
 
 type Nav = StackNavigationProp<MainStackParamList>;
+
+const PREVIEW_SIGNED_IN_USER = {
+  uid: 'preview-user',
+  email: 'alex@example.com',
+  displayName: 'Alex',
+};
+
+const PREVIEW_HOUSEHOLD: Household = {
+  id: 'preview-household',
+  name: 'Fox family',
+  ownerId: 'preview-user',
+  memberIds: ['preview-user'],
+  childUserIds: [],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const PREVIEW_PROFILE: UserProfile = {
+  uid: 'preview-user',
+  email: 'alex@example.com',
+  displayName: 'Alex',
+  role: 'parent',
+  householdId: 'preview-household',
+  onboardingComplete: true,
+  boxRevealComplete: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const PREVIEW_ORDERS: PilotOrder[] = [
+  {
+    id: 'preview-order-hanukkah',
+    status: 'committed',
+    totalCents: 5000,
+    lineItems: [],
+    shippingAddress: {
+      name: 'Alex Fox',
+      line1: '123 Main St',
+      city: 'Brooklyn',
+      stateProvince: 'NY',
+      postalCode: '11201',
+      country: 'US',
+    },
+    createdAt: new Date().toISOString(),
+  },
+];
 
 function statusLabel(status: PilotOrder['status']): string {
   switch (status) {
@@ -54,13 +105,20 @@ function statusLabel(status: PilotOrder['status']): string {
 export function AccountScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createAccountStyles(colors), [colors]);
-  const user = useAuthStore((s) => s.user);
+  const { isDesktop } = useWebLayout();
+  const styles = useMemo(() => createAccountStyles(colors, isDesktop), [colors, isDesktop]);
+  const authUser = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const { household, profile, loading: sessionLoading } = useSession();
+  const { household: sessionHousehold, profile: sessionProfile, loading: sessionLoading } = useSession();
   const { activeProfile, activeChild } = useActiveProfile();
   const guestHidden = useGuestSessionStore((s) => s.hiddenHolidays);
   const toggleGuestHidden = useGuestSessionStore((s) => s.toggleHiddenHoliday);
+  const previewKey = useDevPreviewStore((s) => s.previewKey);
+  const fakeSignedIn = previewKey === 'account-signed-in';
+
+  const user = fakeSignedIn ? PREVIEW_SIGNED_IN_USER : authUser;
+  const household = fakeSignedIn ? PREVIEW_HOUSEHOLD : sessionHousehold;
+  const profile = fakeSignedIn ? PREVIEW_PROFILE : sessionProfile;
 
   const [orders, setOrders] = useState<PilotOrder[]>([]);
   const [invites, setInvites] = useState<PartnerInvite[]>([]);
@@ -72,6 +130,12 @@ export function AccountScreen() {
   const hiddenHolidays = profile?.hiddenHolidays ?? guestHidden;
 
   const load = useCallback(async () => {
+    if (fakeSignedIn) {
+      setOrders(PREVIEW_ORDERS);
+      setInvites([]);
+      setLoading(false);
+      return;
+    }
     if (!household?.id) {
       setOrders([]);
       setInvites([]);
@@ -86,14 +150,14 @@ export function AccountScreen() {
     setOrders(list);
     setInvites(partnerInvites);
     setLoading(false);
-  }, [household?.id]);
+  }, [household?.id, fakeSignedIn]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const sendInvite = async () => {
-    if (!household?.id || !inviteEmail.trim()) return;
+    if (fakeSignedIn || !household?.id || !inviteEmail.trim()) return;
     setInviteSending(true);
     try {
       await createPartnerInvite({
@@ -109,7 +173,7 @@ export function AccountScreen() {
   };
 
   const acceptInvite = async () => {
-    if (!inviteCode.trim()) return;
+    if (fakeSignedIn || !inviteCode.trim()) return;
     setInviteSending(true);
     try {
       await acceptPartnerInvite({ inviteId: inviteCode.trim() });
@@ -122,9 +186,9 @@ export function AccountScreen() {
 
   const restoreHidden = async (holidayId: string) => {
     toggleGuestHidden(holidayId);
-    if (user?.uid) {
+    if (authUser?.uid) {
       const next = hiddenHolidays.filter((id) => id !== holidayId);
-      await usersService.upsert(user.uid, { hiddenHolidays: next });
+      await usersService.upsert(authUser.uid, { hiddenHolidays: next });
     }
   };
 
@@ -142,7 +206,18 @@ export function AccountScreen() {
     Linking.openURL(url);
   };
 
-  if (sessionLoading || loading) {
+  const onSignOut = () => {
+    if (fakeSignedIn) {
+      clearDevPreview();
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.href = '/?preview=account';
+      }
+      return;
+    }
+    void logout();
+  };
+
+  if (!fakeSignedIn && (sessionLoading || loading)) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.brand} />
@@ -150,17 +225,27 @@ export function AccountScreen() {
     );
   }
 
+  const panelProps = {
+    flush: isDesktop,
+    centerDesktop: isDesktop,
+    omitDesktopTopPadding: isDesktop,
+    style: styles.panel,
+  } as const;
+
   if (!user) {
     return (
-      <WebContentPanel>
+      <WebContentPanel {...panelProps}>
         <GuestAuthPrompt returnTo="Account" />
       </WebContentPanel>
     );
   }
 
   return (
-    <WebContentPanel>
+    <WebContentPanel {...panelProps}>
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+        {fakeSignedIn ? (
+          <Text style={styles.previewBanner}>Preview — signed-in account (mock data)</Text>
+        ) : null}
         <Text style={styles.title}>Account</Text>
         <Text style={styles.email}>{user?.email ?? 'Exploring as guest'}</Text>
         {profile?.displayName ? <Text style={styles.meta}>{profile.displayName}</Text> : null}
@@ -177,9 +262,14 @@ export function AccountScreen() {
               placeholder="partner@email.com"
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!fakeSignedIn}
               fontSize={16}
             />
-            <TouchableOpacity style={styles.inviteBtn} onPress={() => void sendInvite()} disabled={inviteSending}>
+            <TouchableOpacity
+              style={[styles.inviteBtn, fakeSignedIn && styles.inviteBtnDisabled]}
+              onPress={() => void sendInvite()}
+              disabled={inviteSending || fakeSignedIn}
+            >
               <Text style={styles.inviteBtnText}>{inviteSending ? 'Sending…' : 'Send invite'}</Text>
             </TouchableOpacity>
             <TextInput
@@ -188,9 +278,14 @@ export function AccountScreen() {
               onChangeText={setInviteCode}
               placeholder="Paste invite code to join"
               autoCapitalize="none"
+              editable={!fakeSignedIn}
               fontSize={16}
             />
-            <TouchableOpacity style={styles.inviteBtn} onPress={() => void acceptInvite()} disabled={inviteSending}>
+            <TouchableOpacity
+              style={[styles.inviteBtn, fakeSignedIn && styles.inviteBtnDisabled]}
+              onPress={() => void acceptInvite()}
+              disabled={inviteSending || fakeSignedIn}
+            >
               <Text style={styles.inviteBtnText}>{inviteSending ? 'Joining…' : 'Accept invite'}</Text>
             </TouchableOpacity>
             {invites.map((inv) => (
@@ -232,6 +327,19 @@ export function AccountScreen() {
           <Text style={styles.profilesBtnText}>Send a gift</Text>
         </TouchableOpacity>
 
+        {isAdminEmail(user?.email) ? (
+          <>
+            <Text style={styles.section}>Ops</Text>
+            <Text style={styles.hint}>Add or edit Hanukkah catalog SKUs (books, menorahs, etc.).</Text>
+            <TouchableOpacity
+              style={styles.profilesBtn}
+              onPress={() => navigation.navigate('AdminCatalog')}
+            >
+              <Text style={styles.profilesBtnText}>Catalog admin</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+
         <Text style={styles.section}>Orders</Text>
         {orders.length === 0 ? (
           <Text style={styles.hint}>No orders yet. Configure your box and check out from My Box.</Text>
@@ -249,28 +357,39 @@ export function AccountScreen() {
                     Track package — {order.carrier ?? 'carrier'} {order.trackingNumber}
                   </Text>
                 </TouchableOpacity>
-              ) : order.status === 'confirmed' ? (
+              ) : order.status === 'confirmed' || order.status === 'committed' ? (
                 <Text style={styles.hint}>Tracking will appear when your box ships.</Text>
               ) : null}
             </View>
           ))
         )}
 
-        {user ? (
-          <TouchableOpacity style={styles.logoutBtn} onPress={() => logout()}>
-            <Text style={styles.logoutText}>Sign out</Text>
-          </TouchableOpacity>
-        ) : null}
+        <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut}>
+          <Text style={styles.logoutText}>{fakeSignedIn ? 'Exit preview' : 'Sign out'}</Text>
+        </TouchableOpacity>
       </ScrollView>
     </WebContentPanel>
   );
 }
 
-function createAccountStyles(colors: SemanticColors) {
+function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
+    panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
     root: { flex: 1, backgroundColor: colors.bgPrimary },
-    content: { padding: spacing.lg, paddingBottom: 120 },
+    content: {
+      padding: spacing.lg,
+      paddingBottom: 120,
+      maxWidth: isDesktop ? 560 : undefined,
+      width: '100%',
+      alignSelf: isDesktop ? 'center' : undefined,
+    },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    previewBanner: {
+      fontSize: typography.sm,
+      color: colors.goldMuted,
+      marginBottom: spacing.md,
+      letterSpacing: -0.22,
+    },
     title: { fontSize: 24, fontWeight: '700' },
     email: { fontSize: typography.lg, marginTop: spacing.xs },
     meta: { fontSize: typography.md, color: colors.textSecondary, marginTop: 4 },
@@ -293,6 +412,7 @@ function createAccountStyles(colors: SemanticColors) {
       borderWidth: 1,
       borderColor: colors.brand,
     },
+    inviteBtnDisabled: { opacity: 0.45 },
     inviteBtnText: { color: colors.brand, fontWeight: '600' },
     inviteRow: { fontSize: typography.sm, color: colors.textSecondary, marginTop: spacing.xs },
     profilesBtn: {

@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   Platform,
-  ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChildProfile, FamiliarityLevel } from '../../types/pilot';
@@ -18,10 +19,14 @@ import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { BoxDetailReviewCta } from '../../components/box/BoxDetailReviewCta';
+import {
+  OnboardingBuildLoader,
+  BUILD_LOADER_REST_MESSAGE,
+} from '../../components/onboarding/OnboardingBuildLoader';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
-  BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
+  nonEmptyDisplaySectionIds,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
@@ -43,6 +48,53 @@ type Props = {
   completing?: boolean;
 };
 
+/** Cascade timing for the reveal — each block eases in shortly after the previous. */
+const REVEAL_STAGGER_STEP_MS = 95;
+const REVEAL_DURATION_MS = 430;
+const REVEAL_LIFT_PX = 26;
+
+/**
+ * Fades a block in while lifting it up into place, delayed by its position in
+ * the reveal so the box appears to assemble itself one row at a time. The step
+ * is shorter than the duration, so entrances overlap — you clearly read them
+ * arriving one after another rather than all at once.
+ *
+ * Once a block's entrance finishes we drop the transform entirely, which lets
+ * children that rely on `position: sticky` (the section nav) work normally
+ * again — a live transform on an ancestor breaks sticky.
+ */
+function RevealStagger({ index, children }: { index: number; children: React.ReactNode }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  const [settled, setSettled] = useState(false);
+
+  useEffect(() => {
+    const anim = Animated.timing(progress, {
+      toValue: 1,
+      duration: REVEAL_DURATION_MS,
+      delay: index * REVEAL_STAGGER_STEP_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    anim.start(({ finished }) => {
+      if (finished) setSettled(true);
+    });
+    return () => anim.stop();
+  }, [index, progress]);
+
+  const transform = settled
+    ? undefined
+    : [
+        {
+          translateY: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [REVEAL_LIFT_PX, 0],
+          }),
+        },
+      ];
+
+  return <Animated.View style={{ opacity: progress, transform }}>{children}</Animated.View>;
+}
+
 /** Figma 370:3514 — curated box reveal; desktop mirrors homepage centered content column. */
 export function BoxRevealScreen({ children, lineItems, onDone, completing }: Props) {
   const { colors } = useThemeMode();
@@ -52,8 +104,6 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
     [colors, isDesktop]
   );
   const styles = useMemo(() => createRevealStyles(colors, isDesktop), [colors, isDesktop]);
-  const { scrollRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
-    useBoxDetailScroll();
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +134,25 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
   );
 
   const grouped = useMemo(() => groupLineItemsByDisplaySection(includedItems), [includedItems]);
+  const visibleSectionIds = useMemo(
+    () => nonEmptyDisplaySectionIds(grouped),
+    [grouped],
+  );
+  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection, remeasureSections } =
+    useBoxDetailScroll({ visibleSectionIds, contentReady: !loading });
+
+  useEffect(() => {
+    if (loading) return;
+    const frame = requestAnimationFrame(() => remeasureSections());
+    // Re-measure once the reveal cascade settles (blocks lift up during it).
+    const settleMs =
+      visibleSectionIds.length * REVEAL_STAGGER_STEP_MS + REVEAL_DURATION_MS + 60;
+    const settleTimer = setTimeout(() => remeasureSections(), settleMs);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(settleTimer);
+    };
+  }, [loading, remeasureSections, visibleSectionIds]);
 
   const renderSection = (sectionId: BoxDisplaySectionId) => {
     const items = grouped[sectionId];
@@ -95,6 +164,7 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
+        itemCount={items.length}
       >
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);
@@ -119,29 +189,51 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
   };
 
   if (loading) {
+    // Same grape + status line as the building splash so the hand-off shows no
+    // shrink, no text swap, and no recenter shift.
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.brand} />
+        <OnboardingBuildLoader message={BUILD_LOADER_REST_MESSAGE} />
       </View>
     );
   }
 
+  // Running index drives the top-to-bottom cascade across every reveal block.
+  let revealIndex = 0;
   const body = (
     <>
-      <BoxDetailToolbar
-        lockAt={lockAt}
-        now={now}
-        startsOn={startsOn}
-        estimatedDeliveryBy={estimatedDeliveryBy}
-        align={isDesktop ? 'left' : 'center'}
-      />
-      <StickySectionNav activeSection={activeSection} onSelect={scrollToSection} />
-      {BOX_DISPLAY_SECTIONS.map((s) => renderSection(s.id))}
-      <BoxDetailReviewCta
-        onPress={() => void onDone()}
-        disabled={completing}
-        loading={completing}
-      />
+      <RevealStagger index={revealIndex++}>
+        <BoxDetailToolbar
+          lockAt={lockAt}
+          now={now}
+          startsOn={startsOn}
+          estimatedDeliveryBy={estimatedDeliveryBy}
+          align={isDesktop ? 'left' : 'center'}
+        />
+      </RevealStagger>
+      {visibleSectionIds.length > 0 ? (
+        // Lifts in like the rest; RevealStagger clears its transform once the
+        // entrance settles so the nav's `position: sticky` works afterward.
+        <RevealStagger index={revealIndex++}>
+          <StickySectionNav
+            activeSection={activeSection}
+            onSelect={scrollToSection}
+            sectionIds={visibleSectionIds}
+          />
+        </RevealStagger>
+      ) : null}
+      {visibleSectionIds.map((id) => (
+        <RevealStagger key={id} index={revealIndex++}>
+          {renderSection(id)}
+        </RevealStagger>
+      ))}
+      <RevealStagger index={revealIndex++}>
+        <BoxDetailReviewCta
+          onPress={() => void onDone()}
+          disabled={completing}
+          loading={completing}
+        />
+      </RevealStagger>
     </>
   );
 
@@ -166,11 +258,16 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
-          {isDesktop ? (
-            <View style={[styles.contentColumn, { maxWidth: layoutWidth }]}>{body}</View>
-          ) : (
-            body
-          )}
+          <View
+            ref={contentRef}
+            collapsable={false}
+            style={[
+              styles.contentRoot,
+              isDesktop && [styles.contentColumn, { maxWidth: layoutWidth }],
+            ]}
+          >
+            {body}
+          </View>
         </ScrollView>
       </WebContentPanel>
     </SafeAreaView>
@@ -180,18 +277,21 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
 function createRevealStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.bgPrimary, minHeight: 0 },
-    panel: { overflow: 'visible' as const },
-    root: { flex: 1, backgroundColor: colors.bgPrimary, width: '100%' },
+    panel: { flex: 1, width: '100%', minHeight: 0, overflow: 'visible' as const },
+    root: { flex: 1, backgroundColor: colors.bgPrimary, width: '100%', minHeight: 0 },
     scrollContent: {
-      paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
       paddingBottom: spacing.xxl,
       width: '100%',
     },
     scrollContentDesktop: {
       alignItems: 'stretch',
     },
-    contentColumn: {
+    /** Top inset on this node (not ScrollView contentContainer) so scroll-to-section offsets match. */
+    contentRoot: {
       width: '100%',
+      paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
+    },
+    contentColumn: {
       alignSelf: 'center',
       paddingHorizontal: MOBILE_GUTTER,
     },

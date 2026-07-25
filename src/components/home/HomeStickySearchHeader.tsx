@@ -37,6 +37,8 @@ type Props = {
   chips: readonly Chip[];
   onChipPress: (id: Chip['id']) => void;
   headerShadow?: object;
+  /** Typewriter placeholder only when header is fully expanded at top of page. */
+  animatePlaceholder?: boolean;
 };
 
 export function HomeStickySearchHeader({
@@ -50,6 +52,7 @@ export function HomeStickySearchHeader({
   chips,
   onChipPress,
   headerShadow,
+  animatePlaceholder = false,
 }: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
@@ -101,7 +104,12 @@ export function HomeStickySearchHeader({
         { maxWidth: searchMaxWidth, backgroundColor: colors.bgPrimary },
       ]}
     >
-      <SearchPill value={searchQuery} onChangeText={onChangeSearch} onSubmitEditing={onSubmitSearch} />
+      <SearchPill
+        value={searchQuery}
+        onChangeText={onChangeSearch}
+        onSubmitEditing={onSubmitSearch}
+        animatePlaceholder={animatePlaceholder}
+      />
     </Animated.View>
   );
 
