@@ -131,6 +131,11 @@ export type CatalogItem = {
   airtableRecordId?: string;
   buyLink?: string;
   interest?: string;
+  /** PDP detail rows — omit when empty. */
+  dimensions?: string;
+  materials?: string;
+  whatsIncluded?: string;
+  careNotes?: string;
 };
 
 /** Box journey on Home — derived from draft + order data */

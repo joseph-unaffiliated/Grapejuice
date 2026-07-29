@@ -36,6 +36,10 @@ const F = {
   otherImages: 'fldKFSK4F2FoD7QR6', // Airtable "Other Images" (secondary gallery)
   link: 'fldicpeRi2dctILQa',
   activity: 'fldZT5VtqtaN1TGE3',
+  dimensions: 'fldbq5sCX6csZLV2h',
+  materials: 'fldTO5IDBFvggJd7Y',
+  whatsIncluded: 'fldQhql0JV2mby273',
+  careNotes: 'fldXM6Az08OFmvWC9',
 } as const;
 
 const B = {
@@ -91,6 +95,10 @@ export type SyncedCatalogItem = {
   buyLink: string | null;
   interest: string | null;
   curationTags: string[];
+  dimensions: string | null;
+  materials: string | null;
+  whatsIncluded: string | null;
+  careNotes: string | null;
 };
 
 function requirePat(): string {
@@ -128,6 +136,12 @@ function selectNames(v: unknown): string[] {
     return one ? [one] : [];
   }
   return v.map(selectName).filter((x): x is string => Boolean(x));
+}
+
+function textField(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t || null;
 }
 
 function currencyToCents(v: unknown): number {
@@ -361,6 +375,10 @@ function listingToItem(
     buyLink: typeof f[F.link] === 'string' ? (f[F.link] as string) : null,
     interest: null,
     curationTags: curationTagsFor(category),
+    dimensions: textField(f[F.dimensions]),
+    materials: textField(f[F.materials]),
+    whatsIncluded: textField(f[F.whatsIncluded]),
+    careNotes: textField(f[F.careNotes]),
   };
 }
 
@@ -405,6 +423,10 @@ function bookToItem(
     buyLink: typeof f[B.buyLink] === 'string' ? (f[B.buyLink] as string) : null,
     interest: selectName(f[B.interest]),
     curationTags: ['collection'],
+    dimensions: null,
+    materials: null,
+    whatsIncluded: null,
+    careNotes: null,
   };
 }
 

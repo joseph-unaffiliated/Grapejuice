@@ -51,6 +51,10 @@ const F = {
     otherImages: 'fldKFSK4F2FoD7QR6', // Airtable "Other Images" (secondary gallery)
     link: 'fldicpeRi2dctILQa',
     activity: 'fldZT5VtqtaN1TGE3',
+    dimensions: 'fldbq5sCX6csZLV2h',
+    materials: 'fldTO5IDBFvggJd7Y',
+    whatsIncluded: 'fldQhql0JV2mby273',
+    careNotes: 'fldXM6Az08OFmvWC9',
 };
 const B = {
     title: 'fldCZVbxyEy7pFpl5',
@@ -100,6 +104,12 @@ function selectNames(v) {
         return one ? [one] : [];
     }
     return v.map(selectName).filter((x) => Boolean(x));
+}
+function textField(v) {
+    if (typeof v !== 'string')
+        return null;
+    const t = v.trim();
+    return t || null;
 }
 function currencyToCents(v) {
     if (typeof v !== 'number' || !Number.isFinite(v))
@@ -325,6 +335,10 @@ function listingToItem(rec, images) {
         buyLink: typeof f[F.link] === 'string' ? f[F.link] : null,
         interest: null,
         curationTags: curationTagsFor(category),
+        dimensions: textField(f[F.dimensions]),
+        materials: textField(f[F.materials]),
+        whatsIncluded: textField(f[F.whatsIncluded]),
+        careNotes: textField(f[F.careNotes]),
     };
 }
 function bookToItem(rec, images) {
@@ -367,6 +381,10 @@ function bookToItem(rec, images) {
         buyLink: typeof f[B.buyLink] === 'string' ? f[B.buyLink] : null,
         interest: selectName(f[B.interest]),
         curationTags: ['collection'],
+        dimensions: null,
+        materials: null,
+        whatsIncluded: null,
+        careNotes: null,
     };
 }
 function wireBookSwaps(items) {

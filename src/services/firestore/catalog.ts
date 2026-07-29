@@ -81,6 +81,13 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
       typeof data.airtableRecordId === 'string' ? data.airtableRecordId : undefined,
     buyLink: typeof data.buyLink === 'string' ? data.buyLink : undefined,
     interest: typeof data.interest === 'string' ? data.interest : undefined,
+    dimensions: typeof data.dimensions === 'string' && data.dimensions.trim() ? data.dimensions : undefined,
+    materials: typeof data.materials === 'string' && data.materials.trim() ? data.materials : undefined,
+    whatsIncluded:
+      typeof data.whatsIncluded === 'string' && data.whatsIncluded.trim()
+        ? data.whatsIncluded
+        : undefined,
+    careNotes: typeof data.careNotes === 'string' && data.careNotes.trim() ? data.careNotes : undefined,
   };
 }
 

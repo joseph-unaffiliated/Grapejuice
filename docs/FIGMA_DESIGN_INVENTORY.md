@@ -97,7 +97,7 @@ Frame 1 already contains most Home components (hero `370:3426`, My Boxes card `3
 | 7   | **Onboarding — household** | ⬜      | [household](http://localhost:8081/?preview=onboarding-household) · [familiarity](http://localhost:8081/?preview=onboarding-familiarity) · [rav](http://localhost:8081/?preview=onboarding-rav)                            | Children, familiarity, Rav question                      | `ChildrenScreen.tsx`, …                 |
 | 8   | **Onboarding — building**  | ⬜      | [onboarding-building](http://localhost:8081/?preview=onboarding-building)                                                                                                                                                 | Wait state                                               | `BuildingBoxScreen.tsx`                 |
 | 9   | **Box reveal**             | 🟡     | [onboarding-reveal](http://localhost:8081/?preview=onboarding-reveal)                                                                                                                                                     | Recap + item grid variants                               | `BoxRevealScreen.tsx`                   |
-| 10  | **Catalog product**        | ⬜      | [catalog](http://localhost:8081/?preview=catalog&itemId=graphic-novel-hanukkah)                                                                                                                                           | Product detail from Home rails                           | `CatalogProductScreen.tsx`              |
+| 10  | **Catalog product**        | ⬜      | [catalog](http://localhost:8081/?preview=catalog&itemId=graphic-novel-hanukkah)                                                                                                                                           | Retail gallery + buy column; member vs à la carte + $80 box | `CatalogProductScreen.tsx`              |
 | 11  | **Rav — chat thread**      | 🟡     | [rav-chat](http://localhost:8081/?preview=rav-chat)                                                                                                                                                                       | Conversation + product cards                             | `PilotAIChatSheet.tsx`                  |
 | 12  | **Checkout**               | ⬜      | [checkout](http://localhost:8081/?preview=checkout) (shows auth gate until signed in)                                                                                                                                     | Payment & shipping                                       | `CheckoutScreen.tsx`                    |
 | 13  | **Order confirmation**     | ⬜      | `?preview=order&orderId=…` after test checkout                                                                                                                                                                            | Post-commit success                                      | `OrderConfirmationScreen.tsx`           |
@@ -390,8 +390,8 @@ Expanded purpose / description for each numbered frame. Use when implementing or
 
 **Preview:** [http://localhost:8081/?preview=catalog&itemId=graphic-novel-hanukkah](http://localhost:8081/?preview=catalog&itemId=graphic-novel-hanukkah) (swap `itemId` for any catalog id)  
 **Purpose:** Product page from Home rail tap; add-to-box only.  
-**Description:** Back, hero image, name, description, price tier, Add/Remove CTA; payment gate on paid extras.  
-**Code:** `CatalogProductScreen.tsx`
+**Description:** Retail split layout — gallery + buy column; member vs à la carte pricing with $80 box callout; optional Details (dimensions/materials/etc when filled in Airtable); Add/Remove CTA; payment gate on paid extras.  
+**Code:** `CatalogProductScreen.tsx`, `ProductImageGallery.tsx`, `ProductPricingBlock.tsx`
 
 ### Frame 11 — Rav — chat thread 🟡
 

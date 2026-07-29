@@ -9,6 +9,8 @@
 
 **Images:** **Primary Image** → `imageUrl`; **Other Images** → `imageUrls` (mirrored to Firebase Storage when present)
 
+**PDP details (Full Catalog):** **Dimensions**, **Materials**, **What’s Included**, **Care Notes** → Firestore `dimensions` / `materials` / `whatsIncluded` / `careNotes` (empty values omitted in the app)
+
 ## Pipeline
 
 1. Edit Airtable (prices, copy, Primary/Other Images, production flag, books).

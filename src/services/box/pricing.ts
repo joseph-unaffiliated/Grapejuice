@@ -59,3 +59,22 @@ export function orderTotalCents(
   const subtotal = orderSubtotalCents(lineItems, boxPriceCents);
   return subtotal + (includeShipping ? SHIPPING_FLAT_CENTS : 0);
 }
+
+/** Resolve member / à la carte display prices from catalog fields. */
+export function resolveCatalogDisplayPrices(item: CatalogItem): {
+  memberCents: number;
+  nonMemberCents: number;
+  savingsCents: number;
+} {
+  const fallback = Math.max(0, Math.round(item.dollarCostCents ?? 0));
+  const memberCents =
+    item.memberPriceCents != null && Number.isFinite(item.memberPriceCents)
+      ? Math.max(0, Math.round(item.memberPriceCents))
+      : fallback;
+  const nonMemberCents =
+    item.nonMemberPriceCents != null && Number.isFinite(item.nonMemberPriceCents)
+      ? Math.max(0, Math.round(item.nonMemberPriceCents))
+      : fallback;
+  const savingsCents = Math.max(0, nonMemberCents - memberCents);
+  return { memberCents, nonMemberCents, savingsCents };
+}
