@@ -9,8 +9,14 @@ export const SHIPPING_FLAT_CENTS = 0;
 /** List price shown in catalog / marketing copy. */
 export const LIST_BOX_PRICE_CENTS = 8000;
 
+/** Stated à-la-carte catalog value of a full Hanukkah box (PDP marketing). */
+export const LIST_BOX_VALUE_CENTS = 25000;
+
 /** Pilot promotional checkout price when config has no override. */
 export const DEFAULT_BOX_PRICE_CENTS = 5000;
+
+/** Display window for “ships in time for Hanukkah” (inclusive). */
+export const HANUKKAH_SHIP_WINDOW_LABEL = 'Nov 15–21';
 
 /** Awarded on Hanukkah debrief completion (panel Jun 10). */
 export const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;

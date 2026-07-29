@@ -9,6 +9,7 @@ import { MainTabs } from './MainTabs';
 import { MyBoxScreen } from '../screens/main/MyBoxScreen';
 import { AlaCarteStoreScreen } from '../screens/main/AlaCarteStoreScreen';
 import { CatalogProductScreen } from '../screens/main/CatalogProductScreen';
+import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
@@ -114,6 +115,7 @@ export function MainStack() {
         ) : null}
         <Stack.Screen name="AlaCarteStore" component={AlaCarteStoreScreen} />
         <Stack.Screen name="CatalogProduct" component={CatalogProductScreen} />
+        <Stack.Screen name="BoxDiscountEligibility" component={BoxDiscountEligibilityScreen} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
         <Stack.Screen name="Reflection" component={ReflectionFlowScreen} />

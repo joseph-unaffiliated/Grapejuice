@@ -18,7 +18,7 @@ async function buildCatalogContext() {
     return lines.join('\n');
 }
 async function buildHouseholdContext(uid, clientDraft) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     const db = (0, firestore_1.getFirestore)();
     const userSnap = await db.doc(`users/${uid}`).get();
     if (!userSnap.exists)
@@ -78,6 +78,11 @@ async function buildHouseholdContext(uid, clientDraft) {
     }
     else {
         lines.push('Current box: not started');
+    }
+    const hhSnap = await db.doc(`households/${householdId}`).get();
+    const wishlist = (_f = (_e = hhSnap.data()) === null || _e === void 0 ? void 0 : _e.wishlistItemIds) !== null && _f !== void 0 ? _f : [];
+    if (wishlist.length) {
+        lines.push(`Wishlist / favorites (prioritize these if recommending box items): ${wishlist.join(', ')}`);
     }
     return lines.join('\n');
 }

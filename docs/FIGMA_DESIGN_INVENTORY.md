@@ -390,8 +390,8 @@ Expanded purpose / description for each numbered frame. Use when implementing or
 
 **Preview:** [http://localhost:8081/?preview=catalog&itemId=graphic-novel-hanukkah](http://localhost:8081/?preview=catalog&itemId=graphic-novel-hanukkah) (swap `itemId` for any catalog id)  
 **Purpose:** Product page from Home rail tap; add-to-box only.  
-**Description:** Retail split layout — gallery + buy column; member vs à la carte pricing with $80 box callout; optional Details (dimensions/materials/etc when filled in Airtable); Add/Remove CTA; payment gate on paid extras.  
-**Code:** `CatalogProductScreen.tsx`, `ProductImageGallery.tsx`, `ProductPricingBlock.tsx`
+**Description:** Retail split layout — left thumbs + arrow gallery (cover), member offer copy, $80/$250 value + eligibility discount flow, Add to cart/wishlist, similar products rail, ships-in-time note.  
+**Code:** `CatalogProductScreen.tsx`, `ProductImageGallery.tsx`, `ProductPricingBlock.tsx`, `SimilarProductsRail.tsx`, `BoxDiscountEligibilityScreen.tsx`
 
 ### Frame 11 — Rav — chat thread 🟡
 

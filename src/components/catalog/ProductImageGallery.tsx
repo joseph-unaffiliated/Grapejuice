@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Text,
   type ViewStyle,
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
@@ -15,7 +16,6 @@ type Props = {
   itemId: string;
   imageUrl?: string | null;
   imageUrls?: string[] | null;
-  /** Max width of the gallery column (desktop). */
   maxWidth?: number;
   style?: ViewStyle;
 };
@@ -45,29 +45,19 @@ export function ProductImageGallery({
   const [selected, setSelected] = useState(0);
   const activeIndex = Math.min(selected, Math.max(0, urls.length - 1));
   const activeUrl = urls[activeIndex];
+  const canPrev = urls.length > 1 && activeIndex > 0;
+  const canNext = urls.length > 1 && activeIndex < urls.length - 1;
 
   return (
-    <View style={[styles.root, maxWidth != null ? { maxWidth, width: '100%' } : undefined, style]}>
-      <View
-        style={[
-          styles.hero,
-          { backgroundColor: colors.brandLight },
-          Platform.OS === 'web' ? { aspectRatio: 1 } : undefined,
-        ]}
-      >
-        {activeUrl ? (
-          <Image source={{ uri: activeUrl }} style={styles.heroImage} resizeMode="contain" />
-        ) : (
-          <BoxItemImage
-            size={Platform.OS === 'web' ? 480 : 320}
-            itemId={itemId}
-            imageUrl={imageUrl}
-            style={styles.heroFallback}
-          />
-        )}
-      </View>
+    <View
+      style={[
+        styles.root,
+        maxWidth != null ? { maxWidth, width: '100%' } : undefined,
+        style,
+      ]}
+    >
       {urls.length > 1 ? (
-        <View style={styles.thumbs}>
+        <View style={styles.thumbsCol}>
           {urls.map((url, i) => {
             const isActive = i === activeIndex;
             return (
@@ -84,22 +74,90 @@ export function ProductImageGallery({
                   },
                 ]}
               >
-                <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="contain" />
+                <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
               </TouchableOpacity>
             );
           })}
         </View>
       ) : null}
+
+      <View style={styles.heroWrap}>
+        <View style={[styles.hero, { backgroundColor: colors.brandLight }]}>
+          {activeUrl ? (
+            <Image source={{ uri: activeUrl }} style={styles.heroImage} resizeMode="cover" />
+          ) : (
+            <BoxItemImage
+              size={Platform.OS === 'web' ? 480 : 320}
+              itemId={itemId}
+              imageUrl={imageUrl}
+              style={styles.heroFallback}
+            />
+          )}
+        </View>
+        {urls.length > 1 ? (
+          <>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Previous image"
+              disabled={!canPrev}
+              onPress={() => setSelected((i) => Math.max(0, i - 1))}
+              style={[
+                styles.arrow,
+                styles.arrowLeft,
+                { backgroundColor: colors.bgPrimary, borderColor: colors.border, opacity: canPrev ? 1 : 0.35 },
+              ]}
+            >
+              <Text style={[styles.arrowText, { color: colors.textPrimary }]}>‹</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Next image"
+              disabled={!canNext}
+              onPress={() => setSelected((i) => Math.min(urls.length - 1, i + 1))}
+              style={[
+                styles.arrow,
+                styles.arrowRight,
+                { backgroundColor: colors.bgPrimary, borderColor: colors.border, opacity: canNext ? 1 : 0.35 },
+              ]}
+            >
+              <Text style={[styles.arrowText, { color: colors.textPrimary }]}>›</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+      </View>
     </View>
   );
 }
 
-const THUMB = 72;
+const THUMB = 64;
 
 const styles = StyleSheet.create({
   root: {
     width: '100%',
-    gap: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+  },
+  thumbsCol: {
+    width: THUMB,
+    gap: spacing.sm,
+    flexShrink: 0,
+  },
+  thumb: {
+    width: THUMB,
+    height: THUMB,
+    borderRadius: 0,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  heroWrap: {
+    flex: 1,
+    position: 'relative',
+    minWidth: 0,
   },
   hero: {
     width: '100%',
@@ -117,20 +175,23 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 0,
   },
-  thumbs: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
+  arrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
   },
-  thumb: {
-    width: THUMB,
-    height: THUMB,
-    borderRadius: 0,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  thumbImage: {
-    width: '100%',
-    height: '100%',
+  arrowLeft: { left: spacing.sm },
+  arrowRight: { right: spacing.sm },
+  arrowText: {
+    fontSize: 28,
+    fontWeight: '300',
+    lineHeight: 30,
+    marginTop: -2,
   },
 });

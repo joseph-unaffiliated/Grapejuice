@@ -4,6 +4,7 @@ import type { CatalogItem } from '../../types/pilot';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
   LIST_BOX_PRICE_CENTS,
+  LIST_BOX_VALUE_CENTS,
   inferPricingTier,
   resolveCatalogDisplayPrices,
 } from '../../services/box/pricing';
@@ -12,9 +13,9 @@ import { useThemeMode } from '../../context/ThemeContext';
 
 type Props = {
   item: CatalogItem;
-  /** Household already has a committed Hanukkah box order. */
   hasHanukkahBox?: boolean;
   onWhatsInTheBox?: () => void;
+  onEligibility?: () => void;
 };
 
 function percentOff(nonMemberCents: number, memberCents: number): number | null {
@@ -22,19 +23,24 @@ function percentOff(nonMemberCents: number, memberCents: number): number | null 
   return Math.round(((nonMemberCents - memberCents) / nonMemberCents) * 100);
 }
 
-export function ProductPricingBlock({ item, hasHanukkahBox, onWhatsInTheBox }: Props) {
+export function ProductPricingBlock({
+  item,
+  hasHanukkahBox,
+  onWhatsInTheBox,
+  onEligibility,
+}: Props) {
   const { colors } = useThemeMode();
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const tier = inferPricingTier(item);
   const includedOrMemberZero =
     memberCents === 0 || tier === 'included' || tier === 'perKid';
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
+  const boxValue = formatCatalogDollars(LIST_BOX_VALUE_CENTS);
   const off = useMemo(
     () => percentOff(nonMemberCents, memberCents),
     [nonMemberCents, memberCents]
   );
 
-  /** Subscribers see member / included as the hero. Everyone else sees à la carte retail. */
   if (hasHanukkahBox) {
     const hero = includedOrMemberZero
       ? 'Included in your box'
@@ -65,14 +71,12 @@ export function ProductPricingBlock({ item, hasHanukkahBox, onWhatsInTheBox }: P
   let offerLine: string | null = null;
   if (includedOrMemberZero && nonMemberCents > 0) {
     offerLine = off
-      ? `Get it free with a Hanukkah box — ${boxPrice} (${off}% off this piece)`
-      : `Get it free with a Hanukkah box — ${boxPrice}`;
+      ? `Free (${off}% off) for Hanukkah Box Subscribers`
+      : 'Free for Hanukkah Box Subscribers';
   } else if (memberCents > 0 && nonMemberCents > memberCents) {
     offerLine = off
-      ? `Get it for ${formatCatalogDollars(memberCents)} (${off}% off) with a Hanukkah box`
-      : `Get it for ${formatCatalogDollars(memberCents)} with a Hanukkah box`;
-  } else if (nonMemberCents > 0) {
-    offerLine = `Hanukkah box members unlock curated pieces like this — from ${boxPrice}`;
+      ? `Only ${formatCatalogDollars(memberCents)} (${off}% off) for Hanukkah Box Subscribers`
+      : `Only ${formatCatalogDollars(memberCents)} for Hanukkah Box Subscribers`;
   }
 
   return (
@@ -81,17 +85,30 @@ export function ProductPricingBlock({ item, hasHanukkahBox, onWhatsInTheBox }: P
       {offerLine ? (
         <Text style={[styles.offer, { color: colors.textPrimary }]}>{offerLine}</Text>
       ) : null}
-      <Text style={[styles.offerSub, { color: colors.textSecondary }]}>
-        The {boxPrice} Hanukkah box includes candles, story, food, gifts, and member pricing across
-        the catalog.
-      </Text>
+
       {onWhatsInTheBox ? (
         <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link" style={styles.linkRow}>
           <Text style={[styles.secondaryLink, { color: colors.textPrimary }]}>
-            What’s in the box?
+            See what’s in the box
           </Text>
         </TouchableOpacity>
       ) : null}
+
+      <TouchableOpacity
+        onPress={onEligibility}
+        disabled={!onEligibility}
+        accessibilityRole="link"
+        style={styles.linkRow}
+      >
+        <Text style={[styles.valueLine, { color: colors.textSecondary }]}>
+          {boxPrice} ({boxValue} value)
+          {onEligibility ? (
+            <Text style={{ color: colors.textPrimary }}>
+              {' — see if I’m eligible for additional discounts'}
+            </Text>
+          ) : null}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -110,7 +127,7 @@ const styles = StyleSheet.create({
   },
   compare: {
     fontSize: typography.md,
-    letterSpacing: 0.2,
+    letterSpacing: 0,
   },
   strike: {
     textDecorationLine: 'line-through',
@@ -119,18 +136,12 @@ const styles = StyleSheet.create({
     fontSize: typography.md + 1,
     fontWeight: '500',
     lineHeight: 22,
-    letterSpacing: 0.1,
+    letterSpacing: 0,
     marginTop: spacing.xs,
-  },
-  offerSub: {
-    fontSize: typography.sm,
-    lineHeight: 20,
-    letterSpacing: 0.15,
-    maxWidth: 420,
   },
   memberNote: {
     fontSize: typography.sm,
-    letterSpacing: 0.2,
+    letterSpacing: 0,
     marginTop: spacing.xs,
   },
   linkRow: {
@@ -140,8 +151,12 @@ const styles = StyleSheet.create({
   secondaryLink: {
     fontSize: typography.sm,
     fontWeight: '500',
-    letterSpacing: 0.4,
+    letterSpacing: 0,
     textDecorationLine: 'underline',
-    textUnderlineOffset: 3,
+  },
+  valueLine: {
+    fontSize: typography.sm,
+    lineHeight: 20,
+    letterSpacing: 0,
   },
 });

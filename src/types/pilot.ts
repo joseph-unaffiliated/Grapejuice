@@ -73,6 +73,10 @@ export type Household = {
   giftCreditCents?: number;
   /** Debrief / platform credits (e.g. $80 Passover incentive). */
   platformCreditCents?: number;
+  /** Catalog item ids saved as wishlist / favorites (Rav prioritizes these). */
+  wishlistItemIds?: string[];
+  /** Last eligibility discount code emailed to the household. */
+  boxDiscountCode?: string;
   createdAt: string;
   updatedAt: string;
 };

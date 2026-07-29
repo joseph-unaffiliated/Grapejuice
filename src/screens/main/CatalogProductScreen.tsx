@@ -15,12 +15,19 @@ import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useSession } from '../../hooks/useSession';
+import { useWishlist } from '../../hooks/useWishlist';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { ordersService } from '../../services/firestore/orders';
-import { inferPricingTier, unitCentsForTier } from '../../services/box/pricing';
+import {
+  HANUKKAH_SHIP_WINDOW_LABEL,
+  inferPricingTier,
+  unitCentsForTier,
+} from '../../services/box/pricing';
+import { similarCatalogItems } from '../../constants/catalogCuration';
 import { ProductImageGallery } from '../../components/catalog/ProductImageGallery';
 import { ProductPricingBlock } from '../../components/catalog/ProductPricingBlock';
+import { SimilarProductsRail } from '../../components/catalog/SimilarProductsRail';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
@@ -45,9 +52,7 @@ function detailRowsFromItem(item: {
   return rows;
 }
 
-function hasActiveHanukkahBoxOrder(
-  orders: { status: string }[]
-): boolean {
+function hasActiveHanukkahBoxOrder(orders: { status: string }[]): boolean {
   return orders.some(
     (o) =>
       o.status === 'committed' ||
@@ -66,6 +71,7 @@ export function CatalogProductScreen() {
   const { household } = useSession();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
   const { guardMutation } = usePaymentGate();
+  const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
   const { items: catalog, loading: catalogLoading } = useCatalog();
   const item = useMemo(
     () => catalog.find((c) => c.id === itemId) ?? null,
@@ -75,6 +81,7 @@ export function CatalogProductScreen() {
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
   const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
+  const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +89,10 @@ export function CatalogProductScreen() {
     getHanukkahConfig().then((config) => {
       if (cancelled) return;
       setLocked(isBoxLocked(config.lockAt));
+      if (config.estimatedDeliveryBy) {
+        // Keep marketing window; config end date is the anchor (typically Nov 21).
+        setShipWindow(HANUKKAH_SHIP_WINDOW_LABEL);
+      }
       setLoadingConfig(false);
     });
     return () => {
@@ -105,11 +116,17 @@ export function CatalogProductScreen() {
   }, [household?.id]);
 
   const loading = catalogLoading || loadingConfig;
-  const inBox = useMemo(() => lineItems.some((li) => li.itemId === itemId), [lineItems, itemId]);
+  const boxStarted = lineItems.length > 0;
+  const inCart = useMemo(() => lineItems.some((li) => li.itemId === itemId), [lineItems, itemId]);
+  const wishlisted = item ? isWishlisted(item.id) : false;
   const tier = item ? inferPricingTier(item) : 'included';
   const unitCents = item ? unitCentsForTier(tier, item.dollarCostCents) : 0;
   const isPaid = unitCents > 0;
   const details = useMemo(() => (item ? detailRowsFromItem(item) : []), [item]);
+  const similar = useMemo(
+    () => (item ? similarCatalogItems(item, catalog, 12) : []),
+    [item, catalog]
+  );
 
   const persist = async (next: BoxLineItem[]) => {
     setSaving(true);
@@ -120,8 +137,8 @@ export function CatalogProductScreen() {
     }
   };
 
-  const addToBox = async () => {
-    if (!item || locked || inBox) return;
+  const addToCartOrBox = async () => {
+    if (!item || locked || inCart) return;
     if (isPaid && !guardMutation()) return;
     await persist([
       ...lineItems,
@@ -136,11 +153,19 @@ export function CatalogProductScreen() {
     navigation.goBack();
   };
 
-  const removeFromBox = async () => {
+  const removeFromCartOrBox = async () => {
     if (locked) return;
     await persist(lineItems.filter((li) => li.itemId !== itemId));
     navigation.goBack();
   };
+
+  const primaryLabel = inCart
+    ? boxStarted
+      ? 'Remove from box'
+      : 'Remove from cart'
+    : boxStarted
+      ? 'Add to box'
+      : 'Add to cart';
 
   const pageBg = colors.bgPrimary;
 
@@ -155,11 +180,11 @@ export function CatalogProductScreen() {
   if (!item) {
     return (
       <View style={[styles.centered, { backgroundColor: pageBg }]}>
-        <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
+        <Text style={{ color: colors.textSecondary, marginBottom: spacing.md, letterSpacing: 0 }}>
           Product not found.
         </Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={{ color: colors.textPrimary, fontWeight: '500', letterSpacing: 0.3 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: '500', letterSpacing: 0 }}>
             Go back
           </Text>
         </TouchableOpacity>
@@ -179,33 +204,60 @@ export function CatalogProductScreen() {
           item={item}
           hasHanukkahBox={hasHanukkahBox}
           onWhatsInTheBox={() => navigation.navigate('MyBox')}
+          onEligibility={() => navigation.navigate('BoxDiscountEligibility')}
         />
       </View>
 
+      <Text style={[styles.shipNote, { color: colors.textPrimary }]}>
+        Ships in time for Hanukkah (estimated arrival {shipWindow})
+      </Text>
+
       {isPaid ? (
         <Text style={[styles.chargeNote, { color: colors.textTertiary }]}>
-          Added to your box — charged when it ships.
+          {boxStarted
+            ? 'Added to your box — charged when it ships.'
+            : 'Added to your cart — charged when your box ships.'}
         </Text>
       ) : null}
 
-      <TouchableOpacity
-        style={[
-          styles.cta,
-          { backgroundColor: colors.textPrimary },
-          (locked || saving) && styles.ctaDisabled,
-        ]}
-        onPress={inBox ? removeFromBox : addToBox}
-        disabled={locked || saving}
-        accessibilityRole="button"
-      >
-        {saving ? (
-          <ActivityIndicator color={colors.bgPrimary} />
-        ) : (
-          <Text style={[styles.ctaText, { color: colors.bgPrimary }]}>
-            {inBox ? 'Remove from box' : 'Add to box'}
+      <View style={styles.ctaRow}>
+        <TouchableOpacity
+          style={[
+            styles.cta,
+            styles.ctaPrimary,
+            { backgroundColor: colors.textPrimary },
+            (locked || saving) && styles.ctaDisabled,
+          ]}
+          onPress={inCart ? removeFromCartOrBox : addToCartOrBox}
+          disabled={locked || saving}
+          accessibilityRole="button"
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.bgPrimary} />
+          ) : (
+            <Text style={[styles.ctaText, { color: colors.bgPrimary }]}>{primaryLabel}</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.cta,
+            styles.ctaSecondary,
+            { borderColor: colors.textPrimary },
+            wishlistSaving && styles.ctaDisabled,
+          ]}
+          onPress={() => toggleWishlist(item.id)}
+          disabled={wishlistSaving}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.ctaText, { color: colors.textPrimary }]}>
+            {wishlisted ? 'Saved to wishlist' : 'Add to wishlist'}
           </Text>
-        )}
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+      <Text style={[styles.wishlistHint, { color: colors.textTertiary }]}>
+        Wishlist favorites help Rav prioritize pieces if you build a Hanukkah box later.
+      </Text>
 
       {details.length > 0 ? (
         <View style={[styles.details, { borderTopColor: colors.border }]}>
@@ -244,6 +296,8 @@ export function CatalogProductScreen() {
           </View>
           {buyColumn}
         </View>
+
+        <SimilarProductsRail items={similar} />
       </ScrollView>
     </WebContentPanel>
   );
@@ -278,9 +332,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing.xxl,
   },
-  galleryCol: {
-    width: '100%',
-  },
+  galleryCol: { width: '100%' },
   galleryColDesktop: {
     flex: 0.55,
     maxWidth: '55%',
@@ -296,16 +348,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   name: {
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: '400',
-    letterSpacing: 0.2,
-    lineHeight: 34,
+    letterSpacing: 0,
+    lineHeight: 42,
     textAlign: 'left',
   },
   desc: {
     fontSize: typography.md,
     lineHeight: 22,
-    letterSpacing: 0.15,
+    letterSpacing: 0,
     textAlign: 'left',
     maxWidth: 440,
   },
@@ -315,26 +367,45 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     width: '100%',
   },
+  shipNote: {
+    fontSize: typography.md,
+    letterSpacing: 0,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
   chargeNote: {
     fontSize: typography.sm,
-    letterSpacing: 0.2,
+    letterSpacing: 0,
+  },
+  ctaRow: {
+    width: '100%',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   cta: {
     paddingVertical: 16,
     paddingHorizontal: spacing.xl,
     borderRadius: 0,
-    marginTop: spacing.md,
-    minWidth: 200,
     alignItems: 'center',
     alignSelf: 'stretch',
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+  },
+  ctaPrimary: {},
+  ctaSecondary: {
+    borderWidth: 1,
+    backgroundColor: 'transparent',
   },
   ctaDisabled: { opacity: 0.55 },
   ctaText: {
     fontWeight: '500',
     fontSize: typography.sm,
-    letterSpacing: 1.6,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
+  },
+  wishlistHint: {
+    fontSize: typography.sm,
+    letterSpacing: 0,
+    lineHeight: 18,
   },
   details: {
     marginTop: spacing.xl,
@@ -364,7 +435,7 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: typography.md,
     lineHeight: 22,
-    letterSpacing: 0.15,
+    letterSpacing: 0,
     fontWeight: '400',
   },
 });

@@ -46,3 +46,24 @@ export function getItemBrand(item: CatalogItem): string | undefined {
 export function filterCatalogByTag(items: CatalogItem[], tag: CatalogCurationTag): CatalogItem[] {
   return items.filter((item) => getCurationTags(item).includes(tag));
 }
+
+/** Similar items for PDP — shared curation tag or category, excluding self. */
+export function similarCatalogItems(
+  item: CatalogItem,
+  catalog: CatalogItem[],
+  limit = 12
+): CatalogItem[] {
+  const tags = new Set(getCurationTags(item).filter((t) => t !== 'collection'));
+  const scored = catalog
+    .filter((c) => c.id !== item.id)
+    .map((c) => {
+      const cTags = getCurationTags(c);
+      const tagHits = cTags.filter((t) => tags.has(t)).length;
+      const categoryHit = item.category && c.category === item.category ? 2 : 0;
+      const slotHit = c.slotId && c.slotId === item.slotId ? 1 : 0;
+      return { c, score: tagHits * 3 + categoryHit + slotHit };
+    })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score || a.c.name.localeCompare(b.c.name));
+  return scored.slice(0, limit).map((row) => row.c);
+}

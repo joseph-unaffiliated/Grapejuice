@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.claimGiftInvite = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.claimGiftInvite = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -693,5 +693,64 @@ exports.scheduledAirtableCatalogSync = (0, scheduler_1.onSchedule)({ schedule: '
     }
     const result = await (0, airtableCatalogSync_1.runAirtableCatalogReplaceSync)();
     logger.info('Scheduled Airtable catalog sync complete', result);
+});
+/**
+ * Attest community eligibility → generate a Hanukkah box discount code and email it.
+ * Auth optional (guests can request with email); signed-in users also store code on household.
+ */
+exports.requestBoxDiscountCode = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const email = String((_b = (_a = request.data) === null || _a === void 0 ? void 0 : _a.email) !== null && _b !== void 0 ? _b : '')
+        .trim()
+        .toLowerCase();
+    const attestAllTrue = ((_c = request.data) === null || _c === void 0 ? void 0 : _c.attestAllTrue) === true;
+    const statements = Array.isArray((_d = request.data) === null || _d === void 0 ? void 0 : _d.statements) ? request.data.statements : [];
+    if (!email.includes('@')) {
+        throw new https_1.HttpsError('invalid-argument', 'A valid email is required.');
+    }
+    if (!attestAllTrue) {
+        throw new https_1.HttpsError('failed-precondition', 'Please attest that all statements are true.');
+    }
+    const allAffirmed = statements.every((s) => s && s.affirmed === true);
+    if (!allAffirmed || statements.length < 1) {
+        throw new https_1.HttpsError('failed-precondition', 'Please confirm each eligibility statement.');
+    }
+    const code = `GJ70-${(0, crypto_1.randomBytes)(3).toString('hex').toUpperCase()}`;
+    const uid = (_f = (_e = request.auth) === null || _e === void 0 ? void 0 : _e.uid) !== null && _f !== void 0 ? _f : null;
+    let householdId = null;
+    if (uid) {
+        const userSnap = await db.doc(`users/${uid}`).get();
+        householdId = (_h = (_g = userSnap.data()) === null || _g === void 0 ? void 0 : _g.householdId) !== null && _h !== void 0 ? _h : null;
+    }
+    await db.collection('discountAttestations').add({
+        email,
+        uid,
+        householdId,
+        code,
+        statements,
+        attestAllTrue,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    if (householdId) {
+        await db.doc(`households/${householdId}`).set({
+            boxDiscountCode: code,
+            updatedAt: new Date().toISOString(),
+        }, { merge: true });
+    }
+    try {
+        await (0, email_1.sendEmail)({
+            to: email,
+            template: 'box-discount',
+            data: {
+                code,
+                boxPrice: '$80',
+                boxValue: '$250',
+            },
+        });
+    }
+    catch (e) {
+        logger.warn('requestBoxDiscountCode email failed', e);
+    }
+    return { code };
 });
 //# sourceMappingURL=index.js.map

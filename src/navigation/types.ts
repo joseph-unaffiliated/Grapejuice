@@ -32,6 +32,7 @@ export type MainStackParamList = {
   Profiles: undefined;
   AlaCarteStore: undefined;
   CatalogProduct: { itemId: string };
+  BoxDiscountEligibility: undefined;
   Checkout: undefined;
   OrderConfirmation: { orderId: string };
   Reflection: undefined;

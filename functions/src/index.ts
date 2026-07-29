@@ -829,3 +829,71 @@ export const scheduledAirtableCatalogSync = onSchedule(
     logger.info('Scheduled Airtable catalog sync complete', result);
   }
 );
+
+/**
+ * Attest community eligibility → generate a Hanukkah box discount code and email it.
+ * Auth optional (guests can request with email); signed-in users also store code on household.
+ */
+export const requestBoxDiscountCode = onCall(async (request) => {
+  const email = String(request.data?.email ?? '')
+    .trim()
+    .toLowerCase();
+  const attestAllTrue = request.data?.attestAllTrue === true;
+  const statements = Array.isArray(request.data?.statements) ? request.data.statements : [];
+  if (!email.includes('@')) {
+    throw new HttpsError('invalid-argument', 'A valid email is required.');
+  }
+  if (!attestAllTrue) {
+    throw new HttpsError('failed-precondition', 'Please attest that all statements are true.');
+  }
+  const allAffirmed = statements.every(
+    (s: { affirmed?: boolean }) => s && s.affirmed === true
+  );
+  if (!allAffirmed || statements.length < 1) {
+    throw new HttpsError('failed-precondition', 'Please confirm each eligibility statement.');
+  }
+
+  const code = `GJ70-${randomBytes(3).toString('hex').toUpperCase()}`;
+  const uid = request.auth?.uid ?? null;
+  let householdId: string | null = null;
+  if (uid) {
+    const userSnap = await db.doc(`users/${uid}`).get();
+    householdId = (userSnap.data()?.householdId as string | undefined) ?? null;
+  }
+
+  await db.collection('discountAttestations').add({
+    email,
+    uid,
+    householdId,
+    code,
+    statements,
+    attestAllTrue,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  if (householdId) {
+    await db.doc(`households/${householdId}`).set(
+      {
+        boxDiscountCode: code,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  }
+
+  try {
+    await sendEmail({
+      to: email,
+      template: 'box-discount',
+      data: {
+        code,
+        boxPrice: '$80',
+        boxValue: '$250',
+      },
+    });
+  } catch (e) {
+    logger.warn('requestBoxDiscountCode email failed', e);
+  }
+
+  return { code };
+});
