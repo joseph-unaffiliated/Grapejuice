@@ -32,6 +32,8 @@ const LABEL_SLOT_WIDTH = 160;
 const COLLAPSE_ICON_SIZE = 10;
 const COLLAPSE_BTN_PADDING = 4;
 const COLLAPSE_BTN_WIDTH = COLLAPSE_BTN_PADDING * 2 + COLLAPSE_ICON_SIZE;
+/** Equal top + right inset for the expand/collapse control. */
+const COLLAPSE_CORNER_PAD = 8;
 
 const CHEVRON_FLIP_TRANSITION =
   Platform.OS === 'web' ? ({ transition: `transform ${ANIM_MS}ms ease` } as object) : {};
@@ -52,14 +54,6 @@ const railPadLeftFor = (collapsed: boolean) =>
 
 const railPadRightFor = (collapsed: boolean) =>
   collapsed ? LAYOUT.WEB_SIDEBAR_COLLAPSED_GUTTER : spacing.md;
-
-/** Chevron `left` from the rail border (RN Web absolute positioning). */
-const expandedChevronLeft = () =>
-  LAYOUT.WEB_SIDEBAR_WIDTH - railPadRightFor(false) - spacing.sm - COLLAPSE_BTN_WIDTH;
-
-/** Same horizontal midpoint as collapsed nav icons (WEB_SIDEBAR_COLLAPSED_ITEM). */
-const collapsedChevronLeft = () =>
-  LAYOUT.WEB_SIDEBAR_COLLAPSED_ITEM - COLLAPSE_BTN_WIDTH / 2;
 
 /** Shift icon center to rail midpoint when collapsed (padding animation handles the rest). */
 const COLLAPSED_ICON_TRANSLATE_X =
@@ -228,10 +222,6 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
   const [logoHover, setLogoHover] = useState(false);
 
   useEffect(() => {
-    if (collapsed) setLogoHover(false);
-  }, [collapsed]);
-
-  useEffect(() => {
     if (activeTab !== 'Rav') setRavSubnav(null);
   }, [activeTab, setRavSubnav]);
 
@@ -242,12 +232,6 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
   const fadeOpacity = useRef(new Animated.Value(collapsed ? 0 : 1)).current;
   const labelSlotWidth = useRef(new Animated.Value(collapsed ? 0 : LABEL_SLOT_WIDTH)).current;
   const labelMargin = useRef(new Animated.Value(collapsed ? 0 : spacing.sm)).current;
-  const collapseProgress = useRef(new Animated.Value(collapsed ? 1 : 0)).current;
-
-  const chevronLeft = collapseProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [expandedChevronLeft(), collapsedChevronLeft()],
-  });
 
   useEffect(() => {
     const anim = {
@@ -267,12 +251,10 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
       Animated.timing(fadeOpacity, { ...anim, toValue: collapsed ? 0 : 1 }),
       Animated.timing(labelSlotWidth, { ...anim, toValue: collapsed ? 0 : LABEL_SLOT_WIDTH }),
       Animated.timing(labelMargin, { ...anim, toValue: collapsed ? 0 : spacing.sm }),
-      Animated.timing(collapseProgress, { ...anim, toValue: collapsed ? 1 : 0 }),
     ]).start(({ finished }) => {
       if (finished) setLayoutSidebarWidth(railWidthFor(collapsed));
     });
   }, [
-    collapseProgress,
     collapsed,
     fadeOpacity,
     iconShift,
@@ -283,6 +265,14 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
     railWidth,
     setLayoutSidebarWidth,
   ]);
+
+  const logoWebHandlers =
+    Platform.OS === 'web'
+      ? ({
+          onMouseEnter: () => setLogoHover(true),
+          onMouseLeave: () => setLogoHover(false),
+        } as object)
+      : {};
 
   return (
     <Animated.View
@@ -299,7 +289,7 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
       ]}
       testID="desktop-side-rail"
     >
-      <Animated.View style={[styles.collapseBtnAnchor, { top: spacing.xl, left: chevronLeft }]}>
+      <View style={[styles.collapseBtnAnchor, { top: COLLAPSE_CORNER_PAD, right: COLLAPSE_CORNER_PAD }]}>
         <TouchableOpacity
           style={styles.collapseBtn}
           onPress={onToggleCollapse}
@@ -317,32 +307,35 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
             <Icon icon={icons.chevronsLeft} size={COLLAPSE_ICON_SIZE} color={colors.goldMuted} />
           </View>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
       <View style={styles.brandHeader}>
-        <View style={styles.collapseRowSpacer} />
-        <View style={styles.logoRow}>
-          <Animated.View
+        {collapsed ? (
+          <View
             style={[
-              styles.logoAnchor,
-              {
-                opacity: fadeOpacity,
-                transform: [{ translateX: iconShift }],
-              },
+              styles.collapsedLogoSlot,
               Platform.OS === 'web' ? ({ cursor: 'default' } as object) : null,
             ]}
-            pointerEvents={collapsed ? 'none' : 'auto'}
-            {...(Platform.OS === 'web'
-              ? ({
-                  'aria-hidden': collapsed,
-                  onMouseEnter: () => setLogoHover(true),
-                  onMouseLeave: () => setLogoHover(false),
-                } as object)
-              : {})}
+            {...logoWebHandlers}
           >
-            <GrapejuiceBrandMark variant="sidebar" align="left" animating={logoHover} loop={false} />
-          </Animated.View>
-        </View>
+            <GrapejuiceBrandMark variant="sidebar" align="center" animating={logoHover} loop={false} />
+          </View>
+        ) : (
+          <>
+            <View style={styles.collapseRowSpacer} />
+            <View style={styles.logoRow}>
+              <View
+                style={[
+                  styles.logoAnchor,
+                  Platform.OS === 'web' ? ({ cursor: 'default' } as object) : null,
+                ]}
+                {...logoWebHandlers}
+              >
+                <GrapejuiceBrandMark variant="sidebar" align="left" animating={logoHover} loop={false} />
+              </View>
+            </View>
+          </>
+        )}
       </View>
 
       <View style={styles.navPrimary}>
@@ -409,6 +402,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     zIndex: 1,
+  },
+  /** Centered grape mark — occupies the former expand-button slot when collapsed. */
+  collapsedLogoSlot: {
+    width: '100%',
+    height: COLLAPSE_BTN_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoRow: {
     position: 'relative',

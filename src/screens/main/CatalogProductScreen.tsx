@@ -11,6 +11,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -31,8 +32,11 @@ import { SimilarProductsRail } from '../../components/catalog/SimilarProductsRai
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { spacing, typography } from '../../constants/theme';
+import { LAYOUT, MOBILE_GUTTER, spacing, typography } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
+
+/** Match Home / About Hanukkah desktop top inset. */
+const DESKTOP_CONTENT_TOP = 41;
 
 type DetailRow = { label: string; value: string };
 
@@ -67,7 +71,7 @@ export function CatalogProductScreen() {
   const route = useRoute<RouteProp<MainStackParamList, 'CatalogProduct'>>();
   const { itemId } = route.params;
   const { colors } = useThemeMode();
-  const { isDesktop, widePanelMaxWidth } = useWebLayout();
+  const { isDesktop, layoutWidth } = useWebLayout();
   const { household } = useSession();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
   const { guardMutation } = usePaymentGate();
@@ -273,42 +277,77 @@ export function CatalogProductScreen() {
     </View>
   );
 
-  return (
-    <WebContentPanel wide>
-      <ScrollView
-        style={[styles.root, { backgroundColor: pageBg }]}
-        contentContainerStyle={[
-          styles.content,
-          isDesktop && { maxWidth: widePanelMaxWidth, alignSelf: 'center', width: '100%' },
-        ]}
-      >
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-          <Text style={[styles.backLink, { color: colors.textPrimary }]}>Back</Text>
-        </TouchableOpacity>
+  const body = (
+    <>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
+        <Text style={[styles.backLink, { color: colors.textPrimary }]}>Back</Text>
+      </TouchableOpacity>
 
-        <View style={[styles.split, isDesktop && styles.splitDesktop]}>
-          <View style={[styles.galleryCol, isDesktop && styles.galleryColDesktop]}>
-            <ProductImageGallery
-              itemId={item.id}
-              imageUrl={item.imageUrl}
-              imageUrls={item.imageUrls}
-            />
-          </View>
-          {buyColumn}
+      <View style={[styles.split, isDesktop && styles.splitDesktop]}>
+        <View style={[styles.galleryCol, isDesktop && styles.galleryColDesktop]}>
+          <ProductImageGallery
+            itemId={item.id}
+            imageUrl={item.imageUrl}
+            imageUrls={item.imageUrls}
+          />
         </View>
+        {buyColumn}
+      </View>
 
-        <SimilarProductsRail items={similar} />
-      </ScrollView>
-    </WebContentPanel>
+      <SimilarProductsRail items={similar} />
+    </>
+  );
+
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: pageBg }]} edges={Platform.OS === 'web' ? [] : ['top']}>
+      <WebContentPanel
+        flush={isDesktop}
+        gutter={!isDesktop}
+        centerDesktop={isDesktop}
+        omitDesktopTopPadding={isDesktop}
+        style={[styles.panel, { backgroundColor: pageBg }]}
+      >
+        <View style={[styles.scrollHost, isDesktop && styles.scrollHostDesktopBleed]}>
+          <ScrollView
+            style={[styles.root, { backgroundColor: pageBg }]}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingTop: isDesktop ? DESKTOP_CONTENT_TOP : spacing.md },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            {isDesktop ? (
+              <View style={[styles.contentColumn, { maxWidth: layoutWidth }]}>{body}</View>
+            ) : (
+              body
+            )}
+          </ScrollView>
+        </View>
+      </WebContentPanel>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+  safe: { flex: 1 },
+  panel: { flex: 1, width: '100%', overflow: 'visible' as const },
+  scrollHost: { flex: 1, width: '100%' },
+  /** Match Home — cancel panel gutter so content spans the main-area frame. */
+  scrollHostDesktopBleed: {
+    marginHorizontal: -LAYOUT.WEB_CONTENT_GUTTER,
+    ...(Platform.OS === 'web'
+      ? ({ width: `calc(100% + ${LAYOUT.WEB_CONTENT_GUTTER * 2}px)` } as object)
+      : { alignSelf: 'stretch' as const }),
+  },
+  root: { flex: 1, width: '100%' },
+  scrollContent: {
     paddingBottom: 140,
+    width: '100%',
+  },
+  contentColumn: {
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: MOBILE_GUTTER,
   },
   centered: {
     flex: 1,
