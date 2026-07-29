@@ -32,6 +32,23 @@ function getErrorMessage(error: unknown): string {
     if (code === 'auth/internal-error') {
       return 'Google sign-in failed (auth/internal-error). Check the browser console for CSP or API-key errors, confirm Google is enabled in Firebase Auth, and try email sign-in on localhost.';
     }
+    if (
+      code === 'auth/invalid-credential' ||
+      code === 'auth/invalid-login-credentials' ||
+      code === 'auth/wrong-password' ||
+      code === 'auth/user-not-found'
+    ) {
+      return 'Email or password did not match. If you usually use Google, tap Continue with Google instead — or create an account if you have not signed up on this project yet.';
+    }
+    if (code === 'auth/invalid-email') {
+      return 'That email address does not look valid.';
+    }
+    if (code === 'auth/too-many-requests') {
+      return 'Too many failed attempts. Wait a minute and try again, or reset your password.';
+    }
+    if (code === 'auth/operation-not-allowed') {
+      return 'Email/password sign-in is disabled for this Firebase project. Enable it in Authentication → Sign-in method.';
+    }
     return message;
   }
   if (error instanceof Error) return error.message;

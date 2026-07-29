@@ -106,6 +106,7 @@ const styles = StyleSheet.create({
   /** Full-width scroll host when content is centered inside screen scroll views. */
   desktopFullWidthHost: {
     flex: 1,
+    flexBasis: 0,
     width: '100%',
     minWidth: 0,
     minHeight: 0,

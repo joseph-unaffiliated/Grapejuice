@@ -34,6 +34,7 @@ import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
+import { SearchPill, SEARCH_PILL_HEIGHT } from '../ui/SearchPill';
 import { RavBlockRenderer } from './RavBlockRenderer';
 import { FormattedChatText } from './FormattedChatText';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
@@ -45,9 +46,9 @@ import {
 } from '../../constants/ravStarterPrompts';
 
 const MAX_HISTORY_TURNS = 10;
-/** Fixed pill — same idea as Home SearchPill; never grow on focus. */
-const WELCOME_SEARCH_LINE = typography.lg;
 const WELCOME_SEND_SIZE = 32;
+/** Room for the send overlay — only applied while the field is active. */
+const WELCOME_SEND_INSET = WELCOME_SEND_SIZE + spacing.sm;
 
 type RavView = 'welcome' | 'recent' | 'thread';
 
@@ -541,22 +542,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>
             </View>
 
-            <View style={[styles.searchPill, goldGlow]}>
-              <TextInput
-                style={[
-                  styles.welcomeInput,
-                  welcomeActive ? styles.welcomeInputActive : styles.welcomeInputEmpty,
-                ]}
-                placeholder={welcomeActive ? '' : 'Search or ask a question'}
-                placeholderTextColor={colors.textPrimary}
+            <View style={styles.welcomeSearchWrap}>
+              <SearchPill
                 value={input}
                 onChangeText={setInput}
+                onSubmitEditing={() => sendMessage(input)}
                 onFocus={() => setWelcomeFocused(true)}
                 onBlur={() => setWelcomeFocused(false)}
-                multiline={false}
-                blurOnSubmit
-                onSubmitEditing={() => sendMessage(input)}
                 onKeyPress={handleComposerKeyPress}
+                animatePlaceholder={false}
+                contentInsetRight={welcomeActive ? WELCOME_SEND_INSET : 0}
               />
               {welcomeActive ? (
                 <TouchableOpacity
@@ -738,46 +733,17 @@ function createPilotStyles(colors: SemanticColors) {
     color: colors.goldMuted,
     letterSpacing: -0.22,
   },
-  searchPill: {
+  /** Full-width pill in the welcome column; send sits as an overlay. */
+  welcomeSearchWrap: {
     width: '100%',
-    // Fixed — do not use minHeight / height:auto; focus must not resize the pill.
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgPrimary,
-    borderRadius: borderRadius.pill,
-    paddingHorizontal: MOBILE_GUTTER,
+    alignSelf: 'stretch',
     position: 'relative',
-  },
-  welcomeInput: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: typography.lg,
-    height: WELCOME_SEARCH_LINE,
-    lineHeight: WELCOME_SEARCH_LINE,
-    color: colors.textPrimary,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    margin: 0,
-    letterSpacing: -0.26,
-    ...typeface('regular'),
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', border: 'none', backgroundColor: 'transparent' } as object)
-      : { includeFontPadding: false, textAlignVertical: 'center' }),
-  },
-  welcomeInputEmpty: {
-    textAlign: 'center',
-  },
-  welcomeInputActive: {
-    textAlign: 'left',
-    // Room for the absolutely positioned send control — keeps pill width/height stable.
-    paddingRight: WELCOME_SEND_SIZE + spacing.sm,
   },
   sendCircle: {
     position: 'absolute',
     right: MOBILE_GUTTER,
-    top: (44 - WELCOME_SEND_SIZE) / 2,
+    top: (SEARCH_PILL_HEIGHT - WELCOME_SEND_SIZE) / 2,
+    zIndex: 4,
     width: WELCOME_SEND_SIZE,
     height: WELCOME_SEND_SIZE,
     borderRadius: WELCOME_SEND_SIZE / 2,

@@ -172,7 +172,6 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
           return (
             <BoxItemRow
               key={li.slotId + li.itemId}
-              variant="card"
               li={li}
               item={item}
               meta={kid ? `For ${kid.name || 'your kid'}` : undefined}

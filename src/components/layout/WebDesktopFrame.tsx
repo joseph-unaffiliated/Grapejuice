@@ -47,7 +47,9 @@ const styles = StyleSheet.create({
   mainArea: {
     flex: 1,
     minWidth: 0,
+    /** Required so My Box / Home ScrollViews stay viewport-bound (not content-tall). */
+    minHeight: 0,
     backgroundColor: semanticColors.bgPrimary,
-    overflow: 'visible' as const,
+    overflow: 'hidden' as const,
   },
 });

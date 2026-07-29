@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -15,6 +15,7 @@ import { SessionProvider, useSession } from '../context/SessionContext';
 import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../constants/pilotFeatures';
 import { semanticColors } from '../constants/theme';
+import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { DevPreviewEffect } from './DevPreviewEffect';
 import { readDevPreviewFromWindow } from './devPreview';
@@ -52,8 +53,8 @@ function RootRoutes() {
 
   if (booting) {
     return (
-      <View style={styles.boot}>
-        <ActivityIndicator size="large" color={semanticColors.brand} />
+      <View style={styles.boot} accessibilityLabel="Loading" accessibilityRole="progressbar">
+        <BrandLoadingMark />
       </View>
     );
   }
@@ -131,5 +132,10 @@ export function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
-  boot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: semanticColors.bgPrimary },
+  boot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: semanticColors.bgPrimary,
+  },
 });

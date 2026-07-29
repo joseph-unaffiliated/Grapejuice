@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Linking,
   TextInput,
   Platform,
@@ -32,6 +31,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
@@ -220,7 +220,7 @@ export function AccountScreen() {
   if (!fakeSignedIn && (sessionLoading || loading)) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark color={colors.brand} />
       </View>
     );
   }

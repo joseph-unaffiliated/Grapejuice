@@ -48,14 +48,38 @@ function readScrollTop(scrollEl: HTMLElement): number {
   return isRootScrollElement(scrollEl) ? window.scrollY : scrollEl.scrollTop;
 }
 
-function scrollWebContainer(scrollEl: HTMLElement, top: number) {
+let activeScrollAnim = 0;
+
+function scrollWebContainer(scrollEl: HTMLElement, top: number, smooth = true) {
   const y = Math.max(0, top);
   if (isRootScrollElement(scrollEl)) {
-    window.scrollTo({ top: y, behavior: 'smooth' });
+    window.scrollTo({ top: y, behavior: smooth ? 'smooth' : 'auto' });
     return;
   }
-  // Direct assignment is reliable on RN Web; scrollTo({behavior}) is often a no-op there.
-  scrollEl.scrollTop = y;
+  if (!smooth) {
+    scrollEl.scrollTop = y;
+    return;
+  }
+  // RN Web ignores element.scrollTo({ behavior: 'smooth' }) — animate scrollTop ourselves.
+  const start = readScrollTop(scrollEl);
+  const delta = y - start;
+  if (Math.abs(delta) < 1) {
+    scrollEl.scrollTop = y;
+    return;
+  }
+  const animId = ++activeScrollAnim;
+  const durationMs = Math.min(550, Math.max(280, Math.abs(delta) * 0.35));
+  const t0 = performance.now();
+  const step = (now: number) => {
+    if (animId !== activeScrollAnim) return;
+    const t = Math.min(1, (now - t0) / durationMs);
+    // easeInOutCubic
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    scrollEl.scrollTop = start + delta * eased;
+    if (t < 1) requestAnimationFrame(step);
+    else scrollEl.scrollTop = y;
+  };
+  requestAnimationFrame(step);
 }
 
 function asView(node: unknown): View | null {
@@ -94,7 +118,10 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
   const getScrollElement = useCallback((): HTMLElement | null => {
     if (Platform.OS !== 'web') return null;
     const host = scrollRef.current as unknown as HostNode | null;
-    return host?.getScrollableNode?.() ?? null;
+    const fromRef = host?.getScrollableNode?.() ?? null;
+    if (fromRef) return fromRef;
+    // className is stripped on RN Web ScrollView; testID is reliable.
+    return document.querySelector<HTMLElement>('[data-testid="box-vertical-scroll"]');
   }, []);
 
   const resolveSectionElement = useCallback(
@@ -256,23 +283,28 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
         scrollingToSection.current = false;
         // Re-measure after the smooth scroll settles so spy stays accurate.
         measureSectionOffset(id);
-      }, 600);
+      }, 700);
 
       if (Platform.OS === 'web') {
         const sectionEl = resolveSectionElement(id);
         const scrollEl = getScrollElement();
         if (sectionEl && scrollEl) {
+          const canScroll = scrollEl.scrollHeight > scrollEl.clientHeight + 1;
+          if (!canScroll) {
+            // Scrollport grew to content height (flex min-size bug) — native scrollTo is a
+            // no-op. scrollIntoView still moves whatever ancestor actually scrolls.
+            sectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+          }
           const y = Math.max(
             0,
             sectionOffsetInScrollport(sectionEl, scrollEl) - BOX_DETAIL_SCROLL_SPY_OFFSET,
           );
-          // Prefer RN ScrollView.scrollTo so animated scroll + onScroll stay in sync.
-          const host = scrollRef.current as unknown as HostNode | null;
-          if (host?.scrollTo) {
-            host.scrollTo({ y, animated: true });
-          } else {
-            scrollWebContainer(scrollEl, y);
-          }
+          scrollWebContainer(scrollEl, y, true);
+          return;
+        }
+        if (sectionEl) {
+          sectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
           return;
         }
       }

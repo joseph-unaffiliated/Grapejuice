@@ -83,9 +83,23 @@ export function AddToCalendarMenu({
 
 function createStyles(colors: ReturnType<typeof useThemeMode>['colors']) {
   return StyleSheet.create({
-    wrap: { gap: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
-    wrapCompact: { paddingHorizontal: 0 },
-    label: { fontSize: typography.sm, color: colors.goldMuted, textAlign: 'center' },
+    wrap: {
+      gap: spacing.xs,
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.xxl,
+      /** Pale gold wash — brand gold at low opacity over white. */
+      backgroundColor: 'rgba(216, 201, 144, 0.22)',
+    },
+    wrapCompact: { marginHorizontal: 0 },
+    label: {
+      fontSize: typography.sm,
+      fontWeight: '500',
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
     labelLeft: { textAlign: 'left' },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center' },
     rowLeft: { justifyContent: 'flex-start' },
@@ -97,6 +111,7 @@ function createStyles(colors: ReturnType<typeof useThemeMode>['colors']) {
       paddingVertical: 4,
       flexShrink: 0,
       alignSelf: 'flex-start',
+      backgroundColor: colors.bgPrimary,
     },
     chipText: {
       fontSize: 9,

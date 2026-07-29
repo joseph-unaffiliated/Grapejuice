@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Platform,
   AppState,
+  Pressable,
   type AppStateStatus,
 } from 'react-native';
 import {
@@ -37,10 +38,22 @@ type Props = {
   value: string;
   onChangeText: (text: string) => void;
   onSubmitEditing?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onKeyPress?: (e: { nativeEvent: { key: string }; preventDefault?: () => void }) => void;
   placeholder?: string;
   returnKeyType?: 'search' | 'done' | 'default';
   /** Cycle Rav-style prompt typewriter when empty. Default true. */
   animatePlaceholder?: boolean;
+  /** Optional control on the right (e.g. Rav send). Reserves padding so text doesn’t collide. */
+  trailing?: ReactNode;
+  /** Extra right inset when `trailing` is set. Default 40. */
+  trailingWidth?: number;
+  /**
+   * Right padding for an external control (send overlay outside this component).
+   * Prefer this over mounting/unmounting `trailing` on focus — remounts can steal web focus.
+   */
+  contentInsetRight?: number;
 };
 
 function pickPromptBatch(previous: string, count: number): string[] {
@@ -69,9 +82,15 @@ export function SearchPill({
   value,
   onChangeText,
   onSubmitEditing,
+  onFocus,
+  onBlur,
+  onKeyPress,
   placeholder = DEFAULT_PLACEHOLDER,
   returnKeyType = 'search',
   animatePlaceholder = true,
+  trailing = null,
+  trailingWidth = 40,
+  contentInsetRight = 0,
 }: Props) {
   const { colors } = useThemeMode();
   const hasText = value.trim().length > 0;
@@ -84,6 +103,12 @@ export function SearchPill({
   const lastPromptRef = useRef('');
   /** Monotonic run id — stale async loops bailed even if a newer run already started. */
   const runIdRef = useRef(0);
+  const inputRef = useRef<TextInput>(null);
+  const showTrailing = trailing != null;
+  const rightInset = showTrailing ? trailingWidth : contentInsetRight;
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -200,15 +225,19 @@ export function SearchPill({
   }, [animatePlaceholder, hasText, focused, pageVisible, placeholder, runTypewriter]);
 
   const showFaux = animatePlaceholder && !hasText && !focused;
+  // Keep idle placeholder centered — right inset is only for the send affordance, not alignment.
   const alignLeft = hasText || focused;
-  const pillStyle = [
-    styles.pill,
-    { backgroundColor: colors.bgPrimary },
-    Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm } : shadows.goldGlow,
-  ];
 
   return (
-    <View style={pillStyle}>
+    <Pressable
+      accessibilityRole="search"
+      onPress={focusInput}
+      style={[
+        styles.host,
+        { backgroundColor: colors.bgPrimary },
+        Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm, cursor: 'text' } : shadows.goldGlow,
+      ]}
+    >
       {showFaux ? (
         <Text
           style={[
@@ -226,10 +255,12 @@ export function SearchPill({
         </Text>
       ) : null}
       <TextInput
+        ref={inputRef}
         style={[
           styles.input,
-          { color: colors.textPrimary },
+          { color: colors.textPrimary, backgroundColor: 'transparent' },
           alignLeft ? styles.inputActive : styles.inputCentered,
+          rightInset > 0 ? { paddingRight: rightInset } : null,
           showFaux && styles.inputOverFaux,
         ]}
         placeholder={!animatePlaceholder && !focused && !hasText ? placeholder : ''}
@@ -237,25 +268,35 @@ export function SearchPill({
         value={value}
         onChangeText={onChangeText}
         onSubmitEditing={onSubmitEditing}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onKeyPress={onKeyPress}
+        onFocus={() => {
+          setFocused(true);
+          onFocus?.();
+        }}
+        onBlur={() => {
+          setFocused(false);
+          onBlur?.();
+        }}
         returnKeyType={returnKeyType}
         multiline={false}
       />
-    </View>
+      {showTrailing ? (
+        <View style={styles.trailing} pointerEvents="box-none">
+          {trailing}
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: {
+  /** Visual pill chrome — same box the input fills. */
+  host: {
     width: '100%',
     height: SEARCH_PILL_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     borderRadius: borderRadius.pill,
-    paddingHorizontal: MOBILE_GUTTER,
     position: 'relative',
+    overflow: 'hidden',
   },
   fauxBase: {
     ...StyleSheet.absoluteFillObject,
@@ -266,6 +307,7 @@ const styles = StyleSheet.create({
     lineHeight: SEARCH_PILL_HEIGHT,
     letterSpacing: -0.26,
     paddingHorizontal: MOBILE_GUTTER,
+    pointerEvents: 'none',
     ...(Platform.OS === 'web'
       ? ({
           display: 'flex',
@@ -290,19 +332,41 @@ const styles = StyleSheet.create({
     ...typeface('light'),
     opacity: 0.6,
   },
+  /**
+   * The input IS the hit target — explicit pixel size (RN Web ignores absolute
+   * fill on <input> and keeps a ~line-height click strip).
+   */
   input: {
-    flex: 1,
-    fontSize: LINE,
-    lineHeight: LINE,
-    height: LINE,
-    padding: 0,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: SEARCH_PILL_HEIGHT,
+    zIndex: 2,
     margin: 0,
+    paddingHorizontal: MOBILE_GUTTER,
+    paddingTop: 0,
+    paddingBottom: 0,
+    fontSize: LINE,
+    lineHeight: SEARCH_PILL_HEIGHT,
     letterSpacing: -0.26,
     ...typeface('regular'),
-    zIndex: 2,
     ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', border: 'none', backgroundColor: 'transparent' } as object)
-      : { includeFontPadding: false, textAlignVertical: 'center' }),
+      ? ({
+          outlineStyle: 'none',
+          outlineWidth: 0,
+          borderWidth: 0,
+          borderStyle: 'solid',
+          borderColor: 'transparent',
+          cursor: 'text',
+          boxSizing: 'border-box',
+        } as object)
+      : {
+          includeFontPadding: false,
+          textAlignVertical: 'center',
+        }),
   },
   inputOverFaux: {
     color: 'transparent',
@@ -310,4 +374,13 @@ const styles = StyleSheet.create({
   },
   inputCentered: { textAlign: 'center' },
   inputActive: { textAlign: 'left' },
+  trailing: {
+    position: 'absolute',
+    right: MOBILE_GUTTER,
+    top: 0,
+    bottom: 0,
+    zIndex: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
