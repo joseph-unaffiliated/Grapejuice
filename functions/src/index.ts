@@ -11,6 +11,10 @@ import { exportOrderToShipStation, applyShipStationTracking } from './shipstatio
 import { finalizeGiftInvitePayment, type GiftInviteRecord } from './giftPayment';
 import { runDebriefReminderBatch } from './debriefReminders';
 import { runLockReminderBatch } from './lockReminders';
+import {
+  assertCatalogSyncSecret,
+  runAirtableCatalogReplaceSync,
+} from './airtableCatalogSync';
 import { randomBytes } from 'crypto';
 
 export { askPilotRav, scanBeamAgeTriggers };
@@ -781,3 +785,47 @@ export const scheduledLockReminders = onSchedule('every day 09:00', async () => 
   if (!lockAt || isLocked(lockAt)) return;
   await runLockReminderBatch(db, lockAt);
 });
+
+/**
+ * Replace-sync Grapejuice Airtable catalog → Firestore catalog/hanukkah/items.
+ * Auth: Authorization: Bearer $CATALOG_SYNC_SECRET
+ * Also requires AIRTABLE_PAT (and optional AIRTABLE_BASE_ID).
+ */
+export const syncAirtableCatalog = onRequest(
+  {
+    cors: true,
+    timeoutSeconds: 300,
+    memory: '1GiB',
+    // Public URL; auth is Authorization: Bearer $CATALOG_SYNC_SECRET
+    invoker: 'public',
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST' && req.method !== 'GET') {
+        res.status(405).send('Method not allowed');
+        return;
+      }
+      assertCatalogSyncSecret(req.get('Authorization') ?? undefined);
+      const result = await runAirtableCatalogReplaceSync();
+      logger.info('Airtable catalog sync complete', result);
+      res.status(200).json({ ok: true, ...result });
+    } catch (e) {
+      const status = (e as { status?: number }).status === 401 ? 401 : 500;
+      logger.error('Airtable catalog sync failed', e);
+      res.status(status).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+);
+
+/** Near-realtime safety net — full replace sync every 5 minutes when PAT is configured. */
+export const scheduledAirtableCatalogSync = onSchedule(
+  { schedule: 'every 5 minutes', timeoutSeconds: 300, memory: '1GiB' },
+  async () => {
+    if (!process.env.AIRTABLE_PAT?.trim()) {
+      logger.warn('Skipping scheduled catalog sync — AIRTABLE_PAT unset');
+      return;
+    }
+    const result = await runAirtableCatalogReplaceSync();
+    logger.info('Scheduled Airtable catalog sync complete', result);
+  }
+);

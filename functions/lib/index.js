@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.claimGiftInvite = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
+exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.claimGiftInvite = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -16,6 +16,7 @@ const shipstation_1 = require("./shipstation");
 const giftPayment_1 = require("./giftPayment");
 const debriefReminders_1 = require("./debriefReminders");
 const lockReminders_1 = require("./lockReminders");
+const airtableCatalogSync_1 = require("./airtableCatalogSync");
 const crypto_1 = require("crypto");
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
@@ -653,5 +654,44 @@ exports.scheduledLockReminders = (0, scheduler_1.onSchedule)('every day 09:00', 
     if (!lockAt || isLocked(lockAt))
         return;
     await (0, lockReminders_1.runLockReminderBatch)(db, lockAt);
+});
+/**
+ * Replace-sync Grapejuice Airtable catalog → Firestore catalog/hanukkah/items.
+ * Auth: Authorization: Bearer $CATALOG_SYNC_SECRET
+ * Also requires AIRTABLE_PAT (and optional AIRTABLE_BASE_ID).
+ */
+exports.syncAirtableCatalog = (0, https_1.onRequest)({
+    cors: true,
+    timeoutSeconds: 300,
+    memory: '1GiB',
+    // Public URL; auth is Authorization: Bearer $CATALOG_SYNC_SECRET
+    invoker: 'public',
+}, async (req, res) => {
+    var _a;
+    try {
+        if (req.method !== 'POST' && req.method !== 'GET') {
+            res.status(405).send('Method not allowed');
+            return;
+        }
+        (0, airtableCatalogSync_1.assertCatalogSyncSecret)((_a = req.get('Authorization')) !== null && _a !== void 0 ? _a : undefined);
+        const result = await (0, airtableCatalogSync_1.runAirtableCatalogReplaceSync)();
+        logger.info('Airtable catalog sync complete', result);
+        res.status(200).json(Object.assign({ ok: true }, result));
+    }
+    catch (e) {
+        const status = e.status === 401 ? 401 : 500;
+        logger.error('Airtable catalog sync failed', e);
+        res.status(status).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+});
+/** Near-realtime safety net — full replace sync every 5 minutes when PAT is configured. */
+exports.scheduledAirtableCatalogSync = (0, scheduler_1.onSchedule)({ schedule: 'every 5 minutes', timeoutSeconds: 300, memory: '1GiB' }, async () => {
+    var _a;
+    if (!((_a = process.env.AIRTABLE_PAT) === null || _a === void 0 ? void 0 : _a.trim())) {
+        logger.warn('Skipping scheduled catalog sync — AIRTABLE_PAT unset');
+        return;
+    }
+    const result = await (0, airtableCatalogSync_1.runAirtableCatalogReplaceSync)();
+    logger.info('Scheduled Airtable catalog sync complete', result);
 });
 //# sourceMappingURL=index.js.map

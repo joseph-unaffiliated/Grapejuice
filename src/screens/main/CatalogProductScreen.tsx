@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
-import { catalogService } from '../../services/firestore/catalog';
+import { useCatalog } from '../../hooks/useCatalog';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { inferPricingTier, unitCentsForTier } from '../../services/box/pricing';
@@ -29,22 +29,29 @@ export function CatalogProductScreen() {
   const { itemId } = route.params;
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
   const { guardMutation } = usePaymentGate();
-  const [item, setItem] = useState<CatalogItem | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { items: catalog, loading: catalogLoading } = useCatalog();
+  const item = useMemo(
+    () => catalog.find((c) => c.id === itemId) ?? null,
+    [catalog, itemId]
+  );
+  const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [catalog, config] = await Promise.all([catalogService.getAll(), getHanukkahConfig()]);
-    setItem(catalog.find((c) => c.id === itemId) ?? null);
-    setLocked(isBoxLocked(config.lockAt));
-    setLoading(false);
-  }, [itemId]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    setLoadingConfig(true);
+    getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLocked(isBoxLocked(config.lockAt));
+      setLoadingConfig(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loading = catalogLoading || loadingConfig;
 
   const inBox = useMemo(() => lineItems.some((li) => li.itemId === itemId), [lineItems, itemId]);
   const tier = item ? inferPricingTier(item) : 'included';

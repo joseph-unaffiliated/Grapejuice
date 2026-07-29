@@ -109,13 +109,28 @@ export type CatalogItem = {
   defaultFor: AgeGroup[];
   swapOptions: string[];
   imageUrl?: string;
+  /** Additional photos (Airtable Other Images → Storage). */
+  imageUrls?: string[];
   dollarCostCents: number;
+  /** What we paid (COGS). */
+  unitCostCents?: number;
+  /** Sell price with membership / active box. */
+  memberPriceCents?: number;
+  /** Sell price without membership (= à la carte / non-member). */
+  nonMemberPriceCents?: number;
   /** When unset, inferred from slot in pricing.ts */
   pricingTier?: CatalogPricingTier;
   holiday: string;
   /** Home collection rails — from Firestore or catalogCuration fallback */
   curationTags?: CatalogCurationTag[];
   brand?: string;
+  /** Airtable Category (Menorah, Candles, Book, …). */
+  category?: string;
+  /** Airtable Context flags (Default, A la carte). */
+  context?: string[];
+  airtableRecordId?: string;
+  buyLink?: string;
+  interest?: string;
 };
 
 /** Box journey on Home — derived from draft + order data */
