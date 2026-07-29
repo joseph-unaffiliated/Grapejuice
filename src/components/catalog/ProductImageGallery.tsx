@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
-import { borderRadius, spacing } from '../../constants/theme';
+import { spacing } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 
 type Props = {
@@ -51,12 +51,12 @@ export function ProductImageGallery({
       <View
         style={[
           styles.hero,
-          { backgroundColor: colors.border },
+          { backgroundColor: colors.brandLight },
           Platform.OS === 'web' ? { aspectRatio: 1 } : undefined,
         ]}
       >
         {activeUrl ? (
-          <Image source={{ uri: activeUrl }} style={styles.heroImage} resizeMode="cover" />
+          <Image source={{ uri: activeUrl }} style={styles.heroImage} resizeMode="contain" />
         ) : (
           <BoxItemImage
             size={Platform.OS === 'web' ? 480 : 320}
@@ -79,12 +79,12 @@ export function ProductImageGallery({
                 style={[
                   styles.thumb,
                   {
-                    borderColor: isActive ? colors.brand : colors.border,
-                    backgroundColor: colors.bgPrimary,
+                    borderColor: isActive ? colors.textPrimary : colors.border,
+                    backgroundColor: colors.brandLight,
                   },
                 ]}
               >
-                <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
+                <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="contain" />
               </TouchableOpacity>
             );
           })}
@@ -94,7 +94,7 @@ export function ProductImageGallery({
   );
 }
 
-const THUMB = 64;
+const THUMB = 72;
 
 const styles = StyleSheet.create({
   root: {
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     width: '100%',
-    borderRadius: borderRadius.lg,
+    borderRadius: 0,
     overflow: 'hidden',
     minHeight: Platform.OS === 'web' ? undefined : 320,
     aspectRatio: 1,
@@ -125,8 +125,8 @@ const styles = StyleSheet.create({
   thumb: {
     width: THUMB,
     height: THUMB,
-    borderRadius: borderRadius.md,
-    borderWidth: 2,
+    borderRadius: 0,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   thumbImage: {

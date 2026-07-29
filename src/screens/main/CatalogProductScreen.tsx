@@ -14,15 +14,17 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
+import { useSession } from '../../hooks/useSession';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
+import { ordersService } from '../../services/firestore/orders';
 import { inferPricingTier, unitCentsForTier } from '../../services/box/pricing';
 import { ProductImageGallery } from '../../components/catalog/ProductImageGallery';
 import { ProductPricingBlock } from '../../components/catalog/ProductPricingBlock';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 
 type DetailRow = { label: string; value: string };
@@ -43,14 +45,27 @@ function detailRowsFromItem(item: {
   return rows;
 }
 
+function hasActiveHanukkahBoxOrder(
+  orders: { status: string }[]
+): boolean {
+  return orders.some(
+    (o) =>
+      o.status === 'committed' ||
+      o.status === 'confirmed' ||
+      o.status === 'shipped' ||
+      o.status === 'delivered'
+  );
+}
+
 export function CatalogProductScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'CatalogProduct'>>();
   const { itemId } = route.params;
   const { colors } = useThemeMode();
   const { isDesktop, widePanelMaxWidth } = useWebLayout();
+  const { household } = useSession();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
-  const { guardMutation, canMutateBox } = usePaymentGate();
+  const { guardMutation } = usePaymentGate();
   const { items: catalog, loading: catalogLoading } = useCatalog();
   const item = useMemo(
     () => catalog.find((c) => c.id === itemId) ?? null,
@@ -59,6 +74,7 @@ export function CatalogProductScreen() {
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +88,21 @@ export function CatalogProductScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!household?.id) {
+      setHasHanukkahBox(false);
+      return;
+    }
+    ordersService.listForHousehold(household.id).then((orders) => {
+      if (cancelled) return;
+      setHasHanukkahBox(hasActiveHanukkahBoxOrder(orders));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [household?.id]);
 
   const loading = catalogLoading || loadingConfig;
   const inBox = useMemo(() => lineItems.some((li) => li.itemId === itemId), [lineItems, itemId]);
@@ -111,9 +142,11 @@ export function CatalogProductScreen() {
     navigation.goBack();
   };
 
+  const pageBg = colors.bgPrimary;
+
   if (loading || draftLoading) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.bgElevated }]}>
+      <View style={[styles.centered, { backgroundColor: pageBg }]}>
         <ActivityIndicator color={colors.brand} />
       </View>
     );
@@ -121,12 +154,14 @@ export function CatalogProductScreen() {
 
   if (!item) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.bgElevated }]}>
+      <View style={[styles.centered, { backgroundColor: pageBg }]}>
         <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
           Product not found.
         </Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>Go back</Text>
+          <Text style={{ color: colors.textPrimary, fontWeight: '500', letterSpacing: 0.3 }}>
+            Go back
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -139,11 +174,13 @@ export function CatalogProductScreen() {
         <Text style={[styles.desc, { color: colors.textSecondary }]}>{item.description}</Text>
       ) : null}
 
-      <ProductPricingBlock
-        item={item}
-        onBoxPath={canMutateBox}
-        onWhatsInTheBox={() => navigation.navigate('MyBox')}
-      />
+      <View style={[styles.priceRule, { borderTopColor: colors.border }]}>
+        <ProductPricingBlock
+          item={item}
+          hasHanukkahBox={hasHanukkahBox}
+          onWhatsInTheBox={() => navigation.navigate('MyBox')}
+        />
+      </View>
 
       {isPaid ? (
         <Text style={[styles.chargeNote, { color: colors.textTertiary }]}>
@@ -154,7 +191,7 @@ export function CatalogProductScreen() {
       <TouchableOpacity
         style={[
           styles.cta,
-          { backgroundColor: colors.brand },
+          { backgroundColor: colors.textPrimary },
           (locked || saving) && styles.ctaDisabled,
         ]}
         onPress={inBox ? removeFromBox : addToBox}
@@ -162,20 +199,20 @@ export function CatalogProductScreen() {
         accessibilityRole="button"
       >
         {saving ? (
-          <ActivityIndicator color={colors.textInverse} />
+          <ActivityIndicator color={colors.bgPrimary} />
         ) : (
-          <Text style={[styles.ctaText, { color: colors.textInverse }]}>
+          <Text style={[styles.ctaText, { color: colors.bgPrimary }]}>
             {inBox ? 'Remove from box' : 'Add to box'}
           </Text>
         )}
       </TouchableOpacity>
 
       {details.length > 0 ? (
-        <View style={styles.details}>
+        <View style={[styles.details, { borderTopColor: colors.border }]}>
           <Text style={[styles.detailsHeading, { color: colors.textPrimary }]}>Details</Text>
           {details.map((row) => (
             <View key={row.label} style={[styles.detailRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+              <Text style={[styles.detailLabel, { color: colors.textTertiary }]}>{row.label}</Text>
               <Text style={[styles.detailValue, { color: colors.textPrimary }]}>{row.value}</Text>
             </View>
           ))}
@@ -187,14 +224,14 @@ export function CatalogProductScreen() {
   return (
     <WebContentPanel wide>
       <ScrollView
-        style={[styles.root, { backgroundColor: colors.bgElevated }]}
+        style={[styles.root, { backgroundColor: pageBg }]}
         contentContainerStyle={[
           styles.content,
           isDesktop && { maxWidth: widePanelMaxWidth, alignSelf: 'center', width: '100%' },
         ]}
       >
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>← Back</Text>
+          <Text style={[styles.backLink, { color: colors.textPrimary }]}>Back</Text>
         </TouchableOpacity>
 
         <View style={[styles.split, isDesktop && styles.splitDesktop]}>
@@ -215,8 +252,9 @@ export function CatalogProductScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: {
-    padding: spacing.lg,
-    paddingBottom: 120,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: 140,
   },
   centered: {
     flex: 1,
@@ -224,15 +262,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.lg,
   },
-  backRow: { marginBottom: spacing.md },
+  backRow: { marginBottom: spacing.lg },
+  backLink: {
+    fontSize: typography.sm,
+    fontWeight: '500',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
   split: {
     flexDirection: 'column',
-    gap: spacing.xl,
+    gap: spacing.xxl,
   },
   splitDesktop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.xl,
+    gap: spacing.xxl,
   },
   galleryCol: {
     width: '100%',
@@ -248,58 +292,79 @@ const styles = StyleSheet.create({
   },
   buyDesktop: {
     flex: 0.45,
-    maxWidth: '45%',
-    paddingTop: spacing.sm,
+    maxWidth: '42%',
+    paddingTop: spacing.md,
   },
   name: {
-    fontSize: typography.titleLg + 6,
-    fontWeight: '700',
-    letterSpacing: -0.4,
+    fontSize: 28,
+    fontWeight: '400',
+    letterSpacing: 0.2,
+    lineHeight: 34,
     textAlign: 'left',
   },
   desc: {
     fontSize: typography.md,
     lineHeight: 22,
+    letterSpacing: 0.15,
     textAlign: 'left',
+    maxWidth: 440,
+  },
+  priceRule: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    width: '100%',
   },
   chargeNote: {
     fontSize: typography.sm,
+    letterSpacing: 0.2,
   },
   cta: {
-    paddingVertical: spacing.md,
+    paddingVertical: 16,
     paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.sm,
+    borderRadius: 0,
+    marginTop: spacing.md,
     minWidth: 200,
     alignItems: 'center',
     alignSelf: 'stretch',
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
   },
-  ctaDisabled: { opacity: 0.6 },
-  ctaText: { fontWeight: '700', fontSize: typography.lg },
+  ctaDisabled: { opacity: 0.55 },
+  ctaText: {
+    fontWeight: '500',
+    fontSize: typography.sm,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+  },
   details: {
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
+    paddingTop: spacing.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
     width: '100%',
-    gap: spacing.sm,
+    gap: 0,
   },
   detailsHeading: {
-    fontSize: typography.lg,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
+    fontSize: typography.sm,
+    fontWeight: '500',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    marginBottom: spacing.md,
   },
   detailRow: {
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 4,
+    gap: 6,
   },
   detailLabel: {
-    fontSize: typography.sm,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '500',
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 1.2,
   },
   detailValue: {
     fontSize: typography.md,
     lineHeight: 22,
+    letterSpacing: 0.15,
+    fontWeight: '400',
   },
 });

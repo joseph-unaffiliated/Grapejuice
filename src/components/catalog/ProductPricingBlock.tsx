@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import type { CatalogItem } from '../../types/pilot';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
@@ -7,78 +7,91 @@ import {
   inferPricingTier,
   resolveCatalogDisplayPrices,
 } from '../../services/box/pricing';
-import { spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 
 type Props = {
   item: CatalogItem;
-  /** Household already on a paid / card-on-file box path. */
-  onBoxPath?: boolean;
+  /** Household already has a committed Hanukkah box order. */
+  hasHanukkahBox?: boolean;
   onWhatsInTheBox?: () => void;
 };
 
-export function ProductPricingBlock({ item, onBoxPath, onWhatsInTheBox }: Props) {
+function percentOff(nonMemberCents: number, memberCents: number): number | null {
+  if (nonMemberCents <= 0 || memberCents >= nonMemberCents) return null;
+  return Math.round(((nonMemberCents - memberCents) / nonMemberCents) * 100);
+}
+
+export function ProductPricingBlock({ item, hasHanukkahBox, onWhatsInTheBox }: Props) {
   const { colors } = useThemeMode();
-  const { memberCents, nonMemberCents, savingsCents } = resolveCatalogDisplayPrices(item);
+  const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const tier = inferPricingTier(item);
   const includedOrMemberZero =
     memberCents === 0 || tier === 'included' || tier === 'perKid';
-  const showCompare = nonMemberCents > memberCents;
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
+  const off = useMemo(
+    () => percentOff(nonMemberCents, memberCents),
+    [nonMemberCents, memberCents]
+  );
 
-  const heroLabel = includedOrMemberZero
-    ? 'Included in your box'
-    : formatCatalogDollars(memberCents);
-
-  return (
-    <View style={styles.root}>
-      <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{heroLabel}</Text>
-
-      {showCompare ? (
-        <Text style={[styles.compare, { color: colors.textSecondary }]}>
-          {includedOrMemberZero ? (
-            <Text>
-              <Text style={styles.strike}>{formatCatalogDollars(nonMemberCents)}</Text>
-              <Text>{' à la carte'}</Text>
-            </Text>
-          ) : (
-            <Text>
-              <Text>À la carte </Text>
-              <Text style={styles.strike}>{formatCatalogDollars(nonMemberCents)}</Text>
-            </Text>
-          )}
-        </Text>
-      ) : null}
-
-      {savingsCents > 0 && !includedOrMemberZero ? (
-        <View style={[styles.chip, { backgroundColor: colors.brandLight, borderColor: colors.brand }]}>
-          <Text style={[styles.chipText, { color: colors.textPrimary }]}>
-            Save {formatCatalogDollars(savingsCents)} with a box
+  /** Subscribers see member / included as the hero. Everyone else sees à la carte retail. */
+  if (hasHanukkahBox) {
+    const hero = includedOrMemberZero
+      ? 'Included in your box'
+      : formatCatalogDollars(memberCents);
+    return (
+      <View style={styles.root}>
+        <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{hero}</Text>
+        {nonMemberCents > memberCents ? (
+          <Text style={[styles.compare, { color: colors.textTertiary }]}>
+            <Text style={styles.strike}>{formatCatalogDollars(nonMemberCents)}</Text>
+            {'  à la carte'}
           </Text>
-        </View>
-      ) : null}
-
-      {onBoxPath ? (
+        ) : null}
         <Text style={[styles.memberNote, { color: colors.textSecondary }]}>
           You’re getting the member price.
         </Text>
-      ) : (
-        <View style={[styles.callout, { borderColor: colors.border, backgroundColor: colors.bgElevated }]}>
-          <Text style={[styles.calloutTitle, { color: colors.textPrimary }]}>
-            Hanukkah box — {boxPrice}
+      </View>
+    );
+  }
+
+  const heroRetail =
+    nonMemberCents > 0
+      ? formatCatalogDollars(nonMemberCents)
+      : includedOrMemberZero
+        ? 'Included in your box'
+        : formatCatalogDollars(memberCents);
+
+  let offerLine: string | null = null;
+  if (includedOrMemberZero && nonMemberCents > 0) {
+    offerLine = off
+      ? `Get it free with a Hanukkah box — ${boxPrice} (${off}% off this piece)`
+      : `Get it free with a Hanukkah box — ${boxPrice}`;
+  } else if (memberCents > 0 && nonMemberCents > memberCents) {
+    offerLine = off
+      ? `Get it for ${formatCatalogDollars(memberCents)} (${off}% off) with a Hanukkah box`
+      : `Get it for ${formatCatalogDollars(memberCents)} with a Hanukkah box`;
+  } else if (nonMemberCents > 0) {
+    offerLine = `Hanukkah box members unlock curated pieces like this — from ${boxPrice}`;
+  }
+
+  return (
+    <View style={styles.root}>
+      <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{heroRetail}</Text>
+      {offerLine ? (
+        <Text style={[styles.offer, { color: colors.textPrimary }]}>{offerLine}</Text>
+      ) : null}
+      <Text style={[styles.offerSub, { color: colors.textSecondary }]}>
+        The {boxPrice} Hanukkah box includes candles, story, food, gifts, and member pricing across
+        the catalog.
+      </Text>
+      {onWhatsInTheBox ? (
+        <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link" style={styles.linkRow}>
+          <Text style={[styles.secondaryLink, { color: colors.textPrimary }]}>
+            What’s in the box?
           </Text>
-          <Text style={[styles.calloutBody, { color: colors.textSecondary }]}>
-            Unlock member pricing on pieces like this, plus the curated box — candles, story, food,
-            gifts, and more. The box is the product; the savings across the catalog make {boxPrice}{' '}
-            an obvious unlock.
-          </Text>
-          {onWhatsInTheBox ? (
-            <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link">
-              <Text style={[styles.secondaryLink, { color: colors.brand }]}>What’s in the box?</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      )}
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -87,52 +100,48 @@ const styles = StyleSheet.create({
   root: {
     gap: spacing.sm,
     alignItems: 'flex-start',
+    width: '100%',
   },
   heroPrice: {
-    fontSize: typography.titleLg + 8,
-    fontWeight: '700',
-    letterSpacing: -0.3,
+    fontSize: 32,
+    fontWeight: '500',
+    letterSpacing: -0.6,
+    lineHeight: 38,
   },
   compare: {
     fontSize: typography.md,
+    letterSpacing: 0.2,
   },
   strike: {
     textDecorationLine: 'line-through',
   },
-  chip: {
+  offer: {
+    fontSize: typography.md + 1,
+    fontWeight: '500',
+    lineHeight: 22,
+    letterSpacing: 0.1,
     marginTop: spacing.xs,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
   },
-  chipText: {
+  offerSub: {
     fontSize: typography.sm,
-    fontWeight: '600',
+    lineHeight: 20,
+    letterSpacing: 0.15,
+    maxWidth: 420,
   },
   memberNote: {
     fontSize: typography.sm,
+    letterSpacing: 0.2,
     marginTop: spacing.xs,
   },
-  callout: {
-    marginTop: spacing.sm,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: spacing.xs,
-    width: '100%',
-  },
-  calloutTitle: {
-    fontSize: typography.md,
-    fontWeight: '700',
-  },
-  calloutBody: {
-    fontSize: typography.sm,
-    lineHeight: 20,
+  linkRow: {
+    marginTop: spacing.xs,
+    paddingVertical: 2,
   },
   secondaryLink: {
     fontSize: typography.sm,
-    fontWeight: '600',
-    marginTop: spacing.xs,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textDecorationLine: 'underline',
+    textUnderlineOffset: 3,
   },
 });
