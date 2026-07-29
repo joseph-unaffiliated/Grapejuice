@@ -310,32 +310,24 @@ export function WebDesktopNav({ collapsed, onToggleCollapse }: Props) {
       </View>
 
       <View style={styles.brandHeader}>
-        {collapsed ? (
+        {/* Same vertical stack collapsed + expanded so nav icons keep a stable Y. */}
+        <View style={styles.collapseRowSpacer} />
+        <View style={styles.logoRow}>
           <View
             style={[
-              styles.collapsedLogoSlot,
+              collapsed ? styles.logoAnchorCollapsed : styles.logoAnchor,
               Platform.OS === 'web' ? ({ cursor: 'default' } as object) : null,
             ]}
             {...logoWebHandlers}
           >
-            <GrapejuiceBrandMark variant="sidebar" align="center" animating={logoHover} loop={false} />
+            <GrapejuiceBrandMark
+              variant="sidebar"
+              align={collapsed ? 'center' : 'left'}
+              animating={logoHover}
+              loop={false}
+            />
           </View>
-        ) : (
-          <>
-            <View style={styles.collapseRowSpacer} />
-            <View style={styles.logoRow}>
-              <View
-                style={[
-                  styles.logoAnchor,
-                  Platform.OS === 'web' ? ({ cursor: 'default' } as object) : null,
-                ]}
-                {...logoWebHandlers}
-              >
-                <GrapejuiceBrandMark variant="sidebar" align="left" animating={logoHover} loop={false} />
-              </View>
-            </View>
-          </>
-        )}
+        </View>
       </View>
 
       <View style={styles.navPrimary}>
@@ -403,13 +395,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1,
   },
-  /** Centered grape mark — occupies the former expand-button slot when collapsed. */
-  collapsedLogoSlot: {
-    width: '100%',
-    height: COLLAPSE_BTN_WIDTH,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   logoRow: {
     position: 'relative',
     width: '100%',
@@ -419,6 +404,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.sm,
     top: spacing.sm,
+  },
+  logoAnchorCollapsed: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   collapseBtn: {
     flexShrink: 0,

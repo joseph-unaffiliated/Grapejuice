@@ -101,26 +101,18 @@ export function ProductImageGallery({
               accessibilityLabel="Previous image"
               disabled={!canPrev}
               onPress={() => setSelected((i) => Math.max(0, i - 1))}
-              style={[
-                styles.arrow,
-                styles.arrowLeft,
-                { backgroundColor: colors.bgPrimary, borderColor: colors.border, opacity: canPrev ? 1 : 0.35 },
-              ]}
+              style={[styles.arrow, styles.arrowLeft, { opacity: canPrev ? 1 : 0.35 }]}
             >
-              <Text style={[styles.arrowText, { color: colors.textPrimary }]}>‹</Text>
+              <Text style={styles.arrowText}>‹</Text>
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel="Next image"
               disabled={!canNext}
               onPress={() => setSelected((i) => Math.min(urls.length - 1, i + 1))}
-              style={[
-                styles.arrow,
-                styles.arrowRight,
-                { backgroundColor: colors.bgPrimary, borderColor: colors.border, opacity: canNext ? 1 : 0.35 },
-              ]}
+              style={[styles.arrow, styles.arrowRight, { opacity: canNext ? 1 : 0.35 }]}
             >
-              <Text style={[styles.arrowText, { color: colors.textPrimary }]}>›</Text>
+              <Text style={styles.arrowText}>›</Text>
             </TouchableOpacity>
           </>
         ) : null}
@@ -135,7 +127,7 @@ const styles = StyleSheet.create({
   root: {
     width: '100%',
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'flex-start',
     gap: spacing.sm,
   },
   thumbsCol: {
@@ -163,8 +155,16 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 0,
     overflow: 'hidden',
-    minHeight: Platform.OS === 'web' ? undefined : 320,
     aspectRatio: 1,
+    ...(Platform.OS === 'web'
+      ? ({
+          // Prefer ~80vh without exceeding the column width or crushing neighbors.
+          width: 'min(100%, 80vh)',
+          maxWidth: '80vh',
+          maxHeight: '80vh',
+          height: 'auto',
+        } as object)
+      : { minHeight: 320 }),
   },
   heroImage: {
     width: '100%',
@@ -181,7 +181,8 @@ const styles = StyleSheet.create({
     marginTop: -22,
     width: 44,
     height: 44,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
@@ -189,9 +190,13 @@ const styles = StyleSheet.create({
   arrowLeft: { left: spacing.sm },
   arrowRight: { right: spacing.sm },
   arrowText: {
-    fontSize: 28,
+    color: '#FFFFFF',
+    fontSize: 36,
     fontWeight: '300',
-    lineHeight: 30,
+    lineHeight: 40,
     marginTop: -2,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });

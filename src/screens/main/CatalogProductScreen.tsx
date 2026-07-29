@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Animated,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -29,14 +30,23 @@ import { similarCatalogItems } from '../../constants/catalogCuration';
 import { ProductImageGallery } from '../../components/catalog/ProductImageGallery';
 import { ProductPricingBlock } from '../../components/catalog/ProductPricingBlock';
 import { SimilarProductsRail } from '../../components/catalog/SimilarProductsRail';
+import {
+  HomeStickySearchHeader,
+  HEADER_DESKTOP_TOP_PAD,
+} from '../../components/home/HomeStickySearchHeader';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { LAYOUT, MOBILE_GUTTER, spacing, typography } from '../../constants/theme';
+import { LAYOUT, MOBILE_GUTTER, spacing, typography, shadowsWeb } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 
-/** Match Home / About Hanukkah desktop top inset. */
-const DESKTOP_CONTENT_TOP = 41;
+const CATEGORY_CHIPS = [
+  { id: 'hanukkah', label: 'Hanukkah' },
+  { id: 'hanukkiahs', label: 'Hanukkiahs' },
+  { id: 'dreidels', label: 'Dreidels' },
+  { id: 'apparel', label: 'Apparel' },
+  { id: 'decorations', label: 'Decorations' },
+] as const;
 
 type DetailRow = { label: string; value: string };
 
@@ -71,7 +81,7 @@ export function CatalogProductScreen() {
   const route = useRoute<RouteProp<MainStackParamList, 'CatalogProduct'>>();
   const { itemId } = route.params;
   const { colors } = useThemeMode();
-  const { isDesktop, layoutWidth } = useWebLayout();
+  const { isDesktop, mainAreaWidth, windowWidth } = useWebLayout();
   const { household } = useSession();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
   const { guardMutation } = usePaymentGate();
@@ -86,6 +96,8 @@ export function CatalogProductScreen() {
   const [locked, setLocked] = useState(false);
   const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
   const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
+  const [searchQuery, setSearchQuery] = useState('');
+  const collapseProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +106,6 @@ export function CatalogProductScreen() {
       if (cancelled) return;
       setLocked(isBoxLocked(config.lockAt));
       if (config.estimatedDeliveryBy) {
-        // Keep marketing window; config end date is the anchor (typically Nov 21).
         setShipWindow(HANUKKAH_SHIP_WINDOW_LABEL);
       }
       setLoadingConfig(false);
@@ -125,12 +136,16 @@ export function CatalogProductScreen() {
   const wishlisted = item ? isWishlisted(item.id) : false;
   const tier = item ? inferPricingTier(item) : 'included';
   const unitCents = item ? unitCentsForTier(tier, item.dollarCostCents) : 0;
-  const isPaid = unitCents > 0;
   const details = useMemo(() => (item ? detailRowsFromItem(item) : []), [item]);
   const similar = useMemo(
     () => (item ? similarCatalogItems(item, catalog, 12) : []),
     [item, catalog]
   );
+  const contentWidth = isDesktop ? mainAreaWidth : windowWidth;
+  const headerShadow =
+    Platform.OS === 'web'
+      ? ({ boxShadow: shadowsWeb.goldBar } as object)
+      : undefined;
 
   const persist = async (next: BoxLineItem[]) => {
     setSaving(true);
@@ -143,7 +158,7 @@ export function CatalogProductScreen() {
 
   const addToCartOrBox = async () => {
     if (!item || locked || inCart) return;
-    if (isPaid && !guardMutation()) return;
+    if (unitCents > 0 && !guardMutation()) return;
     await persist([
       ...lineItems,
       {
@@ -171,7 +186,40 @@ export function CatalogProductScreen() {
       ? 'Add to box'
       : 'Add to cart';
 
+  const submitSearch = () => {
+    const msg = searchQuery.trim();
+    if (!msg) {
+      navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } });
+      return;
+    }
+    navigation.navigate('MainTabs', {
+      screen: 'Rav',
+      params: { newChat: true, initialMessage: msg },
+    });
+    setSearchQuery('');
+  };
+
+  const handleCategoryChip = () => {
+    navigation.navigate('MainTabs', { screen: 'Home' });
+  };
+
   const pageBg = colors.bgPrimary;
+
+  const headerBlock = (
+    <HomeStickySearchHeader
+      collapseProgress={collapseProgress}
+      isDesktop={isDesktop}
+      contentWidth={contentWidth}
+      expandedPaddingTop={isDesktop ? HEADER_DESKTOP_TOP_PAD : spacing.md}
+      searchQuery={searchQuery}
+      onChangeSearch={setSearchQuery}
+      onSubmitSearch={submitSearch}
+      chips={CATEGORY_CHIPS}
+      onChipPress={handleCategoryChip}
+      headerShadow={headerShadow}
+      animatePlaceholder={false}
+    />
+  );
 
   if (loading || draftLoading) {
     return (
@@ -216,14 +264,6 @@ export function CatalogProductScreen() {
         Ships in time for Hanukkah (estimated arrival {shipWindow})
       </Text>
 
-      {isPaid ? (
-        <Text style={[styles.chargeNote, { color: colors.textTertiary }]}>
-          {boxStarted
-            ? 'Added to your box — charged when it ships.'
-            : 'Added to your cart — charged when your box ships.'}
-        </Text>
-      ) : null}
-
       <View style={styles.ctaRow}>
         <TouchableOpacity
           style={[
@@ -259,9 +299,6 @@ export function CatalogProductScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-      <Text style={[styles.wishlistHint, { color: colors.textTertiary }]}>
-        Wishlist favorites help Rav prioritize pieces if you build a Hanukkah box later.
-      </Text>
 
       {details.length > 0 ? (
         <View style={[styles.details, { borderTopColor: colors.border }]}>
@@ -284,7 +321,13 @@ export function CatalogProductScreen() {
       </TouchableOpacity>
 
       <View style={[styles.split, isDesktop && styles.splitDesktop]}>
-        <View style={[styles.galleryCol, isDesktop && styles.galleryColDesktop]}>
+        <View
+          style={[
+            styles.galleryCol,
+            isDesktop && styles.galleryColDesktop,
+            isDesktop && Platform.OS === 'web' ? styles.galleryColSticky : null,
+          ]}
+        >
           <ProductImageGallery
             itemId={item.id}
             imageUrl={item.imageUrl}
@@ -299,39 +342,40 @@ export function CatalogProductScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: pageBg }]} edges={Platform.OS === 'web' ? [] : ['top']}>
-      <WebContentPanel
-        flush={isDesktop}
-        gutter={!isDesktop}
-        centerDesktop={isDesktop}
-        omitDesktopTopPadding={isDesktop}
-        style={[styles.panel, { backgroundColor: pageBg }]}
-      >
-        <View style={[styles.scrollHost, isDesktop && styles.scrollHostDesktopBleed]}>
-          <ScrollView
-            style={[styles.root, { backgroundColor: pageBg }]}
-            contentContainerStyle={[
-              styles.scrollContent,
-              { paddingTop: isDesktop ? DESKTOP_CONTENT_TOP : spacing.md },
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            {isDesktop ? (
-              <View style={[styles.contentColumn, { maxWidth: layoutWidth }]}>{body}</View>
-            ) : (
-              body
-            )}
-          </ScrollView>
-        </View>
-      </WebContentPanel>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: pageBg }]}
+      edges={Platform.OS === 'web' ? [] : ['top']}
+    >
+      <View style={[styles.wrapper, { backgroundColor: pageBg }]}>
+        {isDesktop ? headerBlock : null}
+        <WebContentPanel
+          flush={isDesktop}
+          gutter={!isDesktop}
+          centerDesktop={isDesktop}
+          omitDesktopTopPadding={isDesktop}
+          style={[styles.panel, { backgroundColor: pageBg }]}
+        >
+          {!isDesktop ? headerBlock : null}
+          <View style={[styles.scrollHost, isDesktop && styles.scrollHostDesktopBleed]}>
+            <ScrollView
+              style={[styles.root, { backgroundColor: pageBg }]}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.contentColumn}>{body}</View>
+            </ScrollView>
+          </View>
+        </WebContentPanel>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  wrapper: { flex: 1, width: '100%' },
   panel: { flex: 1, width: '100%', overflow: 'visible' as const },
-  scrollHost: { flex: 1, width: '100%' },
+  scrollHost: { flex: 1, width: '100%', overflow: 'visible' as const },
   /** Match Home — cancel panel gutter so content spans the main-area frame. */
   scrollHostDesktopBleed: {
     marginHorizontal: -LAYOUT.WEB_CONTENT_GUTTER,
@@ -341,12 +385,13 @@ const styles = StyleSheet.create({
   },
   root: { flex: 1, width: '100%' },
   scrollContent: {
+    paddingTop: spacing.md,
     paddingBottom: 140,
     width: '100%',
   },
   contentColumn: {
     width: '100%',
-    alignSelf: 'center',
+    alignSelf: 'stretch',
     paddingHorizontal: MOBILE_GUTTER,
   },
   centered: {
@@ -375,6 +420,13 @@ const styles = StyleSheet.create({
   galleryColDesktop: {
     flex: 0.55,
     maxWidth: '55%',
+    minWidth: 0,
+  },
+  galleryColSticky: {
+    position: 'sticky' as const,
+    top: spacing.md,
+    alignSelf: 'flex-start',
+    zIndex: 2,
   },
   buy: {
     width: '100%',
@@ -384,6 +436,7 @@ const styles = StyleSheet.create({
   buyDesktop: {
     flex: 0.45,
     maxWidth: '42%',
+    minWidth: 0,
     paddingTop: spacing.md,
   },
   name: {
@@ -412,10 +465,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '500',
   },
-  chargeNote: {
-    fontSize: typography.sm,
-    letterSpacing: 0,
-  },
   ctaRow: {
     width: '100%',
     gap: spacing.sm,
@@ -440,11 +489,6 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
-  },
-  wishlistHint: {
-    fontSize: typography.sm,
-    letterSpacing: 0,
-    lineHeight: 18,
   },
   details: {
     marginTop: spacing.xl,
