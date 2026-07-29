@@ -14,7 +14,7 @@ import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
-import { spacing, typography } from '../../constants/theme';
+import { spacing, typography, borderRadius } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import {
   HORIZONTAL_RAIL_SCROLL_CLASS,
@@ -78,7 +78,7 @@ export function SimilarProductsRail({ title = 'You may also like', items }: Prop
             <TouchableOpacity
               key={item.id}
               style={styles.tile}
-              onPress={() => navigation.navigate('CatalogProduct', { itemId: item.id })}
+              onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
               accessibilityRole="button"
             >
               <View style={[styles.imageWell, { backgroundColor: colors.brandLight }]}>
@@ -134,11 +134,12 @@ const styles = StyleSheet.create({
     width: TILE,
     height: TILE,
     overflow: 'hidden',
+    borderRadius: borderRadius.md,
   },
   image: {
     width: TILE,
     height: TILE,
-    borderRadius: 0,
+    borderRadius: borderRadius.md,
   },
   name: {
     fontSize: typography.sm,

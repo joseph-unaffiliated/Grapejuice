@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
-import { spacing } from '../../constants/theme';
+import { borderRadius, spacing } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 
 type Props = {
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   thumb: {
     width: THUMB,
     height: THUMB,
-    borderRadius: 0,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
   },
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     width: '100%',
-    borderRadius: 0,
+    borderRadius: borderRadius.md,
     overflow: 'hidden',
     aspectRatio: 1,
     ...(Platform.OS === 'web'
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   heroFallback: {
     width: '100%',
     height: '100%',
-    borderRadius: 0,
+    borderRadius: borderRadius.md,
   },
   arrow: {
     position: 'absolute',

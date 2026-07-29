@@ -189,7 +189,7 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
     case 'catalog':
       void seedGuestBoxStarted().then(() =>
         setMainNav('CatalogProduct', {
-          itemId: search.get('itemId') ?? DEFAULT_CATALOG_ITEM_ID,
+          slug: search.get('itemId') ?? search.get('slug') ?? DEFAULT_CATALOG_ITEM_ID,
         })
       );
       break;

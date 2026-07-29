@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Platform,
   Animated,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -30,10 +32,7 @@ import { similarCatalogItems } from '../../constants/catalogCuration';
 import { ProductImageGallery } from '../../components/catalog/ProductImageGallery';
 import { ProductPricingBlock } from '../../components/catalog/ProductPricingBlock';
 import { SimilarProductsRail } from '../../components/catalog/SimilarProductsRail';
-import {
-  HomeStickySearchHeader,
-  HEADER_DESKTOP_TOP_PAD,
-} from '../../components/home/HomeStickySearchHeader';
+import { HomeStickySearchHeader } from '../../components/home/HomeStickySearchHeader';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
@@ -47,6 +46,12 @@ const CATEGORY_CHIPS = [
   { id: 'apparel', label: 'Apparel' },
   { id: 'decorations', label: 'Decorations' },
 ] as const;
+
+/** Extra side inset for the PDP content column (beyond mobile gutter). */
+const PDP_SIDE_PAD = spacing.xl;
+/** Fallback collapsed header height until onLayout measures. */
+const COLLAPSED_HEADER_FALLBACK = 88;
+const HEADER_HIDE_MS = 220;
 
 type DetailRow = { label: string; value: string };
 
@@ -79,7 +84,7 @@ function hasActiveHanukkahBoxOrder(orders: { status: string }[]): boolean {
 export function CatalogProductScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'CatalogProduct'>>();
-  const { itemId } = route.params;
+  const { slug } = route.params;
   const { colors } = useThemeMode();
   const { isDesktop, mainAreaWidth, windowWidth } = useWebLayout();
   const { household } = useSession();
@@ -88,8 +93,8 @@ export function CatalogProductScreen() {
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
   const { items: catalog, loading: catalogLoading } = useCatalog();
   const item = useMemo(
-    () => catalog.find((c) => c.id === itemId) ?? null,
-    [catalog, itemId]
+    () => catalog.find((c) => c.id === slug) ?? null,
+    [catalog, slug]
   );
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,7 +102,41 @@ export function CatalogProductScreen() {
   const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
   const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
   const [searchQuery, setSearchQuery] = useState('');
-  const collapseProgress = useRef(new Animated.Value(0)).current;
+  /** Always collapsed on PDP (chips hidden, compact padding). */
+  const collapseProgress = useRef(new Animated.Value(1)).current;
+  const headerTranslateY = useRef(new Animated.Value(0)).current;
+  const headerVisibleRef = useRef(true);
+  const lastScrollYRef = useRef(0);
+  const [headerHeight, setHeaderHeight] = useState(COLLAPSED_HEADER_FALLBACK);
+
+  const setHeaderVisible = useCallback(
+    (visible: boolean) => {
+      if (headerVisibleRef.current === visible) return;
+      headerVisibleRef.current = visible;
+      Animated.timing(headerTranslateY, {
+        toValue: visible ? 0 : -(headerHeight || COLLAPSED_HEADER_FALLBACK),
+        duration: HEADER_HIDE_MS,
+        useNativeDriver: true,
+      }).start();
+    },
+    [headerHeight, headerTranslateY]
+  );
+
+  const onProductScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const y = e.nativeEvent.contentOffset.y;
+      const prev = lastScrollYRef.current;
+      const delta = y - prev;
+      lastScrollYRef.current = y;
+      if (y <= 8) {
+        setHeaderVisible(true);
+        return;
+      }
+      if (delta > 6) setHeaderVisible(false);
+      else if (delta < -6) setHeaderVisible(true);
+    },
+    [setHeaderVisible]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -132,7 +171,7 @@ export function CatalogProductScreen() {
 
   const loading = catalogLoading || loadingConfig;
   const boxStarted = lineItems.length > 0;
-  const inCart = useMemo(() => lineItems.some((li) => li.itemId === itemId), [lineItems, itemId]);
+  const inCart = useMemo(() => lineItems.some((li) => li.itemId === slug), [lineItems, slug]);
   const wishlisted = item ? isWishlisted(item.id) : false;
   const tier = item ? inferPricingTier(item) : 'included';
   const unitCents = item ? unitCentsForTier(tier, item.dollarCostCents) : 0;
@@ -174,7 +213,7 @@ export function CatalogProductScreen() {
 
   const removeFromCartOrBox = async () => {
     if (locked) return;
-    await persist(lineItems.filter((li) => li.itemId !== itemId));
+    await persist(lineItems.filter((li) => li.itemId !== slug));
     navigation.goBack();
   };
 
@@ -210,7 +249,7 @@ export function CatalogProductScreen() {
       collapseProgress={collapseProgress}
       isDesktop={isDesktop}
       contentWidth={contentWidth}
-      expandedPaddingTop={isDesktop ? HEADER_DESKTOP_TOP_PAD : spacing.md}
+      expandedPaddingTop={spacing.lg}
       searchQuery={searchQuery}
       onChangeSearch={setSearchQuery}
       onSubmitSearch={submitSearch}
@@ -347,7 +386,18 @@ export function CatalogProductScreen() {
       edges={Platform.OS === 'web' ? [] : ['top']}
     >
       <View style={[styles.wrapper, { backgroundColor: pageBg }]}>
-        {isDesktop ? headerBlock : null}
+        <Animated.View
+          onLayout={(e) => {
+            const h = Math.round(e.nativeEvent.layout.height);
+            if (h > 0 && h !== headerHeight) setHeaderHeight(h);
+          }}
+          style={[
+            styles.headerBar,
+            { backgroundColor: pageBg, transform: [{ translateY: headerTranslateY }] },
+          ]}
+        >
+          {headerBlock}
+        </Animated.View>
         <WebContentPanel
           flush={isDesktop}
           gutter={!isDesktop}
@@ -355,14 +405,22 @@ export function CatalogProductScreen() {
           omitDesktopTopPadding={isDesktop}
           style={[styles.panel, { backgroundColor: pageBg }]}
         >
-          {!isDesktop ? headerBlock : null}
           <View style={[styles.scrollHost, isDesktop && styles.scrollHostDesktopBleed]}>
             <ScrollView
               style={[styles.root, { backgroundColor: pageBg }]}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + spacing.md }]}
               showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={onProductScroll}
             >
-              <View style={styles.contentColumn}>{body}</View>
+              <View
+                style={[
+                  styles.contentColumn,
+                  isDesktop && styles.contentColumnDesktop,
+                ]}
+              >
+                {body}
+              </View>
             </ScrollView>
           </View>
         </WebContentPanel>
@@ -373,7 +431,15 @@ export function CatalogProductScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  wrapper: { flex: 1, width: '100%' },
+  wrapper: { flex: 1, width: '100%', position: 'relative' },
+  headerBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 30,
+    ...(Platform.OS === 'web' ? ({ willChange: 'transform' } as object) : null),
+  },
   panel: { flex: 1, width: '100%', overflow: 'visible' as const },
   scrollHost: { flex: 1, width: '100%', overflow: 'visible' as const },
   /** Match Home — cancel panel gutter so content spans the main-area frame. */
@@ -385,7 +451,6 @@ const styles = StyleSheet.create({
   },
   root: { flex: 1, width: '100%' },
   scrollContent: {
-    paddingTop: spacing.md,
     paddingBottom: 140,
     width: '100%',
   },
@@ -393,6 +458,9 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'stretch',
     paddingHorizontal: MOBILE_GUTTER,
+  },
+  contentColumnDesktop: {
+    paddingHorizontal: MOBILE_GUTTER + PDP_SIDE_PAD,
   },
   centered: {
     flex: 1,
