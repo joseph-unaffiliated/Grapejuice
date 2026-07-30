@@ -30,13 +30,12 @@ type Props = {
   onLogoPress?: () => void;
 };
 
-/** Fixed side column width so the centered logo sits on the true screen midpoint. */
+/** Fixed side column width so the centered search sits on the true screen midpoint. */
 const SIDE_COL = 340;
 
 /**
- * C&B-style header: fixed-width side columns + absolutely centered logomark on desktop.
- * On mobile: logo + icon actions on one row, full-width search below — no absolute overlay.
- * Search uses the same typewriter pill as Home / Rav.
+ * Desktop: logo left, centered SearchPill, account actions right.
+ * Mobile: logo + icons on one row, full-width search below.
  */
 export function StorefrontHeader({ onLogoPress }: Props) {
   const navigation = useNavigation<Nav>();
@@ -130,9 +129,9 @@ export function StorefrontHeader({ onLogoPress }: Props) {
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        <View style={styles.sideLeft}>{searchField}</View>
-        <View style={styles.logoSlot} pointerEvents="box-none">
-          {logo}
+        <View style={styles.sideLeft}>{logo}</View>
+        <View style={styles.searchSlot} pointerEvents="box-none">
+          <View style={styles.searchCentered}>{searchField}</View>
         </View>
         {actions}
       </View>
@@ -167,7 +166,7 @@ const styles = StyleSheet.create({
   },
   sideLeft: {
     width: SIDE_COL,
-    maxWidth: '42%',
+    maxWidth: '38%',
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 1,
@@ -190,12 +189,13 @@ const styles = StyleSheet.create({
   searchWrap: {
     flex: 1,
     minWidth: 0,
+    width: '100%',
   },
   searchWrapCompact: {
     flex: undefined,
     width: '100%',
   },
-  logoSlot: {
+  searchSlot: {
     position: 'absolute',
     left: 0,
     right: 0,
@@ -204,6 +204,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 0,
+  },
+  searchCentered: {
+    width: '100%',
+    maxWidth: SIDE_COL,
+    paddingHorizontal: spacing.sm,
   },
   logoHit: {
     flexDirection: 'row',

@@ -10,7 +10,7 @@ import {
 
 const LINES = [
   'Free shipping on Hanukkah box orders',
-  'Build a box · Ask Rav · arrives by Nov 20',
+  'Arrives by Nov 20',
 ];
 
 export function StorefrontPromoStrip() {
