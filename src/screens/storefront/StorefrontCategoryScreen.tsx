@@ -12,7 +12,6 @@ import { useRoute, type RouteProp } from '@react-navigation/native';
 import {
   StorefrontChrome,
   useStorefrontActions,
-  STOREFRONT_SCROLL_CLASS,
   STOREFRONT_H_SCROLL_CLASS,
 } from '../../components/storefront/StorefrontChrome';
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
@@ -98,14 +97,7 @@ export function StorefrontCategoryScreen() {
 
   return (
     <StorefrontChrome activeCategory={slug}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        // @ts-expect-error web className
-        className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
-        testID="storefront-vertical-scroll"
-      >
+      <View style={styles.page}>
         <View style={styles.breadcrumb}>
           <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
             Store
@@ -235,14 +227,13 @@ export function StorefrontCategoryScreen() {
           }
         />
         <StorefrontBuildBoxStrip onPress={startBox} />
-      </ScrollView>
+      </View>
     </StorefrontChrome>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, minHeight: 0 },
-  content: { paddingBottom: spacing.xxl, flexGrow: 1 },
+  page: {},
   breadcrumb: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Platform,
@@ -32,7 +31,6 @@ import { SimilarProductsRail } from '../../components/catalog/SimilarProductsRai
 import {
   StorefrontChrome,
   useStorefrontActions,
-  STOREFRONT_SCROLL_CLASS,
 } from '../../components/storefront/StorefrontChrome';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
@@ -205,16 +203,11 @@ export function CatalogProductScreen() {
   }
 
   return (
-    <StorefrontChrome activeCategory={aisle?.slug}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        // @ts-expect-error web className
-        className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
-        testID="storefront-vertical-scroll"
-      >
-        <View style={styles.breadcrumb}>
+    <StorefrontChrome
+      activeCategory={aisle?.slug}
+      contentContainerStyle={styles.content}
+    >
+      <View style={styles.breadcrumb}>
           <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
             Store
           </Text>
@@ -307,17 +300,11 @@ export function CatalogProductScreen() {
         </View>
 
         <SimilarProductsRail items={similar} />
-      </ScrollView>
     </StorefrontChrome>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-    minHeight: 0,
-    backgroundColor: semanticColors.bgPrimary,
-  },
   content: {
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.lg,

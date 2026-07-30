@@ -1,5 +1,12 @@
-import React, { type ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { type ReactNode, type Ref } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip } from './StorefrontPromoStrip';
@@ -29,9 +36,47 @@ type Props = {
   children: ReactNode;
   activeCategory?: string;
   onShopLook?: () => void;
+  /** Optional ref to the page ScrollView (e.g. home “scroll to look”). */
+  scrollRef?: Ref<ScrollView>;
+  contentContainerStyle?: object;
 };
 
-export function StorefrontChrome({ children, activeCategory, onShopLook }: Props) {
+function StorefrontFooter() {
+  const navigation = useNavigation<Nav>();
+  const goHome = () => navigation.navigate('StorefrontHome');
+
+  return (
+    <View style={styles.footer}>
+      <TouchableOpacity onPress={goHome} accessibilityRole="button">
+        <Text style={styles.footerLink}>Store home</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('AboutHanukkah')}
+        accessibilityRole="button"
+      >
+        <Text style={styles.footerLink}>About Hanukkah</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
+        accessibilityRole="button"
+      >
+        <Text style={styles.footerLink}>Account</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/**
+ * Storefront shell: sticky chrome + one page ScrollView that includes the footer.
+ * Screens pass page body only — do not nest another vertical ScrollView.
+ */
+export function StorefrontChrome({
+  children,
+  activeCategory,
+  onShopLook,
+  scrollRef,
+  contentContainerStyle,
+}: Props) {
   const navigation = useNavigation<Nav>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
@@ -84,24 +129,19 @@ export function StorefrontChrome({ children, activeCategory, onShopLook }: Props
         <StorefrontServicesNav onPress={onService} />
         <StorefrontCategoryNav activeSlug={activeCategory} onPress={goCategory} />
       </View>
-      <View style={styles.body}>{children}</View>
-      <View style={styles.footer}>
-        <TouchableOpacity onPress={goHome} accessibilityRole="button">
-          <Text style={styles.footerLink}>Store home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('AboutHanukkah')}
-          accessibilityRole="button"
-        >
-          <Text style={styles.footerLink}>About Hanukkah</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
-          accessibilityRole="button"
-        >
-          <Text style={styles.footerLink}>Account</Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        // @ts-expect-error web className
+        className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
+        testID="storefront-vertical-scroll"
+      >
+        {children}
+        <StorefrontFooter />
+      </ScrollView>
     </View>
   );
 }
@@ -149,18 +189,22 @@ const styles = StyleSheet.create({
     zIndex: 5,
     backgroundColor: semanticColors.bgPrimary,
   },
-  body: {
+  scroll: {
     flex: 1,
     minHeight: 0,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xxl,
+  },
   footer: {
-    flexShrink: 0,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: spacing.lg,
     paddingVertical: spacing.xl,
     paddingHorizontal: MOBILE_GUTTER,
+    marginTop: spacing.xl,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: semanticColors.border,
     backgroundColor: semanticColors.bgDark,

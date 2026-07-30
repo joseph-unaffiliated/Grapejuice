@@ -6,9 +6,8 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
-import { StorefrontChrome, useStorefrontActions, STOREFRONT_SCROLL_CLASS } from '../../components/storefront/StorefrontChrome';
+import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { StorefrontHero } from '../../components/storefront/StorefrontHero';
 import { StorefrontBoxFeature } from '../../components/storefront/StorefrontBoxFeature';
 import { StorefrontEditorialBand } from '../../components/storefront/StorefrontEditorialBand';
@@ -122,17 +121,8 @@ export function StorefrontHomeScreen() {
   };
 
   return (
-    <StorefrontChrome onShopLook={scrollToLook}>
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        // @ts-expect-error web className
-        className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
-        testID="storefront-vertical-scroll"
-      >
-        <StorefrontHero onShopLook={() => goCategory('menorahs')} onBuildBox={startBox} />
+    <StorefrontChrome onShopLook={scrollToLook} scrollRef={scrollRef}>
+      <StorefrontHero onShopLook={() => goCategory('menorahs')} onBuildBox={startBox} />
 
         {/* Products first */}
         <View
@@ -229,7 +219,6 @@ export function StorefrontHomeScreen() {
         <StorefrontProductGrid items={books} limit={6} />
 
         <StorefrontBoxFeature onBuildBox={startBox} />
-      </ScrollView>
     </StorefrontChrome>
   );
 }
@@ -276,11 +265,6 @@ function SubSectionHeader({ title }: { title: string }) {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, minHeight: 0 },
-  content: {
-    paddingBottom: spacing.xxl,
-    flexGrow: 1,
-  },
   loader: { marginVertical: spacing.xl },
   sectionHead: {
     paddingHorizontal: MOBILE_GUTTER,
