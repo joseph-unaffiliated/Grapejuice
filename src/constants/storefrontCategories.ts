@@ -9,6 +9,11 @@ export type StorefrontCategoryDef = {
   match: (item: CatalogItem) => boolean;
 };
 
+/** Legacy aisle slugs → current storefront category. */
+const STOREFRONT_CATEGORY_ALIASES: Record<string, string> = {
+  decor: 'gifts',
+};
+
 /** Books stay in their own aisle — never mixed into other storefront categories. */
 export function isBookItem(item: CatalogItem): boolean {
   if (item.category === 'Book') return true;
@@ -20,7 +25,20 @@ export function isBookItem(item: CatalogItem): boolean {
 export function isFoodItem(item: CatalogItem): boolean {
   if (isBookItem(item)) return false;
   if (item.category === 'Food') return true;
-  return /gelt|latke|sufgan|cookie.?cutter|applesauce|donut/i.test(item.name);
+  return /gelt|latke|sufgan|cookie.?cutter|applesauce|donut|napkin/i.test(item.name);
+}
+
+/** Apparel, activities, former decor (runners, banners), and wrap-ready gifts. */
+export function isGiftItem(item: CatalogItem): boolean {
+  if (isBookItem(item) || isFoodItem(item)) return false;
+  const tags = getCurationTags(item);
+  return (
+    tags.includes('apparel') ||
+    tags.includes('decorations') ||
+    item.category === 'Activity' ||
+    item.category === 'Other' ||
+    /gift|pyjama|pajama|blanket|runner|banner|garland|decor/i.test(item.name)
+  );
 }
 
 export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
@@ -65,20 +83,8 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     slug: 'food',
     label: 'Food',
     title: 'Food',
-    description: 'Gelt, latkes, sufganiyot, and soft treats.',
+    description: 'Gelt, latkes, sufganiyot, napkins, and soft treats.',
     match: isFoodItem,
-  },
-  {
-    slug: 'decor',
-    label: 'Decor',
-    title: 'Table & Decor',
-    description: 'Runners, napkins, and pieces that set the stage.',
-    match: (item) =>
-      !isBookItem(item) &&
-      !isFoodItem(item) &&
-      (getCurationTags(item).includes('decorations') ||
-        item.category === 'Other' ||
-        /runner|napkin|banner|garland|decor/i.test(item.name)),
   },
   {
     slug: 'books',
@@ -91,21 +97,22 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     slug: 'gifts',
     label: 'Gifts',
     title: 'Gifts',
-    description: 'Apparel, activities, and small joys ready to wrap.',
-    match: (item) =>
-      !isBookItem(item) &&
-      !isFoodItem(item) &&
-      (getCurationTags(item).includes('apparel') ||
-        item.category === 'Activity' ||
-        /gift|pyjama|pajama|blanket/i.test(item.name)),
+    description: 'Apparel, table pieces, activities, and small joys ready to wrap.',
+    match: isGiftItem,
   },
 ];
 
 export const DEFAULT_STOREFRONT_CATEGORY = 'menorahs';
 
-export function storefrontCategoryBySlug(slug: string): StorefrontCategoryDef | undefined {
+/** Canonical storefront aisle slug (applies legacy aliases like `decor` → `gifts`). */
+export function resolveStorefrontCategorySlug(slug: string): string {
   const clean = slug.trim().toLowerCase();
-  return STOREFRONT_CATEGORIES.find((c) => c.slug === clean);
+  return STOREFRONT_CATEGORY_ALIASES[clean] ?? clean;
+}
+
+export function storefrontCategoryBySlug(slug: string): StorefrontCategoryDef | undefined {
+  const resolved = resolveStorefrontCategorySlug(slug);
+  return STOREFRONT_CATEGORIES.find((c) => c.slug === resolved);
 }
 
 /** First matching storefront aisle for a catalog item (for PDP chrome / breadcrumbs). */

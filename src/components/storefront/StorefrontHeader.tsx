@@ -95,12 +95,23 @@ export function StorefrontHeader({ onLogoPress }: Props) {
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.action}
+        onPress={() => navigation.navigate('History')}
+        accessibilityRole="button"
+        accessibilityLabel="History"
+      >
+        <Icon icon={icons.clockHistory} size={16} color={semanticColors.logoDark} />
+        {compact ? null : <Text style={styles.actionLabel}>History</Text>}
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.action}
         onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
         accessibilityRole="button"
-        accessibilityLabel={`Wishlist, ${ids.length} items`}
+        accessibilityLabel={`Favorites, ${ids.length} items`}
       >
         <Icon icon={icons.heart} size={16} color={semanticColors.logoDark} />
-        <Text style={styles.actionLabel}>{ids.length}</Text>
+        <Text style={styles.actionLabel}>
+          {compact ? ids.length : `Favorites (${ids.length})`}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.action}
@@ -130,8 +141,8 @@ export function StorefrontHeader({ onLogoPress }: Props) {
     <View style={styles.root}>
       <View style={styles.row}>
         <View style={styles.sideLeft}>{logo}</View>
-        <View style={styles.searchSlot} pointerEvents="box-none">
-          <View style={styles.searchCentered}>{searchField}</View>
+        <View style={styles.searchMiddle} pointerEvents="box-none">
+          {searchField}
         </View>
         {actions}
       </View>
@@ -149,12 +160,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   row: {
-    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
     minHeight: 44,
+    gap: spacing.sm,
   },
   mobileTop: {
     flexDirection: 'row',
@@ -169,6 +180,7 @@ const styles = StyleSheet.create({
     maxWidth: '38%',
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
     zIndex: 1,
   },
   sideRight: {
@@ -178,6 +190,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: spacing.md,
+    flexShrink: 0,
     zIndex: 1,
   },
   sideRightCompact: {
@@ -186,29 +199,21 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     gap: spacing.md,
   },
-  searchWrap: {
+  searchMiddle: {
     flex: 1,
     minWidth: 0,
-    width: '100%',
-  },
-  searchWrapCompact: {
-    flex: undefined,
-    width: '100%',
-  },
-  searchSlot: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 0,
   },
-  searchCentered: {
+  searchWrap: {
     width: '100%',
     maxWidth: SIDE_COL,
-    paddingHorizontal: spacing.sm,
+    minWidth: 0,
+  },
+  searchWrapCompact: {
+    maxWidth: undefined,
+    width: '100%',
   },
   logoHit: {
     flexDirection: 'row',

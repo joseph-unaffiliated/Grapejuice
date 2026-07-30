@@ -16,6 +16,8 @@ export type StorefrontMediaSlot = {
   label: string;
   headline?: string;
   body?: string;
+  /** Optional second line under `body` (e.g. hero date callout). */
+  bodySecondary?: string;
   ctaLabel?: string;
   /** Category slug, product slug, or special: 'box' | 'rav' | 'look'. */
   href?: string;
@@ -31,8 +33,9 @@ export const STOREFRONT_HERO: StorefrontMediaSlot = {
   kind: 'image',
   aspect: '32/9',
   label: 'Lifestyle — Hanukkah table',
-  headline: 'Light the season',
-  body: 'Menorahs, dreidels, and table pieces for nights that feel like home.',
+  headline: 'Hanukkah Made Easy',
+  body: 'Everything you need, delivered straight to your home',
+  bodySecondary: 'Hanukkah starts sundown Dec. 4th, 2026',
   ctaLabel: 'Browse the Collection',
   href: 'collection',
   src: require('../../assets/storefront/hero-menorahs-trio-ultrawide.webp'),
@@ -46,8 +49,8 @@ export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
     label: 'Lifestyle — Kitchen food',
     headline: 'Set the table for eight nights',
     body: 'A short look at how a Grapejuice table comes together.',
-    ctaLabel: 'Shop Decor',
-    href: 'decor',
+    ctaLabel: 'Shop Gifts',
+    href: 'gifts',
     src: require('../../assets/storefront/editorial-setting-table.webp'),
   },
   {
@@ -56,7 +59,7 @@ export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
     aspect: '3/2',
     label: 'Lifestyle — Kids toys',
     headline: 'Toys for little hands',
-    body: 'Stuffies, a clay dreidel, a wood play menorah, and a story.',
+    body: 'Stuffies, a clay dreidel, a wood play menorah, and a story. Can come pre-wrapped in Hanukkah themed paper when ordered with a box.',
     ctaLabel: 'Shop Gifts',
     href: 'gifts',
     src: require('../../assets/storefront/editorial-gift-stack.webp'),

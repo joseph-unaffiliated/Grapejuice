@@ -129,8 +129,8 @@ export type CatalogItem = {
   curationTags?: CatalogCurationTag[];
   /**
    * Airtable "Storefront rails" multi-select.
-   * Values: most-loved | menorahs-collection | menorahs-kids | dreidels | candles | decor | books | gifts
-   * Legacy: menorahs (treated as menorahs-collection)
+   * Values: most-loved | menorahs-collection | menorahs-kids | dreidels | candles | books | gifts
+   * Legacy: menorahs (→ menorahs-collection), decor (→ gifts aisle via storefront alias)
    */
   storefrontRails?: string[];
   /** Airtable "Storefront rank" — lower first within a rail. */

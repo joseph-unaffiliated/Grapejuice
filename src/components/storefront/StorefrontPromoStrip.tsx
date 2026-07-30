@@ -19,10 +19,17 @@ export function StorefrontPromoStrip() {
 
   return (
     <View style={[styles.root, compact && styles.rootCompact]}>
-      {LINES.map((line) => (
-        <Text key={line} style={styles.line} numberOfLines={1}>
-          {line}
-        </Text>
+      {LINES.map((line, index) => (
+        <React.Fragment key={line}>
+          {index > 0 && !compact ? (
+            <Text style={styles.line} accessible={false}>
+              •
+            </Text>
+          ) : null}
+          <Text style={styles.line} numberOfLines={1}>
+            {line}
+          </Text>
+        </React.Fragment>
       ))}
     </View>
   );
@@ -34,7 +41,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     backgroundColor: semanticColors.accentCream,

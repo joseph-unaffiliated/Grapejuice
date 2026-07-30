@@ -40,6 +40,7 @@ export type MainStackParamList = {
   OrderConfirmation: { orderId: string };
   Reflection: undefined;
   AboutHanukkah: undefined;
+  History: undefined;
   GiftGive: undefined;
   GiftGiverCustomize: {
     form: GiftGiveFormValues;

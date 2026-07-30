@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     gap: spacing.lg,
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.sm,

@@ -38,12 +38,14 @@ const INCLUSIONS: { title: string; note: string }[] = [
 
 type Props = {
   onBuildBox: () => void;
+  onEligibility: () => void;
 };
 
-export function StorefrontBoxFeature({ onBuildBox }: Props) {
+export function StorefrontBoxFeature({ onBuildBox, onEligibility }: Props) {
   const { width } = useWindowDimensions();
   const stacked = width < 768;
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
+  const buildLabel = `Build your box (${boxPrice})`;
 
   return (
     <View style={styles.root}>
@@ -68,10 +70,6 @@ export function StorefrontBoxFeature({ onBuildBox }: Props) {
             There’s no standard box. A short quiz tells us about your household —
             then we curate 8–12 pieces you can swap before lock.
           </Text>
-          <Text style={styles.bodyEmphasis}>
-            Get the box and unlock member prices on everything in the store —
-            often deep discounts vs shopping à la carte.
-          </Text>
 
           <Text style={styles.checklistLabel}>What might be inside</Text>
           <View style={styles.checklist}>
@@ -93,9 +91,19 @@ export function StorefrontBoxFeature({ onBuildBox }: Props) {
               style={styles.ctaPrimary}
               onPress={onBuildBox}
               accessibilityRole="button"
-              accessibilityLabel="Build your box"
+              accessibilityLabel={buildLabel}
             >
-              <Text style={styles.ctaPrimaryText}>Build your box</Text>
+              <Text style={styles.ctaPrimaryText}>{buildLabel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.ctaSecondary}
+              onPress={onEligibility}
+              accessibilityRole="button"
+              accessibilityLabel="See if I'm eligible for a discounted rate"
+            >
+              <Text style={styles.ctaSecondaryText}>
+                See if I’m eligible for a discounted rate
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -145,6 +153,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 4 / 5,
     maxHeight: 640,
+    borderWidth: 0,
   },
   priceOverlay: {
     position: 'absolute',
@@ -158,17 +167,17 @@ const styles = StyleSheet.create({
     fontSize: 40,
     lineHeight: 44,
     color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    textShadowRadius: 12,
   },
   priceNote: {
     ...typeface('regular'),
     fontSize: typography.sm,
     color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 8,
   },
   eyebrow: {
     ...typeface('regular'),
@@ -189,12 +198,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     color: semanticColors.textSecondary,
-  },
-  bodyEmphasis: {
-    ...typeface('medium'),
-    fontSize: 16,
-    lineHeight: 24,
-    color: semanticColors.logoDark,
   },
   checklistLabel: {
     ...typeface('medium'),
@@ -250,6 +253,19 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
   },
   ctaPrimaryText: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: semanticColors.logoDark,
+  },
+  ctaSecondary: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: semanticColors.border,
+  },
+  ctaSecondaryText: {
     ...typeface('medium'),
     fontSize: typography.md,
     color: semanticColors.logoDark,

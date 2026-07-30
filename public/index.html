@@ -23,6 +23,21 @@
       select {
         font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
+      /* SearchPill multiline textarea — thin thumb matching semanticColors.goldMuted (#B8AC7F) */
+      #root .gj-search-pill-input {
+        scrollbar-width: thin;
+        scrollbar-color: #B8AC7F transparent;
+      }
+      #root .gj-search-pill-input::-webkit-scrollbar {
+        width: 4px;
+      }
+      #root .gj-search-pill-input::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      #root .gj-search-pill-input::-webkit-scrollbar-thumb {
+        background-color: #B8AC7F;
+        border-radius: 2px;
+      }
       #root {
         display: flex;
         min-height: 100%;

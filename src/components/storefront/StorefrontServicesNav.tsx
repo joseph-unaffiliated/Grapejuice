@@ -19,7 +19,6 @@ export type StorefrontServiceId = 'new' | 'box' | 'rav' | 'loved' | 'moments';
 const SERVICES: { id: StorefrontServiceId; label: string }[] = [
   { id: 'new', label: 'New' },
   { id: 'box', label: 'Build a Hanukkah box' },
-  { id: 'rav', label: 'Ask Rav' },
   { id: 'loved', label: 'Most loved' },
   { id: 'moments', label: 'Shop by moment' },
 ];
@@ -78,7 +77,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     gap: spacing.lg,
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.sm,

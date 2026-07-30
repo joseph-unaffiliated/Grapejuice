@@ -45,9 +45,9 @@ const styles = StyleSheet.create({
     fontSize: 36,
     lineHeight: 40,
     color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    textShadowRadius: 12,
   },
   priceCompact: {
     fontSize: 28,
@@ -58,9 +58,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 8,
   },
   captionCompact: {
     fontSize: 11,

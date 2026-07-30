@@ -42,7 +42,7 @@ export function buildRavStarterChips(hanukkahStartsOn: string | null): RavStarte
 
 /** Static messages for search faux-typing (Home + storefront). */
 export const RAV_TYPEWRITER_PROMPTS: readonly string[] = [
-  'What do I need for Hanukkah',
+  'What do I need for Hanukkah?',
   'Why does the date of Hanukkah change every year?',
   'Help me plan a Hanukkah party',
   'What is the right way to light candles?',

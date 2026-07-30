@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import type { AuthStackParamList } from '../navigation/types';
 
-export type AuthReturnRoute = 'Checkout' | 'Rav' | 'Account' | 'Profiles' | 'MyBox' | 'GiftClaim';
+export type AuthReturnRoute =
+  | 'Checkout'
+  | 'Rav'
+  | 'Account'
+  | 'Profiles'
+  | 'MyBox'
+  | 'GiftClaim'
+  | 'History';
 
 type AuthEntry = 'signup' | 'signin';
 

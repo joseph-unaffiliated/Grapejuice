@@ -16,6 +16,7 @@ import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useSession } from '../../hooks/useSession';
 import { useWishlist } from '../../hooks/useWishlist';
+import { useBrowsingHistoryStore } from '../../stores/browsingHistoryStore';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { ordersService } from '../../services/firestore/orders';
 import {
@@ -81,6 +82,7 @@ export function CatalogProductScreen() {
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
   const { guardMutation } = usePaymentGate();
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
+  const recordBrowseView = useBrowsingHistoryStore((s) => s.recordView);
   const { items: catalog, loading: catalogLoading } = useCatalog();
   const { goHome, goCategory } = useStorefrontActions();
   const item = useMemo(
@@ -97,6 +99,11 @@ export function CatalogProductScreen() {
       title: item?.name?.trim() || 'Product',
     });
   }, [navigation, item?.name]);
+
+  useEffect(() => {
+    if (!item?.id) return;
+    recordBrowseView({ id: item.id, name: item.name });
+  }, [item?.id, item?.name, recordBrowseView]);
 
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -210,11 +217,10 @@ export function CatalogProductScreen() {
   }
 
   return (
-    <StorefrontChrome
-      activeCategory={aisle?.slug}
-      contentContainerStyle={styles.content}
-    >
-      <View style={styles.breadcrumb}>
+    <StorefrontChrome activeCategory={aisle?.slug}>
+      {/* Padding on body only — chrome/footer stay full-bleed like /store */}
+      <View style={styles.body}>
+        <View style={styles.breadcrumb}>
           <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
             Store
           </Text>
@@ -307,17 +313,17 @@ export function CatalogProductScreen() {
         </View>
 
         <SimilarProductsRail items={similar} />
+      </View>
     </StorefrontChrome>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  body: {
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.xl,
-    flexGrow: 1,
   },
   centered: {
     flex: 1,

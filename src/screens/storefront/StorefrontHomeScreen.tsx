@@ -36,7 +36,7 @@ import {
 
 export function StorefrontHomeScreen() {
   const { items, loading } = useCatalog();
-  const { startBox, askRav, goCategory } = useStorefrontActions();
+  const { startBox, askRav, goCategory, goEligibility } = useStorefrontActions();
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
 
@@ -214,7 +214,7 @@ export function StorefrontHomeScreen() {
         />
         <StorefrontProductGrid items={books} limit={6} />
 
-        <StorefrontBoxFeature onBuildBox={startBox} />
+        <StorefrontBoxFeature onBuildBox={startBox} onEligibility={goEligibility} />
     </StorefrontChrome>
   );
 }

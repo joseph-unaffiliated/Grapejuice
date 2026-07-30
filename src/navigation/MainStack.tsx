@@ -16,6 +16,7 @@ import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
 import { AboutHanukkahScreen } from '../screens/main/AboutHanukkahScreen';
+import { HistoryScreen } from '../screens/main/HistoryScreen';
 import { GiftGiveScreen } from '../screens/gift/GiftGiveScreen';
 import { GiftGiverCustomizeScreen } from '../screens/gift/GiftGiverCustomizeScreen';
 import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
@@ -89,6 +90,11 @@ function AuthReturnHandler() {
       const token = pendingGiftClaimToken;
       clearPending();
       if (token) navigation.navigate('GiftClaim', { token });
+      return;
+    }
+    if (pendingReturn === 'History') {
+      clearPending();
+      navigation.navigate('History');
     }
   }, [isAuthenticated, pendingReturn, pendingGiftClaimToken, clearPending, navigation]);
 
@@ -168,6 +174,7 @@ export function MainStack() {
           component={AboutHanukkahScreen}
           options={{ title: 'About Hanukkah' }}
         />
+        <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
         <Stack.Screen name="GiftGive" component={GiftGiveScreen} options={{ title: 'Give a gift' }} />
         <Stack.Screen
           name="GiftGiverCustomize"

@@ -22,6 +22,7 @@ import {
   DEFAULT_STOREFRONT_CATEGORY,
   STOREFRONT_CATEGORIES,
   filterByStorefrontCategory,
+  resolveStorefrontCategorySlug,
   storefrontCategoryBySlug,
 } from '../../constants/storefrontCategories';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -70,13 +71,20 @@ function sortItems(items: CatalogItem[], sort: SortKey): CatalogItem[] {
 export function StorefrontCategoryScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'StorefrontCategory'>>();
-  const slug = (route.params?.category || DEFAULT_STOREFRONT_CATEGORY).toLowerCase();
+  const rawSlug = (route.params?.category || DEFAULT_STOREFRONT_CATEGORY).toLowerCase();
+  const slug = resolveStorefrontCategorySlug(rawSlug);
   const def = storefrontCategoryBySlug(slug);
   const { items, loading } = useCatalog();
   const { goHome, goCategory, askRav, startBox } = useStorefrontActions();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [ageFilter, setAgeFilter] = useState<AgeGroup | 'all'>('all');
   const [withImageOnly, setWithImageOnly] = useState(false);
+
+  useEffect(() => {
+    if (rawSlug !== slug) {
+      navigation.replace('StorefrontCategory', { category: slug });
+    }
+  }, [navigation, rawSlug, slug]);
 
   useEffect(() => {
     navigation.setOptions({

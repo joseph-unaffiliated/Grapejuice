@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
-import { DEFAULT_STOREFRONT_CATEGORY } from '../constants/storefrontCategories';
+import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
 import { readStorePathFromWindow } from './storeLink';
 
 function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category: string }): void {
@@ -13,7 +13,11 @@ function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category
   }
   navigationRef.navigate('Main', {
     screen: 'StorefrontCategory',
-    params: { category: target.category || DEFAULT_STOREFRONT_CATEGORY },
+    params: {
+      category: resolveStorefrontCategorySlug(
+        target.category || DEFAULT_STOREFRONT_CATEGORY
+      ),
+    },
   });
 }
 

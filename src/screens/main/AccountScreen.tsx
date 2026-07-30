@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Linking,
   TextInput,
   Platform,
 } from 'react-native';
@@ -24,6 +23,7 @@ import {
   listPartnerInvites,
   acceptPartnerInvite,
 } from '../../services/householdInvites';
+import { openOrderTracking, orderStatusLabel } from '../../components/orders/OrderHistoryList';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { PilotOrder, PartnerInvite, Household, UserProfile } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
@@ -84,23 +84,6 @@ const PREVIEW_ORDERS: PilotOrder[] = [
     createdAt: new Date().toISOString(),
   },
 ];
-
-function statusLabel(status: PilotOrder['status']): string {
-  switch (status) {
-    case 'pending':
-      return 'Processing payment';
-    case 'committed':
-      return 'Committed — charged at ship';
-    case 'confirmed':
-      return 'Confirmed';
-    case 'shipped':
-      return 'Shipped';
-    case 'delivered':
-      return 'Delivered';
-    default:
-      return status;
-  }
-}
 
 export function AccountScreen() {
   const navigation = useNavigation<Nav>();
@@ -190,20 +173,6 @@ export function AccountScreen() {
       const next = hiddenHolidays.filter((id) => id !== holidayId);
       await usersService.upsert(authUser.uid, { hiddenHolidays: next });
     }
-  };
-
-  const openTracking = (order: PilotOrder) => {
-    if (!order.trackingNumber) return;
-    const carrier = (order.carrier ?? '').toLowerCase();
-    let url = `https://www.google.com/search?q=${encodeURIComponent(order.trackingNumber + ' tracking')}`;
-    if (carrier.includes('ups')) {
-      url = `https://www.ups.com/track?tracknum=${order.trackingNumber}`;
-    } else if (carrier.includes('usps')) {
-      url = `https://tools.usps.com/go/TrackConfirmAction?tLabels=${order.trackingNumber}`;
-    } else if (carrier.includes('fedex')) {
-      url = `https://www.fedex.com/fedextrack/?trknbr=${order.trackingNumber}`;
-    }
-    Linking.openURL(url);
   };
 
   const onSignOut = () => {
@@ -348,11 +317,11 @@ export function AccountScreen() {
             <View key={order.id} style={styles.orderCard}>
               <View style={styles.orderHeader}>
                 <Text style={styles.orderId}>#{order.id.slice(0, 8)}</Text>
-                <Text style={styles.orderStatus}>{statusLabel(order.status)}</Text>
+                <Text style={styles.orderStatus}>{orderStatusLabel(order.status)}</Text>
               </View>
               <Text style={styles.orderTotal}>{formatDollars(order.totalCents)}</Text>
               {order.trackingNumber ? (
-                <TouchableOpacity onPress={() => openTracking(order)}>
+                <TouchableOpacity onPress={() => openOrderTracking(order)}>
                   <Text style={styles.trackLink}>
                     Track package — {order.carrier ?? 'carrier'} {order.trackingNumber}
                   </Text>

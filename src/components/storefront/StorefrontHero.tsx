@@ -43,8 +43,17 @@ export function StorefrontHero({ onShopLook, onBuildBox }: Props) {
         pointerEvents="box-none"
       >
         <Text style={[styles.headline, compact && styles.headlineCompact]}>{hero.headline}</Text>
-        {hero.body ? (
-          <Text style={[styles.body, compact && styles.bodyCompact]}>{hero.body}</Text>
+        {hero.body || hero.bodySecondary ? (
+          <View style={[styles.bodyBlock, compact && styles.bodyBlockCompact]}>
+            {hero.body ? (
+              <Text style={[styles.body, compact && styles.bodyCompact]}>{hero.body}</Text>
+            ) : null}
+            {hero.bodySecondary ? (
+              <Text style={[styles.bodySecondary, compact && styles.bodySecondaryCompact]}>
+                {hero.bodySecondary}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
         <View style={[styles.ctas, compact && styles.ctasCompact]}>
           <TouchableOpacity
@@ -59,9 +68,9 @@ export function StorefrontHero({ onShopLook, onBuildBox }: Props) {
             style={[styles.ctaSecondary, compact && styles.ctaCompact]}
             onPress={onBuildBox}
             accessibilityRole="button"
-            accessibilityLabel="Build a box"
+            accessibilityLabel="Build your Box (starting at $80)"
           >
-            <Text style={styles.ctaSecondaryText}>Build a box</Text>
+            <Text style={styles.ctaSecondaryText}>Build your Box (starting at $80)</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -116,7 +125,6 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     color: semanticColors.textInverse,
     textAlign: 'center',
-    textTransform: 'lowercase',
     marginBottom: spacing.sm,
     textShadowColor: 'rgba(17, 2, 34, 0.45)',
     textShadowOffset: { width: 0, height: 1 },
@@ -126,15 +134,23 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
   },
+  bodyBlock: {
+    alignItems: 'center',
+    maxWidth: 480,
+    marginBottom: spacing.lg,
+    gap: 2,
+  },
+  bodyBlockCompact: {
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xs,
+  },
   body: {
     ...typeface('regular'),
     fontSize: 16,
     color: semanticColors.textInverse,
     textAlign: 'center',
-    maxWidth: 480,
     lineHeight: 24,
     opacity: 0.95,
-    marginBottom: spacing.lg,
     textShadowColor: 'rgba(17, 2, 34, 0.4)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 8,
@@ -143,8 +159,21 @@ const styles = StyleSheet.create({
   bodyCompact: {
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.xs,
+  },
+  bodySecondary: {
+    ...typeface('regular'),
+    fontSize: 12,
+    color: semanticColors.textInverse,
+    textAlign: 'center',
+    lineHeight: 16,
+    opacity: 0.68,
+    textShadowColor: 'rgba(17, 2, 34, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
+  },
+  bodySecondaryCompact: {
+    fontSize: 11,
+    lineHeight: 15,
   },
   ctas: {
     flexDirection: 'row',

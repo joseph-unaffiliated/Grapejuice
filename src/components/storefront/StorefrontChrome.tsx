@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -17,7 +18,7 @@ import {
   type NativeScrollEvent,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip } from './StorefrontPromoStrip';
 import { StorefrontHeader } from './StorefrontHeader';
@@ -48,6 +49,10 @@ type Props = {
   onShopLook?: () => void;
   /** Optional ref to the page ScrollView (e.g. home “scroll to look”). */
   scrollRef?: Ref<ScrollView>;
+  /**
+   * Extra ScrollView contentContainerStyle. Avoid horizontal padding here —
+   * it insets chrome + footer; put gutters on children instead (see /store).
+   */
   contentContainerStyle?: object;
 };
 
@@ -103,7 +108,8 @@ const SCROLL_DIR_THRESHOLD = 6;
 
 /**
  * Storefront shell: one page ScrollView.
- * Chrome scrolls away with the page; on scroll-up mid-page it reappears as a pinned bar.
+ * Chrome scrolls away with the page; on scroll-up mid-page it reappears as a pinned bar
+ * only after the in-flow chrome has fully left the viewport (avoids a double header).
  * Footer is normal document flow at the bottom of the page (never fixed).
  */
 export function StorefrontChrome({
@@ -114,6 +120,7 @@ export function StorefrontChrome({
   contentContainerStyle,
 }: Props) {
   const navigation = useNavigation<Nav>();
+  const isFocused = useIsFocused();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const lastY = useRef(0);
@@ -178,6 +185,13 @@ export function StorefrontChrome({
     setChromeH(h);
   };
 
+  const clearPinned = useCallback(() => {
+    pinnedRef.current = false;
+    pinAnimRef.current?.stop();
+    pinProgress.setValue(0);
+    setPinned(false);
+  }, [pinProgress]);
+
   const animatePin = useCallback(
     (show: boolean) => {
       if (pinnedRef.current === show) return;
@@ -189,8 +203,10 @@ export function StorefrontChrome({
         duration: 220,
         useNativeDriver: true,
       });
-      pinAnimRef.current.start(({ finished }) => {
-        if (finished && !show) setPinned(false);
+      pinAnimRef.current.start(() => {
+        // Clear even if `finished` is false (common on web) as long as we still
+        // intend to be unpinned — avoids a stuck overlay stacked on in-flow chrome.
+        if (!pinnedRef.current) setPinned(false);
       });
     },
     [pinProgress]
@@ -203,9 +219,10 @@ export function StorefrontChrome({
       lastY.current = y;
       const h = chromeHeight.current;
 
-      // At / near top: in-flow chrome is visible — no pinned overlay.
-      if (y <= Math.max(8, h * 0.35)) {
-        animatePin(false);
+      // In-flow chrome still on screen — never show the pinned copy (would double).
+      // Require the full chrome height to scroll away before pin is allowed.
+      if (y < Math.max(8, h - 4)) {
+        clearPinned();
         return;
       }
 
@@ -215,17 +232,24 @@ export function StorefrontChrome({
         animatePin(true);
       }
     },
-    [animatePin]
+    [animatePin, clearPinned]
   );
+
+  // Drop pinned overlay when this screen is covered (stack keeps prior screens mounted).
+  useEffect(() => {
+    if (!isFocused) clearPinned();
+  }, [isFocused, clearPinned]);
 
   const pinSlide = pinProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [-Math.max(chromeH, 80), 0],
   });
 
+  const showPinned = pinned && isFocused;
+
   return (
     <View style={styles.root} testID="storefront-scroll-host">
-      {pinned ? (
+      {showPinned ? (
         <Animated.View
           style={[
             styles.pinnedChrome,
@@ -287,6 +311,7 @@ export function useStorefrontActions() {
       navigation.navigate('StorefrontCategory', { category: slug });
     },
     goHome: () => navigation.navigate('StorefrontHome'),
+    goEligibility: () => navigation.navigate('BoxDiscountEligibility'),
   };
 }
 

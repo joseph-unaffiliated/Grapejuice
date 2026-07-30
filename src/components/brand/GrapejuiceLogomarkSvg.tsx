@@ -31,7 +31,7 @@ export type GrapeWobbleTune = {
    * - random: each berry on its own irregular cycle
    */
   pulseMode?: GrapePulseMode;
-  /** How far grapes shrink (0 = none, 1 = disappear). Default 0.4 → scale ≈ 0.6. */
+  /** How far grapes shrink (0 = none, 1 = disappear). Default 0.21 → scale ≈ 0.79. */
   pulseDepth?: number;
   /**
    * Non-uniform squash on top of the pulse (0 = round shrink/grow, 1 = hard oval flatten).
@@ -41,12 +41,12 @@ export type GrapeWobbleTune = {
 };
 
 export const DEFAULT_GRAPE_WOBBLE: Required<GrapeWobbleTune> = {
-  ampScale: 2.1,
-  speedScale: 0.7,
+  ampScale: 1.47,
+  speedScale: 0.49,
   pauseMs: 0,
   pulseMode: 'sequence',
-  pulseDepth: 0.3,
-  squash: 0.1,
+  pulseDepth: 0.21,
+  squash: 0.07,
 };
 
 type Props = {
