@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip } from './StorefrontPromoStrip';
@@ -16,6 +16,12 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+import {
+  STOREFRONT_SCROLL_CLASS,
+  STOREFRONT_H_SCROLL_CLASS,
+} from './storefrontScroll';
+
+export { STOREFRONT_SCROLL_CLASS, STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -71,12 +77,14 @@ export function StorefrontChrome({ children, activeCategory, onShopLook }: Props
   };
 
   return (
-    <View style={styles.root}>
-      <StorefrontPromoStrip />
-      <StorefrontHeader onLogoPress={goHome} />
-      <StorefrontServicesNav onPress={onService} />
-      <StorefrontCategoryNav activeSlug={activeCategory} onPress={goCategory} />
-      {children}
+    <View style={styles.root} testID="storefront-scroll-host">
+      <View style={styles.chrome}>
+        <StorefrontPromoStrip />
+        <StorefrontHeader onLogoPress={goHome} />
+        <StorefrontServicesNav onPress={onService} />
+        <StorefrontCategoryNav activeSlug={activeCategory} onPress={goCategory} />
+      </View>
+      <View style={styles.body}>{children}</View>
       <View style={styles.footer}>
         <TouchableOpacity onPress={goHome} accessibilityRole="button">
           <Text style={styles.footerLink}>Store home</Text>
@@ -130,9 +138,23 @@ export function useStorefrontActions() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    minHeight: 0,
+    backgroundColor: semanticColors.bgPrimary,
+    ...(Platform.OS === 'web'
+      ? ({ height: '100%', maxHeight: '100dvh' } as object)
+      : null),
+  },
+  chrome: {
+    flexShrink: 0,
+    zIndex: 5,
     backgroundColor: semanticColors.bgPrimary,
   },
+  body: {
+    flex: 1,
+    minHeight: 0,
+  },
   footer: {
+    flexShrink: 0,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',

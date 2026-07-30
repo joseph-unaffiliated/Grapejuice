@@ -32,6 +32,7 @@ import { SimilarProductsRail } from '../../components/catalog/SimilarProductsRai
 import {
   StorefrontChrome,
   useStorefrontActions,
+  STOREFRONT_SCROLL_CLASS,
 } from '../../components/storefront/StorefrontChrome';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
@@ -209,6 +210,9 @@ export function CatalogProductScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        // @ts-expect-error web className
+        className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
+        testID="storefront-vertical-scroll"
       >
         <View style={styles.breadcrumb}>
           <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
@@ -311,6 +315,7 @@ export function CatalogProductScreen() {
 const styles = StyleSheet.create({
   scroll: {
     flex: 1,
+    minHeight: 0,
     backgroundColor: semanticColors.bgPrimary,
   },
   content: {
@@ -318,6 +323,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.xl,
+    flexGrow: 1,
   },
   centered: {
     flex: 1,

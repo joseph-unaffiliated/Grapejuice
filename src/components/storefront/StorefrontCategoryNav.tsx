@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
+import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   MOBILE_GUTTER,
   semanticColors,
@@ -21,6 +22,8 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
+        // @ts-expect-error web className
+        className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
       >
         {STOREFRONT_CATEGORIES.map((c) => {
           const active = c.slug === activeSlug;

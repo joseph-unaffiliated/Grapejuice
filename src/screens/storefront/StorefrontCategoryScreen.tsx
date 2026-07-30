@@ -6,9 +6,15 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
-import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import {
+  StorefrontChrome,
+  useStorefrontActions,
+  STOREFRONT_SCROLL_CLASS,
+  STOREFRONT_H_SCROLL_CLASS,
+} from '../../components/storefront/StorefrontChrome';
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
 import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
@@ -96,6 +102,9 @@ export function StorefrontCategoryScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        // @ts-expect-error web className
+        className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
+        testID="storefront-vertical-scroll"
       >
         <View style={styles.breadcrumb}>
           <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
@@ -115,6 +124,8 @@ export function StorefrontCategoryScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.catChips}
+          // @ts-expect-error web className
+          className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
         >
           {STOREFRONT_CATEGORIES.map((c) => {
             const active = c.slug === slug;
@@ -230,8 +241,8 @@ export function StorefrontCategoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: { paddingBottom: spacing.xxl },
+  scroll: { flex: 1, minHeight: 0 },
+  content: { paddingBottom: spacing.xxl, flexGrow: 1 },
   breadcrumb: {
     flexDirection: 'row',
     alignItems: 'center',

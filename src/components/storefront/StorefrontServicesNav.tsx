@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import {
   boxLockChipLabel,
   HANUKKAH_BOX_LOCK_YEAR_LABEL,
 } from '../../constants/hanukkahBoxLock';
+import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -36,6 +37,8 @@ export function StorefrontServicesNav({ onPress }: Props) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
+        // @ts-expect-error web className
+        className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
       >
         <TouchableOpacity
           style={styles.lockGroup}
