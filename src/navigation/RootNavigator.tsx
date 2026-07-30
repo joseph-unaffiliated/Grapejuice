@@ -27,6 +27,19 @@ import { onWebNavigationStateChange } from './webBrowserHistory';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
+function humanizeRoute(name: string): string {
+  const map: Record<string, string> = {
+    Main: 'Home',
+    Auth: 'Sign in',
+    Onboarding: 'Welcome',
+  };
+  if (map[name]) return map[name];
+  return name
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .trim();
+}
+
 function MainGate() {
   const { isChildProfile } = useActiveProfile();
   const themeMode = PILOT_PARENT_ONLY || !isChildProfile ? 'parent' : 'kid';
@@ -122,6 +135,15 @@ export function RootNavigator() {
         <NavigationContainer
           ref={navigationRef}
           onStateChange={onWebNavigationStateChange}
+          documentTitle={{
+            formatter: (options, route) => {
+              const page =
+                (typeof options?.title === 'string' && options.title.trim()) ||
+                (typeof route?.name === 'string' ? humanizeRoute(route.name) : '');
+              if (!page || page === 'Grapejuice') return 'Grapejuice';
+              return `Grapejuice | ${page}`;
+            },
+          }}
         >
           <WebBrowserHistoryBridge />
           <GiftClaimLinkEffect />

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import {
   StorefrontChrome,
   useStorefrontActions,
@@ -67,6 +68,7 @@ function sortItems(items: CatalogItem[], sort: SortKey): CatalogItem[] {
 }
 
 export function StorefrontCategoryScreen() {
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'StorefrontCategory'>>();
   const slug = (route.params?.category || DEFAULT_STOREFRONT_CATEGORY).toLowerCase();
   const def = storefrontCategoryBySlug(slug);
@@ -75,6 +77,12 @@ export function StorefrontCategoryScreen() {
   const [sort, setSort] = useState<SortKey>('relevant');
   const [ageFilter, setAgeFilter] = useState<AgeGroup | 'all'>('all');
   const [withImageOnly, setWithImageOnly] = useState(false);
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: def?.label ?? def?.title ?? 'Store',
+    });
+  }, [navigation, def?.label, def?.title]);
 
   const categoryItems = useMemo(
     () => filterByStorefrontCategory(items, slug),

@@ -57,6 +57,7 @@ export function MainTabs() {
         name="Home"
         component={HomeScreen}
         options={{
+          title: 'Home',
           tabBarIcon: ({ color }) => <Icon icon={icons.explosion} size={TAB_NAV.iconSize} color={color} />,
         }}
       />
@@ -64,6 +65,7 @@ export function MainTabs() {
         name="Rav"
         component={RavScreen}
         options={{
+          title: 'Rav',
           tabBarIcon: ({ color }) => (
             <Icon icon={icons.childReaching} size={TAB_NAV.iconSize} color={color} />
           ),
@@ -73,6 +75,7 @@ export function MainTabs() {
         name="Account"
         component={AccountScreen}
         options={{
+          title: 'Account',
           tabBarIcon: ({ color }) => (
             <TabBarIconWithBadge
               icon={icons.fingerprint}

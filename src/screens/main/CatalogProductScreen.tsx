@@ -91,6 +91,13 @@ export function CatalogProductScreen() {
     () => (item ? storefrontCategoryForItem(item) : undefined),
     [item]
   );
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: item?.name?.trim() || 'Product',
+    });
+  }, [navigation, item?.name]);
+
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
