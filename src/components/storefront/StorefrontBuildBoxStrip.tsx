@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ImageBackground,
+  Platform,
 } from 'react-native';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
@@ -63,6 +64,12 @@ export function StorefrontBuildBoxStrip({ onPress }: Props) {
   );
 }
 
+const textShadow = {
+  textShadowColor: 'rgba(0, 0, 0, 0.55)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 8,
+};
+
 const styles = StyleSheet.create({
   root: {
     paddingHorizontal: MOBILE_GUTTER,
@@ -79,7 +86,8 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   inner: {
-    maxWidth: 640,
+    maxWidth: 420,
+    width: '100%',
     alignSelf: 'center',
     alignItems: 'center',
     gap: spacing.sm,
@@ -87,37 +95,42 @@ const styles = StyleSheet.create({
   headline: {
     ...typeface('medium'),
     fontSize: 28,
-    color: semanticColors.logoDark,
+    color: '#FFFFFF',
     textAlign: 'center',
+    ...textShadow,
   },
   price: {
     ...typeface('medium'),
     fontSize: 18,
-    color: semanticColors.logoDark,
+    color: '#FFFFFF',
     textAlign: 'center',
+    ...textShadow,
   },
   priceNote: {
     ...typeface('regular'),
     fontSize: 14,
-    color: semanticColors.textSecondary,
+    color: 'rgba(255,255,255,0.92)',
   },
   body: {
     ...typeface('regular'),
     fontSize: 15,
-    color: semanticColors.textSecondary,
+    color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 22,
+    ...textShadow,
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   emphasis: {
     ...typeface('medium'),
     fontSize: 15,
-    color: semanticColors.logoDark,
+    color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 22,
+    ...textShadow,
   },
   cta: {
     marginTop: spacing.sm,
-    backgroundColor: semanticColors.logoDark,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
@@ -125,6 +138,6 @@ const styles = StyleSheet.create({
   ctaText: {
     ...typeface('medium'),
     fontSize: typography.md,
-    color: semanticColors.textInverse,
+    color: semanticColors.logoDark,
   },
 });

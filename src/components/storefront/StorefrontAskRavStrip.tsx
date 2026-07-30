@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import { SearchPill } from '../ui/SearchPill';
 import {
-  borderRadius,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -10,10 +10,22 @@ import {
 } from '../../constants/theme';
 
 type Props = {
-  onPress: () => void;
+  /** Called with the typed question (or a default prompt if empty). */
+  onSubmit: (message: string) => void;
 };
 
-export function StorefrontAskRavStrip({ onPress }: Props) {
+const DEFAULT_ASK =
+  'Help me browse the Hanukkah store — what should I look at first?';
+
+export function StorefrontAskRavStrip({ onSubmit }: Props) {
+  const [query, setQuery] = useState('');
+
+  const submit = () => {
+    const msg = query.trim();
+    onSubmit(msg || DEFAULT_ASK);
+    setQuery('');
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.inner}>
@@ -23,14 +35,14 @@ export function StorefrontAskRavStrip({ onPress }: Props) {
           Overwhelmed by options? Rav helps you navigate the store — what fits your household,
           what to skip, and what belongs in your box.
         </Text>
-        <TouchableOpacity
-          style={styles.cta}
-          onPress={onPress}
-          accessibilityRole="button"
-          accessibilityLabel="Ask Rav for help browsing"
-        >
-          <Text style={styles.ctaText}>Get help browsing</Text>
-        </TouchableOpacity>
+        <View style={styles.pillWrap}>
+          <SearchPill
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={submit}
+            placeholder="Search or ask a question"
+          />
+        </View>
       </View>
     </View>
   );
@@ -40,13 +52,15 @@ const styles = StyleSheet.create({
   root: {
     backgroundColor: semanticColors.bgPrimary,
     paddingHorizontal: MOBILE_GUTTER,
-    paddingVertical: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl + spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.border,
   },
   inner: {
     maxWidth: 640,
+    width: '100%',
     alignSelf: 'center',
     alignItems: 'center',
     gap: spacing.sm,
@@ -70,19 +84,12 @@ const styles = StyleSheet.create({
     color: semanticColors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: spacing.sm,
     ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
-  cta: {
-    marginTop: spacing.sm,
-    borderWidth: 1,
-    borderColor: semanticColors.logoDark,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-  },
-  ctaText: {
-    ...typeface('medium'),
-    fontSize: typography.md,
-    color: semanticColors.logoDark,
+  pillWrap: {
+    width: '100%',
+    maxWidth: 520,
+    marginTop: spacing.xs,
   },
 });

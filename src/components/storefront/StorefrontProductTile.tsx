@@ -4,7 +4,10 @@ import { BoxItemImage } from '../box/BoxItemImage';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
-import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
+import {
+  formatSubscriberOfferLine,
+  resolveCatalogDisplayPrices,
+} from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import {
   borderRadius,
@@ -90,7 +93,11 @@ export function StorefrontProductTile({
           <View style={styles.priceRow}>
             <Text style={styles.price}>{defaultPrice}</Text>
             <Text style={styles.memberPrice}>
-              {formatCatalogDollars(memberCents)} when you order a Hanukkah box
+              {formatSubscriberOfferLine(
+                formatCatalogDollars(memberCents),
+                nonMemberCents,
+                memberCents
+              )}
             </Text>
           </View>
         ) : (
@@ -152,7 +159,7 @@ const styles = StyleSheet.create({
   },
   memberPrice: {
     ...typeface('regular'),
-    fontSize: 12,
+    fontSize: 11,
     color: semanticColors.goldMuted,
     flexShrink: 1,
   },

@@ -41,16 +41,25 @@ type Props = {
   returnKeyType?: 'search' | 'done' | 'default';
   /** Cycle Rav-style prompt typewriter when empty. Default true. */
   animatePlaceholder?: boolean;
+  /** Override the rotating demo prompts (defaults to Hanukkah Rav prompts). */
+  prompts?: readonly string[];
+  /** Optional accessibility label for the input. */
+  accessibilityLabel?: string;
 };
 
-function pickPromptBatch(previous: string, count: number): string[] {
+function pickPromptBatch(
+  previous: string,
+  count: number,
+  prompts: readonly string[]
+): string[] {
+  const source = prompts.length > 0 ? prompts : RAV_TYPEWRITER_PROMPTS;
   const batch: string[] = [];
   let last = previous;
   for (let i = 0; i < count; i += 1) {
-    const pool = RAV_TYPEWRITER_PROMPTS.filter((p) => p !== last && !batch.includes(p));
-    const list = pool.length > 0 ? pool : RAV_TYPEWRITER_PROMPTS.filter((p) => !batch.includes(p));
-    const fallback = RAV_TYPEWRITER_PROMPTS.filter((p) => p !== last);
-    const choices = list.length > 0 ? list : fallback.length > 0 ? fallback : RAV_TYPEWRITER_PROMPTS;
+    const pool = source.filter((p) => p !== last && !batch.includes(p));
+    const list = pool.length > 0 ? pool : source.filter((p) => !batch.includes(p));
+    const fallback = source.filter((p) => p !== last);
+    const choices = list.length > 0 ? list : fallback.length > 0 ? fallback : source;
     const next = choices[Math.floor(Math.random() * choices.length)] ?? DEFAULT_PLACEHOLDER;
     batch.push(next);
     last = next;
@@ -72,6 +81,8 @@ export function SearchPill({
   placeholder = DEFAULT_PLACEHOLDER,
   returnKeyType = 'search',
   animatePlaceholder = true,
+  prompts = RAV_TYPEWRITER_PROMPTS,
+  accessibilityLabel = 'Search',
 }: Props) {
   const { colors } = useThemeMode();
   const hasText = value.trim().length > 0;
@@ -84,6 +95,7 @@ export function SearchPill({
   const lastPromptRef = useRef('');
   /** Monotonic run id — stale async loops bailed even if a newer run already started. */
   const runIdRef = useRef(0);
+  const promptList = prompts.length > 0 ? prompts : RAV_TYPEWRITER_PROMPTS;
 
   useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -151,7 +163,11 @@ export function SearchPill({
         await sleep(GAP_MS);
         if (!isCurrent()) break;
 
-        const batch = pickPromptBatch(lastPromptRef.current, DEMO_QUESTIONS_PER_ROUND);
+        const batch = pickPromptBatch(
+          lastPromptRef.current,
+          DEMO_QUESTIONS_PER_ROUND,
+          promptList
+        );
         lastPromptRef.current = batch[batch.length - 1] ?? lastPromptRef.current;
 
         for (let q = 0; q < batch.length; q += 1) {
@@ -179,7 +195,7 @@ export function SearchPill({
         await typeOut(placeholder);
       }
     },
-    [placeholder],
+    [placeholder, promptList],
   );
 
   useEffect(() => {
@@ -241,6 +257,7 @@ export function SearchPill({
         onBlur={() => setFocused(false)}
         returnKeyType={returnKeyType}
         multiline={false}
+        accessibilityLabel={accessibilityLabel}
       />
     </View>
   );

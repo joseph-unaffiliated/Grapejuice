@@ -84,3 +84,24 @@ export function resolveCatalogDisplayPrices(item: CatalogItem): {
   const savingsCents = Math.max(0, nonMemberCents - memberCents);
   return { memberCents, nonMemberCents, savingsCents };
 }
+
+/** Percent discount from retail → member (rounded). */
+export function catalogPercentOff(nonMemberCents: number, memberCents: number): number | null {
+  if (nonMemberCents <= 0 || memberCents >= nonMemberCents) return null;
+  return Math.round(((nonMemberCents - memberCents) / nonMemberCents) * 100);
+}
+
+/**
+ * Storefront member offer copy, e.g. "$18 (74% off) for subscribers".
+ * Pass preformatted dollar strings from `formatCatalogDollars`.
+ */
+export function formatSubscriberOfferLine(
+  memberPriceLabel: string,
+  nonMemberCents: number,
+  memberCents: number
+): string {
+  const off = catalogPercentOff(nonMemberCents, memberCents);
+  return off
+    ? `${memberPriceLabel} (${off}% off) for subscribers`
+    : `${memberPriceLabel} for subscribers`;
+}

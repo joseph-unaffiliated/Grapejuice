@@ -51,9 +51,9 @@ export function StorefrontHero({ onShopLook, onBuildBox }: Props) {
             style={[styles.ctaPrimary, compact && styles.ctaCompact]}
             onPress={onShopLook}
             accessibilityRole="button"
-            accessibilityLabel={hero.ctaLabel ?? 'Browse menorahs'}
+            accessibilityLabel={hero.ctaLabel ?? 'Browse the Collection'}
           >
-            <Text style={styles.ctaPrimaryText}>{hero.ctaLabel ?? 'Browse menorahs'}</Text>
+            <Text style={styles.ctaPrimaryText}>{hero.ctaLabel ?? 'Browse the Collection'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.ctaSecondary, compact && styles.ctaCompact]}
@@ -157,13 +157,14 @@ const styles = StyleSheet.create({
   ctasCompact: {
     flexDirection: 'column',
     alignItems: 'stretch',
-    maxWidth: 320,
+    maxWidth: 280,
     alignSelf: 'center',
   },
+  /** Collection — dark fill (primary CTA) */
   ctaPrimary: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
+    backgroundColor: semanticColors.logoDark,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
     borderRadius: borderRadius.md,
     alignItems: 'center',
   },
@@ -172,21 +173,20 @@ const styles = StyleSheet.create({
   },
   ctaPrimaryText: {
     ...typeface('medium'),
-    fontSize: 14,
-    color: semanticColors.logoDark,
+    fontSize: 12,
+    color: semanticColors.textInverse,
   },
+  /** Build a box — light fill */
   ctaSecondary: {
-    backgroundColor: 'rgba(17, 2, 34, 0.65)',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
     alignItems: 'center',
   },
   ctaSecondaryText: {
     ...typeface('medium'),
-    fontSize: 14,
-    color: semanticColors.textInverse,
+    fontSize: 12,
+    color: semanticColors.logoDark,
   },
 });

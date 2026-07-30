@@ -229,11 +229,7 @@ export function StorefrontCategoryScreen() {
           <StorefrontProductGrid items={filtered} />
         )}
 
-        <StorefrontAskRavStrip
-          onPress={() =>
-            askRav(`Help me browse ${def?.label ?? 'this category'} — what fits my household?`)
-          }
-        />
+        <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
         <StorefrontBuildBoxStrip onPress={startBox} />
       </View>
     </StorefrontChrome>

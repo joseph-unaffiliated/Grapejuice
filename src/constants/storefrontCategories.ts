@@ -25,6 +25,13 @@ export function isFoodItem(item: CatalogItem): boolean {
 
 export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
   {
+    slug: 'collection',
+    label: 'All',
+    title: 'The Collection',
+    description: 'Everything in the Hanukkah store — menorahs, dreidels, food, books, and more.',
+    match: () => true,
+  },
+  {
     slug: 'menorahs',
     label: 'Menorahs',
     title: 'Menorahs & Hanukkiahs',
@@ -103,7 +110,8 @@ export function storefrontCategoryBySlug(slug: string): StorefrontCategoryDef | 
 
 /** First matching storefront aisle for a catalog item (for PDP chrome / breadcrumbs). */
 export function storefrontCategoryForItem(item: CatalogItem): StorefrontCategoryDef | undefined {
-  return STOREFRONT_CATEGORIES.find((c) => c.match(item));
+  // Skip the catch-all “collection” aisle so breadcrumbs stay specific.
+  return STOREFRONT_CATEGORIES.find((c) => c.slug !== 'collection' && c.match(item));
 }
 
 export function filterByStorefrontCategory(

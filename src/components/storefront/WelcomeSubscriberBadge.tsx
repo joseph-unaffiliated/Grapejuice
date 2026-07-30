@@ -1,11 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import {
-  borderRadius,
-  semanticColors,
-  spacing,
-  typeface,
-} from '../../constants/theme';
+import { typeface } from '../../constants/theme';
 
 /** Catalog id for the Welcome Menorah (Airtable "Welcome Menorah"). */
 export const WELCOME_MENORAH_ID = 'welcome-menorah';
@@ -20,7 +15,10 @@ type Props = {
   compact?: boolean;
 };
 
-/** Special storefront badge: big $18 + small “for subscribers”. */
+/**
+ * Welcome Menorah overlay — matches box-feature “$80 / Free shipping”:
+ * large white price + small white caption, no chip background.
+ */
 export function WelcomeSubscriberBadge({ compact }: Props) {
   return (
     <View
@@ -36,39 +34,36 @@ export function WelcomeSubscriberBadge({ compact }: Props) {
 
 const styles = StyleSheet.create({
   badge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
     alignItems: 'flex-start',
-    maxWidth: 140,
+    gap: 2,
   },
   badgeCompact: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    maxWidth: 108,
+    gap: 1,
   },
   price: {
     ...typeface('medium'),
-    fontSize: 28,
-    lineHeight: 32,
-    color: semanticColors.logoDark,
+    fontSize: 36,
+    lineHeight: 40,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   priceCompact: {
-    fontSize: 22,
-    lineHeight: 24,
+    fontSize: 28,
+    lineHeight: 30,
   },
   caption: {
     ...typeface('regular'),
-    fontSize: 11,
-    lineHeight: 14,
-    color: semanticColors.goldMuted,
-    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 16,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   captionCompact: {
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 11,
+    lineHeight: 13,
   },
 });

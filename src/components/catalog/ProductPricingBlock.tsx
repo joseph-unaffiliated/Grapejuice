@@ -5,6 +5,8 @@ import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
   LIST_BOX_PRICE_CENTS,
   LIST_BOX_VALUE_CENTS,
+  catalogPercentOff,
+  formatSubscriberOfferLine,
   inferPricingTier,
   resolveCatalogDisplayPrices,
 } from '../../services/box/pricing';
@@ -17,11 +19,6 @@ type Props = {
   onWhatsInTheBox?: () => void;
   onEligibility?: () => void;
 };
-
-function percentOff(nonMemberCents: number, memberCents: number): number | null {
-  if (nonMemberCents <= 0 || memberCents >= nonMemberCents) return null;
-  return Math.round(((nonMemberCents - memberCents) / nonMemberCents) * 100);
-}
 
 export function ProductPricingBlock({
   item,
@@ -37,7 +34,7 @@ export function ProductPricingBlock({
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
   const boxValue = formatCatalogDollars(LIST_BOX_VALUE_CENTS);
   const off = useMemo(
-    () => percentOff(nonMemberCents, memberCents),
+    () => catalogPercentOff(nonMemberCents, memberCents),
     [nonMemberCents, memberCents]
   );
 
@@ -70,13 +67,13 @@ export function ProductPricingBlock({
 
   let offerLine: string | null = null;
   if (includedOrMemberZero && nonMemberCents > 0) {
-    offerLine = off
-      ? `Free (${off}% off) for Hanukkah Box Subscribers`
-      : 'Free for Hanukkah Box Subscribers';
+    offerLine = off ? `Free (${off}% off) for subscribers` : 'Free for subscribers';
   } else if (memberCents > 0 && nonMemberCents > memberCents) {
-    offerLine = off
-      ? `Only ${formatCatalogDollars(memberCents)} (${off}% off) for Hanukkah Box Subscribers`
-      : `Only ${formatCatalogDollars(memberCents)} for Hanukkah Box Subscribers`;
+    offerLine = formatSubscriberOfferLine(
+      formatCatalogDollars(memberCents),
+      nonMemberCents,
+      memberCents
+    );
   }
 
   return (
@@ -133,9 +130,9 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   offer: {
-    fontSize: typography.md + 1,
+    fontSize: typography.sm,
     fontWeight: '500',
-    lineHeight: 22,
+    lineHeight: 18,
     letterSpacing: 0,
     marginTop: spacing.xs,
   },

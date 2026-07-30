@@ -2,22 +2,21 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../ui/Icon';
+import { SearchPill } from '../ui/SearchPill';
 import { icons } from '../../constants/icons';
+import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { useWishlist } from '../../hooks/useWishlist';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   LAYOUT,
-  borderRadius,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -32,11 +31,12 @@ type Props = {
 };
 
 /** Fixed side column width so the centered logo sits on the true screen midpoint. */
-const SIDE_COL = 300;
+const SIDE_COL = 340;
 
 /**
  * C&B-style header: fixed-width side columns + absolutely centered logomark on desktop.
  * On mobile: logo + icon actions on one row, full-width search below — no absolute overlay.
+ * Search uses the same typewriter pill as Home / Rav.
  */
 export function StorefrontHeader({ onLogoPress }: Props) {
   const navigation = useNavigation<Nav>();
@@ -55,29 +55,19 @@ export function StorefrontHeader({ onLogoPress }: Props) {
       screen: 'Rav',
       params: { newChat: true, initialMessage: msg },
     });
+    setQuery('');
   };
 
   const searchField = (
     <View style={[styles.searchWrap, compact && styles.searchWrapCompact]}>
-      <Icon icon={icons.search} size={14} color={semanticColors.textTertiary} />
-      <TextInput
+      <SearchPill
         value={query}
         onChangeText={setQuery}
-        placeholder="What can we help you find?"
-        placeholderTextColor={semanticColors.textTertiary}
-        style={styles.input}
-        returnKeyType="search"
         onSubmitEditing={submitSearch}
-        accessibilityLabel="Search"
+        placeholder="Search or ask a question"
+        prompts={RAV_TYPEWRITER_PROMPTS}
+        accessibilityLabel="Search or ask a question"
       />
-      <TouchableOpacity
-        onPress={submitSearch}
-        accessibilityRole="button"
-        accessibilityLabel="Search"
-        hitSlop={8}
-      >
-        <Text style={styles.searchBtn}>Search</Text>
-      </TouchableOpacity>
     </View>
   );
 
@@ -177,7 +167,7 @@ const styles = StyleSheet.create({
   },
   sideLeft: {
     width: SIDE_COL,
-    maxWidth: '38%',
+    maxWidth: '42%',
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 1,
@@ -198,33 +188,12 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
     flex: 1,
-    borderWidth: 1,
-    borderColor: semanticColors.borderDark,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: Platform.OS === 'web' ? 8 : 6,
-    backgroundColor: semanticColors.bgPrimary,
+    minWidth: 0,
   },
   searchWrapCompact: {
     flex: undefined,
     width: '100%',
-  },
-  input: {
-    flex: 1,
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.textPrimary,
-    outlineStyle: 'none' as never,
-    minWidth: 0,
-  },
-  searchBtn: {
-    ...typeface('medium'),
-    fontSize: typography.sm,
-    color: semanticColors.logoDark,
   },
   logoSlot: {
     position: 'absolute',

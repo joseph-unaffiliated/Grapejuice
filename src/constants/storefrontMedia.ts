@@ -33,8 +33,8 @@ export const STOREFRONT_HERO: StorefrontMediaSlot = {
   label: 'Lifestyle — Hanukkah table',
   headline: 'Light the season',
   body: 'Menorahs, dreidels, and table pieces for nights that feel like home.',
-  ctaLabel: 'Browse menorahs',
-  href: 'menorahs',
+  ctaLabel: 'Browse the Collection',
+  href: 'collection',
   src: require('../../assets/storefront/hero-menorahs-trio-ultrawide.webp'),
 };
 

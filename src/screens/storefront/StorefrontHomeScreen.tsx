@@ -122,7 +122,7 @@ export function StorefrontHomeScreen() {
 
   return (
     <StorefrontChrome onShopLook={scrollToLook} scrollRef={scrollRef}>
-      <StorefrontHero onShopLook={() => goCategory('menorahs')} onBuildBox={startBox} />
+      <StorefrontHero onShopLook={() => goCategory('collection')} onBuildBox={startBox} />
 
         {/* Products first */}
         <View
@@ -141,11 +141,7 @@ export function StorefrontHomeScreen() {
           )}
         </View>
 
-        <StorefrontAskRavStrip
-          onPress={() =>
-            askRav('Help me browse the Hanukkah store — what should I look at first?')
-          }
-        />
+        <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
 
         <SectionHeader
           title="Menorahs"
