@@ -158,6 +158,18 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       setGuestExplore();
       setMainNav('MainTabs', undefined, 'Home');
       break;
+    case 'storefront':
+    case 'store':
+      setGuestExplore();
+      setMainNav('StorefrontHome');
+      break;
+    case 'storefront-category':
+    case 'store-category':
+      setGuestExplore();
+      setMainNav('StorefrontCategory', {
+        category: search.get('category') ?? 'menorahs',
+      });
+      break;
     case 'home-started':
       void seedGuestBoxStarted().then(() => setMainNav('MainTabs', undefined, 'Home'));
       break;

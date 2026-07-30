@@ -9,6 +9,8 @@ import { MainTabs } from './MainTabs';
 import { MyBoxScreen } from '../screens/main/MyBoxScreen';
 import { AlaCarteStoreScreen } from '../screens/main/AlaCarteStoreScreen';
 import { CatalogProductScreen } from '../screens/main/CatalogProductScreen';
+import { StorefrontHomeScreen } from '../screens/storefront/StorefrontHomeScreen';
+import { StorefrontCategoryScreen } from '../screens/storefront/StorefrontCategoryScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
@@ -94,11 +96,21 @@ function AuthReturnHandler() {
 }
 
 export function MainStack() {
+  const initialRouteName = (() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return 'MainTabs' as const;
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    if (path === '/' || path === '/store' || path.startsWith('/store/')) {
+      return 'StorefrontHome' as const;
+    }
+    return 'MainTabs' as const;
+  })();
+
   return (
     <WebDesktopFrame>
       <GuestBoxRevealHandler />
       <AuthReturnHandler />
       <Stack.Navigator
+        initialRouteName={initialRouteName}
         screenOptions={{
           headerShown: false,
           ...(Platform.OS === 'web' ? { cardStyle: { overflow: 'visible' as const } } : {}),
@@ -114,6 +126,8 @@ export function MainStack() {
           </>
         ) : null}
         <Stack.Screen name="AlaCarteStore" component={AlaCarteStoreScreen} />
+        <Stack.Screen name="StorefrontHome" component={StorefrontHomeScreen} />
+        <Stack.Screen name="StorefrontCategory" component={StorefrontCategoryScreen} />
         <Stack.Screen name="CatalogProduct" component={CatalogProductScreen} />
         <Stack.Screen name="BoxDiscountEligibility" component={BoxDiscountEligibilityScreen} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />

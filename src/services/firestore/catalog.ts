@@ -72,6 +72,13 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
     curationTags: Array.isArray(data.curationTags)
       ? (data.curationTags as CatalogItem['curationTags'])
       : undefined,
+    storefrontRails: Array.isArray(data.storefrontRails)
+      ? (data.storefrontRails as unknown[]).filter((r): r is string => typeof r === 'string')
+      : undefined,
+    storefrontRank:
+      data.storefrontRank != null && Number.isFinite(Number(data.storefrontRank))
+        ? Number(data.storefrontRank)
+        : undefined,
     brand: typeof data.brand === 'string' ? data.brand : undefined,
     category: typeof data.category === 'string' ? data.category : undefined,
     context: Array.isArray(data.context)
@@ -127,6 +134,13 @@ function toFirestorePayload(item: CatalogUpsertInput): Record<string, unknown> {
   else payload.pricingTier = null;
   if (item.curationTags?.length) payload.curationTags = item.curationTags;
   else payload.curationTags = null;
+  if (item.storefrontRails?.length) payload.storefrontRails = item.storefrontRails;
+  else payload.storefrontRails = null;
+  if (item.storefrontRank != null && Number.isFinite(item.storefrontRank)) {
+    payload.storefrontRank = item.storefrontRank;
+  } else {
+    payload.storefrontRank = null;
+  }
   return payload;
 }
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,20 +7,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Animated,
-  type NativeSyntheticEvent,
-  type NativeScrollEvent,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useSession } from '../../hooks/useSession';
 import { useWishlist } from '../../hooks/useWishlist';
-import { useWebLayout } from '../../hooks/useWebLayout';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { ordersService } from '../../services/firestore/orders';
 import {
@@ -29,29 +25,24 @@ import {
   unitCentsForTier,
 } from '../../services/box/pricing';
 import { similarCatalogItems } from '../../constants/catalogCuration';
+import { storefrontCategoryForItem } from '../../constants/storefrontCategories';
 import { ProductImageGallery } from '../../components/catalog/ProductImageGallery';
 import { ProductPricingBlock } from '../../components/catalog/ProductPricingBlock';
 import { SimilarProductsRail } from '../../components/catalog/SimilarProductsRail';
-import { HomeStickySearchHeader } from '../../components/home/HomeStickySearchHeader';
+import {
+  StorefrontChrome,
+  useStorefrontActions,
+} from '../../components/storefront/StorefrontChrome';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
-import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { LAYOUT, MOBILE_GUTTER, spacing, typography, shadowsWeb } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-
-const CATEGORY_CHIPS = [
-  { id: 'hanukkah', label: 'Hanukkah' },
-  { id: 'hanukkiahs', label: 'Hanukkiahs' },
-  { id: 'dreidels', label: 'Dreidels' },
-  { id: 'apparel', label: 'Apparel' },
-  { id: 'decorations', label: 'Decorations' },
-] as const;
-
-/** Extra side inset for the PDP content column (beyond mobile gutter). */
-const PDP_SIDE_PAD = spacing.xl;
-/** Fallback collapsed header height until onLayout measures. */
-const COLLAPSED_HEADER_FALLBACK = 88;
-const HEADER_HIDE_MS = 220;
+import {
+  MOBILE_GUTTER,
+  borderRadius,
+  semanticColors,
+  spacing,
+  typeface,
+  typography,
+} from '../../constants/theme';
 
 type DetailRow = { label: string; value: string };
 
@@ -85,58 +76,27 @@ export function CatalogProductScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'CatalogProduct'>>();
   const { slug } = route.params;
-  const { colors } = useThemeMode();
-  const { isDesktop, mainAreaWidth, windowWidth } = useWebLayout();
+  const { width } = useWindowDimensions();
+  const desktop = width >= 768;
   const { household } = useSession();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
   const { guardMutation } = usePaymentGate();
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
   const { items: catalog, loading: catalogLoading } = useCatalog();
+  const { goHome, goCategory } = useStorefrontActions();
   const item = useMemo(
     () => catalog.find((c) => c.id === slug) ?? null,
     [catalog, slug]
+  );
+  const aisle = useMemo(
+    () => (item ? storefrontCategoryForItem(item) : undefined),
+    [item]
   );
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
   const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
   const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
-  const [searchQuery, setSearchQuery] = useState('');
-  /** Always collapsed on PDP (chips hidden, compact padding). */
-  const collapseProgress = useRef(new Animated.Value(1)).current;
-  const headerTranslateY = useRef(new Animated.Value(0)).current;
-  const headerVisibleRef = useRef(true);
-  const lastScrollYRef = useRef(0);
-  const [headerHeight, setHeaderHeight] = useState(COLLAPSED_HEADER_FALLBACK);
-
-  const setHeaderVisible = useCallback(
-    (visible: boolean) => {
-      if (headerVisibleRef.current === visible) return;
-      headerVisibleRef.current = visible;
-      Animated.timing(headerTranslateY, {
-        toValue: visible ? 0 : -(headerHeight || COLLAPSED_HEADER_FALLBACK),
-        duration: HEADER_HIDE_MS,
-        useNativeDriver: true,
-      }).start();
-    },
-    [headerHeight, headerTranslateY]
-  );
-
-  const onProductScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const y = e.nativeEvent.contentOffset.y;
-      const prev = lastScrollYRef.current;
-      const delta = y - prev;
-      lastScrollYRef.current = y;
-      if (y <= 8) {
-        setHeaderVisible(true);
-        return;
-      }
-      if (delta > 6) setHeaderVisible(false);
-      else if (delta < -6) setHeaderVisible(true);
-    },
-    [setHeaderVisible]
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -180,11 +140,6 @@ export function CatalogProductScreen() {
     () => (item ? similarCatalogItems(item, catalog, 12) : []),
     [item, catalog]
   );
-  const contentWidth = isDesktop ? mainAreaWidth : windowWidth;
-  const headerShadow =
-    Platform.OS === 'web'
-      ? ({ boxShadow: shadowsWeb.goldBar } as object)
-      : undefined;
 
   const persist = async (next: BoxLineItem[]) => {
     setSaving(true);
@@ -225,255 +180,183 @@ export function CatalogProductScreen() {
       ? 'Add to box'
       : 'Add to cart';
 
-  const submitSearch = () => {
-    const msg = searchQuery.trim();
-    if (!msg) {
-      navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } });
-      return;
-    }
-    navigation.navigate('MainTabs', {
-      screen: 'Rav',
-      params: { newChat: true, initialMessage: msg },
-    });
-    setSearchQuery('');
-  };
-
-  const handleCategoryChip = () => {
-    navigation.navigate('MainTabs', { screen: 'Home' });
-  };
-
-  const pageBg = colors.bgPrimary;
-
-  const headerBlock = (
-    <HomeStickySearchHeader
-      collapseProgress={collapseProgress}
-      isDesktop={isDesktop}
-      contentWidth={contentWidth}
-      expandedPaddingTop={spacing.lg}
-      searchQuery={searchQuery}
-      onChangeSearch={setSearchQuery}
-      onSubmitSearch={submitSearch}
-      chips={CATEGORY_CHIPS}
-      onChipPress={handleCategoryChip}
-      headerShadow={headerShadow}
-      animatePlaceholder={false}
-    />
-  );
-
   if (loading || draftLoading) {
     return (
-      <View style={[styles.centered, { backgroundColor: pageBg }]}>
-        <ActivityIndicator color={colors.brand} />
-      </View>
+      <StorefrontChrome activeCategory={aisle?.slug}>
+        <View style={styles.centered}>
+          <ActivityIndicator color={semanticColors.brand} />
+        </View>
+      </StorefrontChrome>
     );
   }
 
   if (!item) {
     return (
-      <View style={[styles.centered, { backgroundColor: pageBg }]}>
-        <Text style={{ color: colors.textSecondary, marginBottom: spacing.md, letterSpacing: 0 }}>
-          Product not found.
-        </Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={{ color: colors.textPrimary, fontWeight: '500', letterSpacing: 0 }}>
-            Go back
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <StorefrontChrome>
+        <View style={styles.centered}>
+          <Text style={styles.missing}>Product not found.</Text>
+          <TouchableOpacity onPress={goHome} accessibilityRole="button">
+            <Text style={styles.missingLink}>Back to store</Text>
+          </TouchableOpacity>
+        </View>
+      </StorefrontChrome>
     );
   }
 
-  const buyColumn = (
-    <View style={[styles.buy, isDesktop && styles.buyDesktop]}>
-      <Text style={[styles.name, { color: colors.textPrimary }]}>{item.name}</Text>
-      {item.description ? (
-        <Text style={[styles.desc, { color: colors.textSecondary }]}>{item.description}</Text>
-      ) : null}
-
-      <View style={[styles.priceRule, { borderTopColor: colors.border }]}>
-        <ProductPricingBlock
-          item={item}
-          hasHanukkahBox={hasHanukkahBox}
-          onWhatsInTheBox={() => navigation.navigate('MyBox')}
-          onEligibility={() => navigation.navigate('BoxDiscountEligibility')}
-        />
-      </View>
-
-      <Text style={[styles.shipNote, { color: colors.textPrimary }]}>
-        Ships in time for Hanukkah (estimated arrival {shipWindow})
-      </Text>
-
-      <View style={styles.ctaRow}>
-        <TouchableOpacity
-          style={[
-            styles.cta,
-            styles.ctaPrimary,
-            { backgroundColor: colors.textPrimary },
-            (locked || saving) && styles.ctaDisabled,
-          ]}
-          onPress={inCart ? removeFromCartOrBox : addToCartOrBox}
-          disabled={locked || saving}
-          accessibilityRole="button"
-        >
-          {saving ? (
-            <ActivityIndicator color={colors.bgPrimary} />
-          ) : (
-            <Text style={[styles.ctaText, { color: colors.bgPrimary }]}>{primaryLabel}</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.cta,
-            styles.ctaSecondary,
-            { borderColor: colors.textPrimary },
-            wishlistSaving && styles.ctaDisabled,
-          ]}
-          onPress={() => toggleWishlist(item.id)}
-          disabled={wishlistSaving}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.ctaText, { color: colors.textPrimary }]}>
-            {wishlisted ? 'Saved to wishlist' : 'Add to wishlist'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {details.length > 0 ? (
-        <View style={[styles.details, { borderTopColor: colors.border }]}>
-          <Text style={[styles.detailsHeading, { color: colors.textPrimary }]}>Details</Text>
-          {details.map((row) => (
-            <View key={row.label} style={[styles.detailRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.detailLabel, { color: colors.textTertiary }]}>{row.label}</Text>
-              <Text style={[styles.detailValue, { color: colors.textPrimary }]}>{row.value}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
-
-  const body = (
-    <>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-        <Text style={[styles.backLink, { color: colors.textPrimary }]}>Back</Text>
-      </TouchableOpacity>
-
-      <View style={[styles.split, isDesktop && styles.splitDesktop]}>
-        <View
-          style={[
-            styles.galleryCol,
-            isDesktop && styles.galleryColDesktop,
-            isDesktop && Platform.OS === 'web' ? styles.galleryColSticky : null,
-          ]}
-        >
-          <ProductImageGallery
-            itemId={item.id}
-            imageUrl={item.imageUrl}
-            imageUrls={item.imageUrls}
-          />
-        </View>
-        {buyColumn}
-      </View>
-
-      <SimilarProductsRail items={similar} />
-    </>
-  );
-
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: pageBg }]}
-      edges={Platform.OS === 'web' ? [] : ['top']}
-    >
-      <View style={[styles.wrapper, { backgroundColor: pageBg }]}>
-        <Animated.View
-          onLayout={(e) => {
-            const h = Math.round(e.nativeEvent.layout.height);
-            if (h > 0 && h !== headerHeight) setHeaderHeight(h);
-          }}
-          style={[
-            styles.headerBar,
-            { backgroundColor: pageBg, transform: [{ translateY: headerTranslateY }] },
-          ]}
-        >
-          {headerBlock}
-        </Animated.View>
-        <WebContentPanel
-          flush={isDesktop}
-          gutter={!isDesktop}
-          centerDesktop={isDesktop}
-          omitDesktopTopPadding={isDesktop}
-          style={[styles.panel, { backgroundColor: pageBg }]}
-        >
-          <View style={[styles.scrollHost, isDesktop && styles.scrollHostDesktopBleed]}>
-            <ScrollView
-              style={[styles.root, { backgroundColor: pageBg }]}
-              contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + spacing.md }]}
-              showsVerticalScrollIndicator={false}
-              scrollEventThrottle={16}
-              onScroll={onProductScroll}
-            >
-              <View
-                style={[
-                  styles.contentColumn,
-                  isDesktop && styles.contentColumnDesktop,
-                ]}
+    <StorefrontChrome activeCategory={aisle?.slug}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.breadcrumb}>
+          <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
+            Store
+          </Text>
+          {aisle ? (
+            <>
+              <Text style={styles.crumbSep}> / </Text>
+              <Text
+                style={styles.crumbLink}
+                onPress={() => goCategory(aisle.slug)}
+                accessibilityRole="link"
               >
-                {body}
-              </View>
-            </ScrollView>
+                {aisle.label}
+              </Text>
+            </>
+          ) : null}
+          <Text style={styles.crumbSep}> / </Text>
+          <Text style={styles.crumbCurrent}>{item.name}</Text>
+        </View>
+
+        <View style={[styles.split, desktop && styles.splitDesktop]}>
+          <View
+            style={[
+              styles.galleryCol,
+              desktop && styles.galleryColDesktop,
+              desktop && Platform.OS === 'web' ? styles.galleryColSticky : null,
+            ]}
+          >
+            <ProductImageGallery
+              itemId={item.id}
+              imageUrl={item.imageUrl}
+              imageUrls={item.imageUrls}
+            />
           </View>
-        </WebContentPanel>
-      </View>
-    </SafeAreaView>
+
+          <View style={[styles.buy, desktop && styles.buyDesktop]}>
+            <Text style={[styles.name, !desktop && styles.nameMobile]}>{item.name}</Text>
+            {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
+
+            <View style={styles.priceRule}>
+              <ProductPricingBlock
+                item={item}
+                hasHanukkahBox={hasHanukkahBox}
+                onWhatsInTheBox={() => navigation.navigate('MyBox')}
+                onEligibility={() => navigation.navigate('BoxDiscountEligibility')}
+              />
+            </View>
+
+            <Text style={styles.shipNote}>
+              Ships in time for Hanukkah (estimated arrival {shipWindow})
+            </Text>
+
+            <View style={styles.ctaRow}>
+              <TouchableOpacity
+                style={[styles.cta, styles.ctaPrimary, (locked || saving) && styles.ctaDisabled]}
+                onPress={inCart ? removeFromCartOrBox : addToCartOrBox}
+                disabled={locked || saving}
+                accessibilityRole="button"
+              >
+                {saving ? (
+                  <ActivityIndicator color={semanticColors.textInverse} />
+                ) : (
+                  <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.cta, styles.ctaSecondary, wishlistSaving && styles.ctaDisabled]}
+                onPress={() => toggleWishlist(item.id)}
+                disabled={wishlistSaving}
+                accessibilityRole="button"
+              >
+                <Text style={styles.ctaSecondaryText}>
+                  {wishlisted ? 'Saved to wishlist' : 'Add to wishlist'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {details.length > 0 ? (
+              <View style={styles.details}>
+                <Text style={styles.detailsHeading}>Details</Text>
+                {details.map((row) => (
+                  <View key={row.label} style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>{row.label}</Text>
+                    <Text style={styles.detailValue}>{row.value}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        <SimilarProductsRail items={similar} />
+      </ScrollView>
+    </StorefrontChrome>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  wrapper: { flex: 1, width: '100%', position: 'relative' },
-  headerBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 30,
-    ...(Platform.OS === 'web' ? ({ willChange: 'transform' } as object) : null),
+  scroll: {
+    flex: 1,
+    backgroundColor: semanticColors.bgPrimary,
   },
-  panel: { flex: 1, width: '100%', overflow: 'visible' as const },
-  scrollHost: { flex: 1, width: '100%', overflow: 'visible' as const },
-  /** Match Home — cancel panel gutter so content spans the main-area frame. */
-  scrollHostDesktopBleed: {
-    marginHorizontal: -LAYOUT.WEB_CONTENT_GUTTER,
-    ...(Platform.OS === 'web'
-      ? ({ width: `calc(100% + ${LAYOUT.WEB_CONTENT_GUTTER * 2}px)` } as object)
-      : { alignSelf: 'stretch' as const }),
-  },
-  root: { flex: 1, width: '100%' },
-  scrollContent: {
-    paddingBottom: 140,
-    width: '100%',
-  },
-  contentColumn: {
-    width: '100%',
-    alignSelf: 'stretch',
+  content: {
     paddingHorizontal: MOBILE_GUTTER,
-  },
-  contentColumnDesktop: {
-    paddingHorizontal: MOBILE_GUTTER + PDP_SIDE_PAD,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.xl,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,
+    minHeight: 280,
   },
-  backRow: { marginBottom: spacing.lg },
-  backLink: {
+  missing: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    color: semanticColors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  missingLink: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    fontWeight: '500',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    color: semanticColors.logoDark,
+  },
+  breadcrumb: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  crumbLink: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.goldMuted,
+  },
+  crumbSep: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.border,
+  },
+  crumbCurrent: {
+    ...typeface('medium'),
+    fontSize: typography.sm,
+    color: semanticColors.logoDark,
+    flexShrink: 1,
   },
   split: {
     flexDirection: 'column',
@@ -505,33 +388,37 @@ const styles = StyleSheet.create({
     flex: 0.45,
     maxWidth: '42%',
     minWidth: 0,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
   },
   name: {
-    fontSize: 36,
-    fontWeight: '400',
-    letterSpacing: 0,
-    lineHeight: 42,
-    textAlign: 'left',
+    ...typeface('medium'),
+    fontSize: 32,
+    color: semanticColors.logoDark,
+    lineHeight: 38,
+  },
+  nameMobile: {
+    fontSize: 24,
+    lineHeight: 30,
   },
   desc: {
+    ...typeface('regular'),
     fontSize: typography.md,
     lineHeight: 22,
-    letterSpacing: 0,
-    textAlign: 'left',
+    color: semanticColors.textSecondary,
     maxWidth: 440,
   },
   priceRule: {
     marginTop: spacing.sm,
     paddingTop: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semanticColors.border,
     width: '100%',
   },
   shipNote: {
+    ...typeface('medium'),
     fontSize: typography.md,
-    letterSpacing: 0,
     lineHeight: 22,
-    fontWeight: '500',
+    color: semanticColors.textPrimary,
   },
   ctaRow: {
     width: '100%',
@@ -539,54 +426,62 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   cta: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: spacing.xl,
-    borderRadius: 0,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     alignSelf: 'stretch',
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
   },
-  ctaPrimary: {},
+  ctaPrimary: {
+    backgroundColor: semanticColors.logoDark,
+  },
   ctaSecondary: {
     borderWidth: 1,
+    borderColor: semanticColors.logoDark,
     backgroundColor: 'transparent',
   },
   ctaDisabled: { opacity: 0.55 },
-  ctaText: {
-    fontWeight: '500',
+  ctaPrimaryText: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    color: semanticColors.textInverse,
+  },
+  ctaSecondaryText: {
+    ...typeface('medium'),
+    fontSize: typography.sm,
+    color: semanticColors.logoDark,
   },
   details: {
     marginTop: spacing.xl,
     paddingTop: spacing.xl,
     borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semanticColors.border,
     width: '100%',
-    gap: 0,
   },
   detailsHeading: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    fontWeight: '500',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    color: semanticColors.logoDark,
     marginBottom: spacing.md,
   },
   detailRow: {
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: semanticColors.border,
     gap: 6,
   },
   detailLabel: {
-    fontSize: 10,
-    fontWeight: '500',
+    ...typeface('medium'),
+    fontSize: 11,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
+    letterSpacing: 0.6,
+    color: semanticColors.goldMuted,
   },
   detailValue: {
+    ...typeface('regular'),
     fontSize: typography.md,
     lineHeight: 22,
-    letterSpacing: 0,
-    fontWeight: '400',
+    color: semanticColors.textPrimary,
   },
 });

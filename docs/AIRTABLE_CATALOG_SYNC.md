@@ -7,13 +7,17 @@
 
 **Destination:** Firestore `catalog/hanukkah/items/{slugId}` (replace sync; orphans deleted)
 
-**Images:** **Primary Image** → `imageUrl`; **Other Images** → `imageUrls` (mirrored to Firebase Storage when present)
+**Images:** **Primary Image** → `imageUrl`; **Other Images** → `imageUrls`. Sync converts attachments to **WebP** (max 1600px edge, q≈82) in Firebase Storage. Storefront lifestyle assets are also served as `.webp` (masters kept as PNG/JPG alongside). **Books** use Full Catalog Category=Book Primary Image renderings when matched.
 
-**PDP details (Full Catalog):** **Dimensions**, **Materials**, **What’s Included**, **Care Notes** → Firestore `dimensions` / `materials` / `whatsIncluded` / `careNotes` (empty values omitted in the app)
+**Book prices:** Hanukkah Books has **Cost per Unit**, **Member Price**, and **Non-Member Price** (currency), filled to the **high end** of **Price (approx, USD)** free text (e.g. `$8-18` → `$18`). Sync prefers those currency fields, with a text parse fallback.
+
+**Book PDP details:** **What’s Included**, **Care Notes** → Firestore `whatsIncluded` / `careNotes` (same as Full Catalog).
+
+**Homepage rails:** Full Catalog **Storefront rails** + **Storefront rank**, plus **Menorah homepage** / **Dreidel homepage** (`collection` | `kids`) which sync to `menorahs-*` / `dreidels-*`. Food section uses category Food (gelt, latkes, sufganiyot, stuffies, cookie cutters) or rail `food`. Kids dreidel fallback: airdry / blank / plush / clay.
 
 ## Pipeline
 
-1. Edit Airtable (prices, copy, Primary/Other Images, production flag, books).
+1. Edit Airtable (prices, copy, Primary/Other Images, production flag, books, Storefront rails/rank).
 2. Cloud Function `syncAirtableCatalog` (or scheduled job) replace-syncs into Firestore.
 3. The app listens with Firestore `onSnapshot` (`useCatalog`) — Home, My Box, product, and à la carte update live.
 

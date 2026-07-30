@@ -14,8 +14,13 @@ import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
-import { spacing, typography, borderRadius } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
+import {
+  borderRadius,
+  semanticColors,
+  spacing,
+  typeface,
+  typography,
+} from '../../constants/theme';
 import {
   HORIZONTAL_RAIL_SCROLL_CLASS,
   horizontalRailContentStyle,
@@ -30,7 +35,6 @@ type Props = {
 const TILE = 140;
 
 export function SimilarProductsRail({ title = 'You may also like', items }: Props) {
-  const { colors } = useThemeMode();
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const scrollRef = useRef<ScrollView>(null);
 
@@ -39,21 +43,21 @@ export function SimilarProductsRail({ title = 'You may also like', items }: Prop
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+        <Text style={styles.title}>{title}</Text>
         <View style={styles.arrows}>
           <TouchableOpacity
             accessibilityLabel="Scroll similar products left"
             onPress={() => scrollRef.current?.scrollTo({ x: 0, animated: true })}
-            style={[styles.arrowBtn, { borderColor: colors.border }]}
+            style={styles.arrowBtn}
           >
-            <Text style={{ color: colors.textPrimary, fontSize: 20 }}>‹</Text>
+            <Text style={styles.arrowGlyph}>‹</Text>
           </TouchableOpacity>
           <TouchableOpacity
             accessibilityLabel="Scroll similar products right"
             onPress={() => scrollRef.current?.scrollTo({ x: 400, animated: true })}
-            style={[styles.arrowBtn, { borderColor: colors.border }]}
+            style={styles.arrowBtn}
           >
-            <Text style={{ color: colors.textPrimary, fontSize: 20 }}>›</Text>
+            <Text style={styles.arrowGlyph}>›</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -81,7 +85,7 @@ export function SimilarProductsRail({ title = 'You may also like', items }: Prop
               onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
               accessibilityRole="button"
             >
-              <View style={[styles.imageWell, { backgroundColor: colors.brandLight }]}>
+              <View style={styles.imageWell}>
                 <BoxItemImage
                   size={TILE}
                   itemId={item.id}
@@ -89,10 +93,10 @@ export function SimilarProductsRail({ title = 'You may also like', items }: Prop
                   style={styles.image}
                 />
               </View>
-              <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={2}>
+              <Text style={styles.name} numberOfLines={2}>
                 {item.name}
               </Text>
-              <Text style={[styles.price, { color: colors.textSecondary }]}>{price}</Text>
+              <Text style={styles.price}>{price}</Text>
             </TouchableOpacity>
           );
         })}
@@ -103,7 +107,7 @@ export function SimilarProductsRail({ title = 'You may also like', items }: Prop
 
 const styles = StyleSheet.create({
   root: {
-    marginTop: spacing.xxl,
+    marginTop: spacing.lg,
     width: '100%',
     gap: spacing.md,
   },
@@ -113,18 +117,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    fontWeight: '500',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    color: semanticColors.logoDark,
   },
   arrows: { flexDirection: 'row', gap: spacing.xs },
   arrowBtn: {
     width: 36,
     height: 36,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.border,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  arrowGlyph: {
+    color: semanticColors.logoDark,
+    fontSize: 20,
   },
   tile: {
     width: TILE,
@@ -135,6 +144,7 @@ const styles = StyleSheet.create({
     height: TILE,
     overflow: 'hidden',
     borderRadius: borderRadius.md,
+    backgroundColor: semanticColors.accentCream,
   },
   image: {
     width: TILE,
@@ -142,13 +152,14 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
   },
   name: {
+    ...typeface('regular'),
     fontSize: typography.sm,
-    fontWeight: '400',
-    letterSpacing: 0,
+    color: semanticColors.textPrimary,
     lineHeight: 16,
   },
   price: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    letterSpacing: 0,
+    color: semanticColors.logoDark,
   },
 });

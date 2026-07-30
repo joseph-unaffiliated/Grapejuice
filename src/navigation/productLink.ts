@@ -1,12 +1,14 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
+import { STORE_PATH_PREFIX, storefrontFromState } from './storeLink';
+import { HOME_PATH, mainAppShellFromState } from './homeLink';
 
 export const PRODUCT_PATH_PREFIX = '/product';
 
 /** Browser path for a catalog product (`/product/arch-menorah`). */
 export function productPathForSlug(slug: string): string {
   const clean = slug.trim().replace(/^\/+|\/+$/g, '');
-  if (!clean) return '/';
+  if (!clean) return STORE_PATH_PREFIX;
   return `${PRODUCT_PATH_PREFIX}/${encodeURIComponent(clean)}`;
 }
 
@@ -49,21 +51,58 @@ export function catalogProductSlugFromState(
 export function browserPathForNavigationState(
   state: NavigationState | PartialState<NavigationState> | undefined
 ): string {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return '/';
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return STORE_PATH_PREFIX;
 
-  const giftPath = window.location.pathname.replace(/\/$/, '');
-  if (giftPath.endsWith('/gift/claim')) {
-    return window.location.pathname + window.location.search;
+  const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+  const search = window.location.search;
+
+  if (currentPath.endsWith('/gift/claim')) {
+    return window.location.pathname + search;
   }
 
   const slug = catalogProductSlugFromState(state);
   if (slug) return productPathForSlug(slug);
 
-  // Preserve preview query params on non-product screens.
-  const search = window.location.search;
-  if (search.includes('preview=')) {
-    return `/${search}`;
+  const store = storefrontFromState(state);
+  if (store) {
+    if (search.includes('preview=')) {
+      return `${store.path}${search}`;
+    }
+    return store.path;
   }
 
-  return '/';
+  if (mainAppShellFromState(state)) {
+    if (search.includes('preview=')) {
+      return `${HOME_PATH}${search}`;
+    }
+    return HOME_PATH;
+  }
+
+  /**
+   * Preserve deep-link URLs until the matching screen mounts.
+   * Otherwise MainTabs' first sync rewrites `/store` or `/product/…` away
+   * and the link effect loses its target.
+   */
+  if (
+    currentPath === '/' ||
+    currentPath === STORE_PATH_PREFIX ||
+    currentPath.startsWith(`${STORE_PATH_PREFIX}/`)
+  ) {
+    // Canonicalize bare `/` to `/store` while the storefront mounts.
+    const path = currentPath === '/' ? STORE_PATH_PREFIX : currentPath;
+    return path + search;
+  }
+  if (currentPath === HOME_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath.startsWith(`${PRODUCT_PATH_PREFIX}/`)) {
+    return currentPath + search;
+  }
+
+  if (search.includes('preview=')) {
+    return `${HOME_PATH}${search}`;
+  }
+
+  // Other MainTabs (Rav, Account, …) — stay off `/` so grapejuice.co keeps landing on store.
+  return HOME_PATH;
 }

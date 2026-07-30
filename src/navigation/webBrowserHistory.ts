@@ -17,6 +17,10 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
       const params = route.params as { slug?: string; itemId?: string } | undefined;
       parts.push(params?.slug ?? params?.itemId ?? '');
     }
+    if (route.name === 'StorefrontCategory') {
+      const params = route.params as { category?: string } | undefined;
+      parts.push(params?.category ?? '');
+    }
     current = route.state;
   }
   return parts.join('/');

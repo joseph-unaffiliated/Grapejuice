@@ -13,6 +13,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CATALOG_HOLIDAY = exports.BOOKS_TABLE_ID = exports.FULL_CATALOG_TABLE_ID = exports.AIRTABLE_BASE_ID_DEFAULT = void 0;
 exports.slugifyCatalogId = slugifyCatalogId;
+exports.parseApproxPriceHighCents = parseApproxPriceHighCents;
 exports.runAirtableCatalogReplaceSync = runAirtableCatalogReplaceSync;
 exports.assertCatalogSyncSecret = assertCatalogSyncSecret;
 /**
@@ -30,6 +31,7 @@ const logger = require("firebase-functions/logger");
 const firestore_1 = require("firebase-admin/firestore");
 const storage_1 = require("firebase-admin/storage");
 const crypto_1 = require("crypto");
+const sharp = require("sharp");
 exports.AIRTABLE_BASE_ID_DEFAULT = 'appQscrPCQUIj4shh';
 exports.FULL_CATALOG_TABLE_ID = 'tblCUCVfohWTQy8fP';
 exports.BOOKS_TABLE_ID = 'tbleo48j2H34DRAu1';
@@ -55,18 +57,36 @@ const F = {
     materials: 'fldTO5IDBFvggJd7Y',
     whatsIncluded: 'fldQhql0JV2mby273',
     careNotes: 'fldXM6Az08OFmvWC9',
+    /** Multi-select: most-loved | menorahs-collection | menorahs-kids | dreidels | … */
+    storefrontRails: 'fld87IqgLUYTCYbfd',
+    /** Number — lower shows first within a rail. */
+    storefrontRank: 'fldL8ywPdWjiWDJYs',
+    /** singleSelect: collection | kids — merged into storefrontRails as menorahs-* */
+    menorahHomepage: 'fld11aALd1jA7S2Oh',
+    /** singleSelect: collection | kids — merged into storefrontRails as dreidels-* */
+    dreidelHomepage: 'fldtNYSxTNtwO9TMg',
 };
 const B = {
     title: 'fldCZVbxyEy7pFpl5',
     author: 'fldJTYzX1VZANE32g',
     buyLink: 'fldoDsu0A2i6WPzd1',
-    cover: 'fldPIYO00g9QwhpVC',
+    /** Primary Image — same role as Full Catalog Primary Image. */
+    primaryImage: 'fldPIYO00g9QwhpVC',
+    /** Other Images — secondary gallery, same role as Full Catalog Other Images. */
+    otherImages: 'fldlxFU6PXF2LWutu',
     defaultForAge: 'fldZcr2Dzq9JivS7u',
     age: 'fldCQ9GdNJMI4f300',
     interest: 'fld0HXR8bybF5jJlf',
     cut: 'fldRZaX3mVlFqWntD',
+    /** Free-text approx price, e.g. "$8-18 depending on edition". */
     price: 'fldP8mVb5xMC9CQg3',
+    unitCost: 'fldocbJQ59NOnn52q',
+    memberPrice: 'fldDxCYzoVa8kECiK',
+    nonMemberPrice: 'fld98ErDMv4fjIXNV',
     description: 'fld4sz0NbEfYURoas',
+    whatsIncluded: 'fldibf87uviMr3F1p',
+    careNotes: 'fldOgYIzuMOiKypF8',
+    storefrontRails: 'fldQ0rtV9eQBoJnlj',
 };
 function requirePat() {
     var _a;
@@ -105,6 +125,38 @@ function selectNames(v) {
     }
     return v.map(selectName).filter((x) => Boolean(x));
 }
+function numberField(v) {
+    if (typeof v === 'number' && Number.isFinite(v))
+        return v;
+    if (typeof v === 'string' && v.trim() && Number.isFinite(Number(v)))
+        return Number(v);
+    return null;
+}
+/** Merge Storefront rails multi-select + homepage single-selects into rail slugs. */
+function storefrontRailsFromListing(f) {
+    var _a, _b;
+    const rails = new Set(selectNames(f[F.storefrontRails]));
+    // Legacy single rail → collection
+    if (rails.has('menorahs')) {
+        rails.add('menorahs-collection');
+        rails.delete('menorahs');
+    }
+    if (rails.has('dreidels')) {
+        rails.add('dreidels-collection');
+        rails.delete('dreidels');
+    }
+    const menorahHome = (_a = selectName(f[F.menorahHomepage])) === null || _a === void 0 ? void 0 : _a.toLowerCase();
+    if (menorahHome === 'collection')
+        rails.add('menorahs-collection');
+    if (menorahHome === 'kids')
+        rails.add('menorahs-kids');
+    const dreidelHome = (_b = selectName(f[F.dreidelHomepage])) === null || _b === void 0 ? void 0 : _b.toLowerCase();
+    if (dreidelHome === 'collection')
+        rails.add('dreidels-collection');
+    if (dreidelHome === 'kids')
+        rails.add('dreidels-kids');
+    return [...rails];
+}
 function textField(v) {
     if (typeof v !== 'string')
         return null;
@@ -115,6 +167,31 @@ function currencyToCents(v) {
     if (typeof v !== 'number' || !Number.isFinite(v))
         return 0;
     return Math.max(0, Math.round(v * 100));
+}
+/**
+ * High end of Hanukkah Books "Price (approx, USD)" free text.
+ * Examples: "$4.99 board book" → 499; "$8-18 depending on edition" → 1800;
+ * "$8-20 …; $24.99 gift ed." → 2499.
+ */
+function parseApproxPriceHighCents(raw) {
+    const s = String(raw !== null && raw !== void 0 ? raw : '');
+    if (!s.trim())
+        return 0;
+    const amounts = [];
+    const re = /~?\$?\s*(\d+(?:\.\d{1,2})?)/g;
+    let m;
+    while ((m = re.exec(s))) {
+        const n = Number.parseFloat(m[1]);
+        if (!Number.isFinite(n))
+            continue;
+        // Book prices are small; skip page counts / years accidentally captured.
+        if (n <= 0 || n > 500)
+            continue;
+        amounts.push(n);
+    }
+    if (!amounts.length)
+        return 0;
+    return Math.max(0, Math.round(Math.max(...amounts) * 100));
 }
 function attachments(v) {
     if (!Array.isArray(v))
@@ -239,33 +316,50 @@ async function airtableListAll(tableId, fields) {
     } while (offset);
     return out;
 }
+async function toWebpBuffer(input) {
+    // Catalog tiles rarely need >1600px; WebP keeps visual quality with far smaller bytes.
+    const out = await sharp(input)
+        .rotate()
+        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 82, effort: 4 })
+        .toBuffer();
+    return Buffer.from(out);
+}
 async function mirrorAttachmentToStorage(itemId, kind, index, att) {
     var _a;
     if (!att.url)
         return null;
     const bucket = (0, storage_1.getStorage)().bucket();
-    const ext = (att.filename && att.filename.includes('.') ? att.filename.split('.').pop() : null) ||
-        (((_a = att.type) === null || _a === void 0 ? void 0 : _a.includes('png')) ? 'png' : 'jpg');
-    const path = `catalog/${exports.CATALOG_HOLIDAY}/items/${itemId}/${kind}-${index}.${ext}`;
     const res = await fetch(att.url);
     if (!res.ok) {
         logger.warn('Failed to download Airtable attachment', { itemId, status: res.status });
         return null;
     }
-    const buf = Buffer.from(await res.arrayBuffer());
+    const raw = Buffer.from(await res.arrayBuffer());
+    let buf = raw;
+    let ext = 'webp';
+    let contentType = 'image/webp';
+    try {
+        buf = await toWebpBuffer(raw);
+    }
+    catch (e) {
+        logger.warn('WebP convert failed — storing original', { itemId, error: String(e) });
+        ext =
+            (att.filename && att.filename.includes('.') ? att.filename.split('.').pop() : null) ||
+                (((_a = att.type) === null || _a === void 0 ? void 0 : _a.includes('png')) ? 'png' : 'jpg');
+        contentType = att.type || 'image/jpeg';
+    }
     const hash = (0, crypto_1.createHash)('sha1').update(buf).digest('hex').slice(0, 12);
     const finalPath = `catalog/${exports.CATALOG_HOLIDAY}/items/${itemId}/${kind}-${index}-${hash}.${ext}`;
     const file = bucket.file(finalPath);
     await file.save(buf, {
-        contentType: att.type || 'image/jpeg',
+        contentType,
         metadata: { cacheControl: 'public,max-age=86400' },
         resumable: false,
     });
     await file.makePublic().catch(() => undefined);
-    // Prefer token URL if public ACL denied
     const [meta] = await file.getMetadata();
     if (meta.mediaLink) {
-        // Stable Firebase download via public URL when possible
         return `https://storage.googleapis.com/${bucket.name}/${finalPath}`;
     }
     const [signed] = await file.getSignedUrl({
@@ -273,8 +367,6 @@ async function mirrorAttachmentToStorage(itemId, kind, index, att) {
         expires: '2099-01-01',
     });
     return signed;
-    // silence unused path var
-    void path;
 }
 async function resolveImages(itemId, primary, other) {
     var _a;
@@ -335,6 +427,8 @@ function listingToItem(rec, images) {
         buyLink: typeof f[F.link] === 'string' ? f[F.link] : null,
         interest: null,
         curationTags: curationTagsFor(category),
+        storefrontRails: storefrontRailsFromListing(f),
+        storefrontRank: numberField(f[F.storefrontRank]),
         dimensions: textField(f[F.dimensions]),
         materials: textField(f[F.materials]),
         whatsIncluded: textField(f[F.whatsIncluded]),
@@ -354,6 +448,10 @@ function bookToItem(rec, images) {
     const isDefault = f[B.defaultForAge] === true;
     const author = String((_b = f[B.author]) !== null && _b !== void 0 ? _b : '').trim();
     const id = `book-${slugifyCatalogId(title)}`;
+    const priceCents = currencyToCents(f[B.memberPrice]) ||
+        currencyToCents(f[B.nonMemberPrice]) ||
+        currencyToCents(f[B.unitCost]) ||
+        parseApproxPriceHighCents(f[B.price]);
     return {
         id,
         name: title,
@@ -363,10 +461,10 @@ function bookToItem(rec, images) {
         ageGroups,
         defaultFor: isDefault ? ageGroups : [],
         swapOptions: [],
-        unitCostCents: 0,
-        memberPriceCents: 0,
-        nonMemberPriceCents: 0,
-        dollarCostCents: 0,
+        unitCostCents: priceCents,
+        memberPriceCents: priceCents,
+        nonMemberPriceCents: priceCents,
+        dollarCostCents: priceCents,
         pricingTier: 'perKid',
         holiday: exports.CATALOG_HOLIDAY,
         category: 'Book',
@@ -381,10 +479,12 @@ function bookToItem(rec, images) {
         buyLink: typeof f[B.buyLink] === 'string' ? f[B.buyLink] : null,
         interest: selectName(f[B.interest]),
         curationTags: ['collection'],
+        storefrontRails: selectNames(f[B.storefrontRails]),
+        storefrontRank: null,
         dimensions: null,
         materials: null,
-        whatsIncluded: null,
-        careNotes: null,
+        whatsIncluded: textField(f[B.whatsIncluded]),
+        careNotes: textField(f[B.careNotes]),
     };
 }
 function wireBookSwaps(items) {
@@ -397,8 +497,80 @@ function wireBookSwaps(items) {
         book.swapOptions = peers;
     }
 }
+/** Filename stem for Full Catalog book renderings, e.g. `papa-s-latkes__primary.png` → `papa-s-latkes`. */
+function renderingSlugFromFilename(filename) {
+    if (!filename)
+        return null;
+    const base = filename.replace(/\.[^.]+$/, '').replace(/__primary$/i, '');
+    const slug = slugifyCatalogId(base);
+    return slug === 'item' ? null : slug;
+}
+/**
+ * Index Full Catalog Category=Book Primary Image renderings by title slug.
+ * Many of these rows have no ID — only the attachment filename identifies the book.
+ * Also indexes any `__primary` attachment filename (render pipeline naming).
+ */
+function buildFullCatalogBookRenderingIndex(listingRecs) {
+    var _a;
+    const index = new Map();
+    for (const rec of listingRecs) {
+        const cats = selectNames(rec.fields[F.category]).map((c) => c.toLowerCase());
+        const primary = attachments(rec.fields[F.primaryImage]);
+        const other = attachments(rec.fields[F.otherImages]);
+        if (!primary.length && !other.length)
+            continue;
+        const hasPrimaryNamedRendering = primary.some((a) => /__primary\.(png|jpe?g|webp)$/i.test(a.filename || ''));
+        if (!cats.includes('book') && !hasPrimaryNamedRendering)
+            continue;
+        const rendering = { primary, other };
+        const keys = new Set();
+        const name = String((_a = rec.fields[F.id]) !== null && _a !== void 0 ? _a : '').trim();
+        if (name)
+            keys.add(slugifyCatalogId(name));
+        for (const att of primary) {
+            const slug = renderingSlugFromFilename(att.filename);
+            if (slug)
+                keys.add(slug);
+        }
+        for (const key of keys) {
+            const existing = index.get(key);
+            if (!existing || (primary.length && !existing.primary.length)) {
+                index.set(key, rendering);
+            }
+        }
+    }
+    return index;
+}
+/** Prefer exact slug, then longest prefix/containment match (min 12 chars). */
+function findBookRendering(title, index) {
+    var _a;
+    const slug = slugifyCatalogId(title);
+    const exact = index.get(slug);
+    if (exact)
+        return exact;
+    let bestKey = null;
+    let bestScore = 0;
+    for (const key of index.keys()) {
+        if (key.length < 8 || slug.length < 8)
+            continue;
+        let score = 0;
+        if (slug === key)
+            score = key.length + 2;
+        else if (slug.startsWith(key) || key.startsWith(slug)) {
+            score = Math.min(key.length, slug.length);
+        }
+        else if (slug.includes(key) || key.includes(slug)) {
+            score = Math.min(key.length, slug.length) - 1;
+        }
+        if (score >= 12 && score > bestScore) {
+            bestScore = score;
+            bestKey = key;
+        }
+    }
+    return bestKey ? (_a = index.get(bestKey)) !== null && _a !== void 0 ? _a : null : null;
+}
 async function runAirtableCatalogReplaceSync() {
-    var _a, _b;
+    var _a, _b, _c;
     const db = (0, firestore_1.getFirestore)();
     const listingFields = Object.values(F);
     const bookFields = Object.values(B);
@@ -408,9 +580,15 @@ async function runAirtableCatalogReplaceSync() {
     ]);
     const items = [];
     let skippedImages = 0;
+    const bookRenderings = buildFullCatalogBookRenderingIndex(listingRecs);
+    logger.info('Full Catalog book renderings indexed', { count: bookRenderings.size });
     for (const rec of listingRecs) {
         const name = String((_a = rec.fields[F.id]) !== null && _a !== void 0 ? _a : '').trim();
         if (!name)
+            continue;
+        // Book products come from Hanukkah Books; Full Catalog Book rows supply renderings only.
+        const cats = selectNames(rec.fields[F.category]).map((c) => c.toLowerCase());
+        if (cats.includes('book'))
             continue;
         const inProd = selectName(rec.fields[F.inProduction]);
         if (inProd && inProd !== 'Yes')
@@ -432,6 +610,7 @@ async function runAirtableCatalogReplaceSync() {
         if (item)
             items.push(item);
     }
+    let booksUsingFcPrimary = 0;
     for (const rec of bookRecs) {
         if (rec.fields[B.cut] === true)
             continue;
@@ -439,21 +618,39 @@ async function runAirtableCatalogReplaceSync() {
         if (!title)
             continue;
         const id = `book-${slugifyCatalogId(title)}`;
-        const cover = attachments(rec.fields[B.cover]);
+        const bookPrimary = attachments(rec.fields[B.primaryImage]);
+        const bookOther = attachments(rec.fields[B.otherImages]);
+        const fc = findBookRendering(title, bookRenderings);
+        // Book grid/PDP primary always comes from Full Catalog Primary Image when matched.
+        // Hanukkah Books attachments are gallery-only (never the storefront primary).
+        let primary = [];
+        let other = [];
+        if (fc === null || fc === void 0 ? void 0 : fc.primary.length) {
+            primary = fc.primary;
+            other = [...((_c = fc.other) !== null && _c !== void 0 ? _c : []), ...bookPrimary, ...bookOther];
+            booksUsingFcPrimary += 1;
+        }
+        else {
+            // No FC rendering yet — fall back so the SKU still has a photo.
+            primary = bookPrimary;
+            other = bookOther;
+            logger.warn('No Full Catalog primary rendering for book', { id, title });
+        }
         let images = { imageUrl: null, imageUrls: [] };
-        if (cover.length) {
+        if (primary.length || other.length) {
             try {
-                images = await resolveImages(id, cover, []);
+                images = await resolveImages(id, primary, other);
             }
             catch (e) {
                 skippedImages += 1;
-                logger.warn('Book cover mirror failed', { id, error: String(e) });
+                logger.warn('Book image mirror failed', { id, error: String(e) });
             }
         }
         const item = bookToItem(rec, images);
         if (item)
             items.push(item);
     }
+    logger.info('Books using Full Catalog primary renderings', { booksUsingFcPrimary });
     wireBookSwaps(items);
     if (items.length === 0) {
         throw new Error('Airtable sync produced 0 items — refusing to delete Firestore catalog. Check PAT scopes and field mapping.');
@@ -499,6 +696,8 @@ async function runAirtableCatalogReplaceSync() {
         listings: items.filter((i) => i.airtableTable === 'full-catalog').length,
         books: items.filter((i) => i.airtableTable === 'books').length,
         skippedImages,
+        booksUsingFcPrimary,
+        bookRenderingsIndexed: bookRenderings.size,
     };
 }
 function assertCatalogSyncSecret(authHeader) {

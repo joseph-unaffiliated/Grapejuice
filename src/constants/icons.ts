@@ -40,7 +40,10 @@ import {
   faUtensils,
   faDice,
   faMenorah,
+  faHeart,
+  faPlay,
 } from '@fortawesome/free-solid-svg-icons';
+import { faHeart as faHeartOutline } from '@fortawesome/free-regular-svg-icons';
 
 export const icons = {
   home: faHouse,
@@ -48,6 +51,9 @@ export const icons = {
   cart: faCartShopping,
   user: faUser,
   search: faSearch,
+  heart: faHeart,
+  heartOutline: faHeartOutline,
+  play: faPlay,
   menu: faBars,
   close: faXmark,
   gift: faGift,

@@ -31,6 +31,9 @@ export type MainStackParamList = {
   KidGuide: undefined;
   Profiles: undefined;
   AlaCarteStore: undefined;
+  /** C&B-style retail experiment — no global sidebar. */
+  StorefrontHome: undefined;
+  StorefrontCategory: { category: string };
   CatalogProduct: { slug: string };
   BoxDiscountEligibility: undefined;
   Checkout: undefined;

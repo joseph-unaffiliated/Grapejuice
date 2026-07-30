@@ -21,6 +21,8 @@ import { readDevPreviewFromWindow } from './devPreview';
 import { WebBrowserHistoryBridge } from './WebBrowserHistoryBridge';
 import { GiftClaimLinkEffect } from './GiftClaimLinkEffect';
 import { ProductLinkEffect } from './ProductLinkEffect';
+import { StorefrontLinkEffect } from './StorefrontLinkEffect';
+import { HomeLinkEffect } from './HomeLinkEffect';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -124,6 +126,8 @@ export function RootNavigator() {
           <WebBrowserHistoryBridge />
           <GiftClaimLinkEffect />
           <ProductLinkEffect />
+          <StorefrontLinkEffect />
+          <HomeLinkEffect />
           <DevPreviewEffect />
           <RootRoutes />
         </NavigationContainer>

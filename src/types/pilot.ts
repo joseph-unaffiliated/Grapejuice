@@ -127,6 +127,14 @@ export type CatalogItem = {
   holiday: string;
   /** Home collection rails — from Firestore or catalogCuration fallback */
   curationTags?: CatalogCurationTag[];
+  /**
+   * Airtable "Storefront rails" multi-select.
+   * Values: most-loved | menorahs-collection | menorahs-kids | dreidels | candles | decor | books | gifts
+   * Legacy: menorahs (treated as menorahs-collection)
+   */
+  storefrontRails?: string[];
+  /** Airtable "Storefront rank" — lower first within a rail. */
+  storefrontRank?: number;
   brand?: string;
   /** Airtable Category (Menorah, Candles, Book, …). */
   category?: string;

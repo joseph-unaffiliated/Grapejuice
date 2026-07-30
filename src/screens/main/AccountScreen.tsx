@@ -210,7 +210,7 @@ export function AccountScreen() {
     if (fakeSignedIn) {
       clearDevPreview();
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.href = '/?preview=account';
+        window.location.href = '/home?preview=account';
       }
       return;
     }

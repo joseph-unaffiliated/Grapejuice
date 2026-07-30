@@ -6,11 +6,16 @@ import {
   StyleSheet,
   Platform,
   Text,
+  useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
-import { borderRadius, spacing } from '../../constants/theme';
+import { LAYOUT, borderRadius, spacing } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
+import {
+  WelcomeSubscriberBadge,
+  isWelcomeMenorah,
+} from '../storefront/WelcomeSubscriberBadge';
 
 type Props = {
   itemId: string;
@@ -41,6 +46,8 @@ export function ProductImageGallery({
   style,
 }: Props) {
   const { colors } = useThemeMode();
+  const { width } = useWindowDimensions();
+  const compact = width < LAYOUT.BREAKPOINT_TABLET;
   const urls = useMemo(() => collectUrls(imageUrl, imageUrls), [imageUrl, imageUrls]);
   const [selected, setSelected] = useState(0);
   const activeIndex = Math.min(selected, Math.max(0, urls.length - 1));
@@ -48,41 +55,52 @@ export function ProductImageGallery({
   const canPrev = urls.length > 1 && activeIndex > 0;
   const canNext = urls.length > 1 && activeIndex < urls.length - 1;
 
+  const thumbs =
+    urls.length > 1 ? (
+      <View style={[styles.thumbsCol, compact && styles.thumbsRow]}>
+        {urls.map((url, i) => {
+          const isActive = i === activeIndex;
+          return (
+            <TouchableOpacity
+              key={url}
+              onPress={() => setSelected(i)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isActive }}
+              style={[
+                styles.thumb,
+                compact && styles.thumbCompact,
+                {
+                  borderColor: isActive ? colors.textPrimary : colors.border,
+                  backgroundColor: colors.brandLight,
+                },
+              ]}
+            >
+              <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    ) : null;
+
   return (
     <View
       style={[
         styles.root,
+        compact && styles.rootCompact,
         maxWidth != null ? { maxWidth, width: '100%' } : undefined,
         style,
       ]}
     >
-      {urls.length > 1 ? (
-        <View style={styles.thumbsCol}>
-          {urls.map((url, i) => {
-            const isActive = i === activeIndex;
-            return (
-              <TouchableOpacity
-                key={url}
-                onPress={() => setSelected(i)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                style={[
-                  styles.thumb,
-                  {
-                    borderColor: isActive ? colors.textPrimary : colors.border,
-                    backgroundColor: colors.brandLight,
-                  },
-                ]}
-              >
-                <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ) : null}
+      {!compact ? thumbs : null}
 
       <View style={styles.heroWrap}>
-        <View style={[styles.hero, { backgroundColor: colors.brandLight }]}>
+        <View
+          style={[
+            styles.hero,
+            compact && styles.heroCompact,
+            { backgroundColor: colors.brandLight },
+          ]}
+        >
           {activeUrl ? (
             <Image source={{ uri: activeUrl }} style={styles.heroImage} resizeMode="cover" />
           ) : (
@@ -94,6 +112,11 @@ export function ProductImageGallery({
             />
           )}
         </View>
+        {isWelcomeMenorah({ id: itemId }) ? (
+          <View style={styles.welcomeBadge} pointerEvents="none">
+            <WelcomeSubscriberBadge />
+          </View>
+        ) : null}
         {urls.length > 1 ? (
           <>
             <TouchableOpacity
@@ -117,11 +140,14 @@ export function ProductImageGallery({
           </>
         ) : null}
       </View>
+
+      {compact ? thumbs : null}
     </View>
   );
 }
 
 const THUMB = 64;
+const THUMB_MOBILE = 52;
 
 const styles = StyleSheet.create({
   root: {
@@ -130,10 +156,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing.sm,
   },
+  rootCompact: {
+    flexDirection: 'column',
+    gap: spacing.md,
+  },
   thumbsCol: {
     width: THUMB,
     gap: spacing.sm,
     flexShrink: 0,
+  },
+  thumbsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   thumb: {
     width: THUMB,
@@ -141,6 +177,10 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
+  },
+  thumbCompact: {
+    width: THUMB_MOBILE,
+    height: THUMB_MOBILE,
   },
   thumbImage: {
     width: '100%',
@@ -150,6 +190,7 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     minWidth: 0,
+    width: '100%',
   },
   hero: {
     width: '100%',
@@ -158,13 +199,22 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     ...(Platform.OS === 'web'
       ? ({
-          // Prefer ~80vh without exceeding the column width or crushing neighbors.
           width: 'min(100%, 80vh)',
           maxWidth: '80vh',
           maxHeight: '80vh',
           height: 'auto',
         } as object)
       : { minHeight: 320 }),
+  },
+  heroCompact: {
+    ...(Platform.OS === 'web'
+      ? ({
+          width: '100%',
+          maxWidth: '100%',
+          maxHeight: undefined,
+          height: 'auto',
+        } as object)
+      : { minHeight: 280 }),
   },
   heroImage: {
     width: '100%',
@@ -198,5 +248,11 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.35)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  welcomeBadge: {
+    position: 'absolute',
+    left: spacing.sm,
+    bottom: spacing.sm,
+    zIndex: 3,
   },
 });
