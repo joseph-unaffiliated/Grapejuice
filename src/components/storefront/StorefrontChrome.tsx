@@ -1,4 +1,10 @@
-import React, { type ReactNode, type Ref } from 'react';
+import React, {
+  useCallback,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import {
   View,
   Text,
@@ -6,6 +12,10 @@ import {
   TouchableOpacity,
   Platform,
   ScrollView,
+  Animated,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -41,6 +51,29 @@ type Props = {
   contentContainerStyle?: object;
 };
 
+type ChromeProps = {
+  activeCategory?: string;
+  onLogoPress: () => void;
+  onService: (id: StorefrontServiceId) => void;
+  onCategory: (slug: string) => void;
+};
+
+function StorefrontChromeBlocks({
+  activeCategory,
+  onLogoPress,
+  onService,
+  onCategory,
+}: ChromeProps) {
+  return (
+    <View style={styles.chromeInner}>
+      <StorefrontPromoStrip />
+      <StorefrontHeader onLogoPress={onLogoPress} />
+      <StorefrontServicesNav onPress={onService} />
+      <StorefrontCategoryNav activeSlug={activeCategory} onPress={onCategory} />
+    </View>
+  );
+}
+
 function StorefrontFooter() {
   const navigation = useNavigation<Nav>();
   const goHome = () => navigation.navigate('StorefrontHome');
@@ -66,9 +99,12 @@ function StorefrontFooter() {
   );
 }
 
+const SCROLL_DIR_THRESHOLD = 6;
+
 /**
- * Storefront shell: sticky chrome + one page ScrollView that includes the footer.
- * Screens pass page body only — do not nest another vertical ScrollView.
+ * Storefront shell: one page ScrollView.
+ * Chrome scrolls away with the page; on scroll-up mid-page it reappears as a pinned bar.
+ * Footer is normal document flow at the bottom of the page (never fixed).
  */
 export function StorefrontChrome({
   children,
@@ -79,6 +115,14 @@ export function StorefrontChrome({
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  const lastY = useRef(0);
+  const chromeHeight = useRef(0);
+  const [chromeH, setChromeH] = useState(0);
+  const [pinned, setPinned] = useState(false);
+  const pinnedRef = useRef(false);
+  const pinProgress = useRef(new Animated.Value(0)).current;
+  const pinAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const goHome = () => navigation.navigate('StorefrontHome');
 
@@ -121,24 +165,95 @@ export function StorefrontChrome({
     }
   };
 
+  const chromeProps: ChromeProps = {
+    activeCategory,
+    onLogoPress: goHome,
+    onService,
+    onCategory: goCategory,
+  };
+
+  const onChromeLayout = (e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    chromeHeight.current = h;
+    setChromeH(h);
+  };
+
+  const animatePin = useCallback(
+    (show: boolean) => {
+      if (pinnedRef.current === show) return;
+      pinnedRef.current = show;
+      pinAnimRef.current?.stop();
+      if (show) setPinned(true);
+      pinAnimRef.current = Animated.timing(pinProgress, {
+        toValue: show ? 1 : 0,
+        duration: 220,
+        useNativeDriver: true,
+      });
+      pinAnimRef.current.start(({ finished }) => {
+        if (finished && !show) setPinned(false);
+      });
+    },
+    [pinProgress]
+  );
+
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const y = e.nativeEvent.contentOffset.y;
+      const dy = y - lastY.current;
+      lastY.current = y;
+      const h = chromeHeight.current;
+
+      // At / near top: in-flow chrome is visible — no pinned overlay.
+      if (y <= Math.max(8, h * 0.35)) {
+        animatePin(false);
+        return;
+      }
+
+      if (dy > SCROLL_DIR_THRESHOLD) {
+        animatePin(false);
+      } else if (dy < -SCROLL_DIR_THRESHOLD) {
+        animatePin(true);
+      }
+    },
+    [animatePin]
+  );
+
+  const pinSlide = pinProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-Math.max(chromeH, 80), 0],
+  });
+
   return (
     <View style={styles.root} testID="storefront-scroll-host">
-      <View style={styles.chrome}>
-        <StorefrontPromoStrip />
-        <StorefrontHeader onLogoPress={goHome} />
-        <StorefrontServicesNav onPress={onService} />
-        <StorefrontCategoryNav activeSlug={activeCategory} onPress={goCategory} />
-      </View>
+      {pinned ? (
+        <Animated.View
+          style={[
+            styles.pinnedChrome,
+            {
+              transform: [{ translateY: pinSlide }],
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <StorefrontChromeBlocks {...chromeProps} />
+        </Animated.View>
+      ) : null}
+
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         // @ts-expect-error web className
         className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
         testID="storefront-vertical-scroll"
       >
+        <View onLayout={onChromeLayout} collapsable={false}>
+          <StorefrontChromeBlocks {...chromeProps} />
+        </View>
         {children}
         <StorefrontFooter />
       </ScrollView>
@@ -184,10 +299,27 @@ const styles = StyleSheet.create({
       ? ({ height: '100%', maxHeight: '100dvh' } as object)
       : null),
   },
-  chrome: {
-    flexShrink: 0,
-    zIndex: 5,
+  chromeInner: {
     backgroundColor: semanticColors.bgPrimary,
+  },
+  pinnedChrome: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    backgroundColor: semanticColors.bgPrimary,
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: '0 4px 16px rgba(17, 2, 34, 0.1)',
+        } as object)
+      : {
+          shadowColor: '#110222',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 6,
+        }),
   },
   scroll: {
     flex: 1,
