@@ -19,12 +19,15 @@ import { useWishlist } from '../../hooks/useWishlist';
 import { useBrowsingHistoryStore } from '../../stores/browsingHistoryStore';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { ordersService } from '../../services/firestore/orders';
+import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
   HANUKKAH_SHIP_WINDOW_LABEL,
   inferPricingTier,
+  resolveCatalogDisplayPrices,
   unitCentsForTier,
 } from '../../services/box/pricing';
 import { similarCatalogItems } from '../../constants/catalogCuration';
+import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
 import { storefrontCategoryForItem } from '../../constants/storefrontCategories';
 import { ProductImageGallery } from '../../components/catalog/ProductImageGallery';
 import { ProductPricingBlock } from '../../components/catalog/ProductPricingBlock';
@@ -34,7 +37,7 @@ import {
   useStorefrontActions,
 } from '../../components/storefront/StorefrontChrome';
 import type { MainStackParamList } from '../../navigation/types';
-import type { BoxLineItem } from '../../types/pilot';
+import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import {
   MOBILE_GUTTER,
   borderRadius,
@@ -46,14 +49,11 @@ import {
 
 type DetailRow = { label: string; value: string };
 
-function detailRowsFromItem(item: {
-  dimensions?: string;
-  materials?: string;
-  whatsIncluded?: string;
-  careNotes?: string;
-}): DetailRow[] {
+/** Spec rows for PDP — only include fields that have real values. */
+function detailRowsFromItem(item: CatalogItem): DetailRow[] {
   const rows: DetailRow[] = [];
   if (item.dimensions?.trim()) rows.push({ label: 'Dimensions', value: item.dimensions.trim() });
+  if (item.weight?.trim()) rows.push({ label: 'Weight', value: item.weight.trim() });
   if (item.materials?.trim()) rows.push({ label: 'Materials', value: item.materials.trim() });
   if (item.whatsIncluded?.trim()) {
     rows.push({ label: 'What’s included', value: item.whatsIncluded.trim() });
@@ -147,7 +147,16 @@ export function CatalogProductScreen() {
   const inCart = useMemo(() => lineItems.some((li) => li.itemId === slug), [lineItems, slug]);
   const wishlisted = item ? isWishlisted(item.id) : false;
   const tier = item ? inferPricingTier(item) : 'included';
-  const unitCents = item ? unitCentsForTier(tier, item.dollarCostCents) : 0;
+  const { memberCents, nonMemberCents } = item
+    ? resolveCatalogDisplayPrices(item)
+    : { memberCents: 0, nonMemberCents: 0 };
+  /** Box-path charge: member list for à la carte; existing tier rules otherwise. */
+  const boxUnitCents = item
+    ? tier === 'alaCarte'
+      ? memberCents
+      : unitCentsForTier(tier, item.dollarCostCents)
+    : 0;
+  const bodyCopy = useMemo(() => (item ? pdpBodyCopyForItem(item) : undefined), [item]);
   const details = useMemo(() => (item ? detailRowsFromItem(item) : []), [item]);
   const similar = useMemo(
     () => (item ? similarCatalogItems(item, catalog, 12) : []),
@@ -163,20 +172,36 @@ export function CatalogProductScreen() {
     }
   };
 
-  const addToCartOrBox = async () => {
+  const addToCart = async () => {
     if (!item || locked || inCart) return;
-    if (unitCents > 0 && !guardMutation()) return;
+    if (nonMemberCents > 0 && !guardMutation()) return;
     await persist([
       ...lineItems,
       {
         slotId: item.slotId,
         itemId: item.id,
         quantity: 1,
-        unitCents,
+        unitCents: nonMemberCents,
         label: item.name,
       },
     ]);
     navigation.goBack();
+  };
+
+  const buyWithBox = async () => {
+    if (!item || locked || inCart) return;
+    if (boxUnitCents > 0 && !guardMutation()) return;
+    await persist([
+      ...lineItems,
+      {
+        slotId: item.slotId,
+        itemId: item.id,
+        quantity: 1,
+        unitCents: boxUnitCents,
+        label: item.name,
+      },
+    ]);
+    navigation.navigate('MyBox');
   };
 
   const removeFromCartOrBox = async () => {
@@ -185,13 +210,29 @@ export function CatalogProductScreen() {
     navigation.goBack();
   };
 
+  const askFollowUpAboutCopy = () => {
+    if (!bodyCopy) return;
+    navigation.navigate('MainTabs', {
+      screen: 'Rav',
+      params: {
+        newChat: true,
+        openingAssistantMessage: bodyCopy,
+      },
+    });
+  };
+
   const primaryLabel = inCart
     ? boxStarted
       ? 'Remove from box'
       : 'Remove from cart'
-    : boxStarted
-      ? 'Add to box'
+    : nonMemberCents > 0
+      ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
       : 'Add to cart';
+
+  const boxCtaLabel =
+    memberCents > 0
+      ? `Buy with a box (${formatCatalogDollars(memberCents)})`
+      : 'Buy with a box';
 
   if (loading || draftLoading) {
     return (
@@ -252,55 +293,71 @@ export function CatalogProductScreen() {
               itemId={item.id}
               imageUrl={item.imageUrl}
               imageUrls={item.imageUrls}
+              wishlisted={wishlisted}
+              onToggleWishlist={() => toggleWishlist(item.id)}
+              wishlistDisabled={wishlistSaving}
             />
           </View>
 
           <View style={[styles.buy, desktop && styles.buyDesktop]}>
             <Text style={[styles.name, !desktop && styles.nameMobile]}>{item.name}</Text>
-            {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
+            {bodyCopy ? (
+              <Text style={styles.desc}>
+                {bodyCopy}{' '}
+                <Text
+                  style={styles.followUpLink}
+                  onPress={askFollowUpAboutCopy}
+                  accessibilityRole="link"
+                  accessibilityLabel="I have a follow up question"
+                >
+                  I have a follow up question >
+                </Text>
+              </Text>
+            ) : null}
 
             <View style={styles.priceRule}>
               <ProductPricingBlock
                 item={item}
                 hasHanukkahBox={hasHanukkahBox}
                 onWhatsInTheBox={() => navigation.navigate('MyBox')}
-                onEligibility={() => navigation.navigate('BoxDiscountEligibility')}
               />
             </View>
 
-            <Text style={styles.shipNote}>
-              Ships in time for Hanukkah (estimated arrival {shipWindow})
-            </Text>
-
-            <View style={styles.ctaRow}>
-              <TouchableOpacity
-                style={[styles.cta, styles.ctaPrimary, (locked || saving) && styles.ctaDisabled]}
-                onPress={inCart ? removeFromCartOrBox : addToCartOrBox}
-                disabled={locked || saving}
-                accessibilityRole="button"
-              >
-                {saving ? (
-                  <ActivityIndicator color={semanticColors.textInverse} />
-                ) : (
-                  <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.cta, styles.ctaSecondary, wishlistSaving && styles.ctaDisabled]}
-                onPress={() => toggleWishlist(item.id)}
-                disabled={wishlistSaving}
-                accessibilityRole="button"
-              >
-                <Text style={styles.ctaSecondaryText}>
-                  {wishlisted ? 'Saved to wishlist' : 'Add to wishlist'}
+            <View style={styles.ctaBlock}>
+              <View style={styles.ctaRow}>
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaPrimary, (locked || saving) && styles.ctaDisabled]}
+                  onPress={inCart ? removeFromCartOrBox : addToCart}
+                  disabled={locked || saving}
+                  accessibilityRole="button"
+                >
+                  {saving ? (
+                    <ActivityIndicator color={semanticColors.textInverse} />
+                  ) : (
+                    <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                  )}
+                </TouchableOpacity>
+                {!inCart ? (
+                  <TouchableOpacity
+                    style={[styles.cta, styles.ctaSecondary, (locked || saving) && styles.ctaDisabled]}
+                    onPress={buyWithBox}
+                    disabled={locked || saving}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.ctaSecondaryText}>{boxCtaLabel}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              {!inCart ? (
+                <Text style={styles.shipNote}>
+                  Arrives in time for Hanukkah (est. {shipWindow})
                 </Text>
-              </TouchableOpacity>
+              ) : null}
             </View>
 
             {details.length > 0 ? (
               <View style={styles.details}>
-                <Text style={styles.detailsHeading}>Details</Text>
+                <Text style={styles.detailsHeading}>Product details</Text>
                 {details.map((row) => (
                   <View key={row.label} style={styles.detailRow}>
                     <Text style={styles.detailLabel}>{row.label}</Text>
@@ -409,9 +466,17 @@ const styles = StyleSheet.create({
   desc: {
     ...typeface('regular'),
     fontSize: typography.md,
-    lineHeight: 22,
+    lineHeight: 24,
     color: semanticColors.textSecondary,
     maxWidth: 440,
+  },
+  followUpLink: {
+    ...typeface('bold'),
+    fontSize: typography.md,
+    lineHeight: 24,
+    color: semanticColors.logoDark,
+    textDecorationLine: 'underline',
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
   },
   priceRule: {
     marginTop: spacing.sm,
@@ -420,23 +485,25 @@ const styles = StyleSheet.create({
     borderTopColor: semanticColors.border,
     width: '100%',
   },
-  shipNote: {
-    ...typeface('medium'),
-    fontSize: typography.md,
-    lineHeight: 22,
-    color: semanticColors.textPrimary,
-  },
-  ctaRow: {
-    width: '100%',
+  ctaBlock: {
+    alignSelf: 'flex-start',
+    alignItems: 'flex-start',
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
+  ctaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+    alignSelf: 'flex-start',
+    gap: spacing.sm,
+  },
   cta: {
     paddingVertical: 14,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.md,
     alignItems: 'center',
-    alignSelf: 'stretch',
+    justifyContent: 'center',
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
   },
   ctaPrimary: {
@@ -445,19 +512,31 @@ const styles = StyleSheet.create({
   ctaSecondary: {
     borderWidth: 1,
     borderColor: semanticColors.logoDark,
-    backgroundColor: 'transparent',
+    backgroundColor: semanticColors.bgPrimary,
   },
   ctaDisabled: { opacity: 0.55 },
   ctaPrimaryText: {
     ...typeface('medium'),
-    fontSize: typography.sm,
+    fontSize: 11,
+    lineHeight: 14,
     color: semanticColors.textInverse,
+    textAlign: 'center',
   },
   ctaSecondaryText: {
     ...typeface('medium'),
-    fontSize: typography.sm,
+    fontSize: 11,
+    lineHeight: 14,
     color: semanticColors.logoDark,
+    textAlign: 'center',
   },
+  shipNote: {
+    ...typeface('regular'),
+    fontSize: 11,
+    lineHeight: 14,
+    color: semanticColors.textSecondary,
+    textAlign: 'left',
+  },
+
   details: {
     marginTop: spacing.xl,
     paddingTop: spacing.xl,

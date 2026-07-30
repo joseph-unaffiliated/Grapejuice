@@ -31,6 +31,7 @@ export function RavScreen() {
   const newChat = route.params?.newChat;
   const threadId = route.params?.threadId;
   const initialMessage = route.params?.initialMessage;
+  const openingAssistantMessage = route.params?.openingAssistantMessage;
 
   useEffect(() => {
     recordGuestRavPrompt();
@@ -47,7 +48,9 @@ export function RavScreen() {
   }, [navigation]);
 
   useEffect(() => {
-    const hasIntent = Boolean(view || newChat || threadId || initialMessage);
+    const hasIntent = Boolean(
+      view || newChat || threadId || initialMessage || openingAssistantMessage
+    );
     if (!hasIntent) return;
 
     let cancelled = false;
@@ -67,6 +70,8 @@ export function RavScreen() {
         sheet.showRecentChats();
       } else if (threadId) {
         sheet.openThread(threadId, true);
+      } else if (openingAssistantMessage) {
+        sheet.startChatWithOpeningAssistant(openingAssistantMessage);
       } else if (newChat || initialMessage) {
         sheet.startNewChat(initialMessage);
       } else if (view === 'welcome') {
@@ -78,6 +83,7 @@ export function RavScreen() {
         newChat: undefined,
         threadId: undefined,
         initialMessage: undefined,
+        openingAssistantMessage: undefined,
       });
     };
 
@@ -85,7 +91,7 @@ export function RavScreen() {
     return () => {
       cancelled = true;
     };
-  }, [view, newChat, threadId, initialMessage, navigation]);
+  }, [view, newChat, threadId, initialMessage, openingAssistantMessage, navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

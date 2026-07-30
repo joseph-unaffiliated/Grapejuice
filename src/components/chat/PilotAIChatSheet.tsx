@@ -61,6 +61,8 @@ export type PilotAIChatSheetRef = {
   resetToWelcome: () => void;
   showWelcome: () => void;
   startNewChat: (initialMessage?: string) => void;
+  /** Seed Rav's first bubble; leave composer empty for the user's follow-up. */
+  startChatWithOpeningAssistant: (openingMessage: string) => void;
   showRecentChats: () => void;
   openThread: (threadId: string, fromRecent?: boolean) => void;
   sendMessage: (text: string) => void;
@@ -104,6 +106,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [welcomeFocused, setWelcomeFocused] = useState(false);
   const pendingInitialMessage = useRef<string | null>(null);
   const [pendingSendNonce, setPendingSendNonce] = useState(0);
+  /** Local-only opening assistant bubble not yet written to Firestore. */
+  const unpersistedOpeningRef = useRef(false);
+  const [focusComposerNonce, setFocusComposerNonce] = useState(0);
+  const replyInputRef = useRef<TextInput>(null);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList<AIChatMessage>>(null);
   const isGuest = !user?.uid;
@@ -150,6 +156,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     setThreadId(null);
     setReturnToRecent(false);
     setWelcomeFocused(false);
+    unpersistedOpeningRef.current = false;
     setView('welcome');
   }, []);
 
@@ -167,6 +174,19 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     pendingInitialMessage.current = pending;
     setPendingSendNonce((n) => n + 1);
   }, [clearComposer]);
+
+  const startChatWithOpeningAssistant = useCallback(
+    (openingMessage: string) => {
+      clearComposer();
+      const content = openingMessage.trim();
+      if (!content) return;
+      setMessages([{ role: 'assistant', content }]);
+      unpersistedOpeningRef.current = true;
+      setView('thread');
+      setFocusComposerNonce((n) => n + 1);
+    },
+    [clearComposer]
+  );
 
   const resetToWelcome = startNewChat;
 
@@ -193,6 +213,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       setError(null);
       setInput('');
       setBlockFeedback(null);
+      unpersistedOpeningRef.current = false;
     },
     [user?.uid, useKidRavThreads, activeChild?.id]
   );
@@ -305,7 +326,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       scrollToEnd();
 
       try {
-        if (!isGuest && prior.length === 0 && activeThreadId && user?.uid) {
+        const includeOpeningSeed = unpersistedOpeningRef.current;
+        const hasUserInPrior = prior.some((m) => m.role === 'user');
+        if (!isGuest && !hasUserInPrior && activeThreadId && user?.uid) {
           if (useKidRavThreads && activeChild?.id) {
             await kidRavChatService.updateTitle(user.uid, activeChild.id, activeThreadId, titleFromMessage(trimmed));
           } else {
@@ -342,15 +365,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setMessages((m) => [...m, assistantMsg]);
         setLastActivityAt(new Date());
         if (!isGuest && activeThreadId && user?.uid) {
+          const toAppend: AIChatMessage[] = includeOpeningSeed
+            ? [...prior, userMsg, assistantMsg]
+            : [userMsg, assistantMsg];
           if (useKidRavThreads && activeChild?.id) {
-            await kidRavChatService.appendMessages(user.uid, activeChild.id, activeThreadId, [
-              userMsg,
-              assistantMsg,
-            ]);
+            await kidRavChatService.appendMessages(user.uid, activeChild.id, activeThreadId, toAppend);
           } else {
-            await aiChatService.appendMessages(user.uid, activeThreadId, [userMsg, assistantMsg]);
+            await aiChatService.appendMessages(user.uid, activeThreadId, toAppend);
             await refreshThreads();
           }
+          unpersistedOpeningRef.current = false;
         } else if (prior.length >= 1) {
           recordGuestRavPrompt();
         }
@@ -386,6 +410,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       resetToWelcome,
       showWelcome,
       startNewChat,
+      startChatWithOpeningAssistant,
       showRecentChats,
       openThread: (id: string, fromRecent = true) => {
         void loadThread(id, fromRecent);
@@ -393,8 +418,22 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       sendMessage,
       setInputText: setInput,
     }),
-    [resetToWelcome, showWelcome, startNewChat, showRecentChats, loadThread, sendMessage]
+    [
+      resetToWelcome,
+      showWelcome,
+      startNewChat,
+      startChatWithOpeningAssistant,
+      showRecentChats,
+      loadThread,
+      sendMessage,
+    ]
   );
+
+  useEffect(() => {
+    if (!focusComposerNonce) return;
+    const t = setTimeout(() => replyInputRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, [focusComposerNonce]);
 
   useEffect(() => {
     if (!pendingSendNonce) return;
@@ -657,6 +696,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               ) : null}
               <View style={[styles.replyPill, goldGlow]}>
                 <TextInput
+                  ref={replyInputRef}
                   style={styles.replyInput}
                   placeholder="Reply to Rav"
                   placeholderTextColor={colors.goldMuted}

@@ -11,7 +11,9 @@
 
 **Book prices:** Hanukkah Books has **Cost per Unit**, **Member Price**, and **Non-Member Price** (currency), filled to the **high end** of **Price (approx, USD)** free text (e.g. `$8-18` → `$18`). Sync prefers those currency fields, with a text parse fallback.
 
-**Book PDP details:** **What’s Included**, **Care Notes** → Firestore `whatsIncluded` / `careNotes` (same as Full Catalog).
+**Book PDP details:** **What’s Included**, **Care Notes** → Firestore `whatsIncluded` / `careNotes` (same as Full Catalog). Books leave `dimensions` / `weight` / `materials` null.
+
+**PDP physical details (Full Catalog):** **Dimensions**, **Weight**, **Materials** → Firestore `dimensions` / `weight` / `materials` (single-line text).
 
 **Homepage rails:** Full Catalog **Storefront rails** + **Storefront rank**, plus **Menorah homepage** / **Dreidel homepage** (`collection` | `kids`) which sync to `menorahs-*` / `dreidels-*`. Food section uses category Food (gelt, latkes, sufganiyot, stuffies, cookie cutters) or rail `food`. Kids dreidel fallback: airdry / blank / plush / clay.
 

@@ -145,6 +145,7 @@ export type CatalogItem = {
   interest?: string;
   /** PDP detail rows — omit when empty. */
   dimensions?: string;
+  weight?: string;
   materials?: string;
   whatsIncluded?: string;
   careNotes?: string;

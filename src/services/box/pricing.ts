@@ -15,8 +15,8 @@ export const LIST_BOX_VALUE_CENTS = 25000;
 /** Pilot promotional checkout price when config has no override. */
 export const DEFAULT_BOX_PRICE_CENTS = 5000;
 
-/** Display window for “ships in time for Hanukkah” (inclusive). */
-export const HANUKKAH_SHIP_WINDOW_LABEL = 'Nov 15–21';
+/** Display window for “arrives in time for Hanukkah” (inclusive). */
+export const HANUKKAH_SHIP_WINDOW_LABEL = 'Nov 15–20';
 
 /** Awarded on Hanukkah debrief completion (panel Jun 10). */
 export const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;

@@ -121,8 +121,9 @@ const styles = StyleSheet.create({
   },
   headline: {
     ...typeface('light'),
-    fontSize: 36,
-    lineHeight: 44,
+    fontSize: 44,
+    lineHeight: 54,
+    letterSpacing: 0.6,
     color: semanticColors.textInverse,
     textAlign: 'center',
     marginBottom: spacing.sm,
@@ -131,8 +132,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
   },
   headlineCompact: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 34,
+    lineHeight: 42,
   },
   bodyBlock: {
     alignItems: 'center',

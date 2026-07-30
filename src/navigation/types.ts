@@ -12,7 +12,13 @@ export type MainTabsParamList = {
   Home: undefined;
   Rav:
     | {
+        /** Auto-sends as the user's first message (SearchPill / Ask Rav). */
         initialMessage?: string;
+        /**
+         * Seeds Rav's opening bubble only — does not send.
+         * Composer stays empty/focused so the user can ask a follow-up (e.g. PDP category blurb).
+         */
+        openingAssistantMessage?: string;
         /** Start a fresh thread (Home search, sidebar New chat). */
         newChat?: boolean;
         /** welcome = empty Rav home; recent = thread list; thread = open by id. */

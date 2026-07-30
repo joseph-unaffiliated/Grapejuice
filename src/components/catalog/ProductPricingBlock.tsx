@@ -3,8 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import type { CatalogItem } from '../../types/pilot';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
-  LIST_BOX_PRICE_CENTS,
-  LIST_BOX_VALUE_CENTS,
   catalogPercentOff,
   formatSubscriberOfferLine,
   inferPricingTier,
@@ -17,22 +15,18 @@ type Props = {
   item: CatalogItem;
   hasHanukkahBox?: boolean;
   onWhatsInTheBox?: () => void;
-  onEligibility?: () => void;
 };
 
 export function ProductPricingBlock({
   item,
   hasHanukkahBox,
   onWhatsInTheBox,
-  onEligibility,
 }: Props) {
   const { colors } = useThemeMode();
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const tier = inferPricingTier(item);
   const includedOrMemberZero =
     memberCents === 0 || tier === 'included' || tier === 'perKid';
-  const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
-  const boxValue = formatCatalogDollars(LIST_BOX_VALUE_CENTS);
   const off = useMemo(
     () => catalogPercentOff(nonMemberCents, memberCents),
     [nonMemberCents, memberCents]
@@ -79,40 +73,30 @@ export function ProductPricingBlock({
   return (
     <View style={styles.root}>
       <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{heroRetail}</Text>
-      {offerLine ? (
-        <Text style={[styles.offer, { color: colors.textPrimary }]}>{offerLine}</Text>
-      ) : null}
-
-      {onWhatsInTheBox ? (
-        <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link" style={styles.linkRow}>
-          <Text style={[styles.secondaryLink, { color: colors.textPrimary }]}>
-            See what’s in the box
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-
-      <TouchableOpacity
-        onPress={onEligibility}
-        disabled={!onEligibility}
-        accessibilityRole="link"
-        style={styles.linkRow}
-      >
-        <Text style={[styles.valueLine, { color: colors.textSecondary }]}>
-          {boxPrice} ({boxValue} value)
-          {onEligibility ? (
-            <Text style={{ color: colors.textPrimary }}>
-              {' — see if I’m eligible for additional discounts'}
-            </Text>
+      {offerLine || onWhatsInTheBox ? (
+        <View style={styles.offerRow}>
+          {offerLine ? (
+            <Text style={[styles.offer, { color: colors.textPrimary }]}>{offerLine}</Text>
           ) : null}
-        </Text>
-      </TouchableOpacity>
+          {offerLine && onWhatsInTheBox ? (
+            <Text style={[styles.offerSep, { color: colors.textSecondary }]}>·</Text>
+          ) : null}
+          {onWhatsInTheBox ? (
+            <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link">
+              <Text style={[styles.secondaryLink, { color: colors.textPrimary }]}>
+                See what’s in the box
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    gap: spacing.sm,
+    gap: 4,
     alignItems: 'flex-start',
     width: '100%',
   },
@@ -129,31 +113,30 @@ const styles = StyleSheet.create({
   strike: {
     textDecorationLine: 'line-through',
   },
+  offerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   offer: {
     fontSize: typography.sm,
     fontWeight: '500',
     lineHeight: 18,
     letterSpacing: 0,
-    marginTop: spacing.xs,
+  },
+  offerSep: {
+    fontSize: typography.sm,
+    lineHeight: 18,
   },
   memberNote: {
     fontSize: typography.sm,
     letterSpacing: 0,
-    marginTop: spacing.xs,
-  },
-  linkRow: {
-    marginTop: spacing.xs,
-    paddingVertical: 2,
   },
   secondaryLink: {
     fontSize: typography.sm,
     fontWeight: '500',
     letterSpacing: 0,
     textDecorationLine: 'underline',
-  },
-  valueLine: {
-    fontSize: typography.sm,
-    lineHeight: 20,
-    letterSpacing: 0,
   },
 });

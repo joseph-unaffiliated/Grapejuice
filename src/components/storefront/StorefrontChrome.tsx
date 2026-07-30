@@ -351,8 +351,9 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   scrollContent: {
+    // flexGrow pins footer to viewport bottom on short pages; no paddingBottom —
+    // that would sit *below* StorefrontFooter (page-bg gap under the dark bar).
     flexGrow: 1,
-    paddingBottom: spacing.xxl,
   },
   footer: {
     flexDirection: 'row',

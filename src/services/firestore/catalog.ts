@@ -89,6 +89,7 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
     buyLink: typeof data.buyLink === 'string' ? data.buyLink : undefined,
     interest: typeof data.interest === 'string' ? data.interest : undefined,
     dimensions: typeof data.dimensions === 'string' && data.dimensions.trim() ? data.dimensions : undefined,
+    weight: typeof data.weight === 'string' && data.weight.trim() ? data.weight : undefined,
     materials: typeof data.materials === 'string' && data.materials.trim() ? data.materials : undefined,
     whatsIncluded:
       typeof data.whatsIncluded === 'string' && data.whatsIncluded.trim()

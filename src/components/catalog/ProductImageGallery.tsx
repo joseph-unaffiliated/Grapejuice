@@ -10,6 +10,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
+import { Icon } from '../ui/Icon';
+import { icons } from '../../constants/icons';
 import { LAYOUT, borderRadius, spacing } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import {
@@ -23,6 +25,9 @@ type Props = {
   imageUrls?: string[] | null;
   maxWidth?: number;
   style?: ViewStyle;
+  wishlisted?: boolean;
+  onToggleWishlist?: () => void;
+  wishlistDisabled?: boolean;
 };
 
 function collectUrls(imageUrl?: string | null, imageUrls?: string[] | null): string[] {
@@ -38,12 +43,20 @@ function collectUrls(imageUrl?: string | null, imageUrls?: string[] | null): str
   return out;
 }
 
+const THUMB = 64;
+const THUMB_MOBILE = 52;
+/** Desktop thumbs column + root row gap — kept in sync with styles.thumbsCol / root.gap */
+const DESKTOP_THUMB_RESERVE = THUMB + spacing.sm;
+
 export function ProductImageGallery({
   itemId,
   imageUrl,
   imageUrls,
   maxWidth,
   style,
+  wishlisted = false,
+  onToggleWishlist,
+  wishlistDisabled = false,
 }: Props) {
   const { colors } = useThemeMode();
   const { width } = useWindowDimensions();
@@ -55,32 +68,37 @@ export function ProductImageGallery({
   const canPrev = urls.length > 1 && activeIndex > 0;
   const canNext = urls.length > 1 && activeIndex < urls.length - 1;
 
-  const thumbs =
-    urls.length > 1 ? (
-      <View style={[styles.thumbsCol, compact && styles.thumbsRow]}>
-        {urls.map((url, i) => {
-          const isActive = i === activeIndex;
-          return (
-            <TouchableOpacity
-              key={url}
-              onPress={() => setSelected(i)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-              style={[
-                styles.thumb,
-                compact && styles.thumbCompact,
-                {
-                  borderColor: isActive ? colors.textPrimary : colors.border,
-                  backgroundColor: colors.brandLight,
-                },
-              ]}
-            >
-              <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    ) : null;
+  const showThumbs = urls.length > 1;
+  // Desktop hero is capped at 80vh; thumbs (+ gap) sit beside it. When thumbs
+  // are absent, expand the hero by that same reserve so the gallery's right
+  // edge (and gap to the details column) stays put.
+  const webHeroMax = showThumbs ? '80vh' : `calc(80vh + ${DESKTOP_THUMB_RESERVE}px)`;
+
+  const thumbs = showThumbs ? (
+    <View style={[styles.thumbsCol, compact && styles.thumbsRow]}>
+      {urls.map((url, i) => {
+        const isActive = i === activeIndex;
+        return (
+          <TouchableOpacity
+            key={url}
+            onPress={() => setSelected(i)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isActive }}
+            style={[
+              styles.thumb,
+              compact && styles.thumbCompact,
+              {
+                borderColor: isActive ? colors.textPrimary : colors.border,
+                backgroundColor: colors.brandLight,
+              },
+            ]}
+          >
+            <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  ) : null;
 
   return (
     <View
@@ -98,6 +116,13 @@ export function ProductImageGallery({
           style={[
             styles.hero,
             compact && styles.heroCompact,
+            !compact && Platform.OS === 'web'
+              ? ({
+                  width: `min(100%, ${webHeroMax})`,
+                  maxWidth: webHeroMax,
+                  maxHeight: webHeroMax,
+                } as object)
+              : null,
             { backgroundColor: colors.brandLight },
           ]}
         >
@@ -117,7 +142,28 @@ export function ProductImageGallery({
             <WelcomeSubscriberBadge />
           </View>
         ) : null}
-        {urls.length > 1 ? (
+        {onToggleWishlist ? (
+          <TouchableOpacity
+            style={[
+              styles.favorite,
+              wishlisted ? styles.favoriteOn : styles.favoriteOff,
+              wishlistDisabled && styles.favoriteDisabled,
+            ]}
+            onPress={onToggleWishlist}
+            disabled={wishlistDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+            accessibilityState={{ selected: wishlisted }}
+            hitSlop={4}
+          >
+            <Icon
+              icon={wishlisted ? icons.heart : icons.heartOutline}
+              size={18}
+              color={wishlisted ? '#000' : '#fff'}
+            />
+          </TouchableOpacity>
+        ) : null}
+        {showThumbs ? (
           <>
             <TouchableOpacity
               accessibilityRole="button"
@@ -145,9 +191,6 @@ export function ProductImageGallery({
     </View>
   );
 }
-
-const THUMB = 64;
-const THUMB_MOBILE = 52;
 
 const styles = StyleSheet.create({
   root: {
@@ -197,14 +240,9 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     overflow: 'hidden',
     aspectRatio: 1,
-    ...(Platform.OS === 'web'
-      ? ({
-          width: 'min(100%, 80vh)',
-          maxWidth: '80vh',
-          maxHeight: '80vh',
-          height: 'auto',
-        } as object)
-      : { minHeight: 320 }),
+    // Web max size applied inline so single-image PDPs can expand into the
+    // desktop thumb column reserve (see webHeroMax in the component).
+    ...(Platform.OS === 'web' ? ({ height: 'auto' } as object) : { minHeight: 320 }),
   },
   heroCompact: {
     ...(Platform.OS === 'web'
@@ -255,4 +293,26 @@ const styles = StyleSheet.create({
     bottom: spacing.sm,
     zIndex: 3,
   },
+  favorite: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 4,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+  },
+  favoriteOff: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  favoriteOn: {
+    backgroundColor: '#fff',
+    borderWidth: 0,
+  },
+  favoriteDisabled: { opacity: 0.55 },
 });

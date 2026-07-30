@@ -38,6 +38,7 @@ const F = {
   link: 'fldicpeRi2dctILQa',
   activity: 'fldZT5VtqtaN1TGE3',
   dimensions: 'fldbq5sCX6csZLV2h',
+  weight: 'fldxxYMcA3qrDNdZa',
   materials: 'fldTO5IDBFvggJd7Y',
   whatsIncluded: 'fldQhql0JV2mby273',
   careNotes: 'fldXM6Az08OFmvWC9',
@@ -119,6 +120,7 @@ export type SyncedCatalogItem = {
   /** Airtable "Storefront rank" — lower first; null when unset. */
   storefrontRank: number | null;
   dimensions: string | null;
+  weight: string | null;
   materials: string | null;
   whatsIncluded: string | null;
   careNotes: string | null;
@@ -464,6 +466,7 @@ function listingToItem(
     storefrontRails: storefrontRailsFromListing(f),
     storefrontRank: numberField(f[F.storefrontRank]),
     dimensions: textField(f[F.dimensions]),
+    weight: textField(f[F.weight]),
     materials: textField(f[F.materials]),
     whatsIncluded: textField(f[F.whatsIncluded]),
     careNotes: textField(f[F.careNotes]),
@@ -519,6 +522,7 @@ function bookToItem(
     storefrontRails: selectNames(f[B.storefrontRails]),
     storefrontRank: null,
     dimensions: null,
+    weight: null,
     materials: null,
     whatsIncluded: textField(f[B.whatsIncluded]),
     careNotes: textField(f[B.careNotes]),
