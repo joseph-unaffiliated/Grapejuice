@@ -98,7 +98,7 @@ function RootRoutes() {
   return (
     <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
       {!isAuthenticated && gateKey === 'auth' ? (
-        <Stack.Screen name="Auth">
+        <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
           {() => (
             <ThemeProvider mode="parent">
               <AuthStack checkoutAuth={!!pendingAuth} />
@@ -106,7 +106,7 @@ function RootRoutes() {
           )}
         </Stack.Screen>
       ) : gateKey === 'onboarding' ? (
-        <Stack.Screen name="Onboarding">
+        <Stack.Screen name="Onboarding" options={{ title: 'Welcome' }}>
           {() => (
             <ThemeProvider mode="parent">
               <OnboardingStack
@@ -119,7 +119,7 @@ function RootRoutes() {
           )}
         </Stack.Screen>
       ) : (
-        <Stack.Screen name="Main" component={MainGate} />
+        <Stack.Screen name="Main" component={MainGate} options={{ title: 'Home' }} />
       )}
     </Stack.Navigator>
   );
