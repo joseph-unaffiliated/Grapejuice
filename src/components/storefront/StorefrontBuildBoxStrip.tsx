@@ -18,7 +18,8 @@ import {
   typography,
 } from '../../constants/theme';
 
-const STRIP_BG = require('../../../assets/storefront/boxrevealv2.webp');
+/** Box-reveal lifestyle strip (replaces former build-box-strip-bg). */
+const STRIP_BG = require('../../../assets/storefront/boxrevealv2.jpg');
 
 /** Hard offset shadow — darker gold than goldMuted (#B8AC7F), plate behind the button. */
 const CTA_SHADOW = '#7A6E42';
