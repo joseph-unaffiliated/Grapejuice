@@ -19,6 +19,10 @@ function toHousehold(id: string, data: Record<string, unknown>): Household {
       typeof data.giftCreditCents === 'number' ? data.giftCreditCents : undefined,
     platformCreditCents:
       typeof data.platformCreditCents === 'number' ? data.platformCreditCents : undefined,
+    wishlistItemIds: Array.isArray(data.wishlistItemIds)
+      ? (data.wishlistItemIds as unknown[]).filter((id): id is string => typeof id === 'string')
+      : undefined,
+    boxDiscountCode: typeof data.boxDiscountCode === 'string' ? data.boxDiscountCode : undefined,
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };
@@ -72,6 +76,14 @@ export const householdsService = {
     const current = typeof snap.data()?.platformCreditCents === 'number' ? snap.data()!.platformCreditCents : 0;
     await updateDoc(doc(db, 'households', householdId), {
       platformCreditCents: current + cents,
+      updatedAt: new Date().toISOString(),
+    });
+  },
+
+  async setWishlistItemIds(householdId: string, wishlistItemIds: string[]): Promise<void> {
+    if (!db) throw new Error('Firestore not configured');
+    await updateDoc(doc(db, 'households', householdId), {
+      wishlistItemIds,
       updatedAt: new Date().toISOString(),
     });
   },

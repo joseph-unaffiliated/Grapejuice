@@ -21,6 +21,7 @@ import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import type { MainStackParamList } from '../../navigation/types';
 import { catalogService } from '../../services/firestore/catalog';
+import { useCatalog } from '../../hooks/useCatalog';
 import {
   catalogSlotId,
   formatDollars,
@@ -82,7 +83,7 @@ export function MyBoxScreen() {
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
 
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const { items: catalog } = useCatalog();
   const [loading, setLoading] = useState(true);
   const [swapCache, setSwapCache] = useState<Record<string, CatalogItem[]>>({});
   const [lockAt, setLockAt] = useState<string | null>(null);
@@ -95,12 +96,11 @@ export function MyBoxScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [items, config] = await Promise.all([catalogService.getAll(), getHanukkahConfig()]);
+    const config = await getHanukkahConfig();
     setLockAt(config.lockAt);
     setStartsOn(config.startsOn);
     setEstimatedDeliveryBy(config.estimatedDeliveryBy);
     setBoxPriceCents(config.boxPriceCents ?? DEFAULT_BOX_PRICE_CENTS);
-    setCatalog(items);
     setLoading(false);
   }, []);
 

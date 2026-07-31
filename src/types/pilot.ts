@@ -73,6 +73,10 @@ export type Household = {
   giftCreditCents?: number;
   /** Debrief / platform credits (e.g. $80 Passover incentive). */
   platformCreditCents?: number;
+  /** Catalog item ids saved as wishlist / favorites (Rav prioritizes these). */
+  wishlistItemIds?: string[];
+  /** Last eligibility discount code emailed to the household. */
+  boxDiscountCode?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -109,13 +113,42 @@ export type CatalogItem = {
   defaultFor: AgeGroup[];
   swapOptions: string[];
   imageUrl?: string;
+  /** Additional photos (Airtable Other Images → Storage). */
+  imageUrls?: string[];
   dollarCostCents: number;
+  /** What we paid (COGS). */
+  unitCostCents?: number;
+  /** Sell price with membership / active box. */
+  memberPriceCents?: number;
+  /** Sell price without membership (= à la carte / non-member). */
+  nonMemberPriceCents?: number;
   /** When unset, inferred from slot in pricing.ts */
   pricingTier?: CatalogPricingTier;
   holiday: string;
   /** Home collection rails — from Firestore or catalogCuration fallback */
   curationTags?: CatalogCurationTag[];
+  /**
+   * Airtable "Storefront rails" multi-select.
+   * Values: most-loved | menorahs-collection | menorahs-kids | dreidels | candles | books | gifts
+   * Legacy: menorahs (→ menorahs-collection), decor (→ gifts aisle via storefront alias)
+   */
+  storefrontRails?: string[];
+  /** Airtable "Storefront rank" — lower first within a rail. */
+  storefrontRank?: number;
   brand?: string;
+  /** Airtable Category (Menorah, Candles, Book, …). */
+  category?: string;
+  /** Airtable Context flags (Default, A la carte). */
+  context?: string[];
+  airtableRecordId?: string;
+  buyLink?: string;
+  interest?: string;
+  /** PDP detail rows — omit when empty. */
+  dimensions?: string;
+  weight?: string;
+  materials?: string;
+  whatsIncluded?: string;
+  careNotes?: string;
 };
 
 /** Box journey on Home — derived from draft + order data */

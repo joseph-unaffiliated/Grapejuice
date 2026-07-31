@@ -9,8 +9,14 @@ export const SHIPPING_FLAT_CENTS = 0;
 /** List price shown in catalog / marketing copy. */
 export const LIST_BOX_PRICE_CENTS = 8000;
 
+/** Stated à-la-carte catalog value of a full Hanukkah box (PDP marketing). */
+export const LIST_BOX_VALUE_CENTS = 25000;
+
 /** Pilot promotional checkout price when config has no override. */
 export const DEFAULT_BOX_PRICE_CENTS = 5000;
+
+/** Display window for “arrives in time for Hanukkah” (inclusive). */
+export const HANUKKAH_SHIP_WINDOW_LABEL = 'Nov 15–20';
 
 /** Awarded on Hanukkah debrief completion (panel Jun 10). */
 export const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;
@@ -58,4 +64,44 @@ export function orderTotalCents(
 ): number {
   const subtotal = orderSubtotalCents(lineItems, boxPriceCents);
   return subtotal + (includeShipping ? SHIPPING_FLAT_CENTS : 0);
+}
+
+/** Resolve member / à la carte display prices from catalog fields. */
+export function resolveCatalogDisplayPrices(item: CatalogItem): {
+  memberCents: number;
+  nonMemberCents: number;
+  savingsCents: number;
+} {
+  const fallback = Math.max(0, Math.round(item.dollarCostCents ?? 0));
+  const memberCents =
+    item.memberPriceCents != null && Number.isFinite(item.memberPriceCents)
+      ? Math.max(0, Math.round(item.memberPriceCents))
+      : fallback;
+  const nonMemberCents =
+    item.nonMemberPriceCents != null && Number.isFinite(item.nonMemberPriceCents)
+      ? Math.max(0, Math.round(item.nonMemberPriceCents))
+      : fallback;
+  const savingsCents = Math.max(0, nonMemberCents - memberCents);
+  return { memberCents, nonMemberCents, savingsCents };
+}
+
+/** Percent discount from retail → member (rounded). */
+export function catalogPercentOff(nonMemberCents: number, memberCents: number): number | null {
+  if (nonMemberCents <= 0 || memberCents >= nonMemberCents) return null;
+  return Math.round(((nonMemberCents - memberCents) / nonMemberCents) * 100);
+}
+
+/**
+ * Storefront member offer copy, e.g. "$18 (74% off) for subscribers".
+ * Pass preformatted dollar strings from `formatCatalogDollars`.
+ */
+export function formatSubscriberOfferLine(
+  memberPriceLabel: string,
+  nonMemberCents: number,
+  memberCents: number
+): string {
+  const off = catalogPercentOff(nonMemberCents, memberCents);
+  return off
+    ? `${memberPriceLabel} (${off}% off) for subscribers`
+    : `${memberPriceLabel} for subscribers`;
 }

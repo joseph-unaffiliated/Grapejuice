@@ -78,5 +78,13 @@ export async function buildHouseholdContext(uid: string, clientDraft?: string): 
     lines.push('Current box: not started');
   }
 
+  const hhSnap = await db.doc(`households/${householdId}`).get();
+  const wishlist = (hhSnap.data()?.wishlistItemIds as string[] | undefined) ?? [];
+  if (wishlist.length) {
+    lines.push(
+      `Wishlist / favorites (prioritize these if recommending box items): ${wishlist.join(', ')}`
+    );
+  }
+
   return lines.join('\n');
 }

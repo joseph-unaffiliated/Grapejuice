@@ -4,8 +4,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   serverTimestamp,
   setDoc,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type {
@@ -52,7 +54,16 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
     defaultFor: Array.isArray(data.defaultFor) ? (data.defaultFor as CatalogItem['defaultFor']) : [],
     swapOptions: Array.isArray(data.swapOptions) ? (data.swapOptions as string[]) : [],
     imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : undefined,
+    imageUrls: Array.isArray(data.imageUrls)
+      ? (data.imageUrls as unknown[]).filter((u): u is string => typeof u === 'string')
+      : undefined,
     dollarCostCents: Number(data.dollarCostCents ?? 0),
+    unitCostCents:
+      data.unitCostCents != null ? Number(data.unitCostCents) : undefined,
+    memberPriceCents:
+      data.memberPriceCents != null ? Number(data.memberPriceCents) : undefined,
+    nonMemberPriceCents:
+      data.nonMemberPriceCents != null ? Number(data.nonMemberPriceCents) : undefined,
     pricingTier:
       typeof data.pricingTier === 'string'
         ? (data.pricingTier as CatalogPricingTier)
@@ -61,7 +72,30 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
     curationTags: Array.isArray(data.curationTags)
       ? (data.curationTags as CatalogItem['curationTags'])
       : undefined,
+    storefrontRails: Array.isArray(data.storefrontRails)
+      ? (data.storefrontRails as unknown[]).filter((r): r is string => typeof r === 'string')
+      : undefined,
+    storefrontRank:
+      data.storefrontRank != null && Number.isFinite(Number(data.storefrontRank))
+        ? Number(data.storefrontRank)
+        : undefined,
     brand: typeof data.brand === 'string' ? data.brand : undefined,
+    category: typeof data.category === 'string' ? data.category : undefined,
+    context: Array.isArray(data.context)
+      ? (data.context as unknown[]).filter((c): c is string => typeof c === 'string')
+      : undefined,
+    airtableRecordId:
+      typeof data.airtableRecordId === 'string' ? data.airtableRecordId : undefined,
+    buyLink: typeof data.buyLink === 'string' ? data.buyLink : undefined,
+    interest: typeof data.interest === 'string' ? data.interest : undefined,
+    dimensions: typeof data.dimensions === 'string' && data.dimensions.trim() ? data.dimensions : undefined,
+    weight: typeof data.weight === 'string' && data.weight.trim() ? data.weight : undefined,
+    materials: typeof data.materials === 'string' && data.materials.trim() ? data.materials : undefined,
+    whatsIncluded:
+      typeof data.whatsIncluded === 'string' && data.whatsIncluded.trim()
+        ? data.whatsIncluded
+        : undefined,
+    careNotes: typeof data.careNotes === 'string' && data.careNotes.trim() ? data.careNotes : undefined,
   };
 }
 
@@ -101,7 +135,18 @@ function toFirestorePayload(item: CatalogUpsertInput): Record<string, unknown> {
   else payload.pricingTier = null;
   if (item.curationTags?.length) payload.curationTags = item.curationTags;
   else payload.curationTags = null;
+  if (item.storefrontRails?.length) payload.storefrontRails = item.storefrontRails;
+  else payload.storefrontRails = null;
+  if (item.storefrontRank != null && Number.isFinite(item.storefrontRank)) {
+    payload.storefrontRank = item.storefrontRank;
+  } else {
+    payload.storefrontRank = null;
+  }
   return payload;
+}
+
+function sortItems(items: CatalogItem[]): CatalogItem[] {
+  return [...items].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export const catalogService = {
@@ -109,9 +154,35 @@ export const catalogService = {
     const col = itemsCollection();
     if (!col) return [];
     const snap = await getDocs(col);
-    return snap.docs
-      .map((d) => toItem(d.id, d.data() as Record<string, unknown>))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return sortItems(
+      snap.docs.map((d) => toItem(d.id, d.data() as Record<string, unknown>))
+    );
+  },
+
+  /**
+   * Live catalog — Airtable sync writes here; screens should subscribe so
+   * updates appear without a full reload.
+   */
+  subscribeAll(
+    onChange: (items: CatalogItem[]) => void,
+    onError?: (error: Error) => void
+  ): Unsubscribe {
+    const col = itemsCollection();
+    if (!col) {
+      onChange([]);
+      return () => undefined;
+    }
+    return onSnapshot(
+      col,
+      (snap) => {
+        onChange(
+          sortItems(
+            snap.docs.map((d) => toItem(d.id, d.data() as Record<string, unknown>))
+          )
+        );
+      },
+      (err) => onError?.(err)
+    );
   },
 
   async getById(itemId: string): Promise<CatalogItem | null> {

@@ -28,11 +28,16 @@ function dataToThread(id: string, data: Record<string, unknown>): AIChatThread {
         blocks: Array.isArray(m.blocks) ? (m.blocks as AIChatMessage['blocks']) : undefined,
       }))
     : [];
+  const archivedAt =
+    data.archivedAt == null || data.archivedAt === ''
+      ? null
+      : toIso(data.archivedAt);
   return {
     id,
     title: String(data.title ?? 'Chat'),
     messages,
     updatedAt: toIso(data.updatedAt),
+    archivedAt,
   };
 }
 
@@ -85,23 +90,38 @@ export const aiChatService = {
     });
   },
 
-  async listThreads(uid: string): Promise<AIChatThreadSummary[]> {
+  async listThreads(uid: string, opts?: { includeArchived?: boolean }): Promise<AIChatThreadSummary[]> {
     if (!db) return [];
     // Fetch extra so empty "New chat" stubs don't crowd real threads out of the window.
     const q = query(collection(db, 'users', uid, 'aiChats'), orderBy('updatedAt', 'desc'), limit(50));
     const snap = await getDocs(q);
+    const includeArchived = opts?.includeArchived === true;
     return snap.docs
       .map((d) => {
         const data = d.data() as Record<string, unknown>;
+        const archivedAt =
+          data.archivedAt == null || data.archivedAt === ''
+            ? null
+            : toIso(data.archivedAt);
         return {
           id: d.id,
           title: String(data.title ?? 'Chat'),
           updatedAt: toIso(data.updatedAt),
           preview: previewFromMessages(data.messages),
+          archivedAt,
         };
       })
       .filter((t) => t.preview.length > 0)
+      .filter((t) => includeArchived || !t.archivedAt)
       .slice(0, 20);
+  },
+
+  async archiveThread(uid: string, threadId: string): Promise<void> {
+    if (!db) throw new Error('Firestore not configured');
+    await updateDoc(doc(db, 'users', uid, 'aiChats', threadId), {
+      archivedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    });
   },
 
   async getOrCreateDefaultThread(uid: string): Promise<{ threadId: string; thread: AIChatThread }> {

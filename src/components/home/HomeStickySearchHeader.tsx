@@ -132,7 +132,7 @@ export function HomeStickySearchHeader({
         contentContainerStyle={[
           styles.categoryChips,
           isDesktop && styles.categoryChipsFlush,
-          isDesktop && styles.categoryChipsDesktopCenter,
+          styles.categoryChipsCenter,
         ]}
       >
         {chips.map((chip) => (
@@ -204,12 +204,12 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     categoryChips: {
       gap: 6,
-      paddingLeft: MOBILE_GUTTER,
+      paddingHorizontal: MOBILE_GUTTER,
       flexDirection: 'row',
       alignItems: 'center',
     },
-    categoryChipsFlush: { paddingLeft: 0 },
-    categoryChipsDesktopCenter: {
+    categoryChipsFlush: { paddingHorizontal: 0 },
+    categoryChipsCenter: {
       flexGrow: 1,
       justifyContent: 'center',
       ...(Platform.OS === 'web' ? ({ minWidth: '100%' } as object) : {}),

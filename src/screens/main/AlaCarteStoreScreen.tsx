@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
-import { catalogService } from '../../services/firestore/catalog';
+import { useCatalog } from '../../hooks/useCatalog';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { inferPricingTier, unitCentsForTier } from '../../services/box/pricing';
@@ -24,8 +24,8 @@ import { semanticColors, spacing, typography, borderRadius, shadowsWeb } from '.
 export function AlaCarteStoreScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: catalog, loading: catalogLoading } = useCatalog();
+  const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
 
@@ -34,17 +34,20 @@ export function AlaCarteStoreScreen() {
     [catalog]
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [items, config] = await Promise.all([catalogService.getAll(), getHanukkahConfig()]);
-    setCatalog(items);
-    setLocked(isBoxLocked(config.lockAt));
-    setLoading(false);
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingConfig(true);
+    getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLocked(isBoxLocked(config.lockAt));
+      setLoadingConfig(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const loading = catalogLoading || loadingConfig;
 
   const isInBox = (itemId: string) => lineItems.some((li) => li.itemId === itemId);
 

@@ -1,0 +1,142 @@
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import type { CatalogItem } from '../../types/pilot';
+import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import {
+  catalogPercentOff,
+  formatSubscriberOfferLine,
+  inferPricingTier,
+  resolveCatalogDisplayPrices,
+} from '../../services/box/pricing';
+import { spacing, typography } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+
+type Props = {
+  item: CatalogItem;
+  hasHanukkahBox?: boolean;
+  onWhatsInTheBox?: () => void;
+};
+
+export function ProductPricingBlock({
+  item,
+  hasHanukkahBox,
+  onWhatsInTheBox,
+}: Props) {
+  const { colors } = useThemeMode();
+  const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
+  const tier = inferPricingTier(item);
+  const includedOrMemberZero =
+    memberCents === 0 || tier === 'included' || tier === 'perKid';
+  const off = useMemo(
+    () => catalogPercentOff(nonMemberCents, memberCents),
+    [nonMemberCents, memberCents]
+  );
+
+  if (hasHanukkahBox) {
+    const hero = includedOrMemberZero
+      ? 'Included in your box'
+      : formatCatalogDollars(memberCents);
+    return (
+      <View style={styles.root}>
+        <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{hero}</Text>
+        {nonMemberCents > memberCents ? (
+          <Text style={[styles.compare, { color: colors.textTertiary }]}>
+            <Text style={styles.strike}>{formatCatalogDollars(nonMemberCents)}</Text>
+            {'  à la carte'}
+          </Text>
+        ) : null}
+        <Text style={[styles.memberNote, { color: colors.textSecondary }]}>
+          You’re getting the member price.
+        </Text>
+      </View>
+    );
+  }
+
+  const heroRetail =
+    nonMemberCents > 0
+      ? formatCatalogDollars(nonMemberCents)
+      : includedOrMemberZero
+        ? 'Included in your box'
+        : formatCatalogDollars(memberCents);
+
+  let offerLine: string | null = null;
+  if (includedOrMemberZero && nonMemberCents > 0) {
+    offerLine = off ? `Free (${off}% off) for subscribers` : 'Free for subscribers';
+  } else if (memberCents > 0 && nonMemberCents > memberCents) {
+    offerLine = formatSubscriberOfferLine(
+      formatCatalogDollars(memberCents),
+      nonMemberCents,
+      memberCents
+    );
+  }
+
+  return (
+    <View style={styles.root}>
+      <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{heroRetail}</Text>
+      {offerLine || onWhatsInTheBox ? (
+        <View style={styles.offerRow}>
+          {offerLine ? (
+            <Text style={[styles.offer, { color: colors.textPrimary }]}>{offerLine}</Text>
+          ) : null}
+          {offerLine && onWhatsInTheBox ? (
+            <Text style={[styles.offerSep, { color: colors.textSecondary }]}>·</Text>
+          ) : null}
+          {onWhatsInTheBox ? (
+            <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link">
+              <Text style={[styles.secondaryLink, { color: colors.textPrimary }]}>
+                See what’s in the box
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    gap: 4,
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  heroPrice: {
+    fontSize: 32,
+    fontWeight: '500',
+    letterSpacing: -0.6,
+    lineHeight: 38,
+  },
+  compare: {
+    fontSize: typography.md,
+    letterSpacing: 0,
+  },
+  strike: {
+    textDecorationLine: 'line-through',
+  },
+  offerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  offer: {
+    fontSize: typography.sm,
+    fontWeight: '500',
+    lineHeight: 18,
+    letterSpacing: 0,
+  },
+  offerSep: {
+    fontSize: typography.sm,
+    lineHeight: 18,
+  },
+  memberNote: {
+    fontSize: typography.sm,
+    letterSpacing: 0,
+  },
+  secondaryLink: {
+    fontSize: typography.sm,
+    fontWeight: '500',
+    letterSpacing: 0,
+    textDecorationLine: 'underline',
+  },
+});

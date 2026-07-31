@@ -21,9 +21,25 @@ import { DevPreviewEffect } from './DevPreviewEffect';
 import { readDevPreviewFromWindow } from './devPreview';
 import { WebBrowserHistoryBridge } from './WebBrowserHistoryBridge';
 import { GiftClaimLinkEffect } from './GiftClaimLinkEffect';
+import { ProductLinkEffect } from './ProductLinkEffect';
+import { StorefrontLinkEffect } from './StorefrontLinkEffect';
+import { HomeLinkEffect } from './HomeLinkEffect';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 
 const Stack = createStackNavigator<RootStackParamList>();
+
+function humanizeRoute(name: string): string {
+  const map: Record<string, string> = {
+    Main: 'Home',
+    Auth: 'Sign in',
+    Onboarding: 'Welcome',
+  };
+  if (map[name]) return map[name];
+  return name
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .trim();
+}
 
 function MainGate() {
   const { isChildProfile } = useActiveProfile();
@@ -83,7 +99,7 @@ function RootRoutes() {
   return (
     <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
       {!isAuthenticated && gateKey === 'auth' ? (
-        <Stack.Screen name="Auth">
+        <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
           {() => (
             <ThemeProvider mode="parent">
               <AuthStack checkoutAuth={!!pendingAuth} />
@@ -91,7 +107,7 @@ function RootRoutes() {
           )}
         </Stack.Screen>
       ) : gateKey === 'onboarding' ? (
-        <Stack.Screen name="Onboarding">
+        <Stack.Screen name="Onboarding" options={{ title: 'Welcome' }}>
           {() => (
             <ThemeProvider mode="parent">
               <OnboardingStack
@@ -104,7 +120,7 @@ function RootRoutes() {
           )}
         </Stack.Screen>
       ) : (
-        <Stack.Screen name="Main" component={MainGate} />
+        <Stack.Screen name="Main" component={MainGate} options={{ title: 'Home' }} />
       )}
     </Stack.Navigator>
   );
@@ -120,9 +136,21 @@ export function RootNavigator() {
         <NavigationContainer
           ref={navigationRef}
           onStateChange={onWebNavigationStateChange}
+          documentTitle={{
+            formatter: (options, route) => {
+              const page =
+                (typeof options?.title === 'string' && options.title.trim()) ||
+                (typeof route?.name === 'string' ? humanizeRoute(route.name) : '');
+              if (!page || page === 'Grapejuice') return 'Grapejuice';
+              return `Grapejuice | ${page}`;
+            },
+          }}
         >
           <WebBrowserHistoryBridge />
           <GiftClaimLinkEffect />
+          <ProductLinkEffect />
+          <StorefrontLinkEffect />
+          <HomeLinkEffect />
           <DevPreviewEffect />
           <RootRoutes />
         </NavigationContainer>

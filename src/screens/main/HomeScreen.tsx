@@ -23,7 +23,7 @@ import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
 import { usersService } from '../../services/firestore/users';
 import { ordersService } from '../../services/firestore/orders';
-import { catalogService } from '../../services/firestore/catalog';
+import { useCatalog } from '../../hooks/useCatalog';
 import { getHanukkahConfig, getPassoverWaitlistConfig, isBoxLocked } from '../../services/firestore/config';
 import { formatCountdown, formatHanukkahWelcomeSubtext } from '../../services/hanukkah/dates';
 import {
@@ -211,7 +211,7 @@ export function HomeScreen() {
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDelivery, setEstimatedDelivery] = useState<string | null>(null);
   const [orders, setOrders] = useState<PilotOrder[]>([]);
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const { items: catalog } = useCatalog();
   const [passoverCapacity, setPassoverCapacity] = useState(39);
   const [now, setNow] = useState(() => new Date());
 
@@ -254,16 +254,14 @@ export function HomeScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [config, passoverConfig, catalogItems] = await Promise.all([
+    const [config, passoverConfig] = await Promise.all([
       getHanukkahConfig(),
       getPassoverWaitlistConfig(),
-      catalogService.getAll(),
     ]);
     setLockAt(config.lockAt);
     setStartsOn(config.startsOn);
     setEstimatedDelivery(config.estimatedDeliveryBy ?? null);
     setPassoverCapacity(passoverConfig.capacityPercent);
-    setCatalog(catalogItems);
 
     if (household?.id) {
       setOrders(await ordersService.listForHousehold(household.id));

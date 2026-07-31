@@ -9,10 +9,14 @@ import { MainTabs } from './MainTabs';
 import { MyBoxScreen } from '../screens/main/MyBoxScreen';
 import { AlaCarteStoreScreen } from '../screens/main/AlaCarteStoreScreen';
 import { CatalogProductScreen } from '../screens/main/CatalogProductScreen';
+import { StorefrontHomeScreen } from '../screens/storefront/StorefrontHomeScreen';
+import { StorefrontCategoryScreen } from '../screens/storefront/StorefrontCategoryScreen';
+import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
 import { AboutHanukkahScreen } from '../screens/main/AboutHanukkahScreen';
+import { HistoryScreen } from '../screens/main/HistoryScreen';
 import { GiftGiveScreen } from '../screens/gift/GiftGiveScreen';
 import { GiftGiverCustomizeScreen } from '../screens/gift/GiftGiverCustomizeScreen';
 import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
@@ -86,6 +90,11 @@ function AuthReturnHandler() {
       const token = pendingGiftClaimToken;
       clearPending();
       if (token) navigation.navigate('GiftClaim', { token });
+      return;
+    }
+    if (pendingReturn === 'History') {
+      clearPending();
+      navigation.navigate('History');
     }
   }, [isAuthenticated, pendingReturn, pendingGiftClaimToken, clearPending, navigation]);
 
@@ -93,39 +102,107 @@ function AuthReturnHandler() {
 }
 
 export function MainStack() {
+  const initialRouteName = (() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return 'MainTabs' as const;
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    if (path === '/' || path === '/store' || path.startsWith('/store/')) {
+      return 'StorefrontHome' as const;
+    }
+    return 'MainTabs' as const;
+  })();
+
   return (
     <WebDesktopFrame>
       <GuestBoxRevealHandler />
       <AuthReturnHandler />
       <Stack.Navigator
+        initialRouteName={initialRouteName}
         screenOptions={{
           headerShown: false,
           ...(Platform.OS === 'web' ? { cardStyle: { overflow: 'visible' as const } } : {}),
         }}
       >
-        <Stack.Screen name="MainTabs" component={MainTabs} />
-        <Stack.Screen name="MyBox" component={MyBoxScreen} />
-        {!PILOT_HIDE_IN_APP_GUIDE ? <Stack.Screen name="Guide" component={GuideScreen} /> : null}
+        <Stack.Screen name="MainTabs" component={MainTabs} options={{ title: 'Home' }} />
+        <Stack.Screen name="MyBox" component={MyBoxScreen} options={{ title: 'My Box' }} />
+        {!PILOT_HIDE_IN_APP_GUIDE ? (
+          <Stack.Screen name="Guide" component={GuideScreen} options={{ title: 'Guide' }} />
+        ) : null}
         {!PILOT_PARENT_ONLY ? (
           <>
-            <Stack.Screen name="KidGuide" component={KidGuideScreen} />
-            <Stack.Screen name="Profiles" component={ProfilesScreen} />
+            <Stack.Screen name="KidGuide" component={KidGuideScreen} options={{ title: 'Guide' }} />
+            <Stack.Screen name="Profiles" component={ProfilesScreen} options={{ title: 'Profiles' }} />
           </>
         ) : null}
-        <Stack.Screen name="AlaCarteStore" component={AlaCarteStoreScreen} />
-        <Stack.Screen name="CatalogProduct" component={CatalogProductScreen} />
-        <Stack.Screen name="Checkout" component={CheckoutScreen} />
-        <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
-        <Stack.Screen name="Reflection" component={ReflectionFlowScreen} />
-        <Stack.Screen name="AboutHanukkah" component={AboutHanukkahScreen} />
-        <Stack.Screen name="GiftGive" component={GiftGiveScreen} />
-        <Stack.Screen name="GiftGiverCustomize" component={GiftGiverCustomizeScreen} />
-        <Stack.Screen name="GiftClaim" component={GiftClaimScreen} />
-        <Stack.Screen name="GiftRecipientReveal" component={GiftRecipientRevealScreen} />
-        <Stack.Screen name="AdminCatalog" component={AdminCatalogScreen} />
-        <Stack.Screen name="AdminCatalogItem" component={AdminCatalogItemScreen} />
+        <Stack.Screen
+          name="AlaCarteStore"
+          component={AlaCarteStoreScreen}
+          options={{ title: 'À la carte' }}
+        />
+        <Stack.Screen
+          name="StorefrontHome"
+          component={StorefrontHomeScreen}
+          options={{ title: 'Store' }}
+        />
+        <Stack.Screen
+          name="StorefrontCategory"
+          component={StorefrontCategoryScreen}
+          options={{ title: 'Store' }}
+        />
+        <Stack.Screen
+          name="CatalogProduct"
+          component={CatalogProductScreen}
+          options={{ title: 'Product' }}
+        />
+        <Stack.Screen
+          name="BoxDiscountEligibility"
+          component={BoxDiscountEligibilityScreen}
+          options={{ title: 'Box discount' }}
+        />
+        <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Checkout' }} />
+        <Stack.Screen
+          name="OrderConfirmation"
+          component={OrderConfirmationScreen}
+          options={{ title: 'Order confirmed' }}
+        />
+        <Stack.Screen
+          name="Reflection"
+          component={ReflectionFlowScreen}
+          options={{ title: 'Reflection' }}
+        />
+        <Stack.Screen
+          name="AboutHanukkah"
+          component={AboutHanukkahScreen}
+          options={{ title: 'About Hanukkah' }}
+        />
+        <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
+        <Stack.Screen name="GiftGive" component={GiftGiveScreen} options={{ title: 'Give a gift' }} />
+        <Stack.Screen
+          name="GiftGiverCustomize"
+          component={GiftGiverCustomizeScreen}
+          options={{ title: 'Customize gift' }}
+        />
+        <Stack.Screen name="GiftClaim" component={GiftClaimScreen} options={{ title: 'Claim gift' }} />
+        <Stack.Screen
+          name="GiftRecipientReveal"
+          component={GiftRecipientRevealScreen}
+          options={{ title: 'Your gift' }}
+        />
+        <Stack.Screen
+          name="AdminCatalog"
+          component={AdminCatalogScreen}
+          options={{ title: 'Catalog admin' }}
+        />
+        <Stack.Screen
+          name="AdminCatalogItem"
+          component={AdminCatalogItemScreen}
+          options={{ title: 'Edit catalog item' }}
+        />
         {__DEV__ ? (
-          <Stack.Screen name="GrapeWobblePreview" component={GrapeWobblePreviewScreen} />
+          <Stack.Screen
+            name="GrapeWobblePreview"
+            component={GrapeWobblePreviewScreen}
+            options={{ title: 'Grape wobble' }}
+          />
         ) : null}
       </Stack.Navigator>
     </WebDesktopFrame>

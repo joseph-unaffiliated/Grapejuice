@@ -40,6 +40,8 @@ type GuestSessionState = {
   familiarityScore: number;
   familiarityLevel: FamiliarityLevel;
   lineItems: BoxLineItem[];
+  /** Saved catalog favorites — Rav prioritizes these when building a box. */
+  wishlistItemIds: string[];
   ravNotes: string;
   onboardingComplete: boolean;
   boxRevealComplete: boolean;
@@ -58,6 +60,7 @@ type GuestSessionState = {
   setFamiliarityScore: (score: number) => void;
   setRavNotes: (notes: string) => void;
   setLineItems: (items: BoxLineItem[]) => void;
+  toggleWishlistItem: (itemId: string) => void;
   setOnboardingStep: (step: GuestOnboardingStep | null) => void;
   completeOnboarding: () => void;
   completeBoxReveal: () => void;
@@ -79,6 +82,7 @@ const initialState = {
   familiarityScore: 50,
   familiarityLevel: 'moderate' as FamiliarityLevel,
   lineItems: [] as BoxLineItem[],
+  wishlistItemIds: [] as string[],
   ravNotes: '',
   onboardingComplete: false,
   boxRevealComplete: false,
@@ -106,6 +110,14 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       },
       setRavNotes: (ravNotes) => set({ ravNotes }),
       setLineItems: (lineItems) => set({ lineItems }),
+      toggleWishlistItem: (itemId) => {
+        const current = get().wishlistItemIds;
+        set({
+          wishlistItemIds: current.includes(itemId)
+            ? current.filter((id) => id !== itemId)
+            : [...current, itemId],
+        });
+      },
       setOnboardingStep: (onboardingStep) => set({ onboardingStep }),
       completeOnboarding: () => set({ onboardingComplete: true }),
       completeBoxReveal: () =>
@@ -144,6 +156,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         familiarityScore: state.familiarityScore,
         familiarityLevel: state.familiarityLevel,
         lineItems: state.lineItems,
+        wishlistItemIds: state.wishlistItemIds,
         ravNotes: state.ravNotes,
         onboardingComplete: state.onboardingComplete,
         boxRevealComplete: state.boxRevealComplete,

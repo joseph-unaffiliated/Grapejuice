@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
+import { browserPathForNavigationState } from './productLink';
 
 let suppressHistoryPush = false;
 const navHistory: string[] = [];
@@ -12,9 +13,28 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
     const index = current.index ?? 0;
     const route = current.routes[index];
     parts.push(`${route.name}:${index}`);
+    if (route.name === 'CatalogProduct') {
+      const params = route.params as { slug?: string; itemId?: string } | undefined;
+      parts.push(params?.slug ?? params?.itemId ?? '');
+    }
+    if (route.name === 'StorefrontCategory') {
+      const params = route.params as { category?: string } | undefined;
+      parts.push(params?.category ?? '');
+    }
     current = route.state;
   }
   return parts.join('/');
+}
+
+function syncBrowserUrl(state: NavigationState, mode: 'push' | 'replace'): void {
+  const nextPath = browserPathForNavigationState(state);
+  const current = window.location.pathname + window.location.search;
+  if (current === nextPath) return;
+  if (mode === 'replace') {
+    window.history.replaceState({ gjNav: true }, '', nextPath);
+  } else {
+    window.history.pushState({ gjNav: true }, '', nextPath);
+  }
 }
 
 /** Push a browser history entry when in-app navigation moves forward. */
@@ -26,18 +46,20 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
 
   if (navHistory.length === 0) {
     navHistory.push(fingerprint);
+    syncBrowserUrl(state, 'replace');
     return;
   }
 
   if (previousIndex === -1) {
     navHistory.push(fingerprint);
-    window.history.pushState({ gjNav: true }, '', window.location.href);
+    syncBrowserUrl(state, 'push');
     return;
   }
 
   if (previousIndex < navHistory.length - 1) {
     navHistory.splice(previousIndex + 1);
   }
+  syncBrowserUrl(state, 'replace');
 }
 
 /** Wire browser Back to React Navigation goBack(). */

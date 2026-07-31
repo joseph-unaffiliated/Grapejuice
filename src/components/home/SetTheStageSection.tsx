@@ -96,7 +96,7 @@ export function SetTheStageSection({
     () => createSetTheStageStyles(colors, contentColumnOffset),
     [colors, contentColumnOffset],
   );
-  const openProduct = (itemId: string) => navigation.navigate('CatalogProduct', { itemId });
+  const openProduct = (itemId: string) => navigation.navigate('CatalogProduct', { slug: itemId });
   const cards = [
     apparel.length ? { key: 'apparel', title: 'Apparel', items: apparel } : null,
     decorations.length ? { key: 'decorations', title: 'Decorations', items: decorations } : null,

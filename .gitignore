@@ -13,3 +13,5 @@ functions/.env.*
 /ios
 /android
 .DS_Store
+tmp/
+.tools/

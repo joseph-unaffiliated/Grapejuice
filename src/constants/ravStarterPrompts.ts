@@ -40,13 +40,15 @@ export function buildRavStarterChips(hanukkahStartsOn: string | null): RavStarte
   ];
 }
 
-/** Static messages for Home search faux-typing (no live Hanukkah countdown). */
+/** Static messages for search faux-typing (Home + storefront). */
 export const RAV_TYPEWRITER_PROMPTS: readonly string[] = [
-  'Help me make a Hanukkah plan',
-  "I'm looking for books to read with my kids",
-  'What should we do on night 1?',
-  "We just had a baby, I don't know where to start",
-  'Help me choose latkes or sufganiyot',
-  'Ideas for kids who are new to Hanukkah',
-  'I want to do a family game night',
+  'What do I need for Hanukkah?',
+  'Why does the date of Hanukkah change every year?',
+  'Help me plan a Hanukkah party',
+  'What is the right way to light candles?',
+  'Is it called a Menorah or Hanukkiah?',
+  'How do you play dreidel?',
+  'Why do we eat Latkes on Hanukkah?',
+  'Why does the Menorah go in the window?',
+  'What is the story of Hanukkah?',
 ];

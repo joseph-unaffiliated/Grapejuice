@@ -25,5 +25,5 @@ export function consumePersistedGiftClaimToken(): string | null {
 
 export function scrubGiftClaimUrl(): void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-  window.history.replaceState({}, '', '/');
+  window.history.replaceState({}, '', '/store');
 }

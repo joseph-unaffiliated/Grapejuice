@@ -38,13 +38,14 @@ export function resolveCatalogImage(
   itemId?: string | null,
   imageUrl?: string | null
 ): ImageSourcePropType | null {
-  if (itemId && CATALOG_IMAGES[itemId]) {
-    return CATALOG_IMAGES[itemId];
-  }
+  // Prefer remote (Airtable → Storage sync) over legacy bundled placeholders.
   if (imageUrl) {
     if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('/')) {
       return { uri: imageUrl };
     }
+  }
+  if (itemId && CATALOG_IMAGES[itemId]) {
+    return CATALOG_IMAGES[itemId];
   }
   return null;
 }

@@ -13,6 +13,8 @@ export type AIChatThread = {
   title: string;
   messages: AIChatMessage[];
   updatedAt: string;
+  /** Soft-archive timestamp; omitted/null when active. */
+  archivedAt?: string | null;
 };
 
 export type AIChatThreadSummary = {
@@ -21,4 +23,5 @@ export type AIChatThreadSummary = {
   updatedAt: string;
   /** Snippet of the last message for list previews. */
   preview: string;
+  archivedAt?: string | null;
 };
