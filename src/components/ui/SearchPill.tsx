@@ -22,8 +22,10 @@ import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
 import { useThemeMode } from '../../context/ThemeContext';
 
 const LINE_DESKTOP = typography.lg;
-/** iOS Safari zooms inputs under 16px — keep mobile body text at 16. */
-const LINE_MOBILE = 16;
+/** iOS Safari zooms inputs under 16px — typed input stays at 16 on mobile. */
+const INPUT_MOBILE = 16;
+/** Rotating prompt / demo suggestions can read smaller than the input. */
+const FAUX_MOBILE = typography.lg; // 13
 /** Multiline input line-height ≈ 1.4× font (13→18, 16→22). */
 const INPUT_LINE_HEIGHT_RATIO = 1.4;
 /** Web class for thin gold scrollbar on the multiline textarea. */
@@ -99,9 +101,10 @@ export function SearchPill({
   const { colors } = useThemeMode();
   const { width } = useWindowDimensions();
   const compact = width < LAYOUT.BREAKPOINT_TABLET;
-  const lineSize = compact ? LINE_MOBILE : LINE_DESKTOP;
-  /** Readable multiline leading; collapsed single-line keeps lineSize for the 37px pill. */
-  const textLineHeight = Math.round(lineSize * INPUT_LINE_HEIGHT_RATIO);
+  const inputSize = compact ? INPUT_MOBILE : LINE_DESKTOP;
+  const fauxSize = compact ? FAUX_MOBILE : LINE_DESKTOP;
+  /** Readable multiline leading; collapsed single-line keeps inputSize for the 37px pill. */
+  const textLineHeight = Math.round(inputSize * INPUT_LINE_HEIGHT_RATIO);
   const hasText = value.trim().length > 0;
   /** Grow when there is typed content; empty / faux typewriter stays single-line. */
   const expanded = hasText;
@@ -287,7 +290,7 @@ export function SearchPill({
             styles.fauxBase,
             styles.fauxType,
             {
-              fontSize: lineSize,
+              fontSize: fauxSize,
               lineHeight: SEARCH_PILL_HEIGHT,
               color: colors.textPrimary,
               opacity: isDemo ? DEMO_OPACITY : 1,
@@ -298,7 +301,14 @@ export function SearchPill({
         >
           {fauxText}
           {isDemo ? (
-            <Text style={[styles.caret, { color: colors.textPrimary, opacity: 1 }]}>|</Text>
+            <Text
+              style={[
+                styles.caret,
+                { fontSize: fauxSize, color: colors.textPrimary, opacity: 1 },
+              ]}
+            >
+              |
+            </Text>
           ) : null}
         </Text>
       ) : null}
@@ -307,9 +317,9 @@ export function SearchPill({
           styles.input,
           {
             color: colors.textPrimary,
-            fontSize: lineSize,
-            lineHeight: expanded ? textLineHeight : lineSize,
-            height: expanded ? inputHeight : lineSize,
+            fontSize: inputSize,
+            lineHeight: expanded ? textLineHeight : inputSize,
+            height: expanded ? inputHeight : inputSize,
             maxHeight: inputMaxHeight,
           },
           alignLeft ? styles.inputActive : styles.inputCentered,
