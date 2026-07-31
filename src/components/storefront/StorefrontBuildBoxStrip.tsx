@@ -18,7 +18,7 @@ import {
   typography,
 } from '../../constants/theme';
 
-const STRIP_BG = require('../../../assets/storefront/build-box-strip-bg.jpg');
+const STRIP_BG = require('../../../assets/storefront/boxrevealv2.webp');
 
 /** Hard offset shadow — darker gold than goldMuted (#B8AC7F), plate behind the button. */
 const CTA_SHADOW = '#7A6E42';

@@ -49,7 +49,7 @@ export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
     label: 'Lifestyle — Kitchen food',
     headline: 'Set the table for eight nights',
     body: 'A short look at how a Grapejuice table comes together.',
-    ctaLabel: 'Shop Gifts',
+    ctaLabel: 'Shop food and family cooking activities',
     href: 'gifts',
     src: require('../../assets/storefront/setthetablev1.webp'),
   },
