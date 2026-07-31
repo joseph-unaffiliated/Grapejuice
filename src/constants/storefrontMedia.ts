@@ -45,13 +45,13 @@ export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
   {
     id: 'editorial-table-video',
     kind: 'image',
-    aspect: '16/9',
+    aspect: '1536/1024',
     label: 'Lifestyle — Kitchen food',
     headline: 'Set the table for eight nights',
     body: 'A short look at how a Grapejuice table comes together.',
     ctaLabel: 'Shop Gifts',
     href: 'gifts',
-    src: require('../../assets/storefront/editorial-setting-table.webp'),
+    src: require('../../assets/storefront/setthetablev1.webp'),
   },
   {
     id: 'editorial-gifts',
