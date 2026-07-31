@@ -25,20 +25,20 @@ export type StorefrontMediaSlot = {
   src: string | ImageSourcePropType | null;
 };
 
-/** Native aspect of `hero-menorahs-trio-ultrawide.png` (ultrawide lifestyle). */
-export const STOREFRONT_HERO_ASPECT = 3200 / 915;
+/** Native aspect of `familysplash2.jpg` (family lifestyle dusk splash). */
+export const STOREFRONT_HERO_ASPECT = 4082 / 1536;
 
 export const STOREFRONT_HERO: StorefrontMediaSlot = {
   id: 'hero-table',
   kind: 'image',
-  aspect: '32/9',
+  aspect: '4082/1536',
   label: 'Lifestyle — Hanukkah table',
   headline: 'Hanukkah Made Easy',
   body: 'Everything you need, delivered straight to your home',
   bodySecondary: 'Hanukkah starts sundown Dec. 4th, 2026',
   ctaLabel: 'Browse the Collection',
   href: 'collection',
-  src: require('../../assets/storefront/hero-menorahs-trio-ultrawide.webp'),
+  src: require('../../assets/storefront/familysplash2.webp'),
 };
 
 export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
