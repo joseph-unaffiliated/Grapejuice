@@ -3,7 +3,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import { formatDollars } from '../../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../../services/box/pricing';
 import type { BoxLineItem, CatalogItem } from '../../../types/pilot';
-import { semanticColors, spacing, typography } from '../../../constants/theme';
+import { spacing, typography, typeface } from '../../../constants/theme';
+import { useThemeMode } from '../../../context/ThemeContext';
+import type { SemanticColors } from '../../../constants/themeMode';
 
 export function CheckoutOrderSummary({
   lineItems,
@@ -16,6 +18,7 @@ export function CheckoutOrderSummary({
   giftCreditApplied = 0,
   platformCreditApplied = 0,
   expeditedShipping = false,
+  compact = false,
 }: {
   lineItems: BoxLineItem[];
   total: number;
@@ -27,7 +30,12 @@ export function CheckoutOrderSummary({
   giftCreditApplied?: number;
   platformCreditApplied?: number;
   expeditedShipping?: boolean;
+  /** When wrapped in a summary card — tighter heading spacing. */
+  compact?: boolean;
 }) {
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createStyles(colors, compact), [colors, compact]);
+
   const chargeable = useMemo(() => {
     return lineItems.filter((li) => {
       const item = catalog.find((c) => c.id === li.itemId);
@@ -75,9 +83,6 @@ export function CheckoutOrderSummary({
           <Text style={styles.summaryPrice}>{formatDollars(taxCents)}</Text>
         </View>
       ) : null}
-      <Text style={styles.gapNote}>
-        Pilot promo box is $50 (list $80). Shipping is free; estimated tax and add-ons are calculated at checkout.
-      </Text>
       {subtotal != null && subtotal !== total ? (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryName}>Subtotal</Text>
@@ -92,21 +97,54 @@ export function CheckoutOrderSummary({
   );
 }
 
-const styles = StyleSheet.create({
-  sectionTitle: { fontSize: typography.xl, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
-  summaryName: { flex: 1, fontSize: typography.md },
-  summaryPrice: { fontWeight: '600' },
-  creditPrice: { fontWeight: '600', color: semanticColors.brand },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: semanticColors.border,
-  },
-  totalLabel: { fontSize: typography.xl, fontWeight: '600' },
-  totalValue: { fontSize: typography.xl, fontWeight: '700', color: semanticColors.brand },
-  gapNote: { fontSize: typography.sm, color: semanticColors.textSecondary, marginTop: spacing.sm, lineHeight: 18 },
-});
+function createStyles(colors: SemanticColors, compact: boolean) {
+  return StyleSheet.create({
+    sectionTitle: {
+      fontSize: typography.xl,
+      color: colors.textPrimary,
+      marginTop: compact ? 0 : spacing.lg,
+      marginBottom: spacing.md,
+      fontWeight: '700',
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.xs,
+      gap: spacing.md,
+    },
+    summaryName: {
+      flex: 1,
+      fontSize: typography.md,
+      color: colors.textPrimary,
+      ...typeface('regular'),
+    },
+    summaryPrice: {
+      fontSize: typography.md,
+      color: colors.textPrimary,
+      ...typeface('medium'),
+    },
+    creditPrice: {
+      fontSize: typography.md,
+      color: colors.brand,
+      ...typeface('medium'),
+    },
+    totalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: spacing.md,
+      paddingTop: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.goldMuted,
+    },
+    totalLabel: {
+      fontSize: typography.xl,
+      color: colors.textPrimary,
+      ...typeface('medium'),
+    },
+    totalValue: {
+      fontSize: typography.xl,
+      color: colors.brand,
+      ...typeface('medium'),
+    },
+  });
+}

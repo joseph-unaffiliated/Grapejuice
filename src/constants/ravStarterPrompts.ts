@@ -31,6 +31,7 @@ export function buildRavStarterChips(hanukkahStartsOn: string | null): RavStarte
 
   return [
     { lines: planLines, message: planMessage },
+    { lines: ["What's in", 'my box?'], message: "What's in my box?" },
     { lines: ["I'm looking for books", 'to read with my kids'], message: "I'm looking for books to read with my kids" },
     { lines: ['What should we do', 'on night 1?'], message: 'What should we do on night 1?' },
     { lines: ["We just had a baby, I don't", 'know where to start'], message: "We just had a baby, I don't know where to start" },

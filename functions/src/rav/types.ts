@@ -18,7 +18,25 @@ export type RavDraftAction = {
   childId?: string;
 };
 
-export type RavResponse = { text: string; blocks: RavBlock[]; actions?: RavDraftAction[] };
+/** LLM-authored companion pane hint (client resolves against live catalog/box). */
+export type RavPaneHint = {
+  kind: 'box' | 'swap_pick' | 'swap_review' | 'curation' | 'product_detail';
+  title?: string;
+  subtitle?: string;
+  slotId?: string;
+  itemId?: string;
+  /** Catalog ids for swap_pick / curation grids */
+  optionItemIds?: string[];
+  /** Free-text topic hint: gelt, latke, sufganiyot, candles, … */
+  topic?: string;
+};
+
+export type RavResponse = {
+  text: string;
+  blocks: RavBlock[];
+  actions?: RavDraftAction[];
+  pane?: RavPaneHint | null;
+};
 
 export type AskPilotRavData = {
   message: string;
@@ -35,3 +53,27 @@ export type LineItem = {
   quantity?: number;
   childId?: string;
 };
+
+const PANE_KINDS = new Set(['box', 'swap_pick', 'swap_review', 'curation', 'product_detail']);
+
+/** Normalize/validate optional pane from the model. */
+export function sanitizeRavPane(raw: unknown): RavPaneHint | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const p = raw as Record<string, unknown>;
+  const kind = typeof p.kind === 'string' ? p.kind : '';
+  if (!PANE_KINDS.has(kind)) return undefined;
+
+  const optionItemIds = Array.isArray(p.optionItemIds)
+    ? p.optionItemIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+    : undefined;
+
+  return {
+    kind: kind as RavPaneHint['kind'],
+    title: typeof p.title === 'string' ? p.title : undefined,
+    subtitle: typeof p.subtitle === 'string' ? p.subtitle : undefined,
+    slotId: typeof p.slotId === 'string' ? p.slotId : undefined,
+    itemId: typeof p.itemId === 'string' ? p.itemId : undefined,
+    optionItemIds: optionItemIds?.length ? optionItemIds : undefined,
+    topic: typeof p.topic === 'string' ? p.topic : undefined,
+  };
+}

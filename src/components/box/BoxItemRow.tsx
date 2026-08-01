@@ -291,7 +291,7 @@ function createBoxItemRowStyles(colors: SemanticColors) {
     },
     tileImageWrap: {
       width: '100%',
-      height: 112,
+      aspectRatio: 1,
       borderRadius: borderRadius.xxl,
       overflow: 'hidden',
       backgroundColor: colors.bgElevated,

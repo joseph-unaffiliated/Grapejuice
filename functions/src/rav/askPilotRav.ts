@@ -7,6 +7,7 @@ import { getRavModeConfig } from './modeRegistry';
 import { buildCatalogContext, buildHouseholdContext } from './context';
 import { assertKidRavAllowed, stripKidRavActions } from './kidRavGuard';
 import type { AskPilotRavData, RavResponse } from './types';
+import { sanitizeRavPane } from './types';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
@@ -118,7 +119,9 @@ export const askPilotRav = onCall(
       const text = parsed?.text?.trim() || raw.trim() || 'Sorry, I could not generate a reply.';
       const blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.blocks) ? parsed!.blocks : [];
       const actions = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.actions) ? parsed!.actions : [];
-      const payload = stripKidRavActions({ reply: text, text, blocks, actions });
+      const pane =
+        modeName === 'facilitator_kid' ? undefined : sanitizeRavPane(parsed?.pane ?? null);
+      const payload = stripKidRavActions({ reply: text, text, blocks, actions, pane });
       return payload;
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);

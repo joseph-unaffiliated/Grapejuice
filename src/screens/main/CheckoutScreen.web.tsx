@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -22,14 +22,62 @@ import { formatDollars } from '../../services/box/buildDefaultBox';
 import { EXPEDITED_SHIPPING_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 
-function SetupCardStep({ onSaved }: { onSaved: () => void }) {
+/** Match My Box desktop top offset under sticky nav. */
+const DESKTOP_CONTENT_TOP = 41;
+
+/** Same dark pill CTA as My Box cart summary. */
+function CheckoutCta({
+  label,
+  onPress,
+  loading,
+  disabled,
+  colors,
+  styles,
+}: {
+  label: string;
+  onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+  colors: SemanticColors;
+  styles: ReturnType<typeof createCheckoutStyles>;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.cta, (disabled || loading) && styles.ctaDisabled]}
+      onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      {loading ? (
+        <BrandLoadingMark large={false} color={colors.goldMuted} />
+      ) : (
+        <Text style={styles.ctaText}>{label}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function SetupCardStep({
+  onSaved,
+  colors,
+  styles,
+}: {
+  onSaved: () => void;
+  colors: SemanticColors;
+  styles: ReturnType<typeof createCheckoutStyles>;
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const [saving, setSaving] = useState(false);
@@ -61,17 +109,14 @@ function SetupCardStep({ onSaved }: { onSaved: () => void }) {
       <View style={styles.paymentElementWrap}>
         <PaymentElement options={{ layout: 'tabs' }} />
       </View>
-      <TouchableOpacity
-        style={[styles.payBtn, saving && styles.payBtnDisabled]}
-        onPress={handleSave}
+      <CheckoutCta
+        label="Save card"
+        onPress={() => void handleSave()}
+        loading={saving}
         disabled={saving}
-      >
-        {saving ? (
-          <ActivityIndicator color={semanticColors.textInverse} />
-        ) : (
-          <Text style={styles.payBtnText}>Save card</Text>
-        )}
-      </TouchableOpacity>
+        colors={colors}
+        styles={styles}
+      />
     </View>
   );
 }
@@ -81,9 +126,12 @@ export function CheckoutScreen() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, refresh: refreshSession } = useSession();
-  const { isDesktop } = useWebLayout();
+  const { isDesktop, widePanelMaxWidth } = useWebLayout();
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createCheckoutStyles(colors, isDesktop), [colors, isDesktop]);
   const {
     lineItems,
+    catalog,
     address,
     updateAddress,
     loading,
@@ -137,7 +185,17 @@ export function CheckoutScreen() {
     } finally {
       setCommitting(false);
     }
-  }, [user, household?.id, locked, validateAddress, normalizedAddress, navigation, expeditedShipping, contactPhone, smsOptIn]);
+  }, [
+    user,
+    household?.id,
+    locked,
+    validateAddress,
+    normalizedAddress,
+    navigation,
+    expeditedShipping,
+    contactPhone,
+    smsOptIn,
+  ]);
 
   const startSetup = async () => {
     if (!household?.id) return;
@@ -165,6 +223,47 @@ export function CheckoutScreen() {
     await refreshSession();
   };
 
+  const expeditedToggle =
+    expeditedAvailable ? (
+      <TouchableOpacity
+        style={styles.expeditedRow}
+        onPress={() => setExpeditedShipping((v) => !v)}
+        activeOpacity={0.85}
+      >
+        <View style={[styles.checkbox, expeditedShipping && styles.checkboxOn]} />
+        <View style={styles.expeditedCopy}>
+          <Text style={styles.expeditedTitle}>
+            Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
+          </Text>
+          <Text style={styles.expeditedBody}>Arrives sooner — for last-minute planners.</Text>
+        </View>
+      </TouchableOpacity>
+    ) : null;
+
+  const summaryCard = (
+    <View
+      style={[
+        styles.summaryCard,
+        Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.sm } as object) : null,
+      ]}
+    >
+      <CheckoutOrderSummary
+        lineItems={lineItems}
+        total={total}
+        subtotal={subtotal}
+        shippingCents={shippingCents}
+        taxCents={taxCents}
+        boxPriceCents={boxPriceCents}
+        catalog={catalog}
+        giftCreditApplied={giftCreditApplied}
+        platformCreditApplied={platformCreditApplied}
+        expeditedShipping={expeditedShipping}
+        compact
+      />
+      {expeditedToggle}
+    </View>
+  );
+
   const checkoutForm = cardOnFile ? (
     <>
       <CheckoutAddressFields address={address} onChange={updateAddress} />
@@ -174,21 +273,23 @@ export function CheckoutScreen() {
         onPhoneChange={setContactPhone}
         onSmsOptInChange={setSmsOptIn}
       />
-      <TouchableOpacity
-        style={[styles.payBtn, (committing || locked) && styles.payBtnDisabled]}
-        onPress={handleCommit}
+      <CheckoutCta
+        label="Commit to box"
+        onPress={() => void handleCommit()}
+        loading={committing}
         disabled={committing || locked}
-      >
-        {committing ? (
-          <ActivityIndicator color={semanticColors.textInverse} />
-        ) : (
-          <Text style={styles.payBtnText}>Commit to box</Text>
-        )}
-      </TouchableOpacity>
+        colors={colors}
+        styles={styles}
+      />
     </>
   ) : setupClientSecret && stripePromise ? (
-    <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret, appearance: { theme: 'stripe' } }}>
+    <Elements
+      stripe={stripePromise}
+      options={{ clientSecret: setupClientSecret, appearance: { theme: 'stripe' } }}
+    >
       <SetupCardStep
+        colors={colors}
+        styles={styles}
         onSaved={async () => {
           await onCardSaved();
           await handleCommit();
@@ -211,17 +312,14 @@ export function CheckoutScreen() {
         onPhoneChange={setContactPhone}
         onSmsOptInChange={setSmsOptIn}
       />
-      <TouchableOpacity
-        style={[styles.payBtn, (preparing || locked) && styles.payBtnDisabled]}
-        onPress={startSetup}
+      <CheckoutCta
+        label="Save and continue to payment"
+        onPress={() => void startSetup()}
+        loading={preparing}
         disabled={preparing || locked}
-      >
-        {preparing ? (
-          <ActivityIndicator color={semanticColors.textInverse} />
-        ) : (
-          <Text style={styles.payBtnText}>Save card & commit to box</Text>
-        )}
-      </TouchableOpacity>
+        colors={colors}
+        styles={styles}
+      />
     </>
   );
 
@@ -232,148 +330,236 @@ export function CheckoutScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={semanticColors.brand} />
+        <BrandLoadingMark color={colors.brand} />
       </View>
     );
   }
 
   if (!lineItems.length) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>Your box is empty. Finish onboarding or add items in My Box.</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backLink}>Back to My Box</Text>
-        </TouchableOpacity>
-      </View>
+      <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>
+            Your box is empty. Finish onboarding or add items in My Box.
+          </Text>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backLink}>Back to My Box</Text>
+          </TouchableOpacity>
+        </View>
+      </WebContentPanel>
     );
   }
 
+  const pageHeader = (
+    <>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
+        <Text style={styles.backLink}>← Back</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.title}>Shipping</Text>
+      <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
+      {!cardOnFile ? (
+        <Text style={styles.pendingCopy}>
+          Your box will not ship until you add payment information and a shipping address.
+        </Text>
+      ) : null}
+      {locked ? (
+        <Text style={styles.lockBanner}>Box customization is locked. Checkout is unavailable.</Text>
+      ) : null}
+    </>
+  );
+
   return (
-    <WebContentPanel wide>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-          <Text style={styles.backLink}>← Back</Text>
-        </TouchableOpacity>
+    <WebContentPanel
+      flush
+      centerDesktop={isDesktop}
+      omitDesktopTopPadding={isDesktop}
+      style={styles.panel}
+    >
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={isDesktop ? styles.desktopScrollContent : styles.mobileScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.shell, isDesktop ? { maxWidth: widePanelMaxWidth } : null]}>
+          {pageHeader}
 
-        <Text style={styles.title}>Payment & shipping</Text>
-        <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
-        {!cardOnFile ? (
-          <Text style={styles.pendingCopy}>
-            Your box will not ship until you add payment information and a shipping address.
-          </Text>
-        ) : null}
-        {locked ? (
-          <Text style={styles.lockBanner}>Box customization is locked. Checkout is unavailable.</Text>
-        ) : null}
-
-        {isDesktop ? (
-          <View style={styles.desktopColumns}>
-            <View style={styles.desktopLeft}>
-              <CheckoutOrderSummary
-                lineItems={lineItems}
-                total={total}
-                subtotal={subtotal}
-                shippingCents={shippingCents}
-                taxCents={taxCents}
-                boxPriceCents={boxPriceCents}
-                giftCreditApplied={giftCreditApplied}
-                platformCreditApplied={platformCreditApplied}
-                expeditedShipping={expeditedShipping}
-              />
-              {expeditedAvailable ? (
-                <TouchableOpacity
-                  style={styles.expeditedRow}
-                  onPress={() => setExpeditedShipping((v) => !v)}
-                >
-                  <Text style={styles.expeditedTitle}>
-                    Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
+          {isDesktop ? (
+            <View style={styles.desktopColumns}>
+              <View style={styles.desktopMain}>{checkoutForm}</View>
+              <View style={styles.desktopSummary}>{summaryCard}</View>
             </View>
-            <View style={styles.desktopRight}>{checkoutForm}</View>
-          </View>
-        ) : (
-          <>
-            <CheckoutOrderSummary
-              lineItems={lineItems}
-              total={total}
-              subtotal={subtotal}
-              shippingCents={shippingCents}
-              taxCents={taxCents}
-              boxPriceCents={boxPriceCents}
-              giftCreditApplied={giftCreditApplied}
-              platformCreditApplied={platformCreditApplied}
-              expeditedShipping={expeditedShipping}
-            />
-            {expeditedAvailable ? (
-              <TouchableOpacity
-                style={styles.expeditedRow}
-                onPress={() => setExpeditedShipping((v) => !v)}
-              >
-                <Text style={styles.expeditedTitle}>
-                  Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-            {checkoutForm}
-          </>
-        )}
+          ) : (
+            <>
+              {summaryCard}
+              {checkoutForm}
+            </>
+          )}
+        </View>
       </ScrollView>
     </WebContentPanel>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  content: { paddingBottom: 120 },
-  desktopColumns: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
-  desktopLeft: { flex: 1, minWidth: 0 },
-  desktopRight: {
-    flex: 1,
-    minWidth: 0,
-    borderLeftWidth: 1,
-    borderLeftColor: semanticColors.border,
-    paddingLeft: spacing.lg,
-  },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  backRow: { marginBottom: spacing.md },
-  backLink: { color: semanticColors.brand, fontWeight: '600' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.sm },
-  chargeBanner: {
-    backgroundColor: semanticColors.brandLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.md,
-    fontSize: typography.md,
-  },
-  pendingCopy: {
-    fontSize: typography.sm,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.md,
-    lineHeight: 20,
-  },
-  lockBanner: {
-    backgroundColor: semanticColors.brandLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: { fontSize: typography.xl, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm },
-  paymentBlock: { marginTop: spacing.md },
-  paymentElementWrap: { minHeight: 120, marginBottom: spacing.md },
-  payBtn: {
-    backgroundColor: semanticColors.brand,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  payBtnDisabled: { opacity: 0.6 },
-  payBtnText: { fontWeight: '700', color: semanticColors.textInverse, fontSize: typography.lg },
-  emptyText: { textAlign: 'center', color: semanticColors.textSecondary, marginBottom: spacing.md },
-  expeditedRow: { marginTop: spacing.md, marginBottom: spacing.md },
-  expeditedTitle: { fontSize: typography.md, fontWeight: '600', color: semanticColors.brand },
-});
+function createCheckoutStyles(colors: SemanticColors, isDesktop: boolean) {
+  return StyleSheet.create({
+    panel: {
+      flex: 1,
+      width: '100%',
+      minHeight: 0,
+      backgroundColor: colors.bgPrimary,
+    },
+    root: { flex: 1, backgroundColor: colors.bgPrimary },
+    desktopScrollContent: {
+      flexGrow: 1,
+      paddingBottom: 120,
+    },
+    mobileScrollContent: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xl,
+      paddingBottom: 120,
+    },
+    shell: {
+      width: '100%',
+      alignSelf: 'center',
+      paddingTop: isDesktop ? DESKTOP_CONTENT_TOP : 0,
+    },
+    desktopColumns: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.xl,
+      marginTop: spacing.md,
+    },
+    desktopMain: {
+      flexGrow: 0,
+      flexShrink: 0,
+      width: '100%',
+      maxWidth: 480,
+      minWidth: 0,
+    },
+    desktopSummary: {
+      flex: 1,
+      minWidth: 280,
+      alignSelf: 'flex-start',
+      ...(Platform.OS === 'web'
+        ? ({ position: 'sticky' as const, top: DESKTOP_CONTENT_TOP, zIndex: 5 } as object)
+        : null),
+    },
+    summaryCard: {
+      backgroundColor: isDesktop ? colors.bgElevated : colors.accentCream,
+      borderRadius: 16,
+      padding: spacing.lg,
+      marginTop: isDesktop ? 0 : spacing.md,
+      marginBottom: isDesktop ? 0 : spacing.lg,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+      backgroundColor: colors.bgPrimary,
+    },
+    backRow: { marginBottom: spacing.md },
+    backLink: {
+      color: colors.brand,
+      fontSize: typography.md,
+      ...typeface('medium'),
+    },
+    title: {
+      fontSize: typography.titleLg,
+      color: colors.textPrimary,
+      letterSpacing: -0.32,
+      marginBottom: spacing.sm,
+      ...typeface('regular'),
+    },
+    chargeBanner: {
+      backgroundColor: colors.brandLight,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+      fontSize: typography.md,
+      lineHeight: typography.md * 1.4,
+      ...typeface('regular'),
+    },
+    pendingCopy: {
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+      lineHeight: typography.sm * 1.45,
+      ...typeface('regular'),
+    },
+    lockBanner: {
+      backgroundColor: colors.brandLight,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      color: colors.textSecondary,
+      marginBottom: spacing.lg,
+      fontSize: typography.md,
+      ...typeface('regular'),
+    },
+    sectionTitle: {
+      fontSize: typography.titleLg,
+      color: colors.textPrimary,
+      letterSpacing: -0.32,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+      ...typeface('medium'),
+    },
+    paymentBlock: { marginTop: spacing.md },
+    paymentElementWrap: { minHeight: 120, marginBottom: spacing.md },
+    cta: {
+      backgroundColor: colors.textPrimary,
+      padding: spacing.md,
+      borderRadius: borderRadius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: spacing.lg,
+      alignSelf: 'stretch',
+    },
+    ctaDisabled: { opacity: 0.5 },
+    ctaText: {
+      color: colors.goldMuted,
+      fontWeight: '700',
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+      fontSize: typography.md,
+      ...typeface('regular'),
+    },
+    expeditedRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+      marginTop: spacing.md,
+      padding: spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.bgPrimary,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 4,
+      borderWidth: 2,
+      borderColor: colors.border,
+      marginTop: 2,
+    },
+    checkboxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
+    expeditedCopy: { flex: 1, gap: 4 },
+    expeditedTitle: {
+      fontSize: typography.md,
+      color: colors.textPrimary,
+      ...typeface('medium'),
+    },
+    expeditedBody: {
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      lineHeight: typography.sm * 1.35,
+      ...typeface('regular'),
+    },
+  });
+}
