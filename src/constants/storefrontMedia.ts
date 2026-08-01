@@ -25,33 +25,33 @@ export type StorefrontMediaSlot = {
   src: string | ImageSourcePropType | null;
 };
 
-/** Native aspect of `hero-menorahs-trio-ultrawide.png` (ultrawide lifestyle). */
-export const STOREFRONT_HERO_ASPECT = 3200 / 915;
+/** Native aspect of `familysplash2.jpg` (family lifestyle dusk splash). */
+export const STOREFRONT_HERO_ASPECT = 4082 / 1536;
 
 export const STOREFRONT_HERO: StorefrontMediaSlot = {
   id: 'hero-table',
   kind: 'image',
-  aspect: '32/9',
+  aspect: '4082/1536',
   label: 'Lifestyle — Hanukkah table',
   headline: 'Hanukkah Made Easy',
   body: 'Everything you need, delivered straight to your home',
   bodySecondary: 'Hanukkah starts sundown Dec. 4th, 2026',
   ctaLabel: 'Browse the Collection',
   href: 'collection',
-  src: require('../../assets/storefront/hero-menorahs-trio-ultrawide.webp'),
+  src: require('../../assets/storefront/familysplash2.webp'),
 };
 
 export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
   {
     id: 'editorial-table-video',
     kind: 'image',
-    aspect: '16/9',
+    aspect: '1536/1024',
     label: 'Lifestyle — Kitchen food',
     headline: 'Set the table for eight nights',
     body: 'A short look at how a Grapejuice table comes together.',
-    ctaLabel: 'Shop Gifts',
+    ctaLabel: 'Shop food and family cooking activities',
     href: 'gifts',
-    src: require('../../assets/storefront/editorial-setting-table.webp'),
+    src: require('../../assets/storefront/setthetablev1.webp'),
   },
   {
     id: 'editorial-gifts',
