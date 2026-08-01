@@ -310,7 +310,7 @@ export function CatalogProductScreen() {
                   accessibilityRole="link"
                   accessibilityLabel="I have a follow up question"
                 >
-                  I have a follow up question >
+                  I have a follow up question {'>'}
                 </Text>
               </Text>
             ) : null}

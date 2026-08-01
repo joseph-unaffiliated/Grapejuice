@@ -1,30 +1,61 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { Text, TextInput, StyleSheet } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
-import { WebPageContainer } from '../../components/ui/WebPageContainer';
+import { useThemeMode } from '../../context/ThemeContext';
+import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography, typeface, borderRadius } from '../../constants/theme';
 
 export function SignUpScreen() {
+  const { colors } = useThemeMode();
   const { signUp, isLoading, error, clearError } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   return (
-    <WebPageContainer authCard style={styles.container}>
-      <Text style={styles.title}>Create account</Text>
-      <Text style={styles.hint}>Password must be at least 6 characters. Use any email you can access.</Text>
-      <TextInput style={styles.input} placeholder="Your name" value={name} onChangeText={setName} />
+    <AuthHeroShell>
+      <Text style={[styles.headline, { color: colors.textPrimary }]}>Create account</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+        Password must be at least 6 characters. Use any email you can access.
+      </Text>
+
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgPrimary },
+        ]}
+        placeholder="Your name"
+        placeholderTextColor={colors.textTertiary}
+        autoComplete="name"
+        value={name}
+        onChangeText={setName}
+      />
+      <TextInput
+        style={[
+          styles.input,
+          { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgPrimary },
+        ]}
         placeholder="Email"
+        placeholderTextColor={colors.textTertiary}
         autoCapitalize="none"
         keyboardType="email-address"
+        autoComplete="email"
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+      <TextInput
+        style={[
+          styles.input,
+          { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgPrimary },
+        ]}
+        placeholder="Password"
+        placeholderTextColor={colors.textTertiary}
+        secureTextEntry
+        autoComplete="new-password"
+        value={password}
+        onChangeText={setPassword}
+      />
       <GrapejuiceButton
         label="Sign up"
         variant="filled"
@@ -36,23 +67,39 @@ export function SignUpScreen() {
         loading={isLoading}
         style={styles.btn}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-    </WebPageContainer>
+      {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+    </AuthHeroShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl, backgroundColor: semanticColors.bgPrimary },
-  title: { fontSize: typography.headerLg, fontWeight: '700', marginBottom: spacing.sm, color: semanticColors.textPrimary },
-  hint: { fontSize: typography.sm, color: semanticColors.textTertiary, marginBottom: spacing.lg, lineHeight: 18 },
+  headline: {
+    fontSize: typography.headerLg,
+    ...typeface('medium'),
+    letterSpacing: -0.4,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: typography.md,
+    ...typeface('light'),
+    letterSpacing: -0.22,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
   input: {
     borderWidth: 1,
-    borderColor: semanticColors.border,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
     fontSize: 16,
+    ...typeface('regular'),
   },
   btn: { alignSelf: 'stretch', minWidth: undefined },
-  error: { color: semanticColors.error, marginTop: spacing.md },
+  error: {
+    marginTop: spacing.md,
+    textAlign: 'center',
+    fontSize: typography.md,
+  },
 });

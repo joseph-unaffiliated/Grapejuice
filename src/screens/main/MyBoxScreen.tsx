@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,6 +46,7 @@ import {
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { GuestBoxAuthBanner } from '../../components/box/GuestBoxAuthBanner';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { defaultIsSurprise } from '../../constants/boxPracticeGroups';
 import {
   buildVoter,
@@ -333,7 +333,6 @@ export function MyBoxScreen() {
                 <>
                   {!isChildProfile ? (
                     <BoxItemRow
-                      variant="card"
                       li={li}
                       item={item}
                       meta={kid ? `For ${kid.name || 'your kid'}` : undefined}
@@ -396,7 +395,7 @@ export function MyBoxScreen() {
   if (sessionLoading || loading || draftLoading || guestNeedsOnboarding) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark color={colors.brand} />
       </View>
     );
   }
@@ -582,29 +581,35 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   const cardSurface = isDesktop ? colors.bgElevated : colors.accentCream;
   return StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.bgPrimary },
-  root: { flex: 1, backgroundColor: colors.bgPrimary },
+  root: { flex: 1, flexBasis: 0, minHeight: 0, backgroundColor: colors.bgPrimary },
   panel: {
     flex: 1,
     width: '100%',
     minHeight: 0,
     backgroundColor: colors.bgPrimary,
+    // Keep the My Box scrollport viewport-bound (Home keeps overflow visible for rail bleed).
+    ...(Platform.OS === 'web' ? ({ overflow: 'hidden' as const } as object) : null),
   },
   scrollHost: {
     flex: 1,
+    flexBasis: 0,
     width: '100%',
     minHeight: 0,
     overflow: 'hidden' as const,
+    ...(Platform.OS === 'web' ? ({ height: '100%' } as object) : null),
   },
   mobileWrap: { flex: 1 },
   desktopRoot: {
     flex: 1,
+    flexBasis: 0,
     width: '100%',
     minHeight: 0,
     backgroundColor: colors.bgPrimary,
   },
   desktopScrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.xxl,
+    // Extra bottom space so the last section tab can scroll up under the sticky nav.
+    paddingBottom: Platform.OS === 'web' ? 480 : spacing.xxl,
     // Room for guest-banner gold glow; content (not ScrollView) may overflow visible.
     ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },

@@ -72,10 +72,14 @@ function childNav(ravEnabled: boolean): NavItem[] {
 }
 
 function resolveActiveTab(state: ReturnType<typeof useNavigationState> | undefined): TabName | null {
-  if (!state) return null;
+  if (!state) return 'Home';
+
   let current = state;
+  let deepestName: string | null = null;
+
   while (current) {
     const route = current.routes[current.index ?? 0];
+    deepestName = route.name;
     if (
       route.name === 'Home' ||
       route.name === 'Rav' ||
@@ -90,6 +94,17 @@ function resolveActiveTab(state: ReturnType<typeof useNavigationState> | undefin
     }
     break;
   }
+
+  // Main / MainTabs (or nested state not ready yet) — Home is the default landing.
+  if (
+    deepestName == null ||
+    deepestName === 'Main' ||
+    deepestName === 'MainTabs'
+  ) {
+    return 'Home';
+  }
+
+  // Stack screens (MyBox, Checkout, …) — no primary tab selected.
   return null;
 }
 

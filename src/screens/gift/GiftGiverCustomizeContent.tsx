@@ -28,6 +28,7 @@ import {
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
 import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
 import type { GiftGiveFormValues } from './giftGiveTypes';
 
@@ -58,7 +59,11 @@ export function GiftGiverCustomizeContent({
 }: Props) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { colors } = useThemeMode();
-  const detailStyles = useMemo(() => createBoxDetailStyles(colors), [colors]);
+  const { isDesktop } = useWebLayout();
+  const detailStyles = useMemo(
+    () => createBoxDetailStyles(colors, { desktop: isDesktop }),
+    [colors, isDesktop],
+  );
   const [catalogById, setCatalogById] = useState<Record<string, CatalogItem>>({});
 
   useEffect(() => {
@@ -106,7 +111,6 @@ export function GiftGiverCustomizeContent({
           return (
             <BoxItemRow
               key={li.slotId + li.itemId}
-              variant="card"
               li={li}
               item={item}
               meta={kid ? `For kid ${kidProfiles.indexOf(kid) + 1}` : undefined}

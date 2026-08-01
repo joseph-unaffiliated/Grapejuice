@@ -38,13 +38,15 @@ export function boxHeaderSubtext(lockAt: string | null, now: Date): string {
 /** Shared styles for Hanukkah box detail (Figma 370:3514). */
 export function createBoxDetailStyles(
   colors: SemanticColors,
-  options?: { desktop?: boolean }
+  options?: { desktop?: boolean; tileGrid?: boolean }
 ) {
   const desktop = options?.desktop ?? false;
+  const tileGrid = options?.tileGrid ?? false;
 
   return StyleSheet.create({
     scrollContent: {
-      paddingBottom: spacing.xxl,
+      // Extra bottom space so the last section tab can scroll up under the sticky nav.
+      paddingBottom: Platform.OS === 'web' ? 480 : spacing.xxl,
     },
     toolbar: {
       flexDirection: 'row',
@@ -149,7 +151,26 @@ export function createBoxDetailStyles(
       maxWidth: desktop ? 480 : 255,
       letterSpacing: -0.33,
     },
-    itemList: { gap: spacing.md, paddingBottom: spacing.lg, width: '100%' },
+    itemList: {
+      gap: spacing.md,
+      paddingBottom: spacing.lg,
+      width: '100%',
+      ...(tileGrid
+        ? {
+            flexDirection: 'row' as const,
+            flexWrap: 'wrap' as const,
+            alignItems: 'flex-start' as const,
+            justifyContent: 'flex-start' as const,
+          }
+        : null),
+    },
+    /** Desktop grid cell — half-width only when the list is wide enough for two columns. */
+    itemTile: {
+      width: '48%',
+      maxWidth: '48%',
+      flexGrow: 0,
+      flexShrink: 0,
+    },
     browseChips: {
       flexDirection: 'row',
       flexWrap: 'wrap',

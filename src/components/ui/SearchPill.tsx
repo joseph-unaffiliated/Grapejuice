@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Platform,
   AppState,
+  Pressable,
   useWindowDimensions,
   type AppStateStatus,
 } from 'react-native';
@@ -51,6 +52,14 @@ type Props = {
   value: string;
   onChangeText: (text: string) => void;
   onSubmitEditing?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onKeyPress?: (e: {
+    nativeEvent?: { key?: string };
+    key?: string;
+    shiftKey?: boolean;
+    preventDefault?: () => void;
+  }) => void;
   placeholder?: string;
   returnKeyType?: 'search' | 'done' | 'default';
   /** Cycle Rav-style prompt typewriter when empty. Default true. */
@@ -59,6 +68,15 @@ type Props = {
   prompts?: readonly string[];
   /** Optional accessibility label for the input. */
   accessibilityLabel?: string;
+  /** Optional control on the right (e.g. Rav send). Reserves padding so text doesn’t collide. */
+  trailing?: ReactNode;
+  /** Extra right inset when `trailing` is set. Default 40. */
+  trailingWidth?: number;
+  /**
+   * Right padding for an external control (send overlay outside this component).
+   * Prefer this over mounting/unmounting `trailing` on focus — remounts can steal web focus.
+   */
+  contentInsetRight?: number;
 };
 
 function pickPromptBatch(
@@ -92,11 +110,17 @@ export function SearchPill({
   value,
   onChangeText,
   onSubmitEditing,
+  onFocus: onFocusProp,
+  onBlur: onBlurProp,
+  onKeyPress: onKeyPressProp,
   placeholder = DEFAULT_PLACEHOLDER,
   returnKeyType = 'search',
   animatePlaceholder = true,
   prompts = RAV_TYPEWRITER_PROMPTS,
   accessibilityLabel = 'Search',
+  trailing = null,
+  trailingWidth = 40,
+  contentInsetRight = 0,
 }: Props) {
   const { colors } = useThemeMode();
   const { width } = useWindowDimensions();
@@ -121,9 +145,15 @@ export function SearchPill({
   const isDemoRef = useRef(false);
   /** Monotonic run id — stale async loops bailed even if a newer run already started. */
   const runIdRef = useRef(0);
+  const inputRef = useRef<TextInput>(null);
   const promptList = prompts.length > 0 ? prompts : RAV_TYPEWRITER_PROMPTS;
   const verticalPad = Math.max(0, (SEARCH_PILL_HEIGHT - textLineHeight) / 2);
   const inputMaxHeight = SEARCH_PILL_MAX_HEIGHT - verticalPad * 2;
+  const showTrailing = trailing != null;
+  const rightInset = showTrailing ? trailingWidth : contentInsetRight;
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -243,6 +273,7 @@ export function SearchPill({
     if (demo && !value.trim()) {
       onChangeText(demo);
     }
+    onFocusProp?.();
   };
 
   /** Web: Enter submits, Shift+Enter inserts a newline when multiline.
@@ -254,13 +285,14 @@ export function SearchPill({
       shiftKey?: boolean;
       preventDefault?: () => void;
     }) => {
+      onKeyPressProp?.(e);
       if (Platform.OS !== 'web' || !expanded) return;
       const key = e.key ?? e.nativeEvent?.key;
       if (key !== 'Enter' || e.shiftKey) return;
       e.preventDefault?.();
       onSubmitEditing?.();
     },
-    [expanded, onSubmitEditing],
+    [expanded, onKeyPressProp, onSubmitEditing],
   );
 
   const onContentSizeChange = useCallback(
@@ -273,17 +305,22 @@ export function SearchPill({
   );
 
   const showFaux = animatePlaceholder && !hasText && !focused;
+  // Keep idle placeholder centered — right inset is only for the send affordance.
   const alignLeft = hasText || focused;
   const pillStyle = [
     styles.pill,
     expanded ? styles.pillExpanded : styles.pillCollapsed,
     expanded ? { paddingVertical: verticalPad } : null,
     { backgroundColor: colors.bgPrimary },
-    Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm } : shadows.goldGlow,
+    Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm, cursor: 'text' } : shadows.goldGlow,
   ];
 
   return (
-    <View style={pillStyle}>
+    <Pressable
+      accessibilityRole="search"
+      onPress={focusInput}
+      style={pillStyle}
+    >
       {showFaux ? (
         <Text
           style={[
@@ -313,6 +350,7 @@ export function SearchPill({
         </Text>
       ) : null}
       <TextInput
+        ref={inputRef}
         style={[
           styles.input,
           {
@@ -323,6 +361,7 @@ export function SearchPill({
             maxHeight: inputMaxHeight,
           },
           alignLeft ? styles.inputActive : styles.inputCentered,
+          rightInset > 0 ? { paddingRight: rightInset } : null,
           showFaux && styles.inputOverFaux,
           expanded && Platform.OS !== 'web' ? styles.inputMultilineNative : null,
         ]}
@@ -335,6 +374,7 @@ export function SearchPill({
         onBlur={() => {
           currentDemoRef.current = null;
           setFocused(false);
+          onBlurProp?.();
         }}
         onContentSizeChange={onContentSizeChange}
         onKeyPress={handleKeyPress}
@@ -351,7 +391,12 @@ export function SearchPill({
             } as object)
           : null)}
       />
-    </View>
+      {showTrailing ? (
+        <View style={styles.trailing} pointerEvents="box-none">
+          {trailing}
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -439,6 +484,7 @@ const styles = StyleSheet.create({
           backgroundColor: 'transparent',
           resize: 'none',
           overflowY: 'auto',
+          cursor: 'text',
         } as object)
       : { includeFontPadding: false, textAlignVertical: 'center' }),
   },
@@ -451,4 +497,13 @@ const styles = StyleSheet.create({
   },
   inputCentered: { textAlign: 'center' },
   inputActive: { textAlign: 'left' },
+  trailing: {
+    position: 'absolute',
+    right: MOBILE_GUTTER,
+    top: 0,
+    bottom: 0,
+    zIndex: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

@@ -34,9 +34,12 @@ export async function assertKidRavAllowed(
   return { childName };
 }
 
-/** Strip any box mutation actions from kid Rav responses. */
-export function stripKidRavActions<T extends { actions?: unknown }>(response: T): T {
+/** Strip box mutations and companion panes from kid Rav responses. */
+export function stripKidRavActions<T extends { actions?: unknown; pane?: unknown }>(response: T): T {
   if (!response || typeof response !== 'object') return response;
-  const { actions: _removed, ...rest } = response as T & { actions?: unknown };
+  const { actions: _removed, pane: _pane, ...rest } = response as T & {
+    actions?: unknown;
+    pane?: unknown;
+  };
   return rest as T;
 }

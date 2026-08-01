@@ -1,7 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, type LayoutChangeEvent } from 'react-native';
 import { BOX_DISPLAY_SECTIONS, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { BOX_DETAIL_SCROLL_SPY_OFFSET, createBoxDetailStyles } from './boxDetailLayout';
+import {
+  BOX_TILE_GRID_MIN_WIDTH,
+  BoxItemVisualVariantProvider,
+  type BoxItemVisualVariant,
+} from './boxSectionItemsLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 
@@ -28,8 +33,14 @@ export function BoxDetailSectionBlock({
   itemCount,
 }: Props) {
   const { colors } = useThemeMode();
-  const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createBoxDetailStyles(colors, { desktop: isDesktop }), [colors, isDesktop]);
+  const { isDesktop, layoutWidth } = useWebLayout();
+  const [listWidth, setListWidth] = useState(isDesktop ? layoutWidth : 0);
+  const useTileGrid = isDesktop && listWidth >= BOX_TILE_GRID_MIN_WIDTH;
+  const itemVariant: BoxItemVisualVariant = useTileGrid ? 'tile' : 'card';
+  const styles = useMemo(
+    () => createBoxDetailStyles(colors, { desktop: isDesktop, tileGrid: useTileGrid }),
+    [colors, isDesktop, useTileGrid],
+  );
   const meta = BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)!;
   const showCount = typeof itemCount === 'number' && itemCount > 0;
 
@@ -68,7 +79,20 @@ export function BoxDetailSectionBlock({
         </View>
         <Text style={styles.sectionDesc}>{meta.description}</Text>
       </View>
-      <View style={styles.itemList}>{children}</View>
+      <BoxItemVisualVariantProvider value={itemVariant}>
+        <View
+          style={styles.itemList}
+          onLayout={(e) => setListWidth(e.nativeEvent.layout.width)}
+        >
+          {React.Children.map(children, (child) =>
+            useTileGrid && React.isValidElement(child) ? (
+              <View style={styles.itemTile}>{child}</View>
+            ) : (
+              child
+            ),
+          )}
+        </View>
+      </BoxItemVisualVariantProvider>
       {showBrowseChips && meta.browseChips.length ? (
         <View style={styles.browseChips}>
           {meta.browseChips.map((chip) =>

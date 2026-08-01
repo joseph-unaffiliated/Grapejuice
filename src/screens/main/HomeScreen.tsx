@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
-  ActivityIndicator,
   Alert,
   Animated,
   Easing,
@@ -80,6 +79,7 @@ import {
   HOME_HEADER_COLLAPSE_RANGE,
 } from '../../components/home/HomeStickySearchHeader';
 import { TextWithChevron } from '../../components/ui/TextWithChevron';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { FIGMA_HERO_SUBTITLE, isFigmaCompareCapture } from '../../utils/figmaCompare';
 
 type Nav = CompositeNavigationProp<
@@ -375,7 +375,7 @@ export function HomeScreen() {
   if (sessionLoading || loading || draftLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark color={colors.brand} />
       </View>
     );
   }

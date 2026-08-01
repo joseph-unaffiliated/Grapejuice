@@ -17,7 +17,7 @@ import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { aiChatService } from '../../services/firestore/aiChat';
 import { kidRavChatService } from '../../services/firestore/kidRavChat';
 import { askRav } from '../../services/rav/askRav';
-import { applyRavDraftActions, summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
+import { summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
 import { catalogService } from '../../services/firestore/catalog';
 import { formatHanukkahWelcomeSubtext, formatRelativeTime, formatThreadListDate } from '../../services/hanukkah/dates';
@@ -34,6 +34,7 @@ import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
+import { SearchPill, SEARCH_PILL_HEIGHT } from '../ui/SearchPill';
 import { RavBlockRenderer } from './RavBlockRenderer';
 import { FormattedChatText } from './FormattedChatText';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
@@ -43,11 +44,21 @@ import {
   buildKidRavStarterChips,
   buildRavStarterChips,
 } from '../../constants/ravStarterPrompts';
+import {
+  buildSwapPickPlan,
+  buildSwapReviewFromActions,
+  isBoxViewIntent,
+  isSwapBrowseIntent,
+  stripBlocksForSwapReview,
+  stripProductBlocksForBoxPane,
+} from '../../services/rav/ravCompanionIntent';
+import { resolveRavPaneToOpen } from '../../services/rav/resolveRavPane';
+import type { OpenRavCompanionPaneInput } from '../../types/ravPane';
 
 const MAX_HISTORY_TURNS = 10;
-/** Fixed pill — same idea as Home SearchPill; never grow on focus. */
-const WELCOME_SEARCH_LINE = typography.lg;
 const WELCOME_SEND_SIZE = 32;
+/** Room for the send overlay — only applied while the field is active. */
+const WELCOME_SEND_INSET = WELCOME_SEND_SIZE + spacing.sm;
 
 type RavView = 'welcome' | 'recent' | 'thread';
 
@@ -72,10 +83,15 @@ export type PilotAIChatSheetRef = {
 type Props = {
   embedded?: boolean;
   bottomInset?: number;
+  onOpenCompanionPane?: (input: OpenRavCompanionPaneInput) => void;
 };
 
 export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(function PilotAIChatSheet(
-  { embedded: _embedded = true, bottomInset = 0 },
+  {
+    embedded: _embedded = true,
+    bottomInset = 0,
+    onOpenCompanionPane,
+  },
   ref
 ) {
   const { colors } = useThemeMode();
@@ -338,7 +354,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         }
         const ravMode =
           !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild ? 'facilitator_kid' : undefined;
-        const { reply, blocks = [], actions = [] } = await askRav({
+        const wantsBoxPane = !ravMode && isBoxViewIntent(trimmed);
+        const recentUserMessages = prior
+          .filter((m) => m.role === 'user')
+          .map((m) => m.content)
+          .reverse();
+        const wantsSwapBrowse = !ravMode && isSwapBrowseIntent(trimmed, recentUserMessages);
+
+        const { reply, blocks = [], actions = [], pane: ravPane } = await askRav({
           message: trimmed,
           conversationHistory: prior.slice(-MAX_HISTORY_TURNS * 2),
           boxDraftSummary: ravMode ? undefined : summarizeLineItemsForRav(lineItems),
@@ -347,21 +370,91 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         });
 
         let content = reply;
+        let displayBlocks = blocks;
+        let openedPane = false;
+
         if (!ravMode && !boxLocked && actions.length && catalog.length) {
           if (!guardMutation()) {
             content = `${reply}${reply.endsWith('.') ? '' : '.'} Add a payment method to apply box changes.`;
           } else {
-            const { lineItems: nextItems, applied } = applyRavDraftActions(actions, lineItems, catalog);
-            if (applied.length) {
-              await persist(nextItems);
-              content = `${reply}${reply.endsWith('.') ? '' : '.'} I updated your box (${applied.length} change${applied.length === 1 ? '' : 's'}).`;
+            const { proposals, pendingActions } = buildSwapReviewFromActions(
+              actions,
+              lineItems,
+              catalog
+            );
+            if (pendingActions.length) {
+              openedPane = true;
+              onOpenCompanionPane?.({
+                kind: 'swap_review',
+                source: 'rav',
+                title: 'Review changes',
+                subtitle: 'Confirm before updating your box',
+                payload: {
+                  kind: 'swap_review',
+                  proposals,
+                  pendingActions,
+                },
+              });
+              displayBlocks = stripBlocksForSwapReview(blocks);
             }
           }
         } else if (!ravMode && boxLocked && actions.length) {
           content = `${reply}${reply.endsWith('.') ? '' : '.'} Your box is locked, so I couldn't apply those changes.`;
         }
 
-        const assistantMsg: AIChatMessage = { role: 'assistant', content, blocks };
+        // Phase 3: honor LLM pane when actions didn't already open review
+        if (!openedPane && !ravMode && ravPane) {
+          const resolved = resolveRavPaneToOpen({
+            pane: ravPane,
+            message: trimmed,
+            recentUserMessages,
+            lineItems,
+            catalog,
+            actions,
+          });
+          if (resolved) {
+            openedPane = true;
+            onOpenCompanionPane?.(resolved);
+            displayBlocks =
+              resolved.kind === 'box'
+                ? stripProductBlocksForBoxPane(displayBlocks)
+                : stripBlocksForSwapReview(displayBlocks);
+          }
+        }
+
+        if (!openedPane && wantsSwapBrowse && catalog.length) {
+          const plan = buildSwapPickPlan(trimmed, recentUserMessages, lineItems, catalog);
+          if (plan) {
+            openedPane = true;
+            onOpenCompanionPane?.({
+              kind: 'swap_pick',
+              source: 'user',
+              title: plan.title,
+              subtitle: plan.subtitle,
+              payload: {
+                kind: 'swap_pick',
+                pickMode: plan.pickMode,
+                focusSlotId: plan.focusSlotId,
+                currentItemId: plan.currentItemId,
+                optionItemIds: plan.optionItemIds,
+                treatPaths: plan.treatPaths,
+              },
+            });
+            displayBlocks = stripBlocksForSwapReview(displayBlocks);
+          }
+        }
+
+        if (!openedPane && wantsBoxPane) {
+          onOpenCompanionPane?.({
+            kind: 'box',
+            source: 'user',
+            title: 'Your box',
+            subtitle: 'Live draft from your Hanukkah box',
+          });
+          displayBlocks = stripProductBlocksForBoxPane(displayBlocks);
+        }
+
+        const assistantMsg: AIChatMessage = { role: 'assistant', content, blocks: displayBlocks };
         setMessages((m) => [...m, assistantMsg]);
         setLastActivityAt(new Date());
         if (!isGuest && activeThreadId && user?.uid) {
@@ -387,7 +480,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, persist, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane]
   );
 
   /** Web: Enter sends, Shift+Enter inserts a newline.
@@ -580,22 +673,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>
             </View>
 
-            <View style={[styles.searchPill, goldGlow]}>
-              <TextInput
-                style={[
-                  styles.welcomeInput,
-                  welcomeActive ? styles.welcomeInputActive : styles.welcomeInputEmpty,
-                ]}
-                placeholder={welcomeActive ? '' : 'Search or ask a question'}
-                placeholderTextColor={colors.textPrimary}
+            <View style={styles.welcomeSearchWrap}>
+              <SearchPill
                 value={input}
                 onChangeText={setInput}
+                onSubmitEditing={() => sendMessage(input)}
                 onFocus={() => setWelcomeFocused(true)}
                 onBlur={() => setWelcomeFocused(false)}
-                multiline={false}
-                blurOnSubmit
-                onSubmitEditing={() => sendMessage(input)}
                 onKeyPress={handleComposerKeyPress}
+                animatePlaceholder={false}
+                contentInsetRight={welcomeActive ? WELCOME_SEND_INSET : 0}
               />
               {welcomeActive ? (
                 <TouchableOpacity
@@ -694,35 +781,37 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
                 </TouchableOpacity>
               ) : null}
-              <View style={[styles.replyPill, goldGlow]}>
-                <TextInput
-                  ref={replyInputRef}
-                  style={styles.replyInput}
-                  placeholder="Reply to Rav"
-                  placeholderTextColor={colors.goldMuted}
-                  value={input}
-                  onChangeText={setInput}
-                  multiline
-                  blurOnSubmit={false}
-                  onKeyPress={handleComposerKeyPress}
-                  {...(Platform.OS === 'web' ? ({ rows: 1 } as object) : null)}
-                />
-                <View style={styles.replyActions}>
-                  <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
-                    <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.pillIconBtn}
-                    onPress={() => sendMessage(input)}
-                    disabled={!input.trim() || loading}
-                    accessibilityLabel="Send message"
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color={colors.textPrimary} />
-                    ) : (
-                      <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
-                    )}
-                  </TouchableOpacity>
+              <View style={styles.composerRow}>
+                <View style={[styles.replyPill, goldGlow, styles.replyPillFlex]}>
+                  <TextInput
+                    ref={replyInputRef}
+                    style={styles.replyInput}
+                    placeholder="Reply to Rav"
+                    placeholderTextColor={colors.goldMuted}
+                    value={input}
+                    onChangeText={setInput}
+                    multiline
+                    blurOnSubmit={false}
+                    onKeyPress={handleComposerKeyPress}
+                    {...(Platform.OS === 'web' ? ({ rows: 1 } as object) : null)}
+                  />
+                  <View style={styles.replyActions}>
+                    <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
+                      <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.pillIconBtn}
+                      onPress={() => sendMessage(input)}
+                      disabled={!input.trim() || loading}
+                      accessibilityLabel="Send message"
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color={colors.textPrimary} />
+                      ) : (
+                        <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </View>
@@ -778,46 +867,17 @@ function createPilotStyles(colors: SemanticColors) {
     color: colors.goldMuted,
     letterSpacing: -0.22,
   },
-  searchPill: {
+  /** Full-width pill in the welcome column; send sits as an overlay. */
+  welcomeSearchWrap: {
     width: '100%',
-    // Fixed — do not use minHeight / height:auto; focus must not resize the pill.
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgPrimary,
-    borderRadius: borderRadius.pill,
-    paddingHorizontal: MOBILE_GUTTER,
+    alignSelf: 'stretch',
     position: 'relative',
-  },
-  welcomeInput: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: typography.lg,
-    height: WELCOME_SEARCH_LINE,
-    lineHeight: WELCOME_SEARCH_LINE,
-    color: colors.textPrimary,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    margin: 0,
-    letterSpacing: -0.26,
-    ...typeface('regular'),
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', border: 'none', backgroundColor: 'transparent' } as object)
-      : { includeFontPadding: false, textAlignVertical: 'center' }),
-  },
-  welcomeInputEmpty: {
-    textAlign: 'center',
-  },
-  welcomeInputActive: {
-    textAlign: 'left',
-    // Room for the absolutely positioned send control — keeps pill width/height stable.
-    paddingRight: WELCOME_SEND_SIZE + spacing.sm,
   },
   sendCircle: {
     position: 'absolute',
     right: MOBILE_GUTTER,
-    top: (44 - WELCOME_SEND_SIZE) / 2,
+    top: (SEARCH_PILL_HEIGHT - WELCOME_SEND_SIZE) / 2,
+    zIndex: 4,
     width: WELCOME_SEND_SIZE,
     height: WELCOME_SEND_SIZE,
     borderRadius: WELCOME_SEND_SIZE / 2,
@@ -1016,6 +1076,15 @@ function createPilotStyles(colors: SemanticColors) {
   inputBar: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
+  },
+  composerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  replyPillFlex: {
+    flex: 1,
+    minWidth: 0,
   },
   replyPill: {
     flexDirection: 'row',

@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import type { RavBlock, RavDraftAction, RavMode } from '../../types/pilot';
+import { sanitizeClientPane, type RavPaneHint } from './resolveRavPane';
 
 export type AskRavParams = {
   message: string;
@@ -18,6 +19,7 @@ export type AskRavResult = {
   text?: string;
   blocks?: RavBlock[];
   actions?: RavDraftAction[];
+  pane?: RavPaneHint;
 };
 
 function callableMessage(error: unknown): string {
@@ -48,6 +50,7 @@ export async function askRav(params: AskRavParams): Promise<AskRavResult> {
       text: data.text ?? data.reply ?? '',
       blocks: Array.isArray(data.blocks) ? data.blocks : [],
       actions: Array.isArray(data.actions) ? data.actions : [],
+      pane: sanitizeClientPane(data.pane),
     };
   } catch (err) {
     throw new Error(callableMessage(err));

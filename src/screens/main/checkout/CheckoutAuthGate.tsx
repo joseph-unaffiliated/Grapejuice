@@ -1,20 +1,27 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../../stores/authStore';
 import { useAuthFlowStore } from '../../../stores/authFlowStore';
-import { semanticColors, spacing, typography } from '../../../constants/theme';
+import { spacing, typography, typeface } from '../../../constants/theme';
+import { useThemeMode } from '../../../context/ThemeContext';
+import type { SemanticColors } from '../../../constants/themeMode';
 import type { MainStackParamList } from '../../../navigation/types';
 import { GrapejuiceButton } from '../../../components/ui/GrapejuiceButton';
+import { WebContentPanel } from '../../../components/layout/WebContentPanel';
+import { useWebLayout } from '../../../hooks/useWebLayout';
 
 type Nav = StackNavigationProp<MainStackParamList, 'Checkout'>;
 
 export function CheckoutAuthGate() {
   const navigation = useNavigation<Nav>();
   const startAuthForCheckout = useAuthFlowStore((s) => s.startAuthForCheckout);
+  const { colors } = useThemeMode();
+  const { isDesktop } = useWebLayout();
+  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
 
-  return (
+  const body = (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
         <Text style={styles.backLink}>← Back</Text>
@@ -41,6 +48,21 @@ export function CheckoutAuthGate() {
       />
     </ScrollView>
   );
+
+  if (Platform.OS === 'web') {
+    return (
+      <WebContentPanel
+        flush={isDesktop}
+        centerDesktop={isDesktop}
+        omitDesktopTopPadding={isDesktop}
+        style={styles.panel}
+      >
+        {body}
+      </WebContentPanel>
+    );
+  }
+
+  return body;
 }
 
 export function CheckoutAuthGateWithAuthCheck() {
@@ -49,12 +71,38 @@ export function CheckoutAuthGateWithAuthCheck() {
   return <CheckoutAuthGate />;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  content: { padding: spacing.lg, paddingTop: spacing.xxl, paddingBottom: 120 },
-  backRow: { marginBottom: spacing.md },
-  backLink: { color: semanticColors.brand, fontWeight: '600' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.md, color: semanticColors.textPrimary },
-  body: { fontSize: typography.lg, color: semanticColors.textSecondary, lineHeight: 22, marginBottom: spacing.xl },
-  btn: { alignSelf: 'stretch', minWidth: undefined, marginBottom: spacing.md },
-});
+function createStyles(colors: SemanticColors, isDesktop: boolean) {
+  return StyleSheet.create({
+    panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
+    root: { flex: 1, backgroundColor: colors.bgPrimary },
+    content: {
+      padding: spacing.lg,
+      paddingTop: isDesktop ? spacing.xxl : spacing.xxl,
+      paddingBottom: 120,
+      maxWidth: isDesktop ? 560 : undefined,
+      width: '100%',
+      alignSelf: isDesktop ? 'center' : undefined,
+    },
+    backRow: { marginBottom: spacing.md },
+    backLink: {
+      color: colors.brand,
+      fontSize: typography.md,
+      ...typeface('medium'),
+    },
+    title: {
+      fontSize: 28,
+      color: colors.textPrimary,
+      letterSpacing: -0.4,
+      marginBottom: spacing.md,
+      ...typeface('medium'),
+    },
+    body: {
+      fontSize: typography.lg,
+      color: colors.textSecondary,
+      lineHeight: typography.lg * 1.4,
+      marginBottom: spacing.xl,
+      ...typeface('regular'),
+    },
+    btn: { alignSelf: 'stretch', minWidth: undefined, marginBottom: spacing.md },
+  });
+}

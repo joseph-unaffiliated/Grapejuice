@@ -2,7 +2,6 @@ import React from 'react';
 import {
   TouchableOpacity,
   Text,
-  ActivityIndicator,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
@@ -10,6 +9,8 @@ import {
 } from 'react-native';
 import { useThemeMode } from '../../context/ThemeContext';
 import { designPresets } from '../../constants/designPresets';
+import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
+
 type Variant = 'pill' | 'pillOutline' | 'filled';
 
 type Props = {
@@ -43,6 +44,8 @@ export function GrapejuiceButton({
         : designPresets.buttonPillPrimary(colors);
 
   const labelColor = variant === 'filled' ? colors.textInverse : colors.textPrimary;
+  /** Brand gold on light pills; white on gold fill (same contrast as the old spinner). */
+  const loaderColor = variant === 'filled' ? colors.textInverse : colors.brand;
 
   return (
     <TouchableOpacity
@@ -51,9 +54,16 @@ export function GrapejuiceButton({
       disabled={disabled || loading}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       {loading ? (
-        <ActivityIndicator color={labelColor} />
+        <GrapejuiceBrandMark
+          markOnly
+          compact
+          animating
+          decorative
+          color={loaderColor}
+        />
       ) : (
         <Text style={[designPresets.textPillLabel(colors), { color: labelColor }, textStyle]}>{label}</Text>
       )}

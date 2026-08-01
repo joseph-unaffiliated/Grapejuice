@@ -13,6 +13,7 @@ import { inferKeepOrToss } from '../../constants/boxPracticeGroups';
 import { BoxItemImage } from './BoxItemImage';
 import { ProductStarRating } from '../home/ProductStarRating';
 import { ItemDetailSheet } from './ItemDetailSheet';
+import { useBoxItemVisualVariant } from './boxSectionItemsLayout';
 import { spacing, typography, borderRadius, shadowsWeb, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -33,7 +34,8 @@ type Props = {
   onAddAnother?: () => void;
   showAddAnother?: boolean;
   formatPrice: (cents: number) => string;
-  variant?: 'default' | 'card';
+  /** Override layout; defaults to section context (tile grid vs mobile card). */
+  variant?: 'default' | 'card' | 'tile';
   onRemove?: () => void;
   /** Read-only reveal: show swap / add more / remove chips without handlers. */
   previewChips?: boolean;
@@ -82,11 +84,13 @@ export function BoxItemRow({
   onAddAnother,
   showAddAnother,
   formatPrice,
-  variant = 'default',
+  variant,
   onRemove,
   previewChips = false,
 }: Props) {
   const { colors } = useThemeMode();
+  const layoutVariant = useBoxItemVisualVariant();
+  const resolvedVariant = variant ?? (layoutVariant === 'tile' ? 'tile' : 'card');
   const styles = useMemo(() => createBoxItemRowStyles(colors), [colors]);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -96,24 +100,29 @@ export function BoxItemRow({
   const swappable = !locked && swapOptions.length > 0;
   const displayName = li.label ?? item?.name ?? li.itemId;
 
-  if (variant === 'card') {
+  if (resolvedVariant === 'card' || resolvedVariant === 'tile') {
+    const vertical = resolvedVariant === 'tile';
     return (
       <>
-        <View style={styles.cardRow}>
-          <TouchableOpacity style={styles.cardImageWrap} onPress={() => setDetailOpen(true)} activeOpacity={0.9}>
+        <View style={vertical ? styles.tileCard : styles.cardRow}>
+          <TouchableOpacity
+            style={vertical ? styles.tileImageWrap : styles.cardImageWrap}
+            onPress={() => setDetailOpen(true)}
+            activeOpacity={0.9}
+          >
             <BoxItemImage
-              size={130}
+              size={vertical ? 112 : 130}
               imageUrl={item?.imageUrl}
               itemId={item?.id ?? li.itemId}
-              style={styles.cardImage}
+              style={vertical ? styles.tileImage : styles.cardImage}
             />
           </TouchableOpacity>
-          <View style={styles.cardBody}>
+          <View style={vertical ? styles.tileBody : styles.cardBody}>
             <View style={styles.cardTop}>
               <Text style={styles.cardTag}>{itemTag(item, keepOrToss)}</Text>
               <Text style={styles.cardName}>{displayName}</Text>
               {item?.description ? (
-                <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+                <Text style={styles.cardDesc} numberOfLines={vertical ? 3 : 2}>{item.description}</Text>
               ) : null}
               {meta ? <Text style={styles.cardMeta}>{meta}</Text> : null}
               <ProductStarRating />
@@ -273,6 +282,22 @@ function createBoxItemRowStyles(colors: SemanticColors) {
     cardImageWrap: { flex: 1, minHeight: 130, maxHeight: 130, borderRadius: borderRadius.md, overflow: 'hidden' },
     cardImage: { width: '100%', height: '100%', borderRadius: borderRadius.md },
     cardBody: { flex: 1, justifyContent: 'space-between', gap: spacing.sm },
+    /** Desktop web — image on top, copy below; sits in a side-by-side grid. */
+    tileCard: {
+      flexDirection: 'column',
+      gap: spacing.sm,
+      width: '100%',
+      alignItems: 'stretch',
+    },
+    tileImageWrap: {
+      width: '100%',
+      aspectRatio: 1,
+      borderRadius: borderRadius.xxl,
+      overflow: 'hidden',
+      backgroundColor: colors.bgElevated,
+    },
+    tileImage: { width: '100%', height: '100%', borderRadius: borderRadius.xxl },
+    tileBody: { width: '100%', gap: spacing.sm },
     cardTop: { gap: 4 },
     cardTag: { fontSize: typography.sm, color: colors.goldMuted, ...typeface('regular'), letterSpacing: -0.33 },
     cardName: { fontSize: typography.lg, color: colors.textPrimary, ...typeface('regular'), letterSpacing: -0.26 },

@@ -1,11 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   Platform,
 } from 'react-native';
@@ -20,7 +19,10 @@ import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { EXPEDITED_SHIPPING_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
+import { useThemeMode } from '../../context/ThemeContext';
+import type { SemanticColors } from '../../constants/themeMode';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
@@ -33,6 +35,8 @@ export function CheckoutScreen() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, refresh: refreshSession } = useSession();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { colors } = useThemeMode();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     lineItems,
     catalog,
@@ -132,7 +136,7 @@ export function CheckoutScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={semanticColors.brand} />
+        <BrandLoadingMark color={colors.brand} />
       </View>
     );
   }
@@ -154,7 +158,7 @@ export function CheckoutScreen() {
         <Text style={styles.backLink}>← Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Payment & shipping</Text>
+      <Text style={styles.title}>Shipping</Text>
       <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
       {!cardOnFile ? (
         <Text style={styles.pendingCopy}>
@@ -165,18 +169,22 @@ export function CheckoutScreen() {
         <Text style={styles.lockBanner}>Box customization is locked. Checkout may be unavailable.</Text>
       ) : null}
 
-      <CheckoutOrderSummary
-        lineItems={lineItems}
-        total={total}
-        subtotal={subtotal}
-        shippingCents={shippingCents}
-        taxCents={taxCents}
-        boxPriceCents={boxPriceCents}
-        catalog={catalog}
-        giftCreditApplied={giftCreditApplied}
-        platformCreditApplied={platformCreditApplied}
-        expeditedShipping={expeditedShipping}
-      />
+      <View style={styles.summaryCard}>
+        <CheckoutOrderSummary
+          lineItems={lineItems}
+          total={total}
+          subtotal={subtotal}
+          shippingCents={shippingCents}
+          taxCents={taxCents}
+          boxPriceCents={boxPriceCents}
+          catalog={catalog}
+          giftCreditApplied={giftCreditApplied}
+          platformCreditApplied={platformCreditApplied}
+          expeditedShipping={expeditedShipping}
+          compact
+        />
+      </View>
+
       {expeditedAvailable ? (
         <TouchableOpacity
           style={styles.expeditedRow}
@@ -185,7 +193,9 @@ export function CheckoutScreen() {
         >
           <View style={[styles.checkbox, expeditedShipping && styles.checkboxOn]} />
           <View style={styles.expeditedCopy}>
-            <Text style={styles.expeditedTitle}>Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})</Text>
+            <Text style={styles.expeditedTitle}>
+              Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
+            </Text>
             <Text style={styles.expeditedBody}>Arrives sooner — for last-minute planners.</Text>
           </View>
         </TouchableOpacity>
@@ -199,15 +209,18 @@ export function CheckoutScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.payBtn, (submitting || locked) && styles.payBtnDisabled]}
-        onPress={handleCommit}
+        style={[styles.cta, (submitting || locked) && styles.ctaDisabled]}
+        onPress={() => void handleCommit()}
         disabled={submitting || locked}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
       >
         {submitting ? (
-          <ActivityIndicator color={semanticColors.textInverse} />
+          <BrandLoadingMark large={false} color={colors.goldMuted} />
         ) : (
-          <Text style={styles.payBtnText}>
-            {cardOnFile ? 'Commit to box' : 'Save card & commit to box'}
+          <Text style={styles.ctaText}>
+            {cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
           </Text>
         )}
       </TouchableOpacity>
@@ -215,69 +228,119 @@ export function CheckoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  content: {
-    padding: spacing.lg,
-    paddingTop: spacing.xxl,
-    paddingBottom: 120,
-    ...(Platform.OS === 'web' ? { width: '100%' as const } : {}),
-  },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  backRow: { marginBottom: spacing.md },
-  backLink: { color: semanticColors.brand, fontWeight: '600' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: spacing.sm },
-  chargeBanner: {
-    backgroundColor: semanticColors.brandLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.md,
-    fontSize: typography.md,
-  },
-  pendingCopy: {
-    fontSize: typography.sm,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.md,
-    lineHeight: 20,
-  },
-  lockBanner: {
-    backgroundColor: semanticColors.brandLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.lg,
-  },
-  payBtn: {
-    backgroundColor: semanticColors.brand,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  payBtnDisabled: { opacity: 0.6 },
-  payBtnText: { fontWeight: '700', color: semanticColors.textInverse, fontSize: typography.lg },
-  emptyText: { textAlign: 'center', color: semanticColors.textSecondary, marginBottom: spacing.md },
-  expeditedRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    borderRadius: borderRadius.md,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: semanticColors.border,
-    marginTop: 2,
-  },
-  checkboxOn: { backgroundColor: semanticColors.brand, borderColor: semanticColors.brand },
-  expeditedCopy: { flex: 1 },
-  expeditedTitle: { fontSize: typography.md, fontWeight: '600' },
-  expeditedBody: { fontSize: typography.sm, color: semanticColors.textSecondary, marginTop: 4, lineHeight: 18 },
-});
+function createStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.bgPrimary },
+    content: {
+      padding: spacing.lg,
+      paddingTop: spacing.xxl,
+      paddingBottom: 120,
+      ...(Platform.OS === 'web' ? { width: '100%' as const } : {}),
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+      backgroundColor: colors.bgPrimary,
+    },
+    backRow: { marginBottom: spacing.md },
+    backLink: {
+      color: colors.brand,
+      fontSize: typography.md,
+      ...typeface('medium'),
+    },
+    title: {
+      fontSize: typography.titleLg,
+      color: colors.textPrimary,
+      letterSpacing: -0.32,
+      marginBottom: spacing.sm,
+      ...typeface('regular'),
+    },
+    chargeBanner: {
+      backgroundColor: colors.brandLight,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+      fontSize: typography.md,
+      lineHeight: typography.md * 1.4,
+      ...typeface('regular'),
+    },
+    pendingCopy: {
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+      lineHeight: typography.sm * 1.45,
+      ...typeface('regular'),
+    },
+    lockBanner: {
+      backgroundColor: colors.brandLight,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      color: colors.textSecondary,
+      marginBottom: spacing.lg,
+      fontSize: typography.md,
+      ...typeface('regular'),
+    },
+    summaryCard: {
+      backgroundColor: colors.accentCream,
+      borderRadius: 16,
+      padding: spacing.lg,
+      marginTop: spacing.md,
+      marginBottom: spacing.md,
+    },
+    cta: {
+      backgroundColor: colors.textPrimary,
+      padding: spacing.md,
+      borderRadius: borderRadius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: spacing.lg,
+      alignSelf: 'stretch',
+    },
+    ctaDisabled: { opacity: 0.5 },
+    ctaText: {
+      color: colors.goldMuted,
+      fontWeight: '700',
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+      fontSize: typography.md,
+      ...typeface('regular'),
+    },
+    expeditedRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+      marginTop: spacing.md,
+      padding: spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: borderRadius.md,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 4,
+      borderWidth: 2,
+      borderColor: colors.border,
+      marginTop: 2,
+    },
+    checkboxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
+    expeditedCopy: { flex: 1, gap: 4 },
+    expeditedTitle: {
+      fontSize: typography.md,
+      color: colors.textPrimary,
+      ...typeface('medium'),
+    },
+    expeditedBody: {
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      lineHeight: typography.sm * 1.35,
+      ...typeface('regular'),
+    },
+  });
+}
