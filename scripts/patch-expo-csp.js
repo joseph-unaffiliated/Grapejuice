@@ -3,9 +3,12 @@
  * Post-install: add CSP header to Expo CLI's web HTML response so Metro dev
  * (eval/HMR) and Unsplash API work in the browser. Run after npm install.
  *
+ * Keep this in sync with public/index.html meta CSP. When both a header and a
+ * meta CSP are present, browsers enforce the intersection — a stricter header
+ * silently breaks Google Auth (missing frame-src / script-src → auth/internal-error).
+ *
  * If the target file is not found (e.g. Expo 54 uses public/index.html only),
- * this script exits silently. The app's public/index.html already includes
- * connect-src https://api.unsplash.com and img-src https://images.unsplash.com.
+ * this script exits silently.
  */
 const path = require('path');
 const fs = require('fs');
@@ -16,9 +19,9 @@ const possiblePaths = [
   path.join(appRoot, 'node_modules', '@expo', 'cli', 'build', 'src', 'start', 'server', 'middleware', 'ManifestMiddleware.js'),
 ];
 
-// Same as public/index.html CSP but single-line for header: allow Unsplash API + images
+// Aligned with public/index.html (+ default-src / unsafe-eval for Metro HMR)
 const cspValue =
-  "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://accounts.google.com https://api.unsplash.com https://api.stripe.com https://*.stripe.com; frame-src 'self' https://js.stripe.com https://hooks.stripe.com; img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://*.stripe.com https://*.googleusercontent.com https://storage.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;";
+  "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.google.com https://www.gstatic.com https://use.typekit.net https://js.stripe.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://accounts.google.com https://api.unsplash.com https://api.stripe.com https://*.stripe.com; frame-src 'self' https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://*.web.app https://js.stripe.com https://hooks.stripe.com; img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://*.stripe.com https://*.googleusercontent.com https://storage.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net; font-src 'self' https://fonts.gstatic.com https://use.typekit.net;";
 
 const cacheControlLine =
   "res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');";
@@ -65,4 +68,4 @@ if (content.includes('Content-Security-Policy')) {
 }
 
 fs.writeFileSync(targetPath, content);
-console.log('patch-expo-csp: Applied CSP header (including api.unsplash.com) for Expo web.');
+console.log('patch-expo-csp: Applied CSP header (Google Auth + Unsplash + Storage) for Expo web.');

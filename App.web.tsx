@@ -5,6 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { TypographyProvider } from './src/components/ui/TypographyProvider';
+import { warmWebAuth } from './src/services/auth/auth';
+
+// Start Firebase redirect completion before the font gate mounts RootNavigator.
+// Late getRedirectResult is a common cause of "signed in with Google, still a guest".
+warmWebAuth();
 
 /** On web, zero safe-area insets — avoids extra bottom margin below the tab bar. */
 const { width = 0, height = 0 } = Dimensions.get('window');

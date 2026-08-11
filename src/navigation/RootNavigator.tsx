@@ -11,6 +11,7 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
+import type { AuthReturnRoute } from '../stores/authFlowStore';
 import { SessionProvider, useSession } from '../context/SessionContext';
 import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../constants/pilotFeatures';
@@ -25,6 +26,7 @@ import { ProductLinkEffect } from './ProductLinkEffect';
 import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
 import { onWebNavigationStateChange } from './webBrowserHistory';
+import { consumePendingAuthReturn } from '../services/auth/auth';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -128,7 +130,27 @@ function RootRoutes() {
 
 export function RootNavigator() {
   const initialize = useAuthStore((s) => s.initialize);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   useEffect(() => initialize(), [initialize]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    const raw = consumePendingAuthReturn();
+    if (!raw) return;
+    if (!isAuthenticated) return;
+    const allowed: AuthReturnRoute[] = [
+      'Checkout',
+      'Rav',
+      'Account',
+      'Profiles',
+      'MyBox',
+      'GiftClaim',
+      'History',
+    ];
+    if (!allowed.includes(raw as AuthReturnRoute)) return;
+    useAuthFlowStore.setState({ pendingReturn: raw as AuthReturnRoute });
+  }, [authLoading, isAuthenticated]);
 
   return (
     <SessionProvider>

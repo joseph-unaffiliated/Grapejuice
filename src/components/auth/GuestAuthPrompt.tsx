@@ -29,7 +29,9 @@ export function GuestAuthPrompt({ returnTo = 'Account', showBack = false, onBack
     clearError();
     setGoogleBusy(true);
     try {
-      await googleSignIn();
+      // Pass returnTo for redirect flows (sessionStorage). Do not startAuth() —
+      // that sets pendingReturn and flips RootNavigator into the Auth stack.
+      await googleSignIn(returnTo);
     } catch {
       /* surfaced via store */
     } finally {

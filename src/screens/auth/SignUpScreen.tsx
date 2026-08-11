@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeMode } from '../../context/ThemeContext';
 import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
@@ -8,7 +8,7 @@ import { spacing, typography, typeface, borderRadius } from '../../constants/the
 
 export function SignUpScreen() {
   const { colors } = useThemeMode();
-  const { signUp, isLoading, error, clearError } = useAuthStore();
+  const { signUp, googleSignIn, isLoading, error, clearError } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -67,6 +67,29 @@ export function SignUpScreen() {
         loading={isLoading}
         style={styles.btn}
       />
+
+      <View style={styles.orRow}>
+        <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+        <Text style={[styles.orText, { color: colors.textTertiary }]}>or</Text>
+        <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+      </View>
+
+      <GrapejuiceButton
+        label="Sign up with Google"
+        variant="pillOutline"
+        onPress={async () => {
+          clearError();
+          try {
+            await googleSignIn();
+          } catch {
+            /* store */
+          }
+        }}
+        disabled={isLoading}
+        loading={isLoading}
+        style={styles.btn}
+      />
+
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
     </AuthHeroShell>
   );
@@ -97,6 +120,21 @@ const styles = StyleSheet.create({
     ...typeface('regular'),
   },
   btn: { alignSelf: 'stretch', minWidth: undefined },
+  orRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginVertical: spacing.md,
+    alignSelf: 'stretch',
+  },
+  orLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  orText: {
+    fontSize: typography.sm,
+    ...typeface('light'),
+  },
   error: {
     marginTop: spacing.md,
     textAlign: 'center',

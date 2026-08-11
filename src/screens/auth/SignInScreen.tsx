@@ -75,7 +75,9 @@ export function SignInScreen() {
 
       {__DEV__ ? (
         <Text style={[styles.hint, { color: colors.textTertiary }]}>
-          In Expo Go, use email. Google works in a web browser (press w in the terminal).
+          {Platform.OS === 'web'
+            ? 'Google works best in Chrome. In Cursor’s browser, email sign-in is the reliable fallback.'
+            : 'In Expo Go, use email. Google works in a web browser (press w in the terminal).'}
         </Text>
       ) : null}
 

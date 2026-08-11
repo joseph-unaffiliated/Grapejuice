@@ -7,6 +7,11 @@ import {
   signOut,
   resetPassword,
   onAuthStateChange,
+  completeGoogleRedirectIfNeeded,
+  getCurrentAuthUser,
+  GOOGLE_REDIRECT_PENDING,
+  GOOGLE_REDIRECT_SESSION_LOST,
+  isRestrictedWebAuthEnvironment,
   type AuthUser,
 } from '../services/auth/auth';
 import { persistGuestToAccount } from '../services/guest/persistGuestToAccount';
@@ -20,17 +25,29 @@ async function mergeGuestSession(user: AuthUser): Promise<void> {
 }
 
 function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message === GOOGLE_REDIRECT_PENDING) {
+    return 'Redirecting to Google…';
+  }
+  if (error instanceof Error && error.message === GOOGLE_REDIRECT_SESSION_LOST) {
+    if (isRestrictedWebAuthEnvironment()) {
+      return 'Google sign-in can’t save a session in this embedded browser. Open http://localhost:8081 in Chrome for Google, or use email sign-in here.';
+    }
+    return 'Google sign-in couldn’t restore your session (browser storage blocked). Allow site data for localhost, try Chrome, or use email sign-in.';
+  }
   if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
     const code = String((error as { code: unknown }).code);
     const message = String((error as { message: unknown }).message);
     if (code === 'auth/popup-blocked') {
-      return 'Google sign-in popup was blocked. Allow popups for localhost or use email sign-in.';
+      return 'Google sign-in popup was blocked. Allow popups for this site, open in Chrome, or use email sign-in.';
     }
     if (code === 'auth/unauthorized-domain') {
       return 'This domain is not authorized for Google sign-in. Add localhost in Firebase Console → Authentication → Settings → Authorized domains.';
     }
     if (code === 'auth/internal-error') {
-      return 'Google sign-in failed (auth/internal-error). Check the browser console for CSP or API-key errors, confirm Google is enabled in Firebase Auth, and try email sign-in on localhost.';
+      if (typeof window !== 'undefined' && isRestrictedWebAuthEnvironment()) {
+        return 'Google sign-in is limited in this embedded browser. Use email sign-in here, or open http://localhost:8081 in Chrome for Google.';
+      }
+      return 'Google sign-in failed (auth/internal-error). Try Chrome on localhost, or use email sign-in. If it keeps failing, check the browser console for CSP errors and confirm Google is enabled in Firebase Auth.';
     }
     if (
       code === 'auth/invalid-credential' ||
@@ -55,6 +72,15 @@ function getErrorMessage(error: unknown): string {
   return 'An unexpected error occurred';
 }
 
+export type GoogleSignInReturnTo =
+  | 'Checkout'
+  | 'Rav'
+  | 'Account'
+  | 'Profiles'
+  | 'MyBox'
+  | 'GiftClaim'
+  | 'History';
+
 interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
@@ -63,27 +89,80 @@ interface AuthState {
   initialize: () => () => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
-  googleSignIn: () => Promise<void>;
+  googleSignIn: (returnTo?: GoogleSignInReturnTo | null) => Promise<void>;
   appleSignIn: () => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
   isAuthenticated: false,
   error: null,
 
   initialize: () => {
+    let cancelled = false;
+    let redirectSettled = false;
+    let authStateSettled = false;
+
+    const finishLoadingIfReady = () => {
+      if (cancelled || !redirectSettled || !authStateSettled) return;
+      set((s) => (s.isLoading ? { isLoading: false } : s));
+    };
+
+    void (async () => {
+      try {
+        const redirected = await completeGoogleRedirectIfNeeded();
+        if (cancelled) return;
+        if (redirected) {
+          await mergeGuestSession(redirected);
+          set({
+            user: redirected,
+            isAuthenticated: true,
+            error: null,
+          });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        set({ error: getErrorMessage(error) });
+      } finally {
+        redirectSettled = true;
+        finishLoadingIfReady();
+      }
+    })();
+
     const unsubscribe = onAuthStateChange((user) => {
-      set({ user, isAuthenticated: !!user, isLoading: false });
+      if (cancelled) return;
+      authStateSettled = true;
+      if (user) {
+        const prev = get().user;
+        set({ user, isAuthenticated: true });
+        if (!prev || prev.uid !== user.uid) {
+          void mergeGuestSession(user);
+        }
+      } else if (redirectSettled) {
+        // Ignore null until redirect completion — Auth often emits null before getRedirectResult.
+        // If Firebase already has a currentUser, prefer that over a stale null event.
+        const current = getCurrentAuthUser();
+        if (current) {
+          set({ user: current, isAuthenticated: true });
+        } else {
+          set({ user: null, isAuthenticated: false });
+        }
+      }
+      finishLoadingIfReady();
     });
+
     const fallback = setTimeout(() => {
-      set((s) => (s.isLoading ? { isLoading: false } : {}));
-    }, 5000);
+      redirectSettled = true;
+      authStateSettled = true;
+      finishLoadingIfReady();
+    }, 8000);
+
     return () => {
+      cancelled = true;
       unsubscribe();
       clearTimeout(fallback);
     };
@@ -113,13 +192,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  googleSignIn: async () => {
+  googleSignIn: async (returnTo) => {
     set({ isLoading: true, error: null });
     try {
-      const user = await signInWithGoogle();
+      const user = await signInWithGoogle(returnTo ?? null);
       await mergeGuestSession(user);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error) {
+      if (error instanceof Error && error.message === GOOGLE_REDIRECT_PENDING) {
+        // Keep loading while the browser navigates to Google.
+        set({ error: null, isLoading: true });
+        return;
+      }
       set({ error: getErrorMessage(error), isLoading: false });
       throw error;
     }

@@ -15,6 +15,7 @@ function navigateToAppHome(): void {
  */
 export function HomeLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const exploreStarted = useGuestSessionStore((s) => s.exploreStarted);
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
@@ -22,6 +23,9 @@ export function HomeLinkEffect() {
 
   useEffect(() => {
     if (!pending.current) return;
+    // Wait for redirect / onAuthStateChanged so a Google return to /home is not
+    // forced into guest explore before the session is applied.
+    if (authLoading) return;
 
     if (
       !isAuthenticated &&
@@ -38,7 +42,7 @@ export function HomeLinkEffect() {
       navigateToAppHome();
     }, 50);
     return () => clearInterval(id);
-  }, [isAuthenticated, exploreStarted, guestOnboardingComplete, guestBoxRevealComplete]);
+  }, [authLoading, isAuthenticated, exploreStarted, guestOnboardingComplete, guestBoxRevealComplete]);
 
   return null;
 }
