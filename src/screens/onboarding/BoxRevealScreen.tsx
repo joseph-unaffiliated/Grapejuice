@@ -35,6 +35,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { spacing, MOBILE_GUTTER } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
+import { useOnboardingUnderStorefrontChrome } from '../../components/onboarding/onboardingChromeContext';
 
 /** Matches HomeScreen desktop content top gap. */
 const CONTENT_TOP_GAP_DESKTOP = 41;
@@ -99,6 +100,7 @@ function RevealStagger({ index, children }: { index: number; children: React.Rea
 export function BoxRevealScreen({ children, lineItems, onDone, completing }: Props) {
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
+  const underStorefrontChrome = useOnboardingUnderStorefrontChrome();
   const detailStyles = useMemo(
     () => createBoxDetailStyles(colors, { desktop: isDesktop }),
     [colors, isDesktop]
@@ -133,7 +135,10 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
     [lineItems, catalog]
   );
 
-  const grouped = useMemo(() => groupLineItemsByDisplaySection(includedItems), [includedItems]);
+  const grouped = useMemo(
+    () => groupLineItemsByDisplaySection(includedItems, catalog),
+    [includedItems, catalog]
+  );
   const visibleSectionIds = useMemo(
     () => nonEmptyDisplaySectionIds(grouped),
     [grouped],
@@ -164,7 +169,6 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
-        itemCount={items.length}
       >
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);
@@ -174,7 +178,7 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
               key={li.slotId + li.itemId}
               li={li}
               item={item}
-              meta={kid ? `For ${kid.name || 'your kid'}` : undefined}
+              meta={kid ? `Present for ${kid.name || 'your kid'}` : undefined}
               locked
               previewChips
               swapOptions={[]}
@@ -237,7 +241,10 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? [] : ['top']}>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={Platform.OS === 'web' || underStorefrontChrome ? [] : ['top']}
+    >
       <WebContentPanel
         flush={isDesktop}
         gutter={!isDesktop}

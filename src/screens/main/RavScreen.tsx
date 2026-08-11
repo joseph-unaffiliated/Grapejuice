@@ -273,6 +273,7 @@ export function RavScreen() {
               embedded
               bottomInset={bottomInset}
               onOpenCompanionPane={openCompanionPane}
+              overlay="tab"
             />
           </WebContentPanel>
         </View>

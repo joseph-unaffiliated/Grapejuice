@@ -49,14 +49,25 @@ const SLOT_TO_GROUP: Record<string, PracticeGroupId> = {
   'parent-guide': 'candles',
   'extra-candles': 'candles',
   'latke-kit': 'food',
+  'latke-mix': 'food',
   'latke-recipe-media': 'food',
   'latke-recipe-printed': 'food',
   'sufganiyot-kit': 'food',
+  'sufganiyot-mix': 'food',
+  applesauce: 'food',
   'sufganiyot-recipe-media': 'food',
   'sufganiyot-recipe-printed': 'food',
   playlist: 'food',
   gelt: 'play',
+  'gelt-small': 'play',
+  'gelt-medium': 'play',
+  'gelt-party': 'play',
   wrapping: 'play',
+  'wrapping-paper': 'play',
+  'pre-wrap': 'play',
+  'wood-dreidel': 'play',
+  'blank-dreidel': 'play',
+  'airdry-dreidel': 'play',
   'extra-gelt': 'play',
   'storage-box': 'keep',
   'recipe-binder': 'keep',
@@ -108,5 +119,11 @@ export function inferKeepOrToss(slotId: string): 'keep' | 'toss' {
 
 export function defaultIsSurprise(slotId: string): boolean {
   const base = catalogSlotId(slotId);
-  return base.startsWith('gift') || base === 'gelt';
+  return (
+    base.startsWith('gift') ||
+    base === 'gelt' ||
+    base === 'gelt-small' ||
+    base === 'gelt-medium' ||
+    base === 'gelt-party'
+  );
 }

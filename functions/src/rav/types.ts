@@ -44,6 +44,23 @@ export type AskPilotRavData = {
   boxDraftSummary?: string;
   mode?: RavModeName;
   childId?: string;
+  /** Client co-pilot: current screen / focused entity */
+  surface?: {
+    route?: string;
+    overlay?: string;
+    focusedEntity?: { type?: string; id?: string; label?: string };
+  };
+  /** Client co-pilot: browse / wishlist / orders (non-PII) */
+  userMemory?: {
+    browseRecent?: Array<{ itemId?: string; name?: string; viewedAt?: string }>;
+    wishlist?: Array<{ itemId?: string; name?: string }>;
+    ordersSummary?: Array<{
+      id?: string;
+      status?: string;
+      createdAt?: string;
+      itemLabels?: string[];
+    }>;
+  };
 };
 
 export type LineItem = {

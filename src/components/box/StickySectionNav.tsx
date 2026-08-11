@@ -6,27 +6,42 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
+  ScrollView,
   type LayoutChangeEvent,
 } from 'react-native';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { BOX_DISPLAY_SECTIONS } from '../../constants/boxDisplaySections';
-import { typography, spacing, typeface } from '../../constants/theme';
+import { typography, spacing, typeface, MOBILE_GUTTER, semanticColors } from '../../constants/theme';
 import { BOX_DETAIL_TAB_GUTTER } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
+import { STOREFRONT_H_SCROLL_CLASS } from '../storefront/storefrontScroll';
 
 type Props = {
   activeSection: BoxDisplaySectionId;
   onSelect: (id: BoxDisplaySectionId) => void;
   /** Tabs to show — omit empty sections. Defaults to all five. */
   sectionIds?: BoxDisplaySectionId[];
+  /**
+   * `page` — in-body sticky (white).
+   * `services` — black secondary bar (same layout as StorefrontCategoryNav).
+   */
+  variant?: 'page' | 'services';
 };
 
-export function StickySectionNav({ activeSection, onSelect, sectionIds }: Props) {
+export function StickySectionNav({
+  activeSection,
+  onSelect,
+  sectionIds,
+  variant = 'page',
+}: Props) {
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createNavStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(
+    () => createNavStyles(colors, isDesktop, variant),
+    [colors, isDesktop, variant],
+  );
   const tabs = useMemo(
     () =>
       (sectionIds ?? BOX_DISPLAY_SECTIONS.map((section) => section.id))
@@ -60,78 +75,118 @@ export function StickySectionNav({ activeSection, onSelect, sectionIds }: Props)
     }
   };
 
+  const tabRow = (
+    <View style={styles.row}>
+      {tabs.map(({ id, navLabel }) => {
+        const active = id === activeSection;
+        return (
+          <TouchableOpacity
+            key={id}
+            style={styles.tab}
+            onLayout={onTabLayout(id)}
+            onPress={() => onSelect(id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+          >
+            <Text style={[styles.tabText, active && styles.tabTextActive]} numberOfLines={1}>
+              {navLabel}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+      <Animated.View
+        style={[
+          styles.indicator,
+          {
+            left: indicatorX,
+            width: indicatorW,
+          },
+        ]}
+      />
+    </View>
+  );
+
   return (
     <View style={styles.wrap}>
-      <View style={styles.row}>
-        {tabs.map(({ id, navLabel }) => {
-          const active = id === activeSection;
-          return (
-            <TouchableOpacity
-              key={id}
-              style={styles.tab}
-              onLayout={onTabLayout(id)}
-              onPress={() => onSelect(id)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-            >
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>{navLabel}</Text>
-            </TouchableOpacity>
-          );
-        })}
-        <Animated.View
-          style={[
-            styles.indicator,
-            {
-              left: indicatorX,
-              width: indicatorW,
-            },
-          ]}
-        />
-      </View>
+      {isDesktop ? (
+        tabRow
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          // @ts-expect-error web className
+          className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
+        >
+          {tabRow}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
-/** Figma 370:3524 — section tab row (sentence case, gold rule + black active bar). */
-function createNavStyles(colors: SemanticColors, isDesktop: boolean) {
+/** Section tab row — full practice labels; scrollable on compact widths. */
+function createNavStyles(
+  colors: SemanticColors,
+  isDesktop: boolean,
+  variant: 'page' | 'services',
+) {
+  const services = variant === 'services';
   return StyleSheet.create({
+    // `services` mirrors StorefrontCategoryNav: same black bar height/padding/gap.
     wrap: {
-      paddingTop: spacing.lg,
-      paddingHorizontal: isDesktop ? 0 : BOX_DETAIL_TAB_GUTTER,
-      backgroundColor: colors.bgPrimary,
+      paddingTop: services ? 0 : spacing.md,
+      paddingBottom: 0,
+      paddingHorizontal: services ? 0 : isDesktop ? 0 : BOX_DETAIL_TAB_GUTTER,
+      backgroundColor: services ? semanticColors.logoDark : colors.bgPrimary,
+      // Dark secondary bar — no light/white bottom stroke.
+      borderBottomWidth: 0,
       zIndex: 10,
-      ...(Platform.OS === 'web' ? { position: 'sticky' as const, top: 0 } : {}),
+      ...(Platform.OS === 'web' && !services
+        ? { position: 'sticky' as const, top: 0 }
+        : {}),
+    },
+    scrollContent: {
+      flexGrow: 1,
+      ...(services ? { justifyContent: 'center' } : null),
     },
     row: {
+      flexGrow: services ? 1 : undefined,
       flexDirection: 'row',
       alignItems: 'center',
       position: 'relative',
-      borderBottomWidth: 0.5,
+      // Page variant keeps a soft gold rule; services bar has none.
+      borderBottomWidth: services ? 0 : 0.5,
       borderBottomColor: 'rgba(216,201,144,0.5)',
-      ...(isDesktop ? { justifyContent: 'flex-start', gap: spacing.lg } : null),
+      gap: services || isDesktop ? spacing.lg : spacing.md,
+      paddingHorizontal: services ? MOBILE_GUTTER : 0,
+      paddingVertical: services ? spacing.sm : 0,
+      ...(isDesktop || services ? { justifyContent: 'center' } : null),
     },
     tab: {
-      flex: isDesktop ? undefined : 1,
-      alignItems: isDesktop ? 'flex-start' : 'center',
+      flexShrink: 0,
+      alignItems: 'center',
       justifyContent: 'center',
-      paddingBottom: 8,
-      minWidth: isDesktop ? undefined : 0,
-      paddingRight: isDesktop ? spacing.sm : 0,
+      // Keep indicator room without growing past category-bar height.
+      paddingBottom: services ? 0 : 8,
+      paddingRight: isDesktop && !services ? spacing.sm : 0,
     },
     tabText: {
       fontSize: typography.sm,
-      ...typeface('light'),
-      color: colors.textPrimary,
-      letterSpacing: -0.22,
+      ...(services ? typeface('medium') : typeface('light')),
+      color: services ? semanticColors.textInverse : colors.textPrimary,
+      letterSpacing: services ? 0 : -0.22,
+      ...(services ? { opacity: 0.85 } : null),
+      ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : {}),
     },
     tabTextActive: {
-      ...typeface('regular'),
+      ...(services ? { opacity: 1 } : typeface('regular')),
     },
     indicator: {
       position: 'absolute',
-      bottom: 0,
+      bottom: services ? spacing.sm - 1 : 0,
       height: 1,
-      backgroundColor: colors.textPrimary,
+      backgroundColor: services ? semanticColors.brand : colors.brand,
     },
   });
 }

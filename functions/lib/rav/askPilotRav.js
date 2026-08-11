@@ -9,6 +9,7 @@ const presence_1 = require("./presence");
 const modeRegistry_1 = require("./modeRegistry");
 const context_1 = require("./context");
 const kidRavGuard_1 = require("./kidRavGuard");
+const types_1 = require("./types");
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 /** Sonnet sometimes wraps the schema in ```json fences — strip and extract the object. */
 function parseRavResponse(raw) {
@@ -41,7 +42,7 @@ function parseRavResponse(raw) {
     return null;
 }
 exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInstances: 10 }, async (request) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const message = typeof data.message === 'string' ? data.message.trim() : '';
     if (!message)
@@ -65,7 +66,7 @@ exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInsta
         : typeof data.boxDraftSummary === 'string' && data.boxDraftSummary.trim()
             ? data.boxDraftSummary.trim()
             : undefined;
-    const [householdContext, catalogContext] = await Promise.all([
+    const [householdContext, catalogRows] = await Promise.all([
         ((_d = request.auth) === null || _d === void 0 ? void 0 : _d.uid) && modeName !== 'facilitator_kid'
             ? (0, context_1.buildHouseholdContext)(request.auth.uid, clientDraft)
             : Promise.resolve(modeName === 'facilitator_kid' && kidChildName
@@ -73,9 +74,23 @@ exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInsta
                 : clientDraft
                     ? `Current box (guest): ${clientDraft}`
                     : ''),
-        modeName === 'facilitator_kid' ? Promise.resolve('') : (0, context_1.buildCatalogContext)(),
+        modeName === 'facilitator_kid' ? Promise.resolve([]) : (0, context_1.loadCatalogRows)(),
     ]);
-    const contextParts = [householdContext, catalogContext ? `Catalog (id slot name):\n${catalogContext}` : '']
+    const surfaceContext = modeName === 'facilitator_kid' ? '' : (0, context_1.buildSurfaceContext)(data.surface);
+    const userMemoryContext = modeName === 'facilitator_kid' ? '' : (0, context_1.buildUserMemoryContext)(data.userMemory);
+    const [catalogContext, boxRulesContext] = modeName === 'facilitator_kid'
+        ? ['', '']
+        : await Promise.all([
+            (0, context_1.buildCatalogContext)(data.surface, data.userMemory, catalogRows),
+            (0, context_1.buildBoxRulesContext)(catalogRows),
+        ]);
+    const contextParts = [
+        surfaceContext,
+        householdContext,
+        userMemoryContext,
+        boxRulesContext,
+        catalogContext,
+    ]
         .filter(Boolean)
         .join('\n\n');
     const systemBase = `${modeConfig.systemPrompt}${presence_1.PRESENCE_APPEND}`;
@@ -102,7 +117,8 @@ exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInsta
         const text = ((_e = parsed === null || parsed === void 0 ? void 0 : parsed.text) === null || _e === void 0 ? void 0 : _e.trim()) || raw.trim() || 'Sorry, I could not generate a reply.';
         const blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.blocks) ? parsed.blocks : [];
         const actions = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.actions) ? parsed.actions : [];
-        const payload = (0, kidRavGuard_1.stripKidRavActions)({ reply: text, text, blocks, actions });
+        const pane = modeName === 'facilitator_kid' ? undefined : (0, types_1.sanitizeRavPane)((_f = parsed === null || parsed === void 0 ? void 0 : parsed.pane) !== null && _f !== void 0 ? _f : null);
+        const payload = (0, kidRavGuard_1.stripKidRavActions)({ reply: text, text, blocks, actions, pane });
         return payload;
     }
     catch (err) {

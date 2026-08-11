@@ -1,10 +1,12 @@
 import React from 'react';
 import { StorefrontContentPage } from '../../components/storefront/StorefrontContentPage';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 
 /** Placeholder — marketplace “Our story” page. Content TBD. */
 export function StorefrontOurStoryScreen() {
   const { goCategory, startBox } = useStorefrontActions();
+  usePublishRavSurface({ type: 'content', id: 'our-story', label: 'Our Story' });
 
   return (
     <StorefrontContentPage

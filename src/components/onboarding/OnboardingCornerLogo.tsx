@@ -5,6 +5,7 @@ import { MOBILE_GUTTER, spacing } from '../../constants/theme';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { useOnboardingBuildingTransition } from './onboardingMediaHostContext';
+import { useOnboardingUnderStorefrontChrome } from './onboardingChromeContext';
 
 /** Matches copy pane horizontal inset — logo lines up with title/body below. */
 export const DESKTOP_COPY_HORIZONTAL_PAD = spacing.xxl + spacing.lg;
@@ -13,8 +14,10 @@ export const ONBOARDING_LOGO_TOP_WEB = spacing.lg;
 /**
  * Fixed top-left grape mark for onboarding. Pinned to the viewport on web so
  * vertical centering in the copy column never moves it.
+ * Hidden when the wizard sits under storefront chrome (header already brands).
  */
 export function OnboardingCornerLogo() {
+  const underStorefrontChrome = useOnboardingUnderStorefrontChrome();
   const insets = useSafeAreaInsets();
   const { tier } = useWebLayout();
   const buildingTransition = useOnboardingBuildingTransition();
@@ -29,6 +32,7 @@ export function OnboardingCornerLogo() {
     }).start();
   }, [buildingTransition, logoOpacity]);
 
+  if (underStorefrontChrome) return null;
   const logoTop =
     Platform.OS === 'web' ? ONBOARDING_LOGO_TOP_WEB : Math.max(insets.top, spacing.sm) + spacing.sm;
   const logoLeft = isDesktopWeb

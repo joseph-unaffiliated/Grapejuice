@@ -85,7 +85,10 @@ export function GiftGiverCustomizeContent({
     [lineItems, catalogById]
   );
 
-  const grouped = useMemo(() => groupLineItemsByDisplaySection(includedItems), [includedItems]);
+  const grouped = useMemo(
+    () => groupLineItemsByDisplaySection(includedItems, catalog),
+    [includedItems, catalog]
+  );
   const visibleSectionIds = useMemo(
     () => nonEmptyDisplaySectionIds(grouped),
     [grouped],
@@ -103,7 +106,6 @@ export function GiftGiverCustomizeContent({
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
-        itemCount={items.length}
       >
         {items.map((li) => {
           const item = catalogById[li.itemId];
@@ -113,7 +115,7 @@ export function GiftGiverCustomizeContent({
               key={li.slotId + li.itemId}
               li={li}
               item={item}
-              meta={kid ? `For kid ${kidProfiles.indexOf(kid) + 1}` : undefined}
+              meta={kid ? `Present for ${kid.name || 'your kid'}` : undefined}
               locked={false}
               swapOptions={swapOptionsFor(li)}
               onSwap={(nextItem) => applySwap(li.slotId, nextItem)}

@@ -16,6 +16,8 @@ function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
     id: `guest-${i}`,
     name: d.name || undefined,
     ageGroup: d.ageGroup,
+    birthdate: d.birthdate,
+    plannerAge: d.plannerAge,
   }));
 }
 

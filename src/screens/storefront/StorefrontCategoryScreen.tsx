@@ -26,6 +26,7 @@ import {
   contextualFiltersForCategory,
 } from '../../constants/storefrontCategoryFilters';
 import { useCatalog } from '../../hooks/useCatalog';
+import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
 import {
@@ -130,6 +131,12 @@ export function StorefrontCategoryScreen() {
   const { goHome, askRav, startBox } = useStorefrontActions();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
+
+  usePublishRavSurface({
+    type: 'category',
+    id: slug,
+    label: searchQuery ? `Search: ${searchQuery}` : def?.label ?? slug,
+  });
 
   useEffect(() => {
     if (rawSlug !== slug) {

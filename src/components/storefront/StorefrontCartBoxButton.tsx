@@ -11,6 +11,7 @@ import {
 } from '../../stores/marketplaceCartStore';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, typeface } from '../../constants/theme';
+import { useStorefrontLeave } from './storefrontLeaveContext';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -23,6 +24,7 @@ const BADGE_SIZE = 18;
  */
 export function StorefrontCartBoxButton() {
   const navigation = useNavigation<Nav>();
+  const leave = useStorefrontLeave();
   const hasBox = usePreviewedHasStartedBox();
   const cartItems = useMarketplaceCartStore((s) => s.items);
   const cartCount = hasBox ? 0 : marketplaceCartCount(cartItems);
@@ -31,7 +33,17 @@ export function StorefrontCartBoxButton() {
   return (
     <TouchableOpacity
       style={styles.btn}
-      onPress={() => navigation.navigate(hasBox ? 'MyBox' : 'StorefrontCart')}
+      onPress={() => {
+        if (hasBox) {
+          if (leave) {
+            leave({ type: 'myBox' });
+            return;
+          }
+          navigation.navigate('MyBox');
+          return;
+        }
+        navigation.navigate('StorefrontCart');
+      }}
       accessibilityRole="button"
       accessibilityLabel={
         hasBox ? 'My Box' : cartCount > 0 ? `Cart, ${cartCount} items` : 'Cart'

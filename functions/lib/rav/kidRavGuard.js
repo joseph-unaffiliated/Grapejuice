@@ -41,11 +41,11 @@ async function assertKidRavAllowed(uid, childId) {
     const childName = typeof data.name === 'string' && data.name.trim() ? data.name.trim() : 'friend';
     return { childName };
 }
-/** Strip any box mutation actions from kid Rav responses. */
+/** Strip box mutations and companion panes from kid Rav responses. */
 function stripKidRavActions(response) {
     if (!response || typeof response !== 'object')
         return response;
-    const _a = response, { actions: _removed } = _a, rest = __rest(_a, ["actions"]);
+    const _a = response, { actions: _removed, pane: _pane } = _a, rest = __rest(_a, ["actions", "pane"]);
     return rest;
 }
 //# sourceMappingURL=kidRavGuard.js.map

@@ -14,6 +14,11 @@ export type ChildDraft = {
   ageGroup: AgeGroup;
   /** ISO date YYYY-MM-DD (optional — enables Beam age trigger). */
   birthdate?: string;
+  /**
+   * Exact age for box planners when the band alone is too coarse (preview / smoke).
+   * See ChildProfile.plannerAge.
+   */
+  plannerAge?: number;
 };
 
 export function ChildrenScreen({

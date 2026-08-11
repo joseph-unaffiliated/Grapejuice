@@ -12,11 +12,14 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigationState } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { useRavSurfaceStore } from '../../stores/ravSurfaceStore';
 import { aiChatService } from '../../services/firestore/aiChat';
 import { kidRavChatService } from '../../services/firestore/kidRavChat';
 import { askRav } from '../../services/rav/askRav';
+import { buildRavCopilotClientContext } from '../../services/rav/buildRavCopilotContext';
 import { summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import { catalogService } from '../../services/firestore/catalog';
@@ -32,6 +35,8 @@ import { TextWithChevron } from '../ui/TextWithChevron';
 import { icons } from '../../constants/icons';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
+import { useSession } from '../../hooks/useSession';
+import { useWishlist } from '../../hooks/useWishlist';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
@@ -93,6 +98,8 @@ type Props = {
    * this user message + thinking state (used by storefront Ask Rav → drawer).
    */
   bootstrapMessage?: string;
+  /** How Rav is presented — used for co-pilot surface context. */
+  overlay?: 'drawer' | 'tab' | 'none';
 };
 
 export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(function PilotAIChatSheet(
@@ -103,6 +110,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     externalHistoryChrome = false,
     onViewChange,
     bootstrapMessage,
+    overlay = 'tab',
   },
   ref
 ) {
@@ -116,6 +124,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const startAuthForRav = useAuthFlowStore((s) => s.startAuthForRav);
   const recordGuestRavPrompt = useGuestSessionStore((s) => s.recordGuestRavPrompt);
   const { lineItems, persist } = useBoxDraft();
+  const { household } = useSession();
+  const { ids: wishlistIds } = useWishlist();
+  const publishedFocus = useRavSurfaceStore((s) => s.focusedEntity);
+  const navigationState = useNavigationState((state) => state);
   const { isChildProfile, activeChild, ravEnabledForActiveChild } = useActiveProfile();
   const insets = useSafeAreaInsets();
   const [view, setView] = useState<RavView>(() => (bootstrap ? 'thread' : 'welcome'));
@@ -408,12 +420,25 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           .reverse();
         const wantsSwapBrowse = !ravMode && isSwapBrowseIntent(trimmed, recentUserMessages);
 
+        const copilot = ravMode
+          ? {}
+          : await buildRavCopilotClientContext({
+              navigationState,
+              publishedFocus,
+              overlay,
+              wishlistIds,
+              catalog,
+              householdId: household?.id,
+            });
+
         const { reply, blocks = [], actions = [], pane: ravPane } = await askRav({
           message: trimmed,
           conversationHistory: historyPrior.slice(-MAX_HISTORY_TURNS * 2),
           boxDraftSummary: ravMode ? undefined : summarizeLineItemsForRav(lineItems),
           mode: ravMode,
           childId: ravMode ? activeChild?.id : undefined,
+          surface: copilot.surface,
+          userMemory: copilot.userMemory,
         });
 
         let content = reply;
@@ -527,7 +552,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id]
   );
 
   /** Web: Enter sends, Shift+Enter inserts a newline.

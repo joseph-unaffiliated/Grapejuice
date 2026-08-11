@@ -38,8 +38,9 @@ export function CheckoutOrderSummary({
 
   const chargeable = useMemo(() => {
     return lineItems.filter((li) => {
+      if (li.unitCents <= 0) return false;
       const item = catalog.find((c) => c.id === li.itemId);
-      const tier = item ? inferPricingTier(item) : li.unitCents > 0 ? 'extra' : 'included';
+      const tier = item ? inferPricingTier(item) : 'extra';
       return tier === 'extra' || tier === 'alaCarte';
     });
   }, [lineItems, catalog]);

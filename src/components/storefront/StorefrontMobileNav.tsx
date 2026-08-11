@@ -27,6 +27,8 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+import { useStorefrontLeave } from './storefrontLeaveContext';
+import { useStorefrontRav } from './storefrontRavContext';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -46,6 +48,8 @@ const HEADER_PAD = 16;
  */
 export function StorefrontMobileNav({ visible, onClose }: Props) {
   const navigation = useNavigation<Nav>();
+  const leave = useStorefrontLeave();
+  const { openRav } = useStorefrontRav();
   const isAuthenticated = usePreviewedIsAuthenticated();
   const { width } = useWindowDimensions();
   const slide = useRef(new Animated.Value(0)).current;
@@ -75,6 +79,10 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
   const sections = useMemo((): NavSection[] => {
     const goCategory = (slug: string) => {
       onClose();
+      if (leave) {
+        leave({ type: 'category', slug });
+        return;
+      }
       navigation.navigate('StorefrontCategory', { category: slug });
     };
     const go = (fn: () => void) => {
@@ -83,6 +91,10 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
     };
 
     const startBox = () => {
+      if (leave) {
+        leave({ type: 'myBox' });
+        return;
+      }
       if (!isAuthenticated) {
         useGuestSessionStore.getState().startBuildBox();
         return;
@@ -107,9 +119,26 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
           { label: '2026 Hanukkah Box', onPress: () => go(startBox) },
           {
             label: '2027 Passover',
-            onPress: () => go(() => navigation.navigate('StorefrontPassover')),
+            onPress: () =>
+              go(() => {
+                if (leave) {
+                  leave({ type: 'service', id: 'passover' });
+                  return;
+                }
+                navigation.navigate('StorefrontPassover');
+              }),
           },
-          { label: 'My Box', onPress: () => go(() => navigation.navigate('MyBox')) },
+          {
+            label: 'My Box',
+            onPress: () =>
+              go(() => {
+                if (leave) {
+                  leave({ type: 'myBox' });
+                  return;
+                }
+                navigation.navigate('MyBox');
+              }),
+          },
         ],
       },
       {
@@ -117,11 +146,25 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         links: [
           {
             label: 'Our story',
-            onPress: () => go(() => navigation.navigate('StorefrontOurStory')),
+            onPress: () =>
+              go(() => {
+                if (leave) {
+                  leave({ type: 'service', id: 'story' });
+                  return;
+                }
+                navigation.navigate('StorefrontOurStory');
+              }),
           },
           {
             label: 'Store home',
-            onPress: () => go(() => navigation.navigate('StorefrontHome')),
+            onPress: () =>
+              go(() => {
+                if (leave) {
+                  leave({ type: 'home' });
+                  return;
+                }
+                navigation.navigate('StorefrontHome');
+              }),
           },
           {
             label: 'Account',
@@ -135,9 +178,13 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
           {
             label: 'Ask Rav',
             onPress: () =>
-              go(() =>
-                navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } })
-              ),
+              go(() => {
+                if (leave) {
+                  openRav();
+                  return;
+                }
+                navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } });
+              }),
           },
           {
             label: 'hello@grapejuice.com',
@@ -149,7 +196,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         ],
       },
     ];
-  }, [isAuthenticated, navigation, onClose]);
+  }, [isAuthenticated, leave, navigation, onClose, openRav]);
 
   if (!mounted) return null;
 

@@ -31,6 +31,10 @@ import {
   isStorefrontRavOpenable,
   openStorefrontRav,
 } from './storefrontRavContext';
+import {
+  StorefrontLeaveProvider,
+  type StorefrontLeaveTarget,
+} from './storefrontLeaveContext';
 import type { MainStackParamList } from '../../navigation/types';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
@@ -56,6 +60,27 @@ type Props = {
    * it insets chrome + footer; put gutters on children instead (see /store).
    */
   contentContainerStyle?: object;
+  /**
+   * `scroll` (default): page ScrollView + footer.
+   * `fill`: children own the body viewport (onboarding / box reveal wizard).
+   */
+  bodyMode?: 'scroll' | 'fill';
+  /**
+   * When set, chrome / header leave actions call this instead of MainStack
+   * navigate — used while the root gate is still Onboarding.
+   */
+  onLeave?: (target: StorefrontLeaveTarget) => void;
+  /**
+   * Hide both the primary services strip and the secondary (category / slot) bar.
+   */
+  hideServicesNav?: boolean;
+  /**
+   * Optional replacement for the black secondary bar only (e.g. My Box practice
+   * section links). Primary `StorefrontServicesNav` still renders above it.
+   * Pass `null` to keep the services strip and omit the secondary bar.
+   * Omit / `undefined` to keep the default category nav.
+   */
+  servicesSlot?: ReactNode;
 };
 
 type ChromeProps = {
@@ -63,6 +88,8 @@ type ChromeProps = {
   onLogoPress: () => void;
   onService: (id: StorefrontServiceId) => void;
   onCategory: (slug: string) => void;
+  hideServicesNav?: boolean;
+  servicesSlot?: ReactNode;
 };
 
 function StorefrontChromeBlocks({
@@ -70,13 +97,27 @@ function StorefrontChromeBlocks({
   onLogoPress,
   onService,
   onCategory,
+  hideServicesNav,
+  servicesSlot,
 }: ChromeProps) {
   return (
     <View style={styles.chromeInner}>
       <StorefrontPromoStrip />
       <StorefrontHeader onLogoPress={onLogoPress} />
-      <StorefrontServicesNav onPress={onService} />
-      <StorefrontCategoryNav activeSlug={activeCategory} onPress={onCategory} />
+      {hideServicesNav ? null : (
+        <>
+          <StorefrontServicesNav onPress={onService} />
+          {servicesSlot !== undefined ? (
+            servicesSlot == null ? null : (
+              <View style={styles.secondaryBar}>{servicesSlot}</View>
+            )
+          ) : (
+            <View style={styles.secondaryBar}>
+              <StorefrontCategoryNav activeSlug={activeCategory} onPress={onCategory} />
+            </View>
+          )}
+        </>
+      )}
     </View>
   );
 }
@@ -93,11 +134,13 @@ const DESKTOP_RAV_MAX = 520;
  * between two stacks. Chrome always sits above Rav (layout sibling, not an overlay race).
  */
 export function StorefrontChrome(props: Props) {
-  return (
+  const chrome = (
     <StorefrontRavProvider>
       <StorefrontChromeInner {...props} />
     </StorefrontRavProvider>
   );
+  if (!props.onLeave) return chrome;
+  return <StorefrontLeaveProvider onLeave={props.onLeave}>{chrome}</StorefrontLeaveProvider>;
 }
 
 function StorefrontChromeInner({
@@ -106,12 +149,17 @@ function StorefrontChromeInner({
   onShopLook,
   scrollRef,
   contentContainerStyle,
+  bodyMode = 'scroll',
+  onLeave,
+  hideServicesNav,
+  servicesSlot,
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
   const isAuthenticated = usePreviewedIsAuthenticated();
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
+  const fillBody = bodyMode === 'fill';
   const {
     visible: ravVisible,
     closeRav,
@@ -132,13 +180,27 @@ function StorefrontChromeInner({
     ? windowWidth
     : Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.48));
 
-  const goHome = () => navigation.navigate('StorefrontHome');
+  const goHome = () => {
+    if (onLeave) {
+      onLeave({ type: 'home' });
+      return;
+    }
+    navigation.navigate('StorefrontHome');
+  };
 
   const goCategory = (slug: string) => {
+    if (onLeave) {
+      onLeave({ type: 'category', slug });
+      return;
+    }
     navigation.navigate('StorefrontCategory', { category: slug });
   };
 
   const startBox = () => {
+    if (onLeave) {
+      onLeave({ type: 'myBox' });
+      return;
+    }
     if (!isAuthenticated) {
       useGuestSessionStore.getState().startBuildBox();
       return;
@@ -147,6 +209,10 @@ function StorefrontChromeInner({
   };
 
   const onService = (id: StorefrontServiceId) => {
+    if (onLeave) {
+      onLeave({ type: 'service', id });
+      return;
+    }
     switch (id) {
       case 'shop':
         goCategory('collection');
@@ -170,6 +236,8 @@ function StorefrontChromeInner({
     onLogoPress: goHome,
     onService,
     onCategory: goCategory,
+    hideServicesNav,
+    servicesSlot,
   };
 
   const onChromeLayout = (e: LayoutChangeEvent) => {
@@ -197,6 +265,7 @@ function StorefrontChromeInner({
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (fillBody) return;
       const y = e.nativeEvent.contentOffset.y;
       const dy = y - lastY.current;
       lastY.current = y;
@@ -214,7 +283,7 @@ function StorefrontChromeInner({
         animateChrome(true);
       }
     },
-    [animateChrome]
+    [animateChrome, fillBody]
   );
 
   useEffect(() => {
@@ -226,21 +295,21 @@ function StorefrontChromeInner({
   }, [isFocused, chromeProgress]);
 
   const chromeHostHeight =
-    chromeH > 0
+    !fillBody && chromeH > 0
       ? chromeProgress.interpolate({
           inputRange: [0, 1],
           outputRange: [0, chromeH],
         })
       : undefined;
 
-  const chromeElevated = chromeExpanded && scrollY > TOP_SHOW_Y;
+  const chromeElevated = !fillBody && chromeExpanded && scrollY > TOP_SHOW_Y;
 
   return (
     <View style={styles.root} testID="storefront-scroll-host">
       <Animated.View
         style={[
           styles.chromeHost,
-          chromeH > 0 ? { height: chromeHostHeight } : null,
+          chromeHostHeight != null ? { height: chromeHostHeight } : null,
           chromeElevated ? styles.chromeElevated : null,
         ]}
         pointerEvents={chromeExpanded ? 'auto' : 'none'}
@@ -251,21 +320,25 @@ function StorefrontChromeInner({
       </Animated.View>
 
       <View style={styles.bodyRow}>
-        <ScrollView
-          ref={scrollRef}
-          style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          // @ts-expect-error web className
-          className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
-          testID="storefront-vertical-scroll"
-        >
-          {children}
-          <StorefrontFooter />
-        </ScrollView>
+        {fillBody ? (
+          <View style={styles.fillBody}>{children}</View>
+        ) : (
+          <ScrollView
+            ref={scrollRef}
+            style={styles.scroll}
+            contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            // @ts-expect-error web className
+            className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
+            testID="storefront-vertical-scroll"
+          >
+            {children}
+            <StorefrontFooter />
+          </ScrollView>
+        )}
 
         <StorefrontRavDrawer
           visible={ravVisible}
@@ -350,6 +423,11 @@ const styles = StyleSheet.create({
   chromeInner: {
     backgroundColor: semanticColors.bgPrimary,
   },
+  /** Black secondary bar host — no light bottom stroke under category / practice links. */
+  secondaryBar: {
+    backgroundColor: semanticColors.logoDark,
+    borderBottomWidth: 0,
+  },
   bodyRow: {
     flex: 1,
     minHeight: 0,
@@ -357,6 +435,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   scroll: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+  },
+  fillBody: {
     flex: 1,
     minWidth: 0,
     minHeight: 0,

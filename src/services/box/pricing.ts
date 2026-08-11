@@ -6,13 +6,16 @@ export const EXTRA_FLAT_CENTS = 500;
 /** Standard shipping — free for pilot (expedited tier adds fee later). */
 export const SHIPPING_FLAT_CENTS = 0;
 
-/** List price shown in catalog / marketing copy. */
+/** List price shown in catalog / My Box order summary / marketing copy. */
 export const LIST_BOX_PRICE_CENTS = 8000;
 
 /** Stated à-la-carte catalog value of a full Hanukkah box (PDP marketing). */
 export const LIST_BOX_VALUE_CENTS = 25000;
 
-/** Pilot promotional checkout price when config has no override. */
+/**
+ * Pilot promotional checkout / gift-credit fallback when config has no override.
+ * My Box know-nothing summary uses {@link LIST_BOX_PRICE_CENTS} / listBoxCentsForKids instead.
+ */
 export const DEFAULT_BOX_PRICE_CENTS = 5000;
 
 /** Display window for “arrives in time for Hanukkah” (inclusive). */

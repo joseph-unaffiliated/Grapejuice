@@ -48,6 +48,8 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
 const styles = StyleSheet.create({
   root: {
     backgroundColor: semanticColors.logoDark,
+    // No light/white bottom stroke on the dark secondary bar.
+    borderBottomWidth: 0,
   },
   row: {
     flexGrow: 1,
@@ -57,6 +59,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.sm,
+    borderBottomWidth: 0,
   },
   linkHit: {
     flexShrink: 0,
@@ -70,5 +73,6 @@ const styles = StyleSheet.create({
   linkActive: {
     opacity: 1,
     textDecorationLine: 'underline',
+    textDecorationColor: semanticColors.brand,
   },
 });

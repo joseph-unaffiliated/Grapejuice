@@ -17,10 +17,25 @@ export function DevPreviewEffect() {
   useEffect(() => {
     if (!enabled) return;
 
+    let attempts = 0;
     const id = setInterval(() => {
-      if (!navigationRef.isReady()) return;
+      attempts += 1;
+      if (!navigationRef.isReady()) {
+        if (attempts > 80) clearInterval(id);
+        return;
+      }
+      const root = navigationRef.getRootState();
+      const onMain = root?.routes?.some((r) => r.name === 'Main');
+      if (!onMain) {
+        if (attempts > 80) clearInterval(id);
+        return;
+      }
       const nav = useDevPreviewStore.getState().consumePendingMainNav();
-      if (!nav) return;
+      if (!nav) {
+        // Keep polling briefly — async seeds set pending after catalog load.
+        if (attempts > 80) clearInterval(id);
+        return;
+      }
       clearInterval(id);
 
       if (nav.tab) {

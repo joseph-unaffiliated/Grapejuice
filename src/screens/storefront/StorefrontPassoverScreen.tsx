@@ -1,10 +1,12 @@
 import React from 'react';
 import { StorefrontContentPage } from '../../components/storefront/StorefrontContentPage';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 
 /** Placeholder — marketplace “2027 Passover” page. Content TBD. */
 export function StorefrontPassoverScreen() {
   const { startBox, goEligibility } = useStorefrontActions();
+  usePublishRavSurface({ type: 'content', id: 'passover-2027', label: 'Passover 2027' });
 
   return (
     <StorefrontContentPage

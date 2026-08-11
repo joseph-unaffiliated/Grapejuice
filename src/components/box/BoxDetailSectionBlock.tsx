@@ -1,14 +1,26 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, Platform, type LayoutChangeEvent } from 'react-native';
+import { View, Text, Platform, type LayoutChangeEvent } from 'react-native';
 import { BOX_DISPLAY_SECTIONS, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
+import type { CatalogItem } from '../../types/pilot';
 import { BOX_DETAIL_SCROLL_SPY_OFFSET, createBoxDetailStyles } from './boxDetailLayout';
 import {
   BOX_TILE_GRID_MIN_WIDTH,
+  BOX_TILE_GRID_THREE_COL_MIN_WIDTH,
   BoxItemVisualVariantProvider,
   type BoxItemVisualVariant,
 } from './boxSectionItemsLayout';
+import { BoxSectionUpsellStrip } from './BoxSectionUpsellStrip';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
+
+/** Join multi-paragraph blurbs into a single paragraph (no line breaks). */
+function sectionBlurbAsParagraph(description: string): string {
+  return description
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(' ');
+}
 
 type Props = {
   sectionId: BoxDisplaySectionId;
@@ -16,39 +28,55 @@ type Props = {
   /** Host node for scroll-to measurement (especially web). */
   onSectionRef?: (id: BoxDisplaySectionId, node: View | null) => void;
   children: React.ReactNode;
-  onBrowseChipPress?: (chip: string, sectionId: BoxDisplaySectionId) => void;
-  showBrowseChips?: boolean;
-  /** Line items shown under this section — tan count pill beside the title. */
-  itemCount?: number;
+  /** Full-width content above the item grid. */
+  leading?: React.ReactNode;
+  /** Full-width content below the item grid (e.g. Presents wrappable checklist). */
+  trailing?: React.ReactNode;
+  /** Thumbnail + price upsells under the section (from boxRules + catalog). */
+  upsellItems?: CatalogItem[];
+  onUpsellPress?: (item: CatalogItem) => void;
+  showUpsells?: boolean;
 };
 
-/** Figma 370:3534 — one scroll section (title, items, browse chips). */
+/** Figma 370:3534 — one scroll section (title, items, browse/upsell strip). */
 export function BoxDetailSectionBlock({
   sectionId,
   onLayout,
   onSectionRef,
   children,
-  onBrowseChipPress,
-  showBrowseChips = true,
-  itemCount,
+  leading,
+  trailing,
+  upsellItems,
+  onUpsellPress,
+  showUpsells = true,
 }: Props) {
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
   const [listWidth, setListWidth] = useState(isDesktop ? layoutWidth : 0);
   const useTileGrid = isDesktop && listWidth >= BOX_TILE_GRID_MIN_WIDTH;
+  const tileColumns =
+    useTileGrid && listWidth >= BOX_TILE_GRID_THREE_COL_MIN_WIDTH ? 3 : useTileGrid ? 2 : 1;
   const itemVariant: BoxItemVisualVariant = useTileGrid ? 'tile' : 'card';
   const styles = useMemo(
-    () => createBoxDetailStyles(colors, { desktop: isDesktop, tileGrid: useTileGrid }),
-    [colors, isDesktop, useTileGrid],
+    () =>
+      createBoxDetailStyles(colors, {
+        desktop: isDesktop,
+        tileGrid: useTileGrid,
+        tileColumns,
+      }),
+    [colors, isDesktop, useTileGrid, tileColumns],
   );
   const meta = BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)!;
-  const showCount = typeof itemCount === 'number' && itemCount > 0;
+  const blurb = sectionBlurbAsParagraph(meta.description);
+  const stripItems = showUpsells && upsellItems?.length ? upsellItems : [];
+  const isPresents = sectionId === 'presents';
 
   return (
     <View
       ref={(node) => onSectionRef?.(sectionId, node)}
       style={[
         styles.sectionBlock,
+        isPresents ? styles.sectionBlockPresents : null,
         Platform.OS === 'web'
           ? ({ scrollMarginTop: BOX_DETAIL_SCROLL_SPY_OFFSET } as object)
           : null,
@@ -68,20 +96,13 @@ export function BoxDetailSectionBlock({
       <View style={styles.sectionHeader}>
         <View style={styles.sectionTitleRow}>
           <Text style={styles.sectionTitle}>{meta.title}</Text>
-          {showCount ? (
-            <View
-              style={styles.sectionCountBadge}
-              accessibilityLabel={`${itemCount} item${itemCount === 1 ? '' : 's'}`}
-            >
-              <Text style={styles.sectionCountText}>{itemCount}</Text>
-            </View>
-          ) : null}
         </View>
-        <Text style={styles.sectionDesc}>{meta.description}</Text>
+        <Text style={styles.sectionDesc}>{blurb}</Text>
       </View>
+      {leading ? <View style={styles.sectionLeading}>{leading}</View> : null}
       <BoxItemVisualVariantProvider value={itemVariant}>
         <View
-          style={styles.itemList}
+          style={[styles.itemList, isPresents ? styles.itemListPresents : null]}
           onLayout={(e) => setListWidth(e.nativeEvent.layout.width)}
         >
           {React.Children.map(children, (child) =>
@@ -93,25 +114,9 @@ export function BoxDetailSectionBlock({
           )}
         </View>
       </BoxItemVisualVariantProvider>
-      {showBrowseChips && meta.browseChips.length ? (
-        <View style={styles.browseChips}>
-          {meta.browseChips.map((chip) =>
-            onBrowseChipPress ? (
-              <TouchableOpacity
-                key={chip}
-                style={styles.browseChip}
-                onPress={() => onBrowseChipPress(chip, sectionId)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.browseChipText}>{chip}</Text>
-              </TouchableOpacity>
-            ) : (
-              <View key={chip} style={styles.browseChip}>
-                <Text style={styles.browseChipText}>{chip}</Text>
-              </View>
-            )
-          )}
-        </View>
+      {trailing ? <View style={styles.sectionTrailing}>{trailing}</View> : null}
+      {stripItems.length && onUpsellPress ? (
+        <BoxSectionUpsellStrip items={stripItems} onPressItem={onUpsellPress} />
       ) : null}
     </View>
   );

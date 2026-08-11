@@ -16,6 +16,7 @@ import { StorefrontAccountMenu } from './StorefrontAccountMenu';
 import { StorefrontCartBoxButton } from './StorefrontCartBoxButton';
 import { StorefrontMobileNav } from './StorefrontMobileNav';
 import { useStorefrontRav } from './storefrontRavContext';
+import { useStorefrontLeave } from './storefrontLeaveContext';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   LAYOUT,
@@ -59,6 +60,7 @@ function canFitDesktopSearch(windowWidth: number): boolean {
  */
 export function StorefrontHeader({ onLogoPress }: Props) {
   const navigation = useNavigation<Nav>();
+  const leave = useStorefrontLeave();
   const { openRav } = useStorefrontRav();
   const [query, setQuery] = useState('');
   const [navOpen, setNavOpen] = useState(false);
@@ -68,6 +70,10 @@ export function StorefrontHeader({ onLogoPress }: Props) {
   const submitSearch = () => {
     const msg = query.trim();
     if (!msg) return;
+    if (leave) {
+      leave({ type: 'category', slug: 'collection', q: msg });
+      return;
+    }
     navigation.navigate('StorefrontCategory', {
       category: 'collection',
       q: msg,

@@ -28,6 +28,7 @@ import {
 } from '../../constants/storefrontCategories';
 import { filterCatalogByTag } from '../../constants/catalogCuration';
 import { useCatalog } from '../../hooks/useCatalog';
+import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
   useStorefrontHomeMode,
   type StorefrontHomeMode,
@@ -202,6 +203,8 @@ export function StorefrontHomeScreen() {
   };
 
   const strip = stripCopy(mode);
+
+  usePublishRavSurface({ type: 'home', id: 'store', label: 'Store home' });
 
   const menorahsCollection = useMemo(
     () =>

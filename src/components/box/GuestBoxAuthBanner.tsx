@@ -1,54 +1,50 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Text, StyleSheet } from 'react-native';
 import { useThemeMode } from '../../context/ThemeContext';
-import { spacing, typography, borderRadius } from '../../constants/theme';
-import { designPresets } from '../../constants/designPresets';
+import { spacing, typography, typeface } from '../../constants/theme';
+import type { SemanticColors } from '../../constants/themeMode';
 
-type Props = {
-  onCreateAccount: () => void;
-  onSignIn: () => void;
-};
+const HOLD_SECONDS = 9 * 60 + 59;
 
-export function GuestBoxAuthBanner({ onCreateAccount, onSignIn }: Props) {
+function formatHold(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Inline guest hold copy for the My Box order-summary card.
+ * CTAs live on the summary row (Sign up / Sign in) — this is messaging only.
+ */
+export function GuestBoxAuthBanner() {
   const { colors } = useThemeMode();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [remaining, setRemaining] = useState(HOLD_SECONDS);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemaining((v) => (v <= 0 ? HOLD_SECONDS : v - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
-    <View style={[styles.banner, designPresets.cardHero(colors)]}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>Sign in to customize your box</Text>
-      <Text style={[styles.body, { color: colors.textSecondary }]}>
-        You can browse what we picked — create a free account to swap items, add extras, and check out.
-      </Text>
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: colors.brand }]}
-          onPress={onCreateAccount}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.primaryText, { color: colors.textInverse }]}>Create account</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onSignIn} accessibilityRole="button">
-          <Text style={[styles.link, { color: colors.brand }]}>Sign in</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <Text style={styles.copy} accessibilityRole="summary">
+      {`Items held for ${formatHold(remaining)}. Sign up to save.`}
+    </Text>
   );
 }
 
-const styles = StyleSheet.create({
-  banner: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    padding: spacing.md,
-    alignSelf: 'stretch',
-  },
-  title: { fontSize: typography.xl, fontWeight: '700', textAlign: 'left' },
-  body: { fontSize: typography.md, marginTop: spacing.xs, lineHeight: 20, textAlign: 'left' },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
-  primaryBtn: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.pill,
-  },
-  primaryText: { fontWeight: '700', fontSize: typography.lg },
-  link: { fontWeight: '600', fontSize: typography.lg },
-});
+function createStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    copy: {
+      fontSize: typography.sm,
+      lineHeight: 18,
+      ...typeface('light'),
+      color: colors.textSecondary,
+      flexShrink: 1,
+      // Breath after Total / price before hold messaging.
+      paddingLeft: spacing.sm,
+    },
+  });
+}

@@ -25,6 +25,7 @@ import {
   useEffectiveBoxLocked,
   usePreviewedHasStartedBox,
 } from '../../hooks/useUserStatePreview';
+import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { ordersService } from '../../services/firestore/orders';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
@@ -105,6 +106,12 @@ export function CatalogProductScreen() {
   const aisle = useMemo(
     () => (item ? storefrontCategoryForItem(item) : undefined),
     [item]
+  );
+
+  usePublishRavSurface(
+    item
+      ? { type: 'product', id: item.id, label: item.name }
+      : { type: 'product', id: slug, label: slug }
   );
 
   useEffect(() => {

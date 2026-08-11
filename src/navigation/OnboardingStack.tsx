@@ -26,6 +26,13 @@ import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { clearDevPreview } from './devPreview';
 import { onboardingErrorMessage, resolveOnboardingStep, type OnboardingStep } from './onboardingSteps';
 import { OnboardingMediaHost } from '../components/onboarding/OnboardingMediaHost';
+import { OnboardingUnderStorefrontChromeContext } from '../components/onboarding/onboardingChromeContext';
+import {
+  StorefrontChrome,
+} from '../components/storefront/StorefrontChrome';
+import type { StorefrontLeaveTarget } from '../components/storefront/storefrontLeaveContext';
+import { queuePendingMainNav } from './pendingMainNav';
+import { DEFAULT_STOREFRONT_CATEGORY } from '../constants/storefrontCategories';
 
 type Props = {
   onComplete?: () => void;
@@ -40,6 +47,7 @@ function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
     name: d.name || undefined,
     ageGroup: d.ageGroup,
     birthdate: d.birthdate,
+    plannerAge: d.plannerAge,
   }));
 }
 
@@ -309,6 +317,48 @@ export function OnboardingStack({
   const explore = useCallback(() => void exitOnboarding(), [exitOnboarding]);
   const buildingPreviewHold = useDevPreviewStore((s) => s.onboardingBuildingHold);
 
+  const leaveToStorefront = useCallback(
+    (target: StorefrontLeaveTarget) => {
+      switch (target.type) {
+        case 'home':
+          queuePendingMainNav({ screen: 'StorefrontHome' });
+          break;
+        case 'category':
+          queuePendingMainNav({
+            screen: 'StorefrontCategory',
+            params: {
+              category: target.slug || DEFAULT_STOREFRONT_CATEGORY,
+              ...(target.q ? { q: target.q } : {}),
+            },
+          });
+          break;
+        case 'myBox':
+          // Leaving mid-wizard: land on the store home (box may be incomplete).
+          queuePendingMainNav({ screen: 'StorefrontHome' });
+          break;
+        case 'service':
+          if (target.id === 'story') {
+            queuePendingMainNav({ screen: 'StorefrontOurStory' });
+          } else if (target.id === 'passover') {
+            queuePendingMainNav({ screen: 'StorefrontPassover' });
+          } else if (target.id === 'shop') {
+            queuePendingMainNav({
+              screen: 'StorefrontCategory',
+              params: { category: 'collection' },
+            });
+          } else {
+            queuePendingMainNav({ screen: 'StorefrontHome' });
+          }
+          break;
+        default:
+          queuePendingMainNav({ screen: 'StorefrontHome' });
+          break;
+      }
+      void exitOnboarding();
+    },
+    [exitOnboarding]
+  );
+
   const wrap = (
     content: React.ReactNode,
     options?: { persistMedia?: boolean; buildingPhase?: boolean; buildingLoader?: boolean }
@@ -341,10 +391,16 @@ export function OnboardingStack({
   ];
 
   if (loadingReveal) {
-    return wrap(
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={semanticColors.brand} />
-      </View>
+    return (
+      <OnboardingUnderStorefrontChromeContext.Provider value={true}>
+        <StorefrontChrome bodyMode="fill" onLeave={leaveToStorefront}>
+          {wrap(
+            <View style={styles.loading}>
+              <ActivityIndicator size="large" color={semanticColors.brand} />
+            </View>
+          )}
+        </StorefrontChrome>
+      </OnboardingUnderStorefrontChromeContext.Provider>
     );
   }
 
@@ -441,11 +497,17 @@ export function OnboardingStack({
       return null;
   }
 
-  return wrap(stepContent, {
-    persistMedia: persistMediaSteps.includes(step),
-    buildingPhase: step === 'building' || saving,
-    buildingLoader: step === 'building',
-  });
+  return (
+    <OnboardingUnderStorefrontChromeContext.Provider value={true}>
+      <StorefrontChrome bodyMode="fill" onLeave={leaveToStorefront}>
+        {wrap(stepContent, {
+          persistMedia: persistMediaSteps.includes(step),
+          buildingPhase: step === 'building' || saving,
+          buildingLoader: step === 'building',
+        })}
+      </StorefrontChrome>
+    </OnboardingUnderStorefrontChromeContext.Provider>
+  );
 }
 
 const styles = StyleSheet.create({

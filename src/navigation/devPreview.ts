@@ -6,14 +6,50 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { catalogService } from '../services/firestore/catalog';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
+import { ageGroupForNumericAge } from '../services/box/boxRules';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
 import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from '../screens/gift/giftGiveTypes';
 
 const DEFAULT_CATALOG_ITEM_ID = 'graphic-novel-hanukkah';
 
 const SAMPLE_CHILDREN: ChildDraft[] = [
-  { name: 'Sam', ageGroup: '6-8', birthdate: '2018-06-01' },
+  // Know-nothing smoke: 1 kid, band 3–5 → representative age 5 (gift/book planners).
+  { name: 'Sam', ageGroup: '3-5', birthdate: '2021-06-01' },
 ];
+
+/** Know-nothing smoke: ages 4 + 2 via plannerAge (bands alone map to 5 and 1). */
+const SAMPLE_CHILDREN_2KIDS: ChildDraft[] = [
+  { name: 'Sam', ageGroup: '3-5', plannerAge: 4, birthdate: '2022-06-01' },
+  { name: 'Riley', ageGroup: '0-2', plannerAge: 2, birthdate: '2024-06-01' },
+];
+
+const PREVIEW_KID_NAMES = ['Sam', 'Riley', 'Jordan', 'Alex', 'Casey', 'Quinn'];
+
+/** Approximate birthdate so UI age roughly matches plannerAge (fixed relative to 2026). */
+function birthdateForPlannerAge(age: number): string {
+  const year = 2026 - Math.max(0, Math.floor(age));
+  return `${year}-06-01`;
+}
+
+/**
+ * `?kids=4,2` → drafts with explicit planner ages (and matching ageGroup bands for UI).
+ * Returns null when the param is missing or empty.
+ */
+function childrenFromKidsParam(search: URLSearchParams): ChildDraft[] | null {
+  const raw = search.get('kids');
+  if (!raw?.trim()) return null;
+  const ages = raw
+    .split(',')
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n >= 0 && n <= 18);
+  if (!ages.length) return null;
+  return ages.map((age, i) => ({
+    name: PREVIEW_KID_NAMES[i] ?? `Kid ${i + 1}`,
+    ageGroup: ageGroupForNumericAge(age),
+    plannerAge: age,
+    birthdate: birthdateForPlannerAge(age),
+  }));
+}
 
 function setGuestExplore() {
   const guest = useGuestSessionStore.getState();
@@ -25,37 +61,43 @@ function setGuestFresh() {
   useAuthFlowStore.getState().clearPending();
 }
 
-async function seedGuestBoxStarted() {
-  const guest = useGuestSessionStore.getState();
-  guest.startBuildBox();
-  guest.setChildDrafts(SAMPLE_CHILDREN);
-  guest.setFamiliarityScore(50);
-  guest.completeOnboarding();
-  const catalog = await catalogService.getAll();
-  const profiles = SAMPLE_CHILDREN.map((c, i) => ({
-    id: `preview-${i}`,
+function profilesFromDrafts(children: ChildDraft[]) {
+  // IDs must match useBoxDraft.draftsToProfiles (`guest-${i}`) or attribution
+  // falls back to "your kid" because lineItem.childId won't resolve.
+  return children.map((c, i) => ({
+    id: `guest-${i}`,
     name: c.name,
     ageGroup: c.ageGroup,
     birthdate: c.birthdate,
+    plannerAge: c.plannerAge,
   }));
-  guest.setLineItems(buildDefaultLineItems(catalog, profiles));
-  guest.completeBoxReveal();
 }
 
-async function seedGuestReveal() {
+async function seedGuestBoxStarted(children: ChildDraft[] = SAMPLE_CHILDREN) {
   const guest = useGuestSessionStore.getState();
   guest.startBuildBox();
-  guest.setChildDrafts(SAMPLE_CHILDREN);
-  guest.setFamiliarityScore(50);
+  guest.setChildDrafts(children);
+  // Drop prior preview/session lines before the catalog await so My Box never
+  // briefly (or stuck) shows a stale 1× gelt draft while kids already updated.
+  guest.setLineItems([]);
+  guest.setFamiliarityScore(0);
   guest.completeOnboarding();
   const catalog = await catalogService.getAll();
-  const profiles = SAMPLE_CHILDREN.map((c, i) => ({
-    id: `preview-${i}`,
-    name: c.name,
-    ageGroup: c.ageGroup,
-    birthdate: c.birthdate,
-  }));
-  guest.setLineItems(buildDefaultLineItems(catalog, profiles));
+  guest.setLineItems(buildDefaultLineItems(catalog, profilesFromDrafts(children)));
+  guest.completeBoxReveal();
+  // Preview navigation owns the My Box route — don't also fire GuestBoxRevealHandler.
+  guest.consumeOpenMyBoxAfterReveal();
+}
+
+async function seedGuestReveal(children: ChildDraft[] = SAMPLE_CHILDREN) {
+  const guest = useGuestSessionStore.getState();
+  guest.startBuildBox();
+  guest.setChildDrafts(children);
+  guest.setLineItems([]);
+  guest.setFamiliarityScore(0);
+  guest.completeOnboarding();
+  const catalog = await catalogService.getAll();
+  guest.setLineItems(buildDefaultLineItems(catalog, profilesFromDrafts(children)));
 }
 
 function setMainNav(
@@ -73,6 +115,16 @@ function setMainNav(
       tabParams: tabParams as never,
     },
   });
+}
+
+/** Force main gate immediately so async seed previews don't flash Onboarding. */
+function prepareMainPreview() {
+  useDevPreviewStore.setState({ forceGate: 'main' });
+  // Avoid Onboarding gate while catalog seed runs (buildBoxPath would otherwise win).
+  const guest = useGuestSessionStore.getState();
+  if (!guest.exploreStarted && !guest.boxRevealComplete) {
+    guest.startExplore();
+  }
 }
 
 function setAuth(route: keyof AuthStackParamList) {
@@ -101,6 +153,7 @@ export function clearDevPreview(): void {
       url.searchParams.delete('itemId');
       url.searchParams.delete('orderId');
       url.searchParams.delete('message');
+      url.searchParams.delete('kids');
       window.history.replaceState({}, '', url.pathname + url.search + url.hash);
     }
   }
@@ -171,10 +224,21 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       });
       break;
     case 'home-started':
-      void seedGuestBoxStarted().then(() => setMainNav('MainTabs', undefined, 'Home'));
+      prepareMainPreview();
+      void seedGuestBoxStarted(childrenFromKidsParam(search) ?? SAMPLE_CHILDREN).then(() =>
+        setMainNav('MainTabs', undefined, 'Home')
+      );
       break;
     case 'my-box':
-      void seedGuestBoxStarted().then(() => setMainNav('MyBox'));
+      prepareMainPreview();
+      void seedGuestBoxStarted(childrenFromKidsParam(search) ?? SAMPLE_CHILDREN).then(() =>
+        setMainNav('MyBox')
+      );
+      break;
+    case 'my-box-2kids':
+      // Know-nothing: ages 4 + 2 (plannerAge) → airdry + stuffie; gelt small×4; list $90.
+      prepareMainPreview();
+      void seedGuestBoxStarted(SAMPLE_CHILDREN_2KIDS).then(() => setMainNav('MyBox'));
       break;
     case 'rav':
       setGuestExplore();

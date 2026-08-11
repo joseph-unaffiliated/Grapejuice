@@ -5,6 +5,7 @@ import { colors, semanticColors } from '../../constants/theme';
 import { OnboardingMediaPane } from './OnboardingMediaPane';
 import { OnboardingCornerLogo } from './OnboardingCornerLogo';
 import { OnboardingMediaHostContext } from './onboardingMediaHostContext';
+import { useOnboardingUnderStorefrontChrome } from './onboardingChromeContext';
 
 export { useOnboardingMediaHost, useOnboardingBuildingTransition } from './onboardingMediaHostContext';
 
@@ -32,6 +33,7 @@ export function OnboardingMediaHost({
   buildingLoader = false,
 }: Props) {
   const { tier } = useWebLayout();
+  const underStorefrontChrome = useOnboardingUnderStorefrontChrome();
   const isDesktopWeb = Platform.OS === 'web' && tier === 'desktop-web';
   const expand = useRef(new Animated.Value(0)).current;
 
@@ -67,7 +69,7 @@ export function OnboardingMediaHost({
     <OnboardingMediaHostContext.Provider
       value={{ hosted: true, buildingTransition: buildingPhase }}
     >
-      <View style={styles.host}>
+      <View style={[styles.host, underStorefrontChrome && styles.hostUnderChrome]}>
         <OnboardingCornerLogo />
         <Animated.View
           style={[
@@ -118,6 +120,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     ...(Platform.OS === 'web'
       ? ({ height: '100%', maxHeight: '100vh' } as object)
+      : null),
+  },
+  hostUnderChrome: {
+    ...(Platform.OS === 'web'
+      ? ({ height: '100%', maxHeight: '100%' } as object)
       : null),
   },
   copySlot: {

@@ -4,7 +4,14 @@ import { defineSecret } from 'firebase-functions/params';
 import Anthropic from '@anthropic-ai/sdk';
 import { PRESENCE_APPEND } from './presence';
 import { getRavModeConfig } from './modeRegistry';
-import { buildCatalogContext, buildHouseholdContext } from './context';
+import {
+  buildCatalogContext,
+  buildHouseholdContext,
+  buildSurfaceContext,
+  buildUserMemoryContext,
+  buildBoxRulesContext,
+  loadCatalogRows,
+} from './context';
 import { assertKidRavAllowed, stripKidRavActions } from './kidRavGuard';
 import type { AskPilotRavData, RavResponse } from './types';
 import { sanitizeRavPane } from './types';
@@ -76,7 +83,7 @@ export const askPilotRav = onCall(
           ? data.boxDraftSummary.trim()
           : undefined;
 
-    const [householdContext, catalogContext] = await Promise.all([
+    const [householdContext, catalogRows] = await Promise.all([
       request.auth?.uid && modeName !== 'facilitator_kid'
         ? buildHouseholdContext(request.auth.uid, clientDraft)
         : Promise.resolve(
@@ -86,10 +93,28 @@ export const askPilotRav = onCall(
                 ? `Current box (guest): ${clientDraft}`
                 : ''
           ),
-      modeName === 'facilitator_kid' ? Promise.resolve('') : buildCatalogContext(),
+      modeName === 'facilitator_kid' ? Promise.resolve([]) : loadCatalogRows(),
     ]);
 
-    const contextParts = [householdContext, catalogContext ? `Catalog (id slot name):\n${catalogContext}` : '']
+    const surfaceContext =
+      modeName === 'facilitator_kid' ? '' : buildSurfaceContext(data.surface);
+    const userMemoryContext =
+      modeName === 'facilitator_kid' ? '' : buildUserMemoryContext(data.userMemory);
+    const [catalogContext, boxRulesContext] =
+      modeName === 'facilitator_kid'
+        ? (['', ''] as const)
+        : await Promise.all([
+            buildCatalogContext(data.surface, data.userMemory, catalogRows),
+            buildBoxRulesContext(catalogRows),
+          ]);
+
+    const contextParts = [
+      surfaceContext,
+      householdContext,
+      userMemoryContext,
+      boxRulesContext,
+      catalogContext,
+    ]
       .filter(Boolean)
       .join('\n\n');
 

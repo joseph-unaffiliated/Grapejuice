@@ -96,6 +96,23 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
         ? data.whatsIncluded
         : undefined,
     careNotes: typeof data.careNotes === 'string' && data.careNotes.trim() ? data.careNotes : undefined,
+    defaultSlot: typeof data.defaultSlot === 'string' ? data.defaultSlot : null,
+    boxSections: Array.isArray(data.boxSections)
+      ? (data.boxSections as unknown[]).filter((s): s is string => typeof s === 'string')
+      : undefined,
+    defaultBookAges: Array.isArray(data.defaultBookAges)
+      ? (data.defaultBookAges as unknown[]).filter(
+          (x): x is string | number => typeof x === 'string' || typeof x === 'number'
+        )
+      : undefined,
+    defaultGiftAges: Array.isArray(data.defaultGiftAges)
+      ? (data.defaultGiftAges as unknown[]).filter(
+          (x): x is string | number => typeof x === 'string' || typeof x === 'number'
+        )
+      : undefined,
+    inventory: typeof data.inventory === 'number' ? data.inventory : null,
+    holdInventory: typeof data.holdInventory === 'boolean' ? data.holdInventory : null,
+    wrappable: typeof data.wrappable === 'boolean' ? data.wrappable : null,
   };
 }
 

@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import type { RavBlock, RavDraftAction, RavMode } from '../../types/pilot';
 import { sanitizeClientPane, type RavPaneHint } from './resolveRavPane';
+import type { RavCopilotClientContext } from './ravCopilotTypes';
 
 export type AskRavParams = {
   message: string;
@@ -12,6 +13,9 @@ export type AskRavParams = {
   mode?: RavMode;
   /** Required for facilitator_kid mode. */
   childId?: string;
+  /** Live screen + non-PII user memory for co-pilot. */
+  surface?: RavCopilotClientContext['surface'];
+  userMemory?: RavCopilotClientContext['userMemory'];
 };
 
 export type AskRavResult = {

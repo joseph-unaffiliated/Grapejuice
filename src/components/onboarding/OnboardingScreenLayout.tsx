@@ -24,6 +24,7 @@ import {
 import { OnboardingMediaPane } from './OnboardingMediaPane';
 import { OnboardingCornerLogo } from './OnboardingCornerLogo';
 import { useOnboardingMediaHost } from './onboardingMediaHostContext';
+import { useOnboardingUnderStorefrontChrome } from './onboardingChromeContext';
 
 /** Desktop two-pane — equal columns with comfortable copy inset and CTA spacing. */
 const DESKTOP_PANE_SHARE = '50%';
@@ -85,6 +86,7 @@ export function OnboardingScreenLayout({
   const insets = useSafeAreaInsets();
   const { tier } = useWebLayout();
   const mediaProvidedByParent = useOnboardingMediaHost();
+  const underStorefrontChrome = useOnboardingUnderStorefrontChrome();
   /** Two-pane only at desktop (≥1024); tablet keeps the mobile single column. */
   const isDesktopWeb = Platform.OS === 'web' && tier === 'desktop-web';
   const showMedia = isDesktopWeb && !hideMedia && !mediaProvidedByParent;
@@ -92,10 +94,14 @@ export function OnboardingScreenLayout({
   const leftAlignHeader = isDesktopWeb || !centerHeader;
 
   const bottomPad = Math.max(insets.bottom, spacing.sm) + (Platform.OS === 'web' ? (isDesktopWeb ? 64 : 40) : 16);
-  /** Room below the corner logo; title stays top-anchored on desktop (not vertically centered). */
-  const topPad = isDesktopWeb
-    ? spacing.xxl + spacing.xl
-    : Math.max(insets.top, spacing.sm) + spacing.sm + 30 + spacing.lg;
+  /** Room below the corner logo; under storefront chrome the header already brands. */
+  const topPad = underStorefrontChrome
+    ? isDesktopWeb
+      ? spacing.xl
+      : spacing.lg
+    : isDesktopWeb
+      ? spacing.xxl + spacing.xl
+      : Math.max(insets.top, spacing.sm) + spacing.sm + 30 + spacing.lg;
 
   const showFooter = !hideFooter && !!primaryLabel && !!onPrimary;
   /** Hosted desktop renders the logo on the media host (viewport-pinned). */
@@ -199,7 +205,7 @@ export function OnboardingScreenLayout({
 
   if (!showMedia) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, underStorefrontChrome && styles.rootUnderChrome]}>
         {showCornerLogo ? <OnboardingCornerLogo /> : null}
         {copyPane}
       </View>
@@ -207,7 +213,13 @@ export function OnboardingScreenLayout({
   }
 
   return (
-    <View style={[styles.root, styles.rootDesktop]}>
+    <View
+      style={[
+        styles.root,
+        styles.rootDesktop,
+        underStorefrontChrome && styles.rootUnderChrome,
+      ]}
+    >
       {copyPane}
       <OnboardingMediaPane source={mediaSource} />
       {showCornerLogo ? <OnboardingCornerLogo /> : null}
@@ -223,6 +235,11 @@ const styles = StyleSheet.create({
     minHeight: 0,
     ...(Platform.OS === 'web'
       ? ({ height: '100%', maxHeight: '100vh' } as object)
+      : null),
+  },
+  rootUnderChrome: {
+    ...(Platform.OS === 'web'
+      ? ({ height: '100%', maxHeight: '100%' } as object)
       : null),
   },
   rootDesktop: {

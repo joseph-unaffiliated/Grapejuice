@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSession } from '../../hooks/useSession';
@@ -19,27 +19,40 @@ import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
-import { useEffectiveBoxLocked } from '../../hooks/useUserStatePreview';
+import { useEffectiveBoxLocked, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
-import { catalogService } from '../../services/firestore/catalog';
 import { useCatalog } from '../../hooks/useCatalog';
+import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
-  catalogSlotId,
   formatDollars,
   totalCents,
-  DEFAULT_BOX_PRICE_CENTS,
-  EXTRA_FLAT_CENTS,
   unitCentsForTier,
+  catalogSlotId,
 } from '../../services/box/buildDefaultBox';
-import { inferPricingTier, SHIPPING_FLAT_CENTS } from '../../services/box/pricing';
+import { listBoxCentsForKids, resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
+import { resolveSectionUpsellItems, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import { inferPricingTier } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
-import { BoxDetailReviewCta } from '../../components/box/BoxDetailReviewCta';
+import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
+import {
+  applyQuantityDelta,
+  childNamesForLines,
+  coalesceLinesByItemId,
+  formatPresentAttribution,
+  fullCardLinesForSection,
+  isGiftSlotLine,
+  isWrapControlSlot,
+  removeCoalescedGroup,
+  wrappableLinesInBox,
+  wrapControlLines,
+} from '../../components/box/boxLineDisplay';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import {
   BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
@@ -59,15 +72,35 @@ import {
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
-import { spacing, typography, borderRadius, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
+import {
+  spacing,
+  typography,
+  borderRadius,
+  shadows,
+  shadowsWeb,
+  MOBILE_GUTTER,
+} from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
-/** Home-matching top inset on desktop My Box. */
-const DESKTOP_CONTENT_TOP = 41;
+/** Clearance under scroll content for the floating order-summary card. */
+const SUMMARY_FLOAT_CLEARANCE = 140;
+
+function slotIdAfterSwap(currentSlotId: string, newItem: CatalogItem): string {
+  if (isWrapControlSlot(currentSlotId)) {
+    const next =
+      newItem.defaultSlot?.trim() ||
+      catalogSlotId(newItem.slotId) ||
+      newItem.slotId ||
+      currentSlotId;
+    return next;
+  }
+  return currentSlotId;
+}
 
 export function MyBoxScreen() {
   const { colors } = useThemeMode();
+  const insets = useSafeAreaInsets();
   const { isDesktop, widePanelMaxWidth } = useWebLayout();
   const styles = useMemo(() => createMyBoxStyles(colors, isDesktop), [colors, isDesktop]);
   const detailStyles = useMemo(
@@ -84,16 +117,24 @@ export function MyBoxScreen() {
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
 
+  usePublishRavSurface({ type: 'box', id: 'hanukkah-2026', label: 'Hanukkah 2026 Box' });
+
   const { items: catalog } = useCatalog();
   const [loading, setLoading] = useState(true);
-  const [swapCache, setSwapCache] = useState<Record<string, CatalogItem[]>>({});
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
-  const [boxPriceCents, setBoxPriceCents] = useState(DEFAULT_BOX_PRICE_CENTS);
-  const [now] = useState(() => new Date());
+  const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
   const { cardOnFile, guardMutation } = usePaymentGate();
+
+  /** List framing for My Box ($80 + $10/extra kid) — not the $50 promo checkout override. */
+  const boxPriceCents = useMemo(
+    () => listBoxCentsForKids(Math.max(1, children.length)),
+    [children.length]
+  );
+
+  const [wrapSelectedIds, setWrapSelectedIds] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,7 +142,6 @@ export function MyBoxScreen() {
     setLockAt(config.lockAt);
     setStartsOn(config.startsOn);
     setEstimatedDeliveryBy(config.estimatedDeliveryBy);
-    setBoxPriceCents(config.boxPriceCents ?? DEFAULT_BOX_PRICE_CENTS);
     setLoading(false);
   }, []);
 
@@ -115,22 +155,31 @@ export function MyBoxScreen() {
     }
   }, [guestNeedsOnboarding, startBuildBox]);
 
-  const beforeCustomize = useCallback((): boolean => {
-    if (guestViewOnly) {
-      requireAuthToCustomize('signup');
-      return false;
-    }
-    return true;
-  }, [guestViewOnly, requireAuthToCustomize]);
+  const grouped = useMemo(
+    () => groupLineItemsByDisplaySection(lineItems, catalog),
+    [lineItems, catalog]
+  );
 
-  const grouped = useMemo(() => groupLineItemsByDisplaySection(lineItems), [lineItems]);
+  const hasPresentsChecklist = useMemo(() => {
+    if (isChildProfile) return false;
+    return (
+      wrappableLinesInBox(lineItems, catalog).length > 0 ||
+      wrapControlLines(lineItems).length > 0
+    );
+  }, [lineItems, catalog, isChildProfile]);
 
   const visibleSectionIds = useMemo(() => {
-    const candidates = isChildProfile
-      ? (['presents', 'story'] as BoxDisplaySectionId[])
-      : BOX_DISPLAY_SECTIONS.map((section) => section.id);
-    return nonEmptyDisplaySectionIds(grouped, candidates);
-  }, [grouped, isChildProfile]);
+    if (isChildProfile) {
+      // Kid gifts may live under dreidel/candles/etc. — follow real section homes.
+      return nonEmptyDisplaySectionIds(grouped);
+    }
+    const candidates = BOX_DISPLAY_SECTIONS.map((section) => section.id);
+    return nonEmptyDisplaySectionIds(
+      grouped,
+      candidates,
+      hasPresentsChecklist ? ['presents'] : undefined
+    );
+  }, [grouped, isChildProfile, hasPresentsChecklist]);
 
   const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
     useBoxDetailScroll({ visibleSectionIds });
@@ -143,40 +192,38 @@ export function MyBoxScreen() {
   const alaCarteItems = useMemo(
     () =>
       lineItems.filter((li) => {
+        if (li.unitCents <= 0) return false;
         const item = catalog.find((c) => c.id === li.itemId);
         return item && inferPricingTier(item) === 'alaCarte';
       }),
     [lineItems, catalog]
   );
 
-  const loadSwapOptions = async (li: BoxLineItem): Promise<CatalogItem[]> => {
-    if (swapCache[li.slotId]) return swapCache[li.slotId];
-    const current = catalog.find((c) => c.id === li.itemId);
-    const ids = current?.swapOptions?.length ? current.swapOptions : [];
-    const resolvedSlotId = catalogSlotId(li.slotId);
-    const alts = ids.length
-      ? await catalogService.getMany(ids)
-      : catalog.filter((c) => c.slotId === resolvedSlotId && c.id !== li.itemId);
-    const opts = alts.slice(0, 6);
-    setSwapCache((c) => ({ ...c, [li.slotId]: opts }));
-    return opts;
-  };
-
-  useEffect(() => {
-    lineItems.forEach((li) => {
-      void loadSwapOptions(li);
-    });
+  /** Recompute when catalog/lines change — never cache empty results across loads. */
+  const swapOptionsBySlot = useMemo(() => {
+    if (!catalog.length || !lineItems.length) return {} as Record<string, CatalogItem[]>;
+    const next: Record<string, CatalogItem[]> = {};
+    for (const li of lineItems) {
+      const current = catalog.find((c) => c.id === li.itemId);
+      next[li.slotId] = current ? resolveSwapOptionsForItem(current, catalog, 6) : [];
+    }
+    return next;
   }, [lineItems, catalog]);
 
-  const applySwap = async (slotId: string, newItem: CatalogItem) => {
-    if (!beforeCustomize() || !guardMutation()) return;
+  const applySwap = async (slotIds: string[], newItem: CatalogItem) => {
+    if (locked) return;
+    // Guests edit the local draft (“Sign up to save”); payment gate is for signed-in paid extras.
     const tier = inferPricingTier(newItem);
+    const nextUnit = unitCentsForTier(tier, newItem.dollarCostCents);
+    if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
+    const idSet = new Set(slotIds);
     const next = lineItems.map((li) =>
-      li.slotId === slotId
+      idSet.has(li.slotId)
         ? {
             ...li,
+            slotId: slotIdAfterSwap(li.slotId, newItem),
             itemId: newItem.id,
-            unitCents: unitCentsForTier(tier, newItem.dollarCostCents),
+            unitCents: nextUnit,
             label: newItem.name,
           }
         : li
@@ -184,13 +231,37 @@ export function MyBoxScreen() {
     await persist(next);
   };
 
-  const removeLineItem = async (slotId: string) => {
-    if (!beforeCustomize()) return;
-    await persist(lineItems.filter((li) => li.slotId !== slotId));
+  const swapToPreWrap = async (slotIds: string[]) => {
+    const row = resolveByDefaultSlot(catalog, WRAP_POLICY.preWrapSlot);
+    const preWrap =
+      (row ? catalog.find((c) => c.id === row.id) : undefined) ??
+      catalog.find(
+        (c) =>
+          catalogSlotId(c.slotId) === 'pre-wrap' ||
+          c.defaultSlot === 'pre-wrap' ||
+          /pre.?wrap/i.test(`${c.id} ${c.name}`)
+      );
+    if (!preWrap) return;
+    await applySwap(slotIds, preWrap);
+  };
+
+  const changeCoalescedQuantity = async (
+    group: ReturnType<typeof coalesceLinesByItemId>[number],
+    delta: 1 | -1
+  ) => {
+    if (locked) return;
+    if (delta < 0 && group.quantity <= 1) {
+      // Donate (included) or trash (paid) — remove from draft.
+      await persist(removeCoalescedGroup(lineItems, group));
+      return;
+    }
+    if (delta > 0 && group.unitCents > 0 && !guestViewOnly && !guardMutation()) return;
+    const next = applyQuantityDelta(lineItems, group, delta);
+    if (next) await persist(next);
   };
 
   const toggleSurprise = async (slotId: string) => {
-    if (!beforeCustomize()) return;
+    if (locked) return;
     const next = lineItems.map((li) =>
       li.slotId === slotId ? { ...li, isSurprise: !(li.isSurprise ?? defaultIsSurprise(li.slotId)) } : li
     );
@@ -217,7 +288,7 @@ export function MyBoxScreen() {
 
   const voteOptionsFor = (li: BoxLineItem): CatalogItem[] => {
     const current = catalog.find((c) => c.id === li.itemId);
-    const alts = swapCache[li.slotId] ?? [];
+    const alts = swapOptionsBySlot[li.slotId] ?? [];
     const merged = [current, ...alts].filter(Boolean) as CatalogItem[];
     return merged.filter((opt, idx, arr) => arr.findIndex((o) => o.id === opt.id) === idx);
   };
@@ -246,28 +317,9 @@ export function MyBoxScreen() {
   }, [isChildProfile, activeChild?.id, lineItems]);
 
   const setKeepOrToss = async (slotId: string, value: 'keep' | 'toss') => {
-    if (!beforeCustomize()) return;
+    if (locked) return;
     const next = lineItems.map((li) => (li.slotId === slotId ? { ...li, keepOrToss: value } : li));
     await persist(next);
-  };
-
-  const addAnother = async (li: BoxLineItem) => {
-    if (!beforeCustomize()) return;
-    const item = catalog.find((c) => c.id === li.itemId);
-    if (!item) return;
-    const tier = inferPricingTier(item);
-    const suffix = `${li.slotId}-extra-${Date.now()}`;
-    await persist([
-      ...lineItems,
-      {
-        slotId: suffix,
-        itemId: item.id,
-        quantity: 1,
-        unitCents: unitCentsForTier(tier, item.dollarCostCents) || EXTRA_FLAT_CENTS,
-        childId: li.childId,
-        label: `${item.name} (extra)`,
-      },
-    ]);
   };
 
   const goToCheckout = () => {
@@ -278,24 +330,43 @@ export function MyBoxScreen() {
     navigation.navigate('Checkout');
   };
 
-  const onBrowseChipPress = (chip: string, sectionId: BoxDisplaySectionId) => {
+  const openProduct = (itemId: string) => {
+    navigation.navigate('CatalogProduct', { slug: itemId });
+  };
+
+  const onUpsellPress = (item: CatalogItem) => {
     if (guestViewOnly) {
       requireAuthToCustomize('signup');
       return;
     }
-    void chip;
-    scrollToSection(sectionId);
+    openProduct(item.id);
   };
 
+  const boxItemIds = useMemo(
+    () => new Set(lineItems.map((li) => li.itemId)),
+    [lineItems]
+  );
+
+  const upsellsBySection = useMemo(() => {
+    const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
+    for (const section of BOX_DISPLAY_SECTIONS) {
+      map[section.id] = resolveSectionUpsellItems(section.id, catalog, boxItemIds, 8);
+    }
+    return map;
+  }, [catalog, boxItemIds]);
+
   const renderSection = (sectionId: BoxDisplaySectionId) => {
-    const items = grouped[sectionId];
-    if (!items.length && !isChildProfile) return null;
+    const rawItems = grouped[sectionId] ?? [];
+    const isPresents = sectionId === 'presents';
+    const cardItems = fullCardLinesForSection(sectionId, rawItems);
+    const coalesced = coalesceLinesByItemId(cardItems);
+    const showPresentsChecklist = isPresents && !isChildProfile && hasPresentsChecklist;
+
+    if (!coalesced.length && !showPresentsChecklist && !isChildProfile) return null;
+    if (isChildProfile && !rawItems.length && sectionId !== 'presents') return null;
+
     const sectionSealed = sealedSectionIds?.includes(sectionId) ?? false;
-    const visibleItems = isChildProfile
-      ? items.filter(
-          (li) => li.childId === activeChild?.id && isVotablePerKidSlot(li.slotId),
-        )
-      : items;
+    const showUpsells = !isChildProfile && !sectionSealed;
 
     return (
       <BoxDetailSectionBlock
@@ -303,15 +374,39 @@ export function MyBoxScreen() {
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
-        itemCount={visibleItems.length}
-        showBrowseChips={!isChildProfile && !sectionSealed}
-        onBrowseChipPress={!isChildProfile && !sectionSealed ? onBrowseChipPress : undefined}
+        showUpsells={showUpsells}
+        upsellItems={showUpsells ? upsellsBySection[sectionId] : undefined}
+        onUpsellPress={showUpsells ? onUpsellPress : undefined}
+        trailing={
+          showPresentsChecklist ? (
+            <PresentsWrappableList
+              lineItems={lineItems}
+              catalog={catalog}
+              childrenProfiles={children}
+              selectedItemIds={wrapSelectedIds}
+              onToggleWrapSelection={(itemId) => {
+                setWrapSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(itemId)) next.delete(itemId);
+                  else next.add(itemId);
+                  return next;
+                });
+              }}
+            />
+          ) : null
+        }
       >
-        {items.map((li) => {
+        {coalesced.map((group) => {
+          const li = group.primary;
           const item = catalog.find((c) => c.id === li.itemId);
-          const kid = children.find((c) => c.id === li.childId);
-          const base = catalogSlotId(li.slotId);
-          const perKid = base.startsWith('story') || base.startsWith('gift');
+          const names = childNamesForLines(group.lines, children);
+          const presentMeta = isGiftSlotLine(li)
+            ? formatPresentAttribution(names) ?? 'Present'
+            : names.length > 1
+              ? formatPresentAttribution(names)
+              : names.length === 1
+                ? `For ${names[0]}`
+                : undefined;
           const wrapped =
             isChildProfile &&
             isWrappableSlot(li.slotId) &&
@@ -319,15 +414,35 @@ export function MyBoxScreen() {
           const showChildWrapped = wrapped;
           const showVotes =
             !PILOT_PARENT_ONLY &&
-            isVotablePerKidSlot(li.slotId) &&
-            (!showKidBoxUi || li.childId === activeChild?.id) &&
+            group.lines.some((line) => isVotablePerKidSlot(line.slotId)) &&
+            (!showKidBoxUi || group.lines.some((line) => line.childId === activeChild?.id)) &&
             !(showKidBoxUi && showChildWrapped);
 
-          if (isChildProfile && li.childId !== activeChild?.id) return null;
-          if (isChildProfile && !isVotablePerKidSlot(li.slotId)) return null;
+          if (isChildProfile && !group.lines.some((line) => line.childId === activeChild?.id)) {
+            return null;
+          }
+          if (
+            isChildProfile &&
+            !group.lines.some((line) => isVotablePerKidSlot(line.slotId))
+          ) {
+            return null;
+          }
+
+          const voteLine =
+            group.lines.find(
+              (line) =>
+                isVotablePerKidSlot(line.slotId) &&
+                (!showKidBoxUi || line.childId === activeChild?.id)
+            ) ?? li;
+
+          const isWrappingPaper =
+            isWrapControlSlot(li.slotId) &&
+            (catalogSlotId(li.slotId) === 'wrapping-paper' ||
+              catalogSlotId(li.slotId) === 'wrapping' ||
+              /wrapping.?paper/i.test(`${li.itemId} ${li.label ?? ''} ${item?.name ?? ''}`));
 
           return (
-            <View key={li.slotId}>
+            <View key={group.key}>
               {showChildWrapped ? (
                 <WrappedGiftPlaceholder />
               ) : (
@@ -336,49 +451,73 @@ export function MyBoxScreen() {
                     <BoxItemRow
                       li={li}
                       item={item}
-                      meta={kid ? `For ${kid.name || 'your kid'}` : undefined}
+                      meta={presentMeta}
                       locked={locked || sectionSealed}
-                      swapOptions={swapCache[li.slotId] ?? []}
-                      onSwap={(opt) => void applySwap(li.slotId, opt)}
+                      swapOptions={swapOptionsBySlot[li.slotId] ?? []}
+                      onSwap={(opt) =>
+                        void applySwap(
+                          group.lines.map((line) => line.slotId),
+                          opt
+                        )
+                      }
+                      swapLabel={isWrappingPaper ? 'pre-wrap presents instead' : undefined}
+                      onPrimarySwapAction={
+                        isWrappingPaper
+                          ? () =>
+                              void swapToPreWrap(group.lines.map((line) => line.slotId))
+                          : undefined
+                      }
                       onToggleSurprise={
                         !PILOT_PARENT_ONLY && isParentProfile && isWrappableSlot(li.slotId)
                           ? () => void toggleSurprise(li.slotId)
                           : undefined
                       }
                       onSetKeepOrToss={(value) => void setKeepOrToss(li.slotId, value)}
-                      showAddAnother={perKid || base === 'candles'}
-                      onAddAnother={() => void addAnother(li)}
-                      onRemove={() => void removeLineItem(li.slotId)}
+                      quantity={group.quantity}
+                      onQuantityChange={(delta) => void changeCoalescedQuantity(group, delta)}
+                      decrementMode={group.unitCents === 0 ? 'donate' : 'remove'}
+                      onOpenProduct={() => openProduct(li.itemId)}
                       formatPrice={formatDollars}
                     />
                   ) : (
                     <View style={styles.childItemHeader}>
-                      <Text style={styles.childItemTitle}>{item?.name ?? li.label ?? 'Your pick'}</Text>
-                      {kid?.name ? (
-                        <Text style={styles.childItemMeta}>For {kid.name}</Text>
+                      <Text style={styles.childItemTitle}>
+                        {item?.name ?? li.label ?? 'Your pick'}
+                      </Text>
+                      {presentMeta ? (
+                        <Text style={styles.childItemMeta}>{presentMeta}</Text>
                       ) : null}
                     </View>
                   )}
                   {showVotes ? (
                     <BoxSlotVoteRow
-                      slotId={li.slotId}
+                      slotId={voteLine.slotId}
                       slotVotes={slotVotes}
-                      options={voteOptionsFor(li)}
-                      currentItemId={li.itemId}
+                      options={voteOptionsFor(voteLine)}
+                      currentItemId={voteLine.itemId}
                       currentVoterId={currentVoterId}
-                      onToggleVote={(itemId) => void handleToggleVote(li.slotId, itemId)}
-                      topPickItemId={isParentProfile ? topPickItemId(slotVotes, li.slotId) : null}
+                      onToggleVote={(itemId) => void handleToggleVote(voteLine.slotId, itemId)}
+                      topPickItemId={
+                        isParentProfile ? topPickItemId(slotVotes, voteLine.slotId) : null
+                      }
                       topPickItemName={
                         isParentProfile
-                          ? catalog.find((c) => c.id === topPickItemId(slotVotes, li.slotId))?.name
+                          ? catalog.find(
+                              (c) => c.id === topPickItemId(slotVotes, voteLine.slotId)
+                            )?.name
                           : undefined
                       }
                       onApplyTopPick={
                         isParentProfile && !locked && !guestViewOnly
                           ? () => {
-                              const pickId = topPickItemId(slotVotes, li.slotId);
+                              const pickId = topPickItemId(slotVotes, voteLine.slotId);
                               const pick = catalog.find((c) => c.id === pickId);
-                              if (pick) void applySwap(li.slotId, pick);
+                              if (pick) {
+                                void applySwap(
+                                  group.lines.map((line) => line.slotId),
+                                  pick
+                                );
+                              }
                             }
                           : undefined
                       }
@@ -395,16 +534,18 @@ export function MyBoxScreen() {
 
   if (sessionLoading || loading || draftLoading || guestNeedsOnboarding) {
     return (
-      <View style={styles.centered}>
-        <BrandLoadingMark color={colors.brand} />
-      </View>
+      <StorefrontChrome bodyMode="fill" hideServicesNav>
+        <View style={styles.centered}>
+          <BrandLoadingMark color={colors.brand} />
+        </View>
+      </StorefrontChrome>
     );
   }
 
   const subtotal = totalCents(lineItems, boxPriceCents);
-  const orderTotal = subtotal + SHIPPING_FLAT_CENTS;
-  const chargeableExtras = extraLineItems.reduce((s, li) => s + li.unitCents, 0);
-  const chargeableAlaCarte = alaCarteItems.reduce((s, li) => s + li.unitCents, 0);
+  const kidsCount = Math.max(1, children.length);
+  const chargeableExtras = extraLineItems.reduce((s, li) => s + li.unitCents * li.quantity, 0);
+  const chargeableAlaCarte = alaCarteItems.reduce((s, li) => s + li.unitCents * li.quantity, 0);
 
   const lockBanner = locked && lockAt ? (
     <Text style={[styles.lockBanner, styles.lockBannerClosed]}>
@@ -417,20 +558,13 @@ export function MyBoxScreen() {
       <BoxDetailToolbar
         lockAt={lockAt}
         now={now}
-        onBack={() => navigation.goBack()}
+        hideBack
         title="Your Hanukkah Box"
         startsOn={startsOn}
         estimatedDeliveryBy={estimatedDeliveryBy}
-        align={isDesktop ? 'left' : 'center'}
+        align="center"
+        calendarVariant="inlineLink"
       />
-      {guestViewOnly ? (
-        <View style={detailStyles.headerExtras}>
-          <GuestBoxAuthBanner
-            onCreateAccount={() => requireAuthToCustomize('signup')}
-            onSignIn={() => requireAuthToCustomize('signin')}
-          />
-        </View>
-      ) : null}
       {!guestViewOnly && lockBanner ? (
         <View style={detailStyles.headerExtras}>{lockBanner}</View>
       ) : null}
@@ -449,39 +583,65 @@ export function MyBoxScreen() {
   const sections = visibleSectionIds.map((id) => renderSection(id));
 
   const summaryPanel = (
-    <View style={[styles.summaryCard, Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined]}>
-      <Text style={styles.summaryHeading}>Order summary</Text>
-      <View style={styles.summaryRow}>
-        <Text style={styles.summaryLabel}>Hanukkah box</Text>
-        <Text style={styles.summaryValue}>{formatDollars(boxPriceCents)}</Text>
-      </View>
-      {chargeableExtras > 0 ? (
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Add-ons</Text>
-          <Text style={styles.summaryValue}>{formatDollars(chargeableExtras)}</Text>
+    <View
+      style={[
+        styles.summaryCard,
+        Platform.OS === 'web'
+          ? { boxShadow: shadowsWeb.md }
+          : shadows.md,
+      ]}
+    >
+      <View style={styles.summaryBreakdown}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>
+            {kidsCount === 1 ? 'Base box (1 kid)' : `Base box (${kidsCount} kids)`}
+          </Text>
+          <Text style={styles.summaryValue}>{formatDollars(boxPriceCents)}</Text>
         </View>
-      ) : null}
-      {chargeableAlaCarte > 0 ? (
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>À la carte</Text>
-          <Text style={styles.summaryValue}>{formatDollars(chargeableAlaCarte)}</Text>
+        {chargeableExtras > 0 ? (
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Add-ons</Text>
+            <Text style={styles.summaryValue}>{formatDollars(chargeableExtras)}</Text>
+          </View>
+        ) : null}
+        {chargeableAlaCarte > 0 ? (
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>À la carte</Text>
+            <Text style={styles.summaryValue}>{formatDollars(chargeableAlaCarte)}</Text>
+          </View>
+        ) : null}
+        <View style={styles.summaryTotalItem}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalValue}>{formatDollars(subtotal)}</Text>
+          {guestViewOnly ? <GuestBoxAuthBanner /> : null}
         </View>
-      ) : null}
-      <View style={styles.summaryRow}>
-        <Text style={styles.summaryLabel}>Shipping</Text>
-        <Text style={styles.summaryValue}>{formatDollars(SHIPPING_FLAT_CENTS)}</Text>
+        {guestViewOnly ? (
+          <View style={styles.guestCtaRow}>
+            <TouchableOpacity
+              style={[styles.checkoutCta, styles.guestPrimaryCta]}
+              onPress={() => requireAuthToCustomize('signup')}
+              accessibilityRole="button"
+            >
+              <Text style={styles.checkoutText}>Sign up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => requireAuthToCustomize('signin')}
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <Text style={styles.guestSignIn}>Sign in</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.checkoutCta, locked && styles.checkoutCtaDisabled]}
+            onPress={goToCheckout}
+            disabled={locked || lineItems.length === 0}
+          >
+            <Text style={styles.checkoutText}>{cardOnFile ? 'Review shipping' : 'Add payment & shipping'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
-      <View style={[styles.summaryRow, styles.summaryTotalRow]}>
-        <Text style={styles.totalLabel}>Estimated total</Text>
-        <Text style={styles.totalValue}>{formatDollars(orderTotal)}</Text>
-      </View>
-      <TouchableOpacity
-        style={[styles.checkoutCta, locked && styles.checkoutCtaDisabled]}
-        onPress={goToCheckout}
-        disabled={locked || lineItems.length === 0}
-      >
-        <Text style={styles.checkoutText}>{cardOnFile ? 'Review shipping' : 'Add payment & shipping'}</Text>
-      </TouchableOpacity>
     </View>
   );
 
@@ -503,92 +663,95 @@ export function MyBoxScreen() {
     <>
       {scrollHeader}
       {kidEmptyState}
-      {!isChildProfile && visibleSectionIds.length > 0 ? (
-        <StickySectionNav
-          activeSection={activeSection}
-          onSelect={scrollToSection}
-          sectionIds={visibleSectionIds}
-        />
-      ) : null}
       {kidEmptyState ? null : sections}
-      {!isDesktop && !isChildProfile ? (
-        <BoxDetailReviewCta
-          onPress={goToCheckout}
-          disabled={locked || lineItems.length === 0}
-        />
-      ) : null}
     </>
   );
 
-  if (isDesktop && !isChildProfile) {
-    return (
-      <WebContentPanel flush centerDesktop omitDesktopTopPadding style={styles.panel}>
-        <View style={styles.scrollHost} testID="box-scroll-host">
-          <ScrollView
-            ref={scrollRef}
-            style={[styles.root, styles.desktopRoot]}
-            contentContainerStyle={styles.desktopScrollContent}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            {...(Platform.OS === 'web'
-              ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
-              : null)}
-          >
-            <View
-              style={[styles.desktopShell, { maxWidth: widePanelMaxWidth }]}
-              ref={contentRef}
-              collapsable={false}
-            >
-              <View style={styles.desktopColumns}>
-                <View style={styles.desktopList}>
-                  {scrollBody}
-                </View>
-                <View style={styles.desktopSummary}>
-                  {summaryPanel}
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </WebContentPanel>
-    );
-  }
+  const showSummaryFloat = !isChildProfile;
+  const floatBottom = Math.max(insets.bottom, spacing.md);
+
+  // `null` keeps primary services nav and omits the category bar; a node
+  // replaces only the black secondary bar with practice section links.
+  const servicesSlot =
+    !isChildProfile && visibleSectionIds.length > 0 ? (
+      <StickySectionNav
+        activeSection={activeSection}
+        onSelect={scrollToSection}
+        sectionIds={visibleSectionIds}
+        variant="services"
+      />
+    ) : null;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? [] : ['top']}>
-      <WebContentPanel gutter>
-        <View style={styles.scrollHost} testID="box-scroll-host">
-          <ScrollView
-            ref={scrollRef}
-            style={styles.root}
-            contentContainerStyle={detailStyles.scrollContent}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            {...(Platform.OS === 'web'
-              ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
-              : null)}
+    <StorefrontChrome bodyMode="fill" servicesSlot={servicesSlot}>
+      <View style={styles.pageRoot}>
+        <WebContentPanel
+          flush
+          centerDesktop
+          omitDesktopTopPadding
+          gutter={!isDesktop}
+          style={styles.panel}
+        >
+          <View style={styles.scrollHost} testID="box-scroll-host">
+            <ScrollView
+              ref={scrollRef}
+              style={[styles.root, isDesktop && styles.desktopRoot]}
+              contentContainerStyle={[
+                isDesktop ? styles.desktopScrollContent : detailStyles.scrollContent,
+                showSummaryFloat
+                  ? {
+                      paddingBottom: SUMMARY_FLOAT_CLEARANCE + floatBottom,
+                    }
+                  : null,
+              ]}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+              {...(Platform.OS === 'web'
+                ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
+                : null)}
+            >
+              <View
+                style={[
+                  isDesktop && styles.desktopShell,
+                  isDesktop ? { maxWidth: widePanelMaxWidth } : null,
+                ]}
+                ref={contentRef}
+                collapsable={false}
+              >
+                {scrollBody}
+              </View>
+            </ScrollView>
+          </View>
+        </WebContentPanel>
+        {showSummaryFloat ? (
+          <View
+            style={[styles.summaryFloat, { bottom: floatBottom }]}
+            pointerEvents="box-none"
+            testID="box-order-summary-float"
           >
-            <View ref={contentRef} collapsable={false}>
-              {scrollBody}
+            <View style={styles.summaryFloatInner}>
+              {summaryPanel}
             </View>
-          </ScrollView>
-        </View>
-      </WebContentPanel>
-    </SafeAreaView>
+          </View>
+        ) : null}
+      </View>
+    </StorefrontChrome>
   );
 }
 
 function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
-  const cardSurface = isDesktop ? colors.bgElevated : colors.accentCream;
   return StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.bgPrimary },
+  pageRoot: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: colors.bgPrimary,
+  },
   root: { flex: 1, flexBasis: 0, minHeight: 0, backgroundColor: colors.bgPrimary },
   panel: {
     flex: 1,
     width: '100%',
     minHeight: 0,
     backgroundColor: colors.bgPrimary,
-    // Keep the My Box scrollport viewport-bound (Home keeps overflow visible for rail bleed).
     ...(Platform.OS === 'web' ? ({ overflow: 'hidden' as const } as object) : null),
   },
   scrollHost: {
@@ -599,7 +762,6 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     overflow: 'hidden' as const,
     ...(Platform.OS === 'web' ? ({ height: '100%' } as object) : null),
   },
-  mobileWrap: { flex: 1 },
   desktopRoot: {
     flex: 1,
     flexBasis: 0,
@@ -609,65 +771,20 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   desktopScrollContent: {
     flexGrow: 1,
-    // Extra bottom space so the last section tab can scroll up under the sticky nav.
-    paddingBottom: Platform.OS === 'web' ? 480 : spacing.xxl,
-    // Room for guest-banner gold glow; content (not ScrollView) may overflow visible.
+    paddingBottom: SUMMARY_FLOAT_CLEARANCE,
     ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },
   desktopShell: {
     width: '100%',
     alignSelf: 'center',
-    paddingTop: DESKTOP_CONTENT_TOP,
+    // Title top gap comes from toolbar paddingTop (equal to lock→divider / divider→section).
+    paddingTop: 0,
     ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },
-  desktopColumns: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.lg,
-    ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
-  },
-  desktopList: {
-    flex: 2,
-    minWidth: 0,
-    ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
-  },
-  desktopListContent: { paddingBottom: spacing.xxl },
-  desktopSummary: {
-    flex: 1,
-    maxWidth: 360,
-    minWidth: 280,
-    paddingTop: spacing.xs,
-    alignSelf: 'flex-start',
-    ...(Platform.OS === 'web'
-      ? ({ position: 'sticky' as const, top: DESKTOP_CONTENT_TOP, zIndex: 5 } as object)
-      : {}),
-  },
-  content: { paddingTop: spacing.sm, paddingBottom: 160 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   pageHeader: { alignItems: 'center', marginBottom: spacing.sm },
   title: { fontSize: typography.titleLg, fontWeight: '600', textAlign: 'center' },
   headerMeta: { fontSize: typography.sm, color: colors.goldMuted, marginTop: 4, textAlign: 'center' },
-  subtitle: {
-    fontSize: typography.md,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  paymentPending: {
-    fontSize: typography.sm,
-    color: colors.textTertiary,
-    marginBottom: spacing.sm,
-    lineHeight: 18,
-    textAlign: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  guideLink: { alignSelf: 'center', marginBottom: spacing.md },
-  guideLinkText: {
-    fontSize: typography.sm,
-    fontWeight: '600',
-    color: colors.brand,
-  },
   kidEmptyCard: {
     marginHorizontal: MOBILE_GUTTER,
     padding: spacing.lg,
@@ -693,90 +810,83 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     marginBottom: spacing.md,
   },
   lockBannerClosed: { color: colors.textPrimary, fontWeight: '600' },
-  sectionBlock: {
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.goldMuted,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  sectionHeader: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xs },
-  sectionDesc: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 280,
-    fontFamily: typography.fontFamily.light,
-  },
-  browseChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center', marginTop: spacing.sm },
-  browseChip: {
-    borderWidth: 0.5,
-    borderColor: colors.goldMuted,
-    borderRadius: borderRadius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    backgroundColor: colors.bgPrimary,
-  },
-  browseChipText: { fontSize: 9, color: colors.textPrimary },
-  summaryCard: {
-    backgroundColor: cardSurface,
-    borderRadius: 16,
-    padding: spacing.lg,
-    marginTop: isDesktop ? 0 : spacing.md,
-  },
-  summaryHeading: { fontSize: typography.xl, fontWeight: '700', marginBottom: spacing.md },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
-  summaryLabel: { fontSize: typography.md, color: colors.textSecondary },
-  summaryValue: { fontSize: typography.md, fontWeight: '600' },
-  summaryTotalRow: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 0.5,
-    borderTopColor: colors.goldMuted,
-  },
-  totalLabel: { fontSize: typography.xl, fontWeight: '600' },
-  totalValue: { fontSize: typography.xl, fontWeight: '700' },
-  checkoutCta: {
-    backgroundColor: colors.textPrimary,
-    padding: spacing.md,
-    borderRadius: borderRadius.pill,
-    alignItems: 'center',
-    marginTop: spacing.lg,
-  },
-  checkoutCtaDisabled: { opacity: 0.5 },
-  checkoutText: { fontWeight: '700', color: colors.goldMuted },
-  footerBar: {
+  summaryFloat: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-    backgroundColor: colors.bgPrimary,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    alignItems: 'center',
+    paddingHorizontal: isDesktop ? spacing.lg : 0,
+    zIndex: 30,
   },
-  footerSecondary: {
-    flex: 1,
-    padding: spacing.md,
-    borderRadius: borderRadius.pill,
-    borderWidth: 1,
+  summaryFloatInner: {
+    width: '100%',
+    maxWidth: isDesktop ? 960 : undefined,
+    paddingHorizontal: isDesktop ? 0 : spacing.sm,
+  },
+  summaryCard: {
+    width: '100%',
+    backgroundColor: colors.bgElevated,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    alignItems: 'center',
   },
-  footerSecondaryText: { fontWeight: '600', color: colors.textSecondary },
-  footerPrimary: {
-    flex: 2,
-    padding: spacing.md,
-    borderRadius: borderRadius.pill,
+  summaryBreakdown: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexShrink: 0,
+  },
+  summaryLabel: { fontSize: typography.sm, color: colors.textSecondary },
+  summaryValue: { fontSize: typography.sm, fontWeight: '600', color: colors.textPrimary },
+  summaryTotalItem: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexShrink: 1,
+    flexGrow: 1,
+    paddingLeft: spacing.xs,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: colors.goldMuted,
+    minWidth: 0,
+  },
+  totalLabel: { fontSize: typography.md, fontWeight: '600', color: colors.textPrimary },
+  totalValue: { fontSize: typography.md, fontWeight: '700', color: colors.textPrimary },
+  guestCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 0,
+    marginLeft: 'auto',
+  },
+  guestPrimaryCta: {
+    marginLeft: 0,
+  },
+  guestSignIn: {
+    fontWeight: '600',
+    fontSize: typography.sm,
+    color: colors.textPrimary,
+  },
+  checkoutCta: {
     backgroundColor: colors.textPrimary,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.pill,
     alignItems: 'center',
+    flexShrink: 0,
+    marginLeft: 'auto',
   },
-  footerPrimaryText: { fontWeight: '700', color: colors.goldMuted },
+  checkoutCtaDisabled: { opacity: 0.5 },
+  checkoutText: { fontWeight: '700', fontSize: typography.sm, color: colors.goldMuted },
   });
 }

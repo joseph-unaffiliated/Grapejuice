@@ -10,6 +10,13 @@ export const BOX_DETAIL_SECTION_GUTTER = MOBILE_GUTTER;
 
 export const BOX_DETAIL_SCROLL_SPY_OFFSET = 56;
 
+/**
+ * Optical rhythm: sticky-nav → title, lock line → gold divider, and
+ * divider → first section heading share this gap.
+ * Literal 48 — theme has no exact 48 token (md=20, lg=28).
+ */
+export const BOX_DETAIL_TOOLBAR_RHYTHM = 48;
+
 export function formatBoxLockDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 }
@@ -38,41 +45,45 @@ export function boxHeaderSubtext(lockAt: string | null, now: Date): string {
 /** Shared styles for Hanukkah box detail (Figma 370:3514). */
 export function createBoxDetailStyles(
   colors: SemanticColors,
-  options?: { desktop?: boolean; tileGrid?: boolean }
+  options?: { desktop?: boolean; tileGrid?: boolean; tileColumns?: 2 | 3 }
 ) {
   const desktop = options?.desktop ?? false;
   const tileGrid = options?.tileGrid ?? false;
+  const tileColumns = options?.tileColumns ?? 2;
+  const tileWidth = tileColumns === 3 ? '31.5%' : '48%';
 
   return StyleSheet.create({
     scrollContent: {
-      // Extra bottom space so the last section tab can scroll up under the sticky nav.
-      paddingBottom: Platform.OS === 'web' ? 480 : spacing.xxl,
+      // Float-bar clearance only — My Box overrides further when the summary float is shown.
+      paddingBottom: Platform.OS === 'web' ? 160 : spacing.xxl,
     },
     toolbar: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       paddingHorizontal: desktop ? 0 : spacing.md,
-      paddingBottom: spacing.md,
+      // Equal vertical padding so title block isn’t bottom-heavy under chrome.
+      paddingTop: BOX_DETAIL_TOOLBAR_RHYTHM,
+      paddingBottom: BOX_DETAIL_TOOLBAR_RHYTHM,
     },
     toolbarLeft: {
       justifyContent: 'flex-start',
     },
     toolbarSide: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-    toolbarCenter: { flex: 1, alignItems: 'center', gap: 2 },
+    toolbarCenter: { flex: 1, alignItems: 'center', gap: spacing.xs },
     toolbarCenterLeft: { alignItems: 'flex-start' },
     toolbarBackInline: { marginBottom: spacing.xs },
     toolbarTitle: {
-      fontSize: typography.xxl,
-      ...typeface('regular'),
+      fontSize: 22,
+      ...typeface('medium'),
       color: colors.textPrimary,
-      letterSpacing: -0.45,
+      letterSpacing: -0.5,
       textAlign: 'center',
     },
     toolbarTitleLeft: {
       textAlign: 'left',
-      fontSize: typography.titleLg,
-      letterSpacing: -0.32,
+      fontSize: 20,
+      letterSpacing: -0.4,
     },
     toolbarMeta: {
       fontSize: typography.sm,
@@ -84,6 +95,32 @@ export function createBoxDetailStyles(
     toolbarMetaLeft: {
       textAlign: 'left',
     },
+    lockChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+    },
+    lockChipRowLeft: {
+      justifyContent: 'flex-start',
+    },
+    /** Plain lock countdown — same line as calendar link, no chip/pill chrome. */
+    lockChipText: {
+      ...typeface('light'),
+      fontSize: typography.sm,
+      color: colors.goldMuted,
+      letterSpacing: -0.33,
+    },
+    /** Gold rule under title / lock / calendar — same stroke as sectionBlock bottom border. */
+    toolbarGoldDivider: {
+      borderBottomWidth: 0.5,
+      borderBottomColor: colors.goldMuted,
+      alignSelf: 'stretch',
+      width: '100%',
+      marginHorizontal: 0,
+      marginBottom: 0,
+    },
     backText: {
       fontSize: typography.xxl,
       color: colors.goldMuted,
@@ -92,10 +129,15 @@ export function createBoxDetailStyles(
     sectionBlock: {
       borderBottomWidth: 0.5,
       borderBottomColor: colors.goldMuted,
-      paddingTop: spacing.xl,
+      // Match toolbar rhythm so gap below gold divider equals gap above it.
+      paddingTop: BOX_DETAIL_TOOLBAR_RHYTHM,
       paddingBottom: spacing.xl,
       paddingHorizontal: desktop ? 0 : BOX_DETAIL_SECTION_GUTTER,
       ...(Platform.OS === 'web' ? { scrollMarginTop: BOX_DETAIL_SCROLL_SPY_OFFSET } : null),
+    },
+    /** Give Presents — tighter bottom so checklist doesn’t float above a large empty band. */
+    sectionBlockPresents: {
+      paddingBottom: spacing.md,
     },
     sectionHeader: {
       alignItems: desktop ? 'flex-start' : 'center',
@@ -148,8 +190,25 @@ export function createBoxDetailStyles(
       color: colors.textPrimary,
       textAlign: desktop ? 'left' : 'center',
       lineHeight: 16.5,
-      maxWidth: desktop ? 480 : 255,
+      maxWidth: desktop ? 560 : 255,
       letterSpacing: -0.33,
+    },
+    sectionDescToggle: {
+      fontSize: typography.sm,
+      ...typeface('regular'),
+      color: colors.goldMuted,
+      textAlign: desktop ? 'left' : 'center',
+      marginTop: 4,
+      letterSpacing: -0.33,
+    },
+    sectionLeading: {
+      width: '100%',
+      marginBottom: spacing.md,
+    },
+    sectionTrailing: {
+      width: '100%',
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
     },
     itemList: {
       gap: spacing.md,
@@ -164,32 +223,15 @@ export function createBoxDetailStyles(
           }
         : null),
     },
-    /** Desktop grid cell — half-width only when the list is wide enough for two columns. */
+    itemListPresents: {
+      paddingBottom: spacing.sm,
+    },
+    /** Desktop grid cell — 2-up or ~3-up when the list is wide enough. */
     itemTile: {
-      width: '48%',
-      maxWidth: '48%',
+      width: tileWidth,
+      maxWidth: tileWidth,
       flexGrow: 0,
       flexShrink: 0,
-    },
-    browseChips: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.xs,
-      justifyContent: desktop ? 'flex-start' : 'center',
-    },
-    browseChip: {
-      borderWidth: 0.5,
-      borderColor: colors.goldMuted,
-      borderRadius: borderRadius.pill,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 4,
-      backgroundColor: colors.bgPrimary,
-    },
-    browseChipText: {
-      fontSize: 9,
-      color: colors.textPrimary,
-      ...typeface('regular'),
-      letterSpacing: -0.18,
     },
     reviewCta: {
       backgroundColor: colors.textPrimary,

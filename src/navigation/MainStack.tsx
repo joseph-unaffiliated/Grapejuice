@@ -34,6 +34,8 @@ import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFe
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
+import { consumePendingMainNav } from './pendingMainNav';
+import { navigationRef } from './navigationRef';
 
 const Stack = createStackNavigator<MainStackParamList>();
 
@@ -47,6 +49,40 @@ function GuestBoxRevealHandler() {
     consumeOpenMyBoxAfterReveal();
     navigation.navigate('MyBox');
   }, [openMyBoxAfterReveal, consumeOpenMyBoxAfterReveal, navigation]);
+
+  return null;
+}
+
+/** Applies MainStack destinations queued while the root gate was Onboarding. */
+function PendingMainNavHandler() {
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+
+  useEffect(() => {
+    let attempts = 0;
+    const id = setInterval(() => {
+      attempts += 1;
+      if (!navigationRef.isReady()) {
+        if (attempts > 40) clearInterval(id);
+        return;
+      }
+      const nav = consumePendingMainNav();
+      if (!nav) {
+        // Nothing queued — stop after a short window so late queues still apply.
+        if (attempts > 20) clearInterval(id);
+        return;
+      }
+      clearInterval(id);
+      if (nav.tab) {
+        navigation.navigate('MainTabs', {
+          screen: nav.tab,
+          params: nav.tabParams as never,
+        });
+        return;
+      }
+      navigation.navigate(nav.screen as never, nav.params as never);
+    }, 50);
+    return () => clearInterval(id);
+  }, [navigation]);
 
   return null;
 }
@@ -113,6 +149,7 @@ export function MainStack() {
   return (
     <WebDesktopFrame>
       <GuestBoxRevealHandler />
+      <PendingMainNavHandler />
       <AuthReturnHandler />
       <Stack.Navigator
         initialRouteName={initialRouteName}

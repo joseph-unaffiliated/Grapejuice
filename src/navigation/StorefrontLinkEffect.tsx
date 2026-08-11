@@ -4,6 +4,15 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
 import { readStorePathFromWindow } from './storeLink';
+import { readDevPreviewFromWindow } from './devPreview';
+
+/** Previews that intentionally land on storefront (StorefrontLinkEffect may run). */
+const STOREFRONT_PREVIEW_KEYS = new Set([
+  'storefront',
+  'store',
+  'storefront-category',
+  'store-category',
+]);
 
 function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category: string }): void {
   if (!navigationRef.isReady()) return;
@@ -25,6 +34,7 @@ function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category
  * Web: `/store`, `/store/:category`, or bare `/` → storefront screens.
  * Guests who land cold are put into explore so MainGate can mount.
  * Bare `/` is canonicalized to `/store` in the address bar.
+ * Skips when `?preview=` is a non-storefront design preview (e.g. my-box).
  */
 export function StorefrontLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -35,6 +45,11 @@ export function StorefrontLinkEffect() {
   const pending = useRef(readStorePathFromWindow());
 
   useEffect(() => {
+    const preview = readDevPreviewFromWindow();
+    if (preview && !STOREFRONT_PREVIEW_KEYS.has(preview.key)) {
+      return;
+    }
+
     const target = pending.current;
     if (!target) return;
 

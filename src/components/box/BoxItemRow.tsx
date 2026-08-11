@@ -11,9 +11,10 @@ import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { inferKeepOrToss } from '../../constants/boxPracticeGroups';
 import { BoxItemImage } from './BoxItemImage';
-import { ProductStarRating } from '../home/ProductStarRating';
 import { ItemDetailSheet } from './ItemDetailSheet';
 import { useBoxItemVisualVariant } from './boxSectionItemsLayout';
+import { Icon } from '../ui/Icon';
+import { icons } from '../../constants/icons';
 import { spacing, typography, borderRadius, shadowsWeb, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -24,13 +25,22 @@ type BoxItemRowStyles = ReturnType<typeof createBoxItemRowStyles>;
 type Props = {
   li: BoxLineItem;
   item?: CatalogItem;
+  /** Present-for / multi-kid attribution (replaces ages • consumable). */
   meta?: string;
   showPrice?: boolean;
   locked: boolean;
   swapOptions: CatalogItem[];
   onSwap: (item: CatalogItem) => void;
+  /**
+   * Override primary Swap chip label (e.g. wrapping paper → “pre-wrap presents instead”).
+   * When set with `onPrimarySwapAction`, pressing runs that action instead of opening the shelf.
+   */
+  swapLabel?: string;
+  /** Direct primary action (skip shelf) — used for wrapping → pre-wrap. */
+  onPrimarySwapAction?: () => void;
   onToggleSurprise?: () => void;
   onSetKeepOrToss?: (value: KeepOrToss) => void;
+  /** @deprecated Prefer quantity stepper (`onQuantityChange`). */
   onAddAnother?: () => void;
   showAddAnother?: boolean;
   formatPrice: (cents: number) => string;
@@ -39,13 +49,17 @@ type Props = {
   onRemove?: () => void;
   /** Read-only reveal: show swap / add more / remove chips without handlers. */
   previewChips?: boolean;
+  /** Display quantity (coalesced). Defaults to `li.quantity`. */
+  quantity?: number;
+  onQuantityChange?: (delta: 1 | -1) => void;
+  /**
+   * At qty 1, decrement label/action: donate (included base) vs trash (paid add-on).
+   * Defaults from `li.unitCents === 0`.
+   */
+  decrementMode?: 'donate' | 'remove';
+  /** Prefer product page; falls back to ItemDetailSheet. */
+  onOpenProduct?: () => void;
 };
-
-function itemTag(item?: CatalogItem, keepOrToss?: KeepOrToss): string {
-  const kind = keepOrToss === 'keep' ? 'Keepsake' : 'Consumable';
-  const ages = item?.ageGroups?.length === 4 ? 'All ages' : item?.ageGroups?.join(', ') ?? 'All ages';
-  return `${ages} • ${kind}`;
-}
 
 function ActionChip({
   label,
@@ -65,9 +79,64 @@ function ActionChip({
       style={[styles.chip, primary && styles.chipPrimary, disabled && styles.chipDisabled]}
       onPress={onPress}
       disabled={disabled || !onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
     >
       <Text style={[styles.chipText, primary && styles.chipTextPrimary]}>{label}</Text>
     </TouchableOpacity>
+  );
+}
+
+function QtyStepper({
+  quantity,
+  locked,
+  decrementMode,
+  onQuantityChange,
+  styles,
+  colors,
+}: {
+  quantity: number;
+  locked: boolean;
+  decrementMode: 'donate' | 'remove';
+  onQuantityChange?: (delta: 1 | -1) => void;
+  styles: BoxItemRowStyles;
+  colors: SemanticColors;
+}) {
+  if (!onQuantityChange || locked) {
+    return quantity > 1 ? <Text style={styles.qtyReadonly}>×{quantity}</Text> : null;
+  }
+  const atOne = quantity <= 1;
+  return (
+    <View style={styles.qtyRow}>
+      <TouchableOpacity
+        style={[styles.qtyBtn, atOne && decrementMode === 'donate' && styles.qtyBtnDonate]}
+        onPress={() => onQuantityChange(-1)}
+        accessibilityRole="button"
+        accessibilityLabel={atOne ? (decrementMode === 'donate' ? 'Donate' : 'Remove') : 'Decrease quantity'}
+      >
+        {atOne && decrementMode === 'remove' ? (
+          <Icon icon={icons.trash} size={11} color={colors.goldMuted} />
+        ) : (
+          <Text
+            style={[
+              styles.qtyBtnText,
+              atOne && decrementMode === 'donate' && styles.qtyBtnTextDonate,
+            ]}
+          >
+            {atOne ? (decrementMode === 'donate' ? 'Donate' : '−') : '−'}
+          </Text>
+        )}
+      </TouchableOpacity>
+      <Text style={styles.qtyValue}>{quantity}</Text>
+      <TouchableOpacity
+        style={styles.qtyBtn}
+        onPress={() => onQuantityChange(1)}
+        accessibilityRole="button"
+        accessibilityLabel="Increase quantity"
+      >
+        <Text style={styles.qtyBtnText}>+</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -79,6 +148,8 @@ export function BoxItemRow({
   locked,
   swapOptions,
   onSwap,
+  swapLabel,
+  onPrimarySwapAction,
   onToggleSurprise,
   onSetKeepOrToss,
   onAddAnother,
@@ -87,6 +158,10 @@ export function BoxItemRow({
   variant,
   onRemove,
   previewChips = false,
+  quantity: quantityProp,
+  onQuantityChange,
+  decrementMode,
+  onOpenProduct,
 }: Props) {
   const { colors } = useThemeMode();
   const layoutVariant = useBoxItemVisualVariant();
@@ -97,8 +172,39 @@ export function BoxItemRow({
   const keepOrToss = li.keepOrToss ?? inferKeepOrToss(li.slotId);
   const isSurprise = !PILOT_PARENT_ONLY && !!li.isSurprise;
   const showWrapControls = !PILOT_PARENT_ONLY && !!onToggleSurprise;
-  const swappable = !locked && swapOptions.length > 0;
+  const swappable = !locked && (swapOptions.length > 0 || !!onPrimarySwapAction);
   const displayName = li.label ?? item?.name ?? li.itemId;
+  const quantity = Math.max(1, quantityProp ?? li.quantity ?? 1);
+  const resolvedDecrement: 'donate' | 'remove' =
+    decrementMode ?? (li.unitCents === 0 ? 'donate' : 'remove');
+  const primarySwapLabel = swapLabel ?? 'Swap';
+
+  const openDetail = () => {
+    if (onOpenProduct) {
+      onOpenProduct();
+      return;
+    }
+    setDetailOpen(true);
+  };
+
+  const onPrimarySwapPress = () => {
+    if (onPrimarySwapAction) {
+      onPrimarySwapAction();
+      setShelfOpen(false);
+      return;
+    }
+    setShelfOpen((v) => !v);
+  };
+
+  const swapPrimary = (
+    <ActionChip
+      label={primarySwapLabel}
+      primary
+      styles={styles}
+      disabled={previewChips || !swappable}
+      onPress={previewChips ? undefined : onPrimarySwapPress}
+    />
+  );
 
   if (resolvedVariant === 'card' || resolvedVariant === 'tile') {
     const vertical = resolvedVariant === 'tile';
@@ -107,11 +213,13 @@ export function BoxItemRow({
         <View style={vertical ? styles.tileCard : styles.cardRow}>
           <TouchableOpacity
             style={vertical ? styles.tileImageWrap : styles.cardImageWrap}
-            onPress={() => setDetailOpen(true)}
+            onPress={openDetail}
             activeOpacity={0.9}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${displayName}`}
           >
             <BoxItemImage
-              size={vertical ? 112 : 130}
+              size={vertical ? 96 : 112}
               imageUrl={item?.imageUrl}
               itemId={item?.id ?? li.itemId}
               style={vertical ? styles.tileImage : styles.cardImage}
@@ -119,34 +227,46 @@ export function BoxItemRow({
           </TouchableOpacity>
           <View style={vertical ? styles.tileBody : styles.cardBody}>
             <View style={styles.cardTop}>
-              <Text style={styles.cardTag}>{itemTag(item, keepOrToss)}</Text>
-              <Text style={styles.cardName}>{displayName}</Text>
+              {meta ? <Text style={styles.cardTag}>{meta}</Text> : null}
+              <TouchableOpacity onPress={openDetail} activeOpacity={0.85}>
+                <Text style={styles.cardName}>{displayName}</Text>
+              </TouchableOpacity>
               {item?.description ? (
-                <Text style={styles.cardDesc} numberOfLines={vertical ? 3 : 2}>{item.description}</Text>
+                <Text style={styles.cardDesc} numberOfLines={vertical ? 3 : 2}>
+                  {item.description}
+                </Text>
               ) : null}
-              {meta ? <Text style={styles.cardMeta}>{meta}</Text> : null}
-              <ProductStarRating />
               {isSurprise ? <Text style={styles.surpriseBadge}>Night-of surprise</Text> : null}
               {showPrice ? <Text style={styles.price}>{formatPrice(li.unitCents)}</Text> : null}
             </View>
             <View style={styles.cardActions}>
-              <ActionChip label="In box" primary styles={styles} />
               {previewChips ? (
                 <>
-                  <ActionChip label="Swap" styles={styles} disabled />
+                  {swapPrimary}
                   <ActionChip label="Add more" styles={styles} disabled />
                   <ActionChip label="Remove" styles={styles} disabled />
                 </>
               ) : (
                 <>
-                  {swappable ? (
-                    <ActionChip label="Swap" onPress={() => setShelfOpen((v) => !v)} styles={styles} />
-                  ) : null}
-                  {showAddAnother && onAddAnother && !locked ? (
+                  {swapPrimary}
+                  {onQuantityChange || quantity > 1 ? (
+                    <QtyStepper
+                      quantity={quantity}
+                      locked={locked}
+                      decrementMode={resolvedDecrement}
+                      onQuantityChange={onQuantityChange}
+                      styles={styles}
+                      colors={colors}
+                    />
+                  ) : showAddAnother && onAddAnother && !locked ? (
                     <ActionChip label="Add more" onPress={onAddAnother} styles={styles} />
                   ) : null}
-                  {onRemove && !locked ? (
-                    <ActionChip label="Remove" onPress={onRemove} styles={styles} />
+                  {!onQuantityChange && onRemove && !locked ? (
+                    <ActionChip
+                      label={resolvedDecrement === 'donate' ? 'Donate' : 'Remove'}
+                      onPress={onRemove}
+                      styles={styles}
+                    />
                   ) : null}
                 </>
               )}
@@ -154,21 +274,32 @@ export function BoxItemRow({
           </View>
         </View>
 
-        {shelfOpen && swappable ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.shelf} contentContainerStyle={styles.shelfContent}>
+        {shelfOpen && swappable && !onPrimarySwapAction ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.shelf}
+            contentContainerStyle={styles.shelfContent}
+          >
             {swapOptions.map((opt) => {
               const selected = opt.id === li.itemId;
               return (
                 <TouchableOpacity
                   key={opt.id}
-                  style={[styles.shelfCard, selected && styles.shelfCardSelected, Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined]}
+                  style={[
+                    styles.shelfCard,
+                    selected && styles.shelfCardSelected,
+                    Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined,
+                  ]}
                   onPress={() => {
                     onSwap(opt);
                     setShelfOpen(false);
                   }}
                 >
                   <BoxItemImage size={48} imageUrl={opt.imageUrl} itemId={opt.id} />
-                  <Text style={styles.shelfName} numberOfLines={2}>{opt.name}</Text>
+                  <Text style={styles.shelfName} numberOfLines={2}>
+                    {opt.name}
+                  </Text>
                   {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
                 </TouchableOpacity>
               );
@@ -176,13 +307,26 @@ export function BoxItemRow({
           </ScrollView>
         ) : null}
 
-        <ItemDetailSheet
-          visible={detailOpen}
-          item={item}
-          lineItem={li}
-          onClose={() => setDetailOpen(false)}
-          onSwap={swappable ? () => { setDetailOpen(false); setShelfOpen(true); } : undefined}
-        />
+        {!onOpenProduct ? (
+          <ItemDetailSheet
+            visible={detailOpen}
+            item={item}
+            lineItem={li}
+            onClose={() => setDetailOpen(false)}
+            onSwap={
+              swappable
+                ? () => {
+                    setDetailOpen(false);
+                    if (onPrimarySwapAction) {
+                      onPrimarySwapAction();
+                      return;
+                    }
+                    setShelfOpen(true);
+                  }
+                : undefined
+            }
+          />
+        ) : null}
       </>
     );
   }
@@ -190,7 +334,7 @@ export function BoxItemRow({
   return (
     <>
       <View style={styles.row}>
-        <TouchableOpacity style={styles.body} onPress={() => setDetailOpen(true)} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.body} onPress={openDetail} activeOpacity={0.85}>
           <BoxItemImage size={56} imageUrl={item?.imageUrl} itemId={item?.id ?? li.itemId} />
           <View style={styles.text}>
             <Text style={styles.name}>{displayName}</Text>
@@ -206,8 +350,10 @@ export function BoxItemRow({
         </TouchableOpacity>
         <View style={styles.actions}>
           {swappable ? (
-            <TouchableOpacity onPress={() => setShelfOpen((v) => !v)} style={styles.swapBtn}>
-              <Text style={styles.swapText}>{shelfOpen ? 'Close' : 'Swap'}</Text>
+            <TouchableOpacity onPress={onPrimarySwapPress} style={styles.swapBtn}>
+              <Text style={styles.swapText}>
+                {onPrimarySwapAction ? primarySwapLabel : shelfOpen ? 'Close' : primarySwapLabel}
+              </Text>
             </TouchableOpacity>
           ) : null}
           {showWrapControls && !locked ? (
@@ -220,7 +366,18 @@ export function BoxItemRow({
         </View>
       </View>
 
-      {showAddAnother && onAddAnother && !locked ? (
+      {onQuantityChange && !locked ? (
+        <View style={styles.defaultQtyWrap}>
+          <QtyStepper
+            quantity={quantity}
+            locked={locked}
+            decrementMode={resolvedDecrement}
+            onQuantityChange={onQuantityChange}
+            styles={styles}
+            colors={colors}
+          />
+        </View>
+      ) : showAddAnother && onAddAnother && !locked ? (
         <TouchableOpacity style={styles.addAnother} onPress={onAddAnother}>
           <Text style={styles.addAnotherText}>+ Add another</Text>
         </TouchableOpacity>
@@ -243,21 +400,32 @@ export function BoxItemRow({
         </View>
       ) : null}
 
-      {shelfOpen && swappable ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.shelf} contentContainerStyle={styles.shelfContent}>
+      {shelfOpen && swappable && !onPrimarySwapAction ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.shelf}
+          contentContainerStyle={styles.shelfContent}
+        >
           {swapOptions.map((opt) => {
             const selected = opt.id === li.itemId;
             return (
               <TouchableOpacity
                 key={opt.id}
-                style={[styles.shelfCard, selected && styles.shelfCardSelected, Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined]}
+                style={[
+                  styles.shelfCard,
+                  selected && styles.shelfCardSelected,
+                  Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined,
+                ]}
                 onPress={() => {
                   onSwap(opt);
                   setShelfOpen(false);
                 }}
               >
                 <BoxItemImage size={48} imageUrl={opt.imageUrl} itemId={opt.id} />
-                <Text style={styles.shelfName} numberOfLines={2}>{opt.name}</Text>
+                <Text style={styles.shelfName} numberOfLines={2}>
+                  {opt.name}
+                </Text>
                 {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
               </TouchableOpacity>
             );
@@ -265,13 +433,26 @@ export function BoxItemRow({
         </ScrollView>
       ) : null}
 
-      <ItemDetailSheet
-        visible={detailOpen}
-        item={item}
-        lineItem={li}
-        onClose={() => setDetailOpen(false)}
-        onSwap={swappable ? () => { setDetailOpen(false); setShelfOpen(true); } : undefined}
-      />
+      {!onOpenProduct ? (
+        <ItemDetailSheet
+          visible={detailOpen}
+          item={item}
+          lineItem={li}
+          onClose={() => setDetailOpen(false)}
+          onSwap={
+            swappable
+              ? () => {
+                  setDetailOpen(false);
+                  if (onPrimarySwapAction) {
+                    onPrimarySwapAction();
+                    return;
+                  }
+                  setShelfOpen(true);
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </>
   );
 }
@@ -279,9 +460,16 @@ export function BoxItemRow({
 function createBoxItemRowStyles(colors: SemanticColors) {
   return StyleSheet.create({
     cardRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'stretch', width: '100%' },
-    cardImageWrap: { flex: 1, minHeight: 130, maxHeight: 130, borderRadius: borderRadius.md, overflow: 'hidden' },
+    cardImageWrap: {
+      width: 112,
+      minHeight: 112,
+      maxHeight: 130,
+      borderRadius: borderRadius.md,
+      overflow: 'hidden',
+      flexShrink: 0,
+    },
     cardImage: { width: '100%', height: '100%', borderRadius: borderRadius.md },
-    cardBody: { flex: 1, justifyContent: 'space-between', gap: spacing.sm },
+    cardBody: { flex: 1, justifyContent: 'space-between', gap: 4 },
     /** Desktop web — image on top, copy below; sits in a side-by-side grid. */
     tileCard: {
       flexDirection: 'column',
@@ -297,26 +485,98 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       backgroundColor: colors.bgElevated,
     },
     tileImage: { width: '100%', height: '100%', borderRadius: borderRadius.xxl },
-    tileBody: { width: '100%', gap: spacing.sm },
+    tileBody: { width: '100%', gap: 4 },
     cardTop: { gap: 4 },
-    cardTag: { fontSize: typography.sm, color: colors.goldMuted, ...typeface('regular'), letterSpacing: -0.33 },
-    cardName: { fontSize: typography.lg, color: colors.textPrimary, ...typeface('regular'), letterSpacing: -0.26 },
-    cardDesc: { fontSize: typography.sm, color: colors.textPrimary, lineHeight: 16.5, ...typeface('light'), letterSpacing: -0.33 },
-    cardMeta: { fontSize: typography.sm, color: colors.goldMuted, ...typeface('light') },
-    cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.sm },
+    cardTag: {
+      fontSize: typography.sm,
+      color: colors.goldMuted,
+      ...typeface('regular'),
+      letterSpacing: -0.33,
+    },
+    cardName: {
+      fontSize: typography.lg,
+      color: colors.textPrimary,
+      ...typeface('regular'),
+      letterSpacing: -0.26,
+    },
+    cardDesc: {
+      fontSize: typography.sm,
+      color: colors.textPrimary,
+      lineHeight: 16.5,
+      ...typeface('light'),
+      letterSpacing: -0.33,
+    },
+    cardActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 },
+    /** Match qty stepper pill height (~27px). */
     chip: {
       borderWidth: 0.5,
       borderColor: colors.goldMuted,
       borderRadius: borderRadius.pill,
       paddingHorizontal: spacing.sm,
-      paddingVertical: 3,
+      paddingVertical: 0,
+      minHeight: 27,
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: colors.bgPrimary,
     },
     chipPrimary: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
     chipDisabled: { opacity: 0.6 },
-    chipText: { fontSize: 9, color: colors.goldMuted, ...typeface('regular'), letterSpacing: -0.18, textTransform: 'lowercase' },
+    chipText: {
+      fontSize: 9,
+      color: colors.goldMuted,
+      ...typeface('regular'),
+      letterSpacing: -0.18,
+      textTransform: 'lowercase',
+    },
     chipTextPrimary: { color: colors.goldMuted },
-    row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    qtyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderWidth: 0.5,
+      borderColor: colors.goldMuted,
+      borderRadius: borderRadius.pill,
+      paddingHorizontal: 4,
+      paddingVertical: 0,
+      minHeight: 27,
+      backgroundColor: colors.bgPrimary,
+    },
+    qtyBtn: {
+      minWidth: 22,
+      minHeight: 27,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+    },
+    qtyBtnDonate: { minWidth: 44 },
+    qtyBtnText: {
+      fontSize: 12,
+      color: colors.goldMuted,
+      ...typeface('regular'),
+      lineHeight: 14,
+    },
+    qtyBtnTextDonate: { fontSize: 9, letterSpacing: -0.18, textTransform: 'lowercase' },
+    qtyValue: {
+      fontSize: 11,
+      color: colors.textPrimary,
+      ...typeface('medium'),
+      minWidth: 14,
+      textAlign: 'center',
+    },
+    qtyReadonly: {
+      fontSize: typography.sm,
+      color: colors.goldMuted,
+      ...typeface('regular'),
+    },
+    defaultQtyWrap: { paddingLeft: 64, marginBottom: spacing.xs },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
     body: { flex: 1, flexDirection: 'row', gap: spacing.sm },
     text: { flex: 1 },
     name: { fontWeight: '600', fontSize: typography.lg },
@@ -331,7 +591,13 @@ function createBoxItemRowStyles(colors: SemanticColors) {
     surpriseBtn: { paddingHorizontal: spacing.xs },
     surpriseBtnText: { fontSize: typography.sm, color: colors.textSecondary },
     keepRow: { flexDirection: 'row', gap: spacing.xs, paddingLeft: 64, marginBottom: spacing.xs },
-    keepBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.pill, paddingHorizontal: spacing.sm, paddingVertical: 4 },
+    keepBtn: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+    },
     keepBtnOn: { borderColor: colors.brand, backgroundColor: colors.brandLight },
     keepText: { fontSize: typography.sm, color: colors.textSecondary },
     addAnother: { paddingVertical: spacing.xs, paddingLeft: 64 },

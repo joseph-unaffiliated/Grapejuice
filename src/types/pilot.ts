@@ -85,6 +85,12 @@ export type ChildProfile = {
   id: string;
   name?: string;
   ageGroup: AgeGroup;
+  /**
+   * Exact age for gift/book/dreidel planners when the intake band alone is too coarse
+   * (e.g. preview smoke tests: band `3-5` with plannerAge 4 → airdry, not age-5 stuffie).
+   * Not persisted to Firestore; client/preview only.
+   */
+  plannerAge?: number;
   /** ISO date YYYY-MM-DD — canonical; `birthday` is legacy alias. */
   birthdate?: string;
   /** @deprecated Use birthdate */
@@ -149,6 +155,17 @@ export type CatalogItem = {
   materials?: string;
   whatsIncluded?: string;
   careNotes?: string;
+  /** Airtable "Default slot" when synced — preferred by boxRules resolution. */
+  defaultSlot?: string | null;
+  /** Airtable "Box sections" multi-select when synced. */
+  boxSections?: string[];
+  /** Airtable "Default book ages" when synced. */
+  defaultBookAges?: Array<string | number>;
+  /** Airtable "Default gift ages" when synced. */
+  defaultGiftAges?: Array<string | number>;
+  inventory?: number | null;
+  holdInventory?: boolean | null;
+  wrappable?: boolean | null;
 };
 
 /** Box journey on Home — derived from draft + order data */
