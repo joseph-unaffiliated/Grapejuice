@@ -46,6 +46,45 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'A–Z' },
 ];
 
+function FilterChipButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.filterChip, active && styles.filterChipActive]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
+      {/* Invisible medium text reserves width so bolding doesn't reflow the row */}
+      <View>
+        <Text
+          style={[styles.filterChipText, styles.filterChipTextSizer]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {label}
+        </Text>
+        <Text
+          style={[
+            styles.filterChipText,
+            active && styles.filterChipTextActive,
+            styles.filterChipTextOverlay,
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function sortItems(items: CatalogItem[], sort: SortKey): CatalogItem[] {
   const next = [...items];
   switch (sort) {
@@ -174,24 +213,14 @@ export function StorefrontCategoryScreen() {
               <View key={group.id} style={styles.facetBlock}>
                 <Text style={styles.filterLabel}>{group.label}</Text>
                 <View style={styles.chipRow}>
-                  {group.options.map((opt) => {
-                    const active = opt.key === selected;
-                    return (
-                      <TouchableOpacity
-                        key={opt.key}
-                        style={[styles.filterChip, active && styles.filterChipActive]}
-                        onPress={() => setFacet(group.id, opt.key)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <Text
-                          style={[styles.filterChipText, active && styles.filterChipTextActive]}
-                        >
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {group.options.map((opt) => (
+                    <FilterChipButton
+                      key={opt.key}
+                      label={opt.label}
+                      active={opt.key === selected}
+                      onPress={() => setFacet(group.id, opt.key)}
+                    />
+                  ))}
                 </View>
               </View>
             );
@@ -200,22 +229,14 @@ export function StorefrontCategoryScreen() {
           <View style={styles.facetBlock}>
             <Text style={styles.filterLabel}>Sort</Text>
             <View style={styles.chipRow}>
-              {SORT_OPTIONS.map((opt) => {
-                const active = opt.key === sort;
-                return (
-                  <TouchableOpacity
-                    key={opt.key}
-                    style={[styles.filterChip, active && styles.filterChipActive]}
-                    onPress={() => setSort(opt.key)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {SORT_OPTIONS.map((opt) => (
+                <FilterChipButton
+                  key={opt.key}
+                  label={opt.label}
+                  active={opt.key === sort}
+                  onPress={() => setSort(opt.key)}
+                />
+              ))}
             </View>
           </View>
         </View>
@@ -341,6 +362,14 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     ...typeface('medium'),
     color: semanticColors.logoDark,
+  },
+  filterChipTextSizer: {
+    ...typeface('medium'),
+    opacity: 0,
+  },
+  filterChipTextOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    textAlign: 'center',
   },
   loader: { marginVertical: spacing.xl },
   empty: {

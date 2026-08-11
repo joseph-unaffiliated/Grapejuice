@@ -2,24 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  Modal,
-  Pressable,
   TouchableOpacity,
   Animated,
   Platform,
-  useWindowDimensions,
   Text,
   Easing,
 } from 'react-native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../chat/PilotAIChatSheet';
-import {
-  LAYOUT,
-  semanticColors,
-  spacing,
-  typeface,
-} from '../../constants/theme';
+import { semanticColors, spacing, typeface } from '../../constants/theme';
 
 type Props = {
   visible: boolean;
@@ -27,16 +19,27 @@ type Props = {
   /** When set with a new nonce, start a chat and send this as the first message. */
   initialMessage?: string;
   initialMessageNonce?: number;
+  /** Panel width (desktop docked or mobile overlay). */
+  width: number;
+  /**
+   * Offset from the top of the storefront shell so Rav sits below in-flow / pinned
+   * header chrome rather than covering it.
+   */
+  topInset?: number;
+  /**
+   * Desktop: participate in the row layout and shift page content.
+   * Mobile: absolute overlay (page stays mounted/scrollable underneath).
+   */
+  docked?: boolean;
 };
 
 type RavView = 'welcome' | 'recent' | 'thread';
 
 const DRAWER_MS = 280;
-const DESKTOP_DRAWER_MAX = 520;
 
 /**
- * Rav chat drawer — full-width on mobile; right side panel on desktop.
- * Chrome: history toggle (menu ↔ back) top-left, close top-right.
+ * Rav chat pane — docked side panel on desktop; absolute sheet on mobile.
+ * Not a Modal: the storefront page stays interactive and scrollable.
  *
  * When opening with an Ask Rav question, the pane stays hidden until the chat
  * reports thread view (seeded user bubble + thinking) so welcome/history never flash.
@@ -46,12 +49,10 @@ export function StorefrontRavDrawer({
   onClose,
   initialMessage,
   initialMessageNonce = 0,
+  width: drawerWidth,
+  topInset = 0,
+  docked = true,
 }: Props) {
-  const { width } = useWindowDimensions();
-  const compact = width < LAYOUT.BREAKPOINT_TABLET;
-  const drawerWidth = compact
-    ? width
-    : Math.min(DESKTOP_DRAWER_MAX, Math.round(width * 0.48));
   const slide = useRef(new Animated.Value(0)).current;
   const chatRef = useRef<PilotAIChatSheetRef>(null);
   const [mounted, setMounted] = useState(false);
@@ -76,7 +77,6 @@ export function StorefrontRavDrawer({
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      // Avoid treating a prior session's "thread" as ready for a new bootstrap.
       if (bootstrapMessage) setRavView('welcome');
       setUiRevealed(!bootstrapMessage);
       return;
@@ -86,7 +86,7 @@ export function StorefrontRavDrawer({
       toValue: 0,
       duration: DRAWER_MS,
       easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: false, // width + translate share this value on docked layout
     }).start(({ finished }) => {
       if (finished) setMounted(false);
     });
@@ -99,11 +99,10 @@ export function StorefrontRavDrawer({
       toValue: 1,
       duration: DRAWER_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [visible, uiRevealed, slide]);
 
-  // Reveal once bootstrapped chat is on the thread (user bubble + thinking).
   useEffect(() => {
     if (!visible || !bootstrapping) return;
     if (ravView === 'thread') {
@@ -111,7 +110,6 @@ export function StorefrontRavDrawer({
     }
   }, [visible, bootstrapping, ravView]);
 
-  // Safety: don't leave the drawer invisible forever.
   useEffect(() => {
     if (!visible || !bootstrapping || uiRevealed) return;
     const t = setTimeout(() => setUiRevealed(true), 1500);
@@ -121,87 +119,127 @@ export function StorefrontRavDrawer({
   if (!mounted) return null;
 
   const historyOpen = ravView === 'recent';
+  const panelWidth = slide.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, drawerWidth],
+  });
   const translateX = slide.interpolate({
     inputRange: [0, 1],
     outputRange: [drawerWidth, 0],
   });
-  const backdropOpacity = slide.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 0.4],
-  });
 
+  const chrome = (
+    <View style={styles.chrome}>
+      <TouchableOpacity
+        style={styles.chromeHit}
+        onPress={onHistoryToggle}
+        accessibilityRole="button"
+        accessibilityLabel={historyOpen ? 'Back to Rav' : 'Chat history'}
+      >
+        <Icon
+          icon={historyOpen ? icons.arrowLeft : icons.menu}
+          size={18}
+          color={semanticColors.logoDark}
+        />
+      </TouchableOpacity>
+      <Text style={styles.chromeTitle}>Rav</Text>
+      <TouchableOpacity
+        style={styles.chromeHit}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close Rav"
+      >
+        <Icon icon={icons.close} size={18} color={semanticColors.logoDark} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const chat = (
+    <View style={styles.chat}>
+      <PilotAIChatSheet
+        key={initialMessageNonce || 'rav-idle'}
+        ref={chatRef}
+        embedded
+        externalHistoryChrome
+        bootstrapMessage={bootstrapMessage}
+        onViewChange={onViewChange}
+      />
+    </View>
+  );
+
+  if (docked) {
+    // Reserve horizontal space (shifts page) while inner panel stays full drawer width.
+    // Width is driven only by `slide` so open/close animate; opacity hides bootstrap flash.
+    return (
+      <Animated.View
+        style={[
+          styles.dockShell,
+          {
+            width: panelWidth,
+            paddingTop: topInset,
+            opacity: bootstrapping && !uiRevealed ? 0 : 1,
+          },
+        ]}
+        pointerEvents={uiRevealed ? 'auto' : 'none'}
+        accessibilityLabel="Rav chat"
+      >
+        <View style={[styles.dockInner, { width: drawerWidth }]}>
+          {chrome}
+          {chat}
+        </View>
+      </Animated.View>
+    );
+  }
+
+  // Mobile: absolute sheet — no Modal, so body scroll is never locked.
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.root} pointerEvents={uiRevealed ? 'auto' : 'none'}>
-        <Animated.View
-          style={[
-            styles.backdrop,
-            { opacity: uiRevealed ? backdropOpacity : 0 },
-          ]}
-        >
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close Rav" />
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.drawer,
-            {
-              width: drawerWidth,
-              transform: [{ translateX: uiRevealed ? translateX : drawerWidth }],
-              opacity: uiRevealed ? 1 : 0,
-            },
-          ]}
-          accessibilityLabel="Rav chat"
-        >
-          <View style={styles.chrome}>
-            <TouchableOpacity
-              style={styles.chromeHit}
-              onPress={onHistoryToggle}
-              accessibilityRole="button"
-              accessibilityLabel={historyOpen ? 'Back to Rav' : 'Chat history'}
-            >
-              <Icon
-                icon={historyOpen ? icons.arrowLeft : icons.menu}
-                size={18}
-                color={semanticColors.logoDark}
-              />
-            </TouchableOpacity>
-            <Text style={styles.chromeTitle}>Rav</Text>
-            <TouchableOpacity
-              style={styles.chromeHit}
-              onPress={onClose}
-              accessibilityRole="button"
-              accessibilityLabel="Close Rav"
-            >
-              <Icon icon={icons.close} size={18} color={semanticColors.logoDark} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.chat}>
-            <PilotAIChatSheet
-              key={initialMessageNonce || 'rav-idle'}
-              ref={chatRef}
-              embedded
-              externalHistoryChrome
-              bootstrapMessage={bootstrapMessage}
-              onViewChange={onViewChange}
-            />
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
+    <Animated.View
+      style={[
+        styles.overlaySheet,
+        {
+          width: drawerWidth,
+          top: topInset,
+          transform: [{ translateX }],
+          opacity: bootstrapping && !uiRevealed ? 0 : 1,
+        },
+      ]}
+      pointerEvents={uiRevealed ? 'auto' : 'none'}
+      accessibilityLabel="Rav chat"
+    >
+      {chrome}
+      {chat}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000000',
+  dockShell: {
+    flexShrink: 0,
+    height: '100%',
+    overflow: 'hidden',
+    backgroundColor: semanticColors.bgPrimary,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: semanticColors.border,
+    ...(Platform.OS === 'web'
+      ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.12)' } as object)
+      : {
+          shadowColor: '#110222',
+          shadowOffset: { width: -6, height: 0 },
+          shadowOpacity: 0.12,
+          shadowRadius: 16,
+          elevation: 8,
+        }),
   },
-  drawer: {
+  dockInner: {
+    flex: 1,
+    minHeight: 0,
+    height: '100%',
+  },
+  overlaySheet: {
     position: 'absolute',
-    top: 0,
     right: 0,
     bottom: 0,
+    zIndex: 15,
     backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)' } as object)

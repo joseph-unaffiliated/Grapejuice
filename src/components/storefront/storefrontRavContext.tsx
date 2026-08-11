@@ -7,11 +7,13 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import { StorefrontRavDrawer } from './StorefrontRavDrawer';
 
 type StorefrontRavContextValue = {
   openRav: (initialMessage?: string) => void;
   closeRav: () => void;
+  visible: boolean;
+  initialMessage?: string;
+  initialMessageNonce: number;
 };
 
 const StorefrontRavContext = createContext<StorefrontRavContextValue | null>(null);
@@ -47,7 +49,7 @@ type ProviderProps = {
   children: ReactNode;
 };
 
-/** Hosts the Rav drawer so header + page CTAs can open the same pane. */
+/** Holds Rav open state; chrome renders the pane in-layout (not a Modal). */
 export function StorefrontRavProvider({ children }: ProviderProps) {
   const [visible, setVisible] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | undefined>();
@@ -71,17 +73,18 @@ export function StorefrontRavProvider({ children }: ProviderProps) {
     };
   }, [openRav]);
 
-  const value = useMemo(() => ({ openRav, closeRav }), [openRav, closeRav]);
+  const value = useMemo(
+    () => ({
+      openRav,
+      closeRav,
+      visible,
+      initialMessage,
+      initialMessageNonce: messageNonce,
+    }),
+    [openRav, closeRav, visible, initialMessage, messageNonce]
+  );
 
   return (
-    <StorefrontRavContext.Provider value={value}>
-      {children}
-      <StorefrontRavDrawer
-        visible={visible}
-        onClose={closeRav}
-        initialMessage={initialMessage}
-        initialMessageNonce={messageNonce}
-      />
-    </StorefrontRavContext.Provider>
+    <StorefrontRavContext.Provider value={value}>{children}</StorefrontRavContext.Provider>
   );
 }
