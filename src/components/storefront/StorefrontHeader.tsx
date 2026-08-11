@@ -31,7 +31,7 @@ type Props = {
   onLogoPress?: () => void;
 };
 
-/** Fixed side column width so the centered search sits on the true screen midpoint. */
+/** Preferred side column width on a wide desktop row. */
 const SIDE_COL = 340;
 /** Tighter horizontal inset on mobile header only. */
 const MOBILE_HEADER_GUTTER = 16;
@@ -39,6 +39,19 @@ const RAV_BTN = SEARCH_PILL_HEIGHT;
 const SEARCH_GO_SIZE = 28;
 const SEARCH_TRAILING_WIDTH = 28;
 const SEARCH_LEADING_WIDTH = 20;
+/** Floor for the desktop search pill — below this we collapse to the mobile header. */
+const SEARCH_MIN_WIDTH = 200;
+/** Logo column can compress to mark + truncated wordmark. */
+const SIDE_MIN_LEFT = 148;
+/** Account + cart buttons. */
+const SIDE_MIN_RIGHT = 36 + spacing.sm + 36;
+const SEARCH_CLUSTER_MIN = SEARCH_MIN_WIDTH + RAV_BTN + spacing.sm;
+const SEARCH_CLUSTER_MAX = SIDE_COL + RAV_BTN + spacing.sm;
+
+function canFitDesktopSearch(windowWidth: number): boolean {
+  const contentW = windowWidth - MOBILE_GUTTER * 2;
+  return contentW >= SIDE_MIN_LEFT + SIDE_MIN_RIGHT + SEARCH_CLUSTER_MIN + spacing.sm * 2;
+}
 
 /**
  * Desktop: logo left, centered SearchPill + Rav, account menu right.
@@ -50,7 +63,7 @@ export function StorefrontHeader({ onLogoPress }: Props) {
   const [query, setQuery] = useState('');
   const [navOpen, setNavOpen] = useState(false);
   const { width } = useWindowDimensions();
-  const compact = width < LAYOUT.BREAKPOINT_TABLET;
+  const compact = width < LAYOUT.BREAKPOINT_TABLET || !canFitDesktopSearch(width);
 
   const submitSearch = () => {
     const msg = query.trim();
@@ -116,7 +129,9 @@ export function StorefrontHeader({ onLogoPress }: Props) {
       accessibilityLabel="Grapejuice store home"
     >
       <GrapejuiceBrandMark markOnly compact color={semanticColors.logoDark} />
-      <Text style={styles.wordmark}>Grapejuice</Text>
+      <Text style={styles.wordmark} numberOfLines={1} ellipsizeMode="tail">
+        Grapejuice
+      </Text>
     </TouchableOpacity>
   );
 
@@ -216,31 +231,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   sideLeft: {
-    width: SIDE_COL,
-    maxWidth: '38%',
+    flexGrow: 1,
+    flexShrink: 2,
+    flexBasis: SIDE_COL,
+    minWidth: SIDE_MIN_LEFT,
+    maxWidth: SIDE_COL,
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 0,
     zIndex: 1,
   },
   sideRight: {
-    width: SIDE_COL,
-    maxWidth: '38%',
+    flexGrow: 1,
+    flexShrink: 2,
+    flexBasis: SIDE_COL,
+    minWidth: SIDE_MIN_RIGHT,
+    maxWidth: SIDE_COL,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: spacing.sm,
-    flexShrink: 0,
     zIndex: 5,
   },
   sideRightCompact: {
-    width: undefined,
-    maxWidth: undefined,
+    flexGrow: 0,
     flexShrink: 0,
+    flexBasis: 'auto',
+    minWidth: undefined,
+    maxWidth: undefined,
   },
   searchMiddle: {
-    flex: 1,
-    minWidth: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: SEARCH_CLUSTER_MAX,
+    minWidth: SEARCH_CLUSTER_MIN,
+    maxWidth: SEARCH_CLUSTER_MAX,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 0,
@@ -250,7 +274,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     width: '100%',
-    maxWidth: SIDE_COL + RAV_BTN + spacing.sm,
   },
   searchClusterMobile: {
     flexDirection: 'row',
@@ -260,8 +283,7 @@ const styles = StyleSheet.create({
   },
   searchWrapDesktop: {
     flex: 1,
-    minWidth: 0,
-    maxWidth: SIDE_COL,
+    minWidth: SEARCH_MIN_WIDTH,
   },
   searchWrapMobile: {
     flex: 1,
@@ -292,11 +314,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     flexShrink: 1,
     minWidth: 0,
+    maxWidth: '100%',
   },
   wordmark: {
     ...typeface('bold'),
     fontSize: 22,
     color: semanticColors.logoDark,
     letterSpacing: -0.5,
+    flexShrink: 1,
+    minWidth: 0,
   },
 });

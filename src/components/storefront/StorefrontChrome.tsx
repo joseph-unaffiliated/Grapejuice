@@ -12,6 +12,7 @@ import {
   Platform,
   ScrollView,
   Animated,
+  useWindowDimensions,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
   type LayoutChangeEvent,
@@ -23,11 +24,17 @@ import { StorefrontHeader } from './StorefrontHeader';
 import { StorefrontServicesNav, type StorefrontServiceId } from './StorefrontServicesNav';
 import { StorefrontCategoryNav } from './StorefrontCategoryNav';
 import { StorefrontFooter } from './StorefrontFooter';
-import { StorefrontRavProvider, isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
+import { StorefrontRavDrawer } from './StorefrontRavDrawer';
+import {
+  StorefrontRavProvider,
+  useStorefrontRav,
+  isStorefrontRavOpenable,
+  openStorefrontRav,
+} from './storefrontRavContext';
 import type { MainStackParamList } from '../../navigation/types';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { semanticColors } from '../../constants/theme';
+import { LAYOUT, semanticColors } from '../../constants/theme';
 import {
   STOREFRONT_SCROLL_CLASS,
   STOREFRONT_H_SCROLL_CLASS,
@@ -75,12 +82,15 @@ function StorefrontChromeBlocks({
 }
 
 const SCROLL_DIR_THRESHOLD = 6;
+const TOP_SHOW_Y = 24;
+const DESKTOP_RAV_MAX = 520;
 
 /**
- * Storefront shell: one page ScrollView.
- * Chrome scrolls away with the page; on scroll-up mid-page it reappears as a pinned bar
- * only after the in-flow chrome has fully left the viewport (avoids a double header).
- * Footer is normal document flow at the bottom of the page (never fixed).
+ * Storefront shell: one shared chrome band above the page + Rav row.
+ *
+ * There is no separate “in-flow” vs “sticky” copy — the same header collapses on
+ * scroll-down and expands on scroll-up / at the top, so returning to y=0 never snaps
+ * between two stacks. Chrome always sits above Rav (layout sibling, not an overlay race).
  */
 export function StorefrontChrome(props: Props) {
   return (
@@ -100,14 +110,27 @@ function StorefrontChromeInner({
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { width: windowWidth } = useWindowDimensions();
+  const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
+  const {
+    visible: ravVisible,
+    closeRav,
+    initialMessage,
+    initialMessageNonce,
+  } = useStorefrontRav();
 
   const lastY = useRef(0);
   const chromeHeight = useRef(0);
   const [chromeH, setChromeH] = useState(0);
-  const [pinned, setPinned] = useState(false);
-  const pinnedRef = useRef(false);
-  const pinProgress = useRef(new Animated.Value(0)).current;
-  const pinAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const chromeShown = useRef(true);
+  const [chromeExpanded, setChromeExpanded] = useState(true);
+  const chromeProgress = useRef(new Animated.Value(1)).current;
+  const chromeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const ravWidth = compact
+    ? windowWidth
+    : Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.48));
 
   const goHome = () => navigation.navigate('StorefrontHome');
 
@@ -151,35 +174,25 @@ function StorefrontChromeInner({
 
   const onChromeLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
+    if (h <= 0) return;
     chromeHeight.current = h;
     setChromeH(h);
   };
 
-  const clearPinned = useCallback(() => {
-    pinnedRef.current = false;
-    pinAnimRef.current?.stop();
-    pinProgress.setValue(0);
-    setPinned(false);
-  }, [pinProgress]);
-
-  const animatePin = useCallback(
+  const animateChrome = useCallback(
     (show: boolean) => {
-      if (pinnedRef.current === show) return;
-      pinnedRef.current = show;
-      pinAnimRef.current?.stop();
-      if (show) setPinned(true);
-      pinAnimRef.current = Animated.timing(pinProgress, {
+      if (chromeShown.current === show) return;
+      chromeShown.current = show;
+      setChromeExpanded(show);
+      chromeAnimRef.current?.stop();
+      chromeAnimRef.current = Animated.timing(chromeProgress, {
         toValue: show ? 1 : 0,
         duration: 220,
-        useNativeDriver: true,
+        useNativeDriver: false, // animating height
       });
-      pinAnimRef.current.start(() => {
-        // Clear even if `finished` is false (common on web) as long as we still
-        // intend to be unpinned — avoids a stuck overlay stacked on in-flow chrome.
-        if (!pinnedRef.current) setPinned(false);
-      });
+      chromeAnimRef.current.start();
     },
-    [pinProgress]
+    [chromeProgress]
   );
 
   const onScroll = useCallback(
@@ -187,70 +200,83 @@ function StorefrontChromeInner({
       const y = e.nativeEvent.contentOffset.y;
       const dy = y - lastY.current;
       lastY.current = y;
-      const h = chromeHeight.current;
+      setScrollY(y);
 
-      // In-flow chrome still on screen — never show the pinned copy (would double).
-      // Require the full chrome height to scroll away before pin is allowed.
-      if (y < Math.max(8, h - 4)) {
-        clearPinned();
+      // Near the top — always keep the one chrome band open (no dual-stack handoff).
+      if (y < TOP_SHOW_Y) {
+        animateChrome(true);
         return;
       }
 
       if (dy > SCROLL_DIR_THRESHOLD) {
-        animatePin(false);
+        animateChrome(false);
       } else if (dy < -SCROLL_DIR_THRESHOLD) {
-        animatePin(true);
+        animateChrome(true);
       }
     },
-    [animatePin, clearPinned]
+    [animateChrome]
   );
 
-  // Drop pinned overlay when this screen is covered (stack keeps prior screens mounted).
   useEffect(() => {
-    if (!isFocused) clearPinned();
-  }, [isFocused, clearPinned]);
+    if (!isFocused) {
+      chromeShown.current = true;
+      setChromeExpanded(true);
+      chromeProgress.setValue(1);
+    }
+  }, [isFocused, chromeProgress]);
 
-  const pinSlide = pinProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-Math.max(chromeH, 80), 0],
-  });
+  const chromeHostHeight =
+    chromeH > 0
+      ? chromeProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, chromeH],
+        })
+      : undefined;
 
-  const showPinned = pinned && isFocused;
+  const chromeElevated = chromeExpanded && scrollY > TOP_SHOW_Y;
 
   return (
     <View style={styles.root} testID="storefront-scroll-host">
-      {showPinned ? (
-        <Animated.View
-          style={[
-            styles.pinnedChrome,
-            {
-              transform: [{ translateY: pinSlide }],
-            },
-          ]}
-          pointerEvents="box-none"
-        >
-          <StorefrontChromeBlocks {...chromeProps} />
-        </Animated.View>
-      ) : null}
-
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        // @ts-expect-error web className
-        className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
-        testID="storefront-vertical-scroll"
+      <Animated.View
+        style={[
+          styles.chromeHost,
+          chromeH > 0 ? { height: chromeHostHeight } : null,
+          chromeElevated ? styles.chromeElevated : null,
+        ]}
+        pointerEvents={chromeExpanded ? 'auto' : 'none'}
       >
         <View onLayout={onChromeLayout} collapsable={false}>
           <StorefrontChromeBlocks {...chromeProps} />
         </View>
-        {children}
-        <StorefrontFooter />
-      </ScrollView>
+      </Animated.View>
+
+      <View style={styles.bodyRow}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          // @ts-expect-error web className
+          className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
+          testID="storefront-vertical-scroll"
+        >
+          {children}
+          <StorefrontFooter />
+        </ScrollView>
+
+        <StorefrontRavDrawer
+          visible={ravVisible}
+          onClose={closeRav}
+          initialMessage={initialMessage}
+          initialMessageNonce={initialMessageNonce}
+          width={ravWidth}
+          topInset={0}
+          docked={!compact}
+        />
+      </View>
     </View>
   );
 }
@@ -302,16 +328,13 @@ const styles = StyleSheet.create({
       ? ({ height: '100%', maxHeight: '100dvh' } as object)
       : null),
   },
-  chromeInner: {
-    backgroundColor: semanticColors.bgPrimary,
-  },
-  pinnedChrome: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+  chromeHost: {
     zIndex: 20,
+    overflow: 'hidden',
     backgroundColor: semanticColors.bgPrimary,
+    flexShrink: 0,
+  },
+  chromeElevated: {
     ...(Platform.OS === 'web'
       ? ({
           boxShadow: '0 4px 16px rgba(17, 2, 34, 0.1)',
@@ -324,8 +347,18 @@ const styles = StyleSheet.create({
           elevation: 6,
         }),
   },
+  chromeInner: {
+    backgroundColor: semanticColors.bgPrimary,
+  },
+  bodyRow: {
+    flex: 1,
+    minHeight: 0,
+    flexDirection: 'row',
+    position: 'relative',
+  },
   scroll: {
     flex: 1,
+    minWidth: 0,
     minHeight: 0,
   },
   scrollContent: {
