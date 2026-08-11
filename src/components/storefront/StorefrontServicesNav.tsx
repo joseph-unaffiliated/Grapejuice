@@ -1,5 +1,13 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import {
   boxLockChipLabel,
   HANUKKAH_BOX_LOCK_YEAR_LABEL,
@@ -7,6 +15,7 @@ import {
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   borderRadius,
+  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -14,21 +23,19 @@ import {
   typography,
 } from '../../constants/theme';
 
-export type StorefrontServiceId = 'new' | 'box' | 'rav' | 'loved' | 'moments';
-
-const SERVICES: { id: StorefrontServiceId; label: string }[] = [
-  { id: 'new', label: 'New' },
-  { id: 'box', label: 'Build a Hanukkah box' },
-  { id: 'loved', label: 'Most loved' },
-  { id: 'moments', label: 'Shop by moment' },
-];
+export type StorefrontServiceId = 'shop' | 'box' | 'passover' | 'story';
 
 type Props = {
   onPress: (id: StorefrontServiceId) => void;
 };
 
+/** Desktop/tablet only — mobile uses the hamburger side menu instead. */
 export function StorefrontServicesNav({ onPress }: Props) {
+  const { width } = useWindowDimensions();
+  const compact = width < LAYOUT.BREAKPOINT_TABLET;
   const lockLabel = useMemo(() => boxLockChipLabel(), []);
+
+  if (compact) return null;
 
   return (
     <View style={styles.root}>
@@ -39,6 +46,15 @@ export function StorefrontServicesNav({ onPress }: Props) {
         // @ts-expect-error web className
         className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
       >
+        <TouchableOpacity
+          style={styles.linkHit}
+          onPress={() => onPress('shop')}
+          accessibilityRole="button"
+          accessibilityLabel="Shop"
+        >
+          <Text style={styles.link}>Shop</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.lockGroup}
           onPress={() => onPress('box')}
@@ -51,17 +67,23 @@ export function StorefrontServicesNav({ onPress }: Props) {
           </View>
         </TouchableOpacity>
 
-        {SERVICES.map((s) => (
-          <TouchableOpacity
-            key={s.id}
-            style={styles.linkHit}
-            onPress={() => onPress(s.id)}
-            accessibilityRole="button"
-            accessibilityLabel={s.label}
-          >
-            <Text style={styles.link}>{s.label}</Text>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity
+          style={styles.linkHit}
+          onPress={() => onPress('passover')}
+          accessibilityRole="button"
+          accessibilityLabel="2027 Passover"
+        >
+          <Text style={styles.link}>2027 Passover</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.linkHit}
+          onPress={() => onPress('story')}
+          accessibilityRole="button"
+          accessibilityLabel="Our story"
+        >
+          <Text style={styles.link}>Our story</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );

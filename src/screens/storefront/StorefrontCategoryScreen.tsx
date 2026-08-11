@@ -3,31 +3,31 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import {
   StorefrontChrome,
   useStorefrontActions,
-  STOREFRONT_H_SCROLL_CLASS,
 } from '../../components/storefront/StorefrontChrome';
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
 import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
 import {
   DEFAULT_STOREFRONT_CATEGORY,
-  STOREFRONT_CATEGORIES,
   filterByStorefrontCategory,
   resolveStorefrontCategorySlug,
   storefrontCategoryBySlug,
 } from '../../constants/storefrontCategories';
+import {
+  applyContextualFilters,
+  contextualFiltersForCategory,
+} from '../../constants/storefrontCategoryFilters';
 import { useCatalog } from '../../hooks/useCatalog';
 import type { MainStackParamList } from '../../navigation/types';
-import type { AgeGroup, CatalogItem } from '../../types/pilot';
+import type { CatalogItem } from '../../types/pilot';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -46,14 +46,6 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'A–Z' },
 ];
 
-const AGE_FILTERS: { key: AgeGroup | 'all'; label: string }[] = [
-  { key: 'all', label: 'All ages' },
-  { key: '0-2', label: '0–2' },
-  { key: '3-5', label: '3–5' },
-  { key: '6-8', label: '6–8' },
-  { key: '9-12', label: '9–12' },
-];
-
 function sortItems(items: CatalogItem[], sort: SortKey): CatalogItem[] {
   const next = [...items];
   switch (sort) {
@@ -68,48 +60,84 @@ function sortItems(items: CatalogItem[], sort: SortKey): CatalogItem[] {
   }
 }
 
+/** Case-insensitive keyword match across common catalog fields. */
+function matchesSearchQuery(item: CatalogItem, q: string): boolean {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  const words = needle.split(/\s+/).filter(Boolean);
+  const hay = [
+    item.name,
+    item.description,
+    item.category,
+    item.brand,
+    item.id,
+    ...(item.curationTags ?? []),
+    ...(item.storefrontRails ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 export function StorefrontCategoryScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'StorefrontCategory'>>();
   const rawSlug = (route.params?.category || DEFAULT_STOREFRONT_CATEGORY).toLowerCase();
+  const searchQuery = (route.params?.q ?? '').trim();
   const slug = resolveStorefrontCategorySlug(rawSlug);
   const def = storefrontCategoryBySlug(slug);
   const { items, loading } = useCatalog();
-  const { goHome, goCategory, askRav, startBox } = useStorefrontActions();
+  const { goHome, askRav, startBox } = useStorefrontActions();
   const [sort, setSort] = useState<SortKey>('relevant');
-  const [ageFilter, setAgeFilter] = useState<AgeGroup | 'all'>('all');
-  const [withImageOnly, setWithImageOnly] = useState(false);
+  const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (rawSlug !== slug) {
-      navigation.replace('StorefrontCategory', { category: slug });
+      navigation.replace('StorefrontCategory', {
+        category: slug,
+        ...(searchQuery ? { q: searchQuery } : null),
+      });
     }
-  }, [navigation, rawSlug, slug]);
+  }, [navigation, rawSlug, slug, searchQuery]);
 
   useEffect(() => {
     navigation.setOptions({
-      title: def?.label ?? def?.title ?? 'Store',
+      title: searchQuery
+        ? `Search: ${searchQuery}`
+        : def?.label ?? def?.title ?? 'Store',
     });
-  }, [navigation, def?.label, def?.title]);
+  }, [navigation, def?.label, def?.title, searchQuery]);
 
-  const categoryItems = useMemo(
-    () => filterByStorefrontCategory(items, slug),
-    [items, slug]
+  useEffect(() => {
+    setFacetFilters({});
+    setSort('relevant');
+  }, [slug, searchQuery]);
+
+  const categoryItems = useMemo(() => {
+    const base = filterByStorefrontCategory(items, slug);
+    if (!searchQuery) return base;
+    return base.filter((item) => matchesSearchQuery(item, searchQuery));
+  }, [items, slug, searchQuery]);
+
+  const contextualGroups = useMemo(
+    () => contextualFiltersForCategory(slug, categoryItems),
+    [slug, categoryItems]
   );
 
   const filtered = useMemo(() => {
-    let list = categoryItems;
-    if (ageFilter !== 'all') {
-      list = list.filter((item) => item.ageGroups?.includes(ageFilter));
-    }
-    if (withImageOnly) {
-      list = list.filter((item) => Boolean(item.imageUrl?.trim()));
-    }
-    return sortItems(list, sort);
-  }, [categoryItems, sort, ageFilter, withImageOnly]);
+    const faceted = applyContextualFilters(categoryItems, slug, facetFilters);
+    return sortItems(faceted, sort);
+  }, [categoryItems, slug, facetFilters, sort]);
 
-  const title = def?.title ?? 'Shop';
-  const description = def?.description ?? '';
+  const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';
+  const description = searchQuery
+    ? `${filtered.length} item${filtered.length === 1 ? '' : 's'} in ${def?.label ?? 'the store'}`
+    : def?.description ?? '';
+
+  const setFacet = (groupId: string, key: string) => {
+    setFacetFilters((prev) => ({ ...prev, [groupId]: key }));
+  };
 
   return (
     <StorefrontChrome activeCategory={slug}>
@@ -119,38 +147,15 @@ export function StorefrontCategoryScreen() {
             Store
           </Text>
           <Text style={styles.crumbSep}> / </Text>
-          <Text style={styles.crumbCurrent}>{def?.label ?? slug}</Text>
+          <Text style={styles.crumbCurrent}>
+            {searchQuery ? `“${searchQuery}”` : def?.label ?? slug}
+          </Text>
         </View>
 
         <View style={styles.headingBlock}>
           <Text style={styles.title}>{title}</Text>
           {description ? <Text style={styles.description}>{description}</Text> : null}
         </View>
-
-        {/* Browse other categories */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.catChips}
-          // @ts-expect-error web className
-          className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
-        >
-          {STOREFRONT_CATEGORIES.map((c) => {
-            const active = c.slug === slug;
-            return (
-              <TouchableOpacity
-                key={c.slug}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => goCategory(c.slug)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={c.label}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
 
         <View style={styles.toolbar}>
           <Text style={styles.count}>
@@ -163,55 +168,55 @@ export function StorefrontCategoryScreen() {
                 }`}
           </Text>
 
-          <Text style={styles.filterLabel}>Age</Text>
-          <View style={styles.chipRow}>
-            {AGE_FILTERS.map((opt) => {
-              const active = opt.key === ageFilter;
-              return (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[styles.filterChip, active && styles.filterChipActive]}
-                  onPress={() => setAgeFilter(opt.key)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {contextualGroups.map((group) => {
+            const selected = facetFilters[group.id] ?? 'all';
+            return (
+              <View key={group.id} style={styles.facetBlock}>
+                <Text style={styles.filterLabel}>{group.label}</Text>
+                <View style={styles.chipRow}>
+                  {group.options.map((opt) => {
+                    const active = opt.key === selected;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.filterChip, active && styles.filterChipActive]}
+                        onPress={() => setFacet(group.id, opt.key)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text
+                          style={[styles.filterChipText, active && styles.filterChipTextActive]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
 
-          <TouchableOpacity
-            style={[styles.filterChip, withImageOnly && styles.filterChipActive]}
-            onPress={() => setWithImageOnly((v) => !v)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: withImageOnly }}
-          >
-            <Text style={[styles.filterChipText, withImageOnly && styles.filterChipTextActive]}>
-              With photo
-            </Text>
-          </TouchableOpacity>
-
-          <Text style={styles.filterLabel}>Sort</Text>
-          <View style={styles.chipRow}>
-            {SORT_OPTIONS.map((opt) => {
-              const active = opt.key === sort;
-              return (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[styles.filterChip, active && styles.filterChipActive]}
-                  onPress={() => setSort(opt.key)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+          <View style={styles.facetBlock}>
+            <Text style={styles.filterLabel}>Sort</Text>
+            <View style={styles.chipRow}>
+              {SORT_OPTIONS.map((opt) => {
+                const active = opt.key === sort;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.filterChip, active && styles.filterChipActive]}
+                    onPress={() => setSort(opt.key)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
 
@@ -221,12 +226,18 @@ export function StorefrontCategoryScreen() {
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Nothing matches</Text>
             <Text style={styles.emptyBody}>
-              Try clearing filters, or ask Rav what to look at in {def?.label ?? 'this aisle'}.
+              {searchQuery
+                ? `No products matched “${searchQuery}”. Try another term, or ask Rav for ideas.`
+                : `Try clearing filters, or ask Rav what to look at in ${def?.label ?? 'this aisle'}.`}
             </Text>
             <TouchableOpacity
               style={styles.emptyCta}
               onPress={() =>
-                askRav(`Help me find something in ${def?.label ?? 'the store'} for my household`)
+                askRav(
+                  searchQuery
+                    ? `Help me find something like “${searchQuery}” for my household`
+                    : `Help me find something in ${def?.label ?? 'the store'} for my household`
+                )
               }
               accessibilityRole="button"
             >
@@ -286,38 +297,13 @@ const styles = StyleSheet.create({
     color: semanticColors.textSecondary,
     lineHeight: 22,
   },
-  catChips: {
-    paddingHorizontal: MOBILE_GUTTER,
-    gap: spacing.sm,
-    paddingBottom: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-    backgroundColor: semanticColors.bgPrimary,
-    flexShrink: 0,
-  },
-  chipActive: {
-    backgroundColor: semanticColors.logoDark,
-    borderColor: semanticColors.logoDark,
-  },
-  chipText: {
-    ...typeface('medium'),
-    fontSize: typography.sm,
-    color: semanticColors.logoDark,
-  },
-  chipTextActive: {
-    color: semanticColors.textInverse,
-  },
   toolbar: {
     paddingHorizontal: MOBILE_GUTTER,
     marginBottom: spacing.md,
     gap: spacing.sm,
+  },
+  facetBlock: {
+    gap: spacing.xs,
   },
   count: {
     ...typeface('regular'),
@@ -329,7 +315,6 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     fontSize: typography.sm,
     color: semanticColors.logoDark,
-    marginTop: spacing.xs,
   },
   chipRow: {
     flexDirection: 'row',

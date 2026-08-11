@@ -84,6 +84,14 @@ type Props = {
   embedded?: boolean;
   bottomInset?: number;
   onOpenCompanionPane?: (input: OpenRavCompanionPaneInput) => void;
+  /** Parent chrome owns history back — hide the in-sheet back beside “Recent chats”. */
+  externalHistoryChrome?: boolean;
+  onViewChange?: (view: RavView) => void;
+  /**
+   * When set on mount, skip welcome/history and open directly on the thread with
+   * this user message + thinking state (used by storefront Ask Rav → drawer).
+   */
+  bootstrapMessage?: string;
 };
 
 export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(function PilotAIChatSheet(
@@ -91,9 +99,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     embedded: _embedded = true,
     bottomInset = 0,
     onOpenCompanionPane,
+    externalHistoryChrome = false,
+    onViewChange,
+    bootstrapMessage,
   },
   ref
 ) {
+  const bootstrap = bootstrapMessage?.trim() ?? '';
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
   const webSidebar = useWebSidebar();
@@ -105,13 +117,15 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const { lineItems, persist } = useBoxDraft();
   const { isChildProfile, activeChild, ravEnabledForActiveChild } = useActiveProfile();
   const insets = useSafeAreaInsets();
-  const [view, setView] = useState<RavView>('welcome');
+  const [view, setView] = useState<RavView>(() => (bootstrap ? 'thread' : 'welcome'));
   const [returnToRecent, setReturnToRecent] = useState(false);
-  const [messages, setMessages] = useState<AIChatMessage[]>([]);
+  const [messages, setMessages] = useState<AIChatMessage[]>(() =>
+    bootstrap ? [{ role: 'user', content: bootstrap }] : []
+  );
   const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [initializing, setInitializing] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(bootstrap));
+  const [initializing, setInitializing] = useState(() => !bootstrap);
   const [error, setError] = useState<string | null>(null);
   const [recentChats, setRecentChats] = useState<AIChatThreadSummary[]>([]);
   const [hanukkahStartsOn, setHanukkahStartsOn] = useState<string | null>(null);
@@ -120,8 +134,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
   const [lastActivityAt, setLastActivityAt] = useState(() => new Date());
   const [welcomeFocused, setWelcomeFocused] = useState(false);
-  const pendingInitialMessage = useRef<string | null>(null);
-  const [pendingSendNonce, setPendingSendNonce] = useState(0);
+  const pendingInitialMessage = useRef<string | null>(bootstrap || null);
+  const [pendingSendNonce, setPendingSendNonce] = useState(() => (bootstrap ? 1 : 0));
   /** Local-only opening assistant bubble not yet written to Firestore. */
   const unpersistedOpeningRef = useRef(false);
   const [focusComposerNonce, setFocusComposerNonce] = useState(0);
@@ -182,14 +196,28 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   }, [clearComposer, isGuest, refreshThreads]);
 
   const startNewChat = useCallback((initialMessage?: string) => {
-    clearComposer();
-    // Don't create a Firestore thread until the first message — empty stubs were
-    // filling listThreads(limit 20) and pushing real chats out of Recent.
     const pending = initialMessage?.trim();
-    if (!pending) return;
+    setError(null);
+    setInput('');
+    setBlockFeedback(null);
+    setThreadId(null);
+    setReturnToRecent(false);
+    setWelcomeFocused(false);
+    unpersistedOpeningRef.current = false;
+    if (!pending) {
+      setMessages([]);
+      setLoading(false);
+      setView('welcome');
+      return;
+    }
+    // Jump straight into the thread with the user bubble + thinking state —
+    // avoids flashing the welcome / recent-chats home first.
+    setMessages([{ role: 'user', content: pending }]);
+    setView('thread');
+    setLoading(true);
     pendingInitialMessage.current = pending;
     setPendingSendNonce((n) => n + 1);
-  }, [clearComposer]);
+  }, []);
 
   const startChatWithOpeningAssistant = useCallback(
     (openingMessage: string) => {
@@ -251,6 +279,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   /** Open on welcome — do not auto-resume the previous thread. */
   useEffect(() => {
     if (isGuest) {
+      // Don't clobber a bootstrapped first message from the storefront Ask Rav strip.
+      if (pendingInitialMessage.current || pendingSendNonce) {
+        setInitializing(false);
+        return;
+      }
       setThreadId(null);
       setMessages([]);
       setView('welcome');
@@ -260,7 +293,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     if (!user?.uid) return;
     void refreshThreads();
     setInitializing(false);
-  }, [isGuest, user?.uid, refreshThreads]);
+  }, [isGuest, user?.uid, refreshThreads, pendingSendNonce]);
+
+  useEffect(() => {
+    onViewChange?.(view);
+  }, [view, onViewChange]);
 
   useEffect(() => {
     if (!setRavSubnav) return;
@@ -317,9 +354,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   );
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, opts?: { fromBootstrap?: boolean }) => {
       const trimmed = text.trim();
-      if (!trimmed || loading) return;
+      if (!trimmed) return;
+      if (loading && !opts?.fromBootstrap) return;
       if (!isGuest && !user?.uid) return;
 
       let activeThreadId = threadId;
@@ -336,14 +374,22 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       setView('thread');
       const userMsg: AIChatMessage = { role: 'user', content: trimmed };
       const prior = messages;
-      setMessages([...prior, userMsg]);
+      const bootstrap =
+        !!opts?.fromBootstrap &&
+        prior.length === 1 &&
+        prior[0]?.role === 'user' &&
+        prior[0]?.content === trimmed;
+      const historyPrior = bootstrap ? prior.slice(0, -1) : prior;
+      if (!bootstrap) {
+        setMessages([...prior, userMsg]);
+      }
       setLoading(true);
       setLastActivityAt(new Date());
       scrollToEnd();
 
       try {
         const includeOpeningSeed = unpersistedOpeningRef.current;
-        const hasUserInPrior = prior.some((m) => m.role === 'user');
+        const hasUserInPrior = historyPrior.some((m) => m.role === 'user');
         if (!isGuest && !hasUserInPrior && activeThreadId && user?.uid) {
           if (useKidRavThreads && activeChild?.id) {
             await kidRavChatService.updateTitle(user.uid, activeChild.id, activeThreadId, titleFromMessage(trimmed));
@@ -355,7 +401,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         const ravMode =
           !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild ? 'facilitator_kid' : undefined;
         const wantsBoxPane = !ravMode && isBoxViewIntent(trimmed);
-        const recentUserMessages = prior
+        const recentUserMessages = historyPrior
           .filter((m) => m.role === 'user')
           .map((m) => m.content)
           .reverse();
@@ -363,7 +409,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
         const { reply, blocks = [], actions = [], pane: ravPane } = await askRav({
           message: trimmed,
-          conversationHistory: prior.slice(-MAX_HISTORY_TURNS * 2),
+          conversationHistory: historyPrior.slice(-MAX_HISTORY_TURNS * 2),
           boxDraftSummary: ravMode ? undefined : summarizeLineItemsForRav(lineItems),
           mode: ravMode,
           childId: ravMode ? activeChild?.id : undefined,
@@ -531,13 +577,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   useEffect(() => {
     if (!pendingSendNonce) return;
     const pending = pendingInitialMessage.current;
-    if (!pending || loading) return;
+    if (!pending) return;
     pendingInitialMessage.current = null;
     const t = setTimeout(() => {
-      void sendMessage(pending);
+      void sendMessage(pending, { fromBootstrap: true });
     }, 50);
     return () => clearTimeout(t);
-  }, [pendingSendNonce, loading, sendMessage]);
+  }, [pendingSendNonce, sendMessage]);
 
   const showWelcomeUi = view === 'welcome' && messages.length === 0 && !loading;
   const showRecentUi = view === 'recent';
@@ -608,13 +654,15 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           >
             <View style={[styles.recentPageColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
               <View style={styles.recentPageHeader}>
-                <TouchableOpacity
-                  style={[styles.headerIconBtn, goldGlow]}
-                  onPress={showWelcome}
-                  accessibilityLabel="Back to Rav"
-                >
-                  <Icon icon={icons.arrowLeft} size={14} color={colors.textPrimary} />
-                </TouchableOpacity>
+                {externalHistoryChrome ? null : (
+                  <TouchableOpacity
+                    style={[styles.headerIconBtn, goldGlow]}
+                    onPress={showWelcome}
+                    accessibilityLabel="Back to Rav"
+                  >
+                    <Icon icon={icons.arrowLeft} size={14} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                )}
                 <Text style={styles.recentPageTitle}>Recent chats</Text>
               </View>
               {isGuest ? (

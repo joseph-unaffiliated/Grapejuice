@@ -11,6 +11,8 @@ import { AlaCarteStoreScreen } from '../screens/main/AlaCarteStoreScreen';
 import { CatalogProductScreen } from '../screens/main/CatalogProductScreen';
 import { StorefrontHomeScreen } from '../screens/storefront/StorefrontHomeScreen';
 import { StorefrontCategoryScreen } from '../screens/storefront/StorefrontCategoryScreen';
+import { StorefrontOurStoryScreen } from '../screens/storefront/StorefrontOurStoryScreen';
+import { StorefrontPassoverScreen } from '../screens/storefront/StorefrontPassoverScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
@@ -147,6 +149,16 @@ export function MainStack() {
           name="StorefrontCategory"
           component={StorefrontCategoryScreen}
           options={{ title: 'Store' }}
+        />
+        <Stack.Screen
+          name="StorefrontOurStory"
+          component={StorefrontOurStoryScreen}
+          options={{ title: 'Our story' }}
+        />
+        <Stack.Screen
+          name="StorefrontPassover"
+          component={StorefrontPassoverScreen}
+          options={{ title: 'Passover 2027' }}
         />
         <Stack.Screen
           name="CatalogProduct"

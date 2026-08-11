@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { SearchPill } from '../ui/SearchPill';
+import { Icon } from '../ui/Icon';
+import { icons } from '../../constants/icons';
 import {
   MOBILE_GUTTER,
   semanticColors,
@@ -10,21 +12,37 @@ import {
 } from '../../constants/theme';
 
 type Props = {
-  /** Called with the typed question (or a default prompt if empty). */
+  /** Called with the typed question when the user submits. */
   onSubmit: (message: string) => void;
 };
 
-const DEFAULT_ASK =
-  'Help me browse the Hanukkah store — what should I look at first?';
+const ASK_GO_SIZE = 28;
+const ASK_TRAILING_WIDTH = ASK_GO_SIZE + 4;
 
 export function StorefrontAskRavStrip({ onSubmit }: Props) {
   const [query, setQuery] = useState('');
+  const hasText = query.trim().length > 0;
 
   const submit = () => {
     const msg = query.trim();
-    onSubmit(msg || DEFAULT_ASK);
+    if (!msg) return;
+    onSubmit(msg);
     setQuery('');
   };
+
+  const askGo = (
+    <TouchableOpacity
+      style={[styles.askGo, !hasText && styles.askGoHidden]}
+      onPress={submit}
+      disabled={!hasText}
+      pointerEvents={hasText ? 'auto' : 'none'}
+      accessibilityRole="button"
+      accessibilityLabel="Ask Rav"
+      hitSlop={8}
+    >
+      <Icon icon={icons.arrowUp} size={16} color={semanticColors.brand} />
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.root}>
@@ -40,7 +58,10 @@ export function StorefrontAskRavStrip({ onSubmit }: Props) {
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={submit}
-            placeholder="Search or ask a question"
+            placeholder="Ask a question"
+            accessibilityLabel="Ask a question"
+            trailing={askGo}
+            trailingWidth={hasText ? ASK_TRAILING_WIDTH : 0}
           />
         </View>
       </View>
@@ -91,5 +112,14 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 520,
     marginTop: spacing.xs,
+  },
+  askGo: {
+    width: ASK_GO_SIZE,
+    height: ASK_GO_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askGoHidden: {
+    opacity: 0,
   },
 });

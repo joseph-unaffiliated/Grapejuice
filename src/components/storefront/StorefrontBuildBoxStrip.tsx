@@ -140,8 +140,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.xxl + spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: semanticColors.border,
+    borderTopColor: semanticColors.border,
+    // No bottom border — sits flush against the navy footer (hairline read as a white gap).
     minHeight: 340,
     justifyContent: 'center',
     overflow: 'hidden',

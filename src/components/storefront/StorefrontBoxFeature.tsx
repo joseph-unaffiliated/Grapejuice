@@ -116,8 +116,6 @@ const styles = StyleSheet.create({
   root: {
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.xxl,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: semanticColors.border,
     backgroundColor: semanticColors.bgPrimary,
   },
   inner: {

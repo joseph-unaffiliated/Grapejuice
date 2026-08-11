@@ -17,7 +17,7 @@ type PrimaryProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Figma 100:525 — black fill, gold label + hairline border, 8px radius. */
+/** Black fill, gold label + hairline border, pill radius (matches app CTAs). */
 export function OnboardingPrimaryButton({
   label,
   onPress,
@@ -49,7 +49,7 @@ type SecondaryProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Figma 100:528 — gold outline, extralight label. */
+/** Gold outline, extralight label, pill radius. */
 export function OnboardingSecondaryButton({
   label,
   onPress,
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.pill,
     paddingVertical: 12,
     paddingHorizontal: 12,
     alignItems: 'center',
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.pill,
     paddingVertical: 8,
     paddingHorizontal: 12,
     alignItems: 'center',

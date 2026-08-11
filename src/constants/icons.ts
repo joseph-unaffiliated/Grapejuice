@@ -42,6 +42,7 @@ import {
   faMenorah,
   faHeart,
   faPlay,
+  faArrowRightFromBracket,
 } from '@fortawesome/free-solid-svg-icons';
 import { faHeart as faHeartOutline } from '@fortawesome/free-regular-svg-icons';
 
@@ -87,6 +88,7 @@ export const icons = {
   thumbsUp: faThumbsUp,
   utensils: faUtensils,
   dice: faDice,
+  signOut: faArrowRightFromBracket,
 } as const;
 
 export type IconName = keyof typeof icons;

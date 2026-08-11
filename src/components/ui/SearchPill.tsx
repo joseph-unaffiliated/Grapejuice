@@ -68,6 +68,12 @@ type Props = {
   prompts?: readonly string[];
   /** Optional accessibility label for the input. */
   accessibilityLabel?: string;
+  /** Force text alignment (default: centered idle, left when typing). */
+  textAlign?: 'left' | 'center';
+  /** Optional control on the left (e.g. search icon). */
+  leading?: ReactNode;
+  /** Extra left inset when `leading` is set. Default 28. */
+  leadingWidth?: number;
   /** Optional control on the right (e.g. Rav send). Reserves padding so text doesn’t collide. */
   trailing?: ReactNode;
   /** Extra right inset when `trailing` is set. Default 40. */
@@ -118,6 +124,9 @@ export function SearchPill({
   animatePlaceholder = true,
   prompts = RAV_TYPEWRITER_PROMPTS,
   accessibilityLabel = 'Search',
+  textAlign,
+  leading = null,
+  leadingWidth = 28,
   trailing = null,
   trailingWidth = 40,
   contentInsetRight = 0,
@@ -132,6 +141,11 @@ export function SearchPill({
   const hasText = value.trim().length > 0;
   /** Grow when there is typed content; empty / faux typewriter stays single-line. */
   const expanded = hasText;
+  /**
+   * Always multiline so the underlying node never swaps (input ↔ textarea).
+   * Flipping `multiline` remounts on RN Web and steals focus after the first character.
+   */
+  const multiline = true;
   const [focused, setFocused] = useState(false);
   const [fauxText, setFauxText] = useState(placeholder);
   /** True while showing a rotating example (not the default prompt). */
@@ -149,7 +163,9 @@ export function SearchPill({
   const promptList = prompts.length > 0 ? prompts : RAV_TYPEWRITER_PROMPTS;
   const verticalPad = Math.max(0, (SEARCH_PILL_HEIGHT - textLineHeight) / 2);
   const inputMaxHeight = SEARCH_PILL_MAX_HEIGHT - verticalPad * 2;
+  const showLeading = leading != null;
   const showTrailing = trailing != null;
+  const leftInset = showLeading ? leadingWidth : 0;
   const rightInset = showTrailing ? trailingWidth : contentInsetRight;
   const focusInput = useCallback(() => {
     inputRef.current?.focus();
@@ -250,7 +266,7 @@ export function SearchPill({
       runIdRef.current += 1;
       setFauxText(placeholder);
       isDemoRef.current = false;
-      // Keep currentDemoRef until focus handler reads it when stopping for focus.
+      currentDemoRef.current = null;
       setIsDemo(false);
       return;
     }
@@ -268,15 +284,13 @@ export function SearchPill({
   }, [expanded, textLineHeight]);
 
   const onFocus = () => {
-    const demo = isDemoRef.current ? currentDemoRef.current : null;
     setFocused(true);
-    if (demo && !value.trim()) {
-      onChangeText(demo);
-    }
+    currentDemoRef.current = null;
+    isDemoRef.current = false;
     onFocusProp?.();
   };
 
-  /** Web: Enter submits, Shift+Enter inserts a newline when multiline.
+  /** Web: Enter submits, Shift+Enter inserts a newline.
    * RN Web only submits Enter when `!multiline || blurOnSubmit`; use onKeyPress + preventDefault. */
   const handleKeyPress = useCallback(
     (e: {
@@ -286,13 +300,13 @@ export function SearchPill({
       preventDefault?: () => void;
     }) => {
       onKeyPressProp?.(e);
-      if (Platform.OS !== 'web' || !expanded) return;
+      if (Platform.OS !== 'web') return;
       const key = e.key ?? e.nativeEvent?.key;
       if (key !== 'Enter' || e.shiftKey) return;
       e.preventDefault?.();
       onSubmitEditing?.();
     },
-    [expanded, onKeyPressProp, onSubmitEditing],
+    [onKeyPressProp, onSubmitEditing],
   );
 
   const onContentSizeChange = useCallback(
@@ -305,8 +319,8 @@ export function SearchPill({
   );
 
   const showFaux = animatePlaceholder && !hasText && !focused;
-  // Keep idle placeholder centered — right inset is only for the send affordance.
-  const alignLeft = hasText || focused;
+  // Idle placeholder centered unless caller forces left (catalog search).
+  const alignLeft = textAlign === 'left' || (textAlign !== 'center' && (hasText || focused));
   const pillStyle = [
     styles.pill,
     expanded ? styles.pillExpanded : styles.pillCollapsed,
@@ -321,6 +335,11 @@ export function SearchPill({
       onPress={focusInput}
       style={pillStyle}
     >
+      {showLeading ? (
+        <View style={[styles.leading, { width: leadingWidth }]} pointerEvents="none">
+          {leading}
+        </View>
+      ) : null}
       {showFaux ? (
         <Text
           style={[
@@ -332,6 +351,9 @@ export function SearchPill({
               color: colors.textPrimary,
               opacity: isDemo ? DEMO_OPACITY : 1,
             },
+            alignLeft ? styles.fauxLeft : null,
+            leftInset > 0 ? { paddingLeft: MOBILE_GUTTER + leftInset } : null,
+            rightInset > 0 ? { paddingRight: MOBILE_GUTTER + rightInset } : null,
           ]}
           numberOfLines={1}
           pointerEvents="none"
@@ -361,6 +383,7 @@ export function SearchPill({
             maxHeight: inputMaxHeight,
           },
           alignLeft ? styles.inputActive : styles.inputCentered,
+          leftInset > 0 ? { paddingLeft: leftInset } : null,
           rightInset > 0 ? { paddingRight: rightInset } : null,
           showFaux && styles.inputOverFaux,
           expanded && Platform.OS !== 'web' ? styles.inputMultilineNative : null,
@@ -379,15 +402,15 @@ export function SearchPill({
         onContentSizeChange={onContentSizeChange}
         onKeyPress={handleKeyPress}
         returnKeyType={returnKeyType}
-        multiline={expanded}
-        // Native multiline: Enter submits. Web multiline: handled in onKeyPress (Shift+Enter = newline).
-        blurOnSubmit={expanded ? Platform.OS !== 'web' : true}
+        multiline={multiline}
+        // Native: Enter submits. Web: handled in onKeyPress (Shift+Enter = newline).
+        blurOnSubmit={Platform.OS !== 'web'}
         scrollEnabled={expanded}
         accessibilityLabel={accessibilityLabel}
         {...(Platform.OS === 'web'
           ? ({
               className: SEARCH_PILL_INPUT_CLASS,
-              ...(expanded ? { rows: 1 } : null),
+              rows: 1,
             } as object)
           : null)}
       />
@@ -497,9 +520,26 @@ const styles = StyleSheet.create({
   },
   inputCentered: { textAlign: 'center' },
   inputActive: { textAlign: 'left' },
+  fauxLeft: {
+    textAlign: 'left',
+    ...(Platform.OS === 'web'
+      ? ({
+          justifyContent: 'flex-start',
+        } as object)
+      : null),
+  },
+  leading: {
+    position: 'absolute',
+    left: 10,
+    top: 0,
+    bottom: 0,
+    zIndex: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   trailing: {
     position: 'absolute',
-    right: MOBILE_GUTTER,
+    right: 8,
     top: 0,
     bottom: 0,
     zIndex: 3,

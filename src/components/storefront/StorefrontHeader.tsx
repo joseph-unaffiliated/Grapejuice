@@ -9,11 +9,13 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../ui/Icon';
-import { SearchPill } from '../ui/SearchPill';
+import { SearchPill, SEARCH_PILL_HEIGHT } from '../ui/SearchPill';
 import { icons } from '../../constants/icons';
-import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
-import { useWishlist } from '../../hooks/useWishlist';
+import { StorefrontAccountMenu } from './StorefrontAccountMenu';
+import { StorefrontCartBoxButton } from './StorefrontCartBoxButton';
+import { StorefrontMobileNav } from './StorefrontMobileNav';
+import { useStorefrontRav } from './storefrontRavContext';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   LAYOUT,
@@ -21,7 +23,6 @@ import {
   semanticColors,
   spacing,
   typeface,
-  typography,
 } from '../../constants/theme';
 
 type Nav = StackNavigationProp<MainStackParamList>;
@@ -32,45 +33,82 @@ type Props = {
 
 /** Fixed side column width so the centered search sits on the true screen midpoint. */
 const SIDE_COL = 340;
+/** Tighter horizontal inset on mobile header only. */
+const MOBILE_HEADER_GUTTER = 16;
+const RAV_BTN = SEARCH_PILL_HEIGHT;
+const SEARCH_GO_SIZE = 28;
+const SEARCH_TRAILING_WIDTH = 28;
+const SEARCH_LEADING_WIDTH = 20;
 
 /**
- * Desktop: logo left, centered SearchPill, account actions right.
- * Mobile: logo + icons on one row, full-width search below.
+ * Desktop: logo left, centered SearchPill + Rav, account menu right.
+ * Mobile: menu + mark | account; full-width search + Rav below.
  */
 export function StorefrontHeader({ onLogoPress }: Props) {
   const navigation = useNavigation<Nav>();
-  const { ids } = useWishlist();
+  const { openRav } = useStorefrontRav();
   const [query, setQuery] = useState('');
+  const [navOpen, setNavOpen] = useState(false);
   const { width } = useWindowDimensions();
   const compact = width < LAYOUT.BREAKPOINT_TABLET;
 
   const submitSearch = () => {
     const msg = query.trim();
-    if (!msg) {
-      navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } });
-      return;
-    }
-    navigation.navigate('MainTabs', {
-      screen: 'Rav',
-      params: { newChat: true, initialMessage: msg },
+    if (!msg) return;
+    navigation.navigate('StorefrontCategory', {
+      category: 'collection',
+      q: msg,
     });
-    setQuery('');
   };
 
-  const searchField = (
-    <View style={[styles.searchWrap, compact && styles.searchWrapCompact]}>
-      <SearchPill
-        value={query}
-        onChangeText={setQuery}
-        onSubmitEditing={submitSearch}
-        placeholder="Search or ask a question"
-        prompts={RAV_TYPEWRITER_PROMPTS}
-        accessibilityLabel="Search or ask a question"
-      />
+  const ravButton = (
+    <TouchableOpacity
+      style={styles.ravBtn}
+      onPress={() => openRav()}
+      accessibilityRole="button"
+      accessibilityLabel="Ask Rav"
+    >
+      <Icon icon={icons.childReaching} size={18} color={semanticColors.logoDark} />
+    </TouchableOpacity>
+  );
+
+  const searchGo = (
+    <TouchableOpacity
+      style={[styles.searchGo, !query.trim() && styles.searchGoIdle]}
+      onPress={submitSearch}
+      disabled={!query.trim()}
+      accessibilityRole="button"
+      accessibilityLabel="Search"
+      hitSlop={8}
+    >
+      <Icon icon={icons.arrowUp} size={16} color={semanticColors.brand} />
+    </TouchableOpacity>
+  );
+
+  const searchCluster = (
+    <View style={compact ? styles.searchClusterMobile : styles.searchClusterDesktop}>
+      <View style={compact ? styles.searchWrapMobile : styles.searchWrapDesktop}>
+        <SearchPill
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={submitSearch}
+          placeholder="Search"
+          animatePlaceholder={false}
+          textAlign="left"
+          accessibilityLabel="Search"
+          leading={
+            <Icon icon={icons.search} size={14} color={semanticColors.goldMuted} />
+          }
+          leadingWidth={SEARCH_LEADING_WIDTH}
+          trailing={searchGo}
+          trailingWidth={SEARCH_TRAILING_WIDTH}
+        />
+      </View>
+      {ravButton}
     </View>
   );
 
-  const logo = (
+  const desktopLogo = (
     <TouchableOpacity
       style={styles.logoHit}
       onPress={onLogoPress}
@@ -78,61 +116,43 @@ export function StorefrontHeader({ onLogoPress }: Props) {
       accessibilityLabel="Grapejuice store home"
     >
       <GrapejuiceBrandMark markOnly compact color={semanticColors.logoDark} />
-      <Text style={[styles.wordmark, compact && styles.wordmarkCompact]}>Grapejuice</Text>
+      <Text style={styles.wordmark}>Grapejuice</Text>
     </TouchableOpacity>
   );
 
-  const actions = (
+  const account = (
     <View style={[styles.sideRight, compact && styles.sideRightCompact]}>
-      <TouchableOpacity
-        style={styles.action}
-        onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
-        accessibilityRole="button"
-        accessibilityLabel="Account"
-      >
-        <Icon icon={icons.user} size={16} color={semanticColors.logoDark} />
-        {compact ? null : <Text style={styles.actionLabel}>Account</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.action}
-        onPress={() => navigation.navigate('History')}
-        accessibilityRole="button"
-        accessibilityLabel="History"
-      >
-        <Icon icon={icons.clockHistory} size={16} color={semanticColors.logoDark} />
-        {compact ? null : <Text style={styles.actionLabel}>History</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.action}
-        onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
-        accessibilityRole="button"
-        accessibilityLabel={`Favorites, ${ids.length} items`}
-      >
-        <Icon icon={icons.heart} size={16} color={semanticColors.logoDark} />
-        <Text style={styles.actionLabel}>
-          {compact ? ids.length : `Favorites (${ids.length})`}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.action}
-        onPress={() => navigation.navigate('MyBox')}
-        accessibilityRole="button"
-        accessibilityLabel="My Box"
-      >
-        <Icon icon={icons.boxOpen} size={16} color={semanticColors.logoDark} />
-        {compact ? null : <Text style={styles.actionLabel}>Box</Text>}
-      </TouchableOpacity>
+      <StorefrontAccountMenu />
+      <StorefrontCartBoxButton />
     </View>
   );
 
   if (compact) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, styles.rootMobile]}>
         <View style={styles.mobileTop}>
-          {logo}
-          {actions}
+          <View style={styles.mobileLeft}>
+            <TouchableOpacity
+              style={styles.menuHit}
+              onPress={() => setNavOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open menu"
+            >
+              <Icon icon={icons.menu} size={18} color={semanticColors.logoDark} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.markHit}
+              onPress={onLogoPress}
+              accessibilityRole="button"
+              accessibilityLabel="Grapejuice store home"
+            >
+              <GrapejuiceBrandMark markOnly compact color={semanticColors.logoDark} decorative />
+            </TouchableOpacity>
+          </View>
+          {account}
         </View>
-        {searchField}
+        {searchCluster}
+        <StorefrontMobileNav visible={navOpen} onClose={() => setNavOpen(false)} />
       </View>
     );
   }
@@ -140,11 +160,11 @@ export function StorefrontHeader({ onLogoPress }: Props) {
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        <View style={styles.sideLeft}>{logo}</View>
+        <View style={styles.sideLeft}>{desktopLogo}</View>
         <View style={styles.searchMiddle} pointerEvents="box-none">
-          {searchField}
+          {searchCluster}
         </View>
-        {actions}
+        {account}
       </View>
     </View>
   );
@@ -158,6 +178,9 @@ const styles = StyleSheet.create({
     borderBottomColor: semanticColors.border,
     backgroundColor: semanticColors.bgPrimary,
     gap: spacing.sm,
+  },
+  rootMobile: {
+    paddingHorizontal: MOBILE_HEADER_GUTTER,
   },
   row: {
     flexDirection: 'row',
@@ -175,6 +198,23 @@ const styles = StyleSheet.create({
     minHeight: 40,
     gap: spacing.sm,
   },
+  mobileLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  menuHit: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markHit: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
   sideLeft: {
     width: SIDE_COL,
     maxWidth: '38%',
@@ -189,15 +229,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: spacing.md,
+    gap: spacing.sm,
     flexShrink: 0,
-    zIndex: 1,
+    zIndex: 5,
   },
   sideRightCompact: {
     width: undefined,
     maxWidth: undefined,
     flexShrink: 0,
-    gap: spacing.md,
   },
   searchMiddle: {
     flex: 1,
@@ -206,14 +245,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 0,
   },
-  searchWrap: {
+  searchClusterDesktop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     width: '100%',
+    maxWidth: SIDE_COL + RAV_BTN + spacing.sm,
+  },
+  searchClusterMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    width: '100%',
+  },
+  searchWrapDesktop: {
+    flex: 1,
+    minWidth: 0,
     maxWidth: SIDE_COL,
+  },
+  searchWrapMobile: {
+    flex: 1,
     minWidth: 0,
   },
-  searchWrapCompact: {
-    maxWidth: undefined,
-    width: '100%',
+  searchGo: {
+    width: SEARCH_GO_SIZE,
+    height: SEARCH_GO_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchGoIdle: {
+    opacity: 0.4,
+  },
+  ravBtn: {
+    width: RAV_BTN,
+    height: RAV_BTN,
+    borderRadius: RAV_BTN / 2,
+    backgroundColor: semanticColors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   logoHit: {
     flexDirection: 'row',
@@ -228,19 +298,5 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: semanticColors.logoDark,
     letterSpacing: -0.5,
-  },
-  wordmarkCompact: {
-    fontSize: 18,
-  },
-  action: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 0,
-  },
-  actionLabel: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.logoDark,
   },
 });

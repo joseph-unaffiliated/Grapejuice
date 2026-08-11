@@ -36,6 +36,8 @@ import {
   StorefrontChrome,
   useStorefrontActions,
 } from '../../components/storefront/StorefrontChrome';
+import { Icon } from '../../components/ui/Icon';
+import { icons } from '../../constants/icons';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import {
@@ -110,6 +112,11 @@ export function CatalogProductScreen() {
   const [locked, setLocked] = useState(false);
   const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
   const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    setDetailsOpen(false);
+  }, [slug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -315,6 +322,40 @@ export function CatalogProductScreen() {
               </Text>
             ) : null}
 
+            {details.length > 0 ? (
+              <View style={styles.details}>
+                <TouchableOpacity
+                  style={styles.detailsToggle}
+                  onPress={() => setDetailsOpen((open) => !open)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: detailsOpen }}
+                  accessibilityLabel="Details"
+                >
+                  <Text style={styles.detailsHeading}>Details</Text>
+                  <View
+                    style={[
+                      styles.detailsChevron,
+                      detailsOpen ? styles.detailsChevronOpen : null,
+                    ]}
+                  >
+                    <Icon
+                      icon={icons.chevronDown}
+                      size={12}
+                      color={semanticColors.goldMuted}
+                    />
+                  </View>
+                </TouchableOpacity>
+                {detailsOpen
+                  ? details.map((row) => (
+                      <View key={row.label} style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>{row.label}</Text>
+                        <Text style={styles.detailValue}>{row.value}</Text>
+                      </View>
+                    ))
+                  : null}
+              </View>
+            ) : null}
+
             <View style={styles.priceRule}>
               <ProductPricingBlock
                 item={item}
@@ -354,18 +395,6 @@ export function CatalogProductScreen() {
                 </Text>
               ) : null}
             </View>
-
-            {details.length > 0 ? (
-              <View style={styles.details}>
-                <Text style={styles.detailsHeading}>Product details</Text>
-                {details.map((row) => (
-                  <View key={row.label} style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{row.label}</Text>
-                    <Text style={styles.detailValue}>{row.value}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
           </View>
         </View>
 
@@ -538,23 +567,36 @@ const styles = StyleSheet.create({
   },
 
   details: {
-    marginTop: spacing.xl,
-    paddingTop: spacing.xl,
+    width: '100%',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: semanticColors.border,
-    width: '100%',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: semanticColors.border,
+  },
+  detailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
   },
   detailsHeading: {
     ...typeface('medium'),
     fontSize: typography.sm,
     color: semanticColors.logoDark,
-    marginBottom: spacing.md,
+    letterSpacing: -0.2,
+  },
+  detailsChevron: {
+    transform: [{ rotate: '0deg' }],
+  },
+  detailsChevronOpen: {
+    transform: [{ rotate: '180deg' }],
   },
   detailRow: {
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: semanticColors.border,
-    gap: 6,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semanticColors.border,
+    gap: 4,
   },
   detailLabel: {
     ...typeface('medium'),
@@ -567,6 +609,6 @@ const styles = StyleSheet.create({
     ...typeface('regular'),
     fontSize: typography.md,
     lineHeight: 22,
-    color: semanticColors.textPrimary,
+    color: semanticColors.logoDark,
   },
 });

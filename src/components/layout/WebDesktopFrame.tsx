@@ -14,6 +14,8 @@ type Props = {
 const STOREFRONT_ROUTES = new Set([
   'StorefrontHome',
   'StorefrontCategory',
+  'StorefrontOurStory',
+  'StorefrontPassover',
   'CatalogProduct',
 ]);
 

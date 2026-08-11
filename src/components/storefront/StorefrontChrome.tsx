@@ -8,9 +8,7 @@ import React, {
 } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
-  TouchableOpacity,
   Platform,
   ScrollView,
   Animated,
@@ -24,16 +22,12 @@ import { StorefrontPromoStrip } from './StorefrontPromoStrip';
 import { StorefrontHeader } from './StorefrontHeader';
 import { StorefrontServicesNav, type StorefrontServiceId } from './StorefrontServicesNav';
 import { StorefrontCategoryNav } from './StorefrontCategoryNav';
+import { StorefrontFooter } from './StorefrontFooter';
+import { StorefrontRavProvider, isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
 import type { MainStackParamList } from '../../navigation/types';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import {
-  MOBILE_GUTTER,
-  semanticColors,
-  spacing,
-  typeface,
-  typography,
-} from '../../constants/theme';
+import { semanticColors } from '../../constants/theme';
 import {
   STOREFRONT_SCROLL_CLASS,
   STOREFRONT_H_SCROLL_CLASS,
@@ -45,6 +39,7 @@ type Nav = StackNavigationProp<MainStackParamList>;
 
 type Props = {
   children: ReactNode;
+  /** Highlights the active aisle in the product-type bar. */
   activeCategory?: string;
   onShopLook?: () => void;
   /** Optional ref to the page ScrollView (e.g. home “scroll to look”). */
@@ -79,31 +74,6 @@ function StorefrontChromeBlocks({
   );
 }
 
-function StorefrontFooter() {
-  const navigation = useNavigation<Nav>();
-  const goHome = () => navigation.navigate('StorefrontHome');
-
-  return (
-    <View style={styles.footer}>
-      <TouchableOpacity onPress={goHome} accessibilityRole="button">
-        <Text style={styles.footerLink}>Store home</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => navigation.navigate('AboutHanukkah')}
-        accessibilityRole="button"
-      >
-        <Text style={styles.footerLink}>About Hanukkah</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
-        accessibilityRole="button"
-      >
-        <Text style={styles.footerLink}>Account</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 const SCROLL_DIR_THRESHOLD = 6;
 
 /**
@@ -112,7 +82,15 @@ const SCROLL_DIR_THRESHOLD = 6;
  * only after the in-flow chrome has fully left the viewport (avoids a double header).
  * Footer is normal document flow at the bottom of the page (never fixed).
  */
-export function StorefrontChrome({
+export function StorefrontChrome(props: Props) {
+  return (
+    <StorefrontRavProvider>
+      <StorefrontChromeInner {...props} />
+    </StorefrontRavProvider>
+  );
+}
+
+function StorefrontChromeInner({
   children,
   activeCategory,
   onShopLook,
@@ -145,27 +123,19 @@ export function StorefrontChrome({
     navigation.navigate('MyBox');
   };
 
-  const askRav = () => {
-    navigation.navigate('MainTabs', {
-      screen: 'Rav',
-      params: { newChat: true, initialMessage: 'Help me plan my Hanukkah table' },
-    });
-  };
-
   const onService = (id: StorefrontServiceId) => {
     switch (id) {
+      case 'shop':
+        goCategory('collection');
+        break;
       case 'box':
         startBox();
         break;
-      case 'rav':
-        askRav();
+      case 'passover':
+        navigation.navigate('StorefrontPassover');
         break;
-      case 'new':
-      case 'loved':
-        onShopLook?.();
-        break;
-      case 'moments':
-        goCategory(activeCategory ?? 'menorahs');
+      case 'story':
+        navigation.navigate('StorefrontOurStory');
         break;
       default:
         break;
@@ -299,6 +269,12 @@ export function useStorefrontActions() {
       navigation.navigate('MyBox');
     },
     askRav: (message?: string) => {
+      // Prefer the storefront drawer — screens usually call this hook above Chrome,
+      // so React context isn’t available; the provider registers a bridge instead.
+      if (isStorefrontRavOpenable()) {
+        openStorefrontRav(message);
+        return;
+      }
       navigation.navigate('MainTabs', {
         screen: 'Rav',
         params: {
@@ -312,6 +288,8 @@ export function useStorefrontActions() {
     },
     goHome: () => navigation.navigate('StorefrontHome'),
     goEligibility: () => navigation.navigate('BoxDiscountEligibility'),
+    goOurStory: () => navigation.navigate('StorefrontOurStory'),
+    goPassover: () => navigation.navigate('StorefrontPassover'),
   };
 }
 
@@ -354,22 +332,5 @@ const styles = StyleSheet.create({
     // flexGrow pins footer to viewport bottom on short pages; no paddingBottom —
     // that would sit *below* StorefrontFooter (page-bg gap under the dark bar).
     flexGrow: 1,
-  },
-  footer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: spacing.lg,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: MOBILE_GUTTER,
-    marginTop: spacing.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: semanticColors.border,
-    backgroundColor: semanticColors.bgDark,
-  },
-  footerLink: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.textSecondary,
   },
 });
