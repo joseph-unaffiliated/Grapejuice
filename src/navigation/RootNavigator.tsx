@@ -87,6 +87,9 @@ function RootRoutes() {
       (guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete);
     if (checkoutReturn) {
       gateKey = 'main';
+    } else if (exploreStarted && !needsOnboarding) {
+      // Signed-in “explore without building a box” — onboarding done, reveal skipped.
+      gateKey = 'main';
     } else {
       gateKey = needsOnboarding ? 'onboarding' : needsBoxReveal ? 'onboarding' : 'main';
     }

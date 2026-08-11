@@ -41,9 +41,9 @@ export function effectiveLockAt(config: Pick<HanukkahConfig, 'lockAt' | 'expedit
   return config.lockAt;
 }
 
-export function isBoxLocked(lockAt: string | null): boolean {
+export function isBoxLocked(lockAt: string | null, now: Date = new Date()): boolean {
   if (!lockAt) return false;
-  return Date.now() >= new Date(lockAt).getTime();
+  return now.getTime() >= new Date(lockAt).getTime();
 }
 
 export type PassoverWaitlistConfig = {

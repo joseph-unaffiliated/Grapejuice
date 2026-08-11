@@ -12,8 +12,8 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
-import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import {
   LAYOUT,
   MOBILE_GUTTER,
@@ -46,7 +46,7 @@ const FOOTER_MUTED = 'rgba(255, 255, 255, 0.72)';
  */
 export function StorefrontFooter() {
   const navigation = useNavigation<Nav>();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = usePreviewedIsAuthenticated();
   const { width } = useWindowDimensions();
   const compact = width < LAYOUT.BREAKPOINT_TABLET;
 

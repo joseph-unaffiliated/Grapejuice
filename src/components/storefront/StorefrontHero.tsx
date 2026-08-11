@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,16 @@ import {
   Platform,
 } from 'react-native';
 import { StorefrontMediaPlaceholder } from './StorefrontMediaPlaceholder';
-import { STOREFRONT_HERO } from '../../constants/storefrontMedia';
+import {
+  StorefrontHeroJourneyTimeline,
+  boxJourneyCopy,
+  boxJourneyStatusLine,
+  type BoxJourneyDates,
+} from './StorefrontHeroJourneyTimeline';
+import type { StorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { usePreviewNow } from '../../hooks/useUserStatePreview';
+import { getHanukkahStatus } from '../../services/hanukkah/dates';
+import { STOREFRONT_HERO, STOREFRONT_HERO_PASSOVER } from '../../constants/storefrontMedia';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -18,15 +27,96 @@ import {
 } from '../../constants/theme';
 
 type Props = {
-  onShopLook: () => void;
-  onBuildBox: () => void;
+  mode: StorefrontHomeMode;
+  /** Journey dates for any non-acquisition mode that shows the timeline. */
+  journey?: BoxJourneyDates | null;
+  onPrimary: () => void;
+  onSecondary: () => void;
 };
 
-export function StorefrontHero({ onShopLook, onBuildBox }: Props) {
+function showJourney(mode: StorefrontHomeMode): boolean {
+  return mode !== 'acquisition' && mode !== 'passover';
+}
+
+function showCtas(mode: StorefrontHomeMode): boolean {
+  return mode !== 'locked';
+}
+
+export function StorefrontHero({
+  mode,
+  journey = null,
+  onPrimary,
+  onSecondary,
+}: Props) {
   const { height, width } = useWindowDimensions();
   const compact = width < 768;
-  const heroHeight = Math.min(Math.max(height * (compact ? 0.48 : 0.55), compact ? 320 : 360), 560);
-  const hero = STOREFRONT_HERO;
+  const hero = mode === 'passover' ? STOREFRONT_HERO_PASSOVER : STOREFRONT_HERO;
+  const now = usePreviewNow();
+  const duringHanukkah =
+    journey != null && getHanukkahStatus(journey.startsOn, now).phase === 'during';
+  const journeyMode = showJourney(mode) && Boolean(journey);
+  const showTimeline = journeyMode && !duringHanukkah;
+  const withCtas = showCtas(mode);
+  const heroHeight = Math.min(
+    Math.max(
+      height *
+        (compact
+          ? showTimeline
+            ? withCtas
+              ? 0.58
+              : 0.52
+            : 0.48
+          : showTimeline
+            ? withCtas
+              ? 0.62
+              : 0.55
+            : 0.55),
+      compact ? (showTimeline ? 400 : 320) : showTimeline ? 440 : 360
+    ),
+    showTimeline ? 640 : 560
+  );
+
+  const journeyHeadline = useMemo(
+    () => (journey ? boxJourneyCopy(journey, now).headline : null),
+    [journey, now]
+  );
+  const statusLine = useMemo(() => {
+    if (!journey || mode === 'acquisition' || mode === 'passover' || duringHanukkah) return null;
+    if (mode === 'guest_box' || mode === 'customize' || mode === 'needs_payment' || mode === 'locked') {
+      return boxJourneyStatusLine(journey, mode, now);
+    }
+    return null;
+  }, [journey, mode, now, duringHanukkah]);
+
+  let headline = hero.headline;
+  let body: string | null | undefined = hero.body;
+  let bodySecondary: string | null | undefined = hero.bodySecondary;
+  let primaryLabel = hero.ctaLabel ?? 'Browse the Collection';
+  let secondaryLabel = 'Build your Box (starting at $80)';
+
+  if (mode === 'passover') {
+    headline = hero.headline ?? 'Passover 2027 is next';
+    body = hero.body;
+    bodySecondary = hero.bodySecondary;
+    primaryLabel = hero.ctaLabel ?? 'Explore Passover 2027';
+    secondaryLabel = 'Browse the Collection';
+  } else if (mode === 'acquisition') {
+    // defaults above
+  } else if (journeyMode) {
+    headline = journeyHeadline ?? 'Your Hanukkah box is underway';
+    body = statusLine;
+    bodySecondary = null;
+    if (mode === 'guest_box') {
+      primaryLabel = 'Create an account';
+      secondaryLabel = 'View your box';
+    } else if (mode === 'customize') {
+      primaryLabel = STOREFRONT_HERO.ctaLabel ?? 'Browse the Collection';
+      secondaryLabel = 'Customize your Box';
+    } else if (mode === 'needs_payment') {
+      primaryLabel = 'Add payment to secure';
+      secondaryLabel = 'View your box';
+    }
+  }
 
   return (
     <View style={[styles.root, { height: heroHeight }]}>
@@ -42,37 +132,52 @@ export function StorefrontHero({ onShopLook, onBuildBox }: Props) {
         style={[styles.overlay, compact && styles.overlayCompact]}
         pointerEvents="box-none"
       >
-        <Text style={[styles.headline, compact && styles.headlineCompact]}>{hero.headline}</Text>
-        {hero.body || hero.bodySecondary ? (
+        <Text style={[styles.headline, compact && styles.headlineCompact]}>{headline}</Text>
+        {body || bodySecondary ? (
           <View style={[styles.bodyBlock, compact && styles.bodyBlockCompact]}>
-            {hero.body ? (
-              <Text style={[styles.body, compact && styles.bodyCompact]}>{hero.body}</Text>
+            {body ? (
+              <Text
+                style={[
+                  styles.body,
+                  compact && styles.bodyCompact,
+                  journeyMode && styles.bodyJourney,
+                ]}
+              >
+                {body}
+              </Text>
             ) : null}
-            {hero.bodySecondary ? (
+            {bodySecondary ? (
               <Text style={[styles.bodySecondary, compact && styles.bodySecondaryCompact]}>
-                {hero.bodySecondary}
+                {bodySecondary}
               </Text>
             ) : null}
           </View>
         ) : null}
-        <View style={[styles.ctas, compact && styles.ctasCompact]}>
-          <TouchableOpacity
-            style={[styles.ctaPrimary, compact && styles.ctaCompact]}
-            onPress={onShopLook}
-            accessibilityRole="button"
-            accessibilityLabel={hero.ctaLabel ?? 'Browse the Collection'}
-          >
-            <Text style={styles.ctaPrimaryText}>{hero.ctaLabel ?? 'Browse the Collection'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.ctaSecondary, compact && styles.ctaCompact]}
-            onPress={onBuildBox}
-            accessibilityRole="button"
-            accessibilityLabel="Build your Box (starting at $80)"
-          >
-            <Text style={styles.ctaSecondaryText}>Build your Box (starting at $80)</Text>
-          </TouchableOpacity>
-        </View>
+
+        {journey && showTimeline ? (
+          <StorefrontHeroJourneyTimeline journey={journey} compact={compact} />
+        ) : null}
+
+        {withCtas ? (
+          <View style={[styles.ctas, compact && styles.ctasCompact]}>
+            <TouchableOpacity
+              style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
+              onPress={onPrimary}
+              accessibilityRole="button"
+              accessibilityLabel={primaryLabel}
+            >
+              <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cta, styles.ctaSecondary, compact && styles.ctaCompact]}
+              onPress={onSecondary}
+              accessibilityRole="button"
+              accessibilityLabel={secondaryLabel}
+            >
+              <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -157,6 +262,10 @@ const styles = StyleSheet.create({
     textShadowRadius: 8,
     ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
+  bodyJourney: {
+    color: semanticColors.brand,
+    opacity: 1,
+  },
   bodyCompact: {
     fontSize: 14,
     lineHeight: 20,
@@ -181,6 +290,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
     justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: spacing.sm,
     width: '100%',
   },
@@ -190,33 +300,34 @@ const styles = StyleSheet.create({
     maxWidth: 280,
     alignSelf: 'center',
   },
-  /** Collection — dark fill (primary CTA) */
-  ctaPrimary: {
-    backgroundColor: semanticColors.logoDark,
+  /** Shared height; width stays content-sized so labels aren’t clipped. */
+  cta: {
+    minHeight: 40,
     paddingHorizontal: spacing.md,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: borderRadius.md,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   ctaCompact: {
     width: '100%',
+  },
+  ctaPrimary: {
+    backgroundColor: semanticColors.logoDark,
   },
   ctaPrimaryText: {
     ...typeface('medium'),
     fontSize: 12,
     color: semanticColors.textInverse,
+    textAlign: 'center',
   },
-  /** Build a box — light fill */
   ctaSecondary: {
     backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
   },
   ctaSecondaryText: {
     ...typeface('medium'),
     fontSize: 12,
     color: semanticColors.logoDark,
+    textAlign: 'center',
   },
 });

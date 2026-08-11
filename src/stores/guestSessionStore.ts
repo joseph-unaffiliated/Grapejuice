@@ -69,6 +69,8 @@ type GuestSessionState = {
   setInterestEmail: (email: string) => void;
   toggleHiddenHoliday: (holidayId: string) => void;
   recordGuestRavPrompt: () => void;
+  /** Clear curated box + completion flags so onboarding can run again. */
+  resetBox: () => void;
   reset: () => void;
   setHasHydrated: (value: boolean) => void;
 };
@@ -141,6 +143,17 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         });
       },
       recordGuestRavPrompt: () => set((s) => ({ guestRavPromptCount: s.guestRavPromptCount + 1 })),
+      resetBox: () =>
+        set({
+          lineItems: [],
+          onboardingComplete: false,
+          boxRevealComplete: false,
+          openMyBoxAfterReveal: false,
+          onboardingStep: null,
+          buildBoxPath: false,
+          exploreStarted: false,
+          ravNotes: '',
+        }),
       reset: () => set({ ...initialState, _hasHydrated: true }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),

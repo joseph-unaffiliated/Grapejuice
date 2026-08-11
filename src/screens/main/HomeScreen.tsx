@@ -24,7 +24,8 @@ import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
 import { usersService } from '../../services/firestore/users';
 import { ordersService } from '../../services/firestore/orders';
 import { useCatalog } from '../../hooks/useCatalog';
-import { getHanukkahConfig, getPassoverWaitlistConfig, isBoxLocked } from '../../services/firestore/config';
+import { getHanukkahConfig, getPassoverWaitlistConfig } from '../../services/firestore/config';
+import { useEffectiveBoxLocked } from '../../hooks/useUserStatePreview';
 import { formatCountdown, formatHanukkahWelcomeSubtext } from '../../services/hanukkah/dates';
 import {
   deriveBoxLifecycle,
@@ -282,7 +283,7 @@ export function HomeScreen() {
   }, []);
 
   const { phase, hanukkah, primaryOrder } = useHolidayPhase(startsOn, hasOrder, orders, now);
-  const locked = isBoxLocked(lockAt);
+  const locked = useEffectiveBoxLocked(lockAt);
   const lockCountdown = !locked ? formatCountdown(lockAt, now) : null;
   const passoverNotified = interests.includes(PASSOVER_NOTIFY_INTEREST);
 

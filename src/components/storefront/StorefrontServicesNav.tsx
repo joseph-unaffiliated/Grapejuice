@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,12 @@ import {
 import {
   boxLockChipLabel,
   HANUKKAH_BOX_LOCK_YEAR_LABEL,
+  lockedBoxChipLabel,
+  MY_HANUKKAH_BOX_LABEL,
 } from '../../constants/hanukkahBoxLock';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { usePreviewNow } from '../../hooks/useUserStatePreview';
+import { getHanukkahConfig } from '../../services/firestore/config';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   borderRadius,
@@ -33,7 +38,46 @@ type Props = {
 export function StorefrontServicesNav({ onPress }: Props) {
   const { width } = useWindowDimensions();
   const compact = width < LAYOUT.BREAKPOINT_TABLET;
-  const lockLabel = useMemo(() => boxLockChipLabel(), []);
+  const [lockAt, setLockAt] = useState<string | null>(null);
+  const [startsOn, setStartsOn] = useState<string | null>(null);
+  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  const mode = useStorefrontHomeMode(lockAt, startsOn);
+  const now = usePreviewNow();
+
+  useEffect(() => {
+    let cancelled = false;
+    getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+      setEstimatedDeliveryBy(config.estimatedDeliveryBy);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const { yearLabel, chipLabel, boxServiceId } = useMemo(() => {
+    if (mode === 'passover') {
+      return {
+        yearLabel: '2027 Passover',
+        chipLabel: 'Coming soon',
+        boxServiceId: 'passover' as const,
+      };
+    }
+    if (mode === 'locked') {
+      return {
+        yearLabel: MY_HANUKKAH_BOX_LABEL,
+        chipLabel: lockedBoxChipLabel(estimatedDeliveryBy, now),
+        boxServiceId: 'box' as const,
+      };
+    }
+    return {
+      yearLabel: HANUKKAH_BOX_LOCK_YEAR_LABEL,
+      chipLabel: boxLockChipLabel(now),
+      boxServiceId: 'box' as const,
+    };
+  }, [mode, estimatedDeliveryBy, now]);
 
   if (compact) return null;
 
@@ -57,24 +101,26 @@ export function StorefrontServicesNav({ onPress }: Props) {
 
         <TouchableOpacity
           style={styles.lockGroup}
-          onPress={() => onPress('box')}
+          onPress={() => onPress(boxServiceId)}
           accessibilityRole="button"
-          accessibilityLabel={`${HANUKKAH_BOX_LOCK_YEAR_LABEL}, ${lockLabel}`}
+          accessibilityLabel={`${yearLabel}, ${chipLabel}`}
         >
-          <Text style={styles.lockYear}>{HANUKKAH_BOX_LOCK_YEAR_LABEL}</Text>
+          <Text style={styles.lockYear}>{yearLabel}</Text>
           <View style={styles.lockChip}>
-            <Text style={styles.lockChipText}>{lockLabel}</Text>
+            <Text style={styles.lockChipText}>{chipLabel}</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.linkHit}
-          onPress={() => onPress('passover')}
-          accessibilityRole="button"
-          accessibilityLabel="2027 Passover"
-        >
-          <Text style={styles.link}>2027 Passover</Text>
-        </TouchableOpacity>
+        {mode !== 'passover' ? (
+          <TouchableOpacity
+            style={styles.linkHit}
+            onPress={() => onPress('passover')}
+            accessibilityRole="button"
+            accessibilityLabel="2027 Passover"
+          >
+            <Text style={styles.link}>2027 Passover</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity
           style={styles.linkHit}

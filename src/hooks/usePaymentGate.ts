@@ -2,18 +2,22 @@ import { Alert, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSession } from './useSession';
+import { resolvePreviewCanMutateBox } from './useUserStatePreview';
+import { useUserStatePreviewStore } from '../stores/userStatePreviewStore';
 import { DEFAULT_BOX_PRICE_CENTS } from '../services/box/pricing';
 import type { MainStackParamList } from '../navigation/types';
 
 export function usePaymentGate() {
   const { household } = useSession();
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const preview = useUserStatePreviewStore((s) => s.preview);
 
   const cardOnFile = !!household?.cardOnFileAt;
   const giftCreditCents = household?.giftCreditCents ?? 0;
   const platformCreditCents = household?.platformCreditCents ?? 0;
   const totalCreditCents = giftCreditCents + platformCreditCents;
-  const canMutateBox = cardOnFile || totalCreditCents >= DEFAULT_BOX_PRICE_CENTS;
+  const realCanMutate = cardOnFile || totalCreditCents >= DEFAULT_BOX_PRICE_CENTS;
+  const canMutateBox = resolvePreviewCanMutateBox(preview, realCanMutate);
 
   const guardMutation = (): boolean => {
     if (canMutateBox) return true;

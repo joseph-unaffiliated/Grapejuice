@@ -32,8 +32,8 @@ import {
   openStorefrontRav,
 } from './storefrontRavContext';
 import type { MainStackParamList } from '../../navigation/types';
-import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { LAYOUT, semanticColors } from '../../constants/theme';
 import {
   STOREFRONT_SCROLL_CLASS,
@@ -109,7 +109,7 @@ function StorefrontChromeInner({
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = usePreviewedIsAuthenticated();
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
   const {
@@ -284,7 +284,7 @@ function StorefrontChromeInner({
 /** Shared CTA helpers for screens that need box / Rav without remounting chrome. */
 export function useStorefrontActions() {
   const navigation = useNavigation<Nav>();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = usePreviewedIsAuthenticated();
 
   return {
     startBox: () => {

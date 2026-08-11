@@ -26,7 +26,8 @@ export function useBoxDraft() {
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const guestFamiliarity = useGuestSessionStore((s) => s.familiarityLevel);
   const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
-  const guestChildInterests = useGuestSessionStore((s) => s.childInterests);
+  const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
+  const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
@@ -43,15 +44,14 @@ export function useBoxDraft() {
       setFamiliarity(guestFamiliarity);
       setSlotVotes(emptySlotVotes());
       setSealedSectionIds(undefined);
-      if (guestLineItems.length) {
-        setLineItems(guestLineItems);
-      } else if (guestDrafts.length) {
-        const catalog = await catalogService.getAll();
-        const items = buildDefaultLineItems(catalog, kids, guestChildInterests);
-        setLineItems(items);
-        setGuestLineItems(items);
-      } else {
+      // Guests without a started/revealed box should not carry a default box draft —
+      // marketplace shopping uses marketplaceCartStore instead.
+      const guestHasBox = guestOnboardingComplete || guestBoxRevealComplete;
+      if (!guestHasBox) {
+        if (guestLineItems.length) setGuestLineItems([]);
         setLineItems([]);
+      } else {
+        setLineItems(guestLineItems);
       }
       setLoading(false);
       return;
@@ -74,8 +74,11 @@ export function useBoxDraft() {
     setSealedSectionIds(draft?.sealedSectionIds);
     if (draft?.lineItems?.length) {
       setLineItems(draft.lineItems);
-    } else if (catalog.length) {
-      setLineItems(buildDefaultLineItems(catalog, kids, (draft?.childInterests ?? []) as ChildInterestId[]));
+    } else if (profile?.onboardingComplete && profile?.boxRevealComplete && catalog.length) {
+      // Only seed a default box after a real reveal — not for “explore without building.”
+      setLineItems(
+        buildDefaultLineItems(catalog, kids, (draft?.childInterests ?? []) as ChildInterestId[])
+      );
     } else {
       setLineItems([]);
     }
@@ -85,9 +88,13 @@ export function useBoxDraft() {
     household?.id,
     user?.uid,
     profile?.familiarityLevel,
+    profile?.onboardingComplete,
+    profile?.boxRevealComplete,
     guestDrafts,
     guestFamiliarity,
     guestLineItems,
+    guestOnboardingComplete,
+    guestBoxRevealComplete,
     setGuestLineItems,
     sessionLoading,
   ]);

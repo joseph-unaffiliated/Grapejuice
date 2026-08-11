@@ -18,7 +18,8 @@ import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
+import { getHanukkahConfig } from '../../services/firestore/config';
+import { useEffectiveBoxLocked } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import { catalogService } from '../../services/firestore/catalog';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -91,7 +92,7 @@ export function MyBoxScreen() {
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
   const [boxPriceCents, setBoxPriceCents] = useState(DEFAULT_BOX_PRICE_CENTS);
   const [now] = useState(() => new Date());
-  const locked = isBoxLocked(lockAt);
+  const locked = useEffectiveBoxLocked(lockAt);
   const { cardOnFile, guardMutation } = usePaymentGate();
 
   const load = useCallback(async () => {

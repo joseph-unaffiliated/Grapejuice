@@ -43,6 +43,7 @@ import {
   faHeart,
   faPlay,
   faArrowRightFromBracket,
+  faLocationDot,
 } from '@fortawesome/free-solid-svg-icons';
 import { faHeart as faHeartOutline } from '@fortawesome/free-regular-svg-icons';
 
@@ -89,6 +90,7 @@ export const icons = {
   utensils: faUtensils,
   dice: faDice,
   signOut: faArrowRightFromBracket,
+  locationDot: faLocationDot,
 } as const;
 
 export type IconName = keyof typeof icons;

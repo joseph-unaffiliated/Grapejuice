@@ -295,10 +295,13 @@ export function OnboardingStack({
       return;
     }
     if (!user?.uid) return;
+    // Explore without building: leave the box unrevealed so storefront stays
+    // in acquisition / “no box” chrome. Gate uses exploreStarted to reach Main.
     await usersService.upsert(user.uid, {
       onboardingComplete: true,
-      boxRevealComplete: true,
+      boxRevealComplete: false,
     });
+    useGuestSessionStore.getState().exitOnboardingToExplore();
     await refresh();
     onComplete?.();
   }, [exitGuestOnboarding, guestMode, onComplete, refresh, user?.uid]);

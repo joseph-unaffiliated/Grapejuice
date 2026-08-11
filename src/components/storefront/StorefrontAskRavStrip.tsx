@@ -71,13 +71,20 @@ export function StorefrontAskRavStrip({ onSubmit }: Props) {
 
 const styles = StyleSheet.create({
   root: {
-    backgroundColor: semanticColors.bgPrimary,
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xxl + spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.border,
+    // Soft gold → white → gold wash (easy to revert if it feels loud).
+    backgroundColor: '#FBF8EF',
+    ...(Platform.OS === 'web'
+      ? ({
+          backgroundImage:
+            'linear-gradient(90deg, rgba(216, 201, 144, 0.28) 0%, rgba(255, 255, 255, 0.95) 42%, rgba(255, 255, 255, 1) 50%, rgba(255, 255, 255, 0.95) 58%, rgba(216, 201, 144, 0.28) 100%)',
+        } as object)
+      : null),
   },
   inner: {
     maxWidth: 640,

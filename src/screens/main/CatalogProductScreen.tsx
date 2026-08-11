@@ -17,7 +17,14 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { useSession } from '../../hooks/useSession';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBrowsingHistoryStore } from '../../stores/browsingHistoryStore';
-import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
+import {
+  useMarketplaceCartStore,
+} from '../../stores/marketplaceCartStore';
+import { getHanukkahConfig } from '../../services/firestore/config';
+import {
+  useEffectiveBoxLocked,
+  usePreviewedHasStartedBox,
+} from '../../hooks/useUserStatePreview';
 import { ordersService } from '../../services/firestore/orders';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
@@ -82,6 +89,10 @@ export function CatalogProductScreen() {
   const desktop = width >= 768;
   const { household } = useSession();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
+  const cartItems = useMarketplaceCartStore((s) => s.items);
+  const addCartItem = useMarketplaceCartStore((s) => s.addItem);
+  const removeCartItem = useMarketplaceCartStore((s) => s.removeItem);
+  const hasStartedBox = usePreviewedHasStartedBox();
   const { guardMutation } = usePaymentGate();
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
   const recordBrowseView = useBrowsingHistoryStore((s) => s.recordView);
@@ -109,7 +120,8 @@ export function CatalogProductScreen() {
 
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [locked, setLocked] = useState(false);
+  const [lockAt, setLockAt] = useState<string | null>(null);
+  const locked = useEffectiveBoxLocked(lockAt);
   const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
   const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -123,7 +135,7 @@ export function CatalogProductScreen() {
     setLoadingConfig(true);
     getHanukkahConfig().then((config) => {
       if (cancelled) return;
-      setLocked(isBoxLocked(config.lockAt));
+      setLockAt(config.lockAt);
       if (config.estimatedDeliveryBy) {
         setShipWindow(HANUKKAH_SHIP_WINDOW_LABEL);
       }
@@ -149,9 +161,14 @@ export function CatalogProductScreen() {
     };
   }, [household?.id]);
 
-  const loading = catalogLoading || loadingConfig;
-  const boxStarted = lineItems.length > 0;
-  const inCart = useMemo(() => lineItems.some((li) => li.itemId === slug), [lineItems, slug]);
+  const loading = catalogLoading || draftLoading || loadingConfig;
+  const inMarketplaceCart = useMemo(
+    () => cartItems.some((li) => li.itemId === slug),
+    [cartItems, slug]
+  );
+  const inBox = useMemo(() => lineItems.some((li) => li.itemId === slug), [lineItems, slug]);
+  /** Cart CTA when no box yet; box membership once a Hanukkah box exists. */
+  const inCart = hasStartedBox ? inBox : inMarketplaceCart;
   const wishlisted = item ? isWishlisted(item.id) : false;
   const tier = item ? inferPricingTier(item) : 'included';
   const { memberCents, nonMemberCents } = item
@@ -181,22 +198,22 @@ export function CatalogProductScreen() {
 
   const addToCart = async () => {
     if (!item || locked || inCart) return;
-    if (nonMemberCents > 0 && !guardMutation()) return;
-    await persist([
-      ...lineItems,
-      {
+    setSaving(true);
+    try {
+      addCartItem({
         slotId: item.slotId,
         itemId: item.id,
         quantity: 1,
         unitCents: nonMemberCents,
         label: item.name,
-      },
-    ]);
-    navigation.goBack();
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const buyWithBox = async () => {
-    if (!item || locked || inCart) return;
+    if (!item || locked || inBox) return;
     if (boxUnitCents > 0 && !guardMutation()) return;
     await persist([
       ...lineItems,
@@ -213,8 +230,11 @@ export function CatalogProductScreen() {
 
   const removeFromCartOrBox = async () => {
     if (locked) return;
-    await persist(lineItems.filter((li) => li.itemId !== slug));
-    navigation.goBack();
+    if (hasStartedBox) {
+      await persist(lineItems.filter((li) => li.itemId !== slug));
+      return;
+    }
+    removeCartItem(slug);
   };
 
   const askFollowUpAboutCopy = () => {
@@ -229,7 +249,7 @@ export function CatalogProductScreen() {
   };
 
   const primaryLabel = inCart
-    ? boxStarted
+    ? hasStartedBox
       ? 'Remove from box'
       : 'Remove from cart'
     : nonMemberCents > 0

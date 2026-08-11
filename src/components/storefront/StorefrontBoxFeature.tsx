@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { StorefrontMediaPlaceholder } from './StorefrontMediaPlaceholder';
 import type { StorefrontMediaSlot } from '../../constants/storefrontMedia';
+import type { StorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { LIST_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import {
@@ -27,6 +28,15 @@ const BOX_MEDIA: StorefrontMediaSlot = {
   src: require('../../../assets/storefront/box-feature-gift-stack.webp'),
 };
 
+/** Placeholder Passover visual until seasonal art ships. */
+const PASSOVER_MEDIA: StorefrontMediaSlot = {
+  id: 'box-feature-passover',
+  kind: 'image',
+  aspect: '4/5',
+  label: 'Passover 2027',
+  src: require('../../../assets/storefront/setthetablev1.webp'),
+};
+
 const INCLUSIONS: { title: string; note: string }[] = [
   { title: 'Handmade beeswax candle set', note: 'Box of 50' },
   { title: "Children's books", note: 'One for each kid' },
@@ -36,44 +46,129 @@ const INCLUSIONS: { title: string; note: string }[] = [
   { title: 'Toys for the kids', note: 'Stuffies, lego, wood menorahs…' },
 ];
 
+const PASSOVER_POINTS: { title: string; note: string }[] = [
+  { title: 'Seder essentials', note: 'Placeholder — kit details TBD' },
+  { title: 'Table & host pieces', note: 'Placeholder — curated for the meal' },
+  { title: 'Kids & activities', note: 'Placeholder — keep little hands busy' },
+  { title: 'Carry-forward from Hanukkah', note: 'Placeholder — member timing' },
+];
+
+type Copy = {
+  eyebrow: string;
+  headline: string;
+  body: string;
+  checklistLabel: string;
+  checklist: { title: string; note: string }[];
+  primaryLabel: string;
+  secondaryLabel: string | null;
+  showPrice: boolean;
+  media: StorefrontMediaSlot;
+};
+
+function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
+  switch (mode) {
+    case 'guest_box':
+      return {
+        eyebrow: 'Your Hanukkah Box',
+        headline: 'Your box is started. Save it with an account.',
+        body: 'Create an account so we can hold your curation, swaps, and lock date — and you can pick up right where you left off.',
+        checklistLabel: 'What might be inside',
+        checklist: INCLUSIONS,
+        primaryLabel: 'Create an account',
+        secondaryLabel: null,
+        showPrice: true,
+        media: BOX_MEDIA,
+      };
+    case 'customize':
+      return {
+        eyebrow: 'Your Hanukkah Box',
+        headline: 'Customize before lock.',
+        body: 'Your box is secured. Swap pieces, add extras, and fine-tune the mix anytime before the lock date.',
+        checklistLabel: 'What might be inside',
+        checklist: INCLUSIONS,
+        primaryLabel: 'Customize your box',
+        secondaryLabel: null,
+        showPrice: false,
+        media: BOX_MEDIA,
+      };
+    case 'needs_payment':
+      return {
+        eyebrow: 'Your Hanukkah Box',
+        headline: 'Add payment to secure your box.',
+        body: 'You can browse swap options now. Save a card to lock in your picks — you won’t be charged until your box ships.',
+        checklistLabel: 'What might be inside',
+        checklist: INCLUSIONS,
+        primaryLabel: 'Add payment to secure',
+        secondaryLabel: null,
+        showPrice: true,
+        media: BOX_MEDIA,
+      };
+    case 'locked':
+    case 'passover':
+      return {
+        eyebrow: 'Next season',
+        headline: 'Passover 2027 is on the way.',
+        body:
+          mode === 'locked'
+            ? 'Your Hanukkah box is locked and on its way. While you wait, explore early interest for Passover 2027 — dates and offers coming soon.'
+            : 'Hanukkah 2026 is complete. Explore early interest for Passover 2027 — dates, kits, and offers coming soon.',
+        checklistLabel: 'What’s coming',
+        checklist: PASSOVER_POINTS,
+        primaryLabel: 'Explore Passover 2027',
+        secondaryLabel: null,
+        showPrice: false,
+        media: PASSOVER_MEDIA,
+      };
+    default:
+      return {
+        eyebrow: 'The Hanukkah Box',
+        headline: 'One box. Built around your life.',
+        body: 'There’s no standard box. A short quiz tells us about your household — then we curate 8–12 pieces you can swap before lock.',
+        checklistLabel: 'What might be inside',
+        checklist: INCLUSIONS,
+        primaryLabel: `Build your box (${boxPrice})`,
+        secondaryLabel: 'See if I’m eligible for a discounted rate',
+        showPrice: true,
+        media: BOX_MEDIA,
+      };
+  }
+}
+
 type Props = {
-  onBuildBox: () => void;
+  mode: StorefrontHomeMode;
+  onPrimary: () => void;
   onEligibility: () => void;
 };
 
-export function StorefrontBoxFeature({ onBuildBox, onEligibility }: Props) {
+export function StorefrontBoxFeature({ mode, onPrimary, onEligibility }: Props) {
   const { width } = useWindowDimensions();
   const stacked = width < 768;
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
-  const buildLabel = `Build your box (${boxPrice})`;
+  const copy = copyForMode(mode, boxPrice);
 
   return (
     <View style={styles.root}>
       <View style={[styles.inner, stacked && styles.innerStacked]}>
         <View style={[styles.mediaCol, stacked && styles.colStacked]}>
           <View style={styles.mediaWrap}>
-            <StorefrontMediaPlaceholder
-              slot={BOX_MEDIA}
-              style={styles.media}
-            />
-            <View style={styles.priceOverlay} pointerEvents="none">
-              <Text style={styles.price}>{boxPrice}</Text>
-              <Text style={styles.priceNote}>Free shipping</Text>
-            </View>
+            <StorefrontMediaPlaceholder slot={copy.media} style={styles.media} />
+            {copy.showPrice ? (
+              <View style={styles.priceOverlay} pointerEvents="none">
+                <Text style={styles.price}>{boxPrice}</Text>
+                <Text style={styles.priceNote}>Free shipping</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
         <View style={[styles.copyCol, stacked && styles.colStacked]}>
-          <Text style={styles.eyebrow}>The Hanukkah Box</Text>
-          <Text style={styles.headline}>One box. Built around your life.</Text>
-          <Text style={styles.body}>
-            There’s no standard box. A short quiz tells us about your household —
-            then we curate 8–12 pieces you can swap before lock.
-          </Text>
+          <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
+          <Text style={styles.headline}>{copy.headline}</Text>
+          <Text style={styles.body}>{copy.body}</Text>
 
-          <Text style={styles.checklistLabel}>What might be inside</Text>
+          <Text style={styles.checklistLabel}>{copy.checklistLabel}</Text>
           <View style={styles.checklist}>
-            {INCLUSIONS.map((item) => (
+            {copy.checklist.map((item) => (
               <View key={item.title} style={styles.checkItem}>
                 <Text style={styles.checkMark} accessibilityElementsHidden>
                   ✓
@@ -89,22 +184,22 @@ export function StorefrontBoxFeature({ onBuildBox, onEligibility }: Props) {
           <View style={styles.ctas}>
             <TouchableOpacity
               style={styles.ctaPrimary}
-              onPress={onBuildBox}
+              onPress={onPrimary}
               accessibilityRole="button"
-              accessibilityLabel={buildLabel}
+              accessibilityLabel={copy.primaryLabel}
             >
-              <Text style={styles.ctaPrimaryText}>{buildLabel}</Text>
+              <Text style={styles.ctaPrimaryText}>{copy.primaryLabel}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.ctaSecondary}
-              onPress={onEligibility}
-              accessibilityRole="button"
-              accessibilityLabel="See if I'm eligible for a discounted rate"
-            >
-              <Text style={styles.ctaSecondaryText}>
-                See if I’m eligible for a discounted rate
-              </Text>
-            </TouchableOpacity>
+            {copy.secondaryLabel ? (
+              <TouchableOpacity
+                style={styles.ctaSecondary}
+                onPress={onEligibility}
+                accessibilityRole="button"
+                accessibilityLabel={copy.secondaryLabel}
+              >
+                <Text style={styles.ctaSecondaryText}>{copy.secondaryLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </View>

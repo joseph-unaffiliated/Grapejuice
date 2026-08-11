@@ -42,10 +42,6 @@ const NATIVE_VIGNETTE_STOPS = [
   { offset: '1', color: '#3a281a', opacity: '0' },
 ] as const;
 
-type Props = {
-  onPress: () => void;
-};
-
 function NativeReverseVignette({ width, height }: { width: number; height: number }) {
   const rawId = useId().replace(/:/g, '');
   const gradId = `buildBoxReverseVignette-${rawId}`;
@@ -74,7 +70,27 @@ function NativeReverseVignette({ width, height }: { width: number; height: numbe
   );
 }
 
-export function StorefrontBuildBoxStrip({ onPress }: Props) {
+type Props = {
+  onPress: () => void;
+  headline?: string;
+  body?: string;
+  ctaLabel?: string;
+  /** Optional alternate strip image (e.g. Passover placeholder). */
+  backgroundSource?: number;
+};
+
+const DEFAULT_HEADLINE = 'Reveal your Personalized Hanukkah Box';
+const DEFAULT_BODY =
+  "Each box is tailored just for your family based on how many people live with you, their ages, and your familiarity with the holiday, and includes all the essentials you'll need for Hanukkah: Candles, latkes, a dreidel and gelt, wrapping paper, books, and more. Arrives a week or two before the first night.";
+const DEFAULT_CTA = 'Reveal now';
+
+export function StorefrontBuildBoxStrip({
+  onPress,
+  headline = DEFAULT_HEADLINE,
+  body = DEFAULT_BODY,
+  ctaLabel = DEFAULT_CTA,
+  backgroundSource = STRIP_BG,
+}: Props) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const isWeb = Platform.OS === 'web';
 
@@ -85,7 +101,7 @@ export function StorefrontBuildBoxStrip({ onPress }: Props) {
 
   return (
     <ImageBackground
-      source={STRIP_BG}
+      source={backgroundSource}
       style={styles.root}
       imageStyle={styles.bgImage}
       resizeMode="cover"
@@ -101,20 +117,15 @@ export function StorefrontBuildBoxStrip({ onPress }: Props) {
         <NativeReverseVignette width={size.w} height={size.h} />
       )}
       <View style={styles.inner}>
-        <Text style={styles.headline}>Reveal your Personalized Hanukkah Box</Text>
-        <Text style={styles.body}>
-          Each box is tailored just for your family based on how many people live with you, their
-          ages, and your familiarity with the holiday, and includes all the essentials you'll need
-          for Hanukkah: Candles, latkes, a dreidel and gelt, wrapping paper, books, and more.
-          Arrives a week or two before the first night.
-        </Text>
+        <Text style={styles.headline}>{headline}</Text>
+        <Text style={styles.body}>{body}</Text>
         <View style={styles.ctaWrap}>
           {/* Static hard shadow plate — button slides onto it when pressed */}
           <View style={styles.ctaShadow} pointerEvents="none" />
           <Pressable
             onPress={onPress}
             accessibilityRole="button"
-            accessibilityLabel="Reveal now"
+            accessibilityLabel={ctaLabel}
             style={({ pressed }) => [
               styles.cta,
               pressed && styles.ctaPressed,
@@ -127,7 +138,7 @@ export function StorefrontBuildBoxStrip({ onPress }: Props) {
                 : null,
             ]}
           >
-            <Text style={styles.ctaText}>Reveal now</Text>
+            <Text style={styles.ctaText}>{ctaLabel}</Text>
           </Pressable>
         </View>
       </View>

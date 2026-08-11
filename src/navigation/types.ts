@@ -33,6 +33,8 @@ export type MainTabsParamList = {
 export type MainStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabsParamList> | undefined;
   MyBox: undefined;
+  /** Empty cart before a Hanukkah box exists (header cart icon). */
+  StorefrontCart: undefined;
   Guide: undefined;
   KidGuide: undefined;
   Profiles: undefined;

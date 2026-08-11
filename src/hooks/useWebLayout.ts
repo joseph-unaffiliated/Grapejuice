@@ -1,7 +1,6 @@
 import { Platform, useWindowDimensions } from 'react-native';
 import { LAYOUT } from '../constants/theme';
 import { getWebContentMaxWidth } from './useEffectiveWindowDimensions';
-import { useWebSidebar } from '../context/WebSidebarContext';
 
 export type WebLayoutTier = 'native' | 'mobile-web' | 'tablet-web' | 'desktop-web';
 
@@ -35,10 +34,8 @@ export function useWebLayout() {
         : 'mobile-web';
 
   const isTabletUp = width >= LAYOUT.BREAKPOINT_TABLET;
-  const sidebar = useWebSidebar();
-  const sidebarWidth = isTabletUp
-    ? (sidebar?.layoutSidebarWidth ?? LAYOUT.WEB_SIDEBAR_COLLAPSED_WIDTH)
-    : 0;
+  // Legacy left rail is retired — never reserve sidebar width.
+  const sidebarWidth = 0;
   const mainAreaWidth = Math.max(0, width - sidebarWidth);
   const gutter = isTabletUp ? LAYOUT.WEB_CONTENT_GUTTER : 0;
   const contentMaxWidth = Math.min(getWebContentMaxWidth(width), mainAreaWidth - gutter * 2);
@@ -56,7 +53,7 @@ export function useWebLayout() {
     widePanelMaxWidth,
     /** Width for cards/carousels inside the content panel. */
     layoutWidth,
-    /** Full width of the main area beside the sidebar. */
+    /** Full width of the main area (sidebar retired). */
     mainAreaWidth,
     /** Left inset when a max-width column is centered in the main area. */
     contentColumnOffset,

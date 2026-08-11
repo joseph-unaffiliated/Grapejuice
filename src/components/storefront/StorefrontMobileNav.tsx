@@ -19,8 +19,8 @@ import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { icons } from '../../constants/icons';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
-import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import {
   semanticColors,
   spacing,
@@ -46,7 +46,7 @@ const HEADER_PAD = 16;
  */
 export function StorefrontMobileNav({ visible, onClose }: Props) {
   const navigation = useNavigation<Nav>();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = usePreviewedIsAuthenticated();
   const { width } = useWindowDimensions();
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);

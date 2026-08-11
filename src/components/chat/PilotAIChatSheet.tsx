@@ -18,10 +18,11 @@ import { aiChatService } from '../../services/firestore/aiChat';
 import { kidRavChatService } from '../../services/firestore/kidRavChat';
 import { askRav } from '../../services/rav/askRav';
 import { summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
-import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
+import { getHanukkahConfig } from '../../services/firestore/config';
 import { catalogService } from '../../services/firestore/catalog';
 import { formatHanukkahWelcomeSubtext, formatRelativeTime, formatThreadListDate } from '../../services/hanukkah/dates';
 import type { AIChatMessage, AIChatThreadSummary } from '../../types/aiChat';
+import { useEffectiveBoxLocked } from '../../hooks/useUserStatePreview';
 import type { CatalogItem } from '../../types/pilot';
 import { spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER, tabBarTotalHeight, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -145,7 +146,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const isGuest = !user?.uid;
   const useKidRavThreads =
     !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild && !!activeChild?.id && !isGuest;
-  const boxLocked = isBoxLocked(lockAt);
+  const boxLocked = useEffectiveBoxLocked(lockAt);
   const { canMutateBox, guardMutation } = usePaymentGate();
   const paymentGated = !canMutateBox;
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));

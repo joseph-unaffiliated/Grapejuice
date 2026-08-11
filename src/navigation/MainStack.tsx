@@ -13,6 +13,7 @@ import { StorefrontHomeScreen } from '../screens/storefront/StorefrontHomeScreen
 import { StorefrontCategoryScreen } from '../screens/storefront/StorefrontCategoryScreen';
 import { StorefrontOurStoryScreen } from '../screens/storefront/StorefrontOurStoryScreen';
 import { StorefrontPassoverScreen } from '../screens/storefront/StorefrontPassoverScreen';
+import { StorefrontCartScreen } from '../screens/storefront/StorefrontCartScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
@@ -104,14 +105,10 @@ function AuthReturnHandler() {
 }
 
 export function MainStack() {
-  const initialRouteName = (() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return 'MainTabs' as const;
-    const path = window.location.pathname.replace(/\/$/, '') || '/';
-    if (path === '/' || path === '/store' || path.startsWith('/store/')) {
-      return 'StorefrontHome' as const;
-    }
-    return 'MainTabs' as const;
-  })();
+  // Web defaults to the storefront. Deep links (product, category, etc.) are
+  // applied by link effects after mount — do not land on legacy MainTabs/Home.
+  const initialRouteName =
+    Platform.OS === 'web' ? ('StorefrontHome' as const) : ('MainTabs' as const);
 
   return (
     <WebDesktopFrame>
@@ -126,6 +123,11 @@ export function MainStack() {
       >
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ title: 'Home' }} />
         <Stack.Screen name="MyBox" component={MyBoxScreen} options={{ title: 'My Box' }} />
+        <Stack.Screen
+          name="StorefrontCart"
+          component={StorefrontCartScreen}
+          options={{ title: 'Cart' }}
+        />
         {!PILOT_HIDE_IN_APP_GUIDE ? (
           <Stack.Screen name="Guide" component={GuideScreen} options={{ title: 'Guide' }} />
         ) : null}

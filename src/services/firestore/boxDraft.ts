@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { BoxDraft, BoxLineItem, SlotVotes } from '../../types/pilot';
 import { HOLIDAY_ID } from '../../types/pilot';
@@ -92,5 +92,12 @@ export const boxDraftService = {
     const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
     const now = new Date().toISOString();
     await setDoc(ref, { slotVotes, updatedAt: now, updatedBy: uid }, { merge: true });
+  },
+
+  /** Admin/tester helper — remove the holiday draft so curation can restart. */
+  async clear(householdId: string, uid: string): Promise<void> {
+    if (!db) throw new Error('Firestore not configured');
+    await ensureAuthTokenReady(uid);
+    await deleteDoc(doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID));
   },
 };
