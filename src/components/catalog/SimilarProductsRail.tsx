@@ -19,6 +19,7 @@ import type { CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   borderRadius,
+  MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
@@ -99,8 +100,11 @@ export function SimilarProductsRail({ title = 'You may also like', items }: Prop
         scrollEventThrottle={16}
         onLayout={onViewportLayout}
         onContentSizeChange={onContentSizeChange}
-        style={horizontalRailScrollStyle()}
-        contentContainerStyle={horizontalRailContentStyle({ gap: spacing.md })}
+        style={[horizontalRailScrollStyle(), styles.scrollEdge]}
+        contentContainerStyle={horizontalRailContentStyle({
+          gap: spacing.md,
+          paddingHorizontal: MOBILE_GUTTER,
+        })}
         // @ts-expect-error web className
         className={Platform.OS === 'web' ? HORIZONTAL_RAIL_SCROLL_CLASS : undefined}
       >
@@ -149,6 +153,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: MOBILE_GUTTER,
   },
   title: {
     ...typeface('medium'),
@@ -168,6 +173,10 @@ const styles = StyleSheet.create({
   arrowGlyph: {
     color: semanticColors.logoDark,
     fontSize: 20,
+  },
+  /** Bleed lives on content; keep the scrollport edge-to-edge of the PDP column. */
+  scrollEdge: {
+    paddingHorizontal: 0,
   },
   tile: {
     width: TILE,

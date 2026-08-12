@@ -13,14 +13,15 @@ import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from '../screens/gift/
 const DEFAULT_CATALOG_ITEM_ID = 'graphic-novel-hanukkah';
 
 const SAMPLE_CHILDREN: ChildDraft[] = [
-  // Know-nothing smoke: 1 kid, band 3–5 → representative age 5 (gift/book planners).
-  { name: 'Sam', ageGroup: '3-5', birthdate: '2021-06-01' },
+  { name: 'Joseph', role: 'adult', ageGroup: '9-12' },
+  { name: 'Sam', role: 'kid', ageGroup: '3-5', plannerAge: 5 },
 ];
 
-/** Know-nothing smoke: ages 4 + 2 via plannerAge (bands alone map to 5 and 1). */
+/** Know-nothing smoke: ages 4 + 2 via plannerAge. */
 const SAMPLE_CHILDREN_2KIDS: ChildDraft[] = [
-  { name: 'Sam', ageGroup: '3-5', plannerAge: 4, birthdate: '2022-06-01' },
-  { name: 'Riley', ageGroup: '0-2', plannerAge: 2, birthdate: '2024-06-01' },
+  { name: 'Joseph', role: 'adult', ageGroup: '9-12' },
+  { name: 'Sam', role: 'kid', ageGroup: '3-5', plannerAge: 4 },
+  { name: 'Riley', role: 'kid', ageGroup: '0-2', plannerAge: 2 },
 ];
 
 const PREVIEW_KID_NAMES = ['Sam', 'Riley', 'Jordan', 'Alex', 'Casey', 'Quinn'];
@@ -45,6 +46,7 @@ function childrenFromKidsParam(search: URLSearchParams): ChildDraft[] | null {
   if (!ages.length) return null;
   return ages.map((age, i) => ({
     name: PREVIEW_KID_NAMES[i] ?? `Kid ${i + 1}`,
+    role: 'kid' as const,
     ageGroup: ageGroupForNumericAge(age),
     plannerAge: age,
     birthdate: birthdateForPlannerAge(age),
@@ -64,13 +66,15 @@ function setGuestFresh() {
 function profilesFromDrafts(children: ChildDraft[]) {
   // IDs must match useBoxDraft.draftsToProfiles (`guest-${i}`) or attribution
   // falls back to "your kid" because lineItem.childId won't resolve.
-  return children.map((c, i) => ({
-    id: `guest-${i}`,
-    name: c.name,
-    ageGroup: c.ageGroup,
-    birthdate: c.birthdate,
-    plannerAge: c.plannerAge,
-  }));
+  return children
+    .filter((c) => c.role !== 'adult')
+    .map((c, i) => ({
+      id: `guest-${i}`,
+      name: c.name,
+      ageGroup: c.ageGroup,
+      birthdate: c.birthdate,
+      plannerAge: c.plannerAge,
+    }));
 }
 
 async function seedGuestBoxStarted(children: ChildDraft[] = SAMPLE_CHILDREN) {

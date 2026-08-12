@@ -29,10 +29,16 @@ import { useOnboardingUnderStorefrontChrome } from './onboardingChromeContext';
 /** Desktop two-pane — equal columns with comfortable copy inset and CTA spacing. */
 const DESKTOP_PANE_SHARE = '50%';
 const DESKTOP_COPY_HORIZONTAL_PAD = spacing.xxl + spacing.lg;
+/** Room for card goldGlowSm so ScrollView overflowX doesn't clip side glow. */
+const SIDE_GLOW_BLEED = 8;
+/** Outer pane pad — glow bleed lives on scroll content instead. */
+const DESKTOP_COPY_PAD = DESKTOP_COPY_HORIZONTAL_PAD - SIDE_GLOW_BLEED;
+/** Primary CTA inset from the left pane edges (L / R / bottom). */
+const DESKTOP_CTA_INSET = 24;
 const DESKTOP_COPY_FOOTER_GAP = spacing.xxxl + spacing.lg;
 /** Matches primary + secondary CTAs + desktop bottom inset when footer is hidden. */
 const DESKTOP_FOOTER_RESERVE =
-  DESKTOP_COPY_FOOTER_GAP + 48 + spacing.sm + 8 + 40 + spacing.lg + 64;
+  DESKTOP_COPY_FOOTER_GAP + 48 + spacing.sm + 8 + 40 + spacing.lg + DESKTOP_CTA_INSET;
 /** CTA column — wide enough for long labels, narrower than the copy pane. */
 const ONBOARDING_CTA_MAX_WIDTH = 360;
 
@@ -93,7 +99,9 @@ export function OnboardingScreenLayout({
   /** Desktop is left-aligned; mobile follows centerHeader. */
   const leftAlignHeader = isDesktopWeb || !centerHeader;
 
-  const bottomPad = Math.max(insets.bottom, spacing.sm) + (Platform.OS === 'web' ? (isDesktopWeb ? 64 : 40) : 16);
+  const bottomPad = isDesktopWeb
+    ? DESKTOP_CTA_INSET
+    : Math.max(insets.bottom, spacing.sm) + (Platform.OS === 'web' ? 40 : 16);
   /** Room below the corner logo; under storefront chrome the header already brands. */
   const topPad = underStorefrontChrome
     ? isDesktopWeb
@@ -118,6 +126,7 @@ export function OnboardingScreenLayout({
       <View
         style={[
           styles.footerCtaWrap,
+          isDesktopWeb ? styles.footerCtaWrapDesktop : null,
           { alignSelf: leftAlignHeader ? 'flex-start' : 'center' },
         ]}
       >
@@ -147,9 +156,12 @@ export function OnboardingScreenLayout({
           ? mediaProvidedByParent
             ? styles.copyPaneDesktopHosted
             : styles.copyPaneDesktop
-          : styles.copyPaneMobile,
-        isDesktopWeb && { paddingHorizontal: DESKTOP_COPY_HORIZONTAL_PAD },
-        { paddingTop: topPad, paddingBottom: hideFooter && !isDesktopWeb ? bottomPad : 0 },
+          : [
+              styles.copyPaneMobile,
+              underStorefrontChrome && styles.copyPaneMobileUnderChrome,
+            ],
+        isDesktopWeb && { paddingHorizontal: DESKTOP_COPY_PAD },
+        { paddingBottom: hideFooter && !isDesktopWeb ? bottomPad : 0 },
       ]}
     >
       <ScrollView
@@ -158,6 +170,8 @@ export function OnboardingScreenLayout({
           styles.scrollContent,
           isDesktopWeb && styles.scrollContentDesktop,
           centerBody && styles.scrollContentCentered,
+          { paddingTop: topPad },
+          isDesktopWeb && styles.scrollContentGlowBleed,
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -253,7 +267,12 @@ const styles = StyleSheet.create({
   /** Left pane only — media is rendered by `OnboardingMediaHost`. */
   rootHosted: {
     width: '100%',
+    flex: 1,
+    minHeight: 0,
     position: 'relative',
+    ...(Platform.OS === 'web'
+      ? ({ height: '100%', maxHeight: '100%', alignSelf: 'stretch' } as object)
+      : null),
   },
   copyPane: {
     flex: 1,
@@ -264,8 +283,10 @@ const styles = StyleSheet.create({
   /** In media host the parent is a column — do not inherit row-axis flex:1 (fills height). */
   copyPaneInHost: {
     width: '100%',
+    flex: 1,
     backgroundColor: semanticColors.bgPrimary,
     minWidth: 0,
+    minHeight: 0,
   },
   /** Single column — fills the viewport; CTAs pin below a flex scrollport. */
   copyPaneMobile: {
@@ -273,6 +294,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     ...(Platform.OS === 'web'
       ? ({ height: '100%', maxHeight: '100vh' } as object)
+      : null),
+  },
+  copyPaneMobileUnderChrome: {
+    ...(Platform.OS === 'web'
+      ? ({ height: '100%', maxHeight: '100%' } as object)
       : null),
   },
   copyPaneDesktop: {
@@ -285,7 +311,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 4,
     justifyContent: 'flex-start',
-    gap: DESKTOP_COPY_FOOTER_GAP,
     minHeight: 0,
     overflow: 'hidden',
     backgroundColor: semanticColors.bgPrimary,
@@ -297,23 +322,23 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: '100%',
     minWidth: 0,
+    flex: 1,
     alignSelf: 'stretch',
     position: 'relative',
     zIndex: 4,
     justifyContent: 'flex-start',
-    gap: DESKTOP_COPY_FOOTER_GAP,
     minHeight: 0,
     overflow: 'hidden',
     backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
-      ? ({ maxHeight: '100vh' } as object)
+      ? ({ maxHeight: '100%' } as object)
       : { maxHeight: '100%' }),
   },
   /** Mobile: fill space above sticky CTAs so tall screens (practices) can scroll. */
   scroll: { flex: 1, minHeight: 0 },
-  /** Desktop: size to content; gap below separates CTAs without pinning to the viewport. */
+  /** Desktop: grow so the primary CTA can pin to the bottom of the pane. */
   scrollDesktop: {
-    flexGrow: 0,
+    flexGrow: 1,
     flexShrink: 1,
     minHeight: 0,
   },
@@ -322,8 +347,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   scrollContentDesktop: {
-    flexGrow: 0,
+    flexGrow: 1,
     paddingBottom: spacing.lg,
+  },
+  /** Keeps card side-glow inside the scroll content box (not clipped by overflowX). */
+  scrollContentGlowBleed: {
+    paddingHorizontal: SIDE_GLOW_BLEED,
   },
   scrollContentCentered: {
     flexGrow: 1,
@@ -346,7 +375,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     color: semanticColors.goldMuted,
     letterSpacing: -0.33,
-    marginBottom: 2,
+    marginBottom: spacing.sm,
     textAlign: 'center',
   },
   kickerLeft: {
@@ -369,7 +398,7 @@ const styles = StyleSheet.create({
   },
   bodyDesktop: {
     paddingHorizontal: 0,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     maxWidth: 440,
   },
   bodyCentered: {
@@ -394,18 +423,26 @@ const styles = StyleSheet.create({
       : null),
   },
   footerDesktop: {
-    paddingHorizontal: 0,
+    // Break out of the wider copy pad, then re-inset so L/R/bottom are 24px from the pane.
+    marginHorizontal: -DESKTOP_COPY_PAD,
+    paddingHorizontal: DESKTOP_CTA_INSET,
     paddingTop: 0,
+    marginTop: 'auto',
     flexShrink: 0,
   },
   footerReserve: {
     height: DESKTOP_FOOTER_RESERVE,
     flexShrink: 0,
+    marginHorizontal: -DESKTOP_COPY_PAD,
   },
   footerCtaWrap: {
     width: '100%',
     maxWidth: ONBOARDING_CTA_MAX_WIDTH,
     gap: 8,
+  },
+  /** Span the full CTA inset width (pane − 24px × 2). */
+  footerCtaWrapDesktop: {
+    maxWidth: '100%',
   },
   secondaryGap: {
     marginTop: 0,

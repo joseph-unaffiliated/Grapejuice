@@ -1,5 +1,4 @@
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
-import type { ChildInterestId } from '../../constants/childInterests';
 import {
   ALA_CARTE_SLOT_IDS,
   inferPricingTier,
@@ -113,14 +112,16 @@ function pushLineItem(
 export function buildDefaultLineItems(
   catalog: CatalogItem[],
   children: ChildProfile[],
-  _childInterests: ChildInterestId[] = []
+  _childInterests: string[] = [],
+  adults?: number
 ): BoxLineItem[] {
   const lineItems: BoxLineItem[] = [];
   if (!catalog.length) return lineItems;
 
-  const paired = kidsFromChildren(children.length ? children : [{ id: 'preview-0', ageGroup: '3-5' }]);
+  const paired = kidsFromChildren(children);
   const outline = planKnowNothingOutline({
     kids: paired.map((p) => ({ age: p.age })),
+    adults,
   });
   const rows = catalog.map(toRulesRow);
 

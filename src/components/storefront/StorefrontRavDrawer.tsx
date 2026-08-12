@@ -5,13 +5,12 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
-  Text,
   Easing,
 } from 'react-native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../chat/PilotAIChatSheet';
-import { semanticColors, spacing, typeface } from '../../constants/theme';
+import { semanticColors, spacing } from '../../constants/theme';
 
 type Props = {
   visible: boolean;
@@ -22,10 +21,11 @@ type Props = {
   /** Panel width (desktop docked or mobile overlay). */
   width: number;
   /**
-   * Offset from the top of the storefront shell so Rav sits below in-flow / pinned
-   * header chrome rather than covering it.
+   * Offset from the top of the storefront shell so Rav sits below the visible
+   * header (in-flow, overlay, or 1:1 scroll-tracked). Animated while the overlay
+   * header moves.
    */
-  topInset?: number;
+  topInset?: number | Animated.AnimatedInterpolation<number> | Animated.Value;
   /**
    * Desktop: participate in the row layout and shift page content.
    * Mobile: absolute overlay (page stays mounted/scrollable underneath).
@@ -137,19 +137,18 @@ export function StorefrontRavDrawer({
         accessibilityLabel={historyOpen ? 'Back to Rav' : 'Chat history'}
       >
         <Icon
-          icon={historyOpen ? icons.arrowLeft : icons.menu}
-          size={18}
+          icon={historyOpen ? icons.arrowLeft : icons.clockHistory}
+          size={14}
           color={semanticColors.logoDark}
         />
       </TouchableOpacity>
-      <Text style={styles.chromeTitle}>Rav</Text>
       <TouchableOpacity
         style={styles.chromeHit}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close Rav"
       >
-        <Icon icon={icons.close} size={18} color={semanticColors.logoDark} />
+        <Icon icon={icons.chevronsRight} size={14} color={semanticColors.logoDark} />
       </TouchableOpacity>
     </View>
   );
@@ -161,6 +160,7 @@ export function StorefrontRavDrawer({
         ref={chatRef}
         embedded
         externalHistoryChrome
+        overlay="drawer"
         bootstrapMessage={bootstrapMessage}
         onViewChange={onViewChange}
       />
@@ -217,6 +217,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     height: '100%',
     overflow: 'hidden',
+    zIndex: 20,
     backgroundColor: semanticColors.bgPrimary,
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: semanticColors.border,
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     bottom: 0,
-    zIndex: 15,
+    zIndex: 20,
     backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)' } as object)
@@ -264,12 +265,6 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  chromeTitle: {
-    ...typeface('medium'),
-    fontSize: 16,
-    color: semanticColors.logoDark,
-    letterSpacing: -0.3,
   },
   chat: {
     flex: 1,

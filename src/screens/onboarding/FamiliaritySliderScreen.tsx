@@ -11,7 +11,6 @@ import { familiarityScoreToLevel } from '../../stores/guestSessionStore';
 type Props = {
   initialScore?: number;
   onContinue: (level: FamiliarityLevel, score: number) => void;
-  onExplore?: () => void;
 };
 
 function FamiliaritySliderControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -50,7 +49,7 @@ function FamiliaritySliderControl({ value, onChange }: { value: number; onChange
   );
 }
 
-export function FamiliaritySliderScreen({ initialScore = 50, onContinue, onExplore }: Props) {
+export function FamiliaritySliderScreen({ initialScore = 50, onContinue }: Props) {
   const [score, setScore] = useState(initialScore);
   const level = familiarityScoreToLevel(score);
 
@@ -63,12 +62,11 @@ export function FamiliaritySliderScreen({ initialScore = 50, onContinue, onExplo
 
   return (
     <OnboardingScreenLayout
+      kicker="Familiarity"
       title="How does Hanukkah usually go?"
       centerHeader={false}
       primaryLabel="Continue"
       onPrimary={() => onContinue(level, score)}
-      secondaryLabel={onExplore ? 'Explore without building a box' : undefined}
-      onSecondary={onExplore}
     >
       <Text style={[onboardingBodyText.lead, styles.subtitle]}>
         Slide to where you are — not where you think you should be. This shapes your box and your guide.

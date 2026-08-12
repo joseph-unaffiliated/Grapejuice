@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
-import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
+import {
+  ONBOARDING_WIZARD_NAV_STEPS,
+  type OnboardingWizardNavStepId,
+} from '../../navigation/onboardingSteps';
+import { STOREFRONT_H_SCROLL_CLASS } from '../storefront/storefrontScroll';
 import {
   MOBILE_GUTTER,
   semanticColors,
@@ -11,11 +14,17 @@ import {
 } from '../../constants/theme';
 
 type Props = {
-  activeSlug?: string;
-  onPress: (slug: string) => void;
+  activeStep: OnboardingWizardNavStepId;
+  /** Highest step index the household has reached (0-based in ONBOARDING_WIZARD_NAV_STEPS). */
+  maxReachedIndex: number;
+  onPress: (step: OnboardingWizardNavStepId) => void;
 };
 
-export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
+/**
+ * Dark secondary bar for the box-builder wizard — same chrome as StorefrontCategoryNav,
+ * but lists intake steps instead of product aisles.
+ */
+export function OnboardingWizardNav({ activeStep, maxReachedIndex, onPress }: Props) {
   return (
     <View style={styles.root}>
       <ScrollView
@@ -25,12 +34,13 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
         // @ts-expect-error web className
         className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
       >
-        {STOREFRONT_CATEGORIES.map((c) => {
-          const active = c.slug === activeSlug;
-          const isSale = c.navStyle === 'sale';
+        {ONBOARDING_WIZARD_NAV_STEPS.map((step, index) => {
+          const active = step.id === activeStep;
+          const reachable = index <= maxReachedIndex;
+          const isAccent = step.navStyle === 'accent';
           return (
-            <React.Fragment key={c.slug}>
-              {c.separatorBefore ? (
+            <React.Fragment key={step.id}>
+              {step.separatorBefore ? (
                 <Text
                   style={styles.separator}
                   accessibilityElementsHidden
@@ -41,19 +51,25 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
               ) : null}
               <TouchableOpacity
                 style={[styles.linkHit, active && styles.linkHitActive]}
-                onPress={() => onPress(c.slug)}
+                onPress={() => {
+                  if (!reachable || active) return;
+                  onPress(step.id);
+                }}
+                disabled={!reachable}
                 accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={c.label}
+                accessibilityState={{ selected: active, disabled: !reachable }}
+                accessibilityLabel={`Step ${index + 1}: ${step.label}`}
               >
                 <Text
                   style={[
                     styles.link,
-                    isSale && styles.linkSale,
+                    isAccent && styles.linkAccent,
                     active && styles.linkActive,
+                    !reachable && !isAccent && styles.linkLocked,
+                    !reachable && isAccent && styles.linkAccentLocked,
                   ]}
                 >
-                  {c.label}
+                  {step.label}
                 </Text>
               </TouchableOpacity>
             </React.Fragment>
@@ -67,7 +83,6 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
 const styles = StyleSheet.create({
   root: {
     backgroundColor: semanticColors.logoDark,
-    // No light/white bottom stroke on the dark secondary bar.
     borderBottomWidth: 0,
     borderTopWidth: 0,
   },
@@ -87,7 +102,6 @@ const styles = StyleSheet.create({
     color: semanticColors.textInverse,
     opacity: 0.35,
     flexShrink: 0,
-    // Match linkHit bottom inset so | aligns with category labels.
     paddingBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: 'transparent',
@@ -108,11 +122,17 @@ const styles = StyleSheet.create({
     color: semanticColors.textInverse,
     opacity: 0.85,
   },
-  linkSale: {
+  linkAccent: {
     color: semanticColors.brand,
     opacity: 1,
   },
   linkActive: {
     opacity: 1,
+  },
+  linkLocked: {
+    opacity: 0.35,
+  },
+  linkAccentLocked: {
+    opacity: 0.45,
   },
 });

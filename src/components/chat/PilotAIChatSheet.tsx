@@ -736,15 +736,19 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             contentContainerStyle={[
               styles.welcome,
               isDesktop && styles.welcomeDesktop,
-              { paddingBottom: bottomPad + 80 },
+              overlay === 'drawer' ? styles.welcomeDrawer : null,
+              {
+                paddingBottom:
+                  overlay === 'drawer' ? spacing.lg + bottomPad : bottomPad + 80,
+              },
             ]}
             keyboardShouldPersistTaps="handled"
           >
             <View style={[styles.welcomeColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
-            <GrapejuiceBrandMark animating={loading} />
+            {overlay === 'drawer' ? null : <GrapejuiceBrandMark animating={loading} />}
             <View style={styles.welcomeHeadings}>
               <Text style={styles.welcomeTitle}>What&apos;s on your mind?</Text>
-              <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>
+              {overlay === 'drawer' ? null : <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>}
             </View>
 
             <View style={styles.welcomeSearchWrap}>
@@ -916,6 +920,12 @@ function createPilotStyles(colors: SemanticColors) {
     alignItems: 'center',
     width: '100%',
   },
+  /** Storefront drawer: vertically center the welcome stack in the pane. */
+  welcomeDrawer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: spacing.lg,
+  },
   welcomeColumn: {
     width: '100%',
     paddingHorizontal: MOBILE_GUTTER,
@@ -1080,7 +1090,7 @@ function createPilotStyles(colors: SemanticColors) {
     color: colors.textPrimary,
     textAlign: 'center',
     letterSpacing: -0.22,
-    lineHeight: 16,
+    lineHeight: 14,
   },
   menuBtn: {
     position: 'absolute',

@@ -4,37 +4,51 @@ import {
   OnboardingScreenLayout,
   onboardingBodyText,
 } from '../../components/onboarding/OnboardingScreenLayout';
-import { spacing } from '../../constants/theme';
+import { HanukkahPracticesOverview } from '../../components/holiday/HanukkahPracticesOverview';
+import {
+  HANUKKAH_PRACTICES_INTRO,
+} from '../../constants/hanukkahPractices';
+import { spacing, typeface } from '../../constants/theme';
 
 type Props = {
   onContinue: () => void;
-  onExplore?: () => void;
 };
 
-export function HanukkahIntroScreen({ onContinue, onExplore }: Props) {
+export function HanukkahIntroScreen({ onContinue }: Props) {
   return (
     <OnboardingScreenLayout
-      kicker="Hanukkah 2026"
+      kicker="How it Works"
       title="Eight nights. Your pace."
       primaryLabel="Continue"
       onPrimary={onContinue}
-      secondaryLabel={onExplore ? 'Explore without building a box' : undefined}
-      onSecondary={onExplore}
     >
       <View style={styles.copy}>
-        <Text style={onboardingBodyText.lead}>
-          Hanukkah is a week of light at home — candles, food, games, small rituals. No Hebrew required.
-          No prior experience required. Just show up when you can.
+        <Text style={[onboardingBodyText.lead, styles.intro]}>
+          Hanukkah is a week of light at home — candles, food, games, small rituals. No Hebrew required. No
+          prior experience required. Just show up when you can. Grapejuice sends a curated box with what you
+          actually need to celebrate — not decorations that sit in a drawer until next year.
         </Text>
-        <Text style={onboardingBodyText.text}>
-          Grapejuice sends a curated box with what you actually need to celebrate — not decorations that
-          sit in a drawer until next year.
-        </Text>
+
+        <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{HANUKKAH_PRACTICES_INTRO}</Text>
+        <View style={styles.practices}>
+          <HanukkahPracticesOverview layout="stack" showIntro={false} />
+        </View>
       </View>
     </OnboardingScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  copy: { paddingTop: spacing.sm, gap: spacing.sm },
+  copy: { paddingTop: 0, gap: spacing.sm },
+  intro: {
+    marginBottom: 0,
+  },
+  sectionLead: {
+    ...typeface('medium'),
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  practices: {
+    marginBottom: spacing.sm,
+  },
 });

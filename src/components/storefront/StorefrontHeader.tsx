@@ -4,6 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -81,14 +83,14 @@ export function StorefrontHeader({ onLogoPress }: Props) {
   };
 
   const ravButton = (
-    <TouchableOpacity
-      style={styles.ravBtn}
+    <Pressable
+      style={({ pressed }) => [styles.ravBtn, pressed && styles.ravBtnPressed]}
       onPress={() => openRav()}
       accessibilityRole="button"
       accessibilityLabel="Ask Rav"
     >
       <Icon icon={icons.childReaching} size={18} color={semanticColors.logoDark} />
-    </TouchableOpacity>
+    </Pressable>
   );
 
   const searchGo = (
@@ -312,6 +314,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    ...(Platform.OS === 'web'
+      ? ({
+          transitionProperty: 'transform',
+          transitionDuration: '100ms',
+          transitionTimingFunction: 'ease-out',
+        } as object)
+      : null),
+  },
+  ravBtnPressed: {
+    transform: [{ translateY: 2 }],
   },
   logoHit: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, StyleSheet, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontProductTile } from './StorefrontProductTile';
@@ -16,16 +16,29 @@ type Props = {
   limit?: number;
 };
 
+/** Prefer 3-up when the grid’s own width is tablet+; else 2. Uses container, not window,
+ * so a docked Rav pane doesn’t leave one oversized tile per row. */
+function columnsForWidth(width: number): number {
+  return width >= 768 ? 3 : 2;
+}
+
 export function StorefrontProductGrid({ items, limit }: Props) {
   const navigation = useNavigation<Nav>();
   const { width: windowWidth } = useWindowDimensions();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const [containerWidth, setContainerWidth] = useState(0);
 
-  // 2 on phone; 3 from tablet / mid desktop (matches other storefront breakpoints).
-  const cols = windowWidth >= 768 ? 3 : 2;
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w <= 0) return;
+    setContainerWidth((prev) => (Math.abs(prev - w) > 1 ? w : prev));
+  };
+
   const gap = spacing.sm;
   const pad = MOBILE_GUTTER;
-  const tileWidth = Math.floor((windowWidth - pad * 2 - gap * (cols - 1)) / cols);
+  const layoutW = containerWidth > 0 ? containerWidth : windowWidth;
+  const cols = columnsForWidth(layoutW);
+  const tileWidth = Math.floor((layoutW - pad * 2 - gap * (cols - 1)) / cols);
 
   const visible = useMemo(() => {
     const list = limit != null ? items.slice(0, limit) : items;
@@ -33,7 +46,7 @@ export function StorefrontProductGrid({ items, limit }: Props) {
   }, [items, limit]);
 
   return (
-    <View style={[styles.grid, { paddingHorizontal: pad, gap }]}>
+    <View style={[styles.grid, { paddingHorizontal: pad, gap }]} onLayout={onLayout}>
       {visible.map((item) => (
         <StorefrontProductTile
           key={item.id}

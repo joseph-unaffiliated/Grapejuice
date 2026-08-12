@@ -25,6 +25,12 @@ const StorefrontRavContext = createContext<StorefrontRavContextValue | null>(nul
  */
 let openRavBridge: ((initialMessage?: string) => void) | null = null;
 
+/**
+ * Survives StorefrontChrome remounts so navigating storefront routes keeps Rav open.
+ * Cleared only when the user closes / toggles off.
+ */
+let ravSessionOpen = false;
+
 export function openStorefrontRav(initialMessage?: string) {
   openRavBridge?.(initialMessage);
 }
@@ -51,20 +57,40 @@ type ProviderProps = {
 
 /** Holds Rav open state; chrome renders the pane in-layout (not a Modal). */
 export function StorefrontRavProvider({ children }: ProviderProps) {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(ravSessionOpen);
   const [initialMessage, setInitialMessage] = useState<string | undefined>();
   const [messageNonce, setMessageNonce] = useState(0);
 
-  const openRav = useCallback((message?: string) => {
-    const trimmed = message?.trim();
-    setInitialMessage(trimmed || undefined);
-    setMessageNonce((n) => n + 1);
-    setVisible(true);
+  const setOpen = useCallback((open: boolean) => {
+    ravSessionOpen = open;
+    setVisible(open);
   }, []);
 
+  const openRav = useCallback(
+    (message?: string) => {
+      const trimmed = message?.trim();
+      if (trimmed) {
+        setInitialMessage(trimmed);
+        setMessageNonce((n) => n + 1);
+        setOpen(true);
+        return;
+      }
+      // Ask Rav with no message toggles the drawer closed when already open.
+      if (ravSessionOpen) {
+        setInitialMessage(undefined);
+        setOpen(false);
+        return;
+      }
+      setInitialMessage(undefined);
+      setMessageNonce((n) => n + 1);
+      setOpen(true);
+    },
+    [setOpen]
+  );
+
   const closeRav = useCallback(() => {
-    setVisible(false);
-  }, []);
+    setOpen(false);
+  }, [setOpen]);
 
   useEffect(() => {
     openRavBridge = openRav;

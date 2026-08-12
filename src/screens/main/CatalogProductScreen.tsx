@@ -14,7 +14,6 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
-import { useSession } from '../../hooks/useSession';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBrowsingHistoryStore } from '../../stores/browsingHistoryStore';
 import {
@@ -26,14 +25,18 @@ import {
   usePreviewedHasStartedBox,
 } from '../../hooks/useUserStatePreview';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
-import { ordersService } from '../../services/firestore/orders';
-import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import { formatCatalogDollars, buildDefaultLineItems } from '../../services/box/buildDefaultBox';
 import {
   HANUKKAH_SHIP_WINDOW_LABEL,
   inferPricingTier,
   resolveCatalogDisplayPrices,
   unitCentsForTier,
 } from '../../services/box/pricing';
+import { resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import {
+  displaySectionForCatalogItem,
+  type BoxDisplaySectionId,
+} from '../../constants/boxDisplaySections';
 import { similarCatalogItems } from '../../constants/catalogCuration';
 import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
 import { storefrontCategoryForItem } from '../../constants/storefrontCategories';
@@ -72,14 +75,108 @@ function detailRowsFromItem(item: CatalogItem): DetailRow[] {
   return rows;
 }
 
-function hasActiveHanukkahBoxOrder(orders: { status: string }[]): boolean {
-  return orders.some(
-    (o) =>
-      o.status === 'committed' ||
-      o.status === 'confirmed' ||
-      o.status === 'shipped' ||
-      o.status === 'delivered'
+/** Sections where same-section SKUs can substitute (pay the price difference). */
+const PEER_SWAP_SECTIONS: ReadonlySet<BoxDisplaySectionId> = new Set([
+  'dreidel',
+  'candles',
+  'story',
+]);
+
+function normalizeSlotKey(slotId: string | undefined | null): string {
+  return (slotId ?? '').trim().toLowerCase().replace(/-\d+$/, '');
+}
+
+function haystackOf(item: Pick<CatalogItem, 'id' | 'name' | 'slotId'> & { category?: string }): string {
+  return `${item.id} ${item.name} ${item.slotId ?? ''} ${item.category ?? ''}`.toLowerCase();
+}
+
+function isGeltHay(hay: string): boolean {
+  return /gelt/.test(hay);
+}
+
+function isDreidelHay(hay: string): boolean {
+  return /dreidel/.test(hay) && !isGeltHay(hay);
+}
+
+function lineHaystack(li: BoxLineItem, catalog: CatalogItem[]): string {
+  const current = catalog.find((c) => c.id === li.itemId);
+  if (current) return haystackOf(current);
+  return `${li.itemId} ${li.label ?? ''} ${li.slotId}`.toLowerCase();
+}
+
+/**
+ * Box line this PDP item can replace — explicit swap graph, same slot family,
+ * same display section, or dreidel↔dreidel by name (wood → brass).
+ */
+function findSwapSourceLine(
+  item: CatalogItem,
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[]
+): BoxLineItem | null {
+  const itemHay = haystackOf(item);
+  const itemIsDreidel = isDreidelHay(itemHay);
+  const scored: { li: BoxLineItem; rank: number }[] = [];
+
+  for (const li of lineItems) {
+    if (li.itemId === item.id) continue;
+    const current = catalog.find((c) => c.id === li.itemId);
+    const liHay = lineHaystack(li, catalog);
+
+    let rank = -1;
+
+    if (current) {
+      const opts = resolveSwapOptionsForItem(current, catalog, 24);
+      if (opts.some((o) => o.id === item.id)) {
+        rank = 0;
+      }
+    }
+
+    if (rank < 0) {
+      const lineSlot = normalizeSlotKey(li.slotId);
+      const itemSlot = normalizeSlotKey(item.slotId);
+      const currentSlot = normalizeSlotKey(current?.slotId || current?.defaultSlot);
+      const itemDefault = normalizeSlotKey(item.defaultSlot);
+      if (
+        lineSlot &&
+        itemSlot &&
+        (lineSlot === itemSlot ||
+          lineSlot === itemDefault ||
+          itemSlot === currentSlot ||
+          (itemDefault && currentSlot && itemDefault === currentSlot) ||
+          // Per-kid wood-dreidel-0 ↔ keepsake/ala/brass family
+          (lineSlot.includes('dreidel') &&
+            itemSlot.includes('dreidel') &&
+            !lineSlot.includes('gelt')))
+      ) {
+        rank = 1;
+      }
+    }
+
+    if (rank < 0 && current) {
+      const secA = displaySectionForCatalogItem(current);
+      const secB = displaySectionForCatalogItem(item);
+      if (
+        secA &&
+        secA === secB &&
+        PEER_SWAP_SECTIONS.has(secA) &&
+        !(secA === 'dreidel' && isGeltHay(liHay) !== isGeltHay(itemHay))
+      ) {
+        rank = 2;
+      }
+    }
+
+    // Name-level dreidel peer (covers missing catalog rows / gift slots / preview drafts).
+    if (rank < 0 && itemIsDreidel && isDreidelHay(liHay)) {
+      rank = 3;
+    }
+
+    if (rank >= 0) scored.push({ li, rank });
+  }
+
+  scored.sort(
+    (a, b) => a.rank - b.rank || (a.li.unitCents ?? 0) - (b.li.unitCents ?? 0)
   );
+  return scored[0]?.li ?? null;
 }
 
 export function CatalogProductScreen() {
@@ -88,8 +185,12 @@ export function CatalogProductScreen() {
   const { slug } = route.params;
   const { width } = useWindowDimensions();
   const desktop = width >= 768;
-  const { household } = useSession();
-  const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
+  const {
+    lineItems,
+    children,
+    loading: draftLoading,
+    persist: saveDraft,
+  } = useBoxDraft();
   const cartItems = useMarketplaceCartStore((s) => s.items);
   const addCartItem = useMarketplaceCartStore((s) => s.addItem);
   const removeCartItem = useMarketplaceCartStore((s) => s.removeItem);
@@ -129,7 +230,6 @@ export function CatalogProductScreen() {
   const [saving, setSaving] = useState(false);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const locked = useEffectiveBoxLocked(lockAt);
-  const [hasHanukkahBox, setHasHanukkahBox] = useState(false);
   const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -152,21 +252,6 @@ export function CatalogProductScreen() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!household?.id) {
-      setHasHanukkahBox(false);
-      return;
-    }
-    ordersService.listForHousehold(household.id).then((orders) => {
-      if (cancelled) return;
-      setHasHanukkahBox(hasActiveHanukkahBoxOrder(orders));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [household?.id]);
 
   const loading = catalogLoading || draftLoading || loadingConfig;
   const inMarketplaceCart = useMemo(
@@ -193,6 +278,22 @@ export function CatalogProductScreen() {
     () => (item ? similarCatalogItems(item, catalog, 12) : []),
     [item, catalog]
   );
+  /**
+   * Preview / empty-draft “has box” states still need something to swap against.
+   * Prefer the live draft; otherwise seed a default curated box for detection only.
+   */
+  const swapLineItems = useMemo(() => {
+    if (lineItems.length > 0) return lineItems;
+    if (!hasStartedBox || !catalog.length) return lineItems;
+    return buildDefaultLineItems(catalog, children, []);
+  }, [lineItems, hasStartedBox, catalog, children]);
+  const swapSource = useMemo(() => {
+    if (!item || !hasStartedBox || inBox) return null;
+    return findSwapSourceLine(item, swapLineItems, catalog);
+  }, [item, hasStartedBox, inBox, swapLineItems, catalog]);
+  const swapDeltaCents = swapSource
+    ? Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0))
+    : 0;
 
   const persist = async (next: BoxLineItem[]) => {
     setSaving(true);
@@ -219,7 +320,7 @@ export function CatalogProductScreen() {
     }
   };
 
-  const buyWithBox = async () => {
+  const addToBox = async () => {
     if (!item || locked || inBox) return;
     if (boxUnitCents > 0 && !guardMutation()) return;
     await persist([
@@ -232,6 +333,30 @@ export function CatalogProductScreen() {
         label: item.name,
       },
     ]);
+    navigation.navigate('MyBox');
+  };
+
+  const buyWithBox = async () => {
+    await addToBox();
+  };
+
+  const swapIntoBox = async () => {
+    if (!item || !swapSource || locked || inBox) return;
+    if (swapDeltaCents > 0 && !guardMutation()) return;
+    // Use live draft when present; otherwise persist the seeded default box + swap.
+    const base = lineItems.length > 0 ? lineItems : swapLineItems;
+    const next = base.map((li) =>
+      li.slotId === swapSource.slotId && li.itemId === swapSource.itemId
+        ? {
+            ...li,
+            itemId: item.id,
+            label: item.name,
+            unitCents: boxUnitCents,
+            quantity: 1,
+          }
+        : li
+    );
+    await persist(next);
     navigation.navigate('MyBox');
   };
 
@@ -259,14 +384,30 @@ export function CatalogProductScreen() {
     ? hasStartedBox
       ? 'Remove from box'
       : 'Remove from cart'
-    : nonMemberCents > 0
-      ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
-      : 'Add to cart';
+    : hasStartedBox
+      ? boxUnitCents > 0
+        ? `Add to box (+${formatCatalogDollars(boxUnitCents)})`
+        : 'Add to box'
+      : nonMemberCents > 0
+        ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
+        : 'Add to cart';
 
-  const boxCtaLabel =
-    memberCents > 0
+  const secondaryLabel = hasStartedBox
+    ? `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`
+    : memberCents > 0
       ? `Buy with a box (${formatCatalogDollars(memberCents)})`
       : 'Buy with a box';
+
+  const showSecondary =
+    !inCart && (hasStartedBox ? Boolean(swapSource) : true);
+
+  const onPrimaryPress = inCart
+    ? removeFromCartOrBox
+    : hasStartedBox
+      ? addToBox
+      : addToCart;
+
+  const onSecondaryPress = hasStartedBox ? swapIntoBox : buyWithBox;
 
   if (loading || draftLoading) {
     return (
@@ -386,8 +527,10 @@ export function CatalogProductScreen() {
             <View style={styles.priceRule}>
               <ProductPricingBlock
                 item={item}
-                hasHanukkahBox={hasHanukkahBox}
-                onWhatsInTheBox={() => navigation.navigate('MyBox')}
+                hasBox={hasStartedBox}
+                onWhatsInTheBox={
+                  hasStartedBox ? undefined : () => navigation.navigate('MyBox')
+                }
               />
             </View>
 
@@ -395,7 +538,7 @@ export function CatalogProductScreen() {
               <View style={styles.ctaRow}>
                 <TouchableOpacity
                   style={[styles.cta, styles.ctaPrimary, (locked || saving) && styles.ctaDisabled]}
-                  onPress={inCart ? removeFromCartOrBox : addToCart}
+                  onPress={onPrimaryPress}
                   disabled={locked || saving}
                   accessibilityRole="button"
                 >
@@ -405,14 +548,14 @@ export function CatalogProductScreen() {
                     <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
                   )}
                 </TouchableOpacity>
-                {!inCart ? (
+                {showSecondary ? (
                   <TouchableOpacity
                     style={[styles.cta, styles.ctaSecondary, (locked || saving) && styles.ctaDisabled]}
-                    onPress={buyWithBox}
+                    onPress={onSecondaryPress}
                     disabled={locked || saving}
                     accessibilityRole="button"
                   >
-                    <Text style={styles.ctaSecondaryText}>{boxCtaLabel}</Text>
+                    <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -425,7 +568,9 @@ export function CatalogProductScreen() {
           </View>
         </View>
 
-        <SimilarProductsRail items={similar} />
+        <View style={styles.similarBleed}>
+          <SimilarProductsRail items={similar} />
+        </View>
       </View>
     </StorefrontChrome>
   );
@@ -437,6 +582,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.xl,
+  },
+  similarBleed: {
+    marginHorizontal: -MOBILE_GUTTER,
+    alignSelf: 'stretch',
   },
   centered: {
     flex: 1,

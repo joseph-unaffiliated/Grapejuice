@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -135,7 +136,7 @@ const STICKY_DISABLE_BELOW = 40;
 const TOP_SETTLED_EPS = 4;
 /** Brief dwell so a fling that clamps at 0 doesn't fade mid-momentum (esp. web wheel). */
 const TOP_FADE_SETTLE_MS = 80;
-const DESKTOP_RAV_MAX = 520;
+const DESKTOP_RAV_MAX = 380;
 /** Match StorefrontRavDrawer close duration so pinned chrome stays until dock finishes. */
 const RAV_CLOSE_LAYOUT_MS = 280;
 
@@ -154,13 +155,13 @@ function stickyScrollThresholds(chromeH: number) {
  *
  * Scroll mode (Rav closed): chrome sits inside the page ScrollView and scrolls
  * away normally. After scrolling past ~header height, an absolute overlay clone
- * can reappear on upward scroll (no layout height). Crossing disableY only
- * disarms sticky behavior — the overlay stays until scroll settles at y≈0, then
- * fades in place over the static header.
+ * can reappear on upward scroll (no layout height). Overlay only fully opens or
+ * fully closes — never a rest state at partial opacity / mid-slide.
  *
- * Desktop Rav open: pin one full-width chrome above bodyRow (like fill mode) so
- * the dock sits under the header and only the content column compresses. Overlay
- * sticky is disabled until Rav closes.
+ * Desktop Rav open: a full-width absolute chrome tracks scroll 1:1 with a
+ * matching spacer in the scroller (header spans the viewport; Rav’s top clears
+ * it). Mid-page sticky overlay still only fully opens or fully closes; while it
+ * is shown, the scroll-away chrome is hidden and Rav insets to the overlay.
  *
  * Fill mode: chrome stays pinned above the body (wizards / My Box).
  */
@@ -198,47 +199,65 @@ function StorefrontChromeInner({
   } = useStorefrontRav();
 
   /**
-   * Desktop dock: keep chrome pinned above bodyRow while Rav is open, and through
-   * the close animation so the layout doesn’t jump mid-slide.
+   * Desktop: full-width chrome above bodyRow while Rav is open (and through close
+   * anim) so the header spans the viewport and Rav sits under it.
    */
-  const [pinChromeForRav, setPinChromeForRav] = useState(false);
-  useEffect(() => {
-    if (compact) {
-      setPinChromeForRav(false);
+  const [ravDockedLayout, setRavDockedLayout] = useState(false);
+  useLayoutEffect(() => {
+    if (compact || fillBody) {
+      setRavDockedLayout(false);
       return;
     }
     if (ravVisible) {
-      setPinChromeForRav(true);
+      setRavDockedLayout(true);
       return;
     }
-    const t = setTimeout(() => setPinChromeForRav(false), RAV_CLOSE_LAYOUT_MS);
+    if (!ravDockedLayout) return;
+    const t = setTimeout(() => setRavDockedLayout(false), RAV_CLOSE_LAYOUT_MS);
     return () => clearTimeout(t);
-  }, [ravVisible, compact]);
+  }, [ravVisible, compact, fillBody, ravDockedLayout]);
 
-  const pinChromeAboveBody = fillBody || pinChromeForRav;
-  /** Scroll-away overlay only when chrome lives in the page scroller. */
-  const useOverlaySticky = !pinChromeAboveBody;
+  const ravDockedLayoutRef = useRef(false);
+  ravDockedLayoutRef.current = ravDockedLayout;
+
+  /** Fill mode only — Rav-open uses absolute full-width scroll-away chrome instead. */
+  const pinChromeAboveBody = fillBody;
+  const useOverlaySticky = !fillBody;
 
   const lastY = useRef(0);
   const chromeHeight = useRef(0);
   const [chromeH, setChromeH] = useState(0);
-  /** When false, overlay stays hidden; when true, show/hide follows scroll direction. */
   const overlayArmed = useRef(false);
   const overlayShown = useRef(false);
   const [overlayInteractive, setOverlayInteractive] = useState(false);
-  /** 0 = translated off (or reset); 1 = fully slid in. */
   const overlayProgress = useRef(new Animated.Value(0)).current;
-  /**
-   * True visibility gate — must stay 0 whenever the overlay is dismissed.
-   * Translate-only hide still paints shadow / 1px edge; never leave opacity at 1 while hidden.
-   */
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const overlayAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const topFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Full-width chrome while Rav is open — tracks scroll like static content (not the sticky overlay). */
+  const scrollAwayY = useRef(new Animated.Value(0)).current;
+  const [scrollAwayInteractive, setScrollAwayInteractive] = useState(false);
+  /**
+   * Shared top clearance for the body row while Rav is docked (page + Rav).
+   * Plain number — Animated padding on the drawer was not reliably applying on web.
+   */
+  const [headerClearance, setHeaderClearance] = useState(0);
+  /** Bumps to remount sticky overlay after snap (web native-driver can leave mid-translate). */
+  const [overlayEpoch, setOverlayEpoch] = useState(0);
+  /**
+   * While compensating scroll for Rav open, ignore scroll-down dismiss so a
+   * stale onScroll event can't collapse the header we just snapped open.
+   */
+  const suppressOverlayDismissRef = useRef(false);
+  /** Mobile sheet top still uses Animated; desktop dock uses headerClearance on bodyRow. */
+  const ravTopAnim = useRef(new Animated.Value(0)).current;
+
+  const measuredChrome = () =>
+    chromeHeight.current > 0 ? chromeHeight.current : STICKY_FALLBACK_CHROME_H;
 
   const ravWidth = compact
     ? windowWidth
-    : Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.48));
+    : Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.36));
 
   const goHome = () => {
     if (onLeave) {
@@ -314,18 +333,132 @@ function StorefrontChromeInner({
     }
   }, []);
 
+  const localScrollRef = useRef<ScrollView>(null);
+  const setScrollRef = useCallback(
+    (node: ScrollView | null) => {
+      localScrollRef.current = node;
+      if (!scrollRef) return;
+      if (typeof scrollRef === 'function') {
+        scrollRef(node);
+      } else {
+        (scrollRef as React.MutableRefObject<ScrollView | null>).current = node;
+      }
+    },
+    [scrollRef]
+  );
+
+  const syncScrollAwayChrome = useCallback(
+    (y: number, overlayFullyShown: boolean) => {
+      const h = measuredChrome();
+      if (!ravDockedLayoutRef.current || overlayFullyShown) {
+        scrollAwayY.setValue(-h);
+        setScrollAwayInteractive(false);
+        return;
+      }
+      const ty = -Math.min(Math.max(0, y), h);
+      scrollAwayY.setValue(ty);
+      setScrollAwayInteractive(ty > -h + 0.5);
+    },
+    [scrollAwayY]
+  );
+
+  const syncRavTop = useCallback(
+    (y: number, overlayFullyShown: boolean) => {
+      const h = measuredChrome();
+      if (fillBody) {
+        ravTopAnim.setValue(compact ? h : 0);
+        setHeaderClearance(0);
+        return;
+      }
+      const clearance = overlayFullyShown
+        ? h
+        : Math.max(0, h - Math.max(0, y));
+      ravTopAnim.setValue(clearance);
+      setHeaderClearance(clearance);
+    },
+    [compact, fillBody, ravTopAnim]
+  );
+
+  const snapOverlay = useCallback(
+    (show: boolean, opts?: { remount?: boolean }) => {
+      overlayAnimRef.current?.stop();
+      if (show) {
+        // Remounting an already-fully-shown native-driver overlay can reset
+        // translateY to the collapsed end on web — only remount when recovering
+        // from a mid-slide, or when explicitly requested.
+        let progressBefore = 1;
+        overlayProgress.stopAnimation((v) => {
+          progressBefore = typeof v === 'number' ? v : 1;
+        });
+        overlayShown.current = true;
+        overlayArmed.current = true;
+        setOverlayInteractive(true);
+        overlayOpacity.setValue(1);
+        overlayProgress.setValue(1);
+        syncScrollAwayChrome(lastY.current, true);
+        syncRavTop(lastY.current, true);
+        const shouldRemount =
+          opts?.remount === true ||
+          (opts?.remount !== false && progressBefore < 0.98);
+        if (shouldRemount) {
+          setOverlayEpoch((n) => n + 1);
+        }
+      } else {
+        overlayShown.current = false;
+        setOverlayInteractive(false);
+        overlayOpacity.setValue(0);
+        overlayProgress.setValue(0);
+        syncScrollAwayChrome(lastY.current, false);
+        syncRavTop(lastY.current, false);
+      }
+    },
+    [overlayOpacity, overlayProgress, syncRavTop, syncScrollAwayChrome]
+  );
+
+  /** Full header above Rav — sticky overlay or scroll-away snapped to y=0. */
+  const snapFullHeaderAboveRav = useCallback(() => {
+    const h = measuredChrome();
+    if (overlayShown.current) {
+      snapOverlay(true);
+      return;
+    }
+    // Partial static header (0 < y < h) → jump to top so chrome + Rav align cleanly.
+    lastY.current = 0;
+    localScrollRef.current?.scrollTo({ y: 0, animated: false });
+    overlayShown.current = false;
+    setOverlayInteractive(false);
+    overlayOpacity.setValue(0);
+    overlayProgress.setValue(0);
+    scrollAwayY.setValue(0);
+    setScrollAwayInteractive(true);
+    ravTopAnim.setValue(h);
+    setHeaderClearance(h);
+  }, [
+    overlayOpacity,
+    overlayProgress,
+    ravTopAnim,
+    scrollAwayY,
+    snapOverlay,
+  ]);
+
   const animateOverlay = useCallback(
     (show: boolean, hideMode: 'slide' | 'fade' = 'slide') => {
       if (overlayShown.current === show) return;
 
       overlayAnimRef.current?.stop();
+      const h = measuredChrome();
+      const docked = ravDockedLayoutRef.current;
+      const y = lastY.current;
 
       if (show) {
         clearTopFadeTimer();
         overlayShown.current = true;
+        overlayArmed.current = true;
         setOverlayInteractive(true);
-        // Fully opaque before/while sliding in (hidden state always ends at opacity 0).
         overlayOpacity.setValue(1);
+        syncScrollAwayChrome(y, true);
+        setHeaderClearance(h);
+        ravTopAnim.setValue(h);
         overlayAnimRef.current = Animated.timing(overlayProgress, {
           toValue: 1,
           duration: 220,
@@ -335,12 +468,13 @@ function StorefrontChromeInner({
         return;
       }
 
-      // Hide: mark shown false immediately so scroll events don't restart the anim.
       overlayShown.current = false;
       setOverlayInteractive(false);
+      const clearanceTarget = Math.max(0, h - y);
+      setHeaderClearance(clearanceTarget);
+      ravTopAnim.setValue(clearanceTarget);
 
-      if (hideMode === 'fade') {
-        // Settled at true top — static header is underneath; fade in place (~200ms).
+      if (hideMode === 'fade' && !docked) {
         overlayAnimRef.current = Animated.timing(overlayOpacity, {
           toValue: 0,
           duration: 200,
@@ -348,31 +482,44 @@ function StorefrontChromeInner({
         });
         overlayAnimRef.current.start(({ finished }) => {
           if (!finished) return;
-          // Stay fully invisible (opacity 0) — do not restore opacity while translated off.
           overlayProgress.setValue(0);
+          syncRavTop(lastY.current, false);
         });
         return;
       }
 
-      // Armed scroll-down hide — slide offscreen and fade out so shadow/edge can't leak.
-      overlayAnimRef.current = Animated.parallel([
-        Animated.timing(overlayProgress, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]);
-      overlayAnimRef.current.start();
+      // Keep scroll-away chrome hidden until the sticky overlay has finished leaving
+      // when deep mid-page (avoids a second header popping in).
+      if (docked && y >= h) {
+        scrollAwayY.setValue(-h);
+        setScrollAwayInteractive(false);
+      } else {
+        syncScrollAwayChrome(y, false);
+      }
+      overlayAnimRef.current = Animated.timing(overlayProgress, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      });
+      overlayAnimRef.current.start(({ finished }) => {
+        if (!finished) return;
+        overlayOpacity.setValue(0);
+        syncRavTop(lastY.current, false);
+        if (ravDockedLayoutRef.current) {
+          syncScrollAwayChrome(lastY.current, false);
+        }
+      });
     },
-    [clearTopFadeTimer, overlayOpacity, overlayProgress]
+    [
+      clearTopFadeTimer,
+      overlayOpacity,
+      overlayProgress,
+      scrollAwayY,
+      syncRavTop,
+      syncScrollAwayChrome,
+    ]
   );
 
-  /** Fade only after y≈0 has held briefly (or scroll end confirms settle). */
   const scheduleTopFade = useCallback(() => {
     overlayArmed.current = false;
     clearTopFadeTimer();
@@ -389,8 +536,17 @@ function StorefrontChromeInner({
     if (lastY.current > TOP_SETTLED_EPS) return;
     clearTopFadeTimer();
     overlayArmed.current = false;
+    if (ravDockedLayoutRef.current) {
+      snapFullHeaderAboveRav();
+      return;
+    }
     animateOverlay(false, 'fade');
-  }, [animateOverlay, clearTopFadeTimer, useOverlaySticky]);
+  }, [
+    animateOverlay,
+    clearTopFadeTimer,
+    snapFullHeaderAboveRav,
+    useOverlaySticky,
+  ]);
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -398,16 +554,43 @@ function StorefrontChromeInner({
       const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastY.current;
       lastY.current = y;
+      const docked = ravDockedLayoutRef.current;
+
+      // Scroll-down always dismisses a shown sticky overlay — including inside
+      // the disableY hysteresis band (that early-return was trapping it open).
+      if (overlayShown.current && dy > SCROLL_DIR_THRESHOLD) {
+        if (suppressOverlayDismissRef.current) return;
+        animateOverlay(false, 'slide');
+        return;
+      }
+
+      if (!overlayShown.current) {
+        syncScrollAwayChrome(y, false);
+        syncRavTop(y, false);
+      }
 
       const { enableY, disableY } = stickyScrollThresholds(chromeHeight.current);
 
-      // Approaching / at top — disarm sticky; fade only once settled at y≈0.
       if (y < disableY) {
         overlayArmed.current = false;
         if (y <= TOP_SETTLED_EPS) {
-          scheduleTopFade();
+          if (docked) {
+            clearTopFadeTimer();
+            if (overlayShown.current) {
+              // Hand off sticky → full scroll-away header at the top.
+              overlayShown.current = false;
+              setOverlayInteractive(false);
+              overlayOpacity.setValue(0);
+              overlayProgress.setValue(0);
+              snapFullHeaderAboveRav();
+            } else {
+              syncScrollAwayChrome(y, false);
+              syncRavTop(y, false);
+            }
+          } else {
+            scheduleTopFade();
+          }
         } else {
-          // Still scrolling up toward top (or reversed before landing) — keep overlay.
           clearTopFadeTimer();
         }
         return;
@@ -420,20 +603,26 @@ function StorefrontChromeInner({
       }
 
       if (!overlayArmed.current) {
-        animateOverlay(false, 'slide');
         return;
       }
 
-      if (dy > SCROLL_DIR_THRESHOLD) {
-        animateOverlay(false, 'slide');
-      } else if (dy < -SCROLL_DIR_THRESHOLD) {
+      if (dy < -SCROLL_DIR_THRESHOLD) {
         animateOverlay(true);
       }
     },
-    [animateOverlay, clearTopFadeTimer, scheduleTopFade, useOverlaySticky]
+    [
+      animateOverlay,
+      clearTopFadeTimer,
+      overlayOpacity,
+      overlayProgress,
+      scheduleTopFade,
+      snapFullHeaderAboveRav,
+      syncRavTop,
+      syncScrollAwayChrome,
+      useOverlaySticky,
+    ]
   );
 
-  /** Dismiss overlay as soon as chrome pins above Rav / fill body. */
   useEffect(() => {
     if (useOverlaySticky) return;
     clearTopFadeTimer();
@@ -443,12 +632,72 @@ function StorefrontChromeInner({
     setOverlayInteractive(false);
     overlayProgress.setValue(0);
     overlayOpacity.setValue(0);
+    syncRavTop(0, false);
+    setScrollAwayInteractive(false);
   }, [
     clearTopFadeTimer,
     overlayOpacity,
     overlayProgress,
+    syncRavTop,
     useOverlaySticky,
   ]);
+
+  useLayoutEffect(() => {
+    if (!ravDockedLayout) {
+      setScrollAwayInteractive(false);
+      scrollAwayY.setValue(-measuredChrome());
+      return;
+    }
+    const y = lastY.current;
+    const h = measuredChrome();
+    clearTopFadeTimer();
+    // Sticky overlay showing (or mid-animation): keep/snap fully open over Rav.
+    // Opened from the overlaid Ask Rav control — header was already expanded.
+    if (overlayShown.current || overlayInteractive) {
+      if (y >= h) {
+        const compensated = Math.max(0, y - h);
+        suppressOverlayDismissRef.current = true;
+        lastY.current = compensated;
+        localScrollRef.current?.scrollTo({ y: compensated, animated: false });
+        // Clear after the compensated scroll event(s) have had a chance to flush.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            suppressOverlayDismissRef.current = false;
+          });
+        });
+      }
+      snapOverlay(true, { remount: false });
+      return;
+    }
+    // Header still in view (including partially) → full header above Rav.
+    if (y < h) {
+      snapFullHeaderAboveRav();
+      return;
+    }
+    // Deep mid-page: no header, Rav full-bleed.
+    // In-flow chrome leaves the scroller — pull offset back by chrome height.
+    const compensated = Math.max(0, y - h);
+    lastY.current = compensated;
+    localScrollRef.current?.scrollTo({ y: compensated, animated: false });
+    snapOverlay(false);
+    scrollAwayY.setValue(-h);
+    setScrollAwayInteractive(false);
+    ravTopAnim.setValue(0);
+    setHeaderClearance(0);
+  }, [
+    clearTopFadeTimer,
+    overlayInteractive,
+    ravDockedLayout,
+    ravTopAnim,
+    scrollAwayY,
+    snapFullHeaderAboveRav,
+    snapOverlay,
+  ]);
+
+  useEffect(() => {
+    syncRavTop(lastY.current, overlayShown.current);
+    syncScrollAwayChrome(lastY.current, overlayShown.current);
+  }, [chromeH, syncRavTop, syncScrollAwayChrome]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -459,8 +708,10 @@ function StorefrontChromeInner({
       setOverlayInteractive(false);
       overlayProgress.setValue(0);
       overlayOpacity.setValue(0);
+      ravTopAnim.setValue(0);
+      setScrollAwayInteractive(false);
     }
-  }, [clearTopFadeTimer, isFocused, overlayOpacity, overlayProgress]);
+  }, [clearTopFadeTimer, isFocused, overlayOpacity, overlayProgress, ravTopAnim]);
 
   useEffect(() => () => clearTopFadeTimer(), [clearTopFadeTimer]);
 
@@ -470,11 +721,16 @@ function StorefrontChromeInner({
     outputRange: [-overlayHideOffset, 0],
   });
 
-  const ravTopInset = compact
-    ? chromeH > 0
-      ? chromeH
-      : STICKY_FALLBACK_CHROME_H
-    : 0;
+  // Desktop dock: clearance is on bodyRow (both columns). Mobile sheet still uses top.
+  const ravTopInset = fillBody
+    ? compact
+      ? chromeH > 0
+        ? chromeH
+        : STICKY_FALLBACK_CHROME_H
+      : 0
+    : ravDockedLayout
+      ? 0
+      : headerClearance;
 
   const ravDrawer = (
     <StorefrontRavDrawer
@@ -490,11 +746,14 @@ function StorefrontChromeInner({
 
   const pageScroll = (
     <ScrollView
-      ref={scrollRef}
+      ref={setScrollRef}
       style={styles.scroll}
       contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      bounces={false}
+      alwaysBounceVertical={false}
+      overScrollMode="never"
       onScroll={onScroll}
       onScrollEndDrag={fadeOverlayIfSettledAtTop}
       onMomentumScrollEnd={fadeOverlayIfSettledAtTop}
@@ -503,7 +762,7 @@ function StorefrontChromeInner({
       className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
       testID="storefront-vertical-scroll"
     >
-      {pinChromeAboveBody ? null : (
+      {pinChromeAboveBody || ravDockedLayout ? null : (
         <View onLayout={onChromeLayout} collapsable={false}>
           <StorefrontChromeBlocks {...chromeProps} />
         </View>
@@ -515,8 +774,27 @@ function StorefrontChromeInner({
 
   return (
     <View style={styles.root} testID="storefront-scroll-host">
+      {ravDockedLayout ? (
+        <Animated.View
+          style={[
+            styles.scrollAwayChrome,
+            {
+              transform: [{ translateY: scrollAwayY }],
+              opacity: scrollAwayInteractive ? 1 : 0,
+            },
+          ]}
+          pointerEvents={scrollAwayInteractive ? 'auto' : 'none'}
+          accessibilityElementsHidden={!scrollAwayInteractive}
+        >
+          <View onLayout={onChromeLayout} collapsable={false}>
+            <StorefrontChromeBlocks {...chromeProps} />
+          </View>
+        </Animated.View>
+      ) : null}
+
       {useOverlaySticky ? (
         <Animated.View
+          key={`overlay-${overlayEpoch}`}
           style={[
             styles.chromeOverlay,
             !overlayInteractive ? styles.chromeOverlayHidden : null,
@@ -529,7 +807,9 @@ function StorefrontChromeInner({
           accessibilityElementsHidden={!overlayInteractive}
           importantForAccessibility={overlayInteractive ? 'yes' : 'no-hide-descendants'}
         >
-          <StorefrontChromeBlocks {...chromeProps} />
+          <View onLayout={onChromeLayout} collapsable={false}>
+            <StorefrontChromeBlocks {...chromeProps} />
+          </View>
         </Animated.View>
       ) : null}
 
@@ -539,12 +819,17 @@ function StorefrontChromeInner({
             <StorefrontChromeBlocks {...chromeProps} />
           </View>
           <View style={styles.bodyRow}>
-            {fillBody ? <View style={styles.fillBody}>{children}</View> : pageScroll}
+            <View style={styles.fillBody}>{children}</View>
             {ravDrawer}
           </View>
         </>
       ) : (
-        <View style={styles.bodyRow}>
+        <View
+          style={[
+            styles.bodyRow,
+            ravDockedLayout ? { paddingTop: headerClearance } : null,
+          ]}
+        >
           {pageScroll}
           {ravDrawer}
         </View>
@@ -604,6 +889,7 @@ const styles = StyleSheet.create({
    * Scroll-away sticky clone — out of document flow so it never pushes content.
    * Slides in/out via translateY while armed; fades opacity once settled at y≈0.
    * Hidden state must keep opacity 0 (translate alone still paints shadow / edge).
+   * Binary only — never rest at partial progress / opacity.
    */
   chromeOverlay: {
     position: 'absolute',
@@ -625,6 +911,21 @@ const styles = StyleSheet.create({
           shadowRadius: 8,
           elevation: 6,
         }),
+  },
+  /**
+   * Full-width chrome while Rav is docked — tracks scroll 1:1 with a spacer in
+   * the page scroller so the header spans both columns and can leave normally.
+   */
+  scrollAwayChrome: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 25,
+    backgroundColor: semanticColors.logoDark,
+  },
+  chromeSpacer: {
+    width: '100%',
   },
   /** Kill shadow/elevation while dismissed so offscreen translate can't leak. */
   chromeOverlayHidden: {
@@ -673,6 +974,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     minHeight: 0,
+    ...(Platform.OS === 'web'
+      ? ({ overscrollBehavior: 'none' } as object)
+      : null),
   },
   fillBody: {
     flex: 1,

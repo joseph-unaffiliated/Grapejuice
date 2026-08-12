@@ -1,10 +1,24 @@
-/** Onboarding interest tags (research panel Jun 10) — drives story/gift/craft picks. */
+/** Onboarding interest tags — drives story/gift/craft picks. */
 
-export type ChildInterestId = 'reading' | 'crafts' | 'games' | 'cooking';
+export type ChildInterestId =
+  | 'reading'
+  | 'crafts'
+  | 'games'
+  | 'cooking'
+  | 'building'
+  | 'drawing'
+  | 'singing'
+  | 'dancing'
+  | 'cuddling';
 
 export const CHILD_INTEREST_OPTIONS: { id: ChildInterestId; label: string }[] = [
-  { id: 'reading', label: 'Reading & stories' },
-  { id: 'crafts', label: 'Arts & crafts' },
-  { id: 'games', label: 'Games & play' },
-  { id: 'cooking', label: 'Cooking & food' },
+  { id: 'building', label: 'Building' },
+  { id: 'cooking', label: 'Cooking' },
+  { id: 'drawing', label: 'Drawing' },
+  { id: 'singing', label: 'Singing' },
+  { id: 'reading', label: 'Reading' },
+  { id: 'dancing', label: 'Dancing' },
+  { id: 'cuddling', label: 'Cuddling' },
+  { id: 'crafts', label: 'Crafts' },
+  { id: 'games', label: 'Games' },
 ];

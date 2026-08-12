@@ -14,6 +14,7 @@ import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
 import {
   LAYOUT,
   MOBILE_GUTTER,
@@ -139,11 +140,16 @@ export function StorefrontFooter() {
         links: [
           {
             label: 'Ask Rav',
-            onPress: () =>
+            onPress: () => {
+              if (isStorefrontRavOpenable()) {
+                openStorefrontRav();
+                return;
+              }
               navigation.navigate('MainTabs', {
                 screen: 'Rav',
                 params: { view: 'welcome' },
-              }),
+              });
+            },
           },
           {
             label: 'hello@grapejuice.com',
@@ -232,7 +238,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-start',
-    gap: 48,
+    gap: 64,
     flexShrink: 1,
   },
   columnsCompact: {

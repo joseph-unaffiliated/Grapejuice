@@ -13,15 +13,12 @@ import { useThemeMode } from '../../context/ThemeContext';
 
 type Props = {
   item: CatalogItem;
-  hasHanukkahBox?: boolean;
+  /** Household already has a Hanukkah box (draft or order) — show member price first. */
+  hasBox?: boolean;
   onWhatsInTheBox?: () => void;
 };
 
-export function ProductPricingBlock({
-  item,
-  hasHanukkahBox,
-  onWhatsInTheBox,
-}: Props) {
+export function ProductPricingBlock({ item, hasBox, onWhatsInTheBox }: Props) {
   const { colors } = useThemeMode();
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const tier = inferPricingTier(item);
@@ -32,7 +29,7 @@ export function ProductPricingBlock({
     [nonMemberCents, memberCents]
   );
 
-  if (hasHanukkahBox) {
+  if (hasBox) {
     const hero = includedOrMemberZero
       ? 'Included in your box'
       : formatCatalogDollars(memberCents);
@@ -40,14 +37,10 @@ export function ProductPricingBlock({
       <View style={styles.root}>
         <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{hero}</Text>
         {nonMemberCents > memberCents ? (
-          <Text style={[styles.compare, { color: colors.textTertiary }]}>
-            <Text style={styles.strike}>{formatCatalogDollars(nonMemberCents)}</Text>
-            {'  à la carte'}
+          <Text style={[styles.retail, { color: colors.textPrimary }]}>
+            {formatCatalogDollars(nonMemberCents)} retail
           </Text>
         ) : null}
-        <Text style={[styles.memberNote, { color: colors.textSecondary }]}>
-          You’re getting the member price.
-        </Text>
       </View>
     );
   }
@@ -106,12 +99,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     lineHeight: 38,
   },
-  compare: {
-    fontSize: typography.md,
+  retail: {
+    fontSize: typography.sm,
+    fontWeight: '500',
+    lineHeight: 18,
     letterSpacing: 0,
-  },
-  strike: {
-    textDecorationLine: 'line-through',
   },
   offerRow: {
     flexDirection: 'row',
@@ -128,10 +120,6 @@ const styles = StyleSheet.create({
   offerSep: {
     fontSize: typography.sm,
     lineHeight: 18,
-  },
-  memberNote: {
-    fontSize: typography.sm,
-    letterSpacing: 0,
   },
   secondaryLink: {
     fontSize: typography.sm,

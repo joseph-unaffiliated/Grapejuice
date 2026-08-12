@@ -231,7 +231,9 @@ function mapListingPlacement(category, contexts, name) {
         };
     }
     if (cat === 'candles') {
-        if (lower.includes('electric') || lower.includes('sheet')) {
+        if (lower.includes('electric') ||
+            lower.includes('sheet') ||
+            lower.includes('roll your own')) {
             return { slot: 'addon', slotId: 'extra-candles', pricingTier: 'alaCarte' };
         }
         return { slot: 'base', slotId: 'candles', pricingTier: (isAla ? 'alaCarte' : 'included') };

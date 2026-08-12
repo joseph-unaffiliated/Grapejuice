@@ -1,10 +1,8 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
-import { ChildrenScreen, type ChildDraft } from '../screens/onboarding/ChildrenScreen';
-import { ChildInterestsScreen } from '../screens/onboarding/ChildInterestsScreen';
-import { FamiliaritySliderScreen } from '../screens/onboarding/FamiliaritySliderScreen';
+import { type ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import { WhatWeDoScreen } from '../screens/onboarding/WhatWeDoScreen';
 import { HanukkahIntroScreen } from '../screens/onboarding/HanukkahIntroScreen';
-import { HanukkahPracticesScreen } from '../screens/onboarding/HanukkahPracticesScreen';
 import { BoxIntroScreen } from '../screens/onboarding/BoxIntroScreen';
 import { BoxRevealScreen } from '../screens/onboarding/BoxRevealScreen';
 import { RavOpenQuestionScreen } from '../screens/onboarding/RavOpenQuestionScreen';
@@ -19,14 +17,21 @@ import { catalogService } from '../services/firestore/catalog';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import type { BoxLineItem, FamiliarityLevel, ChildProfile } from '../types/pilot';
-import type { ChildInterestId } from '../constants/childInterests';
 import { semanticColors } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { clearDevPreview } from './devPreview';
-import { onboardingErrorMessage, resolveOnboardingStep, type OnboardingStep } from './onboardingSteps';
+import {
+  onboardingErrorMessage,
+  resolveOnboardingStep,
+  wizardNavStepId,
+  wizardNavStepIndex,
+  type OnboardingStep,
+  type OnboardingWizardNavStepId,
+} from './onboardingSteps';
 import { OnboardingMediaHost } from '../components/onboarding/OnboardingMediaHost';
 import { OnboardingUnderStorefrontChromeContext } from '../components/onboarding/onboardingChromeContext';
+import { OnboardingWizardNav } from '../components/onboarding/OnboardingWizardNav';
 import {
   StorefrontChrome,
 } from '../components/storefront/StorefrontChrome';
@@ -42,13 +47,20 @@ type Props = {
 };
 
 function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
-  return drafts.map((d, i) => ({
-    id: `guest-${i}`,
-    name: d.name || undefined,
-    ageGroup: d.ageGroup,
-    birthdate: d.birthdate,
-    plannerAge: d.plannerAge,
-  }));
+  return drafts
+    .filter((d) => d.role !== 'adult')
+    .map((d, i) => ({
+      id: `guest-${i}`,
+      name: d.name || undefined,
+      ageGroup: d.ageGroup,
+      birthdate: d.birthdate,
+      plannerAge: d.plannerAge,
+    }));
+}
+
+function adultCountFromDrafts(drafts: ChildDraft[]): number | undefined {
+  const n = drafts.filter((d) => d.role === 'adult').length;
+  return n > 0 ? n : undefined;
 }
 
 async function ensureHouseholdId(uid: string, householdId: string | null | undefined): Promise<string> {
@@ -103,8 +115,9 @@ export function OnboardingStack({
       boxRevealComplete: guestBoxRevealComplete,
     })
   );
+  const [maxWizardIndex, setMaxWizardIndex] = useState(0);
   const [childDrafts, setChildDrafts] = useState<ChildDraft[]>(guestChildDrafts);
-  const [childInterests, setChildInterests] = useState<ChildInterestId[]>(guestChildInterests);
+  const [childInterests, setChildInterests] = useState<string[]>(guestChildInterests);
   const [savedChildren, setSavedChildren] = useState<ChildProfile[]>(() =>
     guestChildDrafts.length ? draftsToProfiles(guestChildDrafts) : []
   );
@@ -123,6 +136,24 @@ export function OnboardingStack({
       setGuestOnboardingStep(next);
     },
     [setGuestOnboardingStep]
+  );
+
+  useEffect(() => {
+    const idx = wizardNavStepIndex(step);
+    if (idx >= 0) {
+      setMaxWizardIndex((prev) => Math.max(prev, idx));
+    }
+  }, [step]);
+
+  const goToWizardNavStep = useCallback(
+    (next: OnboardingWizardNavStepId) => {
+      const idx = wizardNavStepIndex(next);
+      if (idx < 0 || idx > maxWizardIndex) return;
+      // Don't jump into reveal until the box has actually been built.
+      if (next === 'reveal' && !lineItems.length && !revealOnly) return;
+      goToStep(next);
+    },
+    [goToStep, maxWizardIndex, lineItems.length, revealOnly]
   );
 
   useEffect(() => {
@@ -165,7 +196,7 @@ export function OnboardingStack({
         const items =
           draft?.lineItems?.length
             ? draft.lineItems
-            : buildDefaultLineItems(catalog, kids, (draft?.childInterests ?? []) as ChildInterestId[]);
+            : buildDefaultLineItems(catalog, kids, draft?.childInterests ?? []);
         setSavedChildren(kids);
         setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
         setLineItems(items);
@@ -195,7 +226,7 @@ export function OnboardingStack({
     level: FamiliarityLevel,
     score: number,
     kids: ChildDraft[],
-    interests: ChildInterestId[],
+    interests: string[],
     notes: string
   ) => {
     setBuildError(null);
@@ -208,7 +239,7 @@ export function OnboardingStack({
         );
       }
       const profiles = draftsToProfiles(kids);
-      const items = buildDefaultLineItems(catalog, profiles, interests);
+      const items = buildDefaultLineItems(catalog, profiles, interests, adultCountFromDrafts(kids));
       if (!items.length) {
         throw new Error('We could not build a default box from the catalog. Please try again later.');
       }
@@ -238,11 +269,13 @@ export function OnboardingStack({
       const householdId = await ensureHouseholdId(user.uid, household?.id ?? profile?.householdId);
       const savedKids = await childrenService.replaceAll(
         user.uid,
-        kids.map((c) => ({
-          name: c.name || undefined,
-          ageGroup: c.ageGroup,
-          birthdate: c.birthdate,
-        }))
+        kids
+          .filter((c) => c.role !== 'adult')
+          .map((c) => ({
+            name: c.name || undefined,
+            ageGroup: c.ageGroup,
+            birthdate: c.birthdate,
+          }))
       );
       await boxDraftService.save(householdId, user.uid, items, {
         familiarityLevel: level,
@@ -314,7 +347,6 @@ export function OnboardingStack({
     onComplete?.();
   }, [exitGuestOnboarding, guestMode, onComplete, refresh, user?.uid]);
 
-  const explore = useCallback(() => void exitOnboarding(), [exitOnboarding]);
   const buildingPreviewHold = useDevPreviewStore((s) => s.onboardingBuildingHold);
 
   const leaveToStorefront = useCallback(
@@ -390,10 +422,22 @@ export function OnboardingStack({
     'building',
   ];
 
+  const wizardServicesSlot = (
+    <OnboardingWizardNav
+      activeStep={wizardNavStepId(step)}
+      maxReachedIndex={maxWizardIndex}
+      onPress={goToWizardNavStep}
+    />
+  );
+
   if (loadingReveal) {
     return (
       <OnboardingUnderStorefrontChromeContext.Provider value={true}>
-        <StorefrontChrome bodyMode="fill" onLeave={leaveToStorefront}>
+        <StorefrontChrome
+          bodyMode="fill"
+          onLeave={leaveToStorefront}
+          servicesSlot={wizardServicesSlot}
+        >
           {wrap(
             <View style={styles.loading}>
               <ActivityIndicator size="large" color={semanticColors.brand} />
@@ -408,22 +452,15 @@ export function OnboardingStack({
 
   switch (step) {
     case 'hanukkah-intro':
-      stepContent = (
-        <HanukkahIntroScreen onContinue={() => goToStep('practices')} onExplore={explore} />
-      );
-      break;
     case 'practices':
-      stepContent = (
-        <HanukkahPracticesScreen onContinue={() => goToStep('box-intro')} onExplore={explore} />
-      );
+      stepContent = <HanukkahIntroScreen onContinue={() => goToStep('box-intro')} />;
       break;
     case 'box-intro':
-      stepContent = <BoxIntroScreen onContinue={() => goToStep('children')} onExplore={explore} />;
-      break;
     case 'children':
       stepContent = (
-        <ChildrenScreen
-          onExplore={explore}
+        <BoxIntroScreen
+          initialChildren={childDrafts.length ? childDrafts : undefined}
+          defaultName={profile?.displayName ?? user?.displayName ?? 'Joseph'}
           onContinue={(kids) => {
             setChildDrafts(kids);
             setGuestChildDrafts(kids);
@@ -433,27 +470,19 @@ export function OnboardingStack({
       );
       break;
     case 'child-interests':
-      stepContent = (
-        <ChildInterestsScreen
-          initialSelected={childInterests}
-          onExplore={explore}
-          onContinue={(selected) => {
-            setChildInterests(selected);
-            setGuestChildInterests(selected);
-            goToStep('familiarity');
-          }}
-        />
-      );
-      break;
     case 'familiarity':
       stepContent = (
-        <FamiliaritySliderScreen
+        <WhatWeDoScreen
+          family={childDrafts}
           initialScore={familiarityScore || familiarityLevelToScore(familiarity)}
-          onExplore={explore}
-          onContinue={(level, score) => {
+          onContinue={({ level, score, children: nextKids, interests }) => {
             setFamiliarity(level);
             setFamiliarityScore(score);
             setGuestFamiliarityScore(score);
+            setChildDrafts(nextKids);
+            setGuestChildDrafts(nextKids);
+            setChildInterests(interests);
+            setGuestChildInterests(interests);
             goToStep('rav-question');
           }}
         />
@@ -470,7 +499,6 @@ export function OnboardingStack({
           isAuthenticated={!guestMode}
           buildError={buildError}
           building={saving}
-          onExplore={explore}
           onContinue={(notes) => {
             setRavNotes(notes);
             setGuestRavNotes(notes);
@@ -499,7 +527,11 @@ export function OnboardingStack({
 
   return (
     <OnboardingUnderStorefrontChromeContext.Provider value={true}>
-      <StorefrontChrome bodyMode="fill" onLeave={leaveToStorefront}>
+      <StorefrontChrome
+        bodyMode="fill"
+        onLeave={leaveToStorefront}
+        servicesSlot={wizardServicesSlot}
+      >
         {wrap(stepContent, {
           persistMedia: persistMediaSteps.includes(step),
           buildingPhase: step === 'building' || saving,

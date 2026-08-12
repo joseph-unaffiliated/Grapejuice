@@ -45,8 +45,6 @@ function collectUrls(imageUrl?: string | null, imageUrls?: string[] | null): str
 
 const THUMB = 64;
 const THUMB_MOBILE = 52;
-/** Desktop thumbs column + root row gap — kept in sync with styles.thumbsCol / root.gap */
-const DESKTOP_THUMB_RESERVE = THUMB + spacing.sm;
 
 export function ProductImageGallery({
   itemId,
@@ -69,10 +67,6 @@ export function ProductImageGallery({
   const canNext = urls.length > 1 && activeIndex < urls.length - 1;
 
   const showThumbs = urls.length > 1;
-  // Desktop hero is capped at 80vh; thumbs (+ gap) sit beside it. When thumbs
-  // are absent, expand the hero by that same reserve so the gallery's right
-  // edge (and gap to the details column) stays put.
-  const webHeroMax = showThumbs ? '80vh' : `calc(80vh + ${DESKTOP_THUMB_RESERVE}px)`;
 
   const thumbs = showThumbs ? (
     <View style={[styles.thumbsCol, compact && styles.thumbsRow]}>
@@ -111,18 +105,21 @@ export function ProductImageGallery({
     >
       {!compact ? thumbs : null}
 
-      <View style={styles.heroWrap}>
+      <View
+        style={[
+          styles.heroWrap,
+          compact && styles.heroWrapCompact,
+          !compact && Platform.OS === 'web'
+            ? ({ width: 'min(100%, 80vh)', maxWidth: '100%' } as object)
+            : !compact
+              ? styles.heroWrapDesktopNative
+              : null,
+        ]}
+      >
         <View
           style={[
             styles.hero,
             compact && styles.heroCompact,
-            !compact && Platform.OS === 'web'
-              ? ({
-                  width: `min(100%, ${webHeroMax})`,
-                  maxWidth: webHeroMax,
-                  maxHeight: webHeroMax,
-                } as object)
-              : null,
             { backgroundColor: colors.brandLight },
           ]}
         >
@@ -196,11 +193,15 @@ const styles = StyleSheet.create({
   root: {
     width: '100%',
     flexDirection: 'row',
+    // Pack thumbs + hero toward the details column so missing thumbs
+    // don't open a gap between the main image and the buy panel.
+    justifyContent: 'flex-end',
     alignItems: 'flex-start',
     gap: spacing.sm,
   },
   rootCompact: {
     flexDirection: 'column',
+    justifyContent: 'flex-start',
     gap: spacing.md,
   },
   thumbsCol: {
@@ -230,19 +231,29 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   heroWrap: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 1,
     position: 'relative',
     minWidth: 0,
+  },
+  heroWrapCompact: {
     width: '100%',
+    alignSelf: 'stretch',
+  },
+  heroWrapDesktopNative: {
+    flexGrow: 1,
+    flexShrink: 1,
+    maxWidth: '100%',
+    alignItems: 'flex-end',
   },
   hero: {
     width: '100%',
     borderRadius: borderRadius.md,
     overflow: 'hidden',
     aspectRatio: 1,
-    // Web max size applied inline so single-image PDPs can expand into the
-    // desktop thumb column reserve (see webHeroMax in the component).
-    ...(Platform.OS === 'web' ? ({ height: 'auto' } as object) : { minHeight: 320 }),
+    ...(Platform.OS === 'web'
+      ? ({ height: 'auto', maxHeight: '80vh' } as object)
+      : { minHeight: 320 }),
   },
   heroCompact: {
     ...(Platform.OS === 'web'

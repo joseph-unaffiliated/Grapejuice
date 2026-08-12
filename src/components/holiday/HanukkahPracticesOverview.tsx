@@ -29,14 +29,15 @@ const ACCORDION_MS = 260;
 /** Matches goldGlowSm blur (8px) so ScrollView overflowX doesn't clip the side glow. */
 const STACK_SHADOW_BLEED = 8;
 /** Accordion body always animates against this ceiling — keep in sync with maxHeight below. */
-const STACK_BODY_MAX_HEIGHT = 280;
+const STACK_BODY_MAX_HEIGHT = 320;
 /** stackHeader paddingVertical sm×2 + title (typography.xl). */
 const STACK_ROW_HEADER_HEIGHT = spacing.sm * 2 + typography.xl;
 
 const PRACTICE_ICONS: Record<string, (typeof icons)[keyof typeof icons]> = {
   candles: icons.menorah,
-  latkes: icons.utensils,
+  food: icons.utensils,
   story: icons.book,
+  presents: icons.gift,
 };
 
 function PracticeRowIcon({ practiceId }: { practiceId: string }) {
@@ -330,8 +331,8 @@ const styles = StyleSheet.create({
   },
   stackList: {
     gap: GRID_GAP,
-    // Inset so goldGlowSm clears ScrollView overflowX / vertical overflow clip.
-    paddingHorizontal: STACK_SHADOW_BLEED,
+    // Vertical bleed only — horizontal glow room comes from OnboardingScreenLayout
+    // scroll content padding (avoids ScrollView overflowX clipping).
     paddingVertical: STACK_SHADOW_BLEED,
     marginVertical: -STACK_SHADOW_BLEED,
     overflow: 'visible' as const,

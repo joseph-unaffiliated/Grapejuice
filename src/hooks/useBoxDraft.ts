@@ -6,19 +6,20 @@ import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
-import type { ChildInterestId } from '../constants/childInterests';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
 
 function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
-  return drafts.map((d, i) => ({
-    id: `guest-${i}`,
-    name: d.name || undefined,
-    ageGroup: d.ageGroup,
-    birthdate: d.birthdate,
-    plannerAge: d.plannerAge,
-  }));
+  return drafts
+    .filter((d) => d.role !== 'adult')
+    .map((d, i) => ({
+      id: `guest-${i}`,
+      name: d.name || undefined,
+      ageGroup: d.ageGroup,
+      birthdate: d.birthdate,
+      plannerAge: d.plannerAge,
+    }));
 }
 
 export function useBoxDraft() {
@@ -79,7 +80,7 @@ export function useBoxDraft() {
     } else if (profile?.onboardingComplete && profile?.boxRevealComplete && catalog.length) {
       // Only seed a default box after a real reveal — not for “explore without building.”
       setLineItems(
-        buildDefaultLineItems(catalog, kids, (draft?.childInterests ?? []) as ChildInterestId[])
+        buildDefaultLineItems(catalog, kids, draft?.childInterests ?? [])
       );
     } else {
       setLineItems([]);

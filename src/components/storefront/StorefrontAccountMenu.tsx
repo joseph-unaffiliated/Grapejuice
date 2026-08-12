@@ -54,7 +54,7 @@ type MenuItem = {
 };
 
 const AVATAR_SIZE = 36;
-const AVATAR_BG = semanticColors.bgDark;
+const AVATAR_BG = semanticColors.bgPrimary;
 const MENU_GAP = 8;
 const DRAWER_MS = 260;
 const DRAWER_MAX_WIDTH = 320;
@@ -534,11 +534,13 @@ const styles = StyleSheet.create({
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
     backgroundColor: AVATAR_BG,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.goldMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarOpen: {
-    backgroundColor: '#E5E7EB',
+    borderColor: semanticColors.brand,
   },
   avatarPreview: {
     borderWidth: 2,
