@@ -131,6 +131,10 @@ const SCROLL_DIR_THRESHOLD = 8;
 const STICKY_FALLBACK_CHROME_H = 240;
 const STICKY_ENABLE_EXTRA = 80;
 const STICKY_DISABLE_BELOW = 40;
+/** Fade overlay only once scroll has settled at the true top (not at disableY). */
+const TOP_SETTLED_EPS = 4;
+/** Brief dwell so a fling that clamps at 0 doesn't fade mid-momentum (esp. web wheel). */
+const TOP_FADE_SETTLE_MS = 80;
 const DESKTOP_RAV_MAX = 520;
 
 function stickyScrollThresholds(chromeH: number) {
@@ -138,7 +142,7 @@ function stickyScrollThresholds(chromeH: number) {
   return {
     /** Past this → arm hide-on-down / reveal-on-up overlay. */
     enableY: Math.max(base + STICKY_ENABLE_EXTRA, 280),
-    /** Below this → disarm; static in-flow chrome is near/in view again. */
+    /** Below this → disarm sticky behavior; overlay may still show until true top. */
     disableY: Math.max(base - STICKY_DISABLE_BELOW, 180),
   };
 }
@@ -148,8 +152,9 @@ function stickyScrollThresholds(chromeH: number) {
  *
  * Scroll mode: chrome sits inside the page ScrollView and scrolls away normally.
  * After scrolling past ~header height, an absolute overlay clone can reappear on
- * upward scroll (no layout height). Near the top the overlay hides so it never
- * stacks on the in-flow header.
+ * upward scroll (no layout height). Crossing disableY only disarms sticky
+ * behavior — the overlay stays until scroll settles at y≈0, then fades in place
+ * over the static header.
  *
  * Fill mode: chrome stays pinned above the body (wizards / My Box).
  */
@@ -193,8 +198,15 @@ function StorefrontChromeInner({
   const overlayArmed = useRef(false);
   const overlayShown = useRef(false);
   const [overlayInteractive, setOverlayInteractive] = useState(false);
+  /** 0 = translated off (or reset); 1 = fully slid in. */
   const overlayProgress = useRef(new Animated.Value(0)).current;
+  /**
+   * True visibility gate — must stay 0 whenever the overlay is dismissed.
+   * Translate-only hide still paints shadow / 1px edge; never leave opacity at 1 while hidden.
+   */
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
   const overlayAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const topFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ravWidth = compact
     ? windowWidth
@@ -267,21 +279,90 @@ function StorefrontChromeInner({
     setChromeH(h);
   };
 
+  const clearTopFadeTimer = useCallback(() => {
+    if (topFadeTimerRef.current != null) {
+      clearTimeout(topFadeTimerRef.current);
+      topFadeTimerRef.current = null;
+    }
+  }, []);
+
   const animateOverlay = useCallback(
-    (show: boolean) => {
+    (show: boolean, hideMode: 'slide' | 'fade' = 'slide') => {
       if (overlayShown.current === show) return;
-      overlayShown.current = show;
-      setOverlayInteractive(show);
+
       overlayAnimRef.current?.stop();
-      overlayAnimRef.current = Animated.timing(overlayProgress, {
-        toValue: show ? 1 : 0,
-        duration: 220,
-        useNativeDriver: true,
-      });
+
+      if (show) {
+        clearTopFadeTimer();
+        overlayShown.current = true;
+        setOverlayInteractive(true);
+        // Fully opaque before/while sliding in (hidden state always ends at opacity 0).
+        overlayOpacity.setValue(1);
+        overlayAnimRef.current = Animated.timing(overlayProgress, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        });
+        overlayAnimRef.current.start();
+        return;
+      }
+
+      // Hide: mark shown false immediately so scroll events don't restart the anim.
+      overlayShown.current = false;
+      setOverlayInteractive(false);
+
+      if (hideMode === 'fade') {
+        // Settled at true top — static header is underneath; fade in place (~200ms).
+        overlayAnimRef.current = Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        });
+        overlayAnimRef.current.start(({ finished }) => {
+          if (!finished) return;
+          // Stay fully invisible (opacity 0) — do not restore opacity while translated off.
+          overlayProgress.setValue(0);
+        });
+        return;
+      }
+
+      // Armed scroll-down hide — slide offscreen and fade out so shadow/edge can't leak.
+      overlayAnimRef.current = Animated.parallel([
+        Animated.timing(overlayProgress, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]);
       overlayAnimRef.current.start();
     },
-    [overlayProgress]
+    [clearTopFadeTimer, overlayOpacity, overlayProgress]
   );
+
+  /** Fade only after y≈0 has held briefly (or scroll end confirms settle). */
+  const scheduleTopFade = useCallback(() => {
+    overlayArmed.current = false;
+    clearTopFadeTimer();
+    topFadeTimerRef.current = setTimeout(() => {
+      topFadeTimerRef.current = null;
+      if (lastY.current <= TOP_SETTLED_EPS) {
+        animateOverlay(false, 'fade');
+      }
+    }, TOP_FADE_SETTLE_MS);
+  }, [animateOverlay, clearTopFadeTimer]);
+
+  const fadeOverlayIfSettledAtTop = useCallback(() => {
+    if (fillBody) return;
+    if (lastY.current > TOP_SETTLED_EPS) return;
+    clearTopFadeTimer();
+    overlayArmed.current = false;
+    animateOverlay(false, 'fade');
+  }, [animateOverlay, clearTopFadeTimer, fillBody]);
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -292,39 +373,51 @@ function StorefrontChromeInner({
 
       const { enableY, disableY } = stickyScrollThresholds(chromeHeight.current);
 
-      // Near top — static in-flow chrome is visible; never show overlay on top of it.
+      // Approaching / at top — disarm sticky; fade only once settled at y≈0.
       if (y < disableY) {
         overlayArmed.current = false;
-        animateOverlay(false);
+        if (y <= TOP_SETTLED_EPS) {
+          scheduleTopFade();
+        } else {
+          // Still scrolling up toward top (or reversed before landing) — keep overlay.
+          clearTopFadeTimer();
+        }
         return;
       }
+
+      clearTopFadeTimer();
 
       if (y >= enableY) {
         overlayArmed.current = true;
       }
 
       if (!overlayArmed.current) {
-        animateOverlay(false);
+        animateOverlay(false, 'slide');
         return;
       }
 
       if (dy > SCROLL_DIR_THRESHOLD) {
-        animateOverlay(false);
+        animateOverlay(false, 'slide');
       } else if (dy < -SCROLL_DIR_THRESHOLD) {
         animateOverlay(true);
       }
     },
-    [animateOverlay, fillBody]
+    [animateOverlay, clearTopFadeTimer, fillBody, scheduleTopFade]
   );
 
   useEffect(() => {
     if (!isFocused) {
+      clearTopFadeTimer();
+      overlayAnimRef.current?.stop();
       overlayShown.current = false;
       overlayArmed.current = false;
       setOverlayInteractive(false);
       overlayProgress.setValue(0);
+      overlayOpacity.setValue(0);
     }
-  }, [isFocused, overlayProgress]);
+  }, [clearTopFadeTimer, isFocused, overlayOpacity, overlayProgress]);
+
+  useEffect(() => () => clearTopFadeTimer(), [clearTopFadeTimer]);
 
   const overlayHideOffset = chromeH > 0 ? chromeH : STICKY_FALLBACK_CHROME_H;
   const overlayTranslateY = overlayProgress.interpolate({
@@ -350,7 +443,9 @@ function StorefrontChromeInner({
         <Animated.View
           style={[
             styles.chromeOverlay,
+            !overlayInteractive ? styles.chromeOverlayHidden : null,
             {
+              opacity: overlayOpacity,
               transform: [{ translateY: overlayTranslateY }],
             },
           ]}
@@ -381,6 +476,8 @@ function StorefrontChromeInner({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onScroll={onScroll}
+            onScrollEndDrag={fadeOverlayIfSettledAtTop}
+            onMomentumScrollEnd={fadeOverlayIfSettledAtTop}
             scrollEventThrottle={16}
             // @ts-expect-error web className
             className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
@@ -448,7 +545,8 @@ const styles = StyleSheet.create({
   },
   /**
    * Scroll-away sticky clone — out of document flow so it never pushes content.
-   * Slides in via translateY; pointer-events off while hidden.
+   * Slides in/out via translateY while armed; fades opacity once settled at y≈0.
+   * Hidden state must keep opacity 0 (translate alone still paints shadow / edge).
    */
   chromeOverlay: {
     position: 'absolute',
@@ -469,6 +567,17 @@ const styles = StyleSheet.create({
           shadowOpacity: 0.1,
           shadowRadius: 8,
           elevation: 6,
+        }),
+  },
+  /** Kill shadow/elevation while dismissed so offscreen translate can't leak. */
+  chromeOverlayHidden: {
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: 'none',
+        } as object)
+      : {
+          shadowOpacity: 0,
+          elevation: 0,
         }),
   },
   /** Fill-mode chrome above the body viewport (not inside a page scroller). */
