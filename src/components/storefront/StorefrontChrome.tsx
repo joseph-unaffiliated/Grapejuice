@@ -136,6 +136,8 @@ const TOP_SETTLED_EPS = 4;
 /** Brief dwell so a fling that clamps at 0 doesn't fade mid-momentum (esp. web wheel). */
 const TOP_FADE_SETTLE_MS = 80;
 const DESKTOP_RAV_MAX = 520;
+/** Match StorefrontRavDrawer close duration so pinned chrome stays until dock finishes. */
+const RAV_CLOSE_LAYOUT_MS = 280;
 
 function stickyScrollThresholds(chromeH: number) {
   const base = chromeH > 0 ? chromeH : STICKY_FALLBACK_CHROME_H;
@@ -150,11 +152,15 @@ function stickyScrollThresholds(chromeH: number) {
 /**
  * Storefront shell: static chrome in document flow + optional overlay clone.
  *
- * Scroll mode: chrome sits inside the page ScrollView and scrolls away normally.
- * After scrolling past ~header height, an absolute overlay clone can reappear on
- * upward scroll (no layout height). Crossing disableY only disarms sticky
- * behavior — the overlay stays until scroll settles at y≈0, then fades in place
- * over the static header.
+ * Scroll mode (Rav closed): chrome sits inside the page ScrollView and scrolls
+ * away normally. After scrolling past ~header height, an absolute overlay clone
+ * can reappear on upward scroll (no layout height). Crossing disableY only
+ * disarms sticky behavior — the overlay stays until scroll settles at y≈0, then
+ * fades in place over the static header.
+ *
+ * Desktop Rav open: pin one full-width chrome above bodyRow (like fill mode) so
+ * the dock sits under the header and only the content column compresses. Overlay
+ * sticky is disabled until Rav closes.
  *
  * Fill mode: chrome stays pinned above the body (wizards / My Box).
  */
@@ -190,6 +196,28 @@ function StorefrontChromeInner({
     initialMessage,
     initialMessageNonce,
   } = useStorefrontRav();
+
+  /**
+   * Desktop dock: keep chrome pinned above bodyRow while Rav is open, and through
+   * the close animation so the layout doesn’t jump mid-slide.
+   */
+  const [pinChromeForRav, setPinChromeForRav] = useState(false);
+  useEffect(() => {
+    if (compact) {
+      setPinChromeForRav(false);
+      return;
+    }
+    if (ravVisible) {
+      setPinChromeForRav(true);
+      return;
+    }
+    const t = setTimeout(() => setPinChromeForRav(false), RAV_CLOSE_LAYOUT_MS);
+    return () => clearTimeout(t);
+  }, [ravVisible, compact]);
+
+  const pinChromeAboveBody = fillBody || pinChromeForRav;
+  /** Scroll-away overlay only when chrome lives in the page scroller. */
+  const useOverlaySticky = !pinChromeAboveBody;
 
   const lastY = useRef(0);
   const chromeHeight = useRef(0);
@@ -357,16 +385,16 @@ function StorefrontChromeInner({
   }, [animateOverlay, clearTopFadeTimer]);
 
   const fadeOverlayIfSettledAtTop = useCallback(() => {
-    if (fillBody) return;
+    if (!useOverlaySticky) return;
     if (lastY.current > TOP_SETTLED_EPS) return;
     clearTopFadeTimer();
     overlayArmed.current = false;
     animateOverlay(false, 'fade');
-  }, [animateOverlay, clearTopFadeTimer, fillBody]);
+  }, [animateOverlay, clearTopFadeTimer, useOverlaySticky]);
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (fillBody) return;
+      if (!useOverlaySticky) return;
       const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastY.current;
       lastY.current = y;
@@ -402,8 +430,25 @@ function StorefrontChromeInner({
         animateOverlay(true);
       }
     },
-    [animateOverlay, clearTopFadeTimer, fillBody, scheduleTopFade]
+    [animateOverlay, clearTopFadeTimer, scheduleTopFade, useOverlaySticky]
   );
+
+  /** Dismiss overlay as soon as chrome pins above Rav / fill body. */
+  useEffect(() => {
+    if (useOverlaySticky) return;
+    clearTopFadeTimer();
+    overlayAnimRef.current?.stop();
+    overlayShown.current = false;
+    overlayArmed.current = false;
+    setOverlayInteractive(false);
+    overlayProgress.setValue(0);
+    overlayOpacity.setValue(0);
+  }, [
+    clearTopFadeTimer,
+    overlayOpacity,
+    overlayProgress,
+    useOverlaySticky,
+  ]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -425,6 +470,12 @@ function StorefrontChromeInner({
     outputRange: [-overlayHideOffset, 0],
   });
 
+  const ravTopInset = compact
+    ? chromeH > 0
+      ? chromeH
+      : STICKY_FALLBACK_CHROME_H
+    : 0;
+
   const ravDrawer = (
     <StorefrontRavDrawer
       visible={ravVisible}
@@ -432,14 +483,39 @@ function StorefrontChromeInner({
       initialMessage={initialMessage}
       initialMessageNonce={initialMessageNonce}
       width={ravWidth}
-      topInset={0}
+      topInset={ravTopInset}
       docked={!compact}
     />
   );
 
+  const pageScroll = (
+    <ScrollView
+      ref={scrollRef}
+      style={styles.scroll}
+      contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      onScroll={onScroll}
+      onScrollEndDrag={fadeOverlayIfSettledAtTop}
+      onMomentumScrollEnd={fadeOverlayIfSettledAtTop}
+      scrollEventThrottle={16}
+      // @ts-expect-error web className
+      className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
+      testID="storefront-vertical-scroll"
+    >
+      {pinChromeAboveBody ? null : (
+        <View onLayout={onChromeLayout} collapsable={false}>
+          <StorefrontChromeBlocks {...chromeProps} />
+        </View>
+      )}
+      {children}
+      <StorefrontFooter />
+    </ScrollView>
+  );
+
   return (
     <View style={styles.root} testID="storefront-scroll-host">
-      {!fillBody ? (
+      {useOverlaySticky ? (
         <Animated.View
           style={[
             styles.chromeOverlay,
@@ -457,38 +533,19 @@ function StorefrontChromeInner({
         </Animated.View>
       ) : null}
 
-      {fillBody ? (
+      {pinChromeAboveBody ? (
         <>
           <View style={styles.chromeFill} onLayout={onChromeLayout} collapsable={false}>
             <StorefrontChromeBlocks {...chromeProps} />
           </View>
           <View style={styles.bodyRow}>
-            <View style={styles.fillBody}>{children}</View>
+            {fillBody ? <View style={styles.fillBody}>{children}</View> : pageScroll}
             {ravDrawer}
           </View>
         </>
       ) : (
         <View style={styles.bodyRow}>
-          <ScrollView
-            ref={scrollRef}
-            style={styles.scroll}
-            contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            onScroll={onScroll}
-            onScrollEndDrag={fadeOverlayIfSettledAtTop}
-            onMomentumScrollEnd={fadeOverlayIfSettledAtTop}
-            scrollEventThrottle={16}
-            // @ts-expect-error web className
-            className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
-            testID="storefront-vertical-scroll"
-          >
-            <View onLayout={onChromeLayout} collapsable={false}>
-              <StorefrontChromeBlocks {...chromeProps} />
-            </View>
-            {children}
-            <StorefrontFooter />
-          </ScrollView>
+          {pageScroll}
           {ravDrawer}
         </View>
       )}
