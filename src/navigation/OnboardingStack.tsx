@@ -1,10 +1,9 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
 import { type ChildDraft } from '../screens/onboarding/ChildrenScreen';
 import { WhatWeDoScreen } from '../screens/onboarding/WhatWeDoScreen';
 import { HanukkahIntroScreen } from '../screens/onboarding/HanukkahIntroScreen';
 import { BoxIntroScreen } from '../screens/onboarding/BoxIntroScreen';
-import { BoxRevealScreen } from '../screens/onboarding/BoxRevealScreen';
 import { RavOpenQuestionScreen } from '../screens/onboarding/RavOpenQuestionScreen';
 import { BuildingBoxScreen } from '../screens/onboarding/BuildingBoxScreen';
 import { useAuthStore } from '../stores/authStore';
@@ -38,6 +37,7 @@ import {
 import type { StorefrontLeaveTarget } from '../components/storefront/storefrontLeaveContext';
 import { queuePendingMainNav } from './pendingMainNav';
 import { DEFAULT_STOREFRONT_CATEGORY } from '../constants/storefrontCategories';
+import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
 
 type Props = {
   onComplete?: () => void;
@@ -118,9 +118,6 @@ export function OnboardingStack({
   const [maxWizardIndex, setMaxWizardIndex] = useState(0);
   const [childDrafts, setChildDrafts] = useState<ChildDraft[]>(guestChildDrafts);
   const [childInterests, setChildInterests] = useState<string[]>(guestChildInterests);
-  const [savedChildren, setSavedChildren] = useState<ChildProfile[]>(() =>
-    guestChildDrafts.length ? draftsToProfiles(guestChildDrafts) : []
-  );
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>(guestFamiliarityLevel);
   const [familiarityScore, setFamiliarityScore] = useState(guestFamiliarityScore);
   const [ravNotes, setRavNotes] = useState(guestRavNotes);
@@ -129,6 +126,7 @@ export function OnboardingStack({
   const [buildError, setBuildError] = useState<string | null>(null);
   const [completingReveal, setCompletingReveal] = useState(false);
   const [loadingReveal, setLoadingReveal] = useState(revealOnly);
+  const revealHandoffStarted = useRef(false);
 
   const goToStep = useCallback(
     (next: OnboardingStep) => {
@@ -149,8 +147,12 @@ export function OnboardingStack({
     (next: OnboardingWizardNavStepId) => {
       const idx = wizardNavStepIndex(next);
       if (idx < 0 || idx > maxWizardIndex) return;
-      // Don't jump into reveal until the box has actually been built.
-      if (next === 'reveal' && !lineItems.length && !revealOnly) return;
+      // Box Reveal hands off to My Box once the curated draft exists.
+      if (next === 'reveal') {
+        if (!lineItems.length && !revealOnly) return;
+        goToStep('reveal');
+        return;
+      }
       goToStep(next);
     },
     [goToStep, maxWizardIndex, lineItems.length, revealOnly]
@@ -164,7 +166,6 @@ export function OnboardingStack({
     setRavNotes(guestRavNotes);
     if (guestLineItems.length) {
       setLineItems(guestLineItems);
-      setSavedChildren(draftsToProfiles(guestChildDrafts));
     }
   }, [
     guestChildDrafts,
@@ -197,7 +198,6 @@ export function OnboardingStack({
           draft?.lineItems?.length
             ? draft.lineItems
             : buildDefaultLineItems(catalog, kids, draft?.childInterests ?? []);
-        setSavedChildren(kids);
         setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
         setLineItems(items);
       } catch (error) {
@@ -252,7 +252,6 @@ export function OnboardingStack({
       if (guestMode) {
         setGuestLineItems(items);
         completeGuestOnboarding();
-        setSavedChildren(profiles);
         setFamiliarity(level);
         setFamiliarityScore(score);
         setLineItems(items);
@@ -267,7 +266,7 @@ export function OnboardingStack({
       // Silent: keep the building splash up instead of flashing the boot spinner.
       await refresh({ silent: true });
       const householdId = await ensureHouseholdId(user.uid, household?.id ?? profile?.householdId);
-      const savedKids = await childrenService.replaceAll(
+      await childrenService.replaceAll(
         user.uid,
         kids
           .filter((c) => c.role !== 'adult')
@@ -288,7 +287,6 @@ export function OnboardingStack({
         lockReminderEligible: true,
         lockReminderAttempts: 0,
       });
-      setSavedChildren(savedKids);
       setFamiliarity(level);
       setLineItems(items);
       goToStep('building');
@@ -306,27 +304,44 @@ export function OnboardingStack({
     }
   };
 
-  const completeReveal = async () => {
-    if (completingReveal) return;
+  const completeReveal = useCallback(async () => {
+    if (revealHandoffStarted.current) return;
+    revealHandoffStarted.current = true;
     setCompletingReveal(true);
     try {
+      // Destination is the live My Box screen (not the legacy reveal UI).
+      queuePendingMainNav({ screen: 'MyBox' });
       if (guestMode) {
         completeGuestBoxReveal();
         clearDevPreview();
         onComplete?.();
         return;
       }
-      if (!user?.uid) return;
+      if (!user?.uid) {
+        revealHandoffStarted.current = false;
+        return;
+      }
       await usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 });
       await refresh();
       clearDevPreview();
       onComplete?.();
+    } catch {
+      revealHandoffStarted.current = false;
     } finally {
       setCompletingReveal(false);
     }
-  };
+  }, [completeGuestBoxReveal, guestMode, onComplete, refresh, user?.uid]);
 
-  const goToReveal = useCallback(() => goToStep('reveal'), [goToStep]);
+  /** After the build splash, open My Box — Box Reveal is no longer a separate screen. */
+  const goToReveal = useCallback(() => {
+    void completeReveal();
+  }, [completeReveal]);
+
+  // Resume / reveal-only / wizard jump: hand off to My Box once draft is ready.
+  useEffect(() => {
+    if (step !== 'reveal' || loadingReveal || completingReveal) return;
+    void completeReveal();
+  }, [step, loadingReveal, completingReveal, completeReveal]);
 
   const exitOnboarding = useCallback(async () => {
     clearDevPreview();
@@ -365,7 +380,11 @@ export function OnboardingStack({
           });
           break;
         case 'myBox':
-          // Leaving mid-wizard: land on the store home (box may be incomplete).
+          // If the draft already exists, finish reveal and open My Box.
+          if (lineItems.length > 0) {
+            void completeReveal();
+            return;
+          }
           queuePendingMainNav({ screen: 'StorefrontHome' });
           break;
         case 'service':
@@ -388,7 +407,7 @@ export function OnboardingStack({
       }
       void exitOnboarding();
     },
-    [exitOnboarding]
+    [completeReveal, exitOnboarding, lineItems.length]
   );
 
   const wrap = (
@@ -512,13 +531,9 @@ export function OnboardingStack({
       break;
     case 'reveal':
       stepContent = (
-        <BoxRevealScreen
-          children={savedChildren}
-          familiarity={familiarity}
-          lineItems={lineItems}
-          onDone={completeReveal}
-          completing={completingReveal}
-        />
+        <View style={styles.loading} accessibilityLabel="Opening your box">
+          <BrandLoadingMark />
+        </View>
       );
       break;
     default:

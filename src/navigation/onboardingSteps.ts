@@ -20,7 +20,7 @@ export const ONBOARDING_WIZARD_NAV_STEPS: ReadonlyArray<{
   { id: 'rav-question', label: 'Notes' },
   {
     id: 'reveal',
-    label: 'Box Reveal',
+    label: 'My Box',
     navStyle: 'accent',
     separatorBefore: true,
   },

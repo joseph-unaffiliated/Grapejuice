@@ -93,17 +93,6 @@ async function seedGuestBoxStarted(children: ChildDraft[] = SAMPLE_CHILDREN) {
   guest.consumeOpenMyBoxAfterReveal();
 }
 
-async function seedGuestReveal(children: ChildDraft[] = SAMPLE_CHILDREN) {
-  const guest = useGuestSessionStore.getState();
-  guest.startBuildBox();
-  guest.setChildDrafts(children);
-  guest.setLineItems([]);
-  guest.setFamiliarityScore(0);
-  guest.completeOnboarding();
-  const catalog = await catalogService.getAll();
-  guest.setLineItems(buildDefaultLineItems(catalog, profilesFromDrafts(children)));
-}
-
 function setMainNav(
   screen: keyof MainStackParamList,
   params?: MainStackParamList[keyof MainStackParamList],
@@ -203,13 +192,11 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       }
       break;
     case 'onboarding-reveal':
-      setGuestFresh();
-      useGuestSessionStore.getState().startBuildBox();
-      useDevPreviewStore.setState({
-        forceGate: 'onboarding',
-        onboardingInitialStep: 'reveal',
-      });
-      void seedGuestReveal();
+      // Box Reveal is My Box — seed a started guest box and open that screen.
+      prepareMainPreview();
+      void seedGuestBoxStarted(childrenFromKidsParam(search) ?? SAMPLE_CHILDREN).then(() =>
+        setMainNav('MyBox')
+      );
       break;
     case 'home':
       setGuestExplore();

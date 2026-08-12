@@ -203,7 +203,7 @@ export function StorefrontHeroJourneyTimeline({ journey, compact }: Props) {
 
     return [
       // Seeing this hero means the parent already completed the in-app reveal.
-      { id: 'reveal', label: 'Box Reveal', date: null, completed: true },
+      { id: 'reveal', label: 'My Box', date: null, completed: true },
       {
         id: 'lock',
         label: 'Box Locks',
