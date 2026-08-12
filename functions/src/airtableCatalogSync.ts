@@ -103,6 +103,9 @@ export type SyncedCatalogItem = {
   dollarCostCents: number;
   pricingTier: 'included' | 'perKid' | 'extra' | 'alaCarte';
   holiday: string;
+  /** Full Airtable Category multi-select. */
+  categories: string[];
+  /** Primary category for placement (first non–On Sale, else first). */
   category: string | null;
   context: string[];
   source: string | null;
@@ -257,7 +260,11 @@ function mapListingPlacement(category: string | null, contexts: string[], name: 
     };
   }
   if (cat === 'candles') {
-    if (lower.includes('electric') || lower.includes('sheet')) {
+    if (
+      lower.includes('electric') ||
+      lower.includes('sheet') ||
+      lower.includes('roll your own')
+    ) {
       return { slot: 'addon' as const, slotId: 'extra-candles', pricingTier: 'alaCarte' as const };
     }
     return { slot: 'base' as const, slotId: 'candles', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
@@ -302,17 +309,26 @@ function mapListingPlacement(category: string | null, contexts: string[], name: 
   };
 }
 
-function curationTagsFor(category: string | null): string[] {
-  switch ((category ?? '').toLowerCase()) {
-    case 'menorah':
-      return ['hanukkiah', 'collection'];
-    case 'dreidel':
-      return ['dreidel', 'collection'];
-    case 'candles':
-      return ['collection'];
-    default:
-      return ['collection'];
+function primaryCategory(categories: string[]): string | null {
+  const nonSale = categories.find((c) => c.toLowerCase() !== 'on sale');
+  return nonSale ?? categories[0] ?? null;
+}
+
+function curationTagsFor(categories: string[]): string[] {
+  const tags = new Set<string>(['collection']);
+  for (const c of categories) {
+    switch (c.toLowerCase()) {
+      case 'menorah':
+        tags.add('hanukkiah');
+        break;
+      case 'dreidel':
+        tags.add('dreidel');
+        break;
+      default:
+        break;
+    }
   }
+  return [...tags];
 }
 
 async function airtableListAll(tableId: string, fields: string[]): Promise<AirtableRecord[]> {
@@ -427,7 +443,8 @@ function listingToItem(
   const inProd = selectName(f[F.inProduction]);
   if (inProd && inProd !== 'Yes') return null;
 
-  const category = selectNames(f[F.category])[0] ?? null;
+  const categories = selectNames(f[F.category]);
+  const category = primaryCategory(categories);
   const contexts = selectNames(f[F.context]);
   const ages = selectNames(f[F.age]);
   const placement = mapListingPlacement(category, contexts, name);
@@ -451,6 +468,7 @@ function listingToItem(
     dollarCostCents: nonMemberPriceCents || memberPriceCents || unitCostCents,
     pricingTier: placement.pricingTier,
     holiday: CATALOG_HOLIDAY,
+    categories,
     category,
     context: contexts,
     source: selectName(f[F.source]),
@@ -462,7 +480,7 @@ function listingToItem(
     imageUrls: images.imageUrls,
     buyLink: typeof f[F.link] === 'string' ? (f[F.link] as string) : null,
     interest: null,
-    curationTags: curationTagsFor(category),
+    curationTags: curationTagsFor(categories),
     storefrontRails: storefrontRailsFromListing(f),
     storefrontRank: numberField(f[F.storefrontRank]),
     dimensions: textField(f[F.dimensions]),
@@ -507,6 +525,7 @@ function bookToItem(
     dollarCostCents: priceCents,
     pricingTier: 'perKid',
     holiday: CATALOG_HOLIDAY,
+    categories: ['Book'],
     category: 'Book',
     context: ['Default'],
     source: 'Curated',

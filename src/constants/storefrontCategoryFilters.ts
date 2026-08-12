@@ -1,6 +1,10 @@
 import type { AgeGroup, CatalogItem } from '../types/pilot';
 import { getCurationTags } from './catalogCuration';
-import { isKidsDreidel, isKidsMenorah } from './storefrontCategories';
+import {
+  isKidsDreidel,
+  isKidsMenorah,
+  itemHasCategory,
+} from './storefrontCategories';
 
 export type AgeFilterKey = AgeGroup | 'all';
 
@@ -107,7 +111,7 @@ function giftTypeOptions(items: CatalogItem[]): FilterChip[] {
   const types: FilterChip[] = [];
   const hasApparel = items.some((i) => getCurationTags(i).includes('apparel'));
   const hasDecor = items.some((i) => getCurationTags(i).includes('decorations'));
-  const hasActivity = items.some((i) => i.category === 'Activity');
+  const hasActivity = items.some((i) => itemHasCategory(i, 'Activity'));
   if (hasApparel) types.push({ key: 'apparel', label: 'Apparel' });
   if (hasDecor) types.push({ key: 'decorations', label: 'Table & decor' });
   if (hasActivity) types.push({ key: 'activity', label: 'Activities' });
@@ -243,7 +247,7 @@ export function applyContextualFilters(
         const tags = getCurationTags(item);
         if (type === 'apparel') return tags.includes('apparel');
         if (type === 'decorations') return tags.includes('decorations');
-        if (type === 'activity') return item.category === 'Activity';
+        if (type === 'activity') return itemHasCategory(item, 'Activity');
         return true;
       });
     } else if (slug === 'food') {

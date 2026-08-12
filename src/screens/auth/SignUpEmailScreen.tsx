@@ -3,7 +3,6 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  Platform,
   type NativeSyntheticEvent,
   type TextInputChangeEventData,
 } from 'react-native';
@@ -24,9 +23,10 @@ function readInputValue(
   return null;
 }
 
-export function SignInEmailScreen() {
+export function SignUpEmailScreen() {
   const { colors } = useThemeMode();
-  const { signIn, isLoading, error, clearError } = useAuthStore();
+  const { signUp, isLoading, error, clearError } = useAuthStore();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -41,13 +41,11 @@ export function SignInEmailScreen() {
     setLocalError(null);
     const e = email.trim();
     if (!e || !password) {
-      setLocalError(
-        'Enter both email and password. If the fields look filled, click them once so the values register, then try again.',
-      );
+      setLocalError('Enter email and password (at least 6 characters).');
       return;
     }
     try {
-      await signIn(e, password);
+      await signUp(e, password, name);
     } catch {
       /* store surfaces error */
     }
@@ -55,6 +53,19 @@ export function SignInEmailScreen() {
 
   return (
     <AuthHeroShell>
+      <TextInput
+        style={inputStyle}
+        placeholder="Your name"
+        placeholderTextColor={colors.textTertiary}
+        autoComplete="name"
+        textContentType="name"
+        value={name}
+        onChangeText={setName}
+        onChange={(ev) => {
+          const v = readInputValue(ev);
+          if (v != null) setName(v);
+        }}
+      />
       <TextInput
         style={inputStyle}
         placeholder="Email"
@@ -65,8 +76,8 @@ export function SignInEmailScreen() {
         textContentType="emailAddress"
         value={email}
         onChangeText={setEmail}
-        onChange={(e) => {
-          const v = readInputValue(e);
+        onChange={(ev) => {
+          const v = readInputValue(ev);
           if (v != null) setEmail(v);
         }}
       />
@@ -75,18 +86,18 @@ export function SignInEmailScreen() {
         placeholder="Password"
         placeholderTextColor={colors.textTertiary}
         secureTextEntry
-        autoComplete="password"
-        textContentType="password"
+        autoComplete="new-password"
+        textContentType="newPassword"
         value={password}
         onChangeText={setPassword}
-        onChange={(e) => {
-          const v = readInputValue(e);
+        onChange={(ev) => {
+          const v = readInputValue(ev);
           if (v != null) setPassword(v);
         }}
         onSubmitEditing={() => void onSubmit()}
       />
       <GrapejuiceButton
-        label="Sign in"
+        label="Sign up"
         variant="filled"
         onPress={() => void onSubmit()}
         disabled={isLoading}
@@ -95,11 +106,6 @@ export function SignInEmailScreen() {
       />
       {localError || error ? (
         <Text style={[styles.error, { color: colors.error }]}>{localError || error}</Text>
-      ) : null}
-      {Platform.OS === 'web' ? (
-        <Text style={[styles.hint, { color: colors.textTertiary }]}>
-          Signed up with Google? Use Continue with Google on the previous screen instead.
-        </Text>
       ) : null}
     </AuthHeroShell>
   );
@@ -121,12 +127,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
     fontSize: typography.md,
-  },
-  hint: {
-    fontSize: typography.sm,
-    ...typeface('light'),
-    textAlign: 'center',
-    marginTop: spacing.lg,
-    lineHeight: 18,
   },
 });

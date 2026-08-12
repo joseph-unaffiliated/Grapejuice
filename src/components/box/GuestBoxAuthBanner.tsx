@@ -41,7 +41,8 @@ function createStyles(colors: SemanticColors) {
       fontSize: typography.sm,
       lineHeight: 18,
       ...typeface('light'),
-      color: colors.textSecondary,
+      color: colors.goldMuted,
+      letterSpacing: -0.22,
       flexShrink: 1,
       // Breath after Total / price before hold messaging.
       paddingLeft: spacing.sm,

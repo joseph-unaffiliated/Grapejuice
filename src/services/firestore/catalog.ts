@@ -80,6 +80,9 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
         ? Number(data.storefrontRank)
         : undefined,
     brand: typeof data.brand === 'string' ? data.brand : undefined,
+    categories: Array.isArray(data.categories)
+      ? (data.categories as unknown[]).filter((c): c is string => typeof c === 'string')
+      : undefined,
     category: typeof data.category === 'string' ? data.category : undefined,
     context: Array.isArray(data.context)
       ? (data.context as unknown[]).filter((c): c is string => typeof c === 'string')

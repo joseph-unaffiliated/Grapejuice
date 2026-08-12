@@ -22,7 +22,7 @@ export function WelcomeScreen() {
   const { appleSignIn, isLoading, clearError } = useAuthStore();
 
   return (
-    <AuthHeroShell>
+    <AuthHeroShell modal={false}>
       <Text style={[styles.headline, { color: colors.textSecondary }]}>
         A Hanukkah box for families who want to celebrate — and need help knowing how.
       </Text>

@@ -4,6 +4,22 @@ import { usersService } from '../firestore/users';
 import { householdsService } from '../firestore/households';
 import { boxDraftService } from '../firestore/boxDraft';
 import type { AuthUser } from '../auth/auth';
+import type { BoxLineItem, ChildProfile } from '../../types/pilot';
+
+/** Remap guest-N child ids (and matching slot suffixes) to Firestore child ids. */
+function remapGuestChildIds(lineItems: BoxLineItem[], saved: ChildProfile[]): BoxLineItem[] {
+  if (!saved.length) return lineItems;
+  return lineItems.map((li) => {
+    const fromId = li.childId;
+    if (!fromId) return li;
+    const m = /^guest-(\d+)$/.exec(fromId);
+    if (!m) return li;
+    const next = saved[Number(m[1])];
+    if (!next) return li;
+    const slotId = li.slotId.includes(fromId) ? li.slotId.split(fromId).join(next.id) : li.slotId;
+    return { ...li, childId: next.id, slotId };
+  });
+}
 
 export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   const guest = useGuestSessionStore.getState();
@@ -34,8 +50,9 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
     prof = await usersService.upsert(user.uid, { householdId });
   }
 
+  let savedChildren: ChildProfile[] = [];
   if (guest.childDrafts.length) {
-    await childrenService.replaceAll(
+    savedChildren = await childrenService.replaceAll(
       user.uid,
       guest.childDrafts.map((c) => ({ name: c.name || undefined, ageGroup: c.ageGroup }))
     );
@@ -49,7 +66,8 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
       !existingDraft?.lineItems?.length || guest.buildBoxPath || guest.boxRevealComplete;
 
     if (shouldSaveGuestDraft) {
-      await boxDraftService.save(householdId, user.uid, guest.lineItems, {
+      const lineItems = remapGuestChildIds(guest.lineItems, savedChildren);
+      await boxDraftService.save(householdId, user.uid, lineItems, {
         familiarityLevel: guest.familiarityLevel,
         childInterests: guest.childInterests.length ? guest.childInterests : undefined,
       });

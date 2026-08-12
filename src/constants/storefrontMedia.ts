@@ -74,8 +74,8 @@ export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
     label: 'Lifestyle — Kids toys',
     headline: 'Toys for little hands',
     body: 'Stuffies, a clay dreidel, a wood play menorah, and a story. Can come pre-wrapped in Hanukkah themed paper when ordered with a box.',
-    ctaLabel: 'Shop Gifts',
-    href: 'gifts',
+    ctaLabel: 'Shop toys',
+    href: 'toys',
     src: require('../../assets/storefront/editorial-gift-stack.webp'),
   },
 ];

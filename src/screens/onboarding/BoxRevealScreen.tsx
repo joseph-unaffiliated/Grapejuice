@@ -159,7 +159,7 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
     };
   }, [loading, remeasureSections, visibleSectionIds]);
 
-  const renderSection = (sectionId: BoxDisplaySectionId) => {
+  const renderSection = (sectionId: BoxDisplaySectionId, isLast = false) => {
     const items = grouped[sectionId];
     if (!items.length) return null;
 
@@ -169,6 +169,7 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
+        isLast={isLast}
       >
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);
@@ -225,9 +226,9 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
           />
         </RevealStagger>
       ) : null}
-      {visibleSectionIds.map((id) => (
+      {visibleSectionIds.map((id, index) => (
         <RevealStagger key={id} index={revealIndex++}>
-          {renderSection(id)}
+          {renderSection(id, index === visibleSectionIds.length - 1)}
         </RevealStagger>
       ))}
       <RevealStagger index={revealIndex++}>

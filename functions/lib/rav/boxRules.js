@@ -129,12 +129,16 @@ const DEFAULT_SLOT_PATTERNS = {
     'gelt-small': [/gelt.*small|small.*gelt/i, /^gelt-small$/i],
     'gelt-medium': [/gelt.*medium|medium.*gelt/i, /^gelt-medium$/i, /^gelt$/],
     'gelt-party': [/gelt.*party|party.*gelt/i, /^gelt-party$/i],
+    // Broad food tokens still match; scoring prefers mix/kit and excludes plush/stuffie.
     'latke-mix': [/latke/i, /latke-kit|latke-mix/i],
-    'sufganiyot-mix': [/sufgan/i, /sufganiyot-kit/i],
+    'sufganiyot-mix': [/sufgan/i, /sufganiyot-kit|sufganiyot-mix/i],
     applesauce: [/applesauce|apple.?sauce/i],
     'wrapping-paper': [/wrapping|wrap.*paper/i, /^wrapping$/],
     'pre-wrap': [/pre.?wrap|prewrap|wrap.?service/i],
 };
+const FOOD_MIX_SLOTS = new Set(['latke-mix', 'sufganiyot-mix']);
+const PLUSHISH_RE = /plush|stuffie|softie|stuffed/;
+const MIX_OR_KIT_RE = /(?:^|[\s_-])(mix|kit)(?:$|[\s_-])|\b(mix|kit)\b/;
 const GIFT_KIND_PATTERNS = {
     stuffie: [/stuffie|plush|softie/i],
     'wood-toy-menorah': [/wood.*(toy.?)?menorah|toy.?menorah.*wood|play.?menorah/i],
@@ -434,14 +438,65 @@ function haystack(row) {
     var _a;
     return `${row.id} ${row.name} ${(_a = row.slotId) !== null && _a !== void 0 ? _a : ''}`.toLowerCase();
 }
+function isPlushish(row) {
+    return PLUSHISH_RE.test(haystack(row));
+}
+/**
+ * Rank catalog rows for a Default slot. Food mix slots must never resolve to
+ * plush/stuffie (those belong under Give Presents); prefer mix/kit SKUs.
+ */
+function scoreDefaultSlotCandidate(row, slot) {
+    var _a;
+    const h = haystack(row);
+    const slotId = (_a = row.slotId) !== null && _a !== void 0 ? _a : '';
+    const patterns = DEFAULT_SLOT_PATTERNS[slot];
+    const tagged = row.defaultSlot === slot;
+    const patternHit = patterns.some((re) => re.test(h) || re.test(slotId));
+    if (!tagged && !patternHit)
+        return 0;
+    if (FOOD_MIX_SLOTS.has(slot) && isPlushish(row))
+        return 0;
+    let score = 0;
+    if (tagged)
+        score += 100;
+    if (patternHit)
+        score += 10;
+    if (row.id === slot || slotId === slot)
+        score += 40;
+    if (slot === 'latke-mix') {
+        if (row.id === 'latke-mix' || row.id === 'latke-kit' || slotId === 'latke-kit' || slotId === 'latke-mix') {
+            score += 40;
+        }
+    }
+    if (slot === 'sufganiyot-mix') {
+        if (row.id === 'sufganiyot-mix' ||
+            row.id === 'sufganiyot-kit' ||
+            slotId === 'sufganiyot-kit' ||
+            slotId === 'sufganiyot-mix') {
+            score += 40;
+        }
+    }
+    if (FOOD_MIX_SLOTS.has(slot)) {
+        if (MIX_OR_KIT_RE.test(h) || MIX_OR_KIT_RE.test(slotId))
+            score += 50;
+        if (/recipe/.test(h) || /recipe/.test(slotId))
+            score -= 25;
+    }
+    return score;
+}
 function resolveByDefaultSlot(catalog, slot) {
     if (!(catalog === null || catalog === void 0 ? void 0 : catalog.length))
         return undefined;
-    const tagged = catalog.find((r) => r.defaultSlot === slot);
-    if (tagged)
-        return tagged;
-    const patterns = DEFAULT_SLOT_PATTERNS[slot];
-    return catalog.find((r) => patterns.some((re) => { var _a; return re.test(haystack(r)) || re.test((_a = r.slotId) !== null && _a !== void 0 ? _a : ''); }));
+    let best;
+    let bestScore = 0;
+    for (const row of catalog) {
+        const score = scoreDefaultSlotCandidate(row, slot);
+        if (score > bestScore) {
+            bestScore = score;
+            best = row;
+        }
+    }
+    return bestScore > 0 ? best : undefined;
 }
 function resolveBookForAge(catalog, age) {
     var _a, _b;

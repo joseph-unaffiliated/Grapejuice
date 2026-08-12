@@ -22,6 +22,15 @@ function sectionBlurbAsParagraph(description: string): string {
     .join(' ');
 }
 
+function chunkElements(children: React.ReactNode, size: number): React.ReactElement[][] {
+  const items = React.Children.toArray(children).filter(React.isValidElement) as React.ReactElement[];
+  const rows: React.ReactElement[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    rows.push(items.slice(i, i + size));
+  }
+  return rows;
+}
+
 type Props = {
   sectionId: BoxDisplaySectionId;
   onLayout: (e: LayoutChangeEvent) => void;
@@ -36,6 +45,8 @@ type Props = {
   upsellItems?: CatalogItem[];
   onUpsellPress?: (item: CatalogItem) => void;
   showUpsells?: boolean;
+  /** Hide bottom divider when this is the last visible section. */
+  isLast?: boolean;
 };
 
 /** Figma 370:3534 — one scroll section (title, items, browse/upsell strip). */
@@ -49,27 +60,36 @@ export function BoxDetailSectionBlock({
   upsellItems,
   onUpsellPress,
   showUpsells = true,
+  isLast = false,
 }: Props) {
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
   const [listWidth, setListWidth] = useState(isDesktop ? layoutWidth : 0);
   const useTileGrid = isDesktop && listWidth >= BOX_TILE_GRID_MIN_WIDTH;
-  const tileColumns =
-    useTileGrid && listWidth >= BOX_TILE_GRID_THREE_COL_MIN_WIDTH ? 3 : useTileGrid ? 2 : 1;
+  const itemCount = React.Children.toArray(children).length;
+  /** Width capacity — drives tile % width (Story 2-up uses 3-col size when wide). */
+  const tileSizeColumns: 2 | 3 = listWidth >= BOX_TILE_GRID_THREE_COL_MIN_WIDTH ? 3 : 2;
+  /** Row wrap bias: 4 → 2×2 (not 3+1); 5 → 3+2 when wide. */
+  const maxPerRow: 2 | 3 = (() => {
+    if (itemCount === 4) return 2;
+    if (itemCount === 5) return tileSizeColumns === 3 ? 3 : 2;
+    return tileSizeColumns;
+  })();
   const itemVariant: BoxItemVisualVariant = useTileGrid ? 'tile' : 'card';
   const styles = useMemo(
     () =>
       createBoxDetailStyles(colors, {
         desktop: isDesktop,
         tileGrid: useTileGrid,
-        tileColumns,
+        tileColumns: useTileGrid ? tileSizeColumns : 2,
       }),
-    [colors, isDesktop, useTileGrid, tileColumns],
+    [colors, isDesktop, useTileGrid, tileSizeColumns],
   );
   const meta = BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)!;
   const blurb = sectionBlurbAsParagraph(meta.description);
   const stripItems = showUpsells && upsellItems?.length ? upsellItems : [];
   const isPresents = sectionId === 'presents';
+  const tileRows = useTileGrid ? chunkElements(children, maxPerRow) : null;
 
   return (
     <View
@@ -77,6 +97,7 @@ export function BoxDetailSectionBlock({
       style={[
         styles.sectionBlock,
         isPresents ? styles.sectionBlockPresents : null,
+        isLast ? { borderBottomWidth: 0 } : null,
         Platform.OS === 'web'
           ? ({ scrollMarginTop: BOX_DETAIL_SCROLL_SPY_OFFSET } as object)
           : null,
@@ -105,13 +126,20 @@ export function BoxDetailSectionBlock({
           style={[styles.itemList, isPresents ? styles.itemListPresents : null]}
           onLayout={(e) => setListWidth(e.nativeEvent.layout.width)}
         >
-          {React.Children.map(children, (child) =>
-            useTileGrid && React.isValidElement(child) ? (
-              <View style={styles.itemTile}>{child}</View>
-            ) : (
-              child
-            ),
-          )}
+          {tileRows
+            ? tileRows.map((row, rowIndex) => (
+                <View key={`tile-row-${rowIndex}`} style={styles.itemRow}>
+                  {row.map((child, colIndex) => (
+                    <View
+                      key={child.key != null ? String(child.key) : `tile-${rowIndex}-${colIndex}`}
+                      style={styles.itemTile}
+                    >
+                      {child}
+                    </View>
+                  ))}
+                </View>
+              ))
+            : children}
         </View>
       </BoxItemVisualVariantProvider>
       {trailing ? <View style={styles.sectionTrailing}>{trailing}</View> : null}

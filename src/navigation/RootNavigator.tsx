@@ -1,6 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  NavigationIndependentTree,
+  DefaultTheme,
+} from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createStackNavigator } from '@react-navigation/stack';
 import type { RootStackParamList } from './types';
@@ -27,6 +31,16 @@ import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { consumePendingAuthReturn } from '../services/auth/auth';
+
+/** Transparent theme so AuthHeroShell dimmed backdrop shows Main underneath. */
+const authOverlayTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: 'transparent',
+    card: 'transparent',
+  },
+};
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -77,6 +91,12 @@ function RootRoutes() {
     );
   }
 
+  const guestHasMainSurface =
+    exploreStarted || guestOnboardingComplete || guestBoxRevealComplete;
+
+  /** Auth started from storefront / My Box / etc. — keep Main mounted and overlay Auth. */
+  const authAsOverlay = !isAuthenticated && !!pendingAuth && guestHasMainSurface;
+
   let gateKey: 'auth' | 'onboarding' | 'main' = 'auth';
 
   if (previewActive && previewGate) {
@@ -93,41 +113,61 @@ function RootRoutes() {
     } else {
       gateKey = needsOnboarding ? 'onboarding' : needsBoxReveal ? 'onboarding' : 'main';
     }
-  } else if (pendingAuth) {
+  } else if (pendingAuth && !guestHasMainSurface) {
+    // Cold auth / gift-claim before explore — full Auth stack (no Main underneath).
     gateKey = 'auth';
   } else if (buildBoxPath && !guestBoxRevealComplete) {
     gateKey = 'onboarding';
-  } else if (exploreStarted || guestOnboardingComplete || guestBoxRevealComplete) {
+  } else if (guestHasMainSurface) {
     gateKey = 'main';
   }
 
   return (
-    <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
-      {!isAuthenticated && gateKey === 'auth' ? (
-        <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
-          {() => (
-            <ThemeProvider mode="parent">
-              <AuthStack checkoutAuth={!!pendingAuth} />
-            </ThemeProvider>
-          )}
-        </Stack.Screen>
-      ) : gateKey === 'onboarding' ? (
-        <Stack.Screen name="Onboarding" options={{ title: 'Welcome' }}>
-          {() => (
-            <ThemeProvider mode="parent">
-              <OnboardingStack
-                isGuest={!isAuthenticated}
-                revealOnly={isAuthenticated && needsBoxReveal && !needsOnboarding}
-                initialStep={useDevPreviewStore.getState().onboardingInitialStep ?? undefined}
-                onComplete={refresh}
-              />
-            </ThemeProvider>
-          )}
-        </Stack.Screen>
-      ) : (
-        <Stack.Screen name="Main" component={MainGate} options={{ title: 'Home' }} />
-      )}
-    </Stack.Navigator>
+    <View style={styles.rootFill}>
+      <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
+        {!isAuthenticated && gateKey === 'auth' ? (
+          <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
+            {() => (
+              <ThemeProvider mode="parent">
+                <AuthStack checkoutAuth={!!pendingAuth} />
+              </ThemeProvider>
+            )}
+          </Stack.Screen>
+        ) : gateKey === 'onboarding' ? (
+          <Stack.Screen name="Onboarding" options={{ title: 'Welcome' }}>
+            {() => (
+              <ThemeProvider mode="parent">
+                <OnboardingStack
+                  isGuest={!isAuthenticated}
+                  revealOnly={isAuthenticated && needsBoxReveal && !needsOnboarding}
+                  initialStep={useDevPreviewStore.getState().onboardingInitialStep ?? undefined}
+                  onComplete={refresh}
+                />
+              </ThemeProvider>
+            )}
+          </Stack.Screen>
+        ) : (
+          <Stack.Screen name="Main" component={MainGate} options={{ title: 'Home' }} />
+        )}
+      </Stack.Navigator>
+
+      {authAsOverlay ? (
+        <View style={styles.authOverlay}>
+          {/*
+            Sibling AuthStack under the root NavigationContainer throws
+            "Another navigator is already registered". Independent tree +
+            nested container keeps Main mounted and auth navigable.
+          */}
+          <NavigationIndependentTree>
+            <NavigationContainer theme={authOverlayTheme}>
+              <ThemeProvider mode="parent">
+                <AuthStack checkoutAuth />
+              </ThemeProvider>
+            </NavigationContainer>
+          </NavigationIndependentTree>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -185,6 +225,14 @@ export function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
+  rootFill: {
+    flex: 1,
+  },
+  authOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    backgroundColor: 'transparent',
+  },
   boot: {
     flex: 1,
     alignItems: 'center',

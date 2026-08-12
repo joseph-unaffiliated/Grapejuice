@@ -1,94 +1,78 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeMode } from '../../context/ThemeContext';
 import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
-import { spacing, typography, typeface, borderRadius } from '../../constants/theme';
+import { spacing, typography, typeface } from '../../constants/theme';
+import type { AuthStackParamList } from '../../navigation/types';
+
+type Nav = StackNavigationProp<AuthStackParamList, 'SignUp'>;
 
 export function SignUpScreen() {
+  const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
-  const { signUp, googleSignIn, isLoading, error, clearError } = useAuthStore();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { googleSignIn, appleSignIn, isLoading, error, clearError } = useAuthStore();
 
   return (
     <AuthHeroShell>
-      <Text style={[styles.headline, { color: colors.textPrimary }]}>Create account</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Password must be at least 6 characters. Use any email you can access.
-      </Text>
+      <View style={styles.actions}>
+        <GrapejuiceButton
+          label="Continue with Google"
+          variant="pill"
+          onPress={async () => {
+            clearError();
+            try {
+              await googleSignIn();
+            } catch {
+              /* store */
+            }
+          }}
+          disabled={isLoading}
+          loading={isLoading}
+          style={styles.btn}
+        />
 
-      <TextInput
-        style={[
-          styles.input,
-          { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgPrimary },
-        ]}
-        placeholder="Your name"
-        placeholderTextColor={colors.textTertiary}
-        autoComplete="name"
-        value={name}
-        onChangeText={setName}
-      />
-      <TextInput
-        style={[
-          styles.input,
-          { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgPrimary },
-        ]}
-        placeholder="Email"
-        placeholderTextColor={colors.textTertiary}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={[
-          styles.input,
-          { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgPrimary },
-        ]}
-        placeholder="Password"
-        placeholderTextColor={colors.textTertiary}
-        secureTextEntry
-        autoComplete="new-password"
-        value={password}
-        onChangeText={setPassword}
-      />
-      <GrapejuiceButton
-        label="Sign up"
-        variant="filled"
-        onPress={async () => {
-          clearError();
-          await signUp(email.trim(), password, name);
-        }}
-        disabled={isLoading}
-        loading={isLoading}
-        style={styles.btn}
-      />
+        <GrapejuiceButton
+          label="Sign up with Email"
+          variant="pill"
+          onPress={() => navigation.navigate('SignUpEmail')}
+          style={styles.btn}
+        />
 
-      <View style={styles.orRow}>
-        <View style={[styles.orLine, { backgroundColor: colors.border }]} />
-        <Text style={[styles.orText, { color: colors.textTertiary }]}>or</Text>
-        <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+        {Platform.OS === 'ios' ? (
+          <GrapejuiceButton
+            label="Sign up with Apple"
+            variant="pill"
+            onPress={async () => {
+              clearError();
+              try {
+                await appleSignIn();
+              } catch {
+                /* store */
+              }
+            }}
+            disabled={isLoading}
+            loading={isLoading}
+            style={styles.btn}
+          />
+        ) : null}
+
+        <View style={styles.signInRow}>
+          <Text style={[styles.signInMuted, { color: colors.textPrimary }]}>
+            Already have an account?{' '}
+          </Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('SignIn')}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in"
+          >
+            <Text style={[styles.signInLink, { color: colors.goldMuted }]}>Sign in</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-
-      <GrapejuiceButton
-        label="Sign up with Google"
-        variant="pillOutline"
-        onPress={async () => {
-          clearError();
-          try {
-            await googleSignIn();
-          } catch {
-            /* store */
-          }
-        }}
-        disabled={isLoading}
-        loading={isLoading}
-        style={styles.btn}
-      />
 
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
     </AuthHeroShell>
@@ -96,44 +80,31 @@ export function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  headline: {
-    fontSize: typography.headerLg,
-    ...typeface('medium'),
-    letterSpacing: -0.4,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: typography.md,
-    ...typeface('light'),
-    letterSpacing: -0.22,
-    lineHeight: 22,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    fontSize: 16,
-    ...typeface('regular'),
-  },
-  btn: { alignSelf: 'stretch', minWidth: undefined },
-  orRow: {
-    flexDirection: 'row',
+  actions: {
+    width: '100%',
     alignItems: 'center',
     gap: spacing.sm,
-    marginVertical: spacing.md,
+  },
+  btn: {
     alignSelf: 'stretch',
+    minWidth: undefined,
   },
-  orLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
+  signInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing.md,
+    flexWrap: 'wrap',
   },
-  orText: {
+  signInMuted: {
     fontSize: typography.sm,
-    ...typeface('light'),
+    ...typeface('regular'),
+    letterSpacing: -0.22,
+  },
+  signInLink: {
+    fontSize: typography.sm,
+    ...typeface('regular'),
+    letterSpacing: -0.22,
   },
   error: {
     marginTop: spacing.md,

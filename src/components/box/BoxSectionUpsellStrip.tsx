@@ -58,10 +58,10 @@ export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }
                 itemId={item.id}
                 style={styles.image}
               />
+              <Text style={styles.price}>{price}</Text>
               <Text style={styles.name} numberOfLines={2}>
                 {item.name}
               </Text>
-              <Text style={styles.price}>{price}</Text>
             </TouchableOpacity>
           );
         })}
@@ -84,6 +84,7 @@ function createStyles(colors: SemanticColors) {
       ...typeface('medium'),
       color: colors.textSecondary,
       letterSpacing: -0.22,
+      textAlign: 'center',
       // Avoid rail bleed / overflow clipping the label.
       paddingBottom: 2,
       zIndex: 1,
@@ -107,6 +108,10 @@ function createStyles(colors: SemanticColors) {
     scrollerContent: {
       flexDirection: 'row',
       alignItems: 'flex-start',
+      // Center when thumbs fit; when they overflow, content grows past the
+      // viewport so justifyContent has no free space and scroll stays left-start.
+      justifyContent: 'center',
+      flexGrow: 1,
       gap: spacing.sm,
       paddingVertical: spacing.xs,
       paddingHorizontal: 0,

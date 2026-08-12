@@ -202,13 +202,37 @@ export const STOCK_POLICY = {
 
 /** Name/id/slotId patterns when Default slot is missing on the row. */
 const DEFAULT_SLOT_PATTERNS: Record<DefaultSlotId, RegExp[]> = {
-  candles: [/^candles$/, /candle(?!.*electric|.*myo|.*diy|.*make)/i],
+  candles: [
+    /^candles$/,
+    /^(?!.*(?:electric|myo|diy|make.?your.?own|roll.?your.?own|sheet)).*\bcandles?\b/i,
+  ],
   'wood-dreidel': [/wood.*dreidel|dreidel.*wood/i, /^wood-dreidel$/i],
-  'blank-dreidel': [/blank.*dreidel|dreidel.*blank/i, /^blank-dreidel$/i],
-  'airdry-dreidel': [/air.?dry|clay.*dreidel|dreidel.*clay/i, /^airdry-dreidel$/i],
-  'gelt-small': [/gelt.*small|small.*gelt/i, /^gelt-small$/i],
-  'gelt-medium': [/gelt.*medium|medium.*gelt/i, /^gelt-medium$/i, /^gelt$/],
-  'gelt-party': [/gelt.*party|party.*gelt/i, /^gelt-party$/i],
+  'blank-dreidel': [
+    /blank.*dreidel|dreidel.*blank|draw.?your.?own.*dreidel/i,
+    /^blank-dreidel$/i,
+    /^draw-your-own-dreidel$/i,
+  ],
+  'airdry-dreidel': [
+    /air.?dry|clay.*dreidel|dreidel.*clay|airdry.*clay.*dreidel/i,
+    /^airdry-dreidel$/i,
+    /^airdry-clay-dreidel$/i,
+  ],
+  'gelt-small': [
+    /gelt.*small|small.*gelt|little.?bag.*gelt|gelt.*little.?bag/i,
+    /^gelt-small$/i,
+    /^little-bag-of-gelt/i,
+  ],
+  'gelt-medium': [
+    /gelt.*medium|medium.*gelt|big.?bag.*gelt|gelt.*big.?bag/i,
+    /^gelt-medium$/i,
+    /^gelt$/,
+    /^big-bag-of-gelt$/i,
+  ],
+  'gelt-party': [
+    /gelt.*party|party.*gelt|party.?bag.*gelt/i,
+    /^gelt-party$/i,
+    /^party-bag-of-gelt$/i,
+  ],
   // Broad food tokens still match; scoring prefers mix/kit and excludes plush/stuffie.
   'latke-mix': [/latke/i, /latke-kit|latke-mix/i],
   'sufganiyot-mix': [/sufgan/i, /sufganiyot-kit|sufganiyot-mix/i],
@@ -225,9 +249,9 @@ const GIFT_KIND_PATTERNS: Record<GiftKindId, RegExp[]> = {
   stuffie: [/stuffie|plush|softie/i],
   'wood-toy-menorah': [/wood.*(toy.?)?menorah|toy.?menorah.*wood|play.?menorah/i],
   airdry: [/air.?dry|clay.*dreidel/i],
-  blank: [/blank.*dreidel/i],
+  blank: [/blank.*dreidel|draw.?your.?own.*dreidel/i],
   'lego-menorah': [/lego.*menorah|menorah.*lego/i],
-  'diy-candles': [/diy.*candle|make.?your.?own.*candle|myo.*candle/i],
+  'diy-candles': [/diy.*candle|make.?your.?own.*candle|myo.*candle|roll.?your.?own.*candle/i],
   'extra-book': [/book/i],
 };
 

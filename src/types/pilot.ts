@@ -136,13 +136,18 @@ export type CatalogItem = {
   /**
    * Airtable "Storefront rails" multi-select.
    * Values: most-loved | menorahs-collection | menorahs-kids | dreidels | candles | books | gifts
-   * Legacy: menorahs (→ menorahs-collection), decor (→ gifts aisle via storefront alias)
+   * Legacy: menorahs (→ menorahs-collection), decor/gifts aisle → `other`
    */
   storefrontRails?: string[];
   /** Airtable "Storefront rank" — lower first within a rail. */
   storefrontRank?: number;
   brand?: string;
-  /** Airtable Category (Menorah, Candles, Book, …). */
+  /**
+   * Airtable Category multi-select (Menorah, Candles, Book, On Sale, …).
+   * An item may belong to more than one aisle.
+   */
+  categories?: string[];
+  /** First / primary Airtable Category (back-compat). Prefer `categories`. */
   category?: string;
   /** Airtable Context flags (Default, A la carte). */
   context?: string[];

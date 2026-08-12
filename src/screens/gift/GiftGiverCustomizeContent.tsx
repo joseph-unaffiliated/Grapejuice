@@ -96,7 +96,7 @@ export function GiftGiverCustomizeContent({
   const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
     useBoxDetailScroll({ visibleSectionIds });
 
-  const renderSection = (sectionId: BoxDisplaySectionId) => {
+  const renderSection = (sectionId: BoxDisplaySectionId, isLast = false) => {
     const items = grouped[sectionId];
     if (!items.length) return null;
 
@@ -106,6 +106,7 @@ export function GiftGiverCustomizeContent({
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
+        isLast={isLast}
       >
         {items.map((li) => {
           const item = catalogById[li.itemId];
@@ -186,7 +187,9 @@ export function GiftGiverCustomizeContent({
                 sectionIds={visibleSectionIds}
               />
             ) : null}
-            {visibleSectionIds.map((id) => renderSection(id))}
+            {visibleSectionIds.map((id, index) =>
+              renderSection(id, index === visibleSectionIds.length - 1),
+            )}
             <TouchableOpacity style={styles.cta} onPress={onPay} disabled={submitting}>
               {submitting ? (
                 <ActivityIndicator color={semanticColors.textInverse} />

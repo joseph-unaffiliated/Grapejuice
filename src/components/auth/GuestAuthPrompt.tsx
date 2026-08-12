@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
+import { GrapejuiceWordmarkLockup } from '../brand/GrapejuiceWordmarkLockup';
 import { GrapejuiceButton } from '../ui/GrapejuiceButton';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import type { AuthReturnRoute } from '../../stores/authFlowStore';
-import { spacing, typography, tabBarTotalHeight } from '../../constants/theme';
+import { spacing, typography, tabBarTotalHeight, semanticColors } from '../../constants/theme';
 
 type Props = {
   returnTo?: AuthReturnRoute;
@@ -50,7 +50,7 @@ export function GuestAuthPrompt({ returnTo = 'Account', showBack = false, onBack
       ) : null}
 
       <View style={styles.center}>
-        <GrapejuiceBrandMark />
+        <GrapejuiceWordmarkLockup color={semanticColors.logoDark} />
 
         <View style={styles.actions}>
           <GrapejuiceButton

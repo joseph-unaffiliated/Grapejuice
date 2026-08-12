@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typeface('medium'),
-    fontSize: 22,
+    fontSize: 28,
     letterSpacing: -0.3,
     color: semanticColors.logoDark,
   },

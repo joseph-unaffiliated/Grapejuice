@@ -45,11 +45,17 @@ export function boxHeaderSubtext(lockAt: string | null, now: Date): string {
 /** Shared styles for Hanukkah box detail (Figma 370:3514). */
 export function createBoxDetailStyles(
   colors: SemanticColors,
-  options?: { desktop?: boolean; tileGrid?: boolean; tileColumns?: 2 | 3 }
+  options?: {
+    desktop?: boolean;
+    tileGrid?: boolean;
+    /** Visual width columns from list width (not forced max-per-row). */
+    tileColumns?: 2 | 3;
+  }
 ) {
   const desktop = options?.desktop ?? false;
   const tileGrid = options?.tileGrid ?? false;
   const tileColumns = options?.tileColumns ?? 2;
+  /** Same % for Story 2-up and forced 2×2 when width allows 3-up. */
   const tileWidth = tileColumns === 3 ? '31.5%' : '48%';
 
   return StyleSheet.create({
@@ -74,10 +80,10 @@ export function createBoxDetailStyles(
     toolbarCenterLeft: { alignItems: 'flex-start' },
     toolbarBackInline: { marginBottom: spacing.xs },
     toolbarTitle: {
-      fontSize: 22,
+      fontSize: 28,
       ...typeface('medium'),
       color: colors.textPrimary,
-      letterSpacing: -0.5,
+      letterSpacing: -0.6,
       textAlign: 'center',
     },
     toolbarTitleLeft: {
@@ -140,22 +146,27 @@ export function createBoxDetailStyles(
       paddingBottom: spacing.md,
     },
     sectionHeader: {
-      alignItems: desktop ? 'flex-start' : 'center',
-      marginBottom: spacing.md,
-      gap: spacing.xs,
+      alignItems: 'center',
+      alignSelf: 'center',
+      width: '100%',
+      maxWidth: 480,
+      // Clearer gap before the item grid (was spacing.md).
+      marginBottom: spacing.xl,
+      // Title ↔ blurb (was spacing.xs / 6).
+      gap: spacing.sm,
     },
     sectionTitleRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
-      justifyContent: desktop ? 'flex-start' : 'center',
+      justifyContent: 'center',
     },
     sectionTitle: {
       fontSize: typography.titleLg,
       ...typeface('medium'),
       color: colors.textPrimary,
       letterSpacing: -0.32,
-      textAlign: desktop ? 'left' : 'center',
+      textAlign: 'center',
     },
     sectionCountBadge: {
       minWidth: 16,
@@ -188,16 +199,17 @@ export function createBoxDetailStyles(
       fontSize: typography.sm,
       ...typeface('light'),
       color: colors.textPrimary,
-      textAlign: desktop ? 'left' : 'center',
+      textAlign: 'center',
       lineHeight: 16.5,
-      maxWidth: desktop ? 560 : 255,
-      letterSpacing: -0.33,
+      // Slightly opener tracking than section chrome (-0.33 → -0.18).
+      letterSpacing: -0.18,
+      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
     },
     sectionDescToggle: {
       fontSize: typography.sm,
       ...typeface('regular'),
       color: colors.goldMuted,
-      textAlign: desktop ? 'left' : 'center',
+      textAlign: 'center',
       marginTop: 4,
       letterSpacing: -0.33,
     },
@@ -214,19 +226,32 @@ export function createBoxDetailStyles(
       gap: spacing.md,
       paddingBottom: spacing.lg,
       width: '100%',
+      alignSelf: 'center',
       ...(tileGrid
         ? {
-            flexDirection: 'row' as const,
-            flexWrap: 'wrap' as const,
-            alignItems: 'flex-start' as const,
-            justifyContent: 'flex-start' as const,
+            // Stack of centered rows (chunked in BoxDetailSectionBlock) so
+            // max-per-row can be 2 while tile width stays at 3-col size.
+            flexDirection: 'column' as const,
+            alignItems: 'stretch' as const,
           }
         : null),
     },
     itemListPresents: {
       paddingBottom: spacing.sm,
     },
-    /** Desktop grid cell — 2-up or ~3-up when the list is wide enough. */
+    /** One centered row of tiles (used when tileGrid). */
+    itemRow: {
+      flexDirection: 'row' as const,
+      flexWrap: 'nowrap' as const,
+      justifyContent: 'center' as const,
+      alignItems: 'flex-start' as const,
+      gap: spacing.md,
+      width: '100%',
+    },
+    /**
+     * Desktop grid cell — width from width-capacity columns (2 → 48%, 3 → 31.5%),
+     * not from forced max-per-row, so 2×2 stays Story-sized.
+     */
     itemTile: {
       width: tileWidth,
       maxWidth: tileWidth,

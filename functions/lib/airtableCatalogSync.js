@@ -275,17 +275,26 @@ function mapListingPlacement(category, contexts, name) {
         pricingTier: (isAla ? 'alaCarte' : 'included'),
     };
 }
-function curationTagsFor(category) {
-    switch ((category !== null && category !== void 0 ? category : '').toLowerCase()) {
-        case 'menorah':
-            return ['hanukkiah', 'collection'];
-        case 'dreidel':
-            return ['dreidel', 'collection'];
-        case 'candles':
-            return ['collection'];
-        default:
-            return ['collection'];
+function primaryCategory(categories) {
+    var _a;
+    const nonSale = categories.find((c) => c.toLowerCase() !== 'on sale');
+    return (_a = nonSale !== null && nonSale !== void 0 ? nonSale : categories[0]) !== null && _a !== void 0 ? _a : null;
+}
+function curationTagsFor(categories) {
+    const tags = new Set(['collection']);
+    for (const c of categories) {
+        switch (c.toLowerCase()) {
+            case 'menorah':
+                tags.add('hanukkiah');
+                break;
+            case 'dreidel':
+                tags.add('dreidel');
+                break;
+            default:
+                break;
+        }
     }
+    return [...tags];
 }
 async function airtableListAll(tableId, fields) {
     var _a;
@@ -385,7 +394,7 @@ async function resolveImages(itemId, primary, other) {
     return { imageUrl: (_a = urls[0]) !== null && _a !== void 0 ? _a : null, imageUrls: urls };
 }
 function listingToItem(rec, images) {
-    var _a, _b, _c;
+    var _a, _b;
     const f = rec.fields;
     const name = String((_a = f[F.id]) !== null && _a !== void 0 ? _a : '').trim();
     if (!name)
@@ -393,7 +402,8 @@ function listingToItem(rec, images) {
     const inProd = selectName(f[F.inProduction]);
     if (inProd && inProd !== 'Yes')
         return null;
-    const category = (_b = selectNames(f[F.category])[0]) !== null && _b !== void 0 ? _b : null;
+    const categories = selectNames(f[F.category]);
+    const category = primaryCategory(categories);
     const contexts = selectNames(f[F.context]);
     const ages = selectNames(f[F.age]);
     const placement = mapListingPlacement(category, contexts, name);
@@ -404,7 +414,7 @@ function listingToItem(rec, images) {
     return {
         id,
         name,
-        description: String((_c = f[F.description]) !== null && _c !== void 0 ? _c : '').trim() || name,
+        description: String((_b = f[F.description]) !== null && _b !== void 0 ? _b : '').trim() || name,
         slot: placement.slot,
         slotId: placement.slotId,
         ageGroups: ages.length ? ageYearsToGroups(ages) : ['0-2', '3-5', '6-8', '9-12'],
@@ -416,6 +426,7 @@ function listingToItem(rec, images) {
         dollarCostCents: nonMemberPriceCents || memberPriceCents || unitCostCents,
         pricingTier: placement.pricingTier,
         holiday: exports.CATALOG_HOLIDAY,
+        categories,
         category,
         context: contexts,
         source: selectName(f[F.source]),
@@ -427,7 +438,7 @@ function listingToItem(rec, images) {
         imageUrls: images.imageUrls,
         buyLink: typeof f[F.link] === 'string' ? f[F.link] : null,
         interest: null,
-        curationTags: curationTagsFor(category),
+        curationTags: curationTagsFor(categories),
         storefrontRails: storefrontRailsFromListing(f),
         storefrontRank: numberField(f[F.storefrontRank]),
         dimensions: textField(f[F.dimensions]),
@@ -469,6 +480,7 @@ function bookToItem(rec, images) {
         dollarCostCents: priceCents,
         pricingTier: 'perKid',
         holiday: exports.CATALOG_HOLIDAY,
+        categories: ['Book'],
         category: 'Book',
         context: ['Default'],
         source: 'Curated',

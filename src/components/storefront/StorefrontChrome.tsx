@@ -122,16 +122,33 @@ function StorefrontChromeBlocks({
   );
 }
 
-const SCROLL_DIR_THRESHOLD = 6;
-const TOP_SHOW_Y = 24;
+const SCROLL_DIR_THRESHOLD = 8;
+/**
+ * Sticky hide/show only after scrolling past ~header stack (“fairly deep”).
+ * Hysteresis between enable/disable avoids thrashing at the boundary.
+ * Fallback when chrome hasn’t measured yet (~promo + logo + nav + category).
+ */
+const STICKY_FALLBACK_CHROME_H = 240;
+const STICKY_ENABLE_EXTRA = 80;
+const STICKY_DISABLE_BELOW = 40;
 const DESKTOP_RAV_MAX = 520;
+
+function stickyScrollThresholds(chromeH: number) {
+  const base = chromeH > 0 ? chromeH : STICKY_FALLBACK_CHROME_H;
+  return {
+    /** Past this → arm hide-on-down / reveal-on-up. */
+    enableY: Math.max(base + STICKY_ENABLE_EXTRA, 280),
+    /** Below this → disarm; chrome stays fully visible like static top content. */
+    disableY: Math.max(base - STICKY_DISABLE_BELOW, 180),
+  };
+}
 
 /**
  * Storefront shell: one shared chrome band above the page + Rav row.
  *
- * There is no separate “in-flow” vs “sticky” copy — the same header collapses on
- * scroll-down and expands on scroll-up / at the top, so returning to y=0 never snaps
- * between two stacks. Chrome always sits above Rav (layout sibling, not an overlay race).
+ * Near the top the band stays fully expanded (no hide/show fighting scroll).
+ * Only after scrolling past ~header height does reveal-on-up / hide-on-down arm.
+ * Same chrome node always — no dual in-flow/sticky stacks — so return to y=0 never snaps.
  */
 export function StorefrontChrome(props: Props) {
   const chrome = (
@@ -172,6 +189,8 @@ function StorefrontChromeInner({
   const [chromeH, setChromeH] = useState(0);
   const [scrollY, setScrollY] = useState(0);
   const chromeShown = useRef(true);
+  /** When false, chrome stays fully visible (static top); when true, hide/show-on-direction. */
+  const stickyArmed = useRef(false);
   const [chromeExpanded, setChromeExpanded] = useState(true);
   const chromeProgress = useRef(new Animated.Value(1)).current;
   const chromeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -255,7 +274,7 @@ function StorefrontChromeInner({
       chromeAnimRef.current?.stop();
       chromeAnimRef.current = Animated.timing(chromeProgress, {
         toValue: show ? 1 : 0,
-        duration: 220,
+        duration: 240,
         useNativeDriver: false, // animating height
       });
       chromeAnimRef.current.start();
@@ -266,13 +285,25 @@ function StorefrontChromeInner({
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (fillBody) return;
-      const y = e.nativeEvent.contentOffset.y;
+      const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastY.current;
       lastY.current = y;
       setScrollY(y);
 
-      // Near the top — always keep the one chrome band open (no dual-stack handoff).
-      if (y < TOP_SHOW_Y) {
+      const { enableY, disableY } = stickyScrollThresholds(chromeHeight.current);
+
+      // Near top / below hysteresis exit — static fully-visible chrome (no hide).
+      if (y < disableY) {
+        stickyArmed.current = false;
+        animateChrome(true);
+        return;
+      }
+
+      if (y >= enableY) {
+        stickyArmed.current = true;
+      }
+
+      if (!stickyArmed.current) {
         animateChrome(true);
         return;
       }
@@ -289,6 +320,7 @@ function StorefrontChromeInner({
   useEffect(() => {
     if (!isFocused) {
       chromeShown.current = true;
+      stickyArmed.current = false;
       setChromeExpanded(true);
       chromeProgress.setValue(1);
     }
@@ -302,7 +334,9 @@ function StorefrontChromeInner({
         })
       : undefined;
 
-  const chromeElevated = !fillBody && chromeExpanded && scrollY > TOP_SHOW_Y;
+  const { disableY: stickyDisableY } = stickyScrollThresholds(chromeH);
+  const chromeElevated =
+    !fillBody && chromeExpanded && scrollY >= stickyDisableY;
 
   return (
     <View style={styles.root} testID="storefront-scroll-host">

@@ -33,12 +33,35 @@ type FooterLink = {
 type FooterColumn = {
   heading: string;
   links: FooterLink[];
+  /** Marketplace: pack links into N side-by-side lists. */
+  linkColumns?: number;
 };
 
-/** Brand deep navy (logoDark) — white type/icons on top. */
-const FOOTER_BG = semanticColors.logoDark;
+/** True black — not brand navy/purple (`logoDark` #110222). */
+const FOOTER_BG = '#000000';
 const FOOTER_FG = '#FFFFFF';
-const FOOTER_MUTED = 'rgba(255, 255, 255, 0.72)';
+const FOOTER_LINK = semanticColors.brand;
+
+function chunkLinks(links: FooterLink[], columns: number): FooterLink[][] {
+  const cols = Math.max(1, columns);
+  const size = Math.ceil(links.length / cols);
+  return Array.from({ length: cols }, (_, i) => links.slice(i * size, (i + 1) * size)).filter(
+    (stack) => stack.length > 0,
+  );
+}
+
+function FooterLinkButton({ link }: { link: FooterLink }) {
+  return (
+    <TouchableOpacity
+      onPress={link.onPress}
+      accessibilityRole="link"
+      accessibilityLabel={link.label}
+      hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
+    >
+      <Text style={styles.link}>{link.label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 /**
  * Deep storefront footer — mark left, link columns right.
@@ -72,6 +95,7 @@ export function StorefrontFooter() {
     return [
       {
         heading: 'Marketplace',
+        linkColumns: 3,
         links: [
           { label: 'Shop all', onPress: () => goCategory('collection') },
           ...marketplaceLinks,
@@ -93,12 +117,20 @@ export function StorefrontFooter() {
             onPress: () => navigation.navigate('StorefrontOurStory'),
           },
           {
-            label: 'Store home',
-            onPress: () => navigation.navigate('StorefrontHome'),
-          },
-          {
             label: 'Account',
             onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
+          },
+          {
+            label: 'Terms',
+            onPress: () => {
+              void Linking.openURL('https://unaffiliated.co/terms/network');
+            },
+          },
+          {
+            label: 'Privacy',
+            onPress: () => {
+              void Linking.openURL('https://unaffiliated.co/privacy/network');
+            },
           },
         ],
       },
@@ -133,26 +165,39 @@ export function StorefrontFooter() {
           accessibilityRole="button"
           accessibilityLabel="Grapejuice store home"
         >
-          <GrapejuiceBrandMark markOnly compact color={FOOTER_FG} decorative />
+          <GrapejuiceBrandMark markOnly compact color={FOOTER_LINK} decorative />
         </TouchableOpacity>
 
         <View style={[styles.columns, compact && styles.columnsCompact]}>
-          {columns.map((col) => (
-            <View key={col.heading} style={[styles.column, compact && styles.columnCompact]}>
-              <Text style={styles.heading}>{col.heading}</Text>
-              {col.links.map((link) => (
-                <TouchableOpacity
-                  key={link.label}
-                  onPress={link.onPress}
-                  accessibilityRole="link"
-                  accessibilityLabel={link.label}
-                  hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
-                >
-                  <Text style={styles.link}>{link.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
+          {columns.map((col) => {
+            const stacks =
+              col.linkColumns && col.linkColumns > 1
+                ? chunkLinks(col.links, col.linkColumns)
+                : [col.links];
+
+            return (
+              <View key={col.heading} style={styles.column}>
+                <Text style={styles.heading}>{col.heading}</Text>
+                {stacks.length > 1 ? (
+                  <View style={styles.linkGrid}>
+                    {stacks.map((stack, i) => (
+                      <View key={`${col.heading}-${i}`} style={styles.linkStack}>
+                        {stack.map((link) => (
+                          <FooterLinkButton key={link.label} link={link} />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.linkStack}>
+                    {col.links.map((link) => (
+                      <FooterLinkButton key={link.label} link={link} />
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </View>
       </View>
     </View>
@@ -182,40 +227,45 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   columns: {
-    flex: 1,
+    // Hug content; auto margin fills free space left of the group (logo stays left).
+    marginLeft: 'auto',
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.xl,
-    minWidth: 0,
+    alignItems: 'flex-start',
+    gap: 48,
+    flexShrink: 1,
   },
   columnsCompact: {
-    justifyContent: 'flex-start',
+    marginLeft: 0,
+    alignSelf: 'stretch',
   },
   column: {
-    gap: spacing.sm,
-    minWidth: 140,
-    flexGrow: 1,
-    flexBasis: 140,
-    maxWidth: 220,
-  },
-  columnCompact: {
-    maxWidth: '46%',
-    flexBasis: '42%',
+    // Width from content only — no flexGrow / basis / maxWidth stretch.
+    flexGrow: 0,
+    flexShrink: 0,
   },
   heading: {
     ...typeface('medium'),
     fontSize: typography.sm,
     color: FOOTER_FG,
     letterSpacing: -0.2,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
     textTransform: 'uppercase',
+  },
+  linkGrid: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  linkStack: {
+    // Tighter vertical rhythm between links (was spacing.sm / 12).
+    gap: spacing.xs,
   },
   link: {
     ...typeface('regular'),
     fontSize: typography.sm,
-    color: FOOTER_MUTED,
+    color: FOOTER_LINK,
     letterSpacing: -0.2,
-    paddingVertical: 2,
+    paddingVertical: 0,
   },
 });

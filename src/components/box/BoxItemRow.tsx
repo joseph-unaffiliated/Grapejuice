@@ -25,7 +25,7 @@ type BoxItemRowStyles = ReturnType<typeof createBoxItemRowStyles>;
 type Props = {
   li: BoxLineItem;
   item?: CatalogItem;
-  /** Present-for / multi-kid attribution (replaces ages • consumable). */
+  /** Status line above title: "Included", "Included  |  One for…/A gift for…", or "+$4". */
   meta?: string;
   showPrice?: boolean;
   locked: boolean;
@@ -494,7 +494,7 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       letterSpacing: -0.33,
     },
     cardName: {
-      fontSize: typography.lg,
+      fontSize: typography.xxl,
       color: colors.textPrimary,
       ...typeface('regular'),
       letterSpacing: -0.26,

@@ -6,9 +6,13 @@ import {
   childNamesForLines,
   coalesceLinesByItemId,
   formatPresentAttribution,
+  wrapControlLines,
   wrappableLinesInBox,
   type CoalescedBoxLine,
 } from './boxLineDisplay';
+import { catalogSlotId, formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import { resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
+import { EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -22,6 +26,50 @@ type Props = {
   selectedItemIds?: ReadonlySet<string> | string[];
   onToggleWrapSelection?: (itemId: string) => void;
 };
+
+/** True when the box wrap-control SKU is pre-wrap (vs wrapping paper). */
+function isPreWrapSelected(lineItems: BoxLineItem[], catalog: CatalogItem[]): boolean {
+  const wrap = wrapControlLines(lineItems)[0];
+  if (!wrap) return false;
+  const base = catalogSlotId(wrap.slotId);
+  if (base === 'pre-wrap') return true;
+  if (base === 'wrapping-paper' || base === 'wrapping') return false;
+  const item = catalog.find((c) => c.id === wrap.itemId);
+  return (
+    catalogSlotId(item?.slotId ?? '') === 'pre-wrap' ||
+    item?.defaultSlot === 'pre-wrap' ||
+    /pre.?wrap/i.test(`${wrap.itemId} ${wrap.label ?? ''} ${item?.name ?? ''}`)
+  );
+}
+
+/**
+ * Wrapping-paper member/add-on cents for “To be wrapped (+$N)” copy.
+ * Prefers catalog wrapping-paper memberPriceCents; else wrap line unitCents; else EXTRA_FLAT.
+ */
+function wrappingPaperAddonCents(lineItems: BoxLineItem[], catalog: CatalogItem[]): number {
+  const row = resolveByDefaultSlot(catalog, WRAP_POLICY.defaultSlot);
+  const paper =
+    (row ? catalog.find((c) => c.id === row.id) : undefined) ??
+    catalog.find(
+      (c) =>
+        catalogSlotId(c.slotId) === 'wrapping-paper' ||
+        c.defaultSlot === 'wrapping-paper' ||
+        /wrapping.?paper/i.test(`${c.id} ${c.name}`)
+    );
+  if (paper) {
+    const { memberCents } = resolveCatalogDisplayPrices(paper);
+    if (memberCents > 0) return memberCents;
+  }
+  const wrap = wrapControlLines(lineItems)[0];
+  if (wrap && wrap.unitCents > 0) return wrap.unitCents;
+  return EXTRA_FLAT_CENTS;
+}
+
+function toBeWrappedHeading(lineItems: BoxLineItem[], catalog: CatalogItem[]): string {
+  if (isPreWrapSelected(lineItems, catalog)) return 'To be wrapped (Included)';
+  const cents = wrappingPaperAddonCents(lineItems, catalog);
+  return `To be wrapped (+${formatCatalogDollars(cents)})`;
+}
 
 /**
  * Give Presents checklist — sits below the wrapping-paper listing.
@@ -49,6 +97,11 @@ export function PresentsWrappableList({
 
   const wrappable = useMemo(
     () => coalesceLinesByItemId(wrappableLinesInBox(lineItems, catalog)),
+    [lineItems, catalog]
+  );
+
+  const toWrapHeading = useMemo(
+    () => toBeWrappedHeading(lineItems, catalog),
     [lineItems, catalog]
   );
 
@@ -111,7 +164,7 @@ export function PresentsWrappableList({
     <View style={styles.root}>
       {toWrap.length > 0 ? (
         <View style={styles.group}>
-          <Text style={styles.heading}>To be wrapped</Text>
+          <Text style={styles.heading}>{toWrapHeading}</Text>
           <View style={styles.list}>{toWrap.map((row) => renderChip(row, true))}</View>
         </View>
       ) : null}
@@ -140,16 +193,20 @@ function createStyles(colors: SemanticColors) {
       ...typeface('medium'),
       color: colors.textPrimary,
       letterSpacing: -0.26,
+      textAlign: 'center',
     },
     empty: {
       fontSize: typography.sm,
       ...typeface('light'),
       color: colors.textSecondary,
       lineHeight: 18,
+      textAlign: 'center',
     },
     list: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+      justifyContent: 'center',
+      alignItems: 'center',
       gap: spacing.sm,
     },
     chip: {

@@ -7,38 +7,67 @@ export type StorefrontCategoryDef = {
   title: string;
   description: string;
   match: (item: CatalogItem) => boolean;
+  /** Pill treatment in the dark category nav bar. */
+  navStyle?: 'default' | 'sale';
+  /** Render a `|` separator immediately before this pill. */
+  separatorBefore?: boolean;
 };
 
 /** Legacy aisle slugs → current storefront category. */
 const STOREFRONT_CATEGORY_ALIASES: Record<string, string> = {
-  decor: 'gifts',
+  decor: 'other',
+  gifts: 'other',
 };
 
-/** Books stay in their own aisle — never mixed into other storefront categories. */
+/**
+ * Airtable Full Catalog `Category` multi-select values (plus synthetic nav labels).
+ * Choice order from Airtable; “On Sale” is always last in nav.
+ */
+export const AIRTABLE_CATEGORY_NAMES = [
+  'Menorah',
+  'Dreidel',
+  'Candles',
+  'Book',
+  'Activity',
+  'Food',
+  'Other',
+  'Stuffies',
+  'Gelt',
+  'Toys',
+  'On Sale',
+] as const;
+
+/** All Airtable Category values on an item (multi-select aware). */
+export function catalogCategories(item: CatalogItem): string[] {
+  if (item.categories?.length) return item.categories;
+  if (item.category) return [item.category];
+  return [];
+}
+
+export function itemHasCategory(item: CatalogItem, name: string): boolean {
+  const target = name.trim().toLowerCase();
+  return catalogCategories(item).some((c) => c.trim().toLowerCase() === target);
+}
+
+/** Books stay identifiable for rails / excludeBooks even without a Category tag. */
 export function isBookItem(item: CatalogItem): boolean {
-  if (item.category === 'Book') return true;
+  if (itemHasCategory(item, 'Book')) return true;
   if (item.id.startsWith('book-')) return true;
   if (/book|novel/i.test(item.name)) return true;
   return false;
 }
 
 export function isFoodItem(item: CatalogItem): boolean {
-  if (isBookItem(item)) return false;
-  if (item.category === 'Food') return true;
-  return /gelt|latke|sufgan|cookie.?cutter|applesauce|donut|napkin/i.test(item.name);
+  if (itemHasCategory(item, 'Food')) return true;
+  // Gelt is its own aisle — don't pull gelt-named SKUs into Food via name alone.
+  return /latke|sufgan|cookie.?cutter|applesauce|donut|napkin/i.test(item.name);
 }
 
-/** Apparel, activities, former decor (runners, banners), and wrap-ready gifts. */
-export function isGiftItem(item: CatalogItem): boolean {
-  if (isBookItem(item) || isFoodItem(item)) return false;
-  const tags = getCurationTags(item);
-  return (
-    tags.includes('apparel') ||
-    tags.includes('decorations') ||
-    item.category === 'Activity' ||
-    item.category === 'Other' ||
-    /gift|pyjama|pajama|blanket|runner|banner|garland|decor/i.test(item.name)
-  );
+function matchByCategory(
+  airtableName: string,
+  extras?: (item: CatalogItem) => boolean
+): (item: CatalogItem) => boolean {
+  return (item) => itemHasCategory(item, airtableName) || Boolean(extras?.(item));
 }
 
 export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
@@ -54,37 +83,63 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     label: 'Menorahs',
     title: 'Menorahs & Hanukkiahs',
     description: 'Keepsakes and statement pieces for every windowsill.',
-    match: (item) =>
-      !isBookItem(item) &&
-      (getCurationTags(item).includes('hanukkiah') ||
-        item.category === 'Menorah' ||
-        /menorah|hanukkiah/i.test(item.name)),
-  },
-  {
-    slug: 'dreidels',
-    label: 'Dreidels',
-    title: 'Dreidels',
-    description: 'Spin, play, and pass them down.',
-    match: (item) =>
-      !isBookItem(item) &&
-      (getCurationTags(item).includes('dreidel') ||
-        item.category === 'Dreidel' ||
-        /dreidel/i.test(item.name)),
+    match: matchByCategory(
+      'Menorah',
+      (item) =>
+        getCurationTags(item).includes('hanukkiah') || /menorah|hanukkiah/i.test(item.name)
+    ),
   },
   {
     slug: 'candles',
     label: 'Candles',
     title: 'Candles',
     description: 'Wax and light for eight nights.',
-    match: (item) =>
-      !isBookItem(item) && (item.category === 'Candles' || /candle/i.test(item.name)),
+    match: matchByCategory('Candles', (item) => /candle/i.test(item.name)),
+  },
+  {
+    slug: 'dreidels',
+    label: 'Dreidels',
+    title: 'Dreidels',
+    description: 'Spin, play, and pass them down.',
+    match: matchByCategory(
+      'Dreidel',
+      (item) => getCurationTags(item).includes('dreidel') || /dreidel/i.test(item.name)
+    ),
+  },
+  {
+    slug: 'gelt',
+    label: 'Gelt',
+    title: 'Gelt',
+    description: 'Chocolate coins for the dreidel pot and beyond.',
+    match: matchByCategory('Gelt', (item) => /gelt/i.test(item.name)),
   },
   {
     slug: 'food',
     label: 'Food',
     title: 'Food',
-    description: 'Gelt, latkes, sufganiyot, napkins, and soft treats.',
+    description: 'Latkes, sufganiyot, napkins, and soft treats.',
     match: isFoodItem,
+  },
+  {
+    slug: 'activity',
+    label: 'Activities',
+    title: 'Activities',
+    description: 'Things to make, play, and do together.',
+    match: matchByCategory('Activity'),
+  },
+  {
+    slug: 'toys',
+    label: 'Toys',
+    title: 'Toys',
+    description: 'Play pieces for little hands.',
+    match: matchByCategory('Toys'),
+  },
+  {
+    slug: 'stuffies',
+    label: 'Stuffies',
+    title: 'Stuffies',
+    description: 'Soft companions for the holiday.',
+    match: matchByCategory('Stuffies', (item) => /plush|stuff/i.test(item.name)),
   },
   {
     slug: 'books',
@@ -94,17 +149,26 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     match: isBookItem,
   },
   {
-    slug: 'gifts',
-    label: 'Gifts',
-    title: 'Gifts',
-    description: 'Apparel, table pieces, activities, and small joys ready to wrap.',
-    match: isGiftItem,
+    slug: 'other',
+    label: 'Other',
+    title: 'Other',
+    description: 'Everything else that doesn’t sit in a single aisle.',
+    match: matchByCategory('Other'),
+  },
+  {
+    slug: 'on-sale',
+    label: 'On Sale',
+    title: 'On Sale',
+    description: 'Marked-down finds from across the catalog.',
+    match: matchByCategory('On Sale'),
+    navStyle: 'sale',
+    separatorBefore: true,
   },
 ];
 
 export const DEFAULT_STOREFRONT_CATEGORY = 'menorahs';
 
-/** Canonical storefront aisle slug (applies legacy aliases like `decor` → `gifts`). */
+/** Canonical storefront aisle slug (applies legacy aliases like `gifts` → `other`). */
 export function resolveStorefrontCategorySlug(slug: string): string {
   const clean = slug.trim().toLowerCase();
   return STOREFRONT_CATEGORY_ALIASES[clean] ?? clean;
@@ -115,12 +179,22 @@ export function storefrontCategoryBySlug(slug: string): StorefrontCategoryDef | 
   return STOREFRONT_CATEGORIES.find((c) => c.slug === resolved);
 }
 
-/** First matching storefront aisle for a catalog item (for PDP chrome / breadcrumbs). */
+/**
+ * Primary storefront aisle for a catalog item (PDP chrome / breadcrumbs).
+ * Prefers a concrete aisle over the catch-all “All” and “On Sale”.
+ */
 export function storefrontCategoryForItem(item: CatalogItem): StorefrontCategoryDef | undefined {
-  // Skip the catch-all “collection” aisle so breadcrumbs stay specific.
-  return STOREFRONT_CATEGORIES.find((c) => c.slug !== 'collection' && c.match(item));
+  const concrete = STOREFRONT_CATEGORIES.find(
+    (c) => c.slug !== 'collection' && c.slug !== 'on-sale' && c.match(item)
+  );
+  if (concrete) return concrete;
+  return STOREFRONT_CATEGORIES.find((c) => c.slug === 'on-sale' && c.match(item));
 }
 
+/**
+ * Filter catalog to an aisle. Multi-category items appear in every matching aisle
+ * (each category’s `match` is independent — no first-only exclusion).
+ */
 export function filterByStorefrontCategory(
   items: CatalogItem[],
   slug: string

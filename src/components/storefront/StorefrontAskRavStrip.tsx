@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Platform,
+  TouchableOpacity,
+  ImageBackground,
+} from 'react-native';
 import { SearchPill } from '../ui/SearchPill';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
@@ -10,6 +17,9 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+
+/** Unventures.co cold-press watercolor paper (site atmosphere texture). */
+const PAPER_BG = require('../../../assets/storefront/cold-press-toothy.jpg');
 
 type Props = {
   /** Called with the typed question when the user submits. */
@@ -45,7 +55,14 @@ export function StorefrontAskRavStrip({ onSubmit }: Props) {
   );
 
   return (
-    <View style={styles.root}>
+    <ImageBackground
+      source={PAPER_BG}
+      style={styles.root}
+      imageStyle={styles.bgImage}
+      resizeMode="cover"
+    >
+      {/* Soft wash so type stays readable over the toothy paper grain. */}
+      <View style={styles.wash} pointerEvents="none" />
       <View style={styles.inner}>
         <Text style={styles.eyebrow}>Need a guide?</Text>
         <Text style={styles.headline}>Ask Rav</Text>
@@ -65,7 +82,7 @@ export function StorefrontAskRavStrip({ onSubmit }: Props) {
           />
         </View>
       </View>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -73,16 +90,25 @@ const styles = StyleSheet.create({
   root: {
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl + spacing.md,
+    paddingBottom: spacing.xxl,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.border,
-    // Soft gold → white → gold wash (easy to revert if it feels loud).
-    backgroundColor: '#FBF8EF',
+    overflow: 'hidden',
+    // Fallback while the texture loads / if image fails.
+    backgroundColor: '#F7F6F2',
+  },
+  bgImage: {
+    width: '100%',
+    height: '100%',
+  },
+  wash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(251, 248, 239, 0.42)',
     ...(Platform.OS === 'web'
       ? ({
           backgroundImage:
-            'linear-gradient(90deg, rgba(216, 201, 144, 0.28) 0%, rgba(255, 255, 255, 0.95) 42%, rgba(255, 255, 255, 1) 50%, rgba(255, 255, 255, 0.95) 58%, rgba(216, 201, 144, 0.28) 100%)',
+            'linear-gradient(90deg, rgba(216, 201, 144, 0.18) 0%, rgba(255, 255, 255, 0.55) 42%, rgba(255, 255, 255, 0.62) 50%, rgba(255, 255, 255, 0.55) 58%, rgba(216, 201, 144, 0.18) 100%)',
         } as object)
       : null),
   },
@@ -92,6 +118,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
     gap: spacing.sm,
+    zIndex: 1,
   },
   eyebrow: {
     ...typeface('regular'),

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +25,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import { useCatalog } from '../../hooks/useCatalog';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
+  formatCatalogDollars,
   formatDollars,
   totalCents,
   unitCentsForTier,
@@ -31,7 +33,7 @@ import {
 } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids, resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
 import { resolveSectionUpsellItems, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
-import { inferPricingTier } from '../../services/box/pricing';
+import { inferPricingTier, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
@@ -43,11 +45,11 @@ import {
   applyQuantityDelta,
   childNamesForLines,
   coalesceLinesByItemId,
-  formatPresentAttribution,
+  formatBoxItemStatusMeta,
   fullCardLinesForSection,
-  isGiftSlotLine,
   isWrapControlSlot,
   removeCoalescedGroup,
+  resolveBoxItemAttributionKind,
   wrappableLinesInBox,
   wrapControlLines,
 } from '../../components/box/boxLineDisplay';
@@ -355,7 +357,7 @@ export function MyBoxScreen() {
     return map;
   }, [catalog, boxItemIds]);
 
-  const renderSection = (sectionId: BoxDisplaySectionId) => {
+  const renderSection = (sectionId: BoxDisplaySectionId, isLast = false) => {
     const rawItems = grouped[sectionId] ?? [];
     const isPresents = sectionId === 'presents';
     const cardItems = fullCardLinesForSection(sectionId, rawItems);
@@ -374,6 +376,7 @@ export function MyBoxScreen() {
         sectionId={sectionId}
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
+        isLast={isLast}
         showUpsells={showUpsells}
         upsellItems={showUpsells ? upsellsBySection[sectionId] : undefined}
         onUpsellPress={showUpsells ? onUpsellPress : undefined}
@@ -400,13 +403,16 @@ export function MyBoxScreen() {
           const li = group.primary;
           const item = catalog.find((c) => c.id === li.itemId);
           const names = childNamesForLines(group.lines, children);
-          const presentMeta = isGiftSlotLine(li)
-            ? formatPresentAttribution(names) ?? 'Present'
-            : names.length > 1
-              ? formatPresentAttribution(names)
-              : names.length === 1
-                ? `For ${names[0]}`
-                : undefined;
+          const memberValueCents = item
+            ? resolveCatalogDisplayPrices(item).memberCents
+            : 0;
+          const presentMeta = formatBoxItemStatusMeta(
+            group.unitCents,
+            names,
+            formatCatalogDollars,
+            memberValueCents,
+            resolveBoxItemAttributionKind(group.lines, item)
+          );
           const wrapped =
             isChildProfile &&
             isWrappableSlot(li.slotId) &&
@@ -580,7 +586,9 @@ export function MyBoxScreen() {
 
   const scrollHeader = isChildProfile ? kidScrollHeader : parentScrollHeader;
 
-  const sections = visibleSectionIds.map((id) => renderSection(id));
+  const sections = visibleSectionIds.map((id, index) =>
+    renderSection(id, index === visibleSectionIds.length - 1),
+  );
 
   const summaryPanel = (
     <View
@@ -617,13 +625,26 @@ export function MyBoxScreen() {
         </View>
         {guestViewOnly ? (
           <View style={styles.guestCtaRow}>
-            <TouchableOpacity
-              style={[styles.checkoutCta, styles.guestPrimaryCta]}
+            <Pressable
+              style={({ pressed, hovered }) => [
+                styles.checkoutCta,
+                styles.guestPrimaryCta,
+                (hovered || pressed) && styles.checkoutCtaHover,
+              ]}
               onPress={() => requireAuthToCustomize('signup')}
               accessibilityRole="button"
             >
-              <Text style={styles.checkoutText}>Sign up</Text>
-            </TouchableOpacity>
+              {({ pressed, hovered }) => (
+                <Text
+                  style={[
+                    styles.checkoutText,
+                    (hovered || pressed) && styles.checkoutTextHover,
+                  ]}
+                >
+                  Sign up
+                </Text>
+              )}
+            </Pressable>
             <TouchableOpacity
               onPress={() => requireAuthToCustomize('signin')}
               accessibilityRole="button"
@@ -633,13 +654,27 @@ export function MyBoxScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity
-            style={[styles.checkoutCta, locked && styles.checkoutCtaDisabled]}
+          <Pressable
+            style={({ pressed, hovered }) => [
+              styles.checkoutCta,
+              (hovered || pressed) && styles.checkoutCtaHover,
+              locked && styles.checkoutCtaDisabled,
+            ]}
             onPress={goToCheckout}
             disabled={locked || lineItems.length === 0}
+            accessibilityRole="button"
           >
-            <Text style={styles.checkoutText}>{cardOnFile ? 'Review shipping' : 'Add payment & shipping'}</Text>
-          </TouchableOpacity>
+            {({ pressed, hovered }) => (
+              <Text
+                style={[
+                  styles.checkoutText,
+                  (hovered || pressed) && styles.checkoutTextHover,
+                ]}
+              >
+                {cardOnFile ? 'Review shipping' : 'Add payment & shipping'}
+              </Text>
+            )}
+          </Pressable>
         )}
       </View>
     </View>
@@ -825,13 +860,13 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   summaryCard: {
     width: '100%',
-    backgroundColor: colors.bgElevated,
+    backgroundColor: colors.logoDark,
     borderRadius: 12,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.goldMuted,
   },
   summaryBreakdown: {
     flexDirection: 'row',
@@ -846,8 +881,8 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     gap: spacing.xs,
     flexShrink: 0,
   },
-  summaryLabel: { fontSize: typography.sm, color: colors.textSecondary },
-  summaryValue: { fontSize: typography.sm, fontWeight: '600', color: colors.textPrimary },
+  summaryLabel: { fontSize: typography.sm, color: colors.goldMuted, letterSpacing: -0.22 },
+  summaryValue: { fontSize: typography.sm, fontWeight: '600', color: colors.textInverse, letterSpacing: -0.22 },
   summaryTotalItem: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -860,8 +895,8 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     borderLeftColor: colors.goldMuted,
     minWidth: 0,
   },
-  totalLabel: { fontSize: typography.md, fontWeight: '600', color: colors.textPrimary },
-  totalValue: { fontSize: typography.md, fontWeight: '700', color: colors.textPrimary },
+  totalLabel: { fontSize: typography.md, fontWeight: '600', color: colors.textInverse, letterSpacing: -0.22 },
+  totalValue: { fontSize: typography.md, fontWeight: '700', color: colors.brand, letterSpacing: -0.22 },
   guestCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -875,18 +910,45 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   guestSignIn: {
     fontWeight: '600',
     fontSize: typography.sm,
-    color: colors.textPrimary,
+    color: colors.brand,
+    letterSpacing: -0.22,
   },
   checkoutCta: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.brand,
     paddingVertical: spacing.xs + 2,
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.pill,
     alignItems: 'center',
     flexShrink: 0,
     marginLeft: 'auto',
+    ...(Platform.OS === 'web'
+      ? ({
+          cursor: 'pointer',
+          transitionProperty: 'background-color, border-color',
+          transitionDuration: '200ms',
+          transitionTimingFunction: 'ease-in-out',
+        } as object)
+      : null),
+  },
+  checkoutCtaHover: {
+    backgroundColor: colors.brand,
   },
   checkoutCtaDisabled: { opacity: 0.5 },
-  checkoutText: { fontWeight: '700', fontSize: typography.sm, color: colors.goldMuted },
+  checkoutText: {
+    fontWeight: '700',
+    fontSize: typography.sm,
+    color: colors.brand,
+    letterSpacing: -0.22,
+    ...(Platform.OS === 'web'
+      ? ({
+          transitionProperty: 'color',
+          transitionDuration: '200ms',
+          transitionTimingFunction: 'ease-in-out',
+        } as object)
+      : null),
+  },
+  checkoutTextHover: { color: colors.logoDark },
   });
 }

@@ -19,6 +19,7 @@ import {
   DEFAULT_STOREFRONT_CATEGORY,
   filterByStorefrontCategory,
   resolveStorefrontCategorySlug,
+  STOREFRONT_CATEGORIES,
   storefrontCategoryBySlug,
 } from '../../constants/storefrontCategories';
 import {
@@ -51,14 +52,22 @@ function FilterChipButton({
   label,
   active,
   onPress,
+  accent,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  /** Gold treatment for On Sale (matches dark category nav). */
+  accent?: 'sale';
 }) {
+  const isSale = accent === 'sale';
   return (
     <TouchableOpacity
-      style={[styles.filterChip, active && styles.filterChipActive]}
+      style={[
+        styles.filterChip,
+        isSale && styles.filterChipSale,
+        active && styles.filterChipActive,
+      ]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
@@ -75,6 +84,7 @@ function FilterChipButton({
         <Text
           style={[
             styles.filterChipText,
+            isSale && styles.filterChipTextSale,
             active && styles.filterChipTextActive,
             styles.filterChipTextOverlay,
           ]}
@@ -109,6 +119,7 @@ function matchesSearchQuery(item: CatalogItem, q: string): boolean {
     item.name,
     item.description,
     item.category,
+    ...(item.categories ?? []),
     item.brand,
     item.id,
     ...(item.curationTags ?? []),
@@ -128,9 +139,10 @@ export function StorefrontCategoryScreen() {
   const slug = resolveStorefrontCategorySlug(rawSlug);
   const def = storefrontCategoryBySlug(slug);
   const { items, loading } = useCatalog();
-  const { goHome, askRav, startBox } = useStorefrontActions();
+  const { goHome, askRav, startBox, goCategory } = useStorefrontActions();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
+  const showCategoryChips = slug === 'collection';
 
   usePublishRavSurface({
     type: 'category',
@@ -204,15 +216,32 @@ export function StorefrontCategoryScreen() {
         </View>
 
         <View style={styles.toolbar}>
-          <Text style={styles.count}>
-            {loading
-              ? '…'
-              : `${filtered.length} item${filtered.length === 1 ? '' : 's'}${
-                  filtered.length !== categoryItems.length
-                    ? ` of ${categoryItems.length}`
-                    : ''
-                }`}
-          </Text>
+          {showCategoryChips ? (
+            <View style={styles.facetBlock}>
+              <Text style={styles.filterLabel}>Category</Text>
+              <View style={styles.chipRow}>
+                {STOREFRONT_CATEGORIES.map((c) => (
+                  <React.Fragment key={c.slug}>
+                    {c.separatorBefore ? (
+                      <Text
+                        style={styles.chipSeparator}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                      >
+                        |
+                      </Text>
+                    ) : null}
+                    <FilterChipButton
+                      label={c.label}
+                      active={c.slug === slug}
+                      accent={c.navStyle === 'sale' ? 'sale' : undefined}
+                      onPress={() => goCategory(c.slug)}
+                    />
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           {contextualGroups.map((group) => {
             const selected = facetFilters[group.id] ?? 'all';
@@ -310,6 +339,7 @@ const styles = StyleSheet.create({
   },
   headingBlock: {
     paddingHorizontal: MOBILE_GUTTER,
+    marginTop: spacing.sm,
     marginBottom: spacing.md,
     gap: 6,
   },
@@ -333,12 +363,6 @@ const styles = StyleSheet.create({
   facetBlock: {
     gap: spacing.xs,
   },
-  count: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.xs,
-  },
   filterLabel: {
     ...typeface('medium'),
     fontSize: typography.sm,
@@ -357,6 +381,9 @@ const styles = StyleSheet.create({
     borderColor: semanticColors.borderDark,
     backgroundColor: semanticColors.bgDark,
   },
+  filterChipSale: {
+    borderColor: semanticColors.brand,
+  },
   filterChipActive: {
     backgroundColor: semanticColors.accentCream,
     borderColor: semanticColors.brand,
@@ -365,6 +392,9 @@ const styles = StyleSheet.create({
     ...typeface('regular'),
     fontSize: typography.sm,
     color: semanticColors.textSecondary,
+  },
+  filterChipTextSale: {
+    color: semanticColors.brand,
   },
   filterChipTextActive: {
     ...typeface('medium'),
@@ -377,6 +407,14 @@ const styles = StyleSheet.create({
   filterChipTextOverlay: {
     ...StyleSheet.absoluteFillObject,
     textAlign: 'center',
+  },
+  chipSeparator: {
+    ...typeface('medium'),
+    fontSize: typography.sm,
+    color: semanticColors.textTertiary,
+    opacity: 0.55,
+    alignSelf: 'center',
+    paddingHorizontal: 2,
   },
   loader: { marginVertical: spacing.xl },
   empty: {
