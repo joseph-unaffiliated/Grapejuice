@@ -69,6 +69,7 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.logoDark,
     // No light/white bottom stroke on the dark secondary bar.
     borderBottomWidth: 0,
+    borderTopWidth: 0,
   },
   row: {
     flexGrow: 1,

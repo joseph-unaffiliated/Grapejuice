@@ -124,7 +124,7 @@ function StorefrontChromeBlocks({
 
 const SCROLL_DIR_THRESHOLD = 8;
 /**
- * Sticky hide/show only after scrolling past ~header stack (“fairly deep”).
+ * Overlay sticky only after scrolling past ~header stack (“fairly deep”).
  * Hysteresis between enable/disable avoids thrashing at the boundary.
  * Fallback when chrome hasn’t measured yet (~promo + logo + nav + category).
  */
@@ -136,19 +136,22 @@ const DESKTOP_RAV_MAX = 520;
 function stickyScrollThresholds(chromeH: number) {
   const base = chromeH > 0 ? chromeH : STICKY_FALLBACK_CHROME_H;
   return {
-    /** Past this → arm hide-on-down / reveal-on-up. */
+    /** Past this → arm hide-on-down / reveal-on-up overlay. */
     enableY: Math.max(base + STICKY_ENABLE_EXTRA, 280),
-    /** Below this → disarm; chrome stays fully visible like static top content. */
+    /** Below this → disarm; static in-flow chrome is near/in view again. */
     disableY: Math.max(base - STICKY_DISABLE_BELOW, 180),
   };
 }
 
 /**
- * Storefront shell: one shared chrome band above the page + Rav row.
+ * Storefront shell: static chrome in document flow + optional overlay clone.
  *
- * Near the top the band stays fully expanded (no hide/show fighting scroll).
- * Only after scrolling past ~header height does reveal-on-up / hide-on-down arm.
- * Same chrome node always — no dual in-flow/sticky stacks — so return to y=0 never snaps.
+ * Scroll mode: chrome sits inside the page ScrollView and scrolls away normally.
+ * After scrolling past ~header height, an absolute overlay clone can reappear on
+ * upward scroll (no layout height). Near the top the overlay hides so it never
+ * stacks on the in-flow header.
+ *
+ * Fill mode: chrome stays pinned above the body (wizards / My Box).
  */
 export function StorefrontChrome(props: Props) {
   const chrome = (
@@ -163,7 +166,6 @@ export function StorefrontChrome(props: Props) {
 function StorefrontChromeInner({
   children,
   activeCategory,
-  onShopLook,
   scrollRef,
   contentContainerStyle,
   bodyMode = 'scroll',
@@ -187,13 +189,12 @@ function StorefrontChromeInner({
   const lastY = useRef(0);
   const chromeHeight = useRef(0);
   const [chromeH, setChromeH] = useState(0);
-  const [scrollY, setScrollY] = useState(0);
-  const chromeShown = useRef(true);
-  /** When false, chrome stays fully visible (static top); when true, hide/show-on-direction. */
-  const stickyArmed = useRef(false);
-  const [chromeExpanded, setChromeExpanded] = useState(true);
-  const chromeProgress = useRef(new Animated.Value(1)).current;
-  const chromeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  /** When false, overlay stays hidden; when true, show/hide follows scroll direction. */
+  const overlayArmed = useRef(false);
+  const overlayShown = useRef(false);
+  const [overlayInteractive, setOverlayInteractive] = useState(false);
+  const overlayProgress = useRef(new Animated.Value(0)).current;
+  const overlayAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const ravWidth = compact
     ? windowWidth
@@ -266,20 +267,20 @@ function StorefrontChromeInner({
     setChromeH(h);
   };
 
-  const animateChrome = useCallback(
+  const animateOverlay = useCallback(
     (show: boolean) => {
-      if (chromeShown.current === show) return;
-      chromeShown.current = show;
-      setChromeExpanded(show);
-      chromeAnimRef.current?.stop();
-      chromeAnimRef.current = Animated.timing(chromeProgress, {
+      if (overlayShown.current === show) return;
+      overlayShown.current = show;
+      setOverlayInteractive(show);
+      overlayAnimRef.current?.stop();
+      overlayAnimRef.current = Animated.timing(overlayProgress, {
         toValue: show ? 1 : 0,
-        duration: 240,
-        useNativeDriver: false, // animating height
+        duration: 220,
+        useNativeDriver: true,
       });
-      chromeAnimRef.current.start();
+      overlayAnimRef.current.start();
     },
-    [chromeProgress]
+    [overlayProgress]
   );
 
   const onScroll = useCallback(
@@ -288,75 +289,91 @@ function StorefrontChromeInner({
       const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastY.current;
       lastY.current = y;
-      setScrollY(y);
 
       const { enableY, disableY } = stickyScrollThresholds(chromeHeight.current);
 
-      // Near top / below hysteresis exit — static fully-visible chrome (no hide).
+      // Near top — static in-flow chrome is visible; never show overlay on top of it.
       if (y < disableY) {
-        stickyArmed.current = false;
-        animateChrome(true);
+        overlayArmed.current = false;
+        animateOverlay(false);
         return;
       }
 
       if (y >= enableY) {
-        stickyArmed.current = true;
+        overlayArmed.current = true;
       }
 
-      if (!stickyArmed.current) {
-        animateChrome(true);
+      if (!overlayArmed.current) {
+        animateOverlay(false);
         return;
       }
 
       if (dy > SCROLL_DIR_THRESHOLD) {
-        animateChrome(false);
+        animateOverlay(false);
       } else if (dy < -SCROLL_DIR_THRESHOLD) {
-        animateChrome(true);
+        animateOverlay(true);
       }
     },
-    [animateChrome, fillBody]
+    [animateOverlay, fillBody]
   );
 
   useEffect(() => {
     if (!isFocused) {
-      chromeShown.current = true;
-      stickyArmed.current = false;
-      setChromeExpanded(true);
-      chromeProgress.setValue(1);
+      overlayShown.current = false;
+      overlayArmed.current = false;
+      setOverlayInteractive(false);
+      overlayProgress.setValue(0);
     }
-  }, [isFocused, chromeProgress]);
+  }, [isFocused, overlayProgress]);
 
-  const chromeHostHeight =
-    !fillBody && chromeH > 0
-      ? chromeProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, chromeH],
-        })
-      : undefined;
+  const overlayHideOffset = chromeH > 0 ? chromeH : STICKY_FALLBACK_CHROME_H;
+  const overlayTranslateY = overlayProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-overlayHideOffset, 0],
+  });
 
-  const { disableY: stickyDisableY } = stickyScrollThresholds(chromeH);
-  const chromeElevated =
-    !fillBody && chromeExpanded && scrollY >= stickyDisableY;
+  const ravDrawer = (
+    <StorefrontRavDrawer
+      visible={ravVisible}
+      onClose={closeRav}
+      initialMessage={initialMessage}
+      initialMessageNonce={initialMessageNonce}
+      width={ravWidth}
+      topInset={0}
+      docked={!compact}
+    />
+  );
 
   return (
     <View style={styles.root} testID="storefront-scroll-host">
-      <Animated.View
-        style={[
-          styles.chromeHost,
-          chromeHostHeight != null ? { height: chromeHostHeight } : null,
-          chromeElevated ? styles.chromeElevated : null,
-        ]}
-        pointerEvents={chromeExpanded ? 'auto' : 'none'}
-      >
-        <View onLayout={onChromeLayout} collapsable={false}>
+      {!fillBody ? (
+        <Animated.View
+          style={[
+            styles.chromeOverlay,
+            {
+              transform: [{ translateY: overlayTranslateY }],
+            },
+          ]}
+          pointerEvents={overlayInteractive ? 'auto' : 'none'}
+          accessibilityElementsHidden={!overlayInteractive}
+          importantForAccessibility={overlayInteractive ? 'yes' : 'no-hide-descendants'}
+        >
           <StorefrontChromeBlocks {...chromeProps} />
-        </View>
-      </Animated.View>
+        </Animated.View>
+      ) : null}
 
-      <View style={styles.bodyRow}>
-        {fillBody ? (
-          <View style={styles.fillBody}>{children}</View>
-        ) : (
+      {fillBody ? (
+        <>
+          <View style={styles.chromeFill} onLayout={onChromeLayout} collapsable={false}>
+            <StorefrontChromeBlocks {...chromeProps} />
+          </View>
+          <View style={styles.bodyRow}>
+            <View style={styles.fillBody}>{children}</View>
+            {ravDrawer}
+          </View>
+        </>
+      ) : (
+        <View style={styles.bodyRow}>
           <ScrollView
             ref={scrollRef}
             style={styles.scroll}
@@ -369,21 +386,15 @@ function StorefrontChromeInner({
             className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
             testID="storefront-vertical-scroll"
           >
+            <View onLayout={onChromeLayout} collapsable={false}>
+              <StorefrontChromeBlocks {...chromeProps} />
+            </View>
             {children}
             <StorefrontFooter />
           </ScrollView>
-        )}
-
-        <StorefrontRavDrawer
-          visible={ravVisible}
-          onClose={closeRav}
-          initialMessage={initialMessage}
-          initialMessageNonce={initialMessageNonce}
-          width={ravWidth}
-          topInset={0}
-          docked={!compact}
-        />
-      </View>
+          {ravDrawer}
+        </View>
+      )}
     </View>
   );
 }
@@ -435,13 +446,19 @@ const styles = StyleSheet.create({
       ? ({ height: '100%', maxHeight: '100dvh' } as object)
       : null),
   },
-  chromeHost: {
-    zIndex: 20,
-    overflow: 'hidden',
-    backgroundColor: semanticColors.bgPrimary,
-    flexShrink: 0,
-  },
-  chromeElevated: {
+  /**
+   * Scroll-away sticky clone — out of document flow so it never pushes content.
+   * Slides in via translateY; pointer-events off while hidden.
+   */
+  chromeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 30,
+    // Upper strips paint their own bg; dark secondary bar is last — keep host
+    // dark so any subpixel seam under the category nav isn’t a white hairline.
+    backgroundColor: semanticColors.logoDark,
     ...(Platform.OS === 'web'
       ? ({
           boxShadow: '0 4px 16px rgba(17, 2, 34, 0.1)',
@@ -454,13 +471,31 @@ const styles = StyleSheet.create({
           elevation: 6,
         }),
   },
+  /** Fill-mode chrome above the body viewport (not inside a page scroller). */
+  chromeFill: {
+    zIndex: 20,
+    flexShrink: 0,
+    backgroundColor: semanticColors.logoDark,
+  },
   chromeInner: {
-    backgroundColor: semanticColors.bgPrimary,
+    // Dark base so the bottom edge of the stack can’t flash a light hairline
+    // against the hero; promo / header / services paint opaque backgrounds above.
+    backgroundColor: semanticColors.logoDark,
   },
   /** Black secondary bar host — no light bottom stroke under category / practice links. */
   secondaryBar: {
     backgroundColor: semanticColors.logoDark,
     borderBottomWidth: 0,
+    borderTopWidth: 0,
+    // Cover RN-web subpixel gaps under the dark bar (parent light bg seams).
+    ...(Platform.OS === 'web'
+      ? ({
+          marginBottom: -1,
+          paddingBottom: 1,
+          boxShadow: 'none',
+          outlineStyle: 'none',
+        } as object)
+      : null),
   },
   bodyRow: {
     flex: 1,
