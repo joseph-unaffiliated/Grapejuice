@@ -178,11 +178,17 @@ function ProductsSection({
   catalog: CatalogItem[];
   catalogLoading: boolean;
 }) {
+  const limit = section.limit ?? 6;
   const featured = useMemo(
-    () => resolveLandingProducts(catalog, section.productIds, 6),
-    [catalog, section.productIds]
+    () =>
+      resolveLandingProducts(catalog, {
+        productIds: section.productIds,
+        category: section.category,
+        limit,
+      }),
+    [catalog, section.productIds, section.category, limit]
   );
-  const placeholderCount = Math.max(section.productIds.length, 6);
+  const placeholderCount = Math.max(limit, 6);
   return (
     <View style={styles.productsBlock}>
       <View style={styles.productsIntro}>

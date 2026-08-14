@@ -2,19 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   landingAudienceById,
   type LandingAudienceConfig,
-  type LandingAudienceId,
 } from '../constants/landingAudiences';
 import {
   hydrateLandingConfig,
   landingsService,
 } from '../services/firestore/landings';
+import { invalidateLandingCatalog } from '../services/landingCatalog';
 
 export type LandingConfigSource = 'code' | 'firestore';
 
 /**
- * Resolve a marketing landing: Firestore override if present, else code-config.
+ * Resolve a marketing landing: Firestore override / CMS-only doc, else code seed.
  */
-export function useLandingConfig(audienceId: LandingAudienceId): {
+export function useLandingConfig(audienceId: string): {
   config: LandingAudienceConfig | null;
   source: LandingConfigSource;
   loading: boolean;
@@ -23,7 +23,7 @@ export function useLandingConfig(audienceId: LandingAudienceId): {
 } {
   const codeConfig = landingAudienceById(audienceId);
   const [config, setConfig] = useState<LandingAudienceConfig | null>(codeConfig);
-  const [source, setSource] = useState<LandingConfigSource>('code');
+  const [source, setSource] = useState<LandingConfigSource>(codeConfig ? 'code' : 'firestore');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -33,12 +33,6 @@ export function useLandingConfig(audienceId: LandingAudienceId): {
   useEffect(() => {
     let cancelled = false;
     const base = landingAudienceById(audienceId);
-    if (!base) {
-      setConfig(null);
-      setLoading(false);
-      setError('Unknown landing');
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -49,16 +43,27 @@ export function useLandingConfig(audienceId: LandingAudienceId): {
         if (stored?.sections?.length) {
           setConfig(hydrateLandingConfig(stored, audienceId));
           setSource('firestore');
-        } else {
+          invalidateLandingCatalog();
+          return;
+        }
+        if (base) {
           setConfig(base);
           setSource('code');
+          return;
         }
+        setConfig(null);
+        setSource('firestore');
+        setError('Landing not found');
       })
       .catch((err) => {
         if (cancelled) return;
-        setConfig(base);
-        setSource('code');
-        setError(err instanceof Error ? err.message : 'Failed to load landing override');
+        if (base) {
+          setConfig(base);
+          setSource('code');
+        } else {
+          setConfig(null);
+        }
+        setError(err instanceof Error ? err.message : 'Failed to load landing');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

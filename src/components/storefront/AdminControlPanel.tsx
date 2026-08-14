@@ -23,16 +23,17 @@ import {
 } from '../../stores/userStatePreviewStore';
 import { useEntryContextStore } from '../../stores/entryContextStore';
 import {
-  ENTRY_LANDING_PREVIEW_OPTIONS,
-  landingAudienceById,
-  landingSectionSummary,
+  buildEntryLandingPreviewOptions,
+  type EntryLandingPreviewOption,
 } from '../../constants/landingAudiences';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import { getHanukkahWindow } from '../../services/hanukkah/dates';
 import { resetTesterBox } from '../../services/admin/resetTesterBox';
 import { isAdminEmail } from '../../constants/admin';
-import { navigateMainStack } from '../../navigation/mainStackNavigation';
+import { navigateMainStack, navigateToLanding } from '../../navigation/mainStackNavigation';
+import { useMarketingLandings } from '../../hooks/useMarketingLandings';
+import { landingFromMergedById } from '../../services/landingCatalog';
 import {
   borderRadius,
   semanticColors,
@@ -69,6 +70,8 @@ export function AdminControlPanel() {
   const mockPersonaLabel = useMockFlowStore((s) => s.personaLabel);
   const enterMockFlow = useMockFlowStore((s) => s.enter);
   const exitMockFlow = useMockFlowStore((s) => s.exit);
+  const { landings } = useMarketingLandings();
+  const entryLandingOptions = buildEntryLandingPreviewOptions(landings);
 
   const [open, setOpen] = useState(false);
   const [userStateOpen, setUserStateOpen] = useState(false);
@@ -159,7 +162,7 @@ export function AdminControlPanel() {
     setPreview(next);
   };
 
-  const selectEntryLanding = (opt: (typeof ENTRY_LANDING_PREVIEW_OPTIONS)[number]) => {
+  const selectEntryLanding = (opt: EntryLandingPreviewOption) => {
     if (!opt.ready) return;
     if (!opt.audienceId) {
       if (mockFlowActive) exitMockFlow();
@@ -168,7 +171,7 @@ export function AdminControlPanel() {
       navigateMainStack('StorefrontHome');
       return;
     }
-    const audience = landingAudienceById(opt.audienceId);
+    const audience = landingFromMergedById(opt.audienceId);
     if (!audience) return;
     enterMockFlow({
       audienceId: opt.audienceId,
@@ -176,8 +179,7 @@ export function AdminControlPanel() {
       sourcePath: audience.path,
     });
     setOpen(false);
-    // Admin panel sits outside Stack.Navigator — use root ref, not useNavigation.
-    navigateMainStack(opt.screen);
+    navigateToLanding(opt.audienceId);
   };
 
   if (!show) return null;
@@ -185,6 +187,11 @@ export function AdminControlPanel() {
   const previewActive = Boolean(preview || previewNowIso || entryAudienceId || mockFlowActive);
   const activeUserLabel =
     USER_STATE_PREVIEW_OPTIONS.find((opt) => opt.id === preview)?.label ?? 'Live (you)';
+
+  if (!show) return null;
+
+  // Banner owns exit while mock flow is on — keep admin chrome out of the visitor sim.
+  if (mockFlowActive) return null;
 
   return (
     <View style={styles.host} pointerEvents="box-none">
@@ -349,14 +356,16 @@ export function AdminControlPanel() {
               <Text style={styles.sectionDesc}>
                 Opens the entry page as a mock visitor. Exit via the top banner.
               </Text>
-              {ENTRY_LANDING_PREVIEW_OPTIONS.map((opt) => {
+              {entryLandingOptions.map((opt) => {
                 const active =
                   opt.audienceId == null
                     ? !mockFlowActive && opt.id === 'default'
                     : mockFlowActive && mockLandingId === opt.audienceId;
-                const audience = opt.audienceId ? landingAudienceById(opt.audienceId) : null;
+                const audience = opt.audienceId ? landingFromMergedById(opt.audienceId) : null;
                 const pathHint = audience?.path ?? '/store';
-                const sectionsHint = audience ? landingSectionSummary(audience) : 'clear mock · home';
+                const sectionsHint = audience
+                  ? `${audience.sections.length} sections`
+                  : 'clear mock · home';
                 return (
                   <TouchableOpacity
                     key={opt.id}

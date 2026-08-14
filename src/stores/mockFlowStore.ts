@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import type { LandingAudienceId } from '../constants/landingAudiences';
 import {
   useUserStatePreviewStore,
   type UserStatePreview,
@@ -40,14 +39,14 @@ export const MOCK_FLOW_PERSONAS: MockFlowPersona[] = [
 type RestoreSnapshot = {
   preview: UserStatePreview | null;
   previewNowIso: string | null;
-  audienceId: LandingAudienceId | null;
+  audienceId: string | null;
   sourcePath: string | null;
   utm: EntryUtm | null;
 };
 
 type MockFlowState = {
   active: boolean;
-  landingId: LandingAudienceId | null;
+  landingId: string | null;
   landingLabel: string | null;
   personaId: MockFlowPersonaId | null;
   personaLabel: string | null;
@@ -57,7 +56,7 @@ type MockFlowState = {
    * Caller navigates to the landing screen.
    */
   enter: (input: {
-    audienceId: LandingAudienceId;
+    audienceId: string;
     landingLabel: string;
     sourcePath: string;
     personaId?: MockFlowPersonaId;
@@ -67,7 +66,7 @@ type MockFlowState = {
 };
 
 function personaForLanding(
-  audienceId: LandingAudienceId,
+  audienceId: string,
   preferred?: MockFlowPersonaId
 ): MockFlowPersona {
   if (preferred) {

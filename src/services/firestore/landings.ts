@@ -10,12 +10,18 @@ import {
 import { db } from '../../lib/firebase';
 import type {
   LandingAudienceConfig,
-  LandingAudienceId,
   LandingCta,
   LandingCtaAction,
   LandingCtaStyle,
   LandingSection,
 } from '../../constants/landingAudiences';
+import {
+  ASK_RAV_DEFAULT_BODY,
+  ASK_RAV_DEFAULT_EYEBROW,
+  ASK_RAV_DEFAULT_HEADLINE,
+  ASK_RAV_DEFAULT_PLACEHOLDER,
+} from '../../components/storefront/StorefrontAskRavStrip';
+import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
 import {
   landingMediaKeyForSource,
   landingMediaSource,
@@ -52,7 +58,9 @@ export type StoredLandingSection =
       type: 'products';
       heading: string;
       body?: string;
-      productIds: string[];
+      category?: string;
+      productIds?: string[];
+      limit?: number;
     }
   | { type: 'cta_row'; ctas: LandingCta[] }
   | {
@@ -190,9 +198,14 @@ function parseStoredSection(raw: unknown): StoredLandingSection | null {
         type: 'products',
         heading: String(o.heading ?? ''),
         body: o.body != null ? String(o.body) : undefined,
+        category: o.category != null ? String(o.category).trim() || undefined : undefined,
         productIds: Array.isArray(o.productIds)
           ? o.productIds.map((id) => String(id)).filter(Boolean)
-          : [],
+          : undefined,
+        limit:
+          typeof o.limit === 'number' && Number.isFinite(o.limit)
+            ? Math.max(1, Math.min(24, Math.round(o.limit)))
+            : undefined,
       };
     case 'cta_row':
       return { type: 'cta_row', ctas: asCtas(o.ctas) };
@@ -241,7 +254,7 @@ function toStoredDoc(id: string, data: DocumentData): StoredLandingDoc | null {
 
 export function hydrateLandingConfig(
   stored: StoredLandingDoc,
-  fallbackId: LandingAudienceId
+  fallbackId: string
 ): LandingAudienceConfig {
   const sections: LandingSection[] = stored.sections.map((section) => {
     switch (section.type) {
@@ -278,7 +291,9 @@ export function hydrateLandingConfig(
           type: 'products',
           heading: section.heading,
           body: section.body,
+          category: section.category,
           productIds: section.productIds,
+          limit: section.limit,
         };
       case 'cta_row':
         return { type: 'cta_row', ctas: section.ctas };
@@ -297,7 +312,7 @@ export function hydrateLandingConfig(
   });
 
   return {
-    id: (stored.id as LandingAudienceId) || fallbackId,
+    id: stored.id || fallbackId,
     path: stored.path,
     legacyPaths: stored.legacyPaths,
     navLabel: stored.navLabel,
@@ -349,7 +364,9 @@ export function serializeLandingConfig(config: LandingAudienceConfig): StoredLan
           type: 'products',
           heading: section.heading,
           body: section.body,
+          category: section.category,
           productIds: section.productIds,
+          limit: section.limit,
         };
       case 'cta_row':
         return { type: 'cta_row', ctas: section.ctas };
@@ -376,6 +393,72 @@ export function serializeLandingConfig(config: LandingAudienceConfig): StoredLan
     chrome: config.chrome,
     primarySuccess: config.primarySuccess,
     sections,
+  };
+}
+
+/** Starter doc for a net-new CMS landing (hero + Ask Rav + CTA). */
+export function blankLandingDoc(input: {
+  id: string;
+  path: string;
+  navLabel: string;
+}): StoredLandingDoc {
+  return {
+    id: input.id,
+    path: input.path,
+    navLabel: input.navLabel,
+    utmCampaigns: [],
+    chrome: 'storefront',
+    primarySuccess: 'start_box',
+    sections: [
+      {
+        type: 'hero',
+        slot: {
+          id: `hero-${input.id}`,
+          kind: 'image',
+          aspect: '3/2',
+          label: 'Hero',
+          headline: input.navLabel,
+          body: 'Add supporting copy for this campaign.',
+          imageKey: 'familysplash2',
+        },
+        ctas: [
+          { label: 'Build your box', action: { type: 'start_box' }, style: 'primary' },
+          {
+            label: 'Browse the Collection',
+            action: { type: 'store_category', category: 'collection' },
+            style: 'secondary',
+          },
+        ],
+      },
+      {
+        type: 'ask_rav',
+        eyebrow: ASK_RAV_DEFAULT_EYEBROW,
+        headline: ASK_RAV_DEFAULT_HEADLINE,
+        body: ASK_RAV_DEFAULT_BODY,
+        placeholder: ASK_RAV_DEFAULT_PLACEHOLDER,
+        prompts: [...RAV_TYPEWRITER_PROMPTS],
+      },
+      {
+        type: 'cta_row',
+        ctas: [{ label: 'Explore the store', action: { type: 'store' }, style: 'escape' }],
+      },
+    ],
+  };
+}
+
+/** Clone an existing config into a new id/path/label for CMS create. */
+export function cloneLandingDoc(
+  source: LandingAudienceConfig,
+  input: { id: string; path: string; navLabel: string }
+): StoredLandingDoc {
+  const base = serializeLandingConfig(source);
+  return {
+    ...base,
+    id: input.id,
+    path: input.path,
+    navLabel: input.navLabel,
+    legacyPaths: undefined,
+    utmCampaigns: [],
   };
 }
 
