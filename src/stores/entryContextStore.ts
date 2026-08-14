@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import { create } from 'zustand';
-import type { LandingAudienceId } from '../constants/landingAudiences';
 
 const STORAGE_KEY = 'gj.entryContext';
 
@@ -13,12 +12,12 @@ export type EntryUtm = {
 };
 
 type EntryContextState = {
-  audienceId: LandingAudienceId | null;
+  audienceId: string | null;
   sourcePath: string | null;
   utm: EntryUtm | null;
   /** Capture entry for this browser session (sessionStorage on web). */
   capture: (input: {
-    audienceId: LandingAudienceId;
+    audienceId: string;
     sourcePath?: string | null;
     utm?: EntryUtm | null;
   }) => void;
@@ -38,7 +37,7 @@ function readSession(): Pick<EntryContextState, 'audienceId' | 'sourcePath' | 'u
     if (!parsed?.audienceId) return null;
     const rawId = parsed.audienceId === 'unaffiliated' ? 'cultural' : parsed.audienceId;
     return {
-      audienceId: rawId as LandingAudienceId,
+      audienceId: rawId,
       sourcePath: parsed.sourcePath ?? null,
       utm: parsed.utm ?? null,
     };

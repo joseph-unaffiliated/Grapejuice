@@ -54,15 +54,20 @@ export type MainStackParamList = {
   History: undefined;
   /** Campaign landing — modular gift entry (`/gift`). */
   GiftLanding: { preferredGiftPath?: GiftPath } | undefined;
-  /** Campaign landing — culturally Jewish / “your way” (`/your-way`). */
+  /**
+   * Dynamic campaign landing (code seeds + CMS-only) by id.
+   * Prefer this over the legacy per-audience screens below.
+   */
+  DynamicLanding: { landingId: string };
+  /** @deprecated Prefer DynamicLanding — kept for back-compat deep links in flight. */
   CulturalLanding: undefined;
-  /** Campaign landing — interfaith / two-tradition (`/interfaith`). */
+  /** @deprecated Prefer DynamicLanding */
   InterfaithLanding: undefined;
-  /** Campaign landing — convenience / easy delivery (`/convenience`). */
+  /** @deprecated Prefer DynamicLanding */
   ConvenienceLanding: undefined;
-  /** Campaign landing — last-minute scramble (`/last-minute`). */
+  /** @deprecated Prefer DynamicLanding */
   LastMinuteLanding: undefined;
-  /** Campaign landing — aesthetic / for your home (`/for-your-home`). */
+  /** @deprecated Prefer DynamicLanding */
   ForYourHomeLanding: undefined;
   GiftGive: { initialGiftPath?: GiftPath } | undefined;
   GiftGiverCustomize: {

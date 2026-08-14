@@ -27,11 +27,7 @@ import { readDevPreviewFromWindow } from './devPreview';
 import { WebBrowserHistoryBridge } from './WebBrowserHistoryBridge';
 import { GiftClaimLinkEffect } from './GiftClaimLinkEffect';
 import { GiftLandingLinkEffect } from './GiftLandingLinkEffect';
-import { CulturalLandingLinkEffect } from './CulturalLandingLinkEffect';
-import { InterfaithLandingLinkEffect } from './InterfaithLandingLinkEffect';
-import { ConvenienceLandingLinkEffect } from './ConvenienceLandingLinkEffect';
-import { LastMinuteLandingLinkEffect } from './LastMinuteLandingLinkEffect';
-import { ForYourHomeLandingLinkEffect } from './ForYourHomeLandingLinkEffect';
+import { LandingLinkEffect } from './LandingLinkEffect';
 import { ProductLinkEffect } from './ProductLinkEffect';
 import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
@@ -224,11 +220,7 @@ export function RootNavigator() {
           <WebBrowserHistoryBridge />
           <GiftClaimLinkEffect />
           <GiftLandingLinkEffect />
-          <CulturalLandingLinkEffect />
-          <InterfaithLandingLinkEffect />
-          <ConvenienceLandingLinkEffect />
-          <LastMinuteLandingLinkEffect />
-          <ForYourHomeLandingLinkEffect />
+          <LandingLinkEffect />
           <ProductLinkEffect />
           <StorefrontLinkEffect />
           <HomeLinkEffect />

@@ -6,7 +6,6 @@ import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { LandingComposeView } from '../../components/landing/LandingComposeView';
 import {
   landingAudienceById,
-  type LandingAudienceId,
   type LandingCtaAction,
 } from '../../constants/landingAudiences';
 import { semanticColors } from '../../constants/theme';
@@ -22,7 +21,7 @@ import type { GiftPath } from '../gift/giftGiveTypes';
 type Nav = StackNavigationProp<MainStackParamList>;
 
 type Props = {
-  audienceId: LandingAudienceId;
+  audienceId: string;
   /** Gift landing only — deep-link `?path=` can flip which gift CTA leads. */
   preferredGiftPath?: GiftPath | null;
   ravSurface: { id: string; label: string };

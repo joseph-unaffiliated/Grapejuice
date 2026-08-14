@@ -25,6 +25,7 @@ import { GiftGiverCustomizeScreen } from '../screens/gift/GiftGiverCustomizeScre
 import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
 import { GiftRecipientRevealScreen } from '../screens/gift/GiftRecipientRevealScreen';
 import { GiftLandingScreen } from '../screens/landing/GiftLandingScreen';
+import { DynamicLandingScreen } from '../screens/landing/DynamicLandingScreen';
 import { CulturalLandingScreen } from '../screens/landing/CulturalLandingScreen';
 import { InterfaithLandingScreen } from '../screens/landing/InterfaithLandingScreen';
 import { ConvenienceLandingScreen } from '../screens/landing/ConvenienceLandingScreen';
@@ -282,6 +283,11 @@ export function MainStack() {
           name="GiftLanding"
           component={GiftLandingScreen}
           options={{ title: 'Give a gift' }}
+        />
+        <Stack.Screen
+          name="DynamicLanding"
+          component={DynamicLandingScreen}
+          options={{ title: 'Landing' }}
         />
         <Stack.Screen
           name="CulturalLanding"

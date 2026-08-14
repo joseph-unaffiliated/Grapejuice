@@ -2,6 +2,7 @@ import type { ImageSourcePropType } from 'react-native';
 import type { GiftPath } from '../screens/gift/giftGiveTypes';
 import type { CatalogItem } from '../types/pilot';
 import type { StorefrontMediaSlot } from './storefrontMedia';
+import { filterByStorefrontCategory } from './storefrontCategories';
 
 /** Audience ids for modular campaign landings (code-config v1). */
 export type LandingAudienceId =
@@ -50,7 +51,12 @@ export type LandingSection =
       type: 'products';
       heading: string;
       body?: string;
-      productIds: string[];
+      /** Storefront aisle slug (`toys`, `books`, …) — same filters as /store. */
+      category?: string;
+      /** Optional curated ids; when present and resolvable, wins over category. */
+      productIds?: string[];
+      /** Max items to show (default 6). */
+      limit?: number;
     }
   | { type: 'cta_row'; ctas: LandingCta[] }
   | {
@@ -76,7 +82,7 @@ export type LandingCategoryCardDef = {
 };
 
 export type LandingAudienceConfig = {
-  id: LandingAudienceId;
+  id: string;
   /** Canonical browser path, e.g. `/gift`. */
   path: string;
   /** Legacy paths that still resolve to this audience (canonicalize to `path`). */
@@ -130,7 +136,13 @@ type BuildSectionsInput = {
   /** Omit to hide aisle rail. */
   categories?: boolean | { heading?: string; body?: string; cards?: LandingCategoryCardDef[] };
   /** Omit to hide product grid. */
-  products?: { heading: string; body?: string; productIds: string[] };
+  products?: {
+    heading: string;
+    body?: string;
+    category?: string;
+    productIds?: string[];
+    limit?: number;
+  };
   footerCtas: LandingCta[];
 };
 
@@ -578,25 +590,40 @@ export const FOR_YOUR_HOME_LANDING: LandingAudienceConfig = {
 };
 
 /**
- * Resolve ordered catalog ids for a landing; skips missing / unpublished items.
- * If none of the curated ids resolve (common when Airtable slugs differ from
- * seed ids), falls back to most-loved / first catalog items so the section
- * still merchandises something.
+ * Resolve products for a landing grid.
+ * Priority: curated ids (when they resolve) → storefront category filter → most-loved.
  */
 export function resolveLandingProducts(
   catalog: CatalogItem[],
-  productIds: string[],
+  opts: {
+    productIds?: string[];
+    category?: string;
+    limit?: number;
+  } = {},
   fallbackLimit = 6
 ): CatalogItem[] {
   if (!catalog.length) return [];
+  const limit = Math.max(1, opts.limit ?? fallbackLimit);
+
+  const productIds = opts.productIds ?? [];
   if (productIds.length) {
     const byId = new Map(catalog.map((item) => [item.id, item]));
     const curated = productIds
       .map((id) => byId.get(id))
       .filter((item): item is CatalogItem => item != null);
-    if (curated.length) return curated;
+    if (curated.length) return curated.slice(0, Math.max(limit, curated.length));
   }
-  const limit = Math.max(fallbackLimit, productIds.length || 0) || 6;
+
+  if (opts.category) {
+    const filtered = filterByStorefrontCategory(catalog, opts.category).sort((a, b) => {
+      const ar = a.storefrontRank ?? Number.POSITIVE_INFINITY;
+      const br = b.storefrontRank ?? Number.POSITIVE_INFINITY;
+      if (ar !== br) return ar - br;
+      return a.name.localeCompare(b.name);
+    });
+    if (filtered.length) return filtered.slice(0, limit);
+  }
+
   const loved = catalog
     .filter((item) => item.storefrontRails?.includes('most-loved'))
     .sort((a, b) => {
@@ -632,31 +659,12 @@ export const LANDING_REGISTRY: LandingAudienceConfig[] = [
 export const FOOTER_WHO_ITS_FOR: LandingAudienceConfig[] = LANDING_REGISTRY;
 
 /** MainStack screen name for a campaign landing audience. */
-export type LandingScreenName =
-  | 'GiftLanding'
-  | 'CulturalLanding'
-  | 'InterfaithLanding'
-  | 'ConvenienceLanding'
-  | 'LastMinuteLanding'
-  | 'ForYourHomeLanding';
+export type LandingScreenName = 'GiftLanding' | 'DynamicLanding';
 
-export function landingScreenForAudience(id: LandingAudienceId): LandingScreenName | null {
-  switch (id) {
-    case 'gift':
-      return 'GiftLanding';
-    case 'cultural':
-      return 'CulturalLanding';
-    case 'interfaith':
-      return 'InterfaithLanding';
-    case 'convenience':
-      return 'ConvenienceLanding';
-    case 'last_minute':
-      return 'LastMinuteLanding';
-    case 'for_your_home':
-      return 'ForYourHomeLanding';
-    default:
-      return null;
-  }
+export function landingScreenForAudience(id: string): LandingScreenName | null {
+  if (!id) return null;
+  if (id === 'gift') return 'GiftLanding';
+  return 'DynamicLanding';
 }
 
 /** Admin “Test landings” / entry preview rows (inbound / ad entry points). */
@@ -665,31 +673,39 @@ export type EntryLandingPreviewOption = {
   label: string;
   description: string;
   /** null = default storefront (clear entry / exit mock). */
-  audienceId: LandingAudienceId | null;
+  audienceId: string | null;
   /** MainStack screen to open. */
   screen: LandingScreenName | 'StorefrontHome';
   /** When false, row is shown but not navigable yet. */
   ready: boolean;
 };
 
-export const ENTRY_LANDING_PREVIEW_OPTIONS: EntryLandingPreviewOption[] = [
-  {
-    id: 'default',
-    label: 'Default store',
-    description: 'Organic /store — exit mock entry',
-    audienceId: null,
-    screen: 'StorefrontHome',
-    ready: true,
-  },
-  ...LANDING_REGISTRY.map((audience) => ({
-    id: audience.id,
-    label: audience.navLabel,
-    description: `${audience.path} — ${landingSectionSummary(audience)}`,
-    audienceId: audience.id,
-    screen: landingScreenForAudience(audience.id)!,
-    ready: true,
-  })),
-];
+export function buildEntryLandingPreviewOptions(
+  landings: LandingAudienceConfig[] = LANDING_REGISTRY
+): EntryLandingPreviewOption[] {
+  return [
+    {
+      id: 'default',
+      label: 'Default store',
+      description: 'Organic /store — exit mock entry',
+      audienceId: null,
+      screen: 'StorefrontHome',
+      ready: true,
+    },
+    ...landings.map((audience) => ({
+      id: audience.id,
+      label: audience.navLabel,
+      description: `${audience.path} — ${landingSectionSummary(audience)}`,
+      audienceId: audience.id,
+      screen: landingScreenForAudience(audience.id)!,
+      ready: true,
+    })),
+  ];
+}
+
+/** @deprecated Prefer buildEntryLandingPreviewOptions(merged) for CMS pages. */
+export const ENTRY_LANDING_PREVIEW_OPTIONS: EntryLandingPreviewOption[] =
+  buildEntryLandingPreviewOptions();
 
 export function landingAudienceById(id: string | null | undefined): LandingAudienceConfig | null {
   if (!id) return null;

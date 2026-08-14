@@ -11,15 +11,13 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
-import {
-  FOOTER_WHO_ITS_FOR,
-  landingScreenForAudience,
-  type LandingAudienceConfig,
-} from '../../constants/landingAudiences';
+import { FOOTER_WHO_ITS_FOR, type LandingAudienceConfig } from '../../constants/landingAudiences';
 import type { MainStackParamList } from '../../navigation/types';
+import { navigateToLanding } from '../../navigation/mainStackNavigation';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useEntryContextStore } from '../../stores/entryContextStore';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { useMarketingLandings } from '../../hooks/useMarketingLandings';
 import { isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
 import {
   LAYOUT,
@@ -78,6 +76,8 @@ export function StorefrontFooter() {
   const navigation = useNavigation<Nav>();
   const isAuthenticated = usePreviewedIsAuthenticated();
   const captureEntry = useEntryContextStore((s) => s.capture);
+  const { landings } = useMarketingLandings();
+  const whoItsFor = landings.length ? landings : FOOTER_WHO_ITS_FOR;
   const { width } = useWindowDimensions();
   const compact = width < LAYOUT.BREAKPOINT_TABLET;
 
@@ -94,14 +94,12 @@ export function StorefrontFooter() {
     };
 
     const openAudienceLanding = (audience: LandingAudienceConfig) => {
-      const screen = landingScreenForAudience(audience.id);
-      if (!screen) return;
       captureEntry({
         audienceId: audience.id,
         sourcePath: audience.path,
         utm: null,
       });
-      navigation.navigate(screen);
+      navigateToLanding(audience.id);
     };
 
     const marketplaceLinks: FooterLink[] = STOREFRONT_CATEGORIES.filter(
@@ -122,7 +120,7 @@ export function StorefrontFooter() {
       },
       {
         heading: 'Who its for',
-        links: FOOTER_WHO_ITS_FOR.map((audience) => ({
+        links: whoItsFor.map((audience) => ({
           label: audience.navLabel,
           onPress: () => openAudienceLanding(audience),
         })),
@@ -185,7 +183,7 @@ export function StorefrontFooter() {
         ],
       },
     ];
-  }, [captureEntry, isAuthenticated, navigation]);
+  }, [captureEntry, isAuthenticated, navigation, whoItsFor]);
 
   return (
     <View style={styles.root} accessibilityRole="contentinfo">

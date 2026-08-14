@@ -19,8 +19,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { isAdminEmail } from '../../constants/admin';
 import {
   landingAudienceById,
-  landingScreenForAudience,
-  type LandingAudienceId,
   type LandingCta,
   type LandingCtaAction,
   type LandingCtaStyle,
@@ -30,6 +28,7 @@ import {
   landingMediaLabel,
   landingMediaSource,
 } from '../../constants/landingMediaLibrary';
+import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
 import {
   ASK_RAV_DEFAULT_BODY,
@@ -44,6 +43,7 @@ import {
   type StoredLandingDoc,
   type StoredLandingSection,
 } from '../../services/firestore/landings';
+import { invalidateLandingCatalog, isCodeSeedLandingId } from '../../services/landingCatalog';
 import { LandingComposeView } from '../../components/landing/LandingComposeView';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { Icon } from '../../components/ui/Icon';
@@ -53,7 +53,7 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { spacing, typography, borderRadius, semanticColors } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
-import { navigateMainStack } from '../../navigation/mainStackNavigation';
+import { navigateToLanding } from '../../navigation/mainStackNavigation';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 type Route = RouteProp<MainStackParamList, 'AdminLandingEditor'>;
@@ -118,7 +118,8 @@ function blankSection(type: StoredLandingSection['type']): StoredLandingSection 
         type: 'products',
         heading: 'Featured pieces',
         body: '',
-        productIds: [],
+        category: 'toys',
+        limit: 6,
       };
     case 'cta_row':
       return {
@@ -145,7 +146,7 @@ function defaultCta(): LandingCta {
 export function AdminLandingEditorScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const audienceId = route.params.audienceId as LandingAudienceId;
+  const audienceId = route.params.audienceId;
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
   const { width: windowWidth } = useWindowDimensions();
@@ -158,6 +159,7 @@ export function AdminLandingEditorScreen() {
   const allowed = isAdminEmail(user?.email);
 
   const codeConfig = landingAudienceById(audienceId);
+  const isSeed = isCodeSeedLandingId(audienceId);
   const [doc, setDoc] = useState<StoredLandingDoc | null>(null);
   const deferredDoc = useDeferredValue(doc);
   const livePreviewConfig = useMemo(() => {
@@ -173,7 +175,7 @@ export function AdminLandingEditorScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(0);
+  const [expanded, setExpanded] = useState<number | null>(null);
   const [sectionKeys, setSectionKeys] = useState<string[]>([]);
   /** Index of the row being dragged (fixed until drop). */
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -196,28 +198,32 @@ export function AdminLandingEditorScreen() {
   } | null>(null);
   const rafRef = useRef<number | null>(null);
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Snapshot of a section when Edit opens — Cancel restores it. */
+  const editSnapshotRef = useRef<StoredLandingSection | null>(null);
 
   const applyLoadedDoc = useCallback((next: StoredLandingDoc, override: boolean) => {
     setDoc(next);
     setSectionKeys(next.sections.map(() => newSectionKey()));
     setHasOverride(override);
-    setExpanded(next.sections.length ? 0 : null);
+    setExpanded(null);
   }, []);
 
   const load = useCallback(async () => {
-    if (!codeConfig) return;
     setLoading(true);
     setError(null);
     try {
       const stored = await landingsService.getById(audienceId);
       if (stored?.sections?.length) {
         applyLoadedDoc(stored, true);
-      } else {
+      } else if (codeConfig) {
         applyLoadedDoc(serializeLandingConfig(codeConfig), false);
+      } else {
+        setDoc(null);
+        setError('Landing not found');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
-      applyLoadedDoc(serializeLandingConfig(codeConfig), false);
+      if (codeConfig) applyLoadedDoc(serializeLandingConfig(codeConfig), false);
     } finally {
       setLoading(false);
     }
@@ -464,25 +470,79 @@ export function AdminLandingEditorScreen() {
   };
 
   const removeSection = (index: number) => {
-    setDoc((prev) => {
-      if (!prev) return prev;
-      return { ...prev, sections: prev.sections.filter((_, i) => i !== index) };
-    });
-    setSectionKeys((prev) => prev.filter((_, i) => i !== index));
-    setExpanded((cur) => {
-      if (cur == null) return cur;
-      if (cur === index) return null;
-      if (cur > index) return cur - 1;
-      return cur;
-    });
+    const label =
+      doc?.sections[index] != null
+        ? SECTION_LABELS[doc.sections[index].type]
+        : 'this section';
+    const run = () => {
+      setDoc((prev) => {
+        if (!prev) return prev;
+        return { ...prev, sections: prev.sections.filter((_, i) => i !== index) };
+      });
+      setSectionKeys((prev) => prev.filter((_, i) => i !== index));
+      if (expanded === index) {
+        editSnapshotRef.current = null;
+      }
+      setExpanded((cur) => {
+        if (cur == null) return cur;
+        if (cur === index) return null;
+        if (cur > index) return cur - 1;
+        return cur;
+      });
+    };
+    const title = 'Remove section?';
+    const body = `Delete “${label}” from this page? You still need to Save override to publish.`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(`${title}\n\n${body}`)) run();
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: run },
+    ]);
+  };
+
+  const beginEditSection = (index: number) => {
+    if (!doc?.sections[index]) return;
+    if (expanded != null && expanded !== index && editSnapshotRef.current != null) {
+      // Another section is mid-edit — revert it first.
+      const revertIndex = expanded;
+      const snap = editSnapshotRef.current;
+      setDoc((prev) => {
+        if (!prev || !snap) return prev;
+        const sections = [...prev.sections];
+        if (sections[revertIndex]) sections[revertIndex] = snap;
+        return { ...prev, sections };
+      });
+    }
+    editSnapshotRef.current = JSON.parse(JSON.stringify(doc.sections[index])) as StoredLandingSection;
+    setExpanded(index);
+  };
+
+  const saveSectionEdit = () => {
+    editSnapshotRef.current = null;
+    setExpanded(null);
+  };
+
+  const cancelSectionEdit = () => {
+    const snap = editSnapshotRef.current;
+    const idx = expanded;
+    if (snap != null && idx != null) {
+      setDoc((prev) => {
+        if (!prev) return prev;
+        const sections = [...prev.sections];
+        if (sections[idx]) sections[idx] = snap;
+        return { ...prev, sections };
+      });
+    }
+    editSnapshotRef.current = null;
+    setExpanded(null);
   };
 
   const addSection = (type: StoredLandingSection['type']) => {
     setDoc((prev) => {
       if (!prev) return prev;
-      const sections = [...prev.sections, blankSection(type)];
-      setExpanded(sections.length - 1);
-      return { ...prev, sections };
+      return { ...prev, sections: [...prev.sections, blankSection(type)] };
     });
     setSectionKeys((prev) => [...prev, newSectionKey()]);
   };
@@ -501,6 +561,7 @@ export function AdminLandingEditorScreen() {
       });
       setDoc(saved);
       setHasOverride(true);
+      invalidateLandingCatalog();
       setSaveNotice('Saved. Live page will use this override.');
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.alert('Landing saved. Storefront will use this override.');
@@ -527,14 +588,13 @@ export function AdminLandingEditorScreen() {
   };
 
   const resetToCode = () => {
+    if (!isSeed || !codeConfig) return;
     const run = async () => {
       setSaving(true);
       try {
         await landingsService.remove(audienceId);
-        if (codeConfig) applyLoadedDoc(serializeLandingConfig(codeConfig), false);
-        else {
-          setHasOverride(false);
-        }
+        invalidateLandingCatalog();
+        applyLoadedDoc(serializeLandingConfig(codeConfig), false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Reset failed');
       } finally {
@@ -554,8 +614,7 @@ export function AdminLandingEditorScreen() {
   };
 
   const preview = () => {
-    const screen = landingScreenForAudience(audienceId);
-    if (screen) navigateMainStack(screen);
+    navigateToLanding(audienceId);
   };
 
   const panelProps = {
@@ -578,14 +637,6 @@ export function AdminLandingEditorScreen() {
     );
   }
 
-  if (!codeConfig) {
-    return (
-      <WebContentPanel {...panelProps}>
-        <Text style={styles.error}>Unknown landing id</Text>
-      </WebContentPanel>
-    );
-  }
-
   return (
     <WebContentPanel
       flush={isDesktop}
@@ -599,11 +650,13 @@ export function AdminLandingEditorScreen() {
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
               <Text style={styles.backLink}>← Landings</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>{codeConfig.navLabel}</Text>
+            <Text style={styles.title}>{doc?.navLabel || codeConfig?.navLabel || audienceId}</Text>
             <Text style={styles.sub}>
-              {hasOverride
-                ? 'Editing CMS override'
-                : 'Editing code defaults (save to publish override)'}
+              {isSeed
+                ? hasOverride
+                  ? 'Editing CMS override'
+                  : 'Editing code defaults (save to publish override)'
+                : 'CMS-only landing (Firestore)'}
               {doc?.updatedAt ? ` · ${doc.updatedAt.slice(0, 16)}` : ''}
             </Text>
 
@@ -726,31 +779,56 @@ export function AdminLandingEditorScreen() {
                           </Text>
                           <Text style={styles.sectionHeaderMeta}>{section.type}</Text>
                         </View>
-                        <TouchableOpacity
-                          style={[styles.iconBtn, open && styles.iconBtnActive]}
-                          onPress={() => setExpanded(open ? null : index)}
-                          accessibilityRole="button"
-                          accessibilityLabel={open ? 'Collapse section' : 'Edit section'}
-                          disabled={draggingIndex != null}
-                        >
-                          <Icon
-                            icon={icons.pen}
-                            size={13}
-                            color={open ? semanticColors.logoDark : semanticColors.goldMuted}
-                          />
-                          <Text style={[styles.iconBtnLabel, open && styles.iconBtnLabelActive]}>
-                            {open ? 'Editing' : 'Edit'}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.iconBtnDanger}
-                          onPress={() => removeSection(index)}
-                          accessibilityRole="button"
-                          accessibilityLabel="Remove section"
-                          disabled={draggingIndex != null}
-                        >
-                          <Icon icon={icons.trash} size={13} color={semanticColors.goldMuted} />
-                        </TouchableOpacity>
+                        {open ? (
+                          <>
+                            <TouchableOpacity
+                              style={styles.iconBtn}
+                              onPress={cancelSectionEdit}
+                              accessibilityRole="button"
+                              accessibilityLabel="Cancel section edits"
+                              disabled={draggingIndex != null}
+                            >
+                              <Text style={styles.iconBtnLabel}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.iconBtn, styles.iconBtnActive]}
+                              onPress={saveSectionEdit}
+                              accessibilityRole="button"
+                              accessibilityLabel="Save section edits"
+                              disabled={draggingIndex != null}
+                            >
+                              <Text style={[styles.iconBtnLabel, styles.iconBtnLabelActive]}>
+                                Save
+                              </Text>
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <>
+                            <TouchableOpacity
+                              style={styles.iconBtn}
+                              onPress={() => beginEditSection(index)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Edit ${SECTION_LABELS[section.type]}`}
+                              disabled={draggingIndex != null}
+                            >
+                              <Icon
+                                icon={icons.pen}
+                                size={13}
+                                color={semanticColors.goldMuted}
+                              />
+                              <Text style={styles.iconBtnLabel}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.iconBtnDanger}
+                              onPress={() => removeSection(index)}
+                              accessibilityRole="button"
+                              accessibilityLabel="Remove section"
+                              disabled={draggingIndex != null}
+                            >
+                              <Icon icon={icons.trash} size={13} color={semanticColors.goldMuted} />
+                            </TouchableOpacity>
+                          </>
+                        )}
                       </View>
                       {open ? (
                         <SectionEditor
@@ -791,7 +869,7 @@ export function AdminLandingEditorScreen() {
                   <TouchableOpacity style={styles.secondaryBtn} onPress={preview}>
                     <Text style={styles.secondaryBtnText}>Open live page</Text>
                   </TouchableOpacity>
-                  {hasOverride ? (
+                  {hasOverride && isSeed ? (
                     <TouchableOpacity
                       style={styles.secondaryBtn}
                       onPress={resetToCode}
@@ -944,21 +1022,58 @@ function SectionEditor({
             value={section.body ?? ''}
             onChangeText={(body) => onChange({ ...section, body })}
           />
-          <Text style={styles.label}>Product ids (comma-separated)</Text>
+          <Text style={styles.label}>Store aisle</Text>
+          <Text style={styles.hint}>
+            Same filters as the store category pages. Pick an aisle to fill the grid.
+          </Text>
+          <View style={styles.addRow}>
+            <TouchableOpacity
+              style={[styles.addChip, !section.category && styles.addChipOn]}
+              onPress={() =>
+                onChange({
+                  ...section,
+                  category: undefined,
+                  productIds: undefined,
+                })
+              }
+            >
+              <Text style={[styles.addChipText, !section.category && styles.addChipTextOn]}>
+                Most loved
+              </Text>
+            </TouchableOpacity>
+            {STOREFRONT_CATEGORIES.map((cat) => {
+              const selected = section.category === cat.slug;
+              return (
+                <TouchableOpacity
+                  key={cat.slug}
+                  style={[styles.addChip, selected && styles.addChipOn]}
+                  onPress={() =>
+                    onChange({
+                      ...section,
+                      category: cat.slug,
+                      productIds: undefined,
+                    })
+                  }
+                >
+                  <Text style={[styles.addChipText, selected && styles.addChipTextOn]}>
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={styles.label}>How many to show</Text>
           <TextInput
-            style={[styles.input, styles.inputMultiline]}
-            multiline
-            autoCapitalize="none"
-            value={section.productIds.join(', ')}
-            onChangeText={(text) =>
+            style={styles.input}
+            keyboardType="number-pad"
+            value={String(section.limit ?? 6)}
+            onChangeText={(text) => {
+              const n = parseInt(text.replace(/\D/g, ''), 10);
               onChange({
                 ...section,
-                productIds: text
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
-            }
+                limit: Number.isFinite(n) && n > 0 ? Math.min(24, n) : 6,
+              });
+            }}
           />
         </View>
       );
