@@ -69,6 +69,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    /** Marketing landings CMS — public read; admin write. */
+    match /landings/{landingId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     match /waitlist/{entryId} {
       allow create: if signedIn();
       allow read, update: if signedIn() && resource.data.userId == request.auth.uid;

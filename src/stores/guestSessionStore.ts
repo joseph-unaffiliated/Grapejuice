@@ -122,7 +122,12 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       setOnboardingStep: (onboardingStep) => set({ onboardingStep }),
       completeOnboarding: () => set({ onboardingComplete: true }),
       completeBoxReveal: () =>
-        set({ boxRevealComplete: true, openMyBoxAfterReveal: true, onboardingStep: null }),
+        set({
+          boxRevealComplete: true,
+          openMyBoxAfterReveal: true,
+          onboardingStep: null,
+          buildBoxPath: false,
+        }),
       consumeOpenMyBoxAfterReveal: () => set({ openMyBoxAfterReveal: false }),
       toggleInterest: (interest) => {
         const current = get().interests;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
 import { useStripe } from '@stripe/stripe-react-native';
@@ -13,12 +14,13 @@ import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 
 export function GiftGiveScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, 'GiftGive'>>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [values, setValues] = useState<GiftGiveFormValues>({
     recipientEmail: '',
     giverName: '',
     message: '',
-    giftPath: 'credit_only',
+    giftPath: route.params?.initialGiftPath ?? 'customize',
   });
   const [childDrafts, setChildDrafts] = useState<GiftChildDraft[]>(DEFAULT_GIFT_CHILDREN);
   const [submitting, setSubmitting] = useState(false);

@@ -11,8 +11,14 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
+import {
+  FOOTER_WHO_ITS_FOR,
+  landingScreenForAudience,
+  type LandingAudienceConfig,
+} from '../../constants/landingAudiences';
 import type { MainStackParamList } from '../../navigation/types';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { useEntryContextStore } from '../../stores/entryContextStore';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
 import {
@@ -71,6 +77,7 @@ function FooterLinkButton({ link }: { link: FooterLink }) {
 export function StorefrontFooter() {
   const navigation = useNavigation<Nav>();
   const isAuthenticated = usePreviewedIsAuthenticated();
+  const captureEntry = useEntryContextStore((s) => s.capture);
   const { width } = useWindowDimensions();
   const compact = width < LAYOUT.BREAKPOINT_TABLET;
 
@@ -84,6 +91,17 @@ export function StorefrontFooter() {
         return;
       }
       navigation.navigate('MyBox');
+    };
+
+    const openAudienceLanding = (audience: LandingAudienceConfig) => {
+      const screen = landingScreenForAudience(audience.id);
+      if (!screen) return;
+      captureEntry({
+        audienceId: audience.id,
+        sourcePath: audience.path,
+        utm: null,
+      });
+      navigation.navigate(screen);
     };
 
     const marketplaceLinks: FooterLink[] = STOREFRONT_CATEGORIES.filter(
@@ -101,6 +119,13 @@ export function StorefrontFooter() {
           { label: 'Shop all', onPress: () => goCategory('collection') },
           ...marketplaceLinks,
         ],
+      },
+      {
+        heading: 'Who its for',
+        links: FOOTER_WHO_ITS_FOR.map((audience) => ({
+          label: audience.navLabel,
+          onPress: () => openAudienceLanding(audience),
+        })),
       },
       {
         heading: 'Seasonal boxes',
@@ -160,7 +185,7 @@ export function StorefrontFooter() {
         ],
       },
     ];
-  }, [isAuthenticated, navigation]);
+  }, [captureEntry, isAuthenticated, navigation]);
 
   return (
     <View style={styles.root} accessibilityRole="contentinfo">
@@ -212,6 +237,9 @@ export function StorefrontFooter() {
 
 const styles = StyleSheet.create({
   root: {
+    // With StorefrontChrome scrollContent flexGrow:1, this pins the footer to the
+    // viewport bottom on short pages (empty space sits above, not below).
+    marginTop: 'auto',
     backgroundColor: FOOTER_BG,
     paddingVertical: spacing.xxl,
     paddingHorizontal: MOBILE_GUTTER,

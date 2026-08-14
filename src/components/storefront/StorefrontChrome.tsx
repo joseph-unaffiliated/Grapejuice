@@ -21,6 +21,7 @@ import {
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip } from './StorefrontPromoStrip';
+import { MockFlowBanner } from './MockFlowBanner';
 import { StorefrontHeader } from './StorefrontHeader';
 import { StorefrontServicesNav, type StorefrontServiceId } from './StorefrontServicesNav';
 import { StorefrontCategoryNav } from './StorefrontCategoryNav';
@@ -103,6 +104,7 @@ function StorefrontChromeBlocks({
 }: ChromeProps) {
   return (
     <View style={styles.chromeInner}>
+      <MockFlowBanner />
       <StorefrontPromoStrip />
       <StorefrontHeader onLogoPress={onLogoPress} />
       {hideServicesNav ? null : (
@@ -984,8 +986,8 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   scrollContent: {
-    // flexGrow pins footer to viewport bottom on short pages; no paddingBottom —
-    // that would sit *below* StorefrontFooter (page-bg gap under the dark bar).
+    // flexGrow + StorefrontFooter marginTop:auto pins footer to viewport bottom
+    // on short pages (empty space above the footer, not below).
     flexGrow: 1,
   },
 });

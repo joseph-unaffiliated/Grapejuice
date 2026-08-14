@@ -2,6 +2,28 @@ import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { STORE_PATH_PREFIX, storefrontFromState } from './storeLink';
 import { HOME_PATH, mainAppShellFromState } from './homeLink';
+import { GIFT_LANDING_PATH, giftLandingFromState } from './giftLandingLink';
+import {
+  CULTURAL_LANDING_PATH,
+  culturalLandingFromState,
+  isCulturalLandingPath,
+} from './culturalLandingLink';
+import {
+  INTERFAITH_LANDING_PATH,
+  interfaithLandingFromState,
+} from './interfaithLandingLink';
+import {
+  CONVENIENCE_LANDING_PATH,
+  convenienceLandingFromState,
+} from './convenienceLandingLink';
+import {
+  LAST_MINUTE_LANDING_PATH,
+  lastMinuteLandingFromState,
+} from './lastMinuteLandingLink';
+import {
+  FOR_YOUR_HOME_LANDING_PATH,
+  forYourHomeLandingFromState,
+} from './forYourHomeLandingLink';
 
 export const PRODUCT_PATH_PREFIX = '/product';
 
@@ -60,6 +82,73 @@ export function browserPathForNavigationState(
     return window.location.pathname + search;
   }
 
+  const giftLanding = giftLandingFromState(state);
+  if (giftLanding) {
+    if (search.includes('preview=')) {
+      return `${giftLanding}${search}`;
+    }
+    // Keep UTM / path query while on the landing.
+    if (currentPath === GIFT_LANDING_PATH && search) {
+      return `${giftLanding}${search}`;
+    }
+    return giftLanding;
+  }
+
+  const culturalLanding = culturalLandingFromState(state);
+  if (culturalLanding) {
+    if (search.includes('preview=')) {
+      return `${culturalLanding}${search}`;
+    }
+    if (isCulturalLandingPath(currentPath) && search) {
+      return `${culturalLanding}${search}`;
+    }
+    return culturalLanding;
+  }
+
+  const interfaithLanding = interfaithLandingFromState(state);
+  if (interfaithLanding) {
+    if (search.includes('preview=')) {
+      return `${interfaithLanding}${search}`;
+    }
+    if (currentPath === INTERFAITH_LANDING_PATH && search) {
+      return `${interfaithLanding}${search}`;
+    }
+    return interfaithLanding;
+  }
+
+  const convenienceLanding = convenienceLandingFromState(state);
+  if (convenienceLanding) {
+    if (search.includes('preview=')) {
+      return `${convenienceLanding}${search}`;
+    }
+    if (currentPath === CONVENIENCE_LANDING_PATH && search) {
+      return `${convenienceLanding}${search}`;
+    }
+    return convenienceLanding;
+  }
+
+  const lastMinuteLanding = lastMinuteLandingFromState(state);
+  if (lastMinuteLanding) {
+    if (search.includes('preview=')) {
+      return `${lastMinuteLanding}${search}`;
+    }
+    if (currentPath === LAST_MINUTE_LANDING_PATH && search) {
+      return `${lastMinuteLanding}${search}`;
+    }
+    return lastMinuteLanding;
+  }
+
+  const forYourHomeLanding = forYourHomeLandingFromState(state);
+  if (forYourHomeLanding) {
+    if (search.includes('preview=')) {
+      return `${forYourHomeLanding}${search}`;
+    }
+    if (currentPath === FOR_YOUR_HOME_LANDING_PATH && search) {
+      return `${forYourHomeLanding}${search}`;
+    }
+    return forYourHomeLanding;
+  }
+
   const slug = catalogProductSlugFromState(state);
   if (slug) return productPathForSlug(slug);
 
@@ -93,6 +182,25 @@ export function browserPathForNavigationState(
     return path + search;
   }
   if (currentPath === HOME_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath === GIFT_LANDING_PATH) {
+    return currentPath + search;
+  }
+  if (isCulturalLandingPath(currentPath)) {
+    // Canonicalize legacy `/unaffiliated` → `/your-way`.
+    return CULTURAL_LANDING_PATH + search;
+  }
+  if (currentPath === INTERFAITH_LANDING_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath === CONVENIENCE_LANDING_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath === LAST_MINUTE_LANDING_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath === FOR_YOUR_HOME_LANDING_PATH) {
     return currentPath + search;
   }
   if (currentPath.startsWith(`${PRODUCT_PATH_PREFIX}/`)) {

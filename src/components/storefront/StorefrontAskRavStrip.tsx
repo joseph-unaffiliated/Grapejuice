@@ -10,6 +10,7 @@ import {
 import { SearchPill } from '../ui/SearchPill';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
+import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
 import {
   MOBILE_GUTTER,
   semanticColors,
@@ -21,17 +22,52 @@ import {
 /** Unventures.co cold-press watercolor paper (site atmosphere texture). */
 const PAPER_BG = require('../../../assets/storefront/cold-press-toothy.jpg');
 
+export const ASK_RAV_DEFAULT_EYEBROW = 'Need a guide?';
+export const ASK_RAV_DEFAULT_HEADLINE = 'Ask Rav';
+export const ASK_RAV_DEFAULT_BODY =
+  'Overwhelmed by options? Rav helps you navigate the store — what fits your household, what to skip, and what belongs in your box.';
+export const ASK_RAV_DEFAULT_PLACEHOLDER = 'Ask a question';
+
 type Props = {
   /** Called with the typed question when the user submits. */
   onSubmit: (message: string) => void;
+  eyebrow?: string;
+  headline?: string;
+  body?: string;
+  placeholder?: string;
+  /**
+   * Rotating SearchPill demo prompts.
+   * - omit / undefined → default Hanukkah prompts
+   * - [] → no autoplay (static placeholder only)
+   * - string[] → custom rotating prompts
+   */
+  prompts?: readonly string[];
 };
 
 const ASK_GO_SIZE = 28;
 const ASK_TRAILING_WIDTH = ASK_GO_SIZE + 4;
 
-export function StorefrontAskRavStrip({ onSubmit }: Props) {
+export function StorefrontAskRavStrip({
+  onSubmit,
+  eyebrow = ASK_RAV_DEFAULT_EYEBROW,
+  headline = ASK_RAV_DEFAULT_HEADLINE,
+  body = ASK_RAV_DEFAULT_BODY,
+  placeholder = ASK_RAV_DEFAULT_PLACEHOLDER,
+  prompts,
+}: Props) {
   const [query, setQuery] = useState('');
   const hasText = query.trim().length > 0;
+  const cleanedPrompts =
+    prompts === undefined
+      ? undefined
+      : prompts.map((p) => p.trim()).filter(Boolean);
+  const animatePlaceholder = cleanedPrompts === undefined || cleanedPrompts.length > 0;
+  const promptList =
+    cleanedPrompts === undefined
+      ? RAV_TYPEWRITER_PROMPTS
+      : cleanedPrompts.length > 0
+        ? cleanedPrompts
+        : RAV_TYPEWRITER_PROMPTS;
 
   const submit = () => {
     const msg = query.trim();
@@ -64,19 +100,18 @@ export function StorefrontAskRavStrip({ onSubmit }: Props) {
       {/* Soft wash so type stays readable over the toothy paper grain. */}
       <View style={styles.wash} pointerEvents="none" />
       <View style={styles.inner}>
-        <Text style={styles.eyebrow}>Need a guide?</Text>
-        <Text style={styles.headline}>Ask Rav</Text>
-        <Text style={styles.body}>
-          Overwhelmed by options? Rav helps you navigate the store — what fits your household,
-          what to skip, and what belongs in your box.
-        </Text>
+        {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
+        {headline ? <Text style={styles.headline}>{headline}</Text> : null}
+        {body ? <Text style={styles.body}>{body}</Text> : null}
         <View style={styles.pillWrap}>
           <SearchPill
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={submit}
-            placeholder="Ask a question"
-            accessibilityLabel="Ask a question"
+            placeholder={placeholder}
+            accessibilityLabel={placeholder}
+            animatePlaceholder={animatePlaceholder}
+            prompts={promptList}
             trailing={askGo}
             trailingWidth={hasText ? ASK_TRAILING_WIDTH : 0}
           />

@@ -78,6 +78,39 @@ function flattenKidInterests(members: ChildDraft[]): string[] {
   return [...set];
 }
 
+/** Chip with invisible regular-weight sizer so selecting (bolder text) doesn't reflow the wrap. */
+function InterestChip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.chip, selected && styles.chipOn]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+    >
+      <View>
+        <Text
+          style={[styles.chipText, styles.chipTextSizer]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {label}
+        </Text>
+        <Text style={[styles.chipText, selected && styles.chipTextOn, styles.chipTextOverlay]}>
+          {label}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onContinue }: Props) {
   const [score, setScore] = useState(initialScore);
   const [members, setMembers] = useState<ChildDraft[]>(() =>
@@ -184,33 +217,27 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
               <View key={index} style={styles.kidBlock}>
                 <Text style={styles.kidName}>{kidLabel}</Text>
                 <View style={styles.chips}>
-                  {CHILD_INTEREST_OPTIONS.map(({ id, label }) => {
-                    const on = selected.includes(id);
-                    return (
-                      <TouchableOpacity
-                        key={id}
-                        style={[styles.chip, on && styles.chipOn]}
-                        onPress={() => toggleInterest(index, id)}
-                      >
-                        <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {customs.map((custom) => (
-                    <TouchableOpacity
-                      key={custom}
-                      style={[styles.chip, styles.chipOn]}
-                      onPress={() => removeCustom(index, custom)}
-                    >
-                      <Text style={[styles.chipText, styles.chipTextOn]}>{custom}</Text>
-                    </TouchableOpacity>
+                  {CHILD_INTEREST_OPTIONS.map(({ id, label }) => (
+                    <InterestChip
+                      key={id}
+                      label={label}
+                      selected={selected.includes(id)}
+                      onPress={() => toggleInterest(index, id)}
+                    />
                   ))}
-                  <TouchableOpacity
-                    style={[styles.chip, showOther && styles.chipOn]}
+                  {customs.map((custom) => (
+                    <InterestChip
+                      key={custom}
+                      label={custom}
+                      selected
+                      onPress={() => removeCustom(index, custom)}
+                    />
+                  ))}
+                  <InterestChip
+                    label="Other"
+                    selected={showOther}
                     onPress={() => setOtherOpen((prev) => ({ ...prev, [index]: !prev[index] }))}
-                  >
-                    <Text style={[styles.chipText, showOther && styles.chipTextOn]}>Other</Text>
-                  </TouchableOpacity>
+                  />
                 </View>
                 {showOther ? (
                   <TextInput
@@ -319,6 +346,14 @@ const styles = StyleSheet.create({
   chipTextOn: {
     ...typeface('regular'),
     color: semanticColors.brand,
+  },
+  chipTextSizer: {
+    ...typeface('regular'),
+    opacity: 0,
+  },
+  chipTextOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    textAlign: 'center',
   },
   otherInput: {
     alignSelf: 'stretch',
