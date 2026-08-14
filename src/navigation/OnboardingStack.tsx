@@ -322,7 +322,9 @@ export function OnboardingStack({
         return;
       }
       await usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 });
-      await refresh();
+      // Silent: a full refresh flips sessionLoading and remounts Main (boot
+      // spinner), which consumes pending MyBox nav then lands on StorefrontHome.
+      await refresh({ silent: true });
       clearDevPreview();
       onComplete?.();
     } catch {

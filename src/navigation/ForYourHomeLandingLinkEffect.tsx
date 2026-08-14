@@ -1,37 +1,33 @@
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
+import { useEntryContextStore, readUtmFromWindow } from '../stores/entryContextStore';
 import { navigationRef } from './navigationRef';
-import { readHomePathFromWindow } from './homeLink';
+import { readForYourHomeLandingFromWindow } from './forYourHomeLandingLink';
 
-function navigateToAppHome(): void {
+function navigateToForYourHomeLanding(): void {
   if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: 'Home' } });
+  navigationRef.navigate('Main', { screen: 'ForYourHomeLanding' });
 }
 
-/**
- * Web: `/home` deep link → MainTabs Home (family box homepage).
- * Guests who land cold are put into explore so MainGate can mount.
- */
-export function HomeLinkEffect() {
+/** Web: `/for-your-home` → ForYourHomeLanding. */
+export function ForYourHomeLandingLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const authLoading = useAuthStore((s) => s.isLoading);
   const exploreStarted = useGuestSessionStore((s) => s.exploreStarted);
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
-  const pending = useRef(readHomePathFromWindow());
+  const capture = useEntryContextStore((s) => s.capture);
+  const pending = useRef(readForYourHomeLandingFromWindow());
 
   useEffect(() => {
-    if (!pending.current) return;
-    // Wait for redirect / onAuthStateChanged so a Google return to /home is not
-    // forced into guest explore before the session is applied.
-    if (authLoading) return;
+    const target = pending.current;
+    if (!target) return;
 
-    // Same race as StorefrontLinkEffect: don't re-apply /home after reveal.
-    if (guestBoxRevealComplete) {
-      pending.current = null;
-      return;
-    }
+    capture({
+      audienceId: target.audience.id,
+      sourcePath: target.audience.path,
+      utm: readUtmFromWindow(),
+    });
 
     if (
       !isAuthenticated &&
@@ -44,12 +40,19 @@ export function HomeLinkEffect() {
 
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
+      if (useGuestSessionStore.getState().buildBoxPath) return;
       clearInterval(id);
       pending.current = null;
-      navigateToAppHome();
+      navigateToForYourHomeLanding();
     }, 50);
     return () => clearInterval(id);
-  }, [authLoading, isAuthenticated, exploreStarted, guestOnboardingComplete, guestBoxRevealComplete]);
+  }, [
+    isAuthenticated,
+    exploreStarted,
+    guestOnboardingComplete,
+    guestBoxRevealComplete,
+    capture,
+  ]);
 
   return null;
 }

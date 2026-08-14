@@ -26,6 +26,12 @@ import { DevPreviewEffect } from './DevPreviewEffect';
 import { readDevPreviewFromWindow } from './devPreview';
 import { WebBrowserHistoryBridge } from './WebBrowserHistoryBridge';
 import { GiftClaimLinkEffect } from './GiftClaimLinkEffect';
+import { GiftLandingLinkEffect } from './GiftLandingLinkEffect';
+import { CulturalLandingLinkEffect } from './CulturalLandingLinkEffect';
+import { InterfaithLandingLinkEffect } from './InterfaithLandingLinkEffect';
+import { ConvenienceLandingLinkEffect } from './ConvenienceLandingLinkEffect';
+import { LastMinuteLandingLinkEffect } from './LastMinuteLandingLinkEffect';
+import { ForYourHomeLandingLinkEffect } from './ForYourHomeLandingLinkEffect';
 import { ProductLinkEffect } from './ProductLinkEffect';
 import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
@@ -141,7 +147,11 @@ function RootRoutes() {
                   isGuest={!isAuthenticated}
                   revealOnly={isAuthenticated && needsBoxReveal && !needsOnboarding}
                   initialStep={useDevPreviewStore.getState().onboardingInitialStep ?? undefined}
-                  onComplete={refresh}
+                  onComplete={() => {
+                    // Silent so finishing reveal/explore doesn't remount Main
+                    // via the boot spinner and drop the pending MyBox handoff.
+                    void refresh({ silent: true });
+                  }}
                 />
               </ThemeProvider>
             )}
@@ -213,6 +223,12 @@ export function RootNavigator() {
         >
           <WebBrowserHistoryBridge />
           <GiftClaimLinkEffect />
+          <GiftLandingLinkEffect />
+          <CulturalLandingLinkEffect />
+          <InterfaithLandingLinkEffect />
+          <ConvenienceLandingLinkEffect />
+          <LastMinuteLandingLinkEffect />
+          <ForYourHomeLandingLinkEffect />
           <ProductLinkEffect />
           <StorefrontLinkEffect />
           <HomeLinkEffect />

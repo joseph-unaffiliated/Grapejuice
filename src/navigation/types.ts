@@ -1,5 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
-import type { GiftChildDraft, GiftGiveFormValues } from '../screens/gift/giftGiveTypes';
+import type { GiftChildDraft, GiftGiveFormValues, GiftPath } from '../screens/gift/giftGiveTypes';
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -52,7 +52,19 @@ export type MainStackParamList = {
   Reflection: undefined;
   AboutHanukkah: undefined;
   History: undefined;
-  GiftGive: undefined;
+  /** Campaign landing — modular gift entry (`/gift`). */
+  GiftLanding: { preferredGiftPath?: GiftPath } | undefined;
+  /** Campaign landing — culturally Jewish / “your way” (`/your-way`). */
+  CulturalLanding: undefined;
+  /** Campaign landing — interfaith / two-tradition (`/interfaith`). */
+  InterfaithLanding: undefined;
+  /** Campaign landing — convenience / easy delivery (`/convenience`). */
+  ConvenienceLanding: undefined;
+  /** Campaign landing — last-minute scramble (`/last-minute`). */
+  LastMinuteLanding: undefined;
+  /** Campaign landing — aesthetic / for your home (`/for-your-home`). */
+  ForYourHomeLanding: undefined;
+  GiftGive: { initialGiftPath?: GiftPath } | undefined;
   GiftGiverCustomize: {
     form: GiftGiveFormValues;
     childDrafts: GiftChildDraft[];
@@ -68,6 +80,10 @@ export type MainStackParamList = {
   AdminCatalog: undefined;
   /** Ops: create or edit a catalog item. Omit itemId to create. */
   AdminCatalogItem: { itemId?: string };
+  /** Ops: list marketing landings (admin allowlist). */
+  AdminLandings: undefined;
+  /** Ops: edit one marketing landing's sections / copy. */
+  AdminLandingEditor: { audienceId: string };
   /** Dev: large grape mark + wobble knobs (`?preview=grape-wobble`). */
   GrapeWobblePreview: undefined;
 };

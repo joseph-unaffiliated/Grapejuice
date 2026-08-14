@@ -154,6 +154,11 @@
       #root .gj-storefront-scroll > div,
       #root [data-testid="storefront-vertical-scroll"] > div {
         overflow: visible !important;
+        /* Short pages: grow to the scrollport so footer marginTop:auto can pin bottom */
+        display: flex !important;
+        flex-direction: column !important;
+        flex-grow: 1 !important;
+        min-height: 100% !important;
       }
       #root .gj-storefront-h-scroll {
         overflow-x: auto !important;

@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { MainStackParamList } from './types';
 import { WebDesktopFrame } from '../components/layout/WebDesktopFrame';
@@ -24,22 +24,58 @@ import { GiftGiveScreen } from '../screens/gift/GiftGiveScreen';
 import { GiftGiverCustomizeScreen } from '../screens/gift/GiftGiverCustomizeScreen';
 import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
 import { GiftRecipientRevealScreen } from '../screens/gift/GiftRecipientRevealScreen';
+import { GiftLandingScreen } from '../screens/landing/GiftLandingScreen';
+import { CulturalLandingScreen } from '../screens/landing/CulturalLandingScreen';
+import { InterfaithLandingScreen } from '../screens/landing/InterfaithLandingScreen';
+import { ConvenienceLandingScreen } from '../screens/landing/ConvenienceLandingScreen';
+import { LastMinuteLandingScreen } from '../screens/landing/LastMinuteLandingScreen';
+import { ForYourHomeLandingScreen } from '../screens/landing/ForYourHomeLandingScreen';
 import { GuideScreen } from '../screens/main/GuideScreen';
 import { KidGuideScreen } from '../screens/kids/KidGuideScreen';
 import { ProfilesScreen } from '../screens/profiles/ProfilesScreen';
 import { GrapeWobblePreviewScreen } from '../screens/dev/GrapeWobblePreviewScreen';
 import { AdminCatalogScreen } from '../screens/admin/AdminCatalogScreen';
 import { AdminCatalogItemScreen } from '../screens/admin/AdminCatalogItemScreen';
+import { AdminLandingsScreen } from '../screens/admin/AdminLandingsScreen';
+import { AdminLandingEditorScreen } from '../screens/admin/AdminLandingEditorScreen';
 import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFeatures';
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
-import { consumePendingMainNav } from './pendingMainNav';
+import { consumePendingMainNav, peekPendingMainNav } from './pendingMainNav';
 import { navigationRef } from './navigationRef';
+import { AdminControlPanel } from '../components/storefront/AdminControlPanel';
 
 const Stack = createStackNavigator<MainStackParamList>();
 
-function GuestBoxRevealHandler() {
+const DEFAULT_MAIN_ROUTE: keyof MainStackParamList =
+  Platform.OS === 'web' ? 'StorefrontHome' : 'MainTabs';
+
+/**
+ * Prefer onboarding handoff (My Box / leave target) over the web storefront
+ * default. Peek only — consume after the stack has mounted on that route.
+ */
+function readHandoffInitialRoute(): keyof MainStackParamList {
+  const pending = peekPendingMainNav();
+  if (pending?.screen && !pending.tab) return pending.screen;
+  if (useGuestSessionStore.getState().openMyBoxAfterReveal) return 'MyBox';
+  return DEFAULT_MAIN_ROUTE;
+}
+
+function resetToScreen(
+  navigation: StackNavigationProp<MainStackParamList>,
+  screen: keyof MainStackParamList,
+  params?: object
+) {
+  navigation.dispatch(
+    CommonActions.reset({
+      index: 0,
+      routes: [params ? { name: screen, params } : { name: screen }],
+    })
+  );
+}
+
+function GuestBoxRevealHandler({ alreadyOnMyBox }: { alreadyOnMyBox: boolean }) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const openMyBoxAfterReveal = useGuestSessionStore((s) => s.openMyBoxAfterReveal);
   const consumeOpenMyBoxAfterReveal = useGuestSessionStore((s) => s.consumeOpenMyBoxAfterReveal);
@@ -47,14 +83,15 @@ function GuestBoxRevealHandler() {
   useEffect(() => {
     if (!openMyBoxAfterReveal) return;
     consumeOpenMyBoxAfterReveal();
-    navigation.navigate('MyBox');
-  }, [openMyBoxAfterReveal, consumeOpenMyBoxAfterReveal, navigation]);
+    if (alreadyOnMyBox) return;
+    resetToScreen(navigation, 'MyBox');
+  }, [openMyBoxAfterReveal, consumeOpenMyBoxAfterReveal, navigation, alreadyOnMyBox]);
 
   return null;
 }
 
 /** Applies MainStack destinations queued while the root gate was Onboarding. */
-function PendingMainNavHandler() {
+function PendingMainNavHandler({ honoredInitial }: { honoredInitial: keyof MainStackParamList }) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
 
   useEffect(() => {
@@ -65,12 +102,18 @@ function PendingMainNavHandler() {
         if (attempts > 40) clearInterval(id);
         return;
       }
-      const nav = consumePendingMainNav();
+      const nav = peekPendingMainNav();
       if (!nav) {
-        // Nothing queued — stop after a short window so late queues still apply.
-        if (attempts > 20) clearInterval(id);
+        if (attempts > 40) clearInterval(id);
         return;
       }
+      // Initial route already matched the handoff — just clear the queue.
+      if (!nav.tab && nav.screen === honoredInitial) {
+        consumePendingMainNav();
+        clearInterval(id);
+        return;
+      }
+      consumePendingMainNav();
       clearInterval(id);
       if (nav.tab) {
         navigation.navigate('MainTabs', {
@@ -79,10 +122,11 @@ function PendingMainNavHandler() {
         });
         return;
       }
-      navigation.navigate(nav.screen as never, nav.params as never);
+      // Reset so we don't leave StorefrontHome underneath after onboarding.
+      resetToScreen(navigation, nav.screen, nav.params as object | undefined);
     }, 50);
     return () => clearInterval(id);
-  }, [navigation]);
+  }, [navigation, honoredInitial]);
 
   return null;
 }
@@ -141,16 +185,19 @@ function AuthReturnHandler() {
 }
 
 export function MainStack() {
-  // Web defaults to the storefront. Deep links (product, category, etc.) are
-  // applied by link effects after mount — do not land on legacy MainTabs/Home.
-  const initialRouteName =
-    Platform.OS === 'web' ? ('StorefrontHome' as const) : ('MainTabs' as const);
+  // Capture once per Main mount (gate switch). Web defaults to storefront unless
+  // onboarding queued a handoff — e.g. build splash → My Box.
+  const initialRouteName = useRef(readHandoffInitialRoute()).current;
+  const pendingAtMount = peekPendingMainNav();
+  const initialParams =
+    pendingAtMount?.screen === initialRouteName ? pendingAtMount.params : undefined;
 
   return (
     <WebDesktopFrame>
-      <GuestBoxRevealHandler />
-      <PendingMainNavHandler />
+      <GuestBoxRevealHandler alreadyOnMyBox={initialRouteName === 'MyBox'} />
+      <PendingMainNavHandler honoredInitial={initialRouteName} />
       <AuthReturnHandler />
+      <AdminControlPanel />
       <Stack.Navigator
         initialRouteName={initialRouteName}
         screenOptions={{
@@ -188,6 +235,11 @@ export function MainStack() {
           name="StorefrontCategory"
           component={StorefrontCategoryScreen}
           options={{ title: 'Store' }}
+          initialParams={
+            initialRouteName === 'StorefrontCategory'
+              ? (initialParams as { category: string; q?: string } | undefined)
+              : undefined
+          }
         />
         <Stack.Screen
           name="StorefrontOurStory"
@@ -226,6 +278,36 @@ export function MainStack() {
           options={{ title: 'About Hanukkah' }}
         />
         <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
+        <Stack.Screen
+          name="GiftLanding"
+          component={GiftLandingScreen}
+          options={{ title: 'Give a gift' }}
+        />
+        <Stack.Screen
+          name="CulturalLanding"
+          component={CulturalLandingScreen}
+          options={{ title: 'Jewish, your way' }}
+        />
+        <Stack.Screen
+          name="InterfaithLanding"
+          component={InterfaithLandingScreen}
+          options={{ title: 'Interfaith homes' }}
+        />
+        <Stack.Screen
+          name="ConvenienceLanding"
+          component={ConvenienceLandingScreen}
+          options={{ title: 'Easy delivery' }}
+        />
+        <Stack.Screen
+          name="LastMinuteLanding"
+          component={LastMinuteLandingScreen}
+          options={{ title: 'Last-minute ready' }}
+        />
+        <Stack.Screen
+          name="ForYourHomeLanding"
+          component={ForYourHomeLandingScreen}
+          options={{ title: 'For your home' }}
+        />
         <Stack.Screen name="GiftGive" component={GiftGiveScreen} options={{ title: 'Give a gift' }} />
         <Stack.Screen
           name="GiftGiverCustomize"
@@ -247,6 +329,16 @@ export function MainStack() {
           name="AdminCatalogItem"
           component={AdminCatalogItemScreen}
           options={{ title: 'Edit catalog item' }}
+        />
+        <Stack.Screen
+          name="AdminLandings"
+          component={AdminLandingsScreen}
+          options={{ title: 'Marketing landings' }}
+        />
+        <Stack.Screen
+          name="AdminLandingEditor"
+          component={AdminLandingEditorScreen}
+          options={{ title: 'Edit landing' }}
         />
         {__DEV__ ? (
           <Stack.Screen

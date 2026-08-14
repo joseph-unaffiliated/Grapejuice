@@ -54,6 +54,18 @@ function inferFocusedFromRoute(
       return { type: 'content', id: 'our-story', label: 'Our Story' };
     case 'StorefrontPassover':
       return { type: 'content', id: 'passover-2027', label: 'Passover 2027' };
+    case 'GiftLanding':
+      return { type: 'content', id: 'landing-gift', label: 'Gift landing' };
+    case 'CulturalLanding':
+      return { type: 'content', id: 'landing-cultural', label: 'Jewish, your way' };
+    case 'InterfaithLanding':
+      return { type: 'content', id: 'landing-interfaith', label: 'Interfaith landing' };
+    case 'ConvenienceLanding':
+      return { type: 'content', id: 'landing-convenience', label: 'Easy delivery' };
+    case 'LastMinuteLanding':
+      return { type: 'content', id: 'landing-last-minute', label: 'Last-minute ready' };
+    case 'ForYourHomeLanding':
+      return { type: 'content', id: 'landing-for-your-home', label: 'For your home' };
     case 'History':
       return { type: 'content', id: 'history', label: 'History' };
     case 'Checkout':

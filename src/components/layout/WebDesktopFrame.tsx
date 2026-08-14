@@ -26,7 +26,11 @@ export function WebDesktopFrame({ children }: Props) {
 }
 
 const styles = StyleSheet.create({
-  nativeRoot: { flex: 1, backgroundColor: semanticColors.bgPrimary },
+  nativeRoot: {
+    flex: 1,
+    position: 'relative',
+    backgroundColor: semanticColors.bgPrimary,
+  },
   desktopRootFull: {
     flex: 1,
     width: '100%',
@@ -37,6 +41,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     width: '100%',
+    position: 'relative',
     backgroundColor: semanticColors.bgPrimary,
     overflow: 'visible' as const,
   },

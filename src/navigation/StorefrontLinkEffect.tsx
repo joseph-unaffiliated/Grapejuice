@@ -39,6 +39,7 @@ function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category
 export function StorefrontLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const exploreStarted = useGuestSessionStore((s) => s.exploreStarted);
+  const buildBoxPath = useGuestSessionStore((s) => s.buildBoxPath);
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   /** Capture once — history sync must not erase the target mid-boot. */
@@ -52,6 +53,19 @@ export function StorefrontLinkEffect() {
 
     const target = pending.current;
     if (!target) return;
+
+    // After box reveal, Main is handed off to My Box (or already has a box).
+    // Do not re-apply the cold /store deep link when reveal flags flip — that
+    // was racing the pending MyBox navigation and dumping users on marketplace home.
+    if (guestBoxRevealComplete) {
+      pending.current = null;
+      return;
+    }
+
+    // User is in the box-builder — don't yank the root gate to Main/storefront.
+    if (buildBoxPath) {
+      return;
+    }
 
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.replace(/\/$/, '') || '/';
@@ -71,11 +85,21 @@ export function StorefrontLinkEffect() {
 
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
+      // Re-check: build may have started while we waited for nav ready.
+      if (useGuestSessionStore.getState().buildBoxPath) return;
       clearInterval(id);
+      // Consume so later explore/onboarding flag changes don't re-navigate.
+      pending.current = null;
       navigateToStore(target);
     }, 50);
     return () => clearInterval(id);
-  }, [isAuthenticated, exploreStarted, guestOnboardingComplete, guestBoxRevealComplete]);
+  }, [
+    isAuthenticated,
+    exploreStarted,
+    buildBoxPath,
+    guestOnboardingComplete,
+    guestBoxRevealComplete,
+  ]);
 
   return null;
 }

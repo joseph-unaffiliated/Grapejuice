@@ -14,6 +14,11 @@ export function queuePendingMainNav(nav: PendingMainNav): void {
   pending = nav;
 }
 
+/** Read without clearing — used to choose MainStack initialRouteName. */
+export function peekPendingMainNav(): PendingMainNav | null {
+  return pending;
+}
+
 export function consumePendingMainNav(): PendingMainNav | null {
   const next = pending;
   pending = null;
