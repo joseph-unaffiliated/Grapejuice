@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
-import { navigateMainStack } from '../../navigation/mainStackNavigation';
+import { exitVisitorPlaythrough } from '../../services/admin/visitorPlaythrough';
 import {
   semanticColors,
   spacing,
@@ -10,35 +10,47 @@ import {
 } from '../../constants/theme';
 
 /**
- * Sticky banner while admin mock-flow is active — Exit restores prior chrome.
+ * Sticky banner while visitor playthrough is active — Exit signs out the tester
+ * and prefills admin email on sign-in.
  */
 export function MockFlowBanner() {
   const active = useMockFlowStore((s) => s.active);
   const landingLabel = useMockFlowStore((s) => s.landingLabel);
   const personaLabel = useMockFlowStore((s) => s.personaLabel);
-  const exit = useMockFlowStore((s) => s.exit);
+  const [exiting, setExiting] = useState(false);
 
   if (!active) return null;
 
-  const onExit = () => {
-    exit();
-    navigateMainStack('StorefrontHome');
+  const onExit = async () => {
+    if (exiting) return;
+    setExiting(true);
+    try {
+      await exitVisitorPlaythrough();
+    } finally {
+      setExiting(false);
+    }
   };
 
   return (
     <View style={styles.root} accessibilityRole="summary">
       <Text style={styles.copy} numberOfLines={2}>
-        Mock flow: {landingLabel ?? 'Landing'}
+        Visitor playthrough: {landingLabel ?? 'Landing'}
         {personaLabel ? ` · ${personaLabel}` : ''}
       </Text>
       <TouchableOpacity
-        onPress={onExit}
+        onPress={() => void onExit()}
+        disabled={exiting}
         accessibilityRole="button"
-        accessibilityLabel="Exit mock flow"
+        accessibilityLabel="Exit visitor playthrough"
+        accessibilityState={{ disabled: exiting }}
         style={styles.exit}
         hitSlop={8}
       >
-        <Text style={styles.exitText}>Exit</Text>
+        {exiting ? (
+          <ActivityIndicator size="small" color={semanticColors.brand} />
+        ) : (
+          <Text style={styles.exitText}>Exit</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -53,6 +65,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     backgroundColor: semanticColors.logoDark,
+    zIndex: 2001,
   },
   copy: {
     ...typeface('regular'),
@@ -61,6 +74,10 @@ const styles = StyleSheet.create({
     color: semanticColors.brand,
   },
   exit: {
+    minWidth: 44,
+    minHeight: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderWidth: StyleSheet.hairlineWidth,

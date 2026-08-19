@@ -1,8 +1,5 @@
 import { create } from 'zustand';
-import {
-  useUserStatePreviewStore,
-  type UserStatePreview,
-} from './userStatePreviewStore';
+import { useUserStatePreviewStore } from './userStatePreviewStore';
 import { useEntryContextStore, type EntryUtm } from './entryContextStore';
 
 export type MockFlowPersonaId = 'new_visitor' | 'signed_in_no_box' | 'gift_giver';
@@ -11,8 +8,6 @@ export type MockFlowPersona = {
   id: MockFlowPersonaId;
   label: string;
   description: string;
-  /** User-state overlay applied while mock flow is active. */
-  preview: UserStatePreview;
 };
 
 export const MOCK_FLOW_PERSONAS: MockFlowPersona[] = [
@@ -20,25 +15,22 @@ export const MOCK_FLOW_PERSONAS: MockFlowPersona[] = [
     id: 'new_visitor',
     label: 'New visitor',
     description: 'Signed out, no box — typical ad click',
-    preview: 'signed_out',
   },
   {
     id: 'signed_in_no_box',
     label: 'Signed in · no box',
     description: 'Account chrome, empty box state',
-    preview: 'signed_in_no_box',
   },
   {
     id: 'gift_giver',
     label: 'Gift giver',
     description: 'Signed out visitor on a gift path',
-    preview: 'signed_out',
   },
 ];
 
 type RestoreSnapshot = {
-  preview: UserStatePreview | null;
-  previewNowIso: string | null;
+  /** Admin email to prefill on Exit sign-in. */
+  adminEmail: string | null;
   audienceId: string | null;
   sourcePath: string | null;
   utm: EntryUtm | null;
@@ -52,16 +44,17 @@ type MockFlowState = {
   personaLabel: string | null;
   restore: RestoreSnapshot | null;
   /**
-   * Enter mock flow: snapshot current overlays, apply persona + entry, mark active.
-   * Caller navigates to the landing screen.
+   * Enter visitor playthrough: snapshot admin email + entry, mark active.
+   * Does not apply user-state overlays — caller signs out so routing is real guest.
    */
   enter: (input: {
     audienceId: string;
     landingLabel: string;
     sourcePath: string;
+    adminEmail?: string | null;
     personaId?: MockFlowPersonaId;
   }) => void;
-  /** Restore prior overlays and clear mock flow. */
+  /** Clear mock flow + overlays. Caller handles logout / guest reset. */
   exit: () => void;
 };
 
@@ -78,9 +71,21 @@ function personaForLanding(
   return MOCK_FLOW_PERSONAS[0];
 }
 
+/** `brendan@x.com` → `brendan+qa@x.com` for inbox-sharing tester signups. */
+export function suggestPlusAlias(email: string | null | undefined): string | null {
+  if (!email || !email.includes('@')) return null;
+  const at = email.indexOf('@');
+  const local = email.slice(0, at).trim();
+  const domain = email.slice(at + 1).trim();
+  if (!local || !domain) return null;
+  const base = local.split('+')[0];
+  if (!base) return null;
+  return `${base}+qa@${domain}`;
+}
+
 /**
- * Admin “Test landings” mock entry — overrides chrome/persona temporarily so you
- * can walk an ad visitor flow, then Exit restores your real account overlays.
+ * Admin “Test landings” visitor playthrough. Real guest session (admin is signed
+ * out). Exit signs the tester out and prefills admin email on sign-in.
  */
 export const useMockFlowStore = create<MockFlowState>((set, get) => ({
   active: false,
@@ -89,22 +94,25 @@ export const useMockFlowStore = create<MockFlowState>((set, get) => ({
   personaId: null,
   personaLabel: null,
   restore: null,
-  enter: ({ audienceId, landingLabel, sourcePath, personaId }) => {
+  enter: ({ audienceId, landingLabel, sourcePath, adminEmail, personaId }) => {
     const previewStore = useUserStatePreviewStore.getState();
     const entryStore = useEntryContextStore.getState();
     const persona = personaForLanding(audienceId, personaId);
 
-    const restore: RestoreSnapshot = get().active && get().restore
-      ? get().restore!
-      : {
-          preview: previewStore.preview,
-          previewNowIso: previewStore.previewNowIso,
-          audienceId: entryStore.audienceId,
-          sourcePath: entryStore.sourcePath,
-          utm: entryStore.utm,
-        };
+    const restore: RestoreSnapshot =
+      get().active && get().restore
+        ? {
+            ...get().restore!,
+            adminEmail: adminEmail ?? get().restore!.adminEmail,
+          }
+        : {
+            adminEmail: adminEmail ?? null,
+            audienceId: entryStore.audienceId,
+            sourcePath: entryStore.sourcePath,
+            utm: entryStore.utm,
+          };
 
-    previewStore.setPreview(persona.preview);
+    previewStore.clearPreview();
     entryStore.capture({
       audienceId,
       sourcePath,
@@ -125,26 +133,10 @@ export const useMockFlowStore = create<MockFlowState>((set, get) => ({
     });
   },
   exit: () => {
-    const { restore } = get();
     const previewStore = useUserStatePreviewStore.getState();
     const entryStore = useEntryContextStore.getState();
-
-    if (restore) {
-      previewStore.setPreview(restore.preview);
-      previewStore.setPreviewNowIso(restore.previewNowIso);
-      if (restore.audienceId) {
-        entryStore.capture({
-          audienceId: restore.audienceId,
-          sourcePath: restore.sourcePath,
-          utm: restore.utm,
-        });
-      } else {
-        entryStore.clear();
-      }
-    } else {
-      previewStore.clearPreview();
-      entryStore.clear();
-    }
+    previewStore.clearPreview();
+    entryStore.clear();
 
     set({
       active: false,

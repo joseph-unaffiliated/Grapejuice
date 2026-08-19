@@ -114,7 +114,7 @@ export function MyBoxScreen() {
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
   const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
-  const { lineItems, slotVotes, sealedSectionIds, children, loading: draftLoading, persist, persistSlotVotes } =
+  const { lineItems, slotVotes, sealedSectionIds, wrapSelectedItemIds, children, loading: draftLoading, persist, persistSlotVotes, persistWrapSelection } =
     useBoxDraft();
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
@@ -136,7 +136,10 @@ export function MyBoxScreen() {
     [children.length]
   );
 
-  const [wrapSelectedIds, setWrapSelectedIds] = useState<Set<string>>(() => new Set());
+  const wrapSelectedIds = useMemo(
+    () => new Set(wrapSelectedItemIds),
+    [wrapSelectedItemIds]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -388,12 +391,10 @@ export function MyBoxScreen() {
               childrenProfiles={children}
               selectedItemIds={wrapSelectedIds}
               onToggleWrapSelection={(itemId) => {
-                setWrapSelectedIds((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(itemId)) next.delete(itemId);
-                  else next.add(itemId);
-                  return next;
-                });
+                const next = new Set(wrapSelectedIds);
+                if (next.has(itemId)) next.delete(itemId);
+                else next.add(itemId);
+                void persistWrapSelection([...next]);
               }}
             />
           ) : null

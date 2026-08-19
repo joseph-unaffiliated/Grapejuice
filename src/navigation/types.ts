@@ -4,7 +4,7 @@ import type { GiftChildDraft, GiftGiveFormValues, GiftPath } from '../screens/gi
 export type AuthStackParamList = {
   Welcome: undefined;
   SignIn: undefined;
-  SignInEmail: undefined;
+  SignInEmail: { email?: string } | undefined;
   SignUp: undefined;
   SignUpEmail: undefined;
 };

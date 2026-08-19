@@ -31,11 +31,14 @@ export function useBoxDraft() {
   const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
+  const guestWrapSelectedItemIds = useGuestSessionStore((s) => s.wrapSelectedItemIds);
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
+  const setGuestWrapSelectedItemIds = useGuestSessionStore((s) => s.setWrapSelectedItemIds);
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
   const [slotVotes, setSlotVotes] = useState<SlotVotes>(emptySlotVotes());
   const [sealedSectionIds, setSealedSectionIds] = useState<BoxDraft['sealedSectionIds']>();
+  const [wrapSelectedItemIds, setWrapSelectedItemIds] = useState<string[]>([]);
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>('moderate');
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,7 @@ export function useBoxDraft() {
       setFamiliarity(guestFamiliarity);
       setSlotVotes(emptySlotVotes());
       setSealedSectionIds(undefined);
+      setWrapSelectedItemIds(guestWrapSelectedItemIds ?? []);
       // Guests without a started/revealed box should not carry a default box draft —
       // marketplace shopping uses marketplaceCartStore instead.
       const guestHasBox = guestOnboardingComplete || guestBoxRevealComplete;
@@ -75,6 +79,7 @@ export function useBoxDraft() {
     setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
     setSlotVotes(draft?.slotVotes ?? emptySlotVotes());
     setSealedSectionIds(draft?.sealedSectionIds);
+    setWrapSelectedItemIds(draft?.wrapSelectedItemIds ?? []);
     if (draft?.lineItems?.length) {
       setLineItems(draft.lineItems);
     } else if (profile?.onboardingComplete && profile?.boxRevealComplete && catalog.length) {
@@ -98,6 +103,7 @@ export function useBoxDraft() {
     guestLineItems,
     guestOnboardingComplete,
     guestBoxRevealComplete,
+    guestWrapSelectedItemIds,
     setGuestLineItems,
     sessionLoading,
   ]);
@@ -117,9 +123,10 @@ export function useBoxDraft() {
       await boxDraftService.save(household.id, user.uid, next, {
         familiarityLevel: profile?.familiarityLevel ?? familiarity,
         slotVotes,
+        wrapSelectedItemIds,
       });
     },
-    [isAuthenticated, household?.id, user?.uid, profile?.familiarityLevel, familiarity, slotVotes, setGuestLineItems]
+    [isAuthenticated, household?.id, user?.uid, profile?.familiarityLevel, familiarity, slotVotes, wrapSelectedItemIds, setGuestLineItems]
   );
 
   const persistSlotVotes = useCallback(
@@ -131,16 +138,31 @@ export function useBoxDraft() {
     [isAuthenticated, household?.id, user?.uid]
   );
 
+  const persistWrapSelection = useCallback(
+    async (next: string[]) => {
+      setWrapSelectedItemIds(next);
+      if (!isAuthenticated) {
+        setGuestWrapSelectedItemIds(next);
+        return;
+      }
+      if (!household?.id || !user?.uid) return;
+      await boxDraftService.saveWrapSelection(household.id, user.uid, next);
+    },
+    [isAuthenticated, household?.id, user?.uid, setGuestWrapSelectedItemIds]
+  );
+
   return {
     lineItems,
     slotVotes,
     sealedSectionIds,
+    wrapSelectedItemIds,
     children,
     familiarity,
     loading: loading || (isAuthenticated && sessionLoading),
     isGuest: !isAuthenticated,
     persist,
     persistSlotVotes,
+    persistWrapSelection,
     refresh: load,
   };
 }

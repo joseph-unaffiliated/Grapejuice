@@ -18,12 +18,15 @@ type Props = {
 export function AuthStack({ checkoutAuth = false }: Props) {
   const authScreen = useAuthFlowStore((s) => s.authScreen);
   const authEntry = useAuthFlowStore((s) => s.authEntry);
+  const restoreSignInEmail = useAuthFlowStore((s) => s.restoreSignInEmail);
   const previewRoute = useDevPreviewStore((s) => s.authInitialRoute);
   const initialRoute =
     previewRoute ??
-    (checkoutAuth
-      ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
-      : 'Welcome');
+    (restoreSignInEmail
+      ? 'SignInEmail'
+      : checkoutAuth
+        ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
+        : 'Welcome');
 
   return (
     <Stack.Navigator
@@ -42,6 +45,7 @@ export function AuthStack({ checkoutAuth = false }: Props) {
         name="SignInEmail"
         component={SignInEmailScreen}
         options={{ title: 'Sign in' }}
+        initialParams={restoreSignInEmail ? { email: restoreSignInEmail } : undefined}
       />
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Sign up' }} />
       <Stack.Screen

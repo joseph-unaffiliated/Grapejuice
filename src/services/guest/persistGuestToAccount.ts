@@ -1,8 +1,10 @@
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { childrenService } from '../firestore/children';
 import { usersService } from '../firestore/users';
 import { householdsService } from '../firestore/households';
 import { boxDraftService } from '../firestore/boxDraft';
+import { queuePendingMainNav } from '../../navigation/pendingMainNav';
 import type { AuthUser } from '../auth/auth';
 import type { BoxLineItem, ChildProfile } from '../../types/pilot';
 
@@ -33,13 +35,24 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
     return;
   }
 
+  // Snapshot before any writes — a concurrent session load must not stamp
+  // onboardingComplete: false and dump a customized guest back into onboarding.
+  const guestHasBox =
+    guest.boxRevealComplete || guest.onboardingComplete || guest.lineItems.length > 0;
+
   let prof = await usersService.get(user.uid);
   if (!prof) {
     prof = await usersService.upsert(user.uid, {
       email: user.email,
       displayName: user.displayName,
       role: 'parent',
-      onboardingComplete: false,
+      onboardingComplete: guestHasBox,
+      boxRevealComplete: guestHasBox,
+    });
+  } else if (guestHasBox && (!prof.onboardingComplete || !prof.boxRevealComplete)) {
+    prof = await usersService.upsert(user.uid, {
+      onboardingComplete: true,
+      boxRevealComplete: true,
     });
   }
 
@@ -58,29 +71,44 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
     );
   }
 
-  const reachedCheckout = guest.lineItems.length > 0 || guest.boxRevealComplete || guest.onboardingComplete;
-
   if (guest.lineItems.length) {
     const existingDraft = await boxDraftService.get(householdId);
     const shouldSaveGuestDraft =
-      !existingDraft?.lineItems?.length || guest.buildBoxPath || guest.boxRevealComplete;
+      !existingDraft?.lineItems?.length ||
+      guest.buildBoxPath ||
+      guest.boxRevealComplete ||
+      guestHasBox;
 
     if (shouldSaveGuestDraft) {
       const lineItems = remapGuestChildIds(guest.lineItems, savedChildren);
       await boxDraftService.save(householdId, user.uid, lineItems, {
         familiarityLevel: guest.familiarityLevel,
         childInterests: guest.childInterests.length ? guest.childInterests : undefined,
+        wrapSelectedItemIds: guest.wrapSelectedItemIds?.length
+          ? guest.wrapSelectedItemIds
+          : undefined,
       });
     }
   }
 
   await usersService.upsert(user.uid, {
     familiarityLevel: guest.familiarityLevel,
-    onboardingComplete: reachedCheckout ? true : guest.onboardingComplete || prof.onboardingComplete,
-    boxRevealComplete: reachedCheckout ? true : guest.boxRevealComplete || prof.boxRevealComplete,
+    onboardingComplete: guestHasBox ? true : guest.onboardingComplete || prof.onboardingComplete,
+    boxRevealComplete: guestHasBox ? true : guest.boxRevealComplete || prof.boxRevealComplete,
     notificationsOptIn: guest.interests.includes('passover-2027-notify') ? true : undefined,
     hiddenHolidays: guest.hiddenHolidays.length ? guest.hiddenHolidays : undefined,
   });
 
-  useGuestSessionStore.getState().reset();
+  if (guestHasBox) {
+    const pending = useAuthFlowStore.getState().pendingReturn;
+    if (pending !== 'Checkout' && pending !== 'GiftClaim') {
+      queuePendingMainNav({ screen: 'MyBox' });
+      if (pending !== 'MyBox') {
+        useAuthFlowStore.setState({ pendingReturn: 'MyBox' });
+      }
+    }
+  }
+
+  // Caller resets the guest store after committing the signed-in user so
+  // RootNavigator never sees “signed out + empty guest” mid-transition.
 }

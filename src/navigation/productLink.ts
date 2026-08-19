@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { STORE_PATH_PREFIX, storefrontFromState } from './storeLink';
 import { HOME_PATH, mainAppShellFromState } from './homeLink';
+import { BOX_PATH, myBoxFromState } from './boxLink';
 import { GIFT_LANDING_PATH, giftLandingFromState } from './giftLandingLink';
 import {
   dynamicLandingPathFromState,
@@ -100,6 +101,13 @@ export function browserPathForNavigationState(
   const slug = catalogProductSlugFromState(state);
   if (slug) return productPathForSlug(slug);
 
+  if (myBoxFromState(state)) {
+    if (search.includes('preview=')) {
+      return `${BOX_PATH}${search}`;
+    }
+    return BOX_PATH;
+  }
+
   const store = storefrontFromState(state);
   if (store) {
     if (search.includes('preview=')) {
@@ -131,6 +139,9 @@ export function browserPathForNavigationState(
   }
   if (currentPath === HOME_PATH) {
     return currentPath + search;
+  }
+  if (currentPath === BOX_PATH || currentPath === '/my-box') {
+    return BOX_PATH + search;
   }
   if (currentPath === GIFT_LANDING_PATH) {
     return currentPath + search;

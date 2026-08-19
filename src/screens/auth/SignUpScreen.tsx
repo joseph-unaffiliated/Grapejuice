@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
+import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { useThemeMode } from '../../context/ThemeContext';
 import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
@@ -15,6 +16,7 @@ export function SignUpScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
   const { googleSignIn, appleSignIn, isLoading, error, clearError } = useAuthStore();
+  const mockActive = useMockFlowStore((s) => s.active);
 
   return (
     <AuthHeroShell>
@@ -41,6 +43,13 @@ export function SignUpScreen() {
           onPress={() => navigation.navigate('SignUpEmail')}
           style={styles.btn}
         />
+
+        {mockActive ? (
+          <Text style={[styles.playthroughHint, { color: colors.textTertiary }]}>
+            Visitor playthrough: use Sign up with Email and a plus-alias. Continue with Google as
+            yourself lands on the admin household.
+          </Text>
+        ) : null}
 
         {Platform.OS === 'ios' ? (
           <GrapejuiceButton
@@ -110,5 +119,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
     fontSize: typography.md,
+  },
+  playthroughHint: {
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    fontSize: typography.sm,
+    ...typeface('light'),
+    lineHeight: 18,
   },
 });

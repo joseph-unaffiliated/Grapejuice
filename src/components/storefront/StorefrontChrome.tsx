@@ -21,7 +21,6 @@ import {
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip } from './StorefrontPromoStrip';
-import { MockFlowBanner } from './MockFlowBanner';
 import { StorefrontHeader } from './StorefrontHeader';
 import { StorefrontServicesNav, type StorefrontServiceId } from './StorefrontServicesNav';
 import { StorefrontCategoryNav } from './StorefrontCategoryNav';
@@ -104,7 +103,6 @@ function StorefrontChromeBlocks({
 }: ChromeProps) {
   return (
     <View style={styles.chromeInner}>
-      <MockFlowBanner />
       <StorefrontPromoStrip />
       <StorefrontHeader onLogoPress={onLogoPress} />
       {hideServicesNav ? null : (

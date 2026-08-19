@@ -31,8 +31,14 @@ import { LandingLinkEffect } from './LandingLinkEffect';
 import { ProductLinkEffect } from './ProductLinkEffect';
 import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
+import { BoxLinkEffect } from './BoxLinkEffect';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { consumePendingAuthReturn } from '../services/auth/auth';
+import { MockFlowBanner } from '../components/storefront/MockFlowBanner';
+import {
+  currentMainRouteName,
+  resetRootToMainScreen,
+} from './pendingMainNav';
 
 /** Transparent theme so AuthHeroShell dimmed backdrop shows Main underneath. */
 const authOverlayTheme = {
@@ -59,6 +65,37 @@ function humanizeRoute(name: string): string {
     .trim();
 }
 
+function AuthResumeMainEffect() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
+  const clearPending = useAuthFlowStore((s) => s.clearPending);
+
+  useEffect(() => {
+    if (!isAuthenticated || pendingReturn !== 'MyBox') return;
+    let attempts = 0;
+    const id = setInterval(() => {
+      attempts += 1;
+      if (!navigationRef.isReady()) {
+        if (attempts > 80) clearInterval(id);
+        return;
+      }
+      if (currentMainRouteName() === 'MyBox') {
+        clearPending();
+        clearInterval(id);
+        return;
+      }
+      resetRootToMainScreen('MyBox');
+      if (attempts > 80) {
+        clearPending();
+        clearInterval(id);
+      }
+    }, 50);
+    return () => clearInterval(id);
+  }, [isAuthenticated, pendingReturn, clearPending]);
+
+  return null;
+}
+
 function MainGate() {
   const { isChildProfile } = useActiveProfile();
   const themeMode = PILOT_PARENT_ONLY || !isChildProfile ? 'parent' : 'kid';
@@ -83,18 +120,27 @@ function RootRoutes() {
   const previewGate = useDevPreviewStore((s) => s.forceGate);
   const previewActive = readDevPreviewFromWindow() != null;
 
-  const booting = authLoading || !guestHydrated || (isAuthenticated && sessionLoading);
+  const guestHasMainSurface =
+    exploreStarted || guestOnboardingComplete || guestBoxRevealComplete;
+
+  /** Keep Main mounted through overlay sign-in so My Box isn't replaced by /store. */
+  const stayOnMainForAuthReturn =
+    pendingAuth != null && pendingAuth !== 'GiftClaim';
+
+  const booting =
+    !guestHydrated ||
+    ((authLoading || (isAuthenticated && sessionLoading)) && !stayOnMainForAuthReturn);
 
   if (booting) {
     return (
-      <View style={styles.boot} accessibilityLabel="Loading" accessibilityRole="progressbar">
-        <BrandLoadingMark />
+      <View style={styles.rootFill}>
+        <MockFlowBanner />
+        <View style={styles.boot} accessibilityLabel="Loading" accessibilityRole="progressbar">
+          <BrandLoadingMark />
+        </View>
       </View>
     );
   }
-
-  const guestHasMainSurface =
-    exploreStarted || guestOnboardingComplete || guestBoxRevealComplete;
 
   /** Auth started from storefront / My Box / etc. — keep Main mounted and overlay Auth. */
   const authAsOverlay = !isAuthenticated && !!pendingAuth && guestHasMainSurface;
@@ -104,10 +150,14 @@ function RootRoutes() {
   if (previewActive && previewGate) {
     gateKey = previewGate;
   } else if (isAuthenticated) {
-    const checkoutReturn =
-      pendingAuth === 'Checkout' &&
-      (guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete);
-    if (checkoutReturn) {
+    const guestHasBox =
+      guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete;
+    const resumeMainAfterAuth =
+      guestHasBox &&
+      pendingAuth != null &&
+      pendingAuth !== 'GiftClaim';
+    if (resumeMainAfterAuth) {
+      // Guest already revealed/customized a box — don't restart onboarding after sign-in.
       gateKey = 'main';
     } else if (exploreStarted && !needsOnboarding) {
       // Signed-in “explore without building a box” — onboarding done, reveal skipped.
@@ -126,53 +176,56 @@ function RootRoutes() {
 
   return (
     <View style={styles.rootFill}>
-      <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
-        {!isAuthenticated && gateKey === 'auth' ? (
-          <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
-            {() => (
-              <ThemeProvider mode="parent">
-                <AuthStack checkoutAuth={!!pendingAuth} />
-              </ThemeProvider>
-            )}
-          </Stack.Screen>
-        ) : gateKey === 'onboarding' ? (
-          <Stack.Screen name="Onboarding" options={{ title: 'Welcome' }}>
-            {() => (
-              <ThemeProvider mode="parent">
-                <OnboardingStack
-                  isGuest={!isAuthenticated}
-                  revealOnly={isAuthenticated && needsBoxReveal && !needsOnboarding}
-                  initialStep={useDevPreviewStore.getState().onboardingInitialStep ?? undefined}
-                  onComplete={() => {
-                    // Silent so finishing reveal/explore doesn't remount Main
-                    // via the boot spinner and drop the pending MyBox handoff.
-                    void refresh({ silent: true });
-                  }}
-                />
-              </ThemeProvider>
-            )}
-          </Stack.Screen>
-        ) : (
-          <Stack.Screen name="Main" component={MainGate} options={{ title: 'Home' }} />
-        )}
-      </Stack.Navigator>
+      <MockFlowBanner />
+      <View style={styles.gate}>
+        <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
+          {!isAuthenticated && gateKey === 'auth' ? (
+            <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
+              {() => (
+                <ThemeProvider mode="parent">
+                  <AuthStack checkoutAuth={!!pendingAuth} />
+                </ThemeProvider>
+              )}
+            </Stack.Screen>
+          ) : gateKey === 'onboarding' ? (
+            <Stack.Screen name="Onboarding" options={{ title: 'Welcome' }}>
+              {() => (
+                <ThemeProvider mode="parent">
+                  <OnboardingStack
+                    isGuest={!isAuthenticated}
+                    revealOnly={isAuthenticated && needsBoxReveal && !needsOnboarding}
+                    initialStep={useDevPreviewStore.getState().onboardingInitialStep ?? undefined}
+                    onComplete={() => {
+                      // Silent so finishing reveal/explore doesn't remount Main
+                      // via the boot spinner and drop the pending MyBox handoff.
+                      void refresh({ silent: true });
+                    }}
+                  />
+                </ThemeProvider>
+              )}
+            </Stack.Screen>
+          ) : (
+            <Stack.Screen name="Main" component={MainGate} options={{ title: 'Home' }} />
+          )}
+        </Stack.Navigator>
 
-      {authAsOverlay ? (
-        <View style={styles.authOverlay}>
-          {/*
-            Sibling AuthStack under the root NavigationContainer throws
-            "Another navigator is already registered". Independent tree +
-            nested container keeps Main mounted and auth navigable.
-          */}
-          <NavigationIndependentTree>
-            <NavigationContainer theme={authOverlayTheme}>
-              <ThemeProvider mode="parent">
-                <AuthStack checkoutAuth />
-              </ThemeProvider>
-            </NavigationContainer>
-          </NavigationIndependentTree>
-        </View>
-      ) : null}
+        {authAsOverlay ? (
+          <View style={styles.authOverlay}>
+            {/*
+              Sibling AuthStack under the root NavigationContainer throws
+              "Another navigator is already registered". Independent tree +
+              nested container keeps Main mounted and auth navigable.
+            */}
+            <NavigationIndependentTree>
+              <NavigationContainer theme={authOverlayTheme}>
+                <ThemeProvider mode="parent">
+                  <AuthStack checkoutAuth />
+                </ThemeProvider>
+              </NavigationContainer>
+            </NavigationIndependentTree>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -224,6 +277,8 @@ export function RootNavigator() {
           <ProductLinkEffect />
           <StorefrontLinkEffect />
           <HomeLinkEffect />
+          <BoxLinkEffect />
+          <AuthResumeMainEffect />
           <DevPreviewEffect />
           <RootRoutes />
         </NavigationContainer>
@@ -235,6 +290,10 @@ export function RootNavigator() {
 const styles = StyleSheet.create({
   rootFill: {
     flex: 1,
+  },
+  gate: {
+    flex: 1,
+    position: 'relative',
   },
   authOverlay: {
     ...StyleSheet.absoluteFillObject,

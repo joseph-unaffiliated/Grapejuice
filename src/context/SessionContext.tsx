@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { usersService } from '../services/firestore/users';
 import { householdsService } from '../services/firestore/households';
+import { useAuthFlowStore } from '../stores/authFlowStore';
 import type { Household, UserProfile } from '../types/pilot';
 
 type SessionContextValue = {
@@ -27,7 +29,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const load = useCallback(async (options?: { silent?: boolean }) => {
     // Silent refreshes update session data without flipping the global boot
     // flag (avoids a full-screen spinner interrupting flows like onboarding).
-    const silent = options?.silent ?? false;
+    const stayOnSurface = Boolean(useAuthFlowStore.getState().pendingReturn);
+    const silent = options?.silent ?? stayOnSurface;
     if (!user) {
       setProfile(null);
       setHousehold(null);
@@ -39,11 +42,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     try {
       let prof = await usersService.get(user.uid);
       if (!prof) {
+        const guest = useGuestSessionStore.getState();
+        const guestHasBox =
+          guest.boxRevealComplete || guest.onboardingComplete || guest.lineItems.length > 0;
         prof = await usersService.upsert(user.uid, {
           email: user.email,
           displayName: user.displayName,
           role: 'parent',
-          onboardingComplete: false,
+          onboardingComplete: guestHasBox,
+          boxRevealComplete: guestHasBox,
         });
       }
       setProfile(prof);

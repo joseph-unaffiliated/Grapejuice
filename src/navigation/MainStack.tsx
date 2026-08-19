@@ -43,7 +43,7 @@ import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFe
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
-import { consumePendingMainNav, peekPendingMainNav } from './pendingMainNav';
+import { consumePendingMainNav, peekPendingMainNav, resetRootToMainScreen } from './pendingMainNav';
 import { navigationRef } from './navigationRef';
 import { AdminControlPanel } from '../components/storefront/AdminControlPanel';
 
@@ -59,6 +59,9 @@ const DEFAULT_MAIN_ROUTE: keyof MainStackParamList =
 function readHandoffInitialRoute(): keyof MainStackParamList {
   const pending = peekPendingMainNav();
   if (pending?.screen && !pending.tab) return pending.screen;
+  const pendingReturn = useAuthFlowStore.getState().pendingReturn;
+  if (pendingReturn === 'MyBox') return 'MyBox';
+  if (pendingReturn === 'Checkout') return 'Checkout';
   if (useGuestSessionStore.getState().openMyBoxAfterReveal) return 'MyBox';
   return DEFAULT_MAIN_ROUTE;
 }
@@ -132,7 +135,7 @@ function PendingMainNavHandler({ honoredInitial }: { honoredInitial: keyof MainS
   return null;
 }
 
-function AuthReturnHandler() {
+function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
@@ -141,46 +144,56 @@ function AuthReturnHandler() {
 
   useEffect(() => {
     if (!isAuthenticated || !pendingReturn) return;
-    if (pendingReturn === 'Checkout') {
+    // My Box return is owned by AuthResumeMainEffect so pendingReturn stays
+    // set until the My Box route is actually showing (blocks /store deep-link).
+    if (pendingReturn === 'MyBox') return;
+    if (alreadyOnTarget) {
       clearPending();
-      navigation.navigate('Checkout');
       return;
     }
-    if (pendingReturn === 'Rav') {
-      clearPending();
-      navigation.navigate('MainTabs', { screen: 'Rav' });
-      return;
-    }
-    if (pendingReturn === 'Account') {
-      clearPending();
-      navigation.navigate('MainTabs', { screen: 'Account' });
-      return;
-    }
-    if (pendingReturn === 'Profiles') {
-      clearPending();
-      if (PILOT_PARENT_ONLY) {
-        navigation.navigate('MainTabs', { screen: 'Account' });
-      } else {
-        navigation.navigate('Profiles');
+
+    let attempts = 0;
+    const id = setInterval(() => {
+      attempts += 1;
+      if (!navigationRef.isReady()) {
+        if (attempts > 40) clearInterval(id);
+        return;
       }
-      return;
-    }
-    if (pendingReturn === 'MyBox') {
+      clearInterval(id);
+      const dest = useAuthFlowStore.getState().pendingReturn;
+      const giftToken = useAuthFlowStore.getState().pendingGiftClaimToken;
+      if (!dest) return;
       clearPending();
-      navigation.navigate('MyBox');
-      return;
-    }
-    if (pendingReturn === 'GiftClaim') {
-      const token = pendingGiftClaimToken;
-      clearPending();
-      if (token) navigation.navigate('GiftClaim', { token });
-      return;
-    }
-    if (pendingReturn === 'History') {
-      clearPending();
-      navigation.navigate('History');
-    }
-  }, [isAuthenticated, pendingReturn, pendingGiftClaimToken, clearPending, navigation]);
+      if (dest === 'Checkout') {
+        resetRootToMainScreen('Checkout');
+        return;
+      }
+      if (dest === 'Rav') {
+        navigation.navigate('MainTabs', { screen: 'Rav' });
+        return;
+      }
+      if (dest === 'Account') {
+        navigation.navigate('MainTabs', { screen: 'Account' });
+        return;
+      }
+      if (dest === 'Profiles') {
+        if (PILOT_PARENT_ONLY) {
+          navigation.navigate('MainTabs', { screen: 'Account' });
+        } else {
+          navigation.navigate('Profiles');
+        }
+        return;
+      }
+      if (dest === 'GiftClaim') {
+        if (giftToken) navigation.navigate('GiftClaim', { token: giftToken });
+        return;
+      }
+      if (dest === 'History') {
+        navigation.navigate('History');
+      }
+    }, 50);
+    return () => clearInterval(id);
+  }, [isAuthenticated, pendingReturn, pendingGiftClaimToken, clearPending, navigation, alreadyOnTarget]);
 
   return null;
 }
@@ -197,7 +210,7 @@ export function MainStack() {
     <WebDesktopFrame>
       <GuestBoxRevealHandler alreadyOnMyBox={initialRouteName === 'MyBox'} />
       <PendingMainNavHandler honoredInitial={initialRouteName} />
-      <AuthReturnHandler />
+      <AuthReturnHandler alreadyOnTarget={initialRouteName === 'MyBox'} />
       <AdminControlPanel />
       <Stack.Navigator
         initialRouteName={initialRouteName}

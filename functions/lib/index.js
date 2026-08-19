@@ -250,6 +250,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         estimatedDelivery,
         committedAt: firestore_1.FieldValue.serverTimestamp(),
         createdAt: firestore_1.FieldValue.serverTimestamp(),
+        ...(data.skipShipStation === true ? { playthrough: true } : {}),
     });
     if (giftCreditApplied > 0 || platformCreditApplied > 0) {
         await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
@@ -278,14 +279,19 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
     }
     try {
-        await (0, shipstation_1.exportOrderToShipStation)({
-            orderId: orderRef.id,
-            householdId,
-            shippingAddress,
-            lineItems,
-            totalCents,
-            expeditedShipping,
-        });
+        if (data.skipShipStation === true) {
+            logger.info('ShipStation export skipped (visitor playthrough)', { orderId: orderRef.id });
+        }
+        else {
+            await (0, shipstation_1.exportOrderToShipStation)({
+                orderId: orderRef.id,
+                householdId,
+                shippingAddress,
+                lineItems,
+                totalCents,
+                expeditedShipping,
+            });
+        }
     }
     catch (shipErr) {
         logger.error('ShipStation export failed', shipErr);

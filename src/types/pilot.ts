@@ -213,6 +213,8 @@ export type BoxDraft = {
   childInterests?: string[];
   /** Gift recipient "keep surprise" — disables swaps for these display sections until arrival. */
   sealedSectionIds?: Array<'candles' | 'dreidel' | 'food' | 'presents' | 'story'>;
+  /** Catalog item ids marked “to be wrapped” on My Box. */
+  wrapSelectedItemIds?: string[];
 };
 
 export type ActiveProfile =

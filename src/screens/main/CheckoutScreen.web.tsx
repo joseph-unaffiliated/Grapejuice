@@ -18,6 +18,7 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
+import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { EXPEDITED_SHIPPING_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
@@ -163,6 +164,7 @@ export function CheckoutScreen() {
     [stripeKey]
   );
   const cardOnFile = !!household?.cardOnFileAt;
+  const skipShipStation = useMockFlowStore((s) => s.active);
 
   const handleCommit = useCallback(async () => {
     if (!user || !household?.id) return;
@@ -178,6 +180,7 @@ export function CheckoutScreen() {
         expeditedShipping,
         contactPhone: contactPhone.trim() || undefined,
         smsOptIn: smsOptIn && contactPhone.trim().length > 0,
+        skipShipStation,
       });
       navigation.replace('OrderConfirmation', { orderId });
     } catch (e) {
@@ -195,6 +198,7 @@ export function CheckoutScreen() {
     expeditedShipping,
     contactPhone,
     smsOptIn,
+    skipShipStation,
   ]);
 
   const startSetup = async () => {
