@@ -4,7 +4,10 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
 import { readStorePathFromWindow } from './storeLink';
+import { readBoxPathFromWindow } from './boxLink';
 import { readDevPreviewFromWindow } from './devPreview';
+import { peekPendingMainNav } from './pendingMainNav';
+import { useAuthFlowStore } from '../stores/authFlowStore';
 
 /** Previews that intentionally land on storefront (StorefrontLinkEffect may run). */
 const STOREFRONT_PREVIEW_KEYS = new Set([
@@ -54,10 +57,19 @@ export function StorefrontLinkEffect() {
     const target = pending.current;
     if (!target) return;
 
+    if (readBoxPathFromWindow() || peekPendingMainNav()?.screen === 'MyBox') {
+      pending.current = null;
+      return;
+    }
+
     // After box reveal, Main is handed off to My Box (or already has a box).
     // Do not re-apply the cold /store deep link when reveal flags flip — that
     // was racing the pending MyBox navigation and dumping users on marketplace home.
-    if (guestBoxRevealComplete) {
+    if (guestBoxRevealComplete || peekPendingMainNav()?.screen === 'MyBox') {
+      pending.current = null;
+      return;
+    }
+    if (useAuthFlowStore.getState().pendingReturn === 'MyBox') {
       pending.current = null;
       return;
     }

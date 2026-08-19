@@ -15,12 +15,42 @@ import {
   type AuthUser,
 } from '../services/auth/auth';
 import { persistGuestToAccount } from '../services/guest/persistGuestToAccount';
+import { useGuestSessionStore } from './guestSessionStore';
 
-async function mergeGuestSession(user: AuthUser): Promise<void> {
-  try {
-    await persistGuestToAccount(user);
-  } catch (error) {
-    console.warn('[auth] Guest session merge failed:', error);
+let guestMergeInFlight: Promise<boolean> | null = null;
+let guestMergeUid: string | null = null;
+
+async function mergeGuestSession(user: AuthUser): Promise<boolean> {
+  if (guestMergeInFlight && guestMergeUid === user.uid) {
+    return guestMergeInFlight;
+  }
+  guestMergeUid = user.uid;
+  guestMergeInFlight = persistGuestToAccount(user)
+    .then(() => true)
+    .catch((error) => {
+      console.warn('[auth] Guest session merge failed:', error);
+      return false;
+    })
+    .finally(() => {
+      guestMergeInFlight = null;
+      guestMergeUid = null;
+    });
+  return guestMergeInFlight;
+}
+
+function commitAuthenticatedUser(
+  set: (partial: {
+    user: AuthUser;
+    isAuthenticated: true;
+    isLoading: false;
+    error: null;
+  }) => void,
+  user: AuthUser,
+  clearGuest: boolean
+) {
+  set({ user, isAuthenticated: true, isLoading: false, error: null });
+  if (clearGuest) {
+    useGuestSessionStore.getState().reset();
   }
 }
 
@@ -117,12 +147,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const redirected = await completeGoogleRedirectIfNeeded();
         if (cancelled) return;
         if (redirected) {
-          await mergeGuestSession(redirected);
-          set({
-            user: redirected,
-            isAuthenticated: true,
-            error: null,
-          });
+          const merged = await mergeGuestSession(redirected);
+          commitAuthenticatedUser(set, redirected, merged);
         }
       } catch (error) {
         if (cancelled) return;
@@ -135,22 +161,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const unsubscribe = onAuthStateChange((user) => {
       if (cancelled) return;
-      authStateSettled = true;
       if (user) {
         const prev = get().user;
-        set({ user, isAuthenticated: true });
-        if (!prev || prev.uid !== user.uid) {
-          void mergeGuestSession(user);
+        const needsMerge = !prev || prev.uid !== user.uid;
+        if (needsMerge) {
+          // Persist the guest box before SessionContext loads a stub profile
+          // with onboardingComplete: false (that gate dumps them into onboarding).
+          void (async () => {
+            const merged = await mergeGuestSession(user);
+            if (cancelled) return;
+            authStateSettled = true;
+            commitAuthenticatedUser(set, user, merged);
+            finishLoadingIfReady();
+          })();
+          return;
         }
+        authStateSettled = true;
+        set({ user, isAuthenticated: true });
       } else if (redirectSettled) {
         // Ignore null until redirect completion — Auth often emits null before getRedirectResult.
         // If Firebase already has a currentUser, prefer that over a stale null event.
+        authStateSettled = true;
         const current = getCurrentAuthUser();
         if (current) {
           set({ user: current, isAuthenticated: true });
         } else {
           set({ user: null, isAuthenticated: false });
         }
+      } else {
+        authStateSettled = true;
       }
       finishLoadingIfReady();
     });
@@ -172,8 +211,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signInWithEmail(email, password);
-      await mergeGuestSession(user);
-      set({ user, isAuthenticated: true, isLoading: false });
+      const merged = await mergeGuestSession(user);
+      commitAuthenticatedUser(set, user, merged);
     } catch (error) {
       set({ error: getErrorMessage(error), isLoading: false });
       throw error;
@@ -184,8 +223,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signUpWithEmail(email, password, displayName);
-      await mergeGuestSession(user);
-      set({ user, isAuthenticated: true, isLoading: false });
+      const merged = await mergeGuestSession(user);
+      commitAuthenticatedUser(set, user, merged);
     } catch (error) {
       set({ error: getErrorMessage(error), isLoading: false });
       throw error;
@@ -196,8 +235,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signInWithGoogle(returnTo ?? null);
-      await mergeGuestSession(user);
-      set({ user, isAuthenticated: true, isLoading: false });
+      const merged = await mergeGuestSession(user);
+      commitAuthenticatedUser(set, user, merged);
     } catch (error) {
       if (error instanceof Error && error.message === GOOGLE_REDIRECT_PENDING) {
         // Keep loading while the browser navigates to Google.
@@ -213,8 +252,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await signInWithApple();
-      await mergeGuestSession(user);
-      set({ user, isAuthenticated: true, isLoading: false });
+      const merged = await mergeGuestSession(user);
+      commitAuthenticatedUser(set, user, merged);
     } catch (error) {
       set({ error: getErrorMessage(error), isLoading: false });
       throw error;

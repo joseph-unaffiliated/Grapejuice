@@ -109,6 +109,8 @@ interface CommitPilotBoxData {
   expeditedShipping?: boolean;
   contactPhone?: string;
   smsOptIn?: boolean;
+  /** Visitor playthrough: skip warehouse export. Stripe still runs in test. */
+  skipShipStation?: boolean;
 }
 
 interface CreatePilotSetupIntentData {
@@ -328,6 +330,7 @@ export const commitPilotBox = onCall(async (request) => {
     estimatedDelivery,
     committedAt: FieldValue.serverTimestamp(),
     createdAt: FieldValue.serverTimestamp(),
+    ...(data.skipShipStation === true ? { playthrough: true } : {}),
   });
 
   if (giftCreditApplied > 0 || platformCreditApplied > 0) {
@@ -365,14 +368,18 @@ export const commitPilotBox = onCall(async (request) => {
   }
 
   try {
-    await exportOrderToShipStation({
-      orderId: orderRef.id,
-      householdId,
-      shippingAddress,
-      lineItems,
-      totalCents,
-      expeditedShipping,
-    });
+    if (data.skipShipStation === true) {
+      logger.info('ShipStation export skipped (visitor playthrough)', { orderId: orderRef.id });
+    } else {
+      await exportOrderToShipStation({
+        orderId: orderRef.id,
+        householdId,
+        shippingAddress,
+        lineItems,
+        totalCents,
+        expeditedShipping,
+      });
+    }
   } catch (shipErr) {
     logger.error('ShipStation export failed', shipErr);
   }

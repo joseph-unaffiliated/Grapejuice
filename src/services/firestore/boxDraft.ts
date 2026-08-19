@@ -19,6 +19,9 @@ function toDraft(data: Record<string, unknown>): BoxDraft {
     sealedSectionIds: Array.isArray(data.sealedSectionIds)
       ? (data.sealedSectionIds as BoxDraft['sealedSectionIds'])
       : undefined,
+    wrapSelectedItemIds: Array.isArray(data.wrapSelectedItemIds)
+      ? (data.wrapSelectedItemIds as string[])
+      : undefined,
     updatedAt: String(data.updatedAt ?? ''),
     updatedBy: String(data.updatedBy ?? ''),
     lockedAt: (data.lockedAt as string | null) ?? null,
@@ -64,7 +67,17 @@ export const boxDraftService = {
     householdId: string,
     uid: string,
     lineItems: BoxLineItem[],
-    extra?: Partial<Pick<BoxDraft, 'familiarityLevel' | 'lockedAt' | 'slotVotes' | 'childInterests' | 'sealedSectionIds'>>
+    extra?: Partial<
+      Pick<
+        BoxDraft,
+        | 'familiarityLevel'
+        | 'lockedAt'
+        | 'slotVotes'
+        | 'childInterests'
+        | 'sealedSectionIds'
+        | 'wrapSelectedItemIds'
+      >
+    >
   ): Promise<BoxDraft> {
     if (!db) throw new Error('Firestore not configured');
     await ensureAuthTokenReady(uid);
@@ -80,6 +93,7 @@ export const boxDraftService = {
       slotVotes: extra?.slotVotes,
       childInterests: extra?.childInterests,
       sealedSectionIds: extra?.sealedSectionIds,
+      wrapSelectedItemIds: extra?.wrapSelectedItemIds,
     });
     await setDoc(ref, payload, { merge: true });
     const snap = await getDoc(ref);
@@ -92,6 +106,18 @@ export const boxDraftService = {
     const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
     const now = new Date().toISOString();
     await setDoc(ref, { slotVotes, updatedAt: now, updatedBy: uid }, { merge: true });
+  },
+
+  async saveWrapSelection(
+    householdId: string,
+    uid: string,
+    wrapSelectedItemIds: string[]
+  ): Promise<void> {
+    if (!db) throw new Error('Firestore not configured');
+    await ensureAuthTokenReady(uid);
+    const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
+    const now = new Date().toISOString();
+    await setDoc(ref, { wrapSelectedItemIds, updatedAt: now, updatedBy: uid }, { merge: true });
   },
 
   /** Admin/tester helper — remove the holiday draft so curation can restart. */

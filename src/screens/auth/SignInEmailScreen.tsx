@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Text,
   TextInput,
@@ -7,11 +7,14 @@ import {
   type NativeSyntheticEvent,
   type TextInputChangeEventData,
 } from 'react-native';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
+import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useThemeMode } from '../../context/ThemeContext';
 import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { spacing, typography, typeface, borderRadius } from '../../constants/theme';
+import type { AuthStackParamList } from '../../navigation/types';
 
 /** RN Web autofill often fills the DOM without firing onChangeText — sync from the native event too. */
 function readInputValue(
@@ -27,9 +30,18 @@ function readInputValue(
 export function SignInEmailScreen() {
   const { colors } = useThemeMode();
   const { signIn, isLoading, error, clearError } = useAuthStore();
-  const [email, setEmail] = useState('');
+  const route = useRoute<RouteProp<AuthStackParamList, 'SignInEmail'>>();
+  const restoreSignInEmail = useAuthFlowStore((s) => s.restoreSignInEmail);
+  const clearRestoreSignInEmail = useAuthFlowStore((s) => s.clearRestoreSignInEmail);
+  const [email, setEmail] = useState(
+    () => restoreSignInEmail ?? route.params?.email ?? ''
+  );
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (restoreSignInEmail) clearRestoreSignInEmail();
+  }, [restoreSignInEmail, clearRestoreSignInEmail]);
 
   const inputStyle = [
     styles.input,

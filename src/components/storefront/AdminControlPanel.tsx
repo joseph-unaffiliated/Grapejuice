@@ -30,6 +30,7 @@ import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import { getHanukkahWindow } from '../../services/hanukkah/dates';
 import { resetTesterBox } from '../../services/admin/resetTesterBox';
+import { enterVisitorPlaythrough, exitVisitorPlaythrough } from '../../services/admin/visitorPlaythrough';
 import { isAdminEmail } from '../../constants/admin';
 import { navigateMainStack, navigateToLanding } from '../../navigation/mainStackNavigation';
 import { useMarketingLandings } from '../../hooks/useMarketingLandings';
@@ -48,7 +49,7 @@ const PANEL_MAX_HEIGHT = '78%';
 
 /**
  * Floating admin control panel (bottom-right). Holds user-state preview, date
- * override, box reset, catalog admin, and Test landings (mock entry flows).
+ * override, box reset, catalog admin, and Test landings (real visitor playthrough).
  * Visible to allowlisted admins and in __DEV__.
  */
 export function AdminControlPanel() {
@@ -68,7 +69,6 @@ export function AdminControlPanel() {
   const mockLandingId = useMockFlowStore((s) => s.landingId);
   const mockLandingLabel = useMockFlowStore((s) => s.landingLabel);
   const mockPersonaLabel = useMockFlowStore((s) => s.personaLabel);
-  const enterMockFlow = useMockFlowStore((s) => s.enter);
   const exitMockFlow = useMockFlowStore((s) => s.exit);
   const { landings } = useMarketingLandings();
   const entryLandingOptions = buildEntryLandingPreviewOptions(landings);
@@ -77,6 +77,7 @@ export function AdminControlPanel() {
   const [userStateOpen, setUserStateOpen] = useState(false);
   const [previewDateOpen, setPreviewDateOpen] = useState(false);
   const [resettingBox, setResettingBox] = useState(false);
+  const [startingPlaythrough, setStartingPlaythrough] = useState(false);
   const [datePresets, setDatePresets] = useState<{ label: string; iso: string }[]>([]);
   const [markerIsos, setMarkerIsos] = useState<string[]>([]);
 
@@ -162,8 +163,33 @@ export function AdminControlPanel() {
     setPreview(next);
   };
 
+  const startPlaythrough = async (opt: EntryLandingPreviewOption) => {
+    if (!opt.audienceId || startingPlaythrough) return;
+    const audience = landingFromMergedById(opt.audienceId);
+    if (!audience) return;
+    setStartingPlaythrough(true);
+    try {
+      await enterVisitorPlaythrough({
+        audienceId: opt.audienceId,
+        landingLabel: audience.navLabel,
+        sourcePath: audience.path,
+      });
+      setOpen(false);
+      navigateToLanding(opt.audienceId);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Could not start visitor playthrough.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(message);
+      } else {
+        Alert.alert('Playthrough failed', message);
+      }
+    } finally {
+      setStartingPlaythrough(false);
+    }
+  };
+
   const selectEntryLanding = (opt: EntryLandingPreviewOption) => {
-    if (!opt.ready) return;
+    if (!opt.ready || startingPlaythrough) return;
     if (!opt.audienceId) {
       if (mockFlowActive) exitMockFlow();
       else clearEntry();
@@ -171,15 +197,19 @@ export function AdminControlPanel() {
       navigateMainStack('StorefrontHome');
       return;
     }
-    const audience = landingFromMergedById(opt.audienceId);
-    if (!audience) return;
-    enterMockFlow({
-      audienceId: opt.audienceId,
-      landingLabel: audience.navLabel,
-      sourcePath: audience.path,
-    });
-    setOpen(false);
-    navigateToLanding(opt.audienceId);
+    const signedIn = Boolean(realUserEmail);
+    const title = 'Walk as a visitor?';
+    const body = signedIn
+      ? 'This signs you out of admin so you can build a box, sign up, and check out as a new visitor. Exit returns you to admin sign-in. Nothing is charged to your admin account.'
+      : 'Opens this landing as a new visitor. Sign up with a plus-alias (you+qa@…) so mail still hits your inbox.';
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(`${title}\n\n${body}`)) void startPlaythrough(opt);
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Start', onPress: () => void startPlaythrough(opt) },
+    ]);
   };
 
   if (!show) return null;
@@ -354,7 +384,8 @@ export function AdminControlPanel() {
 
               <Text style={styles.sectionHeading}>Test landings</Text>
               <Text style={styles.sectionDesc}>
-                Opens the entry page as a mock visitor. Exit via the top banner.
+                Signs you out and opens the entry page as a real visitor. Exit via the top banner
+                to return to admin sign-in.
               </Text>
               {entryLandingOptions.map((opt) => {
                 const active =
@@ -375,9 +406,9 @@ export function AdminControlPanel() {
                       !opt.ready && styles.rowDisabled,
                     ]}
                     onPress={() => selectEntryLanding(opt)}
-                    disabled={!opt.ready}
+                    disabled={!opt.ready || startingPlaythrough}
                     accessibilityRole="link"
-                    accessibilityState={{ disabled: !opt.ready }}
+                    accessibilityState={{ disabled: !opt.ready || startingPlaythrough }}
                     accessibilityLabel={`Open test landing ${opt.label}`}
                   >
                     <View style={styles.rowCopy}>
@@ -475,7 +506,7 @@ export function AdminControlPanel() {
                 <TouchableOpacity
                   style={styles.row}
                   onPress={() => {
-                    if (mockFlowActive) exitMockFlow();
+                    if (mockFlowActive) void exitVisitorPlaythrough();
                     else {
                       clearPreview();
                       clearEntry();
@@ -492,11 +523,11 @@ export function AdminControlPanel() {
                   />
                   <View style={styles.rowCopy}>
                     <Text style={styles.rowLabel}>
-                      {mockFlowActive ? 'Exit mock flow' : 'Clear all previews'}
+                      {mockFlowActive ? 'Exit playthrough' : 'Clear all previews'}
                     </Text>
                     <Text style={styles.rowDesc}>
                       {mockFlowActive
-                        ? 'Restore your real account chrome'
+                        ? 'Sign out tester and return to admin sign-in'
                         : 'User state, date, and entry landing'}
                     </Text>
                   </View>

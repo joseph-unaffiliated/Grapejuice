@@ -7,6 +7,7 @@ import {
   type TextInputChangeEventData,
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
+import { useMockFlowStore, suggestPlusAlias } from '../../stores/mockFlowStore';
 import { useThemeMode } from '../../context/ThemeContext';
 import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
@@ -26,6 +27,9 @@ function readInputValue(
 export function SignUpEmailScreen() {
   const { colors } = useThemeMode();
   const { signUp, isLoading, error, clearError } = useAuthStore();
+  const mockActive = useMockFlowStore((s) => s.active);
+  const adminEmail = useMockFlowStore((s) => s.restore?.adminEmail ?? null);
+  const plusHint = mockActive ? suggestPlusAlias(adminEmail) : null;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -104,6 +108,12 @@ export function SignUpEmailScreen() {
         loading={isLoading}
         style={styles.btn}
       />
+      {plusHint ? (
+        <Text style={[styles.hint, { color: colors.textTertiary }]}>
+          Visitor playthrough: use {plusHint} (or another plus-alias) so mail still hits your inbox.
+          Do not sign up with your admin address.
+        </Text>
+      ) : null}
       {localError || error ? (
         <Text style={[styles.error, { color: colors.error }]}>{localError || error}</Text>
       ) : null}
@@ -123,6 +133,13 @@ const styles = StyleSheet.create({
     ...typeface('regular'),
   },
   btn: { alignSelf: 'stretch', minWidth: undefined, marginTop: spacing.xs },
+  hint: {
+    marginTop: spacing.md,
+    textAlign: 'center',
+    fontSize: typography.sm,
+    ...typeface('light'),
+    lineHeight: 18,
+  },
   error: {
     marginTop: spacing.md,
     textAlign: 'center',

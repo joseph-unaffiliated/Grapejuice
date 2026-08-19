@@ -42,6 +42,8 @@ type GuestSessionState = {
   /** Saved catalog favorites — Rav prioritizes these when building a box. */
   wishlistItemIds: string[];
   ravNotes: string;
+  /** Catalog item ids marked “to be wrapped” on My Box. */
+  wrapSelectedItemIds: string[];
   onboardingComplete: boolean;
   boxRevealComplete: boolean;
   /** After guest reveal, open My Box once in main app */
@@ -59,6 +61,7 @@ type GuestSessionState = {
   setFamiliarityScore: (score: number) => void;
   setRavNotes: (notes: string) => void;
   setLineItems: (items: BoxLineItem[]) => void;
+  setWrapSelectedItemIds: (ids: string[]) => void;
   toggleWishlistItem: (itemId: string) => void;
   setOnboardingStep: (step: GuestOnboardingStep | null) => void;
   completeOnboarding: () => void;
@@ -83,6 +86,7 @@ const initialState = {
   familiarityScore: 50,
   familiarityLevel: 'moderate' as FamiliarityLevel,
   lineItems: [] as BoxLineItem[],
+  wrapSelectedItemIds: [] as string[],
   wishlistItemIds: [] as string[],
   ravNotes: '',
   onboardingComplete: false,
@@ -111,6 +115,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       },
       setRavNotes: (ravNotes) => set({ ravNotes }),
       setLineItems: (lineItems) => set({ lineItems }),
+      setWrapSelectedItemIds: (wrapSelectedItemIds) => set({ wrapSelectedItemIds }),
       toggleWishlistItem: (itemId) => {
         const current = get().wishlistItemIds;
         set({
@@ -150,6 +155,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       resetBox: () =>
         set({
           lineItems: [],
+          wrapSelectedItemIds: [],
           onboardingComplete: false,
           boxRevealComplete: false,
           openMyBoxAfterReveal: false,
@@ -173,6 +179,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         familiarityScore: state.familiarityScore,
         familiarityLevel: state.familiarityLevel,
         lineItems: state.lineItems,
+        wrapSelectedItemIds: state.wrapSelectedItemIds,
         wishlistItemIds: state.wishlistItemIds,
         ravNotes: state.ravNotes,
         onboardingComplete: state.onboardingComplete,

@@ -11,7 +11,12 @@ export type CommitPilotBoxResult = {
 export async function commitPilotBox(
   householdId: string,
   shippingAddress: ShippingAddress,
-  options?: { expeditedShipping?: boolean; contactPhone?: string; smsOptIn?: boolean }
+  options?: {
+    expeditedShipping?: boolean;
+    contactPhone?: string;
+    smsOptIn?: boolean;
+    skipShipStation?: boolean;
+  }
 ): Promise<CommitPilotBoxResult> {
   if (!functions) {
     throw new Error('Firebase Functions is not configured.');
@@ -23,6 +28,7 @@ export async function commitPilotBox(
       expeditedShipping?: boolean;
       contactPhone?: string;
       smsOptIn?: boolean;
+      skipShipStation?: boolean;
     },
     CommitPilotBoxResult
   >(functions, 'commitPilotBox');
@@ -32,6 +38,7 @@ export async function commitPilotBox(
     expeditedShipping: options?.expeditedShipping,
     contactPhone: options?.contactPhone,
     smsOptIn: options?.smsOptIn,
+    skipShipStation: options?.skipShipStation,
   });
   return data;
 }

@@ -27,6 +27,8 @@ export async function readMarketingLandingFromWindow(): Promise<{
     path === '/store' ||
     path.startsWith('/store/') ||
     path === '/home' ||
+    path === '/box' ||
+    path === '/my-box' ||
     path === '/product' ||
     path.startsWith('/product/')
   ) {
@@ -86,6 +88,8 @@ export function shouldPreserveMarketingPath(pathname: string): boolean {
     path === '/store' ||
     path.startsWith('/store/') ||
     path === '/home' ||
+    path === '/box' ||
+    path === '/my-box' ||
     path === '/product' ||
     path.startsWith('/product/')
   ) {

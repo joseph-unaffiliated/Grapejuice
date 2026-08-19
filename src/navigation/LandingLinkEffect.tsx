@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useEntryContextStore, readUtmFromWindow } from '../stores/entryContextStore';
+import { useAuthFlowStore } from '../stores/authFlowStore';
 import { navigationRef } from './navigationRef';
 import { readMarketingLandingFromWindow } from './landingLink';
 
@@ -66,6 +67,11 @@ export function LandingLinkEffect() {
       }
       if (!navigationRef.isReady()) return;
       if (useGuestSessionStore.getState().buildBoxPath) return;
+      if (useAuthFlowStore.getState().pendingReturn === 'MyBox') {
+        pending.current = null;
+        clearInterval(id);
+        return;
+      }
 
       if (
         !useAuthStore.getState().isAuthenticated &&
