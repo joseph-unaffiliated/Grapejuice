@@ -6,6 +6,7 @@ import {
   StorefrontChrome,
   useStorefrontActions,
 } from '../../components/storefront/StorefrontChrome';
+import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
@@ -36,7 +37,7 @@ export function StorefrontCartScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { goHome, goCategory, startBox } = useStorefrontActions();
   const lineItems = useMarketplaceCartStore((s) => s.items);
-  const removeItem = useMarketplaceCartStore((s) => s.removeItem);
+  const changeQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
   const { items: catalog, loading: catalogLoading } = useCatalog();
 
   const catalogById = useMemo(() => {
@@ -135,23 +136,16 @@ export function StorefrontCartScreen() {
                         <Text style={styles.rowName} numberOfLines={2}>
                           {label}
                         </Text>
-                        {qty > 1 ? (
-                          <Text style={styles.rowMeta}>Qty {qty}</Text>
-                        ) : null}
                         <Text style={styles.rowPrice}>
                           {lineTotal > 0 ? formatCatalogDollars(lineTotal) : '—'}
                         </Text>
                       </View>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.removeHit}
-                      onPress={() => removeItem(li.itemId)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${label}`}
-                      hitSlop={8}
-                    >
-                      <Icon icon={icons.close} size={14} color={semanticColors.goldMuted} />
-                    </TouchableOpacity>
+                    <CartQtyStepper
+                      quantity={qty}
+                      label={label}
+                      onChange={(delta) => changeQuantity(li.itemId, delta)}
+                    />
                   </View>
                 );
               })}
@@ -300,22 +294,11 @@ const styles = StyleSheet.create({
     color: semanticColors.logoDark,
     letterSpacing: -0.2,
   },
-  rowMeta: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.goldMuted,
-  },
   rowPrice: {
     ...typeface('regular'),
     fontSize: typography.md,
     color: semanticColors.logoDark,
     marginTop: 2,
-  },
-  removeHit: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   summary: {
     flexDirection: 'row',
