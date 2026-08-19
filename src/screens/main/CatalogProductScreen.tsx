@@ -19,6 +19,7 @@ import { useBrowsingHistoryStore } from '../../stores/browsingHistoryStore';
 import {
   useMarketplaceCartStore,
 } from '../../stores/marketplaceCartStore';
+import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import {
   useEffectiveBoxLocked,
@@ -194,6 +195,7 @@ export function CatalogProductScreen() {
   const cartItems = useMarketplaceCartStore((s) => s.items);
   const addCartItem = useMarketplaceCartStore((s) => s.addItem);
   const removeCartItem = useMarketplaceCartStore((s) => s.removeItem);
+  const changeCartQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
   const hasStartedBox = usePreviewedHasStartedBox();
   const { guardMutation } = usePaymentGate();
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
@@ -258,6 +260,10 @@ export function CatalogProductScreen() {
     () => cartItems.some((li) => li.itemId === slug),
     [cartItems, slug]
   );
+  const marketplaceQty = useMemo(() => {
+    const line = cartItems.find((li) => li.itemId === slug);
+    return line ? Math.max(1, line.quantity || 1) : 0;
+  }, [cartItems, slug]);
   const inBox = useMemo(() => lineItems.some((li) => li.itemId === slug), [lineItems, slug]);
   /** Cart CTA when no box yet; box membership once a Hanukkah box exists. */
   const inCart = hasStartedBox ? inBox : inMarketplaceCart;
@@ -305,7 +311,7 @@ export function CatalogProductScreen() {
   };
 
   const addToCart = async () => {
-    if (!item || locked || inCart) return;
+    if (!item || locked) return;
     setSaving(true);
     try {
       addCartItem({
@@ -383,7 +389,7 @@ export function CatalogProductScreen() {
   const primaryLabel = inCart
     ? hasStartedBox
       ? 'Remove from box'
-      : 'Remove from cart'
+      : 'Add another'
     : hasStartedBox
       ? boxUnitCents > 0
         ? `Add to box (+${formatCatalogDollars(boxUnitCents)})`
@@ -398,14 +404,16 @@ export function CatalogProductScreen() {
       ? `Buy with a box (${formatCatalogDollars(memberCents)})`
       : 'Buy with a box';
 
-  const showSecondary =
-    !inCart && (hasStartedBox ? Boolean(swapSource) : true);
+  const showMarketplaceQty = !hasStartedBox && inMarketplaceCart;
+  const showSecondary = hasStartedBox
+    ? !inCart && Boolean(swapSource)
+    : true;
 
-  const onPrimaryPress = inCart
-    ? removeFromCartOrBox
-    : hasStartedBox
-      ? addToBox
-      : addToCart;
+  const onPrimaryPress = hasStartedBox
+    ? inCart
+      ? removeFromCartOrBox
+      : addToBox
+    : addToCart;
 
   const onSecondaryPress = hasStartedBox ? swapIntoBox : buyWithBox;
 
@@ -536,18 +544,27 @@ export function CatalogProductScreen() {
 
             <View style={styles.ctaBlock}>
               <View style={styles.ctaRow}>
-                <TouchableOpacity
-                  style={[styles.cta, styles.ctaPrimary, (locked || saving) && styles.ctaDisabled]}
-                  onPress={onPrimaryPress}
-                  disabled={locked || saving}
-                  accessibilityRole="button"
-                >
-                  {saving ? (
-                    <ActivityIndicator color={semanticColors.textInverse} />
-                  ) : (
-                    <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
-                  )}
-                </TouchableOpacity>
+                {showMarketplaceQty ? (
+                  <CartQtyStepper
+                    quantity={marketplaceQty}
+                    label={item.name}
+                    disabled={locked || saving}
+                    onChange={(delta) => changeCartQuantity(slug, delta)}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.cta, styles.ctaPrimary, (locked || saving) && styles.ctaDisabled]}
+                    onPress={onPrimaryPress}
+                    disabled={locked || saving}
+                    accessibilityRole="button"
+                  >
+                    {saving ? (
+                      <ActivityIndicator color={semanticColors.textInverse} />
+                    ) : (
+                      <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
                 {showSecondary ? (
                   <TouchableOpacity
                     style={[styles.cta, styles.ctaSecondary, (locked || saving) && styles.ctaDisabled]}
@@ -559,7 +576,7 @@ export function CatalogProductScreen() {
                   </TouchableOpacity>
                 ) : null}
               </View>
-              {!inCart ? (
+              {!hasStartedBox || !inCart ? (
                 <Text style={styles.shipNote}>
                   Arrives in time for Hanukkah (est. {shipWindow})
                 </Text>
