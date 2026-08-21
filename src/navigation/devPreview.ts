@@ -301,6 +301,16 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
         hasGiverDraft: true,
       });
       break;
+    case 'gift-sent':
+      setGuestExplore();
+      setMainNav('GiftSentConfirmation', {
+        recipientEmail: search.get('email') ?? 'parent@example.com',
+        customize: search.get('credit') !== '1',
+        giverName: search.get('giver') ?? 'Grandma',
+        amountCents: 5000,
+        claimUrl: 'https://app.grapejuice.co/gift/claim?token=preview',
+      });
+      break;
     default:
       useDevPreviewStore.getState().reset();
   }

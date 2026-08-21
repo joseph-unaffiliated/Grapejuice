@@ -21,6 +21,10 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
+  const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
+  const pendingGiftCustomize = useAuthFlowStore((s) => s.pendingGiftCustomize);
+  const giftResume =
+    pendingReturn === 'GiftGiverCustomize' || pendingGiftCustomize != null;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,16 +45,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       let prof = await usersService.get(user.uid);
+      const giftResumeNow =
+        useAuthFlowStore.getState().pendingReturn === 'GiftGiverCustomize' ||
+        useAuthFlowStore.getState().pendingGiftCustomize != null;
       if (!prof) {
         const guest = useGuestSessionStore.getState();
         const guestHasBox =
-          guest.boxRevealComplete || guest.onboardingComplete || guest.lineItems.length > 0;
+          giftResumeNow ||
+          guest.boxRevealComplete ||
+          guest.onboardingComplete ||
+          guest.lineItems.length > 0;
         prof = await usersService.upsert(user.uid, {
           email: user.email,
           displayName: user.displayName,
           role: 'parent',
           onboardingComplete: guestHasBox,
           boxRevealComplete: guestHasBox,
+        });
+      } else if (giftResumeNow && (!prof.onboardingComplete || !prof.boxRevealComplete)) {
+        // Heal stale stub profiles written before gift-resume flags landed.
+        prof = await usersService.upsert(user.uid, {
+          onboardingComplete: true,
+          boxRevealComplete: true,
         });
       }
       setProfile(prof);
@@ -88,11 +104,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     isKid: profile?.role === 'child',
-    needsOnboarding: profile?.role === 'parent' && !profile?.onboardingComplete,
+    // While resuming gift customize, never report needsOnboarding — RootRoutes
+    // would remount Onboarding the instant pendingReturn is cleared.
+    needsOnboarding:
+      profile?.role === 'parent' && !profile?.onboardingComplete && !giftResume,
     needsBoxReveal:
       profile?.role === 'parent' &&
       !!profile?.onboardingComplete &&
-      !profile?.boxRevealComplete,
+      !profile?.boxRevealComplete &&
+      !giftResume,
     refresh,
   };
 

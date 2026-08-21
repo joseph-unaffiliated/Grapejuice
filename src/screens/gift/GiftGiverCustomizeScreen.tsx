@@ -1,6 +1,6 @@
 /** Figma rGzXYb1rNVxqGHz81835Jn — frame 16: giver picks items before pay (native). */
 import React, { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -8,25 +8,67 @@ import Constants from 'expo-constants';
 import { useStripe } from '@stripe/stripe-react-native';
 import type { MainStackParamList } from '../../navigation/types';
 import { useGiftGiverBoxDraft } from '../../hooks/useGiftGiverBoxDraft';
+import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import { useAuthStore } from '../../stores/authStore';
+import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 
 type Route = RouteProp<MainStackParamList, 'GiftGiverCustomize'>;
 
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+}
+
+function firebaseMessage(e: unknown): string {
+  if (!(e instanceof Error)) return 'Try again.';
+  const anyErr = e as Error & { code?: string; message?: string };
+  const msg = anyErr.message ?? '';
+  if (/unauthenticated|Sign in required/i.test(msg) || anyErr.code === 'functions/unauthenticated') {
+    return 'Sign in to continue to payment.';
+  }
+  if (/failed-precondition|Stripe is not configured/i.test(msg)) {
+    return 'Payments are not configured yet. Ask the team to enable Stripe.';
+  }
+  return msg || 'Try again.';
+}
+
 export function GiftGiverCustomizeScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<Route>();
-  const { form, childDrafts } = route.params;
-  const { catalog, lineItems, children, loading, applySwap, swapOptionsFor } = useGiftGiverBoxDraft(childDrafts);
+  const { form, childDrafts, lineItems: restoredLineItems } = route.params;
+  const { catalog, lineItems, children, loading, applySwap, swapOptionsFor } = useGiftGiverBoxDraft(
+    childDrafts,
+    restoredLineItems
+  );
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const startAuthForGiftCustomize = useAuthFlowStore((s) => s.startAuthForGiftCustomize);
   const [submitting, setSubmitting] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
 
+  const requireAuth = (entry: 'signup' | 'signin') => {
+    startAuthForGiftCustomize(entry, { form, childDrafts, lineItems });
+  };
+
   const pay = async () => {
+    setPayError(null);
+    if (!isAuthenticated) {
+      setPayError('Sign in to continue to payment.');
+      requireAuth('signin');
+      return;
+    }
     if (!stripeKey) {
-      Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
+      const msg = 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env and restart the app.';
+      setPayError(msg);
+      notify('Not configured', msg);
       return;
     }
     setSubmitting(true);
@@ -51,10 +93,21 @@ export function GiftGiverCustomizeScreen() {
         return;
       }
 
-      await completeGiftPurchase(result.giftInviteId, form.recipientEmail.trim(), () => navigation.popToTop());
-      if (__DEV__) console.log('[gift] claim url', result.claimUrl);
+      const finalized = await completeGiftPurchase(result.giftInviteId);
+      navigation.replace('GiftSentConfirmation', {
+        recipientEmail: form.recipientEmail.trim(),
+        customize: true,
+        giverName: form.giverName.trim() || undefined,
+        amountCents: DEFAULT_BOX_PRICE_CENTS,
+        claimUrl: finalized.claimUrl || result.claimUrl,
+      });
     } catch (e) {
-      Alert.alert('Could not send gift', e instanceof Error ? e.message : 'Try again.');
+      const msg = firebaseMessage(e);
+      setPayError(msg);
+      notify('Could not send gift', msg);
+      if (/Sign in/i.test(msg)) {
+        requireAuth('signin');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -71,6 +124,8 @@ export function GiftGiverCustomizeScreen() {
       applySwap={applySwap}
       swapOptionsFor={swapOptionsFor}
       onPay={() => void pay()}
+      onRequireAuth={requireAuth}
+      payError={payError}
     />
   );
 }

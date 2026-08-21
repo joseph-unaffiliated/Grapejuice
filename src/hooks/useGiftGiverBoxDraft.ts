@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { catalogService } from '../services/firestore/catalog';
 import { buildDefaultLineItems, catalogSlotId, unitCentsForTier } from '../services/box/buildDefaultBox';
 import { inferPricingTier } from '../services/box/pricing';
@@ -7,11 +7,15 @@ import type { GiftChildDraft } from '../screens/gift/giftGiveTypes';
 import { giftChildrenToProfiles } from '../screens/gift/giftGiveTypes';
 
 /** Local in-memory box draft for giver customization before purchase. */
-export function useGiftGiverBoxDraft(childDrafts: GiftChildDraft[]) {
+export function useGiftGiverBoxDraft(
+  childDrafts: GiftChildDraft[],
+  initialLineItems?: BoxLineItem[]
+) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
+  const [lineItems, setLineItems] = useState<BoxLineItem[]>(() => initialLineItems ?? []);
   const [swapCache, setSwapCache] = useState<Record<string, CatalogItem[]>>({});
   const [loading, setLoading] = useState(true);
+  const keepInitialRef = useRef(Boolean(initialLineItems?.length));
 
   const children = useMemo(() => giftChildrenToProfiles(childDrafts), [childDrafts]);
 
@@ -19,7 +23,13 @@ export function useGiftGiverBoxDraft(childDrafts: GiftChildDraft[]) {
     setLoading(true);
     const items = await catalogService.getAll();
     setCatalog(items);
-    setLineItems(buildDefaultLineItems(items, children));
+    setLineItems((prev) => {
+      if (keepInitialRef.current && prev.length > 0) {
+        keepInitialRef.current = false;
+        return prev;
+      }
+      return buildDefaultLineItems(items, children);
+    });
     setSwapCache({});
     setLoading(false);
   }, [children]);

@@ -1,4 +1,8 @@
-const apiKey = process.env.CUSTOMERIO_APP_API_KEY ?? '';
+import { defineSecret } from 'firebase-functions/params';
+
+/** Customer.io App API key — bind on every function that calls sendEmail / SMS. */
+export const customerioAppApiKey = defineSecret('CUSTOMERIO_APP_API_KEY');
+
 const BASE_URL = 'https://api.customer.io/v1';
 const FROM_EMAIL = process.env.CUSTOMERIO_FROM_EMAIL ?? 'hello@grapejuice.co';
 
@@ -10,15 +14,30 @@ const TEMPLATE_IDS: Record<string, number> = {
   'gift-claim': parseInt(process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM ?? '0', 10) || 0,
   'debrief-amazon': parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON ?? '0', 10) || 0,
   'box-discount': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT ?? '0', 10) || 0,
+  welcome: parseInt(process.env.CUSTOMERIO_TEMPLATE_WELCOME ?? '0', 10) || 12,
 };
 
 /** Env vars for Customer.io transactional templates:
- *  CUSTOMERIO_APP_API_KEY, CUSTOMERIO_FROM_EMAIL
+ *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
+ *  CUSTOMERIO_FROM_EMAIL
  *  CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER, CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER_SMS, CUSTOMERIO_SMS_FROM
  *  CUSTOMERIO_TEMPLATE_LOCK_REMINDER, CUSTOMERIO_TEMPLATE_LOCK_REMINDER_SMS
  *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
- *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT
+ *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
+ *
+ *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
  */
+
+/** Resolve App API key from the bound secret (or env fallback). Call only inside a function invocation. */
+export function getCustomerioAppApiKey(): string {
+  try {
+    const fromSecret = customerioAppApiKey.value()?.trim();
+    if (fromSecret) return fromSecret;
+  } catch {
+    /* Secret not bound on this function */
+  }
+  return process.env.CUSTOMERIO_APP_API_KEY?.trim() || '';
+}
 
 export async function sendEmail({
   to,
@@ -35,6 +54,7 @@ export async function sendEmail({
     return;
   }
   if (!to?.includes('@')) return;
+  const apiKey = getCustomerioAppApiKey();
   if (!apiKey) {
     console.warn('sendEmail: CUSTOMERIO_APP_API_KEY not set, skipping', { to, template });
     return;
@@ -71,7 +91,7 @@ export async function sendDebriefReminderEmail({
 }): Promise<void> {
   const template = 'debrief-reminder';
   const transactionalMessageId = TEMPLATE_IDS[template];
-  if (!transactionalMessageId || !apiKey) {
+  if (!transactionalMessageId || !getCustomerioAppApiKey()) {
     console.warn('sendDebriefReminderEmail: stub (Customer.io not configured)', { to, attempt });
     return;
   }
@@ -96,7 +116,7 @@ export async function sendGiftClaimEmail({
 }): Promise<void> {
   const template = 'gift-claim';
   const transactionalMessageId = TEMPLATE_IDS[template];
-  if (!transactionalMessageId || !apiKey) {
+  if (!transactionalMessageId || !getCustomerioAppApiKey()) {
     console.warn('sendGiftClaimEmail: stub (Customer.io not configured)', { to, giverName });
     return;
   }
@@ -112,7 +132,7 @@ export async function sendDebriefAmazonFallbackEmail({
   claimUrl?: string;
 }): Promise<void> {
   const templateId = parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON ?? '0', 10) || 0;
-  if (!templateId || !apiKey) {
+  if (!templateId || !getCustomerioAppApiKey()) {
     console.warn('sendDebriefAmazonFallbackEmail: stub (template not configured)', { to, claimUrl });
     return;
   }
@@ -137,7 +157,7 @@ export async function sendLockReminderEmail({
 }): Promise<void> {
   const template = 'lock-reminder';
   const transactionalMessageId = TEMPLATE_IDS[template];
-  if (!transactionalMessageId || !apiKey) {
+  if (!transactionalMessageId || !getCustomerioAppApiKey()) {
     console.warn('sendLockReminderEmail: stub (Customer.io not configured)', { to, attempt });
     return;
   }

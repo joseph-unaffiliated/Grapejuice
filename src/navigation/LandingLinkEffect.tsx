@@ -67,7 +67,10 @@ export function LandingLinkEffect() {
       }
       if (!navigationRef.isReady()) return;
       if (useGuestSessionStore.getState().buildBoxPath) return;
-      if (useAuthFlowStore.getState().pendingReturn === 'MyBox') {
+      if (
+        useAuthFlowStore.getState().pendingReturn === 'MyBox' ||
+        useAuthFlowStore.getState().pendingReturn === 'GiftGiverCustomize'
+      ) {
         pending.current = null;
         clearInterval(id);
         return;

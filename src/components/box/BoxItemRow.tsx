@@ -40,7 +40,7 @@ type Props = {
   onPrimarySwapAction?: () => void;
   onToggleSurprise?: () => void;
   onSetKeepOrToss?: (value: KeepOrToss) => void;
-  /** @deprecated Prefer quantity stepper (`onQuantityChange`). */
+  /** Section-level “add more” is preferred for boxes; chip kept for rare callers. */
   onAddAnother?: () => void;
   showAddAnother?: boolean;
   formatPrice: (cents: number) => string;
@@ -51,9 +51,13 @@ type Props = {
   previewChips?: boolean;
   /** Display quantity (coalesced). Defaults to `li.quantity`. */
   quantity?: number;
+  /**
+   * À-la-carte / marketplace only. Do not pass for curated box lines —
+   * those are one-per-slot (donate/remove + section “add more”).
+   */
   onQuantityChange?: (delta: 1 | -1) => void;
   /**
-   * At qty 1, decrement label/action: donate (included base) vs trash (paid add-on).
+   * Donate (included base) vs Remove (paid add-on) chip label when `onRemove` is set.
    * Defaults from `li.unitCents === 0`.
    */
   decrementMode?: 'donate' | 'remove';

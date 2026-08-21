@@ -43,6 +43,17 @@ npm run firebase:deploy:rules   # includes users/{uid}/aiChats rules
 
 Chat threads persist at `users/{uid}/aiChats/{threadId}`.
 
+## Customer.io (transactional email / SMS)
+
+App API key is a Firebase secret, bound on send paths (welcome, order confirmed, gift claim, reminders, box discount):
+
+```bash
+npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
+npm run firebase:deploy:functions
+```
+
+Paste the **App API** key from Customer.io (Settings → API Credentials), not the Track API key. Optional template ID overrides: `CUSTOMERIO_TEMPLATE_*` env on Functions.
+
 ## Authentication
 
 In Firebase Console → **Authentication** → **Sign-in method**:

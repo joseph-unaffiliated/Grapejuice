@@ -18,6 +18,7 @@ import {
 import { randomBytes } from 'crypto';
 
 export { askPilotRav, scanBeamAgeTriggers };
+export { sendWelcomeOnSignup } from './welcome';
 
 initializeApp();
 const db = getFirestore();

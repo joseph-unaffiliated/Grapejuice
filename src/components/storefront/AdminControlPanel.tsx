@@ -31,7 +31,7 @@ import { getHanukkahConfig } from '../../services/firestore/config';
 import { getHanukkahWindow } from '../../services/hanukkah/dates';
 import { resetTesterBox } from '../../services/admin/resetTesterBox';
 import { enterVisitorPlaythrough, exitVisitorPlaythrough } from '../../services/admin/visitorPlaythrough';
-import { isAdminEmail } from '../../constants/admin';
+import { isOpsAdmin } from '../../constants/admin';
 import { navigateMainStack, navigateToLanding } from '../../navigation/mainStackNavigation';
 import { useMarketingLandings } from '../../hooks/useMarketingLandings';
 import { landingFromMergedById } from '../../services/landingCatalog';
@@ -54,9 +54,8 @@ const PANEL_MAX_HEIGHT = '78%';
  */
 export function AdminControlPanel() {
   const { household, refresh } = useSession();
-  const realUserEmail = useAuthStore((s) => s.user?.email);
-  const show =
-    isAdminEmail(realUserEmail) || (typeof __DEV__ !== 'undefined' && __DEV__);
+  const realUser = useAuthStore((s) => s.user);
+  const show = isOpsAdmin(realUser);
 
   const preview = useUserStatePreviewStore((s) => s.preview);
   const setPreview = useUserStatePreviewStore((s) => s.setPreview);
@@ -197,7 +196,7 @@ export function AdminControlPanel() {
       navigateMainStack('StorefrontHome');
       return;
     }
-    const signedIn = Boolean(realUserEmail);
+    const signedIn = Boolean(realUser?.email);
     const title = 'Walk as a visitor?';
     const body = signedIn
       ? 'This signs you out of admin so you can build a box, sign up, and check out as a new visitor. Exit returns you to admin sign-in. Nothing is charged to your admin account.'

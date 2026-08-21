@@ -42,7 +42,6 @@ import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
 import {
-  applyQuantityDelta,
   childNamesForLines,
   coalesceLinesByItemId,
   formatBoxItemStatusMeta,
@@ -250,19 +249,12 @@ export function MyBoxScreen() {
     await applySwap(slotIds, preWrap);
   };
 
-  const changeCoalescedQuantity = async (
-    group: ReturnType<typeof coalesceLinesByItemId>[number],
-    delta: 1 | -1
+  /** Box lines are one-per-slot; donate/remove only (no qty stepper — that is à-la-carte). */
+  const removeCoalesced = async (
+    group: ReturnType<typeof coalesceLinesByItemId>[number]
   ) => {
     if (locked) return;
-    if (delta < 0 && group.quantity <= 1) {
-      // Donate (included) or trash (paid) — remove from draft.
-      await persist(removeCoalescedGroup(lineItems, group));
-      return;
-    }
-    if (delta > 0 && group.unitCents > 0 && !guestViewOnly && !guardMutation()) return;
-    const next = applyQuantityDelta(lineItems, group, delta);
-    if (next) await persist(next);
+    await persist(removeCoalescedGroup(lineItems, group));
   };
 
   const toggleSurprise = async (slotId: string) => {
@@ -480,9 +472,8 @@ export function MyBoxScreen() {
                           : undefined
                       }
                       onSetKeepOrToss={(value) => void setKeepOrToss(li.slotId, value)}
-                      quantity={group.quantity}
-                      onQuantityChange={(delta) => void changeCoalescedQuantity(group, delta)}
                       decrementMode={group.unitCents === 0 ? 'donate' : 'remove'}
+                      onRemove={() => void removeCoalesced(group)}
                       onOpenProduct={() => openProduct(li.itemId)}
                       formatPrice={formatDollars}
                     />

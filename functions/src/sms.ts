@@ -1,4 +1,5 @@
-const apiKey = process.env.CUSTOMERIO_APP_API_KEY ?? '';
+import { getCustomerioAppApiKey } from './email';
+
 const BASE_URL = 'https://api.customer.io/v1';
 
 /** Customer.io transactional SMS — stub when key / template missing. */
@@ -12,6 +13,7 @@ export async function sendDebriefReminderSms({
   claimUrl: string;
 }): Promise<void> {
   const transactionalMessageId = parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER_SMS ?? '0', 10) || 0;
+  const apiKey = getCustomerioAppApiKey();
   if (!transactionalMessageId || !apiKey) {
     console.warn('sendDebriefReminderSms: stub (Customer.io SMS not configured)', { to, attempt });
     return;
@@ -52,6 +54,7 @@ export async function sendLockReminderSms({
   myBoxUrl: string;
 }): Promise<void> {
   const transactionalMessageId = parseInt(process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER_SMS ?? '0', 10) || 0;
+  const apiKey = getCustomerioAppApiKey();
   if (!transactionalMessageId || !apiKey) {
     console.warn('sendLockReminderSms: stub (Customer.io SMS not configured)', { to, attempt });
     return;

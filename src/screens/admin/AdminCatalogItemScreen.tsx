@@ -16,7 +16,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
-import { isAdminEmail } from '../../constants/admin';
+import { isOpsAdmin } from '../../constants/admin';
 import {
   CATALOG_FIELD_OPTIONS,
   CATALOG_HOLIDAY,
@@ -87,7 +87,7 @@ export function AdminCatalogItemScreen() {
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const user = useAuthStore((s) => s.user);
-  const allowed = isAdminEmail(user?.email);
+  const allowed = isOpsAdmin(user);
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [loading, setLoading] = useState(!isCreate);

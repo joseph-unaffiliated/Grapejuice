@@ -1,4 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { BoxLineItem } from '../types/pilot';
 import type { GiftChildDraft, GiftGiveFormValues, GiftPath } from '../screens/gift/giftGiveTypes';
 
 export type AuthStackParamList = {
@@ -73,6 +74,15 @@ export type MainStackParamList = {
   GiftGiverCustomize: {
     form: GiftGiveFormValues;
     childDrafts: GiftChildDraft[];
+    /** Optional — restored after auth so swaps survive remount. */
+    lineItems?: BoxLineItem[];
+  };
+  GiftSentConfirmation: {
+    recipientEmail: string;
+    customize: boolean;
+    giverName?: string;
+    amountCents?: number;
+    claimUrl?: string;
   };
   GiftClaim: { token?: string };
   GiftRecipientReveal: {

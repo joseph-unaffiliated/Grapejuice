@@ -23,8 +23,31 @@ function remapGuestChildIds(lineItems: BoxLineItem[], saved: ChildProfile[]): Bo
   });
 }
 
+/** Mark parent past onboarding so RootNavigator won't dump gift resume into Build a Box. */
+async function ensureGiftResumeSkipsOnboarding(user: AuthUser): Promise<void> {
+  const existing = await usersService.get(user.uid);
+  if (existing?.onboardingComplete && existing?.boxRevealComplete) return;
+  await usersService.upsert(user.uid, {
+    email: user.email,
+    displayName: user.displayName,
+    role: 'parent',
+    onboardingComplete: true,
+    boxRevealComplete: true,
+  });
+}
+
 export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   const guest = useGuestSessionStore.getState();
+  const pendingAtStart = useAuthFlowStore.getState().pendingReturn;
+  const giftDraftAtStart = useAuthFlowStore.getState().pendingGiftCustomize;
+  const giftResume = pendingAtStart === 'GiftGiverCustomize' && !!giftDraftAtStart;
+
+  // Do this first — before any stub profile with onboardingComplete: false can win the race.
+  if (giftResume) {
+    await ensureGiftResumeSkipsOnboarding(user);
+    queuePendingMainNav({ screen: 'GiftGiverCustomize', params: giftDraftAtStart });
+  }
+
   const hasGuestData =
     guest.exploreStarted ||
     guest.buildBoxPath ||
@@ -38,7 +61,10 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   // Snapshot before any writes — a concurrent session load must not stamp
   // onboardingComplete: false and dump a customized guest back into onboarding.
   const guestHasBox =
-    guest.boxRevealComplete || guest.onboardingComplete || guest.lineItems.length > 0;
+    giftResume ||
+    guest.boxRevealComplete ||
+    guest.onboardingComplete ||
+    guest.lineItems.length > 0;
 
   let prof = await usersService.get(user.uid);
   if (!prof) {
@@ -99,9 +125,14 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
     hiddenHolidays: guest.hiddenHolidays.length ? guest.hiddenHolidays : undefined,
   });
 
+  // Gift path already queued at the top — never overwrite with My Box.
+  if (giftResume) {
+    return;
+  }
+
+  const pending = useAuthFlowStore.getState().pendingReturn;
   if (guestHasBox) {
-    const pending = useAuthFlowStore.getState().pendingReturn;
-    if (pending !== 'Checkout' && pending !== 'GiftClaim') {
+    if (pending !== 'Checkout' && pending !== 'GiftClaim' && pending !== 'GiftGiverCustomize') {
       queuePendingMainNav({ screen: 'MyBox' });
       if (pending !== 'MyBox') {
         useAuthFlowStore.setState({ pendingReturn: 'MyBox' });

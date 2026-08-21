@@ -24,7 +24,10 @@ export type GiftInviteRecord = {
   claimedByHouseholdId?: string;
 };
 
-/** Mark gift paid and email recipient — idempotent. */
+/**
+ * Mark gift paid and email recipient.
+ * Idempotent across client finalize + Stripe webhook (transaction claims the send).
+ */
 export async function finalizeGiftInvitePayment(
   db: Firestore,
   giftInviteId: string
@@ -59,21 +62,55 @@ export async function finalizeGiftInvitePayment(
     throw new Error('Payment intent metadata mismatch');
   }
 
-  await inviteRef.update({
-    paymentStatus: 'paid',
-    updatedAt: new Date().toISOString(),
+  // Atomically claim the right to send — client finalize and webhook often race.
+  const now = new Date().toISOString();
+  const shouldSendEmail = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(inviteRef);
+    if (!snap.exists) {
+      throw new Error(`Gift invite ${giftInviteId} not found`);
+    }
+    const current = snap.data() as GiftInviteRecord;
+    if (current.claimEmailSentAt) {
+      if (current.paymentStatus !== 'paid') {
+        tx.update(inviteRef, { paymentStatus: 'paid', updatedAt: now });
+      }
+      return false;
+    }
+    tx.update(inviteRef, {
+      paymentStatus: 'paid',
+      claimEmailSentAt: now,
+      updatedAt: now,
+    });
+    return true;
   });
 
-  if (!invite.claimEmailSentAt) {
-    await sendGiftClaimEmail({
-      to: invite.recipientEmail,
-      giverName: invite.giverName,
-      claimUrl,
-      message: invite.message,
+  if (shouldSendEmail) {
+    try {
+      await sendGiftClaimEmail({
+        to: invite.recipientEmail,
+        giverName: invite.giverName,
+        claimUrl,
+        message: invite.message,
+      });
+    } catch (emailErr) {
+      // claimEmailSentAt already set so we don't double-send on retry; log for ops.
+      logger.error('Gift claim email failed after claim reserved', {
+        giftInviteId,
+        recipientEmail: invite.recipientEmail,
+        emailErr,
+      });
+      throw emailErr;
+    }
+    logger.info('Gift invite finalized + claim email sent', {
+      giftInviteId,
+      recipientEmail: invite.recipientEmail,
     });
-    await inviteRef.update({ claimEmailSentAt: new Date().toISOString() });
+    return { claimUrl, alreadyFinalized: false };
   }
 
-  logger.info('Gift invite finalized', { giftInviteId, recipientEmail: invite.recipientEmail });
-  return { claimUrl, alreadyFinalized: false };
+  logger.info('Gift invite already finalized (skipped duplicate email)', {
+    giftInviteId,
+    recipientEmail: invite.recipientEmail,
+  });
+  return { claimUrl, alreadyFinalized: true };
 }

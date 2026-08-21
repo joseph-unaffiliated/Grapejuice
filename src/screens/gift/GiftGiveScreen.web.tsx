@@ -1,81 +1,33 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Alert, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Alert, View, Text, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
-import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { MOBILE_GUTTER, spacing, typography, typeface, semanticColors } from '../../constants/theme';
+import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { GiftGiveForm } from './GiftGiveForm';
 import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from './giftGiveTypes';
 import type { GiftChildDraft } from './giftGiveTypes';
+import { GiftPaymentPanel, GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 
-function GiftPaymentStep({
-  giftInviteId,
-  recipientEmail,
-  onSuccess,
-  onCancel,
-}: {
-  giftInviteId: string;
-  recipientEmail: string;
-  onSuccess: () => void;
-  onCancel: () => void;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [paying, setPaying] = useState(false);
-
-  const pay = async () => {
-    if (!stripe || !elements) return;
-    setPaying(true);
-    try {
-      const { error } = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: typeof window !== 'undefined' ? window.location.href : undefined,
-        },
-        redirect: 'if_required',
-      });
-      if (error) {
-        Alert.alert('Payment failed', error.message ?? 'Please try again.');
-        return;
-      }
-      await completeGiftPurchase(giftInviteId, recipientEmail, onSuccess);
-    } catch (e) {
-      Alert.alert('Could not send gift', e instanceof Error ? e.message : 'Try again.');
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  return (
-    <View style={styles.paymentBlock}>
-      <Text style={styles.paymentTitle}>Payment</Text>
-      <View style={styles.paymentElementWrap}>
-        <PaymentElement options={{ layout: 'tabs' }} />
-      </View>
-      <TouchableOpacity style={styles.cta} onPress={() => void pay()} disabled={paying}>
-        {paying ? (
-          <ActivityIndicator color={semanticColors.textInverse} />
-        ) : (
-          <Text style={styles.ctaText}>Pay {formatDollars(DEFAULT_BOX_PRICE_CENTS)} & send</Text>
-        )}
-      </TouchableOpacity>
-      <TouchableOpacity onPress={onCancel} style={styles.cancel}>
-        <Text style={styles.cancelText}>Cancel</Text>
-      </TouchableOpacity>
-    </View>
-  );
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
 }
 
-export function GiftGiveScreen() {
+function GiftGiveBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'GiftGive'>>();
+  const { goHome } = useStorefrontActions();
   const [values, setValues] = useState<GiftGiveFormValues>({
     recipientEmail: '',
     giverName: '',
@@ -84,6 +36,7 @@ export function GiftGiveScreen() {
   });
   const [childDrafts, setChildDrafts] = useState<GiftChildDraft[]>(DEFAULT_GIFT_CHILDREN);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
   const [giftInviteId, setGiftInviteId] = useState<string | null>(null);
 
@@ -92,33 +45,41 @@ export function GiftGiveScreen() {
   const stripePromise = useMemo(() => (stripeKey ? loadStripe(stripeKey) : null), [stripeKey]);
 
   const patchValues = (patch: Partial<GiftGiveFormValues>) => {
+    if (patch.recipientEmail !== undefined) setFormError(null);
     setValues((current) => ({ ...current, ...patch }));
   };
 
   const preparePayment = async () => {
-    if (!values.recipientEmail.includes('@')) {
-      Alert.alert('Email required', 'Enter the recipient family email.');
+    const email = values.recipientEmail.trim();
+    if (!email.includes('@')) {
+      setFormError('Enter the recipient family’s email to continue.');
       return;
     }
 
     if (values.giftPath === 'customize') {
-      navigation.navigate('GiftGiverCustomize', { form: values, childDrafts });
+      navigation.navigate('GiftGiverCustomize', {
+        form: { ...values, recipientEmail: email },
+        childDrafts,
+      });
       return;
     }
 
     if (!stripeKey) {
-      Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
+      notify('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
       return;
     }
 
     setSubmitting(true);
     try {
-      const result = await startGiftPurchase({ form: values, customize: false });
+      const result = await startGiftPurchase({
+        form: { ...values, recipientEmail: email },
+        customize: false,
+      });
       setGiftInviteId(result.giftInviteId);
       setPaymentSecret(result.clientSecret);
       if (__DEV__) console.log('[gift] prepared', result.claimUrl);
     } catch (e) {
-      Alert.alert('Could not start payment', e instanceof Error ? e.message : 'Try again.');
+      notify('Could not start payment', e instanceof Error ? e.message : 'Try again.');
     } finally {
       setSubmitting(false);
     }
@@ -129,58 +90,102 @@ export function GiftGiveScreen() {
     setGiftInviteId(null);
   };
 
+  const formProps = {
+    values,
+    childDrafts,
+    onChange: patchValues,
+    onChildDraftsChange: setChildDrafts,
+    hideBack: true as const,
+    error: formError,
+  };
+
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      {paymentSecret && stripePromise && giftInviteId ? (
-        <Elements stripe={stripePromise} options={{ clientSecret: paymentSecret, appearance: { theme: 'stripe' } }}>
-          <GiftGiveForm
-            values={values}
-            childDrafts={childDrafts}
-            onChange={patchValues}
-            onChildDraftsChange={setChildDrafts}
-            onBack={() => navigation.goBack()}
-            onSubmit={() => {}}
-            submitting
-            submitLabel="Complete payment below"
+    <View style={styles.page}>
+      <View style={styles.breadcrumb}>
+        <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
+          Store
+        </Text>
+        <Text style={styles.crumbSep}> / </Text>
+        <Text style={styles.crumbCurrent}>Send a gift</Text>
+      </View>
+
+      <View style={styles.shell}>
+        {paymentSecret && stripePromise && giftInviteId ? (
+          <Elements
+            stripe={stripePromise}
+            options={{ clientSecret: paymentSecret, appearance: GIFT_STRIPE_APPEARANCE }}
           >
-            <GiftPaymentStep
+            <GiftPaymentPanel
               giftInviteId={giftInviteId}
               recipientEmail={values.recipientEmail.trim()}
-              onSuccess={() => navigation.goBack()}
+              giverName={values.giverName}
+              customize={false}
+              onPaid={({ claimUrl }) => {
+                navigation.replace('GiftSentConfirmation', {
+                  recipientEmail: values.recipientEmail.trim(),
+                  customize: false,
+                  giverName: values.giverName.trim() || undefined,
+                  amountCents: DEFAULT_BOX_PRICE_CENTS,
+                  claimUrl,
+                });
+              }}
               onCancel={resetPayment}
+              onError={notify}
+              cancelLabel="← Back to gift details"
+              completePurchase={completeGiftPurchase}
             />
-          </GiftGiveForm>
-        </Elements>
-      ) : (
-        <GiftGiveForm
-          values={values}
-          childDrafts={childDrafts}
-          onChange={patchValues}
-          onChildDraftsChange={setChildDrafts}
-          onBack={() => navigation.goBack()}
-          onSubmit={() => void preparePayment()}
-          submitting={submitting}
-          submitLabel={values.giftPath === 'customize' ? 'Pick their box' : 'Continue to payment'}
-        />
-      )}
-    </ScrollView>
+          </Elements>
+        ) : (
+          <GiftGiveForm
+            {...formProps}
+            onSubmit={() => void preparePayment()}
+            submitting={submitting}
+            submitLabel={values.giftPath === 'customize' ? 'Pick their box' : 'Continue to payment'}
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+
+export function GiftGiveScreen() {
+  return (
+    <StorefrontChrome hideServicesNav>
+      <GiftGiveBody />
+    </StorefrontChrome>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  content: { padding: spacing.lg, paddingTop: spacing.xxl, paddingBottom: 120 },
-  paymentBlock: { marginTop: spacing.lg },
-  paymentTitle: { fontSize: typography.xl, fontWeight: '700', marginBottom: spacing.sm },
-  paymentElementWrap: { minHeight: 120, marginBottom: spacing.md },
-  cta: {
-    backgroundColor: semanticColors.brand,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    marginTop: spacing.md,
+  page: {
+    paddingHorizontal: MOBILE_GUTTER,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
-  ctaText: { color: semanticColors.textInverse, fontWeight: '700', fontSize: typography.lg },
-  cancel: { marginTop: spacing.md, alignItems: 'center' },
-  cancelText: { color: semanticColors.textTertiary },
+  breadcrumb: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  crumbLink: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    color: semanticColors.goldMuted,
+  },
+  crumbSep: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    color: semanticColors.goldMuted,
+  },
+  crumbCurrent: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: semanticColors.logoDark,
+  },
+  shell: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
 });

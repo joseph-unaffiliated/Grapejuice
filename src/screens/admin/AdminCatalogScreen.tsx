@@ -12,7 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
-import { isAdminEmail } from '../../constants/admin';
+import { isOpsAdmin } from '../../constants/admin';
 import { catalogService } from '../../services/firestore/catalog';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
@@ -33,7 +33,7 @@ export function AdminCatalogScreen() {
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const user = useAuthStore((s) => s.user);
-  const allowed = isAdminEmail(user?.email);
+  const allowed = isOpsAdmin(user);
 
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);

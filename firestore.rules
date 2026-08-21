@@ -12,15 +12,11 @@ service cloud.firestore {
         request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.memberIds;
     }
 
-    /** Pilot ops allowlist — keep in sync with src/constants/admin.ts */
+    /** Pilot ops allowlist — keep in sync with src/constants/admin.ts (plus-aliases allowed). */
     function isAdmin() {
       return signedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email in [
-          'brendan@unaffiliated.co',
-          'joseph@unaffiliated.co',
-          'maya@unaffiliated.co'
-        ];
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('^(brendan|joseph|maya)(\\+[^@]*)?@unaffiliated[.]co$');
     }
 
     match /users/{userId} {

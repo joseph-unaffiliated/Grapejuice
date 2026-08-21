@@ -69,7 +69,11 @@ export function StorefrontLinkEffect() {
       pending.current = null;
       return;
     }
-    if (useAuthFlowStore.getState().pendingReturn === 'MyBox') {
+    if (
+      useAuthFlowStore.getState().pendingReturn === 'MyBox' ||
+      useAuthFlowStore.getState().pendingReturn === 'GiftGiverCustomize' ||
+      peekPendingMainNav()?.screen === 'GiftGiverCustomize'
+    ) {
       pending.current = null;
       return;
     }

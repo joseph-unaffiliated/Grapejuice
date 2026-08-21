@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.claimGiftInvite = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.claimGiftInvite = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createPilotCheckout = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -18,6 +18,8 @@ const debriefReminders_1 = require("./debriefReminders");
 const lockReminders_1 = require("./lockReminders");
 const airtableCatalogSync_1 = require("./airtableCatalogSync");
 const crypto_1 = require("crypto");
+var welcome_1 = require("./welcome");
+Object.defineProperty(exports, "sendWelcomeOnSignup", { enumerable: true, get: function () { return welcome_1.sendWelcomeOnSignup; } });
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const HOLIDAY_ID = 'hanukkah-2026';
@@ -232,26 +234,13 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     }
     const estimatedDelivery = (_f = (expeditedShipping ? configData.expeditedDeliveryBy : configData.estimatedDeliveryBy)) !== null && _f !== void 0 ? _f : '2026-11-21';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
-    await orderRef.set({
-        status: 'committed',
-        lineItems,
+    await orderRef.set(Object.assign({ status: 'committed', lineItems,
         subtotalCents,
         shippingCents,
         taxCents,
-        totalCents,
-        creditAppliedCents: creditApplied,
-        giftCreditAppliedCents: giftCreditApplied,
-        platformCreditAppliedCents: platformCreditApplied,
-        expeditedShipping,
-        shippingAddress,
-        holidayId: HOLIDAY_ID,
-        userId: request.auth.uid,
-        lockAt,
-        estimatedDelivery,
-        committedAt: firestore_1.FieldValue.serverTimestamp(),
-        createdAt: firestore_1.FieldValue.serverTimestamp(),
-        ...(data.skipShipStation === true ? { playthrough: true } : {}),
-    });
+        totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, expeditedShipping,
+        shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
+        estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (data.skipShipStation === true ? { playthrough: true } : {})));
     if (giftCreditApplied > 0 || platformCreditApplied > 0) {
         await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
     }

@@ -17,6 +17,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { auth } from '../../lib/firebase';
+import { isAdminEmail } from '../../constants/admin';
 
 /** Explicit resolver — required if Auth was initialized without popupRedirectResolver (auth/argument-error). */
 const webPopupRedirectResolver =
@@ -65,14 +66,33 @@ async function getGoogleSignin() {
 export interface AuthUser {
   uid: string;
   email: string | null;
+  /** Primary + Google/provider emails — admin checks use any of these. */
+  emails: string[];
   displayName: string | null;
   photoURL: string | null;
 }
 
+function collectEmails(user: User): string[] {
+  const out: string[] = [];
+  const add = (value?: string | null) => {
+    const email = value?.trim();
+    if (!email) return;
+    const key = email.toLowerCase();
+    if (out.some((existing) => existing.toLowerCase() === key)) return;
+    out.push(email);
+  };
+  add(user.email);
+  for (const profile of user.providerData) add(profile.email);
+  return out;
+}
+
 function formatUser(user: User): AuthUser {
+  const emails = collectEmails(user);
+  const adminEmail = emails.find((email) => isAdminEmail(email));
   return {
     uid: user.uid,
-    email: user.email ?? null,
+    email: adminEmail ?? user.email ?? emails[0] ?? null,
+    emails,
     displayName: user.displayName ?? null,
     photoURL: user.photoURL ?? null,
   };

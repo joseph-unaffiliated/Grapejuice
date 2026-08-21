@@ -13,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
-import { isAdminEmail } from '../../constants/admin';
+import { isOpsAdmin } from '../../constants/admin';
 import {
   LANDING_REGISTRY,
   landingAudienceById,
@@ -60,7 +60,8 @@ export function AdminLandingsScreen() {
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const user = useAuthStore((s) => s.user);
-  const allowed = isAdminEmail(user?.email);
+  const authLoading = useAuthStore((s) => s.isLoading);
+  const allowed = isOpsAdmin(user);
 
   const [rows, setRows] = useState<LandingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,12 +202,25 @@ export function AdminLandingsScreen() {
     style: styles.panel,
   } as const;
 
+  if (authLoading) {
+    return (
+      <WebContentPanel {...panelProps}>
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.brand} />
+        </View>
+      </WebContentPanel>
+    );
+  }
+
   if (!allowed) {
     return (
       <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
           <Text style={styles.deniedTitle}>Admin only</Text>
-          <Text style={styles.deniedBody}>This tooling is limited to allowlisted ops accounts.</Text>
+          <Text style={styles.deniedBody}>
+            This tooling is limited to allowlisted ops accounts
+            {user?.email ? ` (signed in as ${user.email})` : ''}.
+          </Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Text style={styles.backBtnText}>← Back</Text>
           </TouchableOpacity>

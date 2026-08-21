@@ -16,7 +16,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
-import { isAdminEmail } from '../../constants/admin';
+import { isOpsAdmin } from '../../constants/admin';
 import {
   landingAudienceById,
   type LandingCta,
@@ -156,7 +156,7 @@ export function AdminLandingEditorScreen() {
     [colors, isDesktop, showLivePreview]
   );
   const user = useAuthStore((s) => s.user);
-  const allowed = isAdminEmail(user?.email);
+  const allowed = isOpsAdmin(user);
 
   const codeConfig = landingAudienceById(audienceId);
   const isSeed = isCodeSeedLandingId(audienceId);

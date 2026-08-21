@@ -1,14 +1,14 @@
 "use strict";
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendDebriefReminderSms = sendDebriefReminderSms;
 exports.sendLockReminderSms = sendLockReminderSms;
-const apiKey = (_a = process.env.CUSTOMERIO_APP_API_KEY) !== null && _a !== void 0 ? _a : '';
+const email_1 = require("./email");
 const BASE_URL = 'https://api.customer.io/v1';
 /** Customer.io transactional SMS — stub when key / template missing. */
 async function sendDebriefReminderSms({ to, attempt, claimUrl, }) {
     var _a, _b;
     const transactionalMessageId = parseInt((_a = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER_SMS) !== null && _a !== void 0 ? _a : '0', 10) || 0;
+    const apiKey = (0, email_1.getCustomerioAppApiKey)();
     if (!transactionalMessageId || !apiKey) {
         console.warn('sendDebriefReminderSms: stub (Customer.io SMS not configured)', { to, attempt });
         return;
@@ -33,6 +33,7 @@ async function sendDebriefReminderSms({ to, attempt, claimUrl, }) {
 async function sendLockReminderSms({ to, attempt, daysRemaining, myBoxUrl, }) {
     var _a, _b;
     const transactionalMessageId = parseInt((_a = process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER_SMS) !== null && _a !== void 0 ? _a : '0', 10) || 0;
+    const apiKey = (0, email_1.getCustomerioAppApiKey)();
     if (!transactionalMessageId || !apiKey) {
         console.warn('sendLockReminderSms: stub (Customer.io SMS not configured)', { to, attempt });
         return;

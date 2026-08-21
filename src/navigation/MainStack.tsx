@@ -24,6 +24,7 @@ import { GiftGiveScreen } from '../screens/gift/GiftGiveScreen';
 import { GiftGiverCustomizeScreen } from '../screens/gift/GiftGiverCustomizeScreen';
 import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
 import { GiftRecipientRevealScreen } from '../screens/gift/GiftRecipientRevealScreen';
+import { GiftSentConfirmationScreen } from '../screens/gift/GiftSentConfirmationScreen';
 import { GiftLandingScreen } from '../screens/landing/GiftLandingScreen';
 import { DynamicLandingScreen } from '../screens/landing/DynamicLandingScreen';
 import { CulturalLandingScreen } from '../screens/landing/CulturalLandingScreen';
@@ -62,6 +63,7 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
   const pendingReturn = useAuthFlowStore.getState().pendingReturn;
   if (pendingReturn === 'MyBox') return 'MyBox';
   if (pendingReturn === 'Checkout') return 'Checkout';
+  if (pendingReturn === 'GiftGiverCustomize') return 'GiftGiverCustomize';
   if (useGuestSessionStore.getState().openMyBoxAfterReveal) return 'MyBox';
   return DEFAULT_MAIN_ROUTE;
 }
@@ -144,9 +146,9 @@ function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
 
   useEffect(() => {
     if (!isAuthenticated || !pendingReturn) return;
-    // My Box return is owned by AuthResumeMainEffect so pendingReturn stays
-    // set until the My Box route is actually showing (blocks /store deep-link).
-    if (pendingReturn === 'MyBox') return;
+    // My Box / gift customize return are owned by AuthResumeMainEffect so
+    // pendingReturn stays set until that screen is actually showing.
+    if (pendingReturn === 'MyBox' || pendingReturn === 'GiftGiverCustomize') return;
     if (alreadyOnTarget) {
       clearPending();
       return;
@@ -203,8 +205,14 @@ export function MainStack() {
   // onboarding queued a handoff — e.g. build splash → My Box.
   const initialRouteName = useRef(readHandoffInitialRoute()).current;
   const pendingAtMount = peekPendingMainNav();
+  const giftDraftAtMount =
+    initialRouteName === 'GiftGiverCustomize'
+      ? useAuthFlowStore.getState().pendingGiftCustomize
+      : null;
   const initialParams =
-    pendingAtMount?.screen === initialRouteName ? pendingAtMount.params : undefined;
+    pendingAtMount?.screen === initialRouteName
+      ? pendingAtMount.params
+      : giftDraftAtMount ?? undefined;
 
   return (
     <WebDesktopFrame>
@@ -332,6 +340,16 @@ export function MainStack() {
           name="GiftGiverCustomize"
           component={GiftGiverCustomizeScreen}
           options={{ title: 'Customize gift' }}
+          initialParams={
+            initialRouteName === 'GiftGiverCustomize'
+              ? (initialParams as MainStackParamList['GiftGiverCustomize'] | undefined)
+              : undefined
+          }
+        />
+        <Stack.Screen
+          name="GiftSentConfirmation"
+          component={GiftSentConfirmationScreen}
+          options={{ title: 'Gift sent' }}
         />
         <Stack.Screen name="GiftClaim" component={GiftClaimScreen} options={{ title: 'Claim gift' }} />
         <Stack.Screen

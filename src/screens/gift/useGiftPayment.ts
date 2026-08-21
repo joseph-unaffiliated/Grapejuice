@@ -1,7 +1,5 @@
-import { Alert } from 'react-native';
 import { purchasePilotGift, finalizePilotGiftPayment } from '../../services/gift/giftFlow';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
-import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { AgeGroup, BoxLineItem } from '../../types/pilot';
 import type { GiftGiveFormValues } from './giftGiveTypes';
 
@@ -16,6 +14,11 @@ export type GiftPurchaseResult = {
   giftInviteId: string;
   clientSecret: string;
   claimUrl: string;
+};
+
+export type GiftFinalizeResult = {
+  claimUrl: string;
+  alreadyFinalized: boolean;
 };
 
 export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftPurchaseResult> {
@@ -40,15 +43,11 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
   };
 }
 
-export async function completeGiftPurchase(
-  giftInviteId: string,
-  recipientEmail: string,
-  onSuccess: () => void
-): Promise<void> {
-  await finalizePilotGiftPayment(giftInviteId);
-  Alert.alert(
-    'Gift sent',
-    `We emailed ${recipientEmail} a link to claim their ${formatDollars(DEFAULT_BOX_PRICE_CENTS)} box credit.`,
-    [{ text: 'OK', onPress: onSuccess }]
-  );
+/** Finalize Stripe payment on the invite — no UI; caller navigates to confirmation. */
+export async function completeGiftPurchase(giftInviteId: string): Promise<GiftFinalizeResult> {
+  const result = await finalizePilotGiftPayment(giftInviteId);
+  return {
+    claimUrl: result.claimUrl,
+    alreadyFinalized: result.alreadyFinalized,
+  };
 }

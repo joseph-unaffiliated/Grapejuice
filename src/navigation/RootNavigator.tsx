@@ -39,6 +39,7 @@ import {
   currentMainRouteName,
   resetRootToMainScreen,
 } from './pendingMainNav';
+import { usersService } from '../services/firestore/users';
 
 /** Transparent theme so AuthHeroShell dimmed backdrop shows Main underneath. */
 const authOverlayTheme = {
@@ -67,31 +68,83 @@ function humanizeRoute(name: string): string {
 
 function AuthResumeMainEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
+  const pendingGiftCustomize = useAuthFlowStore((s) => s.pendingGiftCustomize);
   const clearPending = useAuthFlowStore((s) => s.clearPending);
+  const { needsOnboarding, needsBoxReveal, refresh, profile } = useSession();
 
   useEffect(() => {
-    if (!isAuthenticated || pendingReturn !== 'MyBox') return;
+    if (!isAuthenticated) return;
+    if (pendingReturn !== 'MyBox' && pendingReturn !== 'GiftGiverCustomize') return;
+
     let attempts = 0;
+    let healInFlight = false;
     const id = setInterval(() => {
       attempts += 1;
       if (!navigationRef.isReady()) {
         if (attempts > 80) clearInterval(id);
         return;
       }
-      if (currentMainRouteName() === 'MyBox') {
-        clearPending();
-        clearInterval(id);
-        return;
+
+      if (pendingReturn === 'MyBox') {
+        if (currentMainRouteName() === 'MyBox') {
+          clearPending();
+          clearInterval(id);
+          return;
+        }
+        resetRootToMainScreen('MyBox');
+      } else {
+        // Gift customize — do NOT clear pending while session still wants onboarding,
+        // or RootRoutes will remount the Onboarding stack the moment pending is gone.
+        const draft = useAuthFlowStore.getState().pendingGiftCustomize;
+        if (currentMainRouteName() !== 'GiftGiverCustomize') {
+          if (draft) resetRootToMainScreen('GiftGiverCustomize', draft);
+        } else if (needsOnboarding || needsBoxReveal || !profile?.onboardingComplete) {
+          if (!healInFlight && user) {
+            healInFlight = true;
+            void usersService
+              .upsert(user.uid, {
+                onboardingComplete: true,
+                boxRevealComplete: true,
+              })
+              .then(() => refresh({ silent: true }))
+              .finally(() => {
+                healInFlight = false;
+              });
+          }
+          return;
+        } else {
+          clearPending();
+          clearInterval(id);
+          return;
+        }
       }
-      resetRootToMainScreen('MyBox');
+
       if (attempts > 80) {
+        // Prefer staying pending over dumping into onboarding with a stale profile.
+        if (
+          pendingReturn === 'GiftGiverCustomize' &&
+          (!profile?.onboardingComplete || needsOnboarding || needsBoxReveal)
+        ) {
+          return;
+        }
         clearPending();
         clearInterval(id);
       }
     }, 50);
     return () => clearInterval(id);
-  }, [isAuthenticated, pendingReturn, clearPending]);
+  }, [
+    isAuthenticated,
+    pendingReturn,
+    pendingGiftCustomize,
+    clearPending,
+    needsOnboarding,
+    needsBoxReveal,
+    profile?.onboardingComplete,
+    refresh,
+    user,
+  ]);
 
   return null;
 }
@@ -117,15 +170,19 @@ function RootRoutes() {
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const pendingAuth = useAuthFlowStore((s) => s.pendingReturn);
+  const pendingGiftCustomize = useAuthFlowStore((s) => s.pendingGiftCustomize);
   const previewGate = useDevPreviewStore((s) => s.forceGate);
   const previewActive = readDevPreviewFromWindow() != null;
 
   const guestHasMainSurface =
     exploreStarted || guestOnboardingComplete || guestBoxRevealComplete;
 
+  const giftCustomizeResume =
+    pendingAuth === 'GiftGiverCustomize' || pendingGiftCustomize != null;
+
   /** Keep Main mounted through overlay sign-in so My Box isn't replaced by /store. */
   const stayOnMainForAuthReturn =
-    pendingAuth != null && pendingAuth !== 'GiftClaim';
+    (pendingAuth != null && pendingAuth !== 'GiftClaim') || giftCustomizeResume;
 
   const booting =
     !guestHydrated ||
@@ -142,8 +199,11 @@ function RootRoutes() {
     );
   }
 
-  /** Auth started from storefront / My Box / etc. — keep Main mounted and overlay Auth. */
-  const authAsOverlay = !isAuthenticated && !!pendingAuth && guestHasMainSurface;
+  /** Auth started from storefront / My Box / gift customize — keep Main mounted and overlay Auth. */
+  const authAsOverlay =
+    !isAuthenticated &&
+    !!pendingAuth &&
+    (guestHasMainSurface || giftCustomizeResume || pendingAuth === 'Checkout');
 
   let gateKey: 'auth' | 'onboarding' | 'main' = 'auth';
 
@@ -153,11 +213,10 @@ function RootRoutes() {
     const guestHasBox =
       guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete;
     const resumeMainAfterAuth =
-      guestHasBox &&
-      pendingAuth != null &&
-      pendingAuth !== 'GiftClaim';
+      giftCustomizeResume ||
+      (guestHasBox && pendingAuth != null && pendingAuth !== 'GiftClaim');
     if (resumeMainAfterAuth) {
-      // Guest already revealed/customized a box — don't restart onboarding after sign-in.
+      // Guest already revealed/customized a box (or mid gift customize) — don't restart onboarding.
       gateKey = 'main';
     } else if (exploreStarted && !needsOnboarding) {
       // Signed-in “explore without building a box” — onboarding done, reveal skipped.
@@ -165,12 +224,12 @@ function RootRoutes() {
     } else {
       gateKey = needsOnboarding ? 'onboarding' : needsBoxReveal ? 'onboarding' : 'main';
     }
-  } else if (pendingAuth && !guestHasMainSurface) {
+  } else if (pendingAuth && !guestHasMainSurface && !giftCustomizeResume) {
     // Cold auth / gift-claim before explore — full Auth stack (no Main underneath).
     gateKey = 'auth';
   } else if (buildBoxPath && !guestBoxRevealComplete) {
     gateKey = 'onboarding';
-  } else if (guestHasMainSurface) {
+  } else if (guestHasMainSurface || giftCustomizeResume) {
     gateKey = 'main';
   }
 
@@ -248,6 +307,7 @@ export function RootNavigator() {
       'Profiles',
       'MyBox',
       'GiftClaim',
+      'GiftGiverCustomize',
       'History',
     ];
     if (!allowed.includes(raw as AuthReturnRoute)) return;

@@ -35,13 +35,14 @@ import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
-import { isAdminEmail } from '../../constants/admin';
+import { isOpsAdmin } from '../../constants/admin';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
 const PREVIEW_SIGNED_IN_USER = {
   uid: 'preview-user',
   email: 'alex@example.com',
+  emails: ['alex@example.com'],
   displayName: 'Alex',
 };
 
@@ -296,7 +297,7 @@ export function AccountScreen() {
           <Text style={styles.profilesBtnText}>Send a gift</Text>
         </TouchableOpacity>
 
-        {isAdminEmail(user?.email) ? (
+        {isOpsAdmin(user) ? (
           <>
             <Text style={styles.section}>Ops</Text>
             <Text style={styles.hint}>Add or edit Hanukkah catalog SKUs (books, menorahs, etc.).</Text>
