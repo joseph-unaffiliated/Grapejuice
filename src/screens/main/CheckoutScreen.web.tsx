@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -27,14 +27,24 @@ import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
-import { useCheckoutDraft } from './checkout/useCheckoutDraft';
+import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { usePilotOrders } from '../../hooks/usePilotOrders';
+import { householdsService } from '../../services/firestore/households';
+import { CHECKOUT_PATH, checkoutPath, readCheckoutPaymentStepFromWindow } from '../../navigation/checkoutLink';
+import { pushBrowserPath, replaceBrowserPath } from '../../navigation/webBrowserHistory';
 
 /** Match My Box desktop top offset under sticky nav. */
 const DESKTOP_CONTENT_TOP = 41;
+
+function checkoutReturnUrl(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return `${window.location.origin}${CHECKOUT_PATH}`;
+}
 
 /** Same dark pill CTA as My Box cart summary. */
 function CheckoutCta({
@@ -90,7 +100,7 @@ function SetupCardStep({
       const { error } = await stripe.confirmSetup({
         elements,
         confirmParams: {
-          return_url: typeof window !== 'undefined' ? window.location.href : undefined,
+          return_url: checkoutReturnUrl(),
         },
         redirect: 'if_required',
       });
@@ -122,7 +132,7 @@ function SetupCardStep({
   );
 }
 
-export function CheckoutScreen() {
+function CheckoutScreenBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -152,6 +162,13 @@ export function CheckoutScreen() {
   } = useCheckoutDraft(household?.id);
 
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
+  /** Keeps the SetupIntent secret across shipping ↔ payment browser history. */
+  const setupSecretRef = useRef<string | null>(null);
+  /**
+   * True after the user saves a card, before the webhook has set cardOnFileAt.
+   * Prevents flashing back to the "continue to payment" shipping step.
+   */
+  const [awaitingCardOnFile, setAwaitingCardOnFile] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
@@ -165,6 +182,12 @@ export function CheckoutScreen() {
   );
   const cardOnFile = !!household?.cardOnFileAt;
   const skipShipStation = useMockFlowStore((s) => s.active);
+  const { openOrder, loading: ordersLoading } = usePilotOrders(household?.id);
+
+  useEffect(() => {
+    if (ordersLoading || !openOrder) return;
+    navigation.replace('OrderConfirmation', { orderId: openOrder.id });
+  }, [ordersLoading, openOrder, navigation]);
 
   const handleCommit = useCallback(async () => {
     if (!user || !household?.id) return;
@@ -182,6 +205,7 @@ export function CheckoutScreen() {
         smsOptIn: smsOptIn && contactPhone.trim().length > 0,
         skipShipStation,
       });
+      clearStoredCheckoutAddress();
       navigation.replace('OrderConfirmation', { orderId });
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not commit your box.');
@@ -207,6 +231,7 @@ export function CheckoutScreen() {
       Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
       return;
     }
+    if (!validateAddress()) return;
     setPreparing(true);
     try {
       const result = await createPilotSetupIntent(household.id);
@@ -214,7 +239,10 @@ export function CheckoutScreen() {
         Alert.alert('Error', 'No setup secret returned.');
         return;
       }
+      setupSecretRef.current = result.clientSecret;
       setSetupClientSecret(result.clientSecret);
+      // Own history entry so Back returns to shipping, not My Box.
+      pushBrowserPath(checkoutPath('payment'));
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not start payment setup.');
     } finally {
@@ -222,10 +250,87 @@ export function CheckoutScreen() {
     }
   };
 
-  const onCardSaved = async () => {
-    setSetupClientSecret(null);
-    await refreshSession();
+  // Browser Back/Forward within /checkout ↔ /checkout?step=payment.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const syncStepFromUrl = () => {
+      if (readCheckoutPaymentStepFromWindow()) {
+        if (setupSecretRef.current) setSetupClientSecret(setupSecretRef.current);
+        return;
+      }
+      setSetupClientSecret(null);
+    };
+    window.addEventListener('popstate', syncStepFromUrl);
+    return () => window.removeEventListener('popstate', syncStepFromUrl);
+  }, []);
+
+  const onBack = () => {
+    if (setupClientSecret) {
+      if (
+        Platform.OS === 'web' &&
+        typeof window !== 'undefined' &&
+        readCheckoutPaymentStepFromWindow()
+      ) {
+        window.history.back();
+        return;
+      }
+      setSetupClientSecret(null);
+      return;
+    }
+    navigation.goBack();
   };
+
+  const onCardSaved = async () => {
+    // Drop the payment history step without going "back" to shipping UX.
+    replaceBrowserPath(CHECKOUT_PATH);
+    setupSecretRef.current = null;
+    setSetupClientSecret(null);
+    setAwaitingCardOnFile(true);
+
+    const householdId = household?.id;
+    if (!householdId) {
+      await refreshSession({ silent: true });
+      return;
+    }
+    // Silent only — non-silent refresh flips RootNavigator into boot and remounts
+    // Main onto /store (Checkout has no history path historically).
+    for (let i = 0; i < 10; i += 1) {
+      await refreshSession({ silent: true });
+      const hh = await householdsService.get(householdId);
+      if (hh?.cardOnFileAt) {
+        setAwaitingCardOnFile(false);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  };
+
+  // Stripe may redirect back to /checkout after 3DS — treat that as a successful save.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const redirectStatus = params.get('redirect_status');
+    const setupIntent = params.get('setup_intent');
+    if (!setupIntent || redirectStatus !== 'succeeded') return;
+    replaceBrowserPath(CHECKOUT_PATH);
+    setAwaitingCardOnFile(true);
+    void (async () => {
+      const householdId = household?.id;
+      if (!householdId) {
+        await refreshSession({ silent: true });
+        return;
+      }
+      for (let i = 0; i < 10; i += 1) {
+        await refreshSession({ silent: true });
+        const hh = await householdsService.get(householdId);
+        if (hh?.cardOnFileAt) {
+          setAwaitingCardOnFile(false);
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    })();
+  }, [household?.id, refreshSession]);
 
   const expeditedToggle =
     expeditedAvailable ? (
@@ -268,8 +373,18 @@ export function CheckoutScreen() {
     </View>
   );
 
-  const checkoutForm = cardOnFile ? (
+  const cardReady = cardOnFile || awaitingCardOnFile;
+
+  const checkoutForm = cardReady ? (
     <>
+      {awaitingCardOnFile && !cardOnFile ? (
+        <View style={styles.savingCardRow}>
+          <BrandLoadingMark large={false} color={colors.brand} />
+          <Text style={styles.savingCardCopy}>Saving your card…</Text>
+        </View>
+      ) : (
+        <Text style={styles.cardSavedCopy}>Card on file — confirm shipping and commit.</Text>
+      )}
       <CheckoutAddressFields address={address} onChange={updateAddress} />
       <CheckoutSmsOptIn
         phone={contactPhone}
@@ -281,7 +396,7 @@ export function CheckoutScreen() {
         label="Commit to box"
         onPress={() => void handleCommit()}
         loading={committing}
-        disabled={committing || locked}
+        disabled={committing || locked || (awaitingCardOnFile && !cardOnFile)}
         colors={colors}
         styles={styles}
       />
@@ -294,17 +409,7 @@ export function CheckoutScreen() {
       <SetupCardStep
         colors={colors}
         styles={styles}
-        onSaved={async () => {
-          await onCardSaved();
-          await handleCommit();
-        }}
-      />
-      <CheckoutAddressFields address={address} onChange={updateAddress} />
-      <CheckoutSmsOptIn
-        phone={contactPhone}
-        smsOptIn={smsOptIn}
-        onPhoneChange={setContactPhone}
-        onSmsOptInChange={setSmsOptIn}
+        onSaved={() => void onCardSaved()}
       />
     </Elements>
   ) : (
@@ -327,11 +432,13 @@ export function CheckoutScreen() {
     </>
   );
 
+  const onPaymentStep = !!setupClientSecret && !cardReady;
+
   if (!isAuthenticated) {
     return <CheckoutAuthGate />;
   }
 
-  if (loading) {
+  if (loading || ordersLoading) {
     return (
       <View style={styles.centered}>
         <BrandLoadingMark color={colors.brand} />
@@ -356,11 +463,13 @@ export function CheckoutScreen() {
 
   const pageHeader = (
     <>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
+      <TouchableOpacity onPress={onBack} style={styles.backRow}>
         <Text style={styles.backLink}>← Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Shipping</Text>
+      <Text style={styles.title}>
+        {onPaymentStep ? 'Payment' : cardReady ? 'Review & commit' : 'Shipping'}
+      </Text>
       <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
       {!cardOnFile ? (
         <Text style={styles.pendingCopy}>
@@ -402,6 +511,14 @@ export function CheckoutScreen() {
         </View>
       </ScrollView>
     </WebContentPanel>
+  );
+}
+
+export function CheckoutScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <CheckoutScreenBody />
+    </StorefrontChrome>
   );
 }
 
@@ -512,6 +629,25 @@ function createCheckoutStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     paymentBlock: { marginTop: spacing.md },
     paymentElementWrap: { minHeight: 120, marginBottom: spacing.md },
+    savingCardRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    savingCardCopy: {
+      fontSize: typography.md,
+      color: colors.textSecondary,
+      ...typeface('regular'),
+    },
+    cardSavedCopy: {
+      fontSize: typography.md,
+      color: colors.textSecondary,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+      ...typeface('medium'),
+    },
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,

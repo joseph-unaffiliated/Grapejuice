@@ -35,7 +35,13 @@ type Props = {
 };
 
 function showJourney(mode: StorefrontHomeMode): boolean {
-  return mode !== 'acquisition' && mode !== 'passover';
+  return (
+    mode !== 'acquisition' &&
+    mode !== 'passover' &&
+    mode !== 'gift_credit_incomplete' &&
+    mode !== 'gift_customize_incomplete' &&
+    mode !== 'gift_sent'
+  );
 }
 
 function showCtas(mode: StorefrontHomeMode): boolean {
@@ -100,6 +106,24 @@ export function StorefrontHero({
     bodySecondary = hero.bodySecondary;
     primaryLabel = hero.ctaLabel ?? 'Explore Passover 2027';
     secondaryLabel = 'Browse the Collection';
+  } else if (mode === 'gift_credit_incomplete') {
+    headline = 'Finish sending your gift';
+    body = 'You started gift credit for someone else. Continue to payment whenever you’re ready — they can use it in the store or toward a Hanukkah box. Or send a different gift.';
+    bodySecondary = null;
+    primaryLabel = 'Continue to payment';
+    secondaryLabel = 'Send a different gift';
+  } else if (mode === 'gift_customize_incomplete') {
+    headline = 'Finish your gift box';
+    body = 'You were customizing a gift. Pick up where you left off, then pay when you’re ready.';
+    bodySecondary = null;
+    primaryLabel = 'Continue customizing';
+    secondaryLabel = 'Send a different gift';
+  } else if (mode === 'gift_sent') {
+    headline = 'Your gift is on its way';
+    body = 'The family got an email to claim it. Send another gift, or build a Hanukkah box for your own household.';
+    bodySecondary = null;
+    primaryLabel = 'Send another gift';
+    secondaryLabel = 'Build your own box';
   } else if (mode === 'acquisition') {
     // defaults above
   } else if (journeyMode) {

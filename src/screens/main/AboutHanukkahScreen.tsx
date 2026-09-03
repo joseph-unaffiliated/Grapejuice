@@ -1,19 +1,25 @@
 import React, { useMemo } from 'react';
-import { Platform, ScrollView, Text, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HanukkahPracticesOverview } from '../../components/holiday/HanukkahPracticesOverview';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { spacing, typography, MOBILE_GUTTER } from '../../constants/theme';
 
-/** Match Home / My Box desktop top inset. */
-const DESKTOP_CONTENT_TOP = 41;
-
 /** Light in-app primer (panel Jun 10/17) — print guide still ships in box. */
 export function AboutHanukkahScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <AboutHanukkahBody />
+    </StorefrontChrome>
+  );
+}
+
+function AboutHanukkahBody() {
   const navigation = useNavigation();
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
@@ -42,7 +48,7 @@ export function AboutHanukkahScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={Platform.OS === 'web' ? [] : ['top']}>
+    <SafeAreaView style={styles.safe} edges={[]}>
       <WebContentPanel
         flush={isDesktop}
         gutter={!isDesktop}
@@ -72,7 +78,7 @@ function createAboutStyles(colors: SemanticColors, isDesktop: boolean) {
     panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
     root: { flex: 1, backgroundColor: colors.bgPrimary, width: '100%' },
     scrollContent: {
-      paddingTop: isDesktop ? DESKTOP_CONTENT_TOP : spacing.lg,
+      paddingTop: spacing.lg,
       paddingBottom: spacing.xxl,
       width: '100%',
       ...(isDesktop ? { alignItems: 'stretch' as const } : null),

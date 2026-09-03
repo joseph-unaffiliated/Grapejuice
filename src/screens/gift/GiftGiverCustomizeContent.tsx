@@ -236,7 +236,7 @@ export function GiftGiverCustomizeContent({
                 <Text
                   style={[styles.checkoutText, (hovered || pressed) && styles.checkoutTextHover]}
                 >
-                  Sign up to pay
+                  Sign up to continue
                 </Text>
               )}
             </Pressable>

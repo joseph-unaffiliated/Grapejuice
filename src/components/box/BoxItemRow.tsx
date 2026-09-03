@@ -176,7 +176,10 @@ export function BoxItemRow({
   const keepOrToss = li.keepOrToss ?? inferKeepOrToss(li.slotId);
   const isSurprise = !PILOT_PARENT_ONLY && !!li.isSurprise;
   const showWrapControls = !PILOT_PARENT_ONLY && !!onToggleSurprise;
-  const swappable = !locked && (swapOptions.length > 0 || !!onPrimarySwapAction);
+  const currentItemId = item?.id ?? li.itemId;
+  const hasAlternateSwaps = swapOptions.some((opt) => opt.id !== currentItemId);
+  // Hide Swap when the shelf would only show the current item (misleading).
+  const swappable = !locked && (hasAlternateSwaps || !!onPrimarySwapAction);
   const displayName = li.label ?? item?.name ?? li.itemId;
   const quantity = Math.max(1, quantityProp ?? li.quantity ?? 1);
   const resolvedDecrement: 'donate' | 'remove' =
@@ -252,7 +255,7 @@ export function BoxItemRow({
                 </>
               ) : (
                 <>
-                  {swapPrimary}
+                  {swappable ? swapPrimary : null}
                   {onQuantityChange || quantity > 1 ? (
                     <QtyStepper
                       quantity={quantity}

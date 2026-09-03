@@ -1,5 +1,5 @@
-import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
+import { getBootLocation } from './bootLocation';
 import {
   landingFromMergedById,
   landingFromMergedByPath,
@@ -9,16 +9,27 @@ import type { LandingAudienceConfig } from '../constants/landingAudiences';
 import { isReservedLandingPath, normalizeLandingPath } from '../constants/landingPaths';
 
 /**
- * Resolve a non-gift marketing landing from the current browser URL.
- * Call after `loadMergedLandings()` so CMS-only slugs resolve.
+ * Snapshot the entry path as the bundle first evaluated it.
+ *
+ * Resolving a landing needs a CMS fetch, and the first nav-state sync rewrites
+ * the address bar to `/store` (the web default route) long before that lands —
+ * so the URL has to be captured at boot, not read after the await or on remount.
  */
-export async function readMarketingLandingFromWindow(): Promise<{
+export function captureLandingPathFromWindow(): string | null {
+  return getBootLocation()?.pathname ?? null;
+}
+
+/**
+ * Resolve a non-gift marketing landing from a captured path.
+ * Awaits `loadMergedLandings()` so CMS-only slugs resolve.
+ */
+export async function readMarketingLandingFromPath(pathname: string | null): Promise<{
   audience: LandingAudienceConfig;
 } | null> {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  if (pathname == null) return null;
   await loadMergedLandings();
 
-  const path = normalizeLandingPath(window.location.pathname);
+  const path = normalizeLandingPath(pathname);
   if (!path) return null;
   if (path === '/gift/claim' || path.startsWith('/gift/claim/')) return null;
   // Gift keeps its own link effect (?path=).
@@ -27,6 +38,7 @@ export async function readMarketingLandingFromWindow(): Promise<{
     path === '/store' ||
     path.startsWith('/store/') ||
     path === '/home' ||
+    path === '/orders' ||
     path === '/box' ||
     path === '/my-box' ||
     path === '/product' ||
@@ -88,6 +100,7 @@ export function shouldPreserveMarketingPath(pathname: string): boolean {
     path === '/store' ||
     path.startsWith('/store/') ||
     path === '/home' ||
+    path === '/orders' ||
     path === '/box' ||
     path === '/my-box' ||
     path === '/product' ||

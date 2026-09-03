@@ -48,6 +48,7 @@ import {
   StorefrontChrome,
   useStorefrontActions,
 } from '../../components/storefront/StorefrontChrome';
+import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import type { MainStackParamList } from '../../navigation/types';
@@ -199,6 +200,7 @@ export function CatalogProductScreen() {
   const hasStartedBox = usePreviewedHasStartedBox();
   const { guardMutation } = usePaymentGate();
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
+  const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const recordBrowseView = useBrowsingHistoryStore((s) => s.recordView);
   const { items: catalog, loading: catalogLoading } = useCatalog();
   const { goHome, goCategory } = useStorefrontActions();
@@ -441,7 +443,7 @@ export function CatalogProductScreen() {
   }
 
   return (
-    <StorefrontChrome activeCategory={aisle?.slug}>
+    <StorefrontChrome activeCategory={aisle?.slug} floatingFooter={guestFavoritesPrompt}>
       {/* Padding on body only — chrome/footer stay full-bleed like /store */}
       <View style={styles.body}>
         <View style={styles.breadcrumb}>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { useAuthStore } from '../../../stores/authStore';
 import { useGuestSessionStore } from '../../../stores/guestSessionStore';
 import { useSession } from '../../../hooks/useSession';
@@ -24,6 +24,39 @@ export const emptyShippingAddress: ShippingAddress = {
   country: 'US',
 };
 
+const ADDRESS_STORAGE_KEY = 'gj.checkout.shippingAddress';
+
+function readStoredAddress(): ShippingAddress | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(ADDRESS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ShippingAddress>;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return { ...emptyShippingAddress, ...parsed, country: parsed.country || 'US' };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredAddress(address: ShippingAddress): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(ADDRESS_STORAGE_KEY, JSON.stringify(address));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+export function clearStoredCheckoutAddress(): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(ADDRESS_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function useCheckoutDraft(householdId: string | undefined) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household } = useSession();
@@ -31,13 +64,17 @@ export function useCheckoutDraft(householdId: string | undefined) {
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [address, setAddress] = useState<ShippingAddress>(emptyShippingAddress);
+  const [address, setAddress] = useState<ShippingAddress>(
+    () => readStoredAddress() ?? emptyShippingAddress
+  );
   const [loading, setLoading] = useState(true);
   const [locked, setLocked] = useState(false);
   const [boxPriceCents, setBoxPriceCents] = useState(DEFAULT_BOX_PRICE_CENTS);
   const [expeditedAvailable, setExpeditedAvailable] = useState(false);
   const [expeditedShipping, setExpeditedShipping] = useState(false);
-  const [hanukkahConfig, setHanukkahConfig] = useState<Awaited<ReturnType<typeof getHanukkahConfig>> | null>(null);
+  const [hanukkahConfig, setHanukkahConfig] = useState<Awaited<
+    ReturnType<typeof getHanukkahConfig>
+  > | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,7 +112,11 @@ export function useCheckoutDraft(householdId: string | undefined) {
   }, [load]);
 
   const updateAddress = (patch: Partial<ShippingAddress>) => {
-    setAddress((prev) => ({ ...prev, ...patch }));
+    setAddress((prev) => {
+      const next = { ...prev, ...patch };
+      writeStoredAddress(next);
+      return next;
+    });
   };
 
   const normalizedAddress = (): ShippingAddress => ({

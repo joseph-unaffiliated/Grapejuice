@@ -15,16 +15,14 @@ import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useDevPreviewStore } from '../../stores/devPreviewStore';
 import { clearDevPreview } from '../../navigation/devPreview';
-import { ordersService } from '../../services/firestore/orders';
 import { usersService } from '../../services/firestore/users';
 import {
   createPartnerInvite,
   listPartnerInvites,
   acceptPartnerInvite,
 } from '../../services/householdInvites';
-import { openOrderTracking, orderStatusLabel } from '../../components/orders/OrderHistoryList';
-import { formatDollars } from '../../services/box/buildDefaultBox';
-import type { PilotOrder, PartnerInvite, Household, UserProfile } from '../../types/pilot';
+import { useUnifiedOrders } from '../../hooks/useUnifiedOrders';
+import type { PartnerInvite, Household, UserProfile } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -32,6 +30,7 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
@@ -68,25 +67,17 @@ const PREVIEW_PROFILE: UserProfile = {
   updatedAt: new Date().toISOString(),
 };
 
-const PREVIEW_ORDERS: PilotOrder[] = [
-  {
-    id: 'preview-order-hanukkah',
-    status: 'committed',
-    totalCents: 5000,
-    lineItems: [],
-    shippingAddress: {
-      name: 'Alex Fox',
-      line1: '123 Main St',
-      city: 'Brooklyn',
-      stateProvince: 'NY',
-      postalCode: '11201',
-      country: 'US',
-    },
-    createdAt: new Date().toISOString(),
-  },
-];
+const PREVIEW_ORDER_COUNT = 1;
 
 export function AccountScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <AccountScreenBody />
+    </StorefrontChrome>
+  );
+}
+
+function AccountScreenBody() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
@@ -104,7 +95,8 @@ export function AccountScreen() {
   const household = fakeSignedIn ? PREVIEW_HOUSEHOLD : sessionHousehold;
   const profile = fakeSignedIn ? PREVIEW_PROFILE : sessionProfile;
 
-  const [orders, setOrders] = useState<PilotOrder[]>([]);
+  const { orders: unifiedOrders } = useUnifiedOrders();
+  const orderCount = fakeSignedIn ? PREVIEW_ORDER_COUNT : unifiedOrders.length;
   const [invites, setInvites] = useState<PartnerInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
@@ -115,25 +107,21 @@ export function AccountScreen() {
 
   const load = useCallback(async () => {
     if (fakeSignedIn) {
-      setOrders(PREVIEW_ORDERS);
       setInvites([]);
       setLoading(false);
       return;
     }
     if (!household?.id) {
-      setOrders([]);
       setInvites([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const [list, partnerInvites] = await Promise.all([
-      ordersService.listForHousehold(household.id),
-      listPartnerInvites({ householdId: household.id }),
-    ]);
-    setOrders(list);
-    setInvites(partnerInvites);
-    setLoading(false);
+    try {
+      setInvites(await listPartnerInvites({ householdId: household.id }));
+    } finally {
+      setLoading(false);
+    }
   }, [household?.id, fakeSignedIn]);
 
   useEffect(() => {
@@ -180,12 +168,14 @@ export function AccountScreen() {
     if (fakeSignedIn) {
       clearDevPreview();
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.href = '/home?preview=account';
+        window.location.href = '/store?preview=account';
       }
       return;
     }
     void logout();
   };
+
+  const goOrders = () => navigation.navigate('Orders');
 
   if (!fakeSignedIn && (sessionLoading || loading)) {
     return (
@@ -292,7 +282,7 @@ export function AccountScreen() {
         ) : null}
 
         <Text style={styles.section}>Gift a box</Text>
-        <Text style={styles.hint}>Send a $50 Hanukkah box credit to another family (grandparent flow).</Text>
+        <Text style={styles.hint}>Send gift credit or a curated gift box to another family (grandparent flow).</Text>
         <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('GiftGive')}>
           <Text style={styles.profilesBtnText}>Send a gift</Text>
         </TouchableOpacity>
@@ -311,28 +301,16 @@ export function AccountScreen() {
         ) : null}
 
         <Text style={styles.section}>Orders</Text>
-        {orders.length === 0 ? (
-          <Text style={styles.hint}>No orders yet. Configure your box and check out from My Box.</Text>
-        ) : (
-          orders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <Text style={styles.orderId}>#{order.id.slice(0, 8)}</Text>
-                <Text style={styles.orderStatus}>{orderStatusLabel(order.status)}</Text>
-              </View>
-              <Text style={styles.orderTotal}>{formatDollars(order.totalCents)}</Text>
-              {order.trackingNumber ? (
-                <TouchableOpacity onPress={() => openOrderTracking(order)}>
-                  <Text style={styles.trackLink}>
-                    Track package — {order.carrier ?? 'carrier'} {order.trackingNumber}
-                  </Text>
-                </TouchableOpacity>
-              ) : order.status === 'confirmed' || order.status === 'committed' ? (
-                <Text style={styles.hint}>Tracking will appear when your box ships.</Text>
-              ) : null}
-            </View>
-          ))
-        )}
+        <Text style={styles.hint}>
+          {orderCount === 0
+            ? 'Gift boxes you send and your household Hanukkah box appear here.'
+            : `${orderCount} order${orderCount === 1 ? '' : 's'} — gifts, your box, and add-ons.`}
+        </Text>
+        <TouchableOpacity style={styles.profilesBtn} onPress={goOrders}>
+          <Text style={styles.profilesBtnText}>
+            {orderCount === 0 ? 'View orders' : 'View all orders'}
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut}>
           <Text style={styles.logoutText}>{fakeSignedIn ? 'Exit preview' : 'Sign out'}</Text>
@@ -405,6 +383,17 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
     orderStatus: { color: colors.brand, fontWeight: '600' },
     orderTotal: { marginTop: spacing.xs, fontSize: typography.lg },
     trackLink: { marginTop: spacing.sm, color: colors.brand, fontWeight: '600' },
+    cancelOrderBtn: {
+      marginTop: spacing.sm,
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.pill,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cancelOrderBtnDisabled: { opacity: 0.45 },
+    cancelOrderBtnText: { color: colors.textSecondary, fontWeight: '600' },
     logoutBtn: {
       marginTop: spacing.xxl,
       padding: spacing.md,

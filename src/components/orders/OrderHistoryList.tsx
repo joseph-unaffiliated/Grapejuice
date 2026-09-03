@@ -9,20 +9,26 @@ export function orderStatusLabel(status: PilotOrder['status']): string {
     case 'pending':
       return 'Processing payment';
     case 'committed':
-      return 'Committed — charged at ship';
+      return 'Committed — charged at lock';
     case 'confirmed':
       return 'Confirmed';
     case 'shipped':
       return 'Shipped';
     case 'delivered':
       return 'Delivered';
+    case 'cancelled':
+      return 'Cancelled';
     default:
       return status;
   }
 }
 
 export function isUpcomingOrder(order: PilotOrder): boolean {
-  return order.status !== 'delivered';
+  return order.status !== 'delivered' && order.status !== 'cancelled';
+}
+
+export function canCancelOrder(order: PilotOrder): boolean {
+  return order.status === 'committed' || order.status === 'pending';
 }
 
 export function openOrderTracking(order: PilotOrder): void {

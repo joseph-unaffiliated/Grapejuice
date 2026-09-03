@@ -19,9 +19,18 @@ import { BoxItemImage } from '../../components/box/BoxItemImage';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { semanticColors, spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
 
 export function AlaCarteStoreScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <AlaCarteStoreBody />
+    </StorefrontChrome>
+  );
+}
+
+function AlaCarteStoreBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { lineItems, loading: draftLoading, persist: saveDraft } = useBoxDraft();
   const { items: catalog, loading: catalogLoading } = useCatalog();

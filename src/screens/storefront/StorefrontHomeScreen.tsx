@@ -15,6 +15,7 @@ import { StorefrontBoxFeature } from '../../components/storefront/StorefrontBoxF
 import { StorefrontEditorialBand } from '../../components/storefront/StorefrontEditorialBand';
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
 import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
+import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
 import { STOREFRONT_EDITORIAL } from '../../constants/storefrontMedia';
 import {
@@ -34,6 +35,7 @@ import {
   type StorefrontHomeMode,
 } from '../../hooks/useStorefrontHomeMode';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -71,6 +73,24 @@ function stripCopy(mode: StorefrontHomeMode): {
         body: 'Add payment to lock in your picks. You can browse swaps now — you won’t be charged until your box ships.',
         ctaLabel: 'Add payment to secure',
       };
+    case 'gift_credit_incomplete':
+      return {
+        headline: 'Finish your gift credit',
+        body: 'Continue to payment to send gift credit. They can spend it in the store or toward a Hanukkah box after claiming.',
+        ctaLabel: 'Continue to payment',
+      };
+    case 'gift_customize_incomplete':
+      return {
+        headline: 'Finish your gift box',
+        body: 'Keep customizing, then pay — they’ll claim the gift by email.',
+        ctaLabel: 'Continue customizing',
+      };
+    case 'gift_sent':
+      return {
+        headline: 'Send another gift',
+        body: 'Or build a Hanukkah box for your own household whenever you’re ready.',
+        ctaLabel: 'Send another gift',
+      };
     case 'locked':
       return {
         headline: 'Passover 2027 is coming',
@@ -95,12 +115,15 @@ export function StorefrontHomeScreen() {
   const { items, loading } = useCatalog();
   const { startBox, askRav, goCategory, goEligibility, goPassover } = useStorefrontActions();
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
+  const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
   const mode = useStorefrontHomeMode(lockAt, startsOn);
+  const giftDraft = useGiftIntentStore((s) => s.draft);
+  const clearGiftIntent = useGiftIntentStore((s) => s.clear);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,13 +139,49 @@ export function StorefrontHomeScreen() {
   }, []);
 
   const journey =
-    mode === 'acquisition' || mode === 'passover'
+    mode === 'acquisition' ||
+    mode === 'passover' ||
+    mode === 'gift_credit_incomplete' ||
+    mode === 'gift_customize_incomplete' ||
+    mode === 'gift_sent'
       ? null
       : { startsOn, lockAt, estimatedDeliveryBy };
 
   const goCreateAccount = () => startAuthFromGuest('MyBox', 'signup', 'SignUp');
   const goCheckout = () => navigation.navigate('Checkout');
   const goMyBox = () => navigation.navigate('MyBox');
+  const goGiftGive = () => navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' });
+
+  const resumeIncompleteGift = () => {
+    if (!giftDraft) {
+      goGiftGive();
+      return;
+    }
+    if (mode === 'gift_customize_incomplete') {
+      navigation.navigate('GiftGiverCustomize', {
+        form: giftDraft.form,
+        childDrafts: giftDraft.childDrafts,
+        lineItems: giftDraft.lineItems,
+      });
+      return;
+    }
+    navigation.navigate('GiftGive', {
+      form: giftDraft.form,
+      childDrafts: giftDraft.childDrafts,
+      initialGiftPath: 'credit_only',
+      autoStartPayment: true,
+    });
+  };
+
+  const startFreshGift = () => {
+    clearGiftIntent();
+    goGiftGive();
+  };
+
+  const startOwnBox = () => {
+    clearGiftIntent();
+    startBox();
+  };
 
   const onHeroPrimary = () => {
     switch (mode) {
@@ -137,6 +196,13 @@ export function StorefrontHomeScreen() {
         return;
       case 'customize':
         goCategory('collection');
+        return;
+      case 'gift_credit_incomplete':
+      case 'gift_customize_incomplete':
+        resumeIncompleteGift();
+        return;
+      case 'gift_sent':
+        startFreshGift();
         return;
       default:
         goCategory('collection');
@@ -156,6 +222,13 @@ export function StorefrontHomeScreen() {
         return;
       case 'passover':
         goCategory('collection');
+        return;
+      case 'gift_credit_incomplete':
+      case 'gift_customize_incomplete':
+        startFreshGift();
+        return;
+      case 'gift_sent':
+        startOwnBox();
         return;
       default:
         startBox();
@@ -177,6 +250,13 @@ export function StorefrontHomeScreen() {
       case 'passover':
         goPassover();
         return;
+      case 'gift_credit_incomplete':
+      case 'gift_customize_incomplete':
+        resumeIncompleteGift();
+        return;
+      case 'gift_sent':
+        startFreshGift();
+        return;
       default:
         startBox();
     }
@@ -196,6 +276,13 @@ export function StorefrontHomeScreen() {
       case 'locked':
       case 'passover':
         goPassover();
+        return;
+      case 'gift_credit_incomplete':
+      case 'gift_customize_incomplete':
+        resumeIncompleteGift();
+        return;
+      case 'gift_sent':
+        startFreshGift();
         return;
       default:
         startBox();
@@ -287,7 +374,11 @@ export function StorefrontHomeScreen() {
   };
 
   return (
-    <StorefrontChrome onShopLook={scrollToLook} scrollRef={scrollRef}>
+    <StorefrontChrome
+      onShopLook={scrollToLook}
+      scrollRef={scrollRef}
+      floatingFooter={guestFavoritesPrompt}
+    >
       <StorefrontHero
         mode={mode}
         journey={journey}

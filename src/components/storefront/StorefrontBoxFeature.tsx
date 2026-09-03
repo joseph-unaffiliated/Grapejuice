@@ -103,6 +103,42 @@ function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
         showPrice: true,
         media: BOX_MEDIA,
       };
+    case 'gift_credit_incomplete':
+      return {
+        eyebrow: 'Gift credit',
+        headline: 'Finish sending your gift credit.',
+        body: 'You started gift credit for someone else. Continue to payment — they claim by email and can shop à la carte or put it toward a Hanukkah box.',
+        checklistLabel: 'What they can open',
+        checklist: INCLUSIONS,
+        primaryLabel: 'Continue to payment',
+        secondaryLabel: null,
+        showPrice: true,
+        media: BOX_MEDIA,
+      };
+    case 'gift_customize_incomplete':
+      return {
+        eyebrow: 'Gift box',
+        headline: 'Secure your gift when you’re ready.',
+        body: 'Keep customizing the curated gift box you’re sending, then pay. The family claims it by email.',
+        checklistLabel: 'What might be inside',
+        checklist: INCLUSIONS,
+        primaryLabel: 'Continue customizing',
+        secondaryLabel: null,
+        showPrice: true,
+        media: BOX_MEDIA,
+      };
+    case 'gift_sent':
+      return {
+        eyebrow: 'Gift sent',
+        headline: 'Your gift is with the family now.',
+        body: 'They’ll get an email to claim. Send another gift anytime, or start a Hanukkah box for your own household.',
+        checklistLabel: 'What might be inside',
+        checklist: INCLUSIONS,
+        primaryLabel: 'Send another gift',
+        secondaryLabel: null,
+        showPrice: false,
+        media: BOX_MEDIA,
+      };
     case 'locked':
     case 'passover':
       return {

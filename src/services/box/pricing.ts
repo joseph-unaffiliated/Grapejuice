@@ -13,10 +13,10 @@ export const LIST_BOX_PRICE_CENTS = 8000;
 export const LIST_BOX_VALUE_CENTS = 25000;
 
 /**
- * Pilot promotional checkout / gift-credit fallback when config has no override.
- * My Box know-nothing summary uses {@link LIST_BOX_PRICE_CENTS} / listBoxCentsForKids instead.
+ * Checkout / gift-credit fallback when config has no override.
+ * Flat $80 box — same as {@link LIST_BOX_PRICE_CENTS}.
  */
-export const DEFAULT_BOX_PRICE_CENTS = 5000;
+export const DEFAULT_BOX_PRICE_CENTS = 8000;
 
 /** Display window for “arrives in time for Hanukkah” (inclusive). */
 export const HANUKKAH_SHIP_WINDOW_LABEL = 'Nov 15–20';

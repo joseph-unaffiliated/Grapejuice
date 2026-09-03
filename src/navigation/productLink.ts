@@ -1,14 +1,22 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { STORE_PATH_PREFIX, storefrontFromState } from './storeLink';
-import { HOME_PATH, mainAppShellFromState } from './homeLink';
 import { BOX_PATH, myBoxFromState } from './boxLink';
+import { ACCOUNT_PATH, accountFromState } from './accountLink';
+import { ORDERS_PATH, ordersFromState } from './ordersLink';
+import { MY_GIFTS_PATH, myGiftsFromState } from './myGiftsLink';
+import { CHECKOUT_PATH, checkoutFromState } from './checkoutLink';
 import { GIFT_LANDING_PATH, giftLandingFromState } from './giftLandingLink';
 import {
   dynamicLandingPathFromState,
   shouldPreserveMarketingPath,
 } from './landingLink';
 import { CULTURAL_LANDING_PATH, isCulturalLandingPath } from './culturalLandingLink';
+import {
+  getBootLocation,
+  shouldPreserveInboundLandingUrl,
+} from './bootLocation';
+import { normalizeLandingPath } from '../constants/landingPaths';
 
 export const PRODUCT_PATH_PREFIX = '/product';
 
@@ -108,19 +116,63 @@ export function browserPathForNavigationState(
     return BOX_PATH;
   }
 
+  if (checkoutFromState(state)) {
+    // Preserve in-checkout payment step so history sync doesn't wipe ?step=payment.
+    if (search.includes('preview=')) {
+      return `${CHECKOUT_PATH}${search}`;
+    }
+    if (
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('step') === 'payment'
+    ) {
+      return `${CHECKOUT_PATH}?step=payment`;
+    }
+    return CHECKOUT_PATH;
+  }
+
+  if (ordersFromState(state)) {
+    if (search.includes('preview=')) {
+      return `${ORDERS_PATH}${search}`;
+    }
+    return ORDERS_PATH;
+  }
+
+  if (myGiftsFromState(state)) {
+    if (search.includes('preview=')) {
+      return `${MY_GIFTS_PATH}${search}`;
+    }
+    return MY_GIFTS_PATH;
+  }
+
+  if (accountFromState(state)) {
+    if (search.includes('preview=')) {
+      return `${ACCOUNT_PATH}${search}`;
+    }
+    return ACCOUNT_PATH;
+  }
+
   const store = storefrontFromState(state);
   if (store) {
+    // Default web route is StorefrontHome. Don't let that rewrite an inbound
+    // marketing landing URL to `/store` before the landing screen mounts.
+    if (shouldPreserveInboundLandingUrl()) {
+      const inbound = getBootLocation()?.pathname ?? currentPath;
+      if (shouldPreserveMarketingPath(inbound) || isCulturalLandingPath(inbound)) {
+        const path = isCulturalLandingPath(inbound)
+          ? CULTURAL_LANDING_PATH
+          : normalizeLandingPath(inbound);
+        const inboundSearch = getBootLocation()?.search ?? search;
+        return path + inboundSearch;
+      }
+    }
     if (search.includes('preview=')) {
       return `${store.path}${search}`;
     }
     return store.path;
   }
 
-  if (mainAppShellFromState(state)) {
-    if (search.includes('preview=')) {
-      return `${HOME_PATH}${search}`;
-    }
-    return HOME_PATH;
+  if (currentPath === '/home') {
+    return STORE_PATH_PREFIX + search;
   }
 
   /**
@@ -137,11 +189,20 @@ export function browserPathForNavigationState(
     const path = currentPath === '/' ? STORE_PATH_PREFIX : currentPath;
     return path + search;
   }
-  if (currentPath === HOME_PATH) {
+  if (currentPath === ACCOUNT_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath === ORDERS_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath === MY_GIFTS_PATH) {
     return currentPath + search;
   }
   if (currentPath === BOX_PATH || currentPath === '/my-box') {
     return BOX_PATH + search;
+  }
+  if (currentPath === CHECKOUT_PATH) {
+    return currentPath + search;
   }
   if (currentPath === GIFT_LANDING_PATH) {
     return currentPath + search;
@@ -158,9 +219,9 @@ export function browserPathForNavigationState(
   }
 
   if (search.includes('preview=')) {
-    return `${HOME_PATH}${search}`;
+    return `${STORE_PATH_PREFIX}${search}`;
   }
 
-  // Other MainTabs (Rav, Account, …) — stay off `/` so grapejuice.co keeps landing on store.
-  return HOME_PATH;
+  // Other Main stack screens — stay off `/` so grapejuice.co keeps landing on store.
+  return STORE_PATH_PREFIX;
 }

@@ -103,6 +103,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 export type GoogleSignInReturnTo =
+  | 'Stay'
   | 'Checkout'
   | 'Rav'
   | 'Account'

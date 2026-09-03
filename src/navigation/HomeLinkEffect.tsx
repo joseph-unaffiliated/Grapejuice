@@ -3,15 +3,19 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { readHomePathFromWindow } from './homeLink';
+import { STORE_PATH_PREFIX } from './storeLink';
 
-function navigateToAppHome(): void {
+function navigateToStorefront(): void {
   if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: 'Home' } });
+  navigationRef.navigate('Main', { screen: 'StorefrontHome' });
+  if (typeof window !== 'undefined' && window.history.replaceState) {
+    const search = window.location.search;
+    window.history.replaceState({}, '', `${STORE_PATH_PREFIX}${search}`);
+  }
 }
 
 /**
- * Web: `/home` deep link → MainTabs Home (family box homepage).
- * Guests who land cold are put into explore so MainGate can mount.
+ * Web: legacy `/home` deep link → redirect to storefront (`/store`).
  */
 export function HomeLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -23,11 +27,8 @@ export function HomeLinkEffect() {
 
   useEffect(() => {
     if (!pending.current) return;
-    // Wait for redirect / onAuthStateChanged so a Google return to /home is not
-    // forced into guest explore before the session is applied.
     if (authLoading) return;
 
-    // Same race as StorefrontLinkEffect: don't re-apply /home after reveal.
     if (guestBoxRevealComplete) {
       pending.current = null;
       return;
@@ -46,7 +47,7 @@ export function HomeLinkEffect() {
       if (!navigationRef.isReady()) return;
       clearInterval(id);
       pending.current = null;
-      navigateToAppHome();
+      navigateToStorefront();
     }, 50);
     return () => clearInterval(id);
   }, [authLoading, isAuthenticated, exploreStarted, guestOnboardingComplete, guestBoxRevealComplete]);

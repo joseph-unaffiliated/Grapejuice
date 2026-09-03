@@ -177,6 +177,19 @@ function consumePendingGoogleRedirectFlag(): boolean {
   }
 }
 
+/**
+ * Read the stashed redirect return target without clearing it. The guest merge
+ * runs before RootNavigator restores it, and both need the value.
+ */
+export function peekPendingAuthReturn(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage.getItem(PENDING_AUTH_RETURN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 /** Restore post-redirect return target (Account, Checkout, …) if one was stashed. */
 export function consumePendingAuthReturn(): string | null {
   if (typeof window === 'undefined') return null;

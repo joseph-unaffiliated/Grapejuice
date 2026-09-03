@@ -30,10 +30,19 @@ import { LAYOUT, tabBarTotalHeight } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 
 type RavRoute = RouteProp<MainTabsParamList, 'Rav'>;
 
 export function RavScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <RavScreenBody />
+    </StorefrontChrome>
+  );
+}
+
+function RavScreenBody() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
   const { isDesktop, tier } = useWebLayout();
@@ -256,7 +265,7 @@ export function RavScreen() {
   const pushDrawer = tier === 'desktop-web';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       {/*
         Drawer is a sibling of the content panel so it docks to the main-area
         right edge — not inside WebContentPanel gutters/max-width.

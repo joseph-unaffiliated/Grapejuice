@@ -12,12 +12,21 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { guideContentService, type GuideNight } from '../../services/firestore/guideContent';
 import { NightCard } from '../../components/guide/NightCard';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebScreenFrame } from '../../constants/webLayout';
 import { spacing, typography } from '../../constants/theme';
 import type { MainStackParamList } from '../../navigation/types';
 
 export function GuideScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <GuideScreenBody />
+    </StorefrontChrome>
+  );
+}
+
+function GuideScreenBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { colors } = useThemeMode();
   const webFrame = useWebScreenFrame();
@@ -45,7 +54,7 @@ export function GuideScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: colors.bgPrimary }]} edges={['top']}>
+    <SafeAreaView style={[styles.root, { backgroundColor: colors.bgPrimary }]} edges={[]}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.content, webFrame]}

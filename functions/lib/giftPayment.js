@@ -1,9 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.resolveGiftInviteKind = resolveGiftInviteKind;
 exports.finalizeGiftInvitePayment = finalizeGiftInvitePayment;
 const logger = require("firebase-functions/logger");
 const stripe_1 = require("./stripe");
 const email_1 = require("./email");
+/** Prefer stored kind; fall back to lineItems for older invites. */
+function resolveGiftInviteKind(invite) {
+    if (invite.kind === 'box' || invite.kind === 'credit')
+        return invite.kind;
+    return Array.isArray(invite.lineItems) && invite.lineItems.length > 0 ? 'box' : 'credit';
+}
 /**
  * Mark gift paid and email recipient.
  * Idempotent across client finalize + Stripe webhook (transaction claims the send).

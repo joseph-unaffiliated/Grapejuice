@@ -37,9 +37,9 @@ import {
   type StorefrontLeaveTarget,
 } from './storefrontLeaveContext';
 import type { MainStackParamList } from '../../navigation/types';
-import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
-import { LAYOUT, semanticColors } from '../../constants/theme';
+import { LAYOUT, semanticColors, spacing } from '../../constants/theme';
 import {
   STOREFRONT_SCROLL_CLASS,
   STOREFRONT_H_SCROLL_CLASS,
@@ -82,6 +82,11 @@ type Props = {
    * Omit / `undefined` to keep the default category nav.
    */
   servicesSlot?: ReactNode;
+  /**
+   * Card pinned above the page bottom (e.g. the guest favorites sign-up
+   * prompt). Adds scroll clearance so it can't sit on top of the footer.
+   */
+  floatingFooter?: ReactNode;
 };
 
 type ChromeProps = {
@@ -139,6 +144,8 @@ const TOP_FADE_SETTLE_MS = 80;
 const DESKTOP_RAV_MAX = 380;
 /** Match StorefrontRavDrawer close duration so pinned chrome stays until dock finishes. */
 const RAV_CLOSE_LAYOUT_MS = 280;
+/** Scroll padding so a `floatingFooter` card can't cover the footer's last row. */
+const FLOATING_FOOTER_CLEARANCE = 104;
 
 function stickyScrollThresholds(chromeH: number) {
   const base = chromeH > 0 ? chromeH : STICKY_FALLBACK_CHROME_H;
@@ -184,6 +191,7 @@ function StorefrontChromeInner({
   onLeave,
   hideServicesNav,
   servicesSlot,
+  floatingFooter,
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
@@ -275,17 +283,8 @@ function StorefrontChromeInner({
     navigation.navigate('StorefrontCategory', { category: slug });
   };
 
-  const startBox = () => {
-    if (onLeave) {
-      onLeave({ type: 'myBox' });
-      return;
-    }
-    if (!isAuthenticated) {
-      useGuestSessionStore.getState().startBuildBox();
-      return;
-    }
-    navigation.navigate('MyBox');
-  };
+  const startBox = () =>
+    openBoxSurface(isAuthenticated, onLeave ? () => onLeave({ type: 'myBox' }) : undefined);
 
   const onService = (id: StorefrontServiceId) => {
     if (onLeave) {
@@ -748,7 +747,11 @@ function StorefrontChromeInner({
     <ScrollView
       ref={setScrollRef}
       style={styles.scroll}
-      contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+      contentContainerStyle={[
+        styles.scrollContent,
+        contentContainerStyle,
+        floatingFooter ? styles.scrollContentFloatClearance : null,
+      ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       bounces={false}
@@ -834,6 +837,12 @@ function StorefrontChromeInner({
           {ravDrawer}
         </View>
       )}
+
+      {floatingFooter ? (
+        <View style={styles.floatingFooter} pointerEvents="box-none">
+          <View style={styles.floatingFooterInner}>{floatingFooter}</View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -844,13 +853,7 @@ export function useStorefrontActions() {
   const isAuthenticated = usePreviewedIsAuthenticated();
 
   return {
-    startBox: () => {
-      if (!isAuthenticated) {
-        useGuestSessionStore.getState().startBuildBox();
-        return;
-      }
-      navigation.navigate('MyBox');
-    },
+    startBox: () => openBoxSurface(isAuthenticated),
     askRav: (message?: string) => {
       // Prefer the storefront drawer — screens usually call this hook above Chrome,
       // so React context isn’t available; the provider registers a bridge instead.
@@ -987,5 +990,21 @@ const styles = StyleSheet.create({
     // flexGrow + StorefrontFooter marginTop:auto pins footer to viewport bottom
     // on short pages (empty space above the footer, not below).
     flexGrow: 1,
+  },
+  scrollContentFloatClearance: {
+    paddingBottom: FLOATING_FOOTER_CLEARANCE,
+  },
+  floatingFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing.md,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    zIndex: 20,
+  },
+  floatingFooterInner: {
+    width: '100%',
+    maxWidth: 720,
   },
 });

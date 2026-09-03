@@ -4,6 +4,7 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { usersService } from '../services/firestore/users';
 import { householdsService } from '../services/firestore/households';
 import { useAuthFlowStore } from '../stores/authFlowStore';
+import { peekPendingAuthReturn } from '../services/auth/auth';
 import type { Household, UserProfile } from '../types/pilot';
 
 type SessionContextValue = {
@@ -22,9 +23,16 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
+  const pendingGiftClaimToken = useAuthFlowStore((s) => s.pendingGiftClaimToken);
   const pendingGiftCustomize = useAuthFlowStore((s) => s.pendingGiftCustomize);
+  const pendingGiftGive = useAuthFlowStore((s) => s.pendingGiftGive);
   const giftResume =
-    pendingReturn === 'GiftGiverCustomize' || pendingGiftCustomize != null;
+    pendingReturn === 'GiftGiverCustomize' ||
+    pendingReturn === 'GiftGive' ||
+    pendingReturn === 'GiftClaim' ||
+    pendingGiftClaimToken != null ||
+    pendingGiftCustomize != null ||
+    pendingGiftGive != null;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +46,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       setProfile(null);
       setHousehold(null);
-      if (!silent) setLoading(false);
+      // Always clear boot loading when signed out. Silent mode is for avoiding
+      // spinner flicker while signed-in; leaving loading=true here hangs gift-claim
+      // auth (pendingReturn set before a user exists).
+      setLoading(false);
       return;
     }
     if (!silent) setLoading(true);
@@ -47,23 +58,32 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       let prof = await usersService.get(user.uid);
       const giftResumeNow =
         useAuthFlowStore.getState().pendingReturn === 'GiftGiverCustomize' ||
-        useAuthFlowStore.getState().pendingGiftCustomize != null;
+        useAuthFlowStore.getState().pendingReturn === 'GiftGive' ||
+        useAuthFlowStore.getState().pendingReturn === 'GiftClaim' ||
+        useAuthFlowStore.getState().pendingGiftClaimToken != null ||
+        useAuthFlowStore.getState().pendingGiftCustomize != null ||
+        useAuthFlowStore.getState().pendingGiftGive != null;
+      // Nav sign in/up — past the onboarding gates without starting a box. The
+      // sessionStorage fallback covers a Google redirect, which clears the store.
+      const inPlaceAuthNow =
+        (useAuthFlowStore.getState().pendingReturn ?? peekPendingAuthReturn()) === 'Stay';
       if (!prof) {
         const guest = useGuestSessionStore.getState();
-        const guestHasBox =
-          giftResumeNow ||
-          guest.boxRevealComplete ||
-          guest.onboardingComplete ||
-          guest.lineItems.length > 0;
+        const guestHasOwnBox =
+          !giftResumeNow &&
+          (guest.boxRevealComplete ||
+            guest.onboardingComplete ||
+            guest.lineItems.length > 0);
         prof = await usersService.upsert(user.uid, {
           email: user.email,
           displayName: user.displayName,
           role: 'parent',
-          onboardingComplete: guestHasBox,
-          boxRevealComplete: guestHasBox,
+          onboardingComplete: guestHasOwnBox || giftResumeNow || inPlaceAuthNow,
+          boxRevealComplete: guestHasOwnBox || inPlaceAuthNow,
         });
-      } else if (giftResumeNow && (!prof.onboardingComplete || !prof.boxRevealComplete)) {
-        // Heal stale stub profiles written before gift-resume flags landed.
+      } else if ((giftResumeNow || inPlaceAuthNow) && !prof.onboardingComplete) {
+        // Gift resume and nav sign-up skip onboarding — never mark a household box as
+        // started. boxRevealComplete stays true so RootNavigator doesn't dump into BoxReveal.
         prof = await usersService.upsert(user.uid, {
           onboardingComplete: true,
           boxRevealComplete: true,
@@ -104,7 +124,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     isKid: profile?.role === 'child',
-    // While resuming gift customize, never report needsOnboarding — RootRoutes
+    // While resuming gift give/customize, never report needsOnboarding — RootRoutes
     // would remount Onboarding the instant pendingReturn is cleared.
     needsOnboarding:
       profile?.role === 'parent' && !profile?.onboardingComplete && !giftResume,

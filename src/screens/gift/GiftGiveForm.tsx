@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { CURATED_GIFT_BOX_LABEL } from '../../constants/giftCopy';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
@@ -41,11 +42,22 @@ export function GiftGiveForm({
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const creditOnly = values.giftPath === 'credit_only';
-  const defaultSubmit = creditOnly
-    ? `Pay ${formatDollars(DEFAULT_BOX_PRICE_CENTS)} & send`
-    : 'Pick their box';
+  const customize = values.giftPath === 'customize';
+  const pathChosen = values.giftPath != null;
+
+  const defaultSubmit = !pathChosen
+    ? 'Choose how this gift works'
+    : creditOnly
+      ? 'Continue to payment'
+      : 'Pick their box';
 
   const setPath = (giftPath: GiftPath) => onChange({ giftPath });
+
+  const lead = !pathChosen
+    ? `Pay ${formatDollars(DEFAULT_BOX_PRICE_CENTS)}. Two different gifts — pick one below.`
+    : creditOnly
+      ? `Send ${formatDollars(DEFAULT_BOX_PRICE_CENTS)} as gift credit — spendable in the store or toward a Hanukkah box. You won’t pick items for them; they choose how to spend it after claiming.`
+      : `You’ll preview a ${CURATED_GIFT_BOX_LABEL.toLowerCase()}, swap items if you want, then pay ${formatDollars(DEFAULT_BOX_PRICE_CENTS)}. They’ll see what you picked.`;
 
   return (
     <View>
@@ -55,63 +67,10 @@ export function GiftGiveForm({
         </TouchableOpacity>
       ) : null}
 
-      <Text style={styles.title}>Send a Hanukkah box gift</Text>
-      <Text style={styles.lead}>
-        Pay {formatDollars(DEFAULT_BOX_PRICE_CENTS)} — the family claims credit and opens their box. No card needed on
-        their side if credit covers the box.
-      </Text>
-
-      <Text style={styles.label}>Recipient email</Text>
-      <TextInput
-        style={[styles.input, error ? styles.inputError : null]}
-        value={values.recipientEmail}
-        onChangeText={(recipientEmail) => onChange({ recipientEmail })}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
-        placeholder="parent@example.com"
-        placeholderTextColor={colors.textTertiary}
-        editable={!submitting}
-        accessibilityLabel="Recipient email"
-      />
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-      <Text style={styles.label}>Your name (on the gift)</Text>
-      <TextInput
-        style={styles.input}
-        value={values.giverName}
-        onChangeText={(giverName) => onChange({ giverName })}
-        placeholder="Grandma"
-        placeholderTextColor={colors.textTertiary}
-        editable={!submitting}
-        accessibilityLabel="Your name on the gift"
-      />
-
-      <Text style={styles.label}>Short message (optional)</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={values.message}
-        onChangeText={(message) => onChange({ message })}
-        multiline
-        placeholder="Happy Hanukkah!"
-        placeholderTextColor={colors.textTertiary}
-        editable={!submitting}
-        accessibilityLabel="Gift message"
-      />
+      <Text style={styles.title}>Send a Hanukkah gift</Text>
+      <Text style={styles.lead}>{lead}</Text>
 
       <Text style={styles.pathHeading}>How should this gift work?</Text>
-      <TouchableOpacity
-        style={[styles.pathCard, !creditOnly && styles.pathCardOn]}
-        onPress={() => setPath('customize')}
-        disabled={submitting}
-        accessibilityRole="button"
-        accessibilityState={{ selected: !creditOnly }}
-      >
-        <Text style={[styles.pathTitle, !creditOnly && styles.pathTitleOn]}>Pick items for them</Text>
-        <Text style={[styles.pathBody, !creditOnly && styles.pathBodyOn]}>
-          Preview the curated box, swap a few items — &ldquo;Grandma picked this.&rdquo;
-        </Text>
-      </TouchableOpacity>
       <TouchableOpacity
         style={[styles.pathCard, creditOnly && styles.pathCardOn]}
         onPress={() => setPath('credit_only')}
@@ -121,24 +80,85 @@ export function GiftGiveForm({
       >
         <Text style={[styles.pathTitle, creditOnly && styles.pathTitleOn]}>Let them choose</Text>
         <Text style={[styles.pathBody, creditOnly && styles.pathBodyOn]}>
-          Send {formatDollars(DEFAULT_BOX_PRICE_CENTS)} credit only — they customize everything.
+          {formatDollars(DEFAULT_BOX_PRICE_CENTS)} gift credit — no box for you to review. They can
+          shop à la carte or put it toward their own Hanukkah box after claiming.
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.pathCard, customize && styles.pathCardOn]}
+        onPress={() => setPath('customize')}
+        disabled={submitting}
+        accessibilityRole="button"
+        accessibilityState={{ selected: customize }}
+      >
+        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Pick items for them</Text>
+        <Text style={[styles.pathBody, customize && styles.pathBodyOn]}>
+          Preview and swap items in a {CURATED_GIFT_BOX_LABEL.toLowerCase()} — “Grandma picked this.”
         </Text>
       </TouchableOpacity>
 
-      {!creditOnly ? (
-        <GiftGiverChildrenFields children={childDrafts} onChange={onChildDraftsChange} disabled={submitting} />
-      ) : null}
+      {pathChosen ? (
+        <>
+          <Text style={styles.label}>Recipient email</Text>
+          <TextInput
+            style={[styles.input, error ? styles.inputError : null]}
+            value={values.recipientEmail}
+            onChangeText={(recipientEmail) => onChange({ recipientEmail })}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="parent@example.com"
+            placeholderTextColor={colors.textTertiary}
+            editable={!submitting}
+            accessibilityLabel="Recipient email"
+          />
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {children}
+          <Text style={styles.label}>Your name (on the gift)</Text>
+          <TextInput
+            style={styles.input}
+            value={values.giverName}
+            onChangeText={(giverName) => onChange({ giverName })}
+            placeholder="Grandma"
+            placeholderTextColor={colors.textTertiary}
+            editable={!submitting}
+            accessibilityLabel="Your name on the gift"
+          />
 
-      <GrapejuiceButton
-        label={submitLabel ?? defaultSubmit}
-        onPress={onSubmit}
-        variant="filled"
-        loading={submitting}
-        disabled={submitting}
-        style={styles.cta}
-      />
+          <Text style={styles.label}>Short message (optional)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={values.message}
+            onChangeText={(message) => onChange({ message })}
+            multiline
+            placeholder="Happy Hanukkah!"
+            placeholderTextColor={colors.textTertiary}
+            editable={!submitting}
+            accessibilityLabel="Gift message"
+          />
+
+          {customize ? (
+            <GiftGiverChildrenFields
+              children={childDrafts}
+              onChange={onChildDraftsChange}
+              disabled={submitting}
+            />
+          ) : null}
+
+          <GrapejuiceButton
+            label={submitLabel ?? defaultSubmit}
+            onPress={onSubmit}
+            variant="filled"
+            loading={submitting}
+            disabled={submitting}
+            style={styles.cta}
+          />
+
+          {children}
+        </>
+      ) : (
+        <Text style={styles.pathHint}>Select a path above to continue.</Text>
+      )}
     </View>
   );
 }
@@ -200,9 +220,15 @@ function createStyles(colors: SemanticColors) {
     pathHeading: {
       fontSize: typography.lg,
       color: colors.textPrimary,
-      marginTop: spacing.xl,
+      marginTop: spacing.sm,
       marginBottom: spacing.sm,
       ...typeface('bold'),
+    },
+    pathHint: {
+      marginTop: spacing.md,
+      fontSize: typography.md,
+      color: colors.textTertiary,
+      ...typeface('regular'),
     },
     pathCard: {
       borderWidth: StyleSheet.hairlineWidth,

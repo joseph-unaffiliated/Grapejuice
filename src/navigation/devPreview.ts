@@ -295,9 +295,10 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
     case 'gift-reveal':
       setGuestExplore();
       setMainNav('GiftRecipientReveal', {
+        giftInviteId: search.get('giftInviteId') ?? 'preview-gift-invite',
         giverName: search.get('giver') ?? 'Grandma',
         message: search.get('message') ?? 'Happy Hanukkah!',
-        giftCreditCents: 5000,
+        giftCreditCents: 8000,
         hasGiverDraft: true,
       });
       break;
@@ -307,7 +308,7 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
         recipientEmail: search.get('email') ?? 'parent@example.com',
         customize: search.get('credit') !== '1',
         giverName: search.get('giver') ?? 'Grandma',
-        amountCents: 5000,
+        amountCents: 8000,
         claimUrl: 'https://app.grapejuice.co/gift/claim?token=preview',
       });
       break;

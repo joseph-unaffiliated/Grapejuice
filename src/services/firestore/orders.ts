@@ -3,11 +3,23 @@ import { db } from '../../lib/firebase';
 import type { PilotOrder, ShippingAddress, BoxLineItem } from '../../types/pilot';
 
 function toOrder(id: string, data: Record<string, unknown>): PilotOrder {
+  const orderTypeRaw = typeof data.orderType === 'string' ? data.orderType : '';
+  const orderType =
+    orderTypeRaw === 'marketplace' || orderTypeRaw === 'received_gift'
+      ? orderTypeRaw
+      : orderTypeRaw === 'hanukkah_box'
+        ? 'hanukkah_box'
+        : undefined;
   return {
     id,
     status: (data.status as PilotOrder['status']) ?? 'pending',
+    orderType,
+    giftInviteId: data.giftInviteId ? String(data.giftInviteId) : undefined,
     lineItems: Array.isArray(data.lineItems) ? (data.lineItems as BoxLineItem[]) : [],
     totalCents: Number(data.totalCents ?? 0),
+    subtotalCents: typeof data.subtotalCents === 'number' ? data.subtotalCents : undefined,
+    shippingCents: typeof data.shippingCents === 'number' ? data.shippingCents : undefined,
+    taxCents: typeof data.taxCents === 'number' ? data.taxCents : undefined,
     shippingAddress: (data.shippingAddress as ShippingAddress) ?? {
       name: '',
       line1: '',
@@ -17,12 +29,23 @@ function toOrder(id: string, data: Record<string, unknown>): PilotOrder {
       country: 'US',
     },
     stripePaymentIntentId: data.stripePaymentIntentId as string | undefined,
+    giftCreditAppliedCents:
+      typeof data.giftCreditAppliedCents === 'number' ? data.giftCreditAppliedCents : undefined,
+    platformCreditAppliedCents:
+      typeof data.platformCreditAppliedCents === 'number'
+        ? data.platformCreditAppliedCents
+        : undefined,
     lockAt: (data.lockAt as string | null) ?? null,
     trackingNumber: (data.trackingNumber as string | null) ?? null,
     carrier: (data.carrier as string | null) ?? null,
     estimatedDelivery: data.estimatedDelivery as string | undefined,
     createdAt: data.createdAt ? String(data.createdAt) : undefined,
     confirmedAt: data.confirmedAt ? String(data.confirmedAt) : undefined,
+    cancelledAt: data.cancelledAt ? String(data.cancelledAt) : undefined,
+    chargeAttemptedAt: data.chargeAttemptedAt ? String(data.chargeAttemptedAt) : undefined,
+    chargeFailedAt: data.chargeFailedAt ? String(data.chargeFailedAt) : undefined,
+    chargeFailureMessage:
+      typeof data.chargeFailureMessage === 'string' ? data.chargeFailureMessage : undefined,
   };
 }
 

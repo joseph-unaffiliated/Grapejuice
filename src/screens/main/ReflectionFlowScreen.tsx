@@ -11,11 +11,20 @@ import { DEBRIEF_PLATFORM_CREDIT_CENTS } from '../../services/box/pricing';
 import { HOLIDAY_ID } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 type Step = 1 | 2 | 3 | 4;
 
 export function ReflectionFlowScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <ReflectionFlowBody />
+    </StorefrontChrome>
+  );
+}
+
+function ReflectionFlowBody() {
   const navigation = useNavigation<Nav>();
   const user = useAuthStore((s) => s.user);
   const { household, refresh } = useSession();

@@ -15,6 +15,7 @@ import {
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
 import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
+import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
 import {
   DEFAULT_STOREFRONT_CATEGORY,
   filterByStorefrontCategory,
@@ -140,6 +141,7 @@ export function StorefrontCategoryScreen() {
   const def = storefrontCategoryBySlug(slug);
   const { items, loading } = useCatalog();
   const { goHome, askRav, startBox, goCategory } = useStorefrontActions();
+  const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
   const showCategoryChips = slug === 'collection';
@@ -198,7 +200,7 @@ export function StorefrontCategoryScreen() {
   };
 
   return (
-    <StorefrontChrome activeCategory={slug}>
+    <StorefrontChrome activeCategory={slug} floatingFooter={guestFavoritesPrompt}>
       <View style={styles.page}>
         <View style={styles.breadcrumb}>
           <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">

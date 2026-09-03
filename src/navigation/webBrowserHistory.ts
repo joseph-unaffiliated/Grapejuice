@@ -1,9 +1,24 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
-import { browserPathForNavigationState } from './productLink';
+import { browserPathForNavigationState, PRODUCT_PATH_PREFIX } from './productLink';
+import { BOX_PATH } from './boxLink';
+import { CHECKOUT_PATH } from './checkoutLink';
+import { ACCOUNT_PATH } from './accountLink';
+import { ORDERS_PATH } from './ordersLink';
+import { MY_GIFTS_PATH } from './myGiftsLink';
+import { readStorePathFromPathname } from './storeLink';
+import { GIFT_LANDING_PATH } from './giftLandingLink';
+import { landingAudienceFromPath } from '../constants/landingAudiences';
+import { normalizeLandingPath } from '../constants/landingPaths';
+import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
+import { navigateMainStack, navigateMainTab, navigateToLanding } from './mainStackNavigation';
+
+type GjHistoryState = { gjNav: true; idx: number };
 
 let suppressHistoryPush = false;
+/** Mirrors `history.state.idx` for the entry we're currently showing. */
+let historyIdx = 0;
 const navHistory: string[] = [];
 
 function stateFingerprint(state: NavigationState | PartialState<NavigationState>): string {
@@ -21,6 +36,12 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
       const params = route.params as { category?: string } | undefined;
       parts.push(params?.category ?? '');
     }
+    if (route.name === 'StorefrontFavorites') {
+      parts.push('favorites');
+    }
+    if (route.name === 'MyGifts') {
+      parts.push('my-gifts');
+    }
     current = route.state;
   }
   return parts.join('/');
@@ -29,11 +50,97 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
 function syncBrowserUrl(state: NavigationState, mode: 'push' | 'replace'): void {
   const nextPath = browserPathForNavigationState(state);
   const current = window.location.pathname + window.location.search;
-  if (current === nextPath) return;
   if (mode === 'replace') {
-    window.history.replaceState({ gjNav: true }, '', nextPath);
-  } else {
-    window.history.pushState({ gjNav: true }, '', nextPath);
+    window.history.replaceState({ gjNav: true, idx: historyIdx }, '', nextPath);
+    return;
+  }
+  if (current === nextPath) return;
+  historyIdx += 1;
+  window.history.pushState({ gjNav: true, idx: historyIdx }, '', nextPath);
+}
+
+/** Replace the current history entry (same idx) — e.g. leave a checkout step after success. */
+export function replaceBrowserPath(path: string): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  window.history.replaceState({ gjNav: true, idx: historyIdx }, '', path);
+}
+
+/**
+ * Pathname of the screen React Navigation thinks is active (no query).
+ * Used to detect in-screen history (checkout shipping ↔ payment).
+ */
+function activeScreenPathname(state: NavigationState | undefined): string | null {
+  if (!state) return null;
+  const full = browserPathForNavigationState(state);
+  return full.split('?')[0]?.replace(/\/$/, '') || '/';
+}
+
+/**
+ * Open the Main screen that owns the current address bar.
+ * Used for browser Forward (and popstate entries that lack an idx).
+ * `navigate` to an existing stack route pops back to it; otherwise it pushes.
+ */
+function restoreFromBrowserUrl(): void {
+  if (!navigationRef.isReady()) return;
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+
+  if (path === CHECKOUT_PATH) {
+    navigateMainStack('Checkout');
+    return;
+  }
+  if (path === BOX_PATH || path === '/my-box') {
+    navigateMainStack('MyBox');
+    return;
+  }
+  if (path === ORDERS_PATH) {
+    navigateMainStack('Orders');
+    return;
+  }
+  if (path === MY_GIFTS_PATH) {
+    navigateMainStack('MyGifts');
+    return;
+  }
+  if (path === ACCOUNT_PATH) {
+    navigateMainTab('Account');
+    return;
+  }
+  if (path === GIFT_LANDING_PATH) {
+    navigateToLanding('gift');
+    return;
+  }
+  if (path.startsWith(`${PRODUCT_PATH_PREFIX}/`)) {
+    const raw = path.slice(PRODUCT_PATH_PREFIX.length + 1).split('/')[0] ?? '';
+    let slug = raw;
+    try {
+      slug = decodeURIComponent(raw).trim();
+    } catch {
+      slug = raw.trim();
+    }
+    if (slug) {
+      navigateMainStack('CatalogProduct', { slug });
+      return;
+    }
+  }
+
+  const store = readStorePathFromPathname(path);
+  if (store) {
+    if (store.kind === 'home') {
+      navigateMainStack('StorefrontHome');
+      return;
+    }
+    if (store.category === 'favorites') {
+      navigateMainStack('StorefrontFavorites');
+      return;
+    }
+    navigateMainStack('StorefrontCategory', {
+      category: resolveStorefrontCategorySlug(store.category || DEFAULT_STOREFRONT_CATEGORY),
+    });
+    return;
+  }
+
+  const audience = landingAudienceFromPath(normalizeLandingPath(path));
+  if (audience) {
+    navigateToLanding(audience.id);
   }
 }
 
@@ -62,15 +169,48 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
   syncBrowserUrl(state, 'replace');
 }
 
-/** Wire browser Back to React Navigation goBack(). */
+/**
+ * Wire browser Back / Forward to in-app navigation.
+ *
+ * `popstate` fires for both directions. Always calling `goBack()` made Forward
+ * from Box→Checkout→Back pop My Box and land on Store. Track an idx so Back
+ * still pops and Forward restores the URL's screen.
+ */
 export function installWebBrowserHistory(): () => void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return () => {};
 
-  const onPopState = () => {
-    if (!navigationRef.isReady() || !navigationRef.canGoBack()) return;
+  const onPopState = (event: PopStateEvent) => {
+    if (!navigationRef.isReady()) return;
+
+    const nextIdx =
+      event.state && typeof (event.state as GjHistoryState).idx === 'number'
+        ? (event.state as GjHistoryState).idx
+        : null;
+
     suppressHistoryPush = true;
-    navigationRef.goBack();
-    suppressHistoryPush = false;
+    try {
+      if (nextIdx == null) {
+        restoreFromBrowserUrl();
+        return;
+      }
+      const goingBack = nextIdx < historyIdx;
+      historyIdx = nextIdx;
+      if (goingBack) {
+        // In-screen history (e.g. /checkout?step=payment → /checkout): the screen
+        // owns the step via popstate. Do not pop the React Navigation route.
+        const browserPath =
+          (window.location.pathname.replace(/\/$/, '') || '/');
+        const screenPath = activeScreenPathname(navigationRef.getRootState());
+        if (screenPath && screenPath === browserPath) {
+          return;
+        }
+        if (navigationRef.canGoBack()) navigationRef.goBack();
+        return;
+      }
+      restoreFromBrowserUrl();
+    } finally {
+      suppressHistoryPush = false;
+    }
   };
 
   window.addEventListener('popstate', onPopState);

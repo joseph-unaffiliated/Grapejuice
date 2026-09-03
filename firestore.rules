@@ -43,6 +43,10 @@ service cloud.firestore {
         allow read: if isHouseholdMember(householdId);
         allow write: if false;
       }
+      match /receivedGifts/{giftId} {
+        allow read: if isHouseholdMember(householdId);
+        allow write: if false;
+      }
       match /partnerInvites/{inviteId} {
         allow read, write: if isHouseholdMember(householdId);
       }
@@ -74,6 +78,11 @@ service cloud.firestore {
     match /waitlist/{entryId} {
       allow create: if signedIn();
       allow read, update: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /giftInvites/{inviteId} {
+      allow read: if signedIn() && resource.data.giverUid == request.auth.uid;
+      allow write: if false;
     }
   }
 }

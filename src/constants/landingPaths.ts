@@ -19,6 +19,7 @@ export const RESERVED_LANDING_PATHS: readonly string[] = [
   '/my-box',
   '/cart',
   '/account',
+  '/orders',
   '/rav',
 ];
 

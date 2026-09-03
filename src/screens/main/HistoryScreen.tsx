@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { OrderHistoryList } from '../../components/orders/OrderHistoryList';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
@@ -38,10 +38,15 @@ import type { PilotOrder } from '../../types/pilot';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
-/** Match About Hanukkah / Home desktop top inset. */
-const DESKTOP_CONTENT_TOP = 41;
-
 export function HistoryScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <HistoryScreenBody />
+    </StorefrontChrome>
+  );
+}
+
+function HistoryScreenBody() {
   const navigation = useNavigation<Nav>();
   const { isDesktop, layoutWidth } = useWebLayout();
   const user = useAuthStore((s) => s.user);
@@ -272,7 +277,7 @@ export function HistoryScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={Platform.OS === 'web' ? [] : ['top']}>
+    <SafeAreaView style={styles.safe} edges={[]}>
       <WebContentPanel
         flush={isDesktop}
         gutter={!isDesktop}
@@ -282,10 +287,7 @@ export function HistoryScreen() {
       >
         <ScrollView
           style={styles.root}
-          contentContainerStyle={[
-            styles.scrollContent,
-            isDesktop ? styles.scrollContentDesktop : null,
-          ]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           {isDesktop ? (
@@ -307,9 +309,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
     width: '100%',
-  },
-  scrollContentDesktop: {
-    paddingTop: DESKTOP_CONTENT_TOP,
   },
   contentColumn: {
     width: '100%',

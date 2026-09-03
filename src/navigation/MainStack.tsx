@@ -11,18 +11,24 @@ import { AlaCarteStoreScreen } from '../screens/main/AlaCarteStoreScreen';
 import { CatalogProductScreen } from '../screens/main/CatalogProductScreen';
 import { StorefrontHomeScreen } from '../screens/storefront/StorefrontHomeScreen';
 import { StorefrontCategoryScreen } from '../screens/storefront/StorefrontCategoryScreen';
+import { StorefrontFavoritesScreen } from '../screens/storefront/StorefrontFavoritesScreen';
 import { StorefrontOurStoryScreen } from '../screens/storefront/StorefrontOurStoryScreen';
 import { StorefrontPassoverScreen } from '../screens/storefront/StorefrontPassoverScreen';
 import { StorefrontCartScreen } from '../screens/storefront/StorefrontCartScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
+import { MarketplaceCheckoutScreen } from '../screens/storefront/MarketplaceCheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
+import { OrdersScreen } from '../screens/main/OrdersScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
 import { AboutHanukkahScreen } from '../screens/main/AboutHanukkahScreen';
 import { HistoryScreen } from '../screens/main/HistoryScreen';
 import { GiftGiveScreen } from '../screens/gift/GiftGiveScreen';
 import { GiftGiverCustomizeScreen } from '../screens/gift/GiftGiverCustomizeScreen';
 import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
+import { MyGiftsScreen } from '../screens/gift/MyGiftsScreen';
+import { GiftBoxScreen } from '../screens/gift/GiftBoxScreen';
+import { GiftBoxCheckoutScreen } from '../screens/gift/GiftBoxCheckoutScreen';
 import { GiftRecipientRevealScreen } from '../screens/gift/GiftRecipientRevealScreen';
 import { GiftSentConfirmationScreen } from '../screens/gift/GiftSentConfirmationScreen';
 import { GiftLandingScreen } from '../screens/landing/GiftLandingScreen';
@@ -47,6 +53,9 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { consumePendingMainNav, peekPendingMainNav, resetRootToMainScreen } from './pendingMainNav';
 import { navigationRef } from './navigationRef';
 import { AdminControlPanel } from '../components/storefront/AdminControlPanel';
+import { getBootLocation } from './bootLocation';
+import { landingAudienceFromPath } from '../constants/landingAudiences';
+import { normalizeLandingPath } from '../constants/landingPaths';
 
 const Stack = createStackNavigator<MainStackParamList>();
 
@@ -63,9 +72,23 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
   const pendingReturn = useAuthFlowStore.getState().pendingReturn;
   if (pendingReturn === 'MyBox') return 'MyBox';
   if (pendingReturn === 'Checkout') return 'Checkout';
+  if (pendingReturn === 'MarketplaceCheckout') return 'MarketplaceCheckout';
   if (pendingReturn === 'GiftGiverCustomize') return 'GiftGiverCustomize';
+  if (pendingReturn === 'GiftGive') return 'GiftGive';
+  if (pendingReturn === 'GiftClaim') return 'GiftClaim';
+  if (useAuthFlowStore.getState().pendingGiftClaimToken) return 'GiftClaim';
   if (useGuestSessionStore.getState().openMyBoxAfterReveal) return 'MyBox';
+  const bootAudience = bootLandingAudience();
+  if (bootAudience?.id === 'gift') return 'GiftLanding';
+  if (bootAudience) return 'DynamicLanding';
   return DEFAULT_MAIN_ROUTE;
+}
+
+function bootLandingAudience() {
+  if (Platform.OS !== 'web') return null;
+  const pathname = getBootLocation()?.pathname;
+  if (!pathname) return null;
+  return landingAudienceFromPath(normalizeLandingPath(pathname));
 }
 
 function resetToScreen(
@@ -146,10 +169,17 @@ function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
 
   useEffect(() => {
     if (!isAuthenticated || !pendingReturn) return;
-    // My Box / gift customize return are owned by AuthResumeMainEffect so
+    // My Box / gift give / gift customize return are owned by AuthResumeMainEffect so
     // pendingReturn stays set until that screen is actually showing.
-    if (pendingReturn === 'MyBox' || pendingReturn === 'GiftGiverCustomize') return;
-    if (alreadyOnTarget) {
+    if (
+      pendingReturn === 'MyBox' ||
+      pendingReturn === 'GiftGiverCustomize' ||
+      pendingReturn === 'GiftGive'
+    ) {
+      return;
+    }
+    // Nav sign in/up has no destination — the user keeps the screen they were on.
+    if (pendingReturn === 'Stay' || alreadyOnTarget) {
       clearPending();
       return;
     }
@@ -170,12 +200,24 @@ function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
         resetRootToMainScreen('Checkout');
         return;
       }
+      if (dest === 'MarketplaceCheckout') {
+        resetRootToMainScreen('MarketplaceCheckout');
+        return;
+      }
       if (dest === 'Rav') {
         navigation.navigate('MainTabs', { screen: 'Rav' });
         return;
       }
       if (dest === 'Account') {
         navigation.navigate('MainTabs', { screen: 'Account' });
+        return;
+      }
+      if (dest === 'Orders') {
+        navigation.navigate('Orders');
+        return;
+      }
+      if (dest === 'MyGifts') {
+        navigation.navigate('MyGifts');
         return;
       }
       if (dest === 'Profiles') {
@@ -208,11 +250,33 @@ export function MainStack() {
   const giftDraftAtMount =
     initialRouteName === 'GiftGiverCustomize'
       ? useAuthFlowStore.getState().pendingGiftCustomize
+      : initialRouteName === 'GiftGive'
+        ? (() => {
+            const draft = useAuthFlowStore.getState().pendingGiftGive;
+            if (!draft) return null;
+            return {
+              form: draft.form,
+              childDrafts: draft.childDrafts,
+              initialGiftPath: draft.form.giftPath,
+              autoStartPayment: true,
+            };
+          })()
+        : initialRouteName === 'GiftClaim'
+          ? { token: useAuthFlowStore.getState().pendingGiftClaimToken ?? undefined }
+          : null;
+  const bootLandingAtMount =
+    initialRouteName === 'DynamicLanding'
+      ? (() => {
+          const audience = bootLandingAudience();
+          return audience && audience.id !== 'gift'
+            ? { landingId: audience.id }
+            : null;
+        })()
       : null;
   const initialParams =
     pendingAtMount?.screen === initialRouteName
       ? pendingAtMount.params
-      : giftDraftAtMount ?? undefined;
+      : giftDraftAtMount ?? bootLandingAtMount ?? undefined;
 
   return (
     <WebDesktopFrame>
@@ -254,6 +318,11 @@ export function MainStack() {
           options={{ title: 'Store' }}
         />
         <Stack.Screen
+          name="StorefrontFavorites"
+          component={StorefrontFavoritesScreen}
+          options={{ title: 'Favorites' }}
+        />
+        <Stack.Screen
           name="StorefrontCategory"
           component={StorefrontCategoryScreen}
           options={{ title: 'Store' }}
@@ -285,9 +354,22 @@ export function MainStack() {
         />
         <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Checkout' }} />
         <Stack.Screen
+          name="MarketplaceCheckout"
+          component={MarketplaceCheckoutScreen}
+          options={{ title: 'Checkout' }}
+        />
+        <Stack.Screen
           name="OrderConfirmation"
           component={OrderConfirmationScreen}
           options={{ title: 'Order confirmed' }}
+        />
+        <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'Orders' }} />
+        <Stack.Screen name="MyGifts" component={MyGiftsScreen} options={{ title: 'My Gifts' }} />
+        <Stack.Screen name="GiftBox" component={GiftBoxScreen} options={{ title: 'Gift box' }} />
+        <Stack.Screen
+          name="GiftBoxCheckout"
+          component={GiftBoxCheckoutScreen}
+          options={{ title: 'Gift checkout' }}
         />
         <Stack.Screen
           name="Reflection"
@@ -309,6 +391,11 @@ export function MainStack() {
           name="DynamicLanding"
           component={DynamicLandingScreen}
           options={{ title: 'Landing' }}
+          initialParams={
+            initialRouteName === 'DynamicLanding'
+              ? (initialParams as { landingId: string } | undefined)
+              : undefined
+          }
         />
         <Stack.Screen
           name="CulturalLanding"
@@ -335,7 +422,16 @@ export function MainStack() {
           component={ForYourHomeLandingScreen}
           options={{ title: 'For your home' }}
         />
-        <Stack.Screen name="GiftGive" component={GiftGiveScreen} options={{ title: 'Give a gift' }} />
+        <Stack.Screen
+          name="GiftGive"
+          component={GiftGiveScreen}
+          options={{ title: 'Give a gift' }}
+          initialParams={
+            initialRouteName === 'GiftGive'
+              ? (initialParams as MainStackParamList['GiftGive'] | undefined)
+              : undefined
+          }
+        />
         <Stack.Screen
           name="GiftGiverCustomize"
           component={GiftGiverCustomizeScreen}

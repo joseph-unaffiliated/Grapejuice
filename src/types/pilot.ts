@@ -231,19 +231,36 @@ export type ShippingAddress = {
   country: 'US' | 'CA' | 'OTHER';
 };
 
+export type PilotOrderType = 'hanukkah_box' | 'marketplace' | 'received_gift';
+
 export type PilotOrder = {
   id: string;
-  status: 'pending' | 'committed' | 'confirmed' | 'shipped' | 'delivered';
+  status: 'pending' | 'committed' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  /** Set on marketplace / received-gift checkouts; absent on classic box orders. */
+  orderType?: PilotOrderType;
+  giftInviteId?: string;
   lineItems: BoxLineItem[];
   totalCents: number;
+  /** Merchandise subtotal (box + chargeable lines) before shipping/tax/credits. */
+  subtotalCents?: number;
+  shippingCents?: number;
+  taxCents?: number;
   shippingAddress: ShippingAddress;
   stripePaymentIntentId?: string;
+  giftCreditAppliedCents?: number;
+  platformCreditAppliedCents?: number;
   lockAt?: string | null;
   trackingNumber?: string | null;
   carrier?: string | null;
   estimatedDelivery?: string;
   createdAt?: string;
   confirmedAt?: string;
+  cancelledAt?: string;
+  chargeAttemptedAt?: string;
+  chargeFailedAt?: string;
+  chargeFailureMessage?: string;
+  orderConfirmedEmailSentAt?: string;
+  shipStationExportedAt?: string;
 };
 
 export type HolidayCardStatus = 'active' | 'upcoming' | 'notify';
@@ -286,6 +303,28 @@ export type PartnerInvite = {
   acceptedByUid?: string;
 };
 
+export type ReceivedGiftKind = 'credit' | 'box';
+
+export type ReceivedGiftStatus = 'available' | 'converted_to_credit' | 'accepted';
+
+/** Gift claimed by this household — separate from the household's own box draft. */
+export type ReceivedGift = {
+  id: string;
+  giftInviteId: string;
+  giverName: string;
+  message?: string;
+  kind: ReceivedGiftKind;
+  creditCents: number;
+  lineItems?: BoxLineItem[];
+  status: ReceivedGiftStatus;
+  claimedAt: string;
+  viewedAt?: string;
+  convertedAt?: string;
+  acceptedAt?: string;
+  /** Order created when checking out add-ons on this gift. */
+  checkoutOrderId?: string;
+};
+
 export type GiftInvite = {
   id: string;
   giverUid: string;
@@ -296,6 +335,8 @@ export type GiftInvite = {
   creditCents: number;
   claimToken: string;
   status: 'pending' | 'claimed';
+  paymentStatus?: 'pending' | 'paid';
+  claimEmailSentAt?: string;
   lineItems?: BoxLineItem[];
   childInterests?: string[];
   createdAt: string;

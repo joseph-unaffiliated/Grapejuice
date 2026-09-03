@@ -74,7 +74,7 @@ The Hanukkah 2026 pilot tests whether the **end-user experience creates real imp
 | Navigation | 3 tabs: **Home**, **Rav**, **Account** (no separate “My Box” tab — Home is the box hub) |
 | Marketplace browse | No open marketplace for Hanukkah; curated catalog only |
 | Customization lock | Fixed calendar lock date per holiday (config-driven) |
-| Payment model | Card on file = commitment; **charge at ship** (not at checkout) |
+| Payment model | Card on file = commitment; **charge at lock** (one off-session PI after customization; not at commit) |
 | Swap gate | Users may browse swaps without a card; mutations require card on file or gift credit |
 | Rav authority | Rav may change box state; Rav **cannot** confirm or charge orders |
 | Kid experience (pilot ship) | **Parent shell only** — kid profiles, voting, kid Rav UI exist in code but are hidden |
@@ -146,7 +146,7 @@ Grapejuice pilot is a **client + Firebase BaaS** architecture — not a custom A
 | **Database** | Cloud Firestore | Region: `nam5` (US) |
 | **Storage** | Firebase Storage | Asset rules deployed |
 | **Serverless** | Cloud Functions v2 | Node 20 |
-| **Payments** | Stripe | SetupIntent (save card) + manual-capture PaymentIntent (charge at ship); `@stripe/stripe-react-native` on native, `@stripe/react-stripe-js` on web |
+| **Payments** | Stripe | SetupIntent (save card) + off-session PaymentIntent at lock; `@stripe/stripe-react-native` on native, `@stripe/react-stripe-js` on web |
 | **AI** | Anthropic Claude | Model: `claude-sonnet-4-20250514`; structured JSON responses for Rav |
 | **Email** | Customer.io transactional API | Order confirmation, partner invites |
 | **Hosting** | Firebase Hosting | Site `grapejuice-pilot` → `dist/` SPA; custom domain grapejuice.co |
@@ -216,12 +216,12 @@ draft → committed → (charged at ship) → shipped → delivered
 | Service | Pilot status | Role |
 |---------|--------------|------|
 | **Firebase** | Live | Auth, database, functions, hosting |
-| **Stripe** | Live (test mode on prototype) | Save card, charge at ship, webhooks |
+| **Stripe** | Live (test mode on prototype) | Save card at commit; charge at lock; webhooks |
 | **Anthropic (Claude)** | Live | Rav AI — structured responses with product blocks and draft actions |
 | **Customer.io** | Partial | Transactional email (order confirm, partner invite); skips gracefully if API key unset |
 | **Google Sign-In** | Live on web | OAuth; native requires dev build |
 | **Sign in with Apple** | Implemented (iOS) | App Store requirement when Google offered |
-| **ShipStation** | **Not integrated** | Locked decision for fulfillment; no API code yet |
+| **ShipStation** | **Code shipped** | `exportOrderToShipStation` after box charge; no-op without API keys; tracking via `writeOrderTracking` / webhook TBD |
 | **Customer.io SMS** | **Not integrated** | Locked decision for reminders |
 | **Hebcal** | Indirect | Holiday dates stored in app constants and seeded config |
 | **Beam (sibling product)** | Schema hooks only | `birthdate`, `beamStatus`, nightly age-trigger function; no Beam UI in Grapejuice |
@@ -272,7 +272,8 @@ From **Home** or **My Box** (stack screen):
 2. Order summary: $50 box + extras + 7.5% tax, free shipping.
 3. US shipping address entry.
 4. **Save card & commit to box** (Stripe SetupIntent) — or **Commit** if card already on file.
-5. `commitPilotBox` Cloud Function creates order with status `committed`.
+5. `commitPilotBox` Cloud Function creates order with status `committed` (card saved earlier via SetupIntent; **no charge**).
+6. After `lockAt`, `scheduledChargePilotBoxes` / `chargePilotBoxOrder` charges final draft total; webhook confirms and exports to ShipStation.
 6. **Order confirmation** — “Committed; you’ll be charged when we ship.”
 
 No separate “confirm order” step — card on file equals commitment.
@@ -370,14 +371,16 @@ Deferred to tablet / post-pilot per Build 8 decision.
 | Function | Status | Role |
 |----------|--------|------|
 | `createPilotSetupIntent` | ✅ | Save card without charging |
-| `commitPilotBox` | ✅ | Create committed order |
+| `commitPilotBox` | ✅ | Create committed order (no PI at commit) |
+| `chargePilotBoxOrder` | ✅ | QA callable; force charge before lock |
+| `scheduledChargePilotBoxes` | ✅ | Hourly batch after lockAt |
 | `createPilotCheckout` | ✅ | Legacy immediate checkout (secondary) |
-| `stripeWebhook` | ✅ | SetupIntent + PaymentIntent events |
+| `stripeWebhook` | ✅ | SetupIntent, PaymentIntent succeeded/failed |
 | `askPilotRav` | ✅ | Claude with catalog context, 4 modes |
 | `createPartnerInvite` / `acceptPartnerInvite` | ✅ | Household sharing |
 | `scanBeamAgeTriggers` | ✅ | Nightly cron; Beam handoff schema |
 | Customer.io email helpers | ✅ | Order confirm, partner invite |
-| ShipStation integration | ❌ | Planned |
+| ShipStation integration | 🟡 | Export after charge; keys + inbound webhook pending |
 | SMS reminders | ❌ | Planned |
 
 ### 7.3 Infrastructure
@@ -402,9 +405,9 @@ These items are required or strongly recommended before serving 20–50 real fam
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| **Grandparent gift flow (Build 2)** | High | Figma frames 16–17; giver checkout + recipient magic link |
-| **ShipStation fulfillment** | High | Locked decision; tracking writeback to orders |
-| **Production Stripe** | High | Move from test keys; webhook endpoint hardening |
+| **Grandparent gift flow (Build 2)** | High | Largely shipped — polish + QA in Testing column |
+| **ShipStation fulfillment** | High | Code exports post-charge; **API keys + tracking webhook** pending |
+| **Production Stripe** | High | Charge-at-lock shipped; **deploy + live keys** + `payment_intent.payment_failed` on webhook |
 | **Customer.io production templates** | High | Order confirm, invites, debrief outreach |
 | **SMS reminders (Customer.io)** | Medium | Locked decision; no code yet |
 | **$80 Passover credit → checkout** | Medium | Firestore ledger exists; Stripe balance application incomplete |

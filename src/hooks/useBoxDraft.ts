@@ -5,7 +5,6 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
-import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
@@ -82,11 +81,6 @@ export function useBoxDraft() {
     setWrapSelectedItemIds(draft?.wrapSelectedItemIds ?? []);
     if (draft?.lineItems?.length) {
       setLineItems(draft.lineItems);
-    } else if (profile?.onboardingComplete && profile?.boxRevealComplete && catalog.length) {
-      // Only seed a default box after a real reveal — not for “explore without building.”
-      setLineItems(
-        buildDefaultLineItems(catalog, kids, draft?.childInterests ?? [])
-      );
     } else {
       setLineItems([]);
     }

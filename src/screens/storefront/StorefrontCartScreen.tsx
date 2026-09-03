@@ -161,19 +161,27 @@ export function StorefrontCartScreen() {
             <View style={styles.ctas}>
               <TouchableOpacity
                 style={styles.ctaPrimary}
+                onPress={() => navigation.navigate('MarketplaceCheckout')}
+                accessibilityRole="button"
+                accessibilityLabel="Checkout"
+              >
+                <Text style={styles.ctaPrimaryText}>Checkout</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.ctaSecondary}
                 onPress={() => goCategory('collection')}
                 accessibilityRole="button"
                 accessibilityLabel="Continue shopping"
               >
-                <Text style={styles.ctaPrimaryText}>Continue shopping</Text>
+                <Text style={styles.ctaSecondaryText}>Continue shopping</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.ctaSecondary}
+                style={styles.ctaTertiary}
                 onPress={startBox}
                 accessibilityRole="button"
                 accessibilityLabel="Build a Hanukkah box"
               >
-                <Text style={styles.ctaSecondaryText}>Build a Hanukkah box</Text>
+                <Text style={styles.ctaTertiaryText}>Build a Hanukkah box</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -345,5 +353,16 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     fontSize: typography.lg,
     color: semanticColors.logoDark,
+  },
+  ctaTertiary: {
+    borderRadius: borderRadius.full,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+  },
+  ctaTertiaryText: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: semanticColors.goldMuted,
   },
 });

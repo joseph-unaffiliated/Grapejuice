@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -10,10 +10,10 @@ import {
 } from '../../constants/landingAudiences';
 import { semanticColors } from '../../constants/theme';
 import { useLandingConfig } from '../../hooks/useLandingConfig';
-import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
-import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { useEntryContextStore } from '../../stores/entryContextStore';
-import { useMockFlowStore } from '../../stores/mockFlowStore';
+import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { useOwnBoxStep } from '../../hooks/useOwnBoxStep';
+import { openBoxSurface } from '../../navigation/boxEntry';
+import { applyOwnBoxCtaCopy } from './landingBoxCtas';
 import type { MainStackParamList } from '../../navigation/types';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import type { GiftPath } from '../gift/giftGiveTypes';
@@ -29,26 +29,32 @@ type Props = {
 
 /**
  * Shared modular campaign landing — Firestore CMS override when present, else code-config.
- * Lifecycle visitors with a box go to My Box (skipped while mock flow is active).
+ * Always renders the page (footer, refresh, and inbound URLs). Own-box CTAs are
+ * relabelled for progress; gift CTAs stay as authored.
  */
-export function ModularLandingScreen({ audienceId, preferredGiftPath = null, ravSurface }: Props) {
+export function ModularLandingScreen({
+  audienceId,
+  preferredGiftPath = null,
+  ravSurface,
+}: Props) {
   const navigation = useNavigation<Nav>();
   const { width } = useWindowDimensions();
   const compact = width < 768;
-  const hasStartedBox = usePreviewedHasStartedBox();
-  const mockFlowActive = useMockFlowStore((s) => s.active);
-  const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
-  const clearEntry = useEntryContextStore((s) => s.clear);
+  const isAuthenticated = usePreviewedIsAuthenticated();
   const { config, loading: configLoading } = useLandingConfig(audienceId);
   const resolved = config ?? landingAudienceById(audienceId);
+  const ownBoxStep = useOwnBoxStep();
+
+  // Own-box CTAs speak to where the visitor actually is; gift CTAs stay as authored.
+  const composed = useMemo(
+    () =>
+      resolved
+        ? { ...resolved, sections: applyOwnBoxCtaCopy(resolved.sections, ownBoxStep) }
+        : null,
+    [resolved, ownBoxStep]
+  );
 
   usePublishRavSurface({ type: 'content', id: ravSurface.id, label: ravSurface.label });
-
-  useEffect(() => {
-    if (!hasStartedBox || mockFlowActive) return;
-    clearEntry();
-    navigation.replace('MyBox');
-  }, [hasStartedBox, mockFlowActive, clearEntry, navigation]);
 
   const runAction = (action: LandingCtaAction) => {
     switch (action.type) {
@@ -56,7 +62,15 @@ export function ModularLandingScreen({ audienceId, preferredGiftPath = null, rav
         navigation.navigate('GiftGive', { initialGiftPath: action.giftPath });
         break;
       case 'start_box':
-        startBuildBox();
+        // Keep the destination honest with the relabelled CTA: "add payment to
+        // secure your box" has to land on checkout, not the box itself.
+        if (ownBoxStep === 'needs_payment') {
+          navigation.navigate('Checkout');
+          break;
+        }
+        // Reachable by someone who already has a box, so route through the
+        // shared entry rather than restarting a build the gate would reject.
+        openBoxSurface(isAuthenticated);
         break;
       case 'store':
         navigation.navigate('StorefrontHome');
@@ -69,18 +83,14 @@ export function ModularLandingScreen({ audienceId, preferredGiftPath = null, rav
     }
   };
 
-  if (configLoading || !resolved) {
-    return <View style={styles.boot} />;
-  }
-
-  if (hasStartedBox && !mockFlowActive) {
+  if (configLoading || !composed) {
     return <View style={styles.boot} />;
   }
 
   return (
     <StorefrontChrome hideServicesNav>
       <LandingComposeView
-        config={resolved}
+        config={composed}
         forceCompact={compact}
         preferredGiftPath={preferredGiftPath}
         onAction={runAction}

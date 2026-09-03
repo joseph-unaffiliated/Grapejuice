@@ -10,6 +10,10 @@ import {
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { formatDollars } from '../../services/box/buildDefaultBox';
+import {
+  CURATED_GIFT_BOX_LABEL,
+  giftCreditProductLabel,
+} from '../../constants/giftCopy';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -110,7 +114,9 @@ export function GiftPaymentPanel({
       >
         <Text style={styles.summaryHeading}>Order summary</Text>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{customize ? 'Customized gift box' : 'Box credit'}</Text>
+          <Text style={styles.summaryLabel}>
+            {customize ? CURATED_GIFT_BOX_LABEL : giftCreditProductLabel(amountCents)}
+          </Text>
           <Text style={styles.summaryValue}>{formatDollars(amountCents)}</Text>
         </View>
         <View style={styles.summaryRow}>

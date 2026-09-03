@@ -19,6 +19,7 @@ export function CheckoutOrderSummary({
   platformCreditApplied = 0,
   expeditedShipping = false,
   compact = false,
+  marketplaceOnly = false,
 }: {
   lineItems: BoxLineItem[];
   total: number;
@@ -32,26 +33,31 @@ export function CheckoutOrderSummary({
   expeditedShipping?: boolean;
   /** When wrapped in a summary card — tighter heading spacing. */
   compact?: boolean;
+  /** À la carte cart — hide Hanukkah box base line. */
+  marketplaceOnly?: boolean;
 }) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors, compact), [colors, compact]);
 
   const chargeable = useMemo(() => {
+    if (marketplaceOnly) return lineItems;
     return lineItems.filter((li) => {
       if (li.unitCents <= 0) return false;
       const item = catalog.find((c) => c.id === li.itemId);
       const tier = item ? inferPricingTier(item) : 'extra';
       return tier === 'extra' || tier === 'alaCarte';
     });
-  }, [lineItems, catalog]);
+  }, [lineItems, catalog, marketplaceOnly]);
 
   return (
     <>
       <Text style={styles.sectionTitle}>Order summary</Text>
-      <View style={styles.summaryRow}>
-        <Text style={styles.summaryName}>Hanukkah box</Text>
-        <Text style={styles.summaryPrice}>{formatDollars(boxPriceCents)}</Text>
-      </View>
+      {!marketplaceOnly ? (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryName}>Hanukkah box</Text>
+          <Text style={styles.summaryPrice}>{formatDollars(boxPriceCents)}</Text>
+        </View>
+      ) : null}
       {chargeable.map((li) => (
         <View key={li.slotId} style={styles.summaryRow}>
           <Text style={styles.summaryName}>{li.label ?? li.itemId}</Text>

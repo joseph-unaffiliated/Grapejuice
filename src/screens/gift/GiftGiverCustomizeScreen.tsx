@@ -11,8 +11,10 @@ import { useGiftGiverBoxDraft } from '../../hooks/useGiftGiverBoxDraft';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 
 type Route = RouteProp<MainStackParamList, 'GiftGiverCustomize'>;
 
@@ -38,9 +40,30 @@ function firebaseMessage(e: unknown): string {
 }
 
 export function GiftGiverCustomizeScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <GiftGiverCustomizeBody />
+    </StorefrontChrome>
+  );
+}
+
+function GiftGiverCustomizeBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<Route>();
   const { form, childDrafts, lineItems: restoredLineItems } = route.params;
+
+  // Credit-only gifts must never land on the box editor.
+  React.useEffect(() => {
+    if (form.giftPath === 'credit_only') {
+      navigation.replace('GiftGive', {
+        form: { ...form, giftPath: 'credit_only' },
+        childDrafts,
+        initialGiftPath: 'credit_only',
+        autoStartPayment: true,
+      });
+    }
+  }, [form, childDrafts, navigation]);
+
   const { catalog, lineItems, children, loading, applySwap, swapOptionsFor } = useGiftGiverBoxDraft(
     childDrafts,
     restoredLineItems
@@ -55,7 +78,9 @@ export function GiftGiverCustomizeScreen() {
   const stripeKey = extra?.stripePublishableKey ?? '';
 
   const requireAuth = (entry: 'signup' | 'signin') => {
-    startAuthForGiftCustomize(entry, { form, childDrafts, lineItems });
+    const draft = { form, childDrafts, lineItems };
+    useGiftIntentStore.getState().markIncomplete('customize', draft);
+    startAuthForGiftCustomize(entry, draft);
   };
 
   const pay = async () => {
@@ -73,6 +98,11 @@ export function GiftGiverCustomizeScreen() {
     }
     setSubmitting(true);
     try {
+      useGiftIntentStore.getState().markIncomplete('customize', {
+        form,
+        childDrafts,
+        lineItems,
+      });
       const childAgeGroups = childDrafts.map((c) => c.ageGroup);
       const result = await startGiftPurchase({
         form,
@@ -94,6 +124,7 @@ export function GiftGiverCustomizeScreen() {
       }
 
       const finalized = await completeGiftPurchase(result.giftInviteId);
+      useGiftIntentStore.getState().markSent(form.recipientEmail.trim(), 'customize');
       navigation.replace('GiftSentConfirmation', {
         recipientEmail: form.recipientEmail.trim(),
         customize: true,

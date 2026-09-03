@@ -36,9 +36,11 @@ Use **test mode** until pilot launch; switch both client and functions to live t
 | Field | Value |
 |-------|--------|
 | **URL** | `https://stripewebhook-<hash>-uc.a.run.app` — get the exact URL from Firebase Console → Functions → `stripeWebhook`, or after deploy: `firebase functions:list --project grapejuice-pilot` |
-| **Events** | `setup_intent.succeeded`, `payment_intent.succeeded` |
+| **Events** | `setup_intent.succeeded`, `payment_intent.succeeded`, `payment_intent.payment_failed` |
 
 Copy the signing secret (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
+
+See **`docs/CHARGE_AT_SHIP.md`** for the Hanukkah box charge-at-lock flow and test checklist.
 
 > Legacy format may also appear as `https://us-central1-grapejuice-pilot.cloudfunctions.net/stripeWebhook` depending on deploy generation. Always use the URL shown in Firebase Console for the active function.
 

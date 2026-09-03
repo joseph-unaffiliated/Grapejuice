@@ -24,6 +24,7 @@ import { spacing, typography, borderRadius, typeface } from '../../constants/the
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
@@ -31,6 +32,14 @@ import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 
 export function CheckoutScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <CheckoutScreenBody />
+    </StorefrontChrome>
+  );
+}
+
+function CheckoutScreenBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);

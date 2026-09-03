@@ -14,7 +14,10 @@ function navigateToGiftClaim(token: string): void {
   navigationRef.navigate('Main', { screen: 'GiftClaim', params: { token } });
 }
 
-/** Web: `/gift/claim?token=…` from gift email → GiftClaim screen (auth if needed). */
+/**
+ * Web: `/gift/claim?token=…` → GiftClaim screen.
+ * Does not open signup until GiftClaim peeks and confirms the invite is claimable.
+ */
 export function GiftClaimLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
@@ -25,18 +28,12 @@ export function GiftClaimLinkEffect() {
 
     persistGiftClaimToken(token);
     if (fromUrl) scrubGiftClaimUrl();
-
-    if (!isAuthenticated) {
-      useAuthFlowStore.getState().setPendingGiftClaimToken(token);
-      useAuthFlowStore.getState().startAuthFromGuest('GiftClaim', 'signup');
-      return;
-    }
+    useAuthFlowStore.getState().setPendingGiftClaimToken(token);
 
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
       clearInterval(id);
       navigateToGiftClaim(token);
-      useAuthFlowStore.getState().setPendingGiftClaimToken(null);
     }, 50);
     return () => clearInterval(id);
   }, [isAuthenticated]);

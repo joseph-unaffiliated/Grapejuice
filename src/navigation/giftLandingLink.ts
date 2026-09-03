@@ -8,6 +8,7 @@ import {
   type LandingAudienceConfig,
 } from '../constants/landingAudiences';
 import { readUtmFromWindow } from '../stores/entryContextStore';
+import { getBootLocation } from './bootLocation';
 
 export const GIFT_LANDING_PATH = GIFT_LANDING.path;
 
@@ -21,8 +22,9 @@ export function readGiftLandingFromWindow(): {
   audience: LandingAudienceConfig;
   preferredGiftPath: GiftPath | null;
 } | null {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
-  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (Platform.OS !== 'web') return null;
+  const boot = getBootLocation();
+  const path = (boot?.pathname ?? window.location.pathname).replace(/\/$/, '') || '/';
   if (path.endsWith('/gift/claim')) return null;
 
   const fromPath = landingAudienceFromPath(path);
@@ -33,7 +35,7 @@ export function readGiftLandingFromWindow(): {
   // Only treat as a gift-landing deep link when path is /gift (UTM on /store is later work).
   if (!fromPath) return null;
 
-  const q = new URLSearchParams(window.location.search);
+  const q = new URLSearchParams(boot?.search ?? window.location.search);
   const pathParam = (q.get('path') ?? '').trim().toLowerCase();
   let preferredGiftPath: GiftPath | null = null;
   if (pathParam === 'credit' || pathParam === 'credit_only') preferredGiftPath = 'credit_only';

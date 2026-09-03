@@ -15,7 +15,9 @@ export type GiftInviteRecord = {
   paymentStatus?: 'pending' | 'paid';
   stripePaymentIntentId?: string;
   claimEmailSentAt?: string;
-  /** Giver customization snapshot — merged into household boxDraft on claim. */
+  /** Explicit path: credit-only (“let them choose”) vs curated box. */
+  kind?: 'credit' | 'box';
+  /** Giver customization snapshot — only for kind=box. */
   lineItems?: unknown[];
   childInterests?: string[];
   childAgeGroups?: string[];
@@ -23,6 +25,15 @@ export type GiftInviteRecord = {
   claimedAt?: string;
   claimedByHouseholdId?: string;
 };
+
+/** Prefer stored kind; fall back to lineItems for older invites. */
+export function resolveGiftInviteKind(invite: {
+  kind?: string;
+  lineItems?: unknown[];
+}): 'credit' | 'box' {
+  if (invite.kind === 'box' || invite.kind === 'credit') return invite.kind;
+  return Array.isArray(invite.lineItems) && invite.lineItems.length > 0 ? 'box' : 'credit';
+}
 
 /**
  * Mark gift paid and email recipient.

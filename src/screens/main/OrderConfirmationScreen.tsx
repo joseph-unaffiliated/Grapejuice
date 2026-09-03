@@ -5,17 +5,24 @@ import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSession } from '../../hooks/useSession';
 import { ordersService } from '../../services/firestore/orders';
-import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { PilotOrder } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
-import { useWebScreenFrame } from '../../constants/webLayout';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { WebContentPanel } from '../../components/layout/WebContentPanel';
 
 export function OrderConfirmationScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <OrderConfirmationBody />
+    </StorefrontChrome>
+  );
+}
+
+function OrderConfirmationBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'OrderConfirmation'>>();
   const { household } = useSession();
-  const webFrame = useWebScreenFrame();
   const [order, setOrder] = useState<PilotOrder | null>(null);
 
   useEffect(() => {
@@ -31,74 +38,86 @@ export function OrderConfirmationScreen() {
     order?.status === 'delivered';
   const pending = order?.status === 'pending';
   const committed = order?.status === 'committed';
+  const isReceivedGift =
+    order?.orderType === 'received_gift' || Boolean(order?.giftInviteId);
 
   return (
-    <View style={[styles.root, webFrame]}>
-      {order ? (
-        <>
-          {pending ? (
-            <>
-              <ActivityIndicator size="large" color={semanticColors.brand} style={styles.spinner} />
-              <Text style={styles.title}>Confirming your order…</Text>
-              <Text style={styles.subtitle}>
-                This usually takes a few seconds. We&apos;ll email you when it&apos;s confirmed.
-              </Text>
-            </>
-          ) : confirmed ? (
-            <>
-              <Text style={styles.emoji}>{committed ? '✓' : '✓'}</Text>
-              <Text style={styles.title}>
-                {committed ? 'Your box is committed.' : 'Your Hanukkah box is on its way.'}
-              </Text>
-              <Text style={styles.subtitle}>
-                {committed
-                  ? "You won't be charged until your box ships. Keep customizing until the lock date."
-                  : "We'll send a tracking link when it ships."}
-              </Text>
-              {order.estimatedDelivery ? (
-                <Text style={styles.delivery}>
-                  Estimated delivery by {order.estimatedDelivery}
+    <WebContentPanel flush centerDesktop style={styles.panel}>
+      <View style={styles.root}>
+        {order ? (
+          <>
+            {pending ? (
+              <>
+                <ActivityIndicator size="large" color={semanticColors.brand} style={styles.spinner} />
+                <Text style={styles.title}>Confirming your order…</Text>
+                <Text style={styles.subtitle}>
+                  This usually takes a few seconds. We&apos;ll email you when it&apos;s confirmed.
                 </Text>
-              ) : null}
-              <View style={styles.previewBox}>
-                <Text style={styles.previewTitle}>When it arrives</Text>
-                <Text style={styles.body}>
-                  Open candles, lyric sheet, and parent guide right away. Keep gelt and gifts in the
-                  small hold-back set for night-of surprises.
+              </>
+            ) : confirmed ? (
+              <>
+                <Text style={styles.emoji}>✓</Text>
+                <Text style={styles.title}>
+                  {committed ? 'Your box is committed.' : 'Your Hanukkah box is on its way.'}
                 </Text>
-                <Text style={styles.body}>
-                  Keep hanukkiah, dreidels, and binders — use up candles, treats, and wrapping paper.
-                  We&apos;ll send more next year.
+                <Text style={styles.subtitle}>
+                  {committed
+                    ? "You won't be charged until the customization lock date. Keep swapping until then."
+                    : "We'll send a tracking link when it ships."}
                 </Text>
-              </View>
-            </>
-          ) : (
-            <Text style={styles.title}>Order status: {order.status}</Text>
-          )}
-        </>
-      ) : (
-        <ActivityIndicator size="large" color={semanticColors.brand} />
-      )}
+                {order.estimatedDelivery ? (
+                  <Text style={styles.delivery}>
+                    Estimated delivery by {order.estimatedDelivery}
+                  </Text>
+                ) : null}
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewTitle}>When it arrives</Text>
+                  <Text style={styles.body}>
+                    Open candles, lyric sheet, and parent guide right away. Keep gelt and gifts in the
+                    small hold-back set for night-of surprises.
+                  </Text>
+                  <Text style={styles.body}>
+                    Keep hanukkiah, dreidels, and binders — use up candles, treats, and wrapping paper.
+                    We&apos;ll send more next year.
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <Text style={styles.title}>Order status: {order.status}</Text>
+            )}
+          </>
+        ) : (
+          <ActivityIndicator size="large" color={semanticColors.brand} />
+        )}
 
-      <TouchableOpacity
-        style={styles.cta}
-        onPress={() => navigation.navigate('MainTabs', { screen: 'Account' } as never)}
-      >
-        <Text style={styles.ctaText}>View in Account</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate('MainTabs')}>
-        <Text style={styles.link}>Back to Home</Text>
-      </TouchableOpacity>
-    </View>
+        <TouchableOpacity
+          style={styles.cta}
+          onPress={() => navigation.navigate(isReceivedGift ? 'MyGifts' : 'Orders')}
+        >
+          <Text style={styles.ctaText}>
+            {isReceivedGift ? 'View in Gifts' : 'View in Orders'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('StorefrontHome')}>
+          <Text style={styles.link}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
+    </WebContentPanel>
   );
 }
 
 const styles = StyleSheet.create({
+  panel: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    backgroundColor: semanticColors.bgPrimary,
+  },
   root: {
     flex: 1,
     backgroundColor: semanticColors.bgPrimary,
     padding: spacing.lg,
-    paddingTop: spacing.xxl * 2,
+    paddingTop: spacing.xl,
     alignItems: 'center',
   },
   spinner: { marginBottom: spacing.lg },

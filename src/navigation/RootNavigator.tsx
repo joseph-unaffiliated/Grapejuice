@@ -28,9 +28,14 @@ import { WebBrowserHistoryBridge } from './WebBrowserHistoryBridge';
 import { GiftClaimLinkEffect } from './GiftClaimLinkEffect';
 import { GiftLandingLinkEffect } from './GiftLandingLinkEffect';
 import { LandingLinkEffect } from './LandingLinkEffect';
+import './bootLocation';
 import { ProductLinkEffect } from './ProductLinkEffect';
 import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
+import { AccountLinkEffect } from './AccountLinkEffect';
+import { OrdersLinkEffect } from './OrdersLinkEffect';
+import { MyGiftsLinkEffect } from './MyGiftsLinkEffect';
+import { CheckoutLinkEffect } from './CheckoutLinkEffect';
 import { BoxLinkEffect } from './BoxLinkEffect';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { consumePendingAuthReturn } from '../services/auth/auth';
@@ -71,12 +76,19 @@ function AuthResumeMainEffect() {
   const user = useAuthStore((s) => s.user);
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
   const pendingGiftCustomize = useAuthFlowStore((s) => s.pendingGiftCustomize);
+  const pendingGiftGive = useAuthFlowStore((s) => s.pendingGiftGive);
   const clearPending = useAuthFlowStore((s) => s.clearPending);
   const { needsOnboarding, needsBoxReveal, refresh, profile } = useSession();
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (pendingReturn !== 'MyBox' && pendingReturn !== 'GiftGiverCustomize') return;
+    if (
+      pendingReturn !== 'MyBox' &&
+      pendingReturn !== 'GiftGiverCustomize' &&
+      pendingReturn !== 'GiftGive'
+    ) {
+      return;
+    }
 
     let attempts = 0;
     let healInFlight = false;
@@ -94,6 +106,36 @@ function AuthResumeMainEffect() {
           return;
         }
         resetRootToMainScreen('MyBox');
+      } else if (pendingReturn === 'GiftGive') {
+        const draft = useAuthFlowStore.getState().pendingGiftGive;
+        if (currentMainRouteName() !== 'GiftGive') {
+          if (draft) {
+            resetRootToMainScreen('GiftGive', {
+              form: draft.form,
+              childDrafts: draft.childDrafts,
+              initialGiftPath: draft.form.giftPath,
+              autoStartPayment: true,
+            });
+          }
+        } else if (needsOnboarding || needsBoxReveal || !profile?.onboardingComplete) {
+          if (!healInFlight && user) {
+            healInFlight = true;
+            void usersService
+              .upsert(user.uid, {
+                onboardingComplete: true,
+                boxRevealComplete: true,
+              })
+              .then(() => refresh({ silent: true }))
+              .finally(() => {
+                healInFlight = false;
+              });
+          }
+          return;
+        } else {
+          clearPending();
+          clearInterval(id);
+          return;
+        }
       } else {
         // Gift customize — do NOT clear pending while session still wants onboarding,
         // or RootRoutes will remount the Onboarding stack the moment pending is gone.
@@ -124,7 +166,7 @@ function AuthResumeMainEffect() {
       if (attempts > 80) {
         // Prefer staying pending over dumping into onboarding with a stale profile.
         if (
-          pendingReturn === 'GiftGiverCustomize' &&
+          (pendingReturn === 'GiftGiverCustomize' || pendingReturn === 'GiftGive') &&
           (!profile?.onboardingComplete || needsOnboarding || needsBoxReveal)
         ) {
           return;
@@ -138,6 +180,7 @@ function AuthResumeMainEffect() {
     isAuthenticated,
     pendingReturn,
     pendingGiftCustomize,
+    pendingGiftGive,
     clearPending,
     needsOnboarding,
     needsBoxReveal,
@@ -170,19 +213,25 @@ function RootRoutes() {
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const pendingAuth = useAuthFlowStore((s) => s.pendingReturn);
+  const pendingGiftClaimToken = useAuthFlowStore((s) => s.pendingGiftClaimToken);
   const pendingGiftCustomize = useAuthFlowStore((s) => s.pendingGiftCustomize);
+  const pendingGiftGive = useAuthFlowStore((s) => s.pendingGiftGive);
   const previewGate = useDevPreviewStore((s) => s.forceGate);
   const previewActive = readDevPreviewFromWindow() != null;
 
   const guestHasMainSurface =
     exploreStarted || guestOnboardingComplete || guestBoxRevealComplete;
 
-  const giftCustomizeResume =
-    pendingAuth === 'GiftGiverCustomize' || pendingGiftCustomize != null;
+  const giftResume =
+    pendingAuth === 'GiftGiverCustomize' ||
+    pendingAuth === 'GiftGive' ||
+    pendingAuth === 'GiftClaim' ||
+    pendingGiftClaimToken != null ||
+    pendingGiftCustomize != null ||
+    pendingGiftGive != null;
 
   /** Keep Main mounted through overlay sign-in so My Box isn't replaced by /store. */
-  const stayOnMainForAuthReturn =
-    (pendingAuth != null && pendingAuth !== 'GiftClaim') || giftCustomizeResume;
+  const stayOnMainForAuthReturn = pendingAuth != null || giftResume;
 
   const booting =
     !guestHydrated ||
@@ -203,7 +252,11 @@ function RootRoutes() {
   const authAsOverlay =
     !isAuthenticated &&
     !!pendingAuth &&
-    (guestHasMainSurface || giftCustomizeResume || pendingAuth === 'Checkout');
+    (guestHasMainSurface ||
+      giftResume ||
+      pendingAuth === 'Stay' ||
+      pendingAuth === 'Checkout' ||
+      pendingAuth === 'MarketplaceCheckout');
 
   let gateKey: 'auth' | 'onboarding' | 'main' = 'auth';
 
@@ -213,8 +266,11 @@ function RootRoutes() {
     const guestHasBox =
       guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete;
     const resumeMainAfterAuth =
-      giftCustomizeResume ||
-      (guestHasBox && pendingAuth != null && pendingAuth !== 'GiftClaim');
+      giftResume ||
+      pendingAuth === 'GiftClaim' ||
+      // Nav sign in/up — stay on the page they were on, never open the box builder.
+      pendingAuth === 'Stay' ||
+      (guestHasBox && pendingAuth != null);
     if (resumeMainAfterAuth) {
       // Guest already revealed/customized a box (or mid gift customize) — don't restart onboarding.
       gateKey = 'main';
@@ -224,12 +280,12 @@ function RootRoutes() {
     } else {
       gateKey = needsOnboarding ? 'onboarding' : needsBoxReveal ? 'onboarding' : 'main';
     }
-  } else if (pendingAuth && !guestHasMainSurface && !giftCustomizeResume) {
+  } else if (pendingAuth && !guestHasMainSurface && !giftResume) {
     // Cold auth / gift-claim before explore — full Auth stack (no Main underneath).
     gateKey = 'auth';
   } else if (buildBoxPath && !guestBoxRevealComplete) {
     gateKey = 'onboarding';
-  } else if (guestHasMainSurface || giftCustomizeResume) {
+  } else if (guestHasMainSurface || giftResume) {
     gateKey = 'main';
   }
 
@@ -301,12 +357,17 @@ export function RootNavigator() {
     if (!raw) return;
     if (!isAuthenticated) return;
     const allowed: AuthReturnRoute[] = [
+      'Stay',
       'Checkout',
+      'MarketplaceCheckout',
       'Rav',
       'Account',
+      'Orders',
+      'MyGifts',
       'Profiles',
       'MyBox',
       'GiftClaim',
+      'GiftGive',
       'GiftGiverCustomize',
       'History',
     ];
@@ -337,6 +398,10 @@ export function RootNavigator() {
           <ProductLinkEffect />
           <StorefrontLinkEffect />
           <HomeLinkEffect />
+          <AccountLinkEffect />
+          <OrdersLinkEffect />
+          <MyGiftsLinkEffect />
+          <CheckoutLinkEffect />
           <BoxLinkEffect />
           <AuthResumeMainEffect />
           <DevPreviewEffect />

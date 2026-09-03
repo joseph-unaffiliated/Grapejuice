@@ -7,7 +7,8 @@ export type GiftGiveFormValues = {
   recipientEmail: string;
   giverName: string;
   message: string;
-  giftPath: GiftPath;
+  /** Null until the giver picks a path — do not default to customize. */
+  giftPath: GiftPath | null;
 };
 
 export type GiftChildDraft = {

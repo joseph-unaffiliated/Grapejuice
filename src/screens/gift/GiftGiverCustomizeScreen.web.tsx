@@ -13,6 +13,7 @@ import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
 import { GiftPaymentPanel, GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
@@ -44,6 +45,19 @@ export function GiftGiverCustomizeScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<Route>();
   const { form, childDrafts, lineItems: restoredLineItems } = route.params;
+
+  // Credit-only gifts must never land on the box editor.
+  React.useEffect(() => {
+    if (form.giftPath === 'credit_only') {
+      navigation.replace('GiftGive', {
+        form: { ...form, giftPath: 'credit_only' },
+        childDrafts,
+        initialGiftPath: 'credit_only',
+        autoStartPayment: true,
+      });
+    }
+  }, [form, childDrafts, navigation]);
+
   const { catalog, lineItems, children, loading, applySwap, swapOptionsFor } = useGiftGiverBoxDraft(
     childDrafts,
     restoredLineItems
@@ -60,7 +74,9 @@ export function GiftGiverCustomizeScreen() {
   const stripePromise = useMemo(() => (stripeKey ? loadStripe(stripeKey) : null), [stripeKey]);
 
   const requireAuth = (entry: 'signup' | 'signin') => {
-    startAuthForGiftCustomize(entry, { form, childDrafts, lineItems });
+    const draft = { form, childDrafts, lineItems };
+    useGiftIntentStore.getState().markIncomplete('customize', draft);
+    startAuthForGiftCustomize(entry, draft);
   };
 
   const pay = async () => {
@@ -78,6 +94,11 @@ export function GiftGiverCustomizeScreen() {
     }
     setSubmitting(true);
     try {
+      useGiftIntentStore.getState().markIncomplete('customize', {
+        form,
+        childDrafts,
+        lineItems,
+      });
       const childAgeGroups = childDrafts.map((c) => c.ageGroup);
       const result = await startGiftPurchase({
         form,
@@ -111,6 +132,7 @@ export function GiftGiverCustomizeScreen() {
           giverName={form.giverName}
           customize
           onPaid={({ claimUrl }) => {
+            useGiftIntentStore.getState().markSent(form.recipientEmail.trim(), 'customize');
             navigation.replace('GiftSentConfirmation', {
               recipientEmail: form.recipientEmail.trim(),
               customize: true,

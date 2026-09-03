@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -71,6 +72,7 @@ import {
   topPickItemId,
 } from '../../services/box/slotVotes';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { updatePilotBoxOrder } from '../../services/checkout/updatePilotBoxOrder';
 import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
 import {
@@ -86,6 +88,38 @@ import type { SemanticColors } from '../../constants/themeMode';
 
 /** Clearance under scroll content for the floating order-summary card. */
 const SUMMARY_FLOAT_CLEARANCE = 140;
+
+/** Stable compare of draft vs committed order lines (swaps / qty / wrap). */
+function lineItemsFingerprint(items: BoxLineItem[]): string {
+  return [...items]
+    .map(
+      (li) =>
+        `${li.slotId}\0${li.itemId}\0${li.quantity}\0${li.unitCents}\0${li.isSurprise ? 1 : 0}\0${li.childId ?? ''}`
+    )
+    .sort()
+    .join('\n');
+}
+
+function notifyUser(title: string, body: string): void {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${body}`);
+    return;
+  }
+  Alert.alert(title, body);
+}
+
+function formatCallableError(e: unknown): string {
+  const code =
+    e && typeof e === 'object' && 'code' in e ? String((e as { code?: string }).code ?? '') : '';
+  const message = e instanceof Error ? e.message : 'Try again in a moment.';
+  if (
+    code.includes('not-found') ||
+    /not-found|NOT_FOUND|does not exist/i.test(message)
+  ) {
+    return 'The update function isn’t on the server yet. Deploy Cloud Functions (updatePilotBoxOrder), then try again.';
+  }
+  return message;
+}
 
 function slotIdAfterSwap(currentSlotId: string, newItem: CatalogItem): string {
   if (isWrapControlSlot(currentSlotId)) {
@@ -109,7 +143,7 @@ export function MyBoxScreen() {
     [colors, isDesktop],
   );
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const { loading: sessionLoading, profile } = useSession();
+  const { loading: sessionLoading, profile, household } = useSession();
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
   const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
@@ -125,11 +159,12 @@ export function MyBoxScreen() {
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
   const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
-  const { cardOnFile, guardMutation } = usePaymentGate();
+  const { cardOnFile, openOrder, guardMutation, refreshOrders } = usePaymentGate();
 
-  /** List framing for My Box ($80 + $10/extra kid) — not the $50 promo checkout override. */
+  /** Flat $80 box (+ $10/extra kid list framing where applicable). */
   const boxPriceCents = useMemo(
     () => listBoxCentsForKids(Math.max(1, children.length)),
     [children.length]
@@ -324,7 +359,61 @@ export function MyBoxScreen() {
       requireAuthToCustomize('signup');
       return;
     }
+    if (openOrder) {
+      navigation.navigate('Orders');
+      return;
+    }
     navigation.navigate('Checkout');
+  };
+
+  const canUpdateCommittedOrder =
+    !!openOrder &&
+    (openOrder.status === 'committed' || openOrder.status === 'pending') &&
+    !locked;
+
+  const orderDirty = useMemo(() => {
+    if (!canUpdateCommittedOrder || !openOrder) return false;
+    return lineItemsFingerprint(lineItems) !== lineItemsFingerprint(openOrder.lineItems ?? []);
+  }, [canUpdateCommittedOrder, openOrder, lineItems]);
+
+  const committedSubtotalCents = useMemo(() => {
+    if (!openOrder) return 0;
+    if (typeof openOrder.subtotalCents === 'number') return openOrder.subtotalCents;
+    return totalCents(openOrder.lineItems ?? [], boxPriceCents);
+  }, [openOrder, boxPriceCents]);
+
+  const orderDeltaCents = useMemo(() => {
+    if (!orderDirty) return 0;
+    return totalCents(lineItems, boxPriceCents) - committedSubtotalCents;
+  }, [orderDirty, lineItems, boxPriceCents, committedSubtotalCents]);
+
+  const saveOrderUpdates = async () => {
+    if (savingOrder) return;
+    if (!household?.id) {
+      notifyUser('Couldn’t update order', 'Your account isn’t linked to a household yet. Refresh and try again.');
+      return;
+    }
+    if (!openOrder || !orderDirty) return;
+    setSavingOrder(true);
+    try {
+      await updatePilotBoxOrder(household.id, openOrder.id);
+      await refreshOrders();
+    } catch (e) {
+      console.error('updatePilotBoxOrder failed', e);
+      notifyUser('Couldn’t update order', formatCallableError(e));
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const discardOrderChanges = async () => {
+    if (!openOrder || !orderDirty || savingOrder) return;
+    await persist(
+      (openOrder.lineItems ?? []).map((li) => ({
+        ...li,
+        quantity: li.quantity ?? 1,
+      }))
+    );
   };
 
   const openProduct = (itemId: string) => {
@@ -540,6 +629,38 @@ export function MyBoxScreen() {
     );
   }
 
+  const hasOwnBox = lineItems.length > 0 || !!openOrder;
+  if (user && !guestViewOnly && !hasOwnBox) {
+    return (
+      <StorefrontChrome bodyMode="fill" hideServicesNav>
+        <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
+          <View style={[styles.centered, styles.emptyOwnBox]}>
+            <Text style={styles.emptyOwnBoxTitle}>You don&apos;t have a box yet</Text>
+            <Text style={styles.emptyOwnBoxBody}>
+              Gifts you send live under Orders. Start here when you&apos;re ready to build a Hanukkah
+              box for your household.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyOwnBoxCta}
+              onPress={() => {
+                if (!user) {
+                  startBuildBox();
+                  return;
+                }
+                navigation.navigate('StorefrontHome');
+              }}
+            >
+              <Text style={styles.emptyOwnBoxCtaText}>Browse the store</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.emptyOwnBoxLink} onPress={() => navigation.navigate('Orders')}>
+              <Text style={styles.emptyOwnBoxLinkText}>View your orders</Text>
+            </TouchableOpacity>
+          </View>
+        </WebContentPanel>
+      </StorefrontChrome>
+    );
+  }
+
   const subtotal = totalCents(lineItems, boxPriceCents);
   const kidsCount = Math.max(1, children.length);
   const chargeableExtras = extraLineItems.reduce((s, li) => s + li.unitCents * li.quantity, 0);
@@ -615,6 +736,13 @@ export function MyBoxScreen() {
           <Text style={styles.totalValue}>{formatDollars(subtotal)}</Text>
           {guestViewOnly ? <GuestBoxAuthBanner /> : null}
         </View>
+        {orderDirty && orderDeltaCents !== 0 ? (
+          <Text style={styles.orderDeltaCopy} accessibilityRole="summary">
+            {orderDeltaCents > 0
+              ? `This update adds ${formatDollars(orderDeltaCents)} to your box. You’ll be charged the new total when it ships.`
+              : `This update reduces your box by ${formatDollars(Math.abs(orderDeltaCents))}. You’ll be charged the new total when it ships.`}
+          </Text>
+        ) : null}
         {guestViewOnly ? (
           <View style={styles.guestCtaRow}>
             <Pressable
@@ -645,6 +773,42 @@ export function MyBoxScreen() {
               <Text style={styles.guestSignIn}>Sign in</Text>
             </TouchableOpacity>
           </View>
+        ) : orderDirty ? (
+          <View style={styles.orderUpdateCtaRow}>
+            <TouchableOpacity
+              onPress={() => void discardOrderChanges()}
+              disabled={savingOrder}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel changes"
+              hitSlop={8}
+            >
+              <Text style={[styles.guestSignIn, savingOrder && styles.checkoutCtaDisabled]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <Pressable
+              style={({ pressed, hovered }) => [
+                styles.checkoutCta,
+                styles.guestPrimaryCta,
+                (hovered || pressed) && styles.checkoutCtaHover,
+                (savingOrder || locked) && styles.checkoutCtaDisabled,
+              ]}
+              onPress={() => void saveOrderUpdates()}
+              disabled={savingOrder || locked}
+              accessibilityRole="button"
+            >
+              {({ pressed, hovered }) => (
+                <Text
+                  style={[
+                    styles.checkoutText,
+                    (hovered || pressed) && styles.checkoutTextHover,
+                  ]}
+                >
+                  {savingOrder ? 'Saving…' : 'Save and update box'}
+                </Text>
+              )}
+            </Pressable>
+          </View>
         ) : (
           <Pressable
             style={({ pressed, hovered }) => [
@@ -663,7 +827,11 @@ export function MyBoxScreen() {
                   (hovered || pressed) && styles.checkoutTextHover,
                 ]}
               >
-                {cardOnFile ? 'Review shipping' : 'Add payment & shipping'}
+                {openOrder
+                  ? 'View order status'
+                  : cardOnFile
+                    ? 'Review shipping'
+                    : 'Add payment & shipping'}
               </Text>
             )}
           </Pressable>
@@ -809,6 +977,42 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyOwnBox: {
+    padding: spacing.lg,
+    maxWidth: 420,
+    alignSelf: 'center',
+  },
+  emptyOwnBoxTitle: {
+    fontSize: typography.xxl,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  emptyOwnBoxBody: {
+    marginTop: spacing.sm,
+    fontSize: typography.md,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emptyOwnBoxCta: {
+    marginTop: spacing.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.pill,
+    backgroundColor: colors.logoDark,
+  },
+  emptyOwnBoxCtaText: {
+    color: colors.bgPrimary,
+    fontWeight: '700',
+    fontSize: typography.md,
+  },
+  emptyOwnBoxLink: { marginTop: spacing.md },
+  emptyOwnBoxLinkText: {
+    color: colors.brand,
+    fontWeight: '600',
+    fontSize: typography.md,
+  },
   pageHeader: { alignItems: 'center', marginBottom: spacing.sm },
   title: { fontSize: typography.titleLg, fontWeight: '600', textAlign: 'center' },
   headerMeta: { fontSize: typography.sm, color: colors.goldMuted, marginTop: 4, textAlign: 'center' },
@@ -895,6 +1099,21 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     gap: spacing.sm,
     flexShrink: 0,
     marginLeft: 'auto',
+  },
+  orderUpdateCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flexShrink: 0,
+    marginLeft: 'auto',
+  },
+  orderDeltaCopy: {
+    width: '100%',
+    fontSize: typography.sm,
+    lineHeight: 18,
+    color: colors.goldMuted,
+    letterSpacing: -0.22,
+    marginTop: spacing.xs,
   },
   guestPrimaryCta: {
     marginLeft: 0,

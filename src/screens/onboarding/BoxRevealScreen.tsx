@@ -47,6 +47,8 @@ type Props = {
   lineItems: BoxLineItem[];
   onDone: () => void | Promise<void>;
   completing?: boolean;
+  /** Bottom CTA label — gift reveal uses "Back to My Gifts". */
+  doneLabel?: string;
 };
 
 /** Cascade timing for the reveal — each block eases in shortly after the previous. */
@@ -97,7 +99,13 @@ function RevealStagger({ index, children }: { index: number; children: React.Rea
 }
 
 /** Figma 370:3514 — curated box reveal; desktop mirrors homepage centered content column. */
-export function BoxRevealScreen({ children, lineItems, onDone, completing }: Props) {
+export function BoxRevealScreen({
+  children,
+  lineItems,
+  onDone,
+  completing,
+  doneLabel = 'Review Box',
+}: Props) {
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
   const underStorefrontChrome = useOnboardingUnderStorefrontChrome();
@@ -236,6 +244,7 @@ export function BoxRevealScreen({ children, lineItems, onDone, completing }: Pro
           onPress={() => void onDone()}
           disabled={completing}
           loading={completing}
+          label={doneLabel}
         />
       </RevealStagger>
     </>

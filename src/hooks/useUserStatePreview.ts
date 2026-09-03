@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useGuestSessionStore } from '../stores/guestSessionStore';
 import {
   dateFromPreviewNowIso,
   useUserStatePreviewStore,
   type UserStatePreview,
 } from '../stores/userStatePreviewStore';
-import { useSession } from './useSession';
+import { useBoxDraft } from './useBoxDraft';
 import { isBoxLocked } from '../services/firestore/config';
 
 function isSignedOutPreview(preview: UserStatePreview | null): boolean {
@@ -37,23 +36,15 @@ export function usePreviewedIsAuthenticated(): boolean {
   return real;
 }
 
-/** True once the household has completed (or revealed) a Hanukkah box build. */
+/** True once the household has a real Hanukkah box draft (not gift-only signup). */
 export function usePreviewedHasStartedBox(): boolean {
   const preview = useUserStatePreviewStore((s) => s.preview);
   const overridden = previewHasBox(preview);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { profile } = useSession();
-  const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
-  const guestRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
+  const { lineItems } = useBoxDraft();
 
   if (overridden != null) return overridden;
 
-  if (isAuthenticated) {
-    // Reveal means a box was built — onboardingComplete alone is also set when
-    // someone chooses “explore without building a box.”
-    return !!profile?.boxRevealComplete;
-  }
-  return guestOnboardingComplete || guestRevealComplete;
+  return lineItems.length > 0;
 }
 
 export function useUserStatePreview(): UserStatePreview | null {

@@ -9,6 +9,11 @@ import { StorefrontChrome, useStorefrontActions } from '../../components/storefr
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import {
+  CURATED_GIFT_BOX_LABEL,
+  GIFT_CREDIT_SPEND_HINT,
+  giftCreditProductLabel,
+} from '../../constants/giftCopy';
 import { spacing, typography, borderRadius, typeface, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -37,10 +42,10 @@ function GiftSentConfirmationBody() {
   const amountLabel = formatDollars(amountCents);
 
   const lead = customize
-    ? `We emailed ${recipientEmail} a link to claim the box you picked for them.`
-    : `We emailed ${recipientEmail} a link to claim their ${amountLabel} box credit.`;
+    ? `We emailed ${recipientEmail} a link to claim the ${CURATED_GIFT_BOX_LABEL.toLowerCase()} you picked for them.`
+    : `We emailed ${recipientEmail} a link to claim ${giftCreditProductLabel(amountCents)}.`;
 
-  const productLabel = customize ? 'Customized gift box' : `${amountLabel} box credit`;
+  const productLabel = customize ? CURATED_GIFT_BOX_LABEL : giftCreditProductLabel(amountCents);
 
   return (
     <WebContentPanel flush centerDesktop omitDesktopTopPadding gutter={!isDesktop} style={styles.panel}>
@@ -93,8 +98,8 @@ function GiftSentConfirmationBody() {
           <Text style={styles.nextTitle}>What happens next</Text>
           <Text style={styles.nextBody}>
             {customize
-              ? 'When they open the link, they’ll see the box you curated and can keep it as a surprise or adjust before ship.'
-              : 'When they open the link, they can put the credit toward building their own Hanukkah box.'}
+              ? 'When they open the link, they’ll see the items you picked and can keep it as a surprise or adjust before ship.'
+              : `When they open the link, the credit is added to their account. ${GIFT_CREDIT_SPEND_HINT}`}
           </Text>
 
           {__DEV__ && claimUrl ? (
@@ -112,11 +117,11 @@ function GiftSentConfirmationBody() {
             <Text style={styles.ctaText}>Back to store</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
+            onPress={() => navigation.navigate('Orders')}
             style={styles.secondary}
             accessibilityRole="button"
           >
-            <Text style={styles.secondaryText}>Go to account</Text>
+            <Text style={styles.secondaryText}>View in Orders</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -1,4 +1,21 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "giftInvites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "giverUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "holidayId", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

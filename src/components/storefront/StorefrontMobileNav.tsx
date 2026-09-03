@@ -19,8 +19,8 @@ import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { icons } from '../../constants/icons';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
-import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { openBoxSurface } from '../../navigation/boxEntry';
+import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import {
   semanticColors,
   spacing,
@@ -51,6 +51,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
   const leave = useStorefrontLeave();
   const { openRav } = useStorefrontRav();
   const isAuthenticated = usePreviewedIsAuthenticated();
+  const hasOwnBox = usePreviewedHasStartedBox();
   const { width } = useWindowDimensions();
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
@@ -90,17 +91,8 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
       fn();
     };
 
-    const startBox = () => {
-      if (leave) {
-        leave({ type: 'myBox' });
-        return;
-      }
-      if (!isAuthenticated) {
-        useGuestSessionStore.getState().startBuildBox();
-        return;
-      }
-      navigation.navigate('MyBox');
-    };
+    const startBox = () =>
+      openBoxSurface(isAuthenticated, leave ? () => leave({ type: 'myBox' }) : undefined);
 
     return [
       {
@@ -128,17 +120,21 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
                 navigation.navigate('StorefrontPassover');
               }),
           },
-          {
-            label: 'My Box',
-            onPress: () =>
-              go(() => {
-                if (leave) {
-                  leave({ type: 'myBox' });
-                  return;
-                }
-                navigation.navigate('MyBox');
-              }),
-          },
+          ...(hasOwnBox
+            ? [
+                {
+                  label: 'My Box',
+                  onPress: () =>
+                    go(() => {
+                      if (leave) {
+                        leave({ type: 'myBox' });
+                        return;
+                      }
+                      navigation.navigate('MyBox');
+                    }),
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -196,7 +192,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         ],
       },
     ];
-  }, [isAuthenticated, leave, navigation, onClose, openRav]);
+  }, [hasOwnBox, isAuthenticated, leave, navigation, onClose, openRav]);
 
   if (!mounted) return null;
 

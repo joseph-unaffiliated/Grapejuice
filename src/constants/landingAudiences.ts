@@ -217,7 +217,7 @@ export const GIFT_LANDING: LandingAudienceConfig = {
       aspect: '3/2',
       label: 'Lifestyle — Gift stack',
       headline: 'Give a Hanukkah they’ll actually celebrate',
-      body: 'A curated box for the kids you love — personalize it yourself, or send a gift card so their family can. Free shipping; you won’t be charged until it ships.',
+      body: 'A curated box for the kids you love — personalize it yourself, or send gift credit so their family can shop or build a box. Free shipping; you won’t be charged until it ships.',
       ctaLabel: 'Pick items for them',
       href: 'gift',
       src: GIFT_HERO_SRC,
@@ -236,7 +236,7 @@ export const GIFT_LANDING: LandingAudienceConfig = {
     ],
     offer: {
       heading: 'One box, two ways to give',
-      body: 'Same curated Hanukkah box either way. You pick the pieces, or send a gift card and let their parents finish.',
+      body: 'Same curated Hanukkah box either way. You pick the pieces, or send gift credit and let their parents finish.',
       image: STORY_IMG_GIFT,
     },
     proof: {

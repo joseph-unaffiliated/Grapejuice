@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { MainTabsParamList } from './types';
-import { HomeScreen } from '../screens/main/HomeScreen';
+import { StorefrontHomeScreen } from '../screens/storefront/StorefrontHomeScreen';
 import { RavScreen } from '../screens/main/RavScreen';
 import { AccountScreen } from '../screens/main/AccountScreen';
 import { PilotTabBar } from '../components/navigation/PilotTabBar';
@@ -55,7 +55,7 @@ export function MainTabs() {
     >
       <Tab.Screen
         name="Home"
-        component={HomeScreen}
+        component={StorefrontHomeScreen}
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <Icon icon={icons.explosion} size={TAB_NAV.iconSize} color={color} />,

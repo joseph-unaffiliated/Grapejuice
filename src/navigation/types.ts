@@ -43,13 +43,16 @@ export type MainStackParamList = {
   AlaCarteStore: undefined;
   /** C&B-style retail experiment — no global sidebar. */
   StorefrontHome: undefined;
+  StorefrontFavorites: undefined;
   StorefrontCategory: { category: string; q?: string };
   StorefrontOurStory: undefined;
   StorefrontPassover: undefined;
   CatalogProduct: { slug: string };
   BoxDiscountEligibility: undefined;
   Checkout: undefined;
+  MarketplaceCheckout: undefined;
   OrderConfirmation: { orderId: string };
+  Orders: undefined;
   Reflection: undefined;
   AboutHanukkah: undefined;
   History: undefined;
@@ -70,7 +73,16 @@ export type MainStackParamList = {
   LastMinuteLanding: undefined;
   /** @deprecated Prefer DynamicLanding */
   ForYourHomeLanding: undefined;
-  GiftGive: { initialGiftPath?: GiftPath } | undefined;
+  GiftGive:
+    | {
+        initialGiftPath?: GiftPath;
+        /** Restored after auth (credit-only path). */
+        form?: GiftGiveFormValues;
+        childDrafts?: GiftChildDraft[];
+        /** After signup, open Stripe payment immediately (credit-only). */
+        autoStartPayment?: boolean;
+      }
+    | undefined;
   GiftGiverCustomize: {
     form: GiftGiveFormValues;
     childDrafts: GiftChildDraft[];
@@ -85,7 +97,11 @@ export type MainStackParamList = {
     claimUrl?: string;
   };
   GiftClaim: { token?: string };
+  MyGifts: undefined;
+  GiftBox: { giftInviteId: string };
+  GiftBoxCheckout: { giftInviteId: string };
   GiftRecipientReveal: {
+    giftInviteId: string;
     giverName: string;
     message?: string;
     giftCreditCents: number;

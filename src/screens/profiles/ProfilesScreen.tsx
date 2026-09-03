@@ -16,6 +16,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { useAuthStore } from '../../stores/authStore';
 import type { MainStackParamList } from '../../navigation/types';
@@ -24,6 +25,14 @@ import { spacing, typography, borderRadius } from '../../constants/theme';
 type Nav = StackNavigationProp<MainStackParamList>;
 
 export function ProfilesScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <ProfilesScreenBody />
+    </StorefrontChrome>
+  );
+}
+
+function ProfilesScreenBody() {
   const navigation = useNavigation<Nav>();
   const user = useAuthStore((s) => s.user);
   const { profile } = useSession();
@@ -40,13 +49,13 @@ export function ProfilesScreen() {
 
   const selectParent = useCallback(async () => {
     await enterParentProfile();
-    navigation.navigate('MainTabs', { screen: 'Home' });
+    navigation.navigate('StorefrontHome');
   }, [enterParentProfile, navigation]);
 
   const selectChild = useCallback(
     async (childId: string) => {
       await enterChildProfile(childId);
-      navigation.navigate('MainTabs', { screen: 'Home' });
+      navigation.navigate('StorefrontHome');
     },
     [enterChildProfile, navigation]
   );

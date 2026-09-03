@@ -18,14 +18,12 @@ import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { LAYOUT, MOBILE_GUTTER, spacing, typography } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { MainStackParamList } from '../../navigation/types';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { LIST_BOX_PRICE_CENTS, LIST_BOX_VALUE_CENTS } from '../../services/box/pricing';
-
-/** Match Home / About Hanukkah desktop top inset. */
-const DESKTOP_CONTENT_TOP = 41;
 
 const STATEMENTS = [
   'I identify as Jewish, or I’m part of a Jewish or interfaith household.',
@@ -34,6 +32,14 @@ const STATEMENTS = [
 ] as const;
 
 export function BoxDiscountEligibilityScreen() {
+  return (
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <BoxDiscountEligibilityBody />
+    </StorefrontChrome>
+  );
+}
+
+function BoxDiscountEligibilityBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
@@ -193,7 +199,7 @@ export function BoxDiscountEligibilityScreen() {
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.bgPrimary }]}
-      edges={Platform.OS === 'web' ? [] : ['top']}
+      edges={[]}
     >
       <WebContentPanel
         flush={isDesktop}
@@ -205,10 +211,7 @@ export function BoxDiscountEligibilityScreen() {
         <View style={[styles.scrollHost, isDesktop && styles.scrollHostDesktopBleed]}>
           <ScrollView
             style={[styles.root, { backgroundColor: colors.bgPrimary }]}
-            contentContainerStyle={[
-              styles.scrollContent,
-              { paddingTop: isDesktop ? DESKTOP_CONTENT_TOP : spacing.lg },
-            ]}
+            contentContainerStyle={[styles.scrollContent, { paddingTop: spacing.lg }]}
             showsVerticalScrollIndicator={false}
           >
             {isDesktop ? (

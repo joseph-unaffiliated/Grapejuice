@@ -3,8 +3,12 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useEntryContextStore, readUtmFromWindow } from '../stores/entryContextStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
+import { readMarketingLandingFromPath } from './landingLink';
 import { navigationRef } from './navigationRef';
-import { readMarketingLandingFromWindow } from './landingLink';
+import {
+  consumeInboundLandingUrlPreserve,
+  getBootLocation,
+} from './bootLocation';
 
 function navigateToDynamicLanding(landingId: string): void {
   if (!navigationRef.isReady()) return;
@@ -25,14 +29,17 @@ export function LandingLinkEffect() {
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const capture = useEntryContextStore((s) => s.capture);
   const pending = useRef<{ landingId: string } | null | undefined>(undefined);
+  /** Captured before the first URL sync can replace it with `/store`. */
+  const entryPath = useRef(getBootLocation()?.pathname ?? null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const target = await readMarketingLandingFromWindow();
+      const target = await readMarketingLandingFromPath(entryPath.current);
       if (cancelled) return;
       if (!target) {
         pending.current = null;
+        consumeInboundLandingUrlPreserve();
         return;
       }
 
@@ -69,10 +76,12 @@ export function LandingLinkEffect() {
       if (useGuestSessionStore.getState().buildBoxPath) return;
       if (
         useAuthFlowStore.getState().pendingReturn === 'MyBox' ||
-        useAuthFlowStore.getState().pendingReturn === 'GiftGiverCustomize'
+        useAuthFlowStore.getState().pendingReturn === 'GiftGiverCustomize' ||
+        useAuthFlowStore.getState().pendingReturn === 'GiftGive'
       ) {
         pending.current = null;
         clearInterval(id);
+        consumeInboundLandingUrlPreserve();
         return;
       }
 
@@ -88,6 +97,12 @@ export function LandingLinkEffect() {
       const landingId = pending.current.landingId;
       pending.current = null;
       clearInterval(id);
+      consumeInboundLandingUrlPreserve();
+      const already =
+        navigationRef.getCurrentRoute()?.name === 'DynamicLanding' &&
+        (navigationRef.getCurrentRoute()?.params as { landingId?: string } | undefined)
+          ?.landingId === landingId;
+      if (already) return;
       navigateToDynamicLanding(landingId);
     }, 50);
     return () => clearInterval(id);

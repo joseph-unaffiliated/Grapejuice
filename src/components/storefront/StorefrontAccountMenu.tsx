@@ -16,6 +16,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { useWishlist } from '../../hooks/useWishlist';
+import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
@@ -52,8 +53,9 @@ const DRAWER_MAX_WIDTH = 320;
 export function StorefrontAccountMenu() {
   const navigation = useNavigation<Nav>();
   const { ids } = useWishlist();
+  const { gifts } = useReceivedGifts();
   const logout = useAuthStore((s) => s.logout);
-  const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
+  const startAuthInPlace = useAuthFlowStore((s) => s.startAuthInPlace);
   const isAuthenticated = usePreviewedIsAuthenticated();
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
@@ -125,6 +127,18 @@ export function StorefrontAccountMenu() {
           onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
         },
         {
+          key: 'orders',
+          label: 'Orders',
+          icon: icons.boxOpen,
+          onPress: () => navigation.navigate('Orders'),
+        },
+        {
+          key: 'my-gifts',
+          label: gifts.length > 0 ? `My Gifts (${gifts.length})` : 'My Gifts',
+          icon: icons.gift,
+          onPress: () => navigation.navigate('MyGifts'),
+        },
+        {
           key: 'history',
           label: 'History',
           icon: icons.clockHistory,
@@ -134,7 +148,7 @@ export function StorefrontAccountMenu() {
           key: 'favorites',
           label: `Favorites (${ids.length})`,
           icon: icons.heart,
-          onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
+          onPress: () => navigation.navigate('StorefrontFavorites'),
         },
       ]
     : [];
@@ -156,13 +170,13 @@ export function StorefrontAccountMenu() {
           key: 'signin',
           label: 'Sign in',
           icon: icons.user,
-          onPress: () => startAuthFromGuest('Account', 'signin', 'SignInEmail'),
+          onPress: () => startAuthInPlace('signin', 'SignInEmail'),
         },
         {
           key: 'signup',
           label: 'Create an account',
           icon: icons.user,
-          onPress: () => startAuthFromGuest('Account', 'signup', 'SignUp'),
+          onPress: () => startAuthInPlace('signup', 'SignUp'),
         },
       ];
 

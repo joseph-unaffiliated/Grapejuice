@@ -3,8 +3,9 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
-import { readStorePathFromWindow } from './storeLink';
+import { readStorePathFromBoot } from './storeLink';
 import { readBoxPathFromWindow } from './boxLink';
+import { readCheckoutPathFromWindow } from './checkoutLink';
 import { readDevPreviewFromWindow } from './devPreview';
 import { peekPendingMainNav } from './pendingMainNav';
 import { useAuthFlowStore } from '../stores/authFlowStore';
@@ -21,6 +22,10 @@ function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category
   if (!navigationRef.isReady()) return;
   if (target.kind === 'home') {
     navigationRef.navigate('Main', { screen: 'StorefrontHome' });
+    return;
+  }
+  if (target.category === 'favorites') {
+    navigationRef.navigate('Main', { screen: 'StorefrontFavorites' });
     return;
   }
   navigationRef.navigate('Main', {
@@ -46,7 +51,7 @@ export function StorefrontLinkEffect() {
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   /** Capture once — history sync must not erase the target mid-boot. */
-  const pending = useRef(readStorePathFromWindow());
+  const pending = useRef(readStorePathFromBoot());
 
   useEffect(() => {
     const preview = readDevPreviewFromWindow();
@@ -62,6 +67,11 @@ export function StorefrontLinkEffect() {
       return;
     }
 
+    if (readCheckoutPathFromWindow() || peekPendingMainNav()?.screen === 'Checkout') {
+      pending.current = null;
+      return;
+    }
+
     // After box reveal, Main is handed off to My Box (or already has a box).
     // Do not re-apply the cold /store deep link when reveal flags flip — that
     // was racing the pending MyBox navigation and dumping users on marketplace home.
@@ -72,7 +82,9 @@ export function StorefrontLinkEffect() {
     if (
       useAuthFlowStore.getState().pendingReturn === 'MyBox' ||
       useAuthFlowStore.getState().pendingReturn === 'GiftGiverCustomize' ||
-      peekPendingMainNav()?.screen === 'GiftGiverCustomize'
+      useAuthFlowStore.getState().pendingReturn === 'GiftGive' ||
+      peekPendingMainNav()?.screen === 'GiftGiverCustomize' ||
+      peekPendingMainNav()?.screen === 'GiftGive'
     ) {
       pending.current = null;
       return;
