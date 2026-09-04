@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,9 @@ export function StickySectionNav({
   const tabLayouts = useRef<Partial<Record<BoxDisplaySectionId, { x: number; width: number }>>>({});
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorW = useRef(new Animated.Value(0)).current;
+  const hScrollRef = useRef<ScrollView>(null);
+  const viewportW = useRef(0);
+  const contentW = useRef(0);
 
   const moveIndicator = (id: BoxDisplaySectionId) => {
     const layout = tabLayouts.current[id];
@@ -62,9 +65,22 @@ export function StickySectionNav({
     ]).start();
   };
 
+  /** Keep the active tab in view — center it in the horizontal strip when possible. */
+  const ensureActiveVisible = useCallback((id: BoxDisplaySectionId, animated = true) => {
+    if (isDesktop) return;
+    const layout = tabLayouts.current[id];
+    const viewW = viewportW.current;
+    if (!layout || viewW <= 0) return;
+    const maxX = Math.max(0, contentW.current - viewW);
+    const centered = layout.x + layout.width / 2 - viewW / 2;
+    const next = Math.max(0, Math.min(maxX, centered));
+    hScrollRef.current?.scrollTo({ x: next, animated });
+  }, [isDesktop]);
+
   useEffect(() => {
     moveIndicator(activeSection);
-  }, [activeSection]);
+    ensureActiveVisible(activeSection);
+  }, [activeSection, ensureActiveVisible]);
 
   const onTabLayout = (id: BoxDisplaySectionId) => (e: LayoutChangeEvent) => {
     const { x, width } = e.nativeEvent.layout;
@@ -72,7 +88,18 @@ export function StickySectionNav({
     if (id === activeSection) {
       indicatorX.setValue(x);
       indicatorW.setValue(width);
+      ensureActiveVisible(id, false);
     }
+  };
+
+  const onHScrollLayout = (e: LayoutChangeEvent) => {
+    viewportW.current = e.nativeEvent.layout.width;
+    ensureActiveVisible(activeSection, false);
+  };
+
+  const onHContentSizeChange = (w: number) => {
+    contentW.current = w;
+    ensureActiveVisible(activeSection, false);
   };
 
   const tabRow = (
@@ -112,9 +139,12 @@ export function StickySectionNav({
         tabRow
       ) : (
         <ScrollView
+          ref={hScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
+          onLayout={onHScrollLayout}
+          onContentSizeChange={onHContentSizeChange}
           // @ts-expect-error web className
           className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
         >

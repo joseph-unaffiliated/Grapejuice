@@ -103,6 +103,6 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       marginBottom: spacing.xl,
       ...typeface('regular'),
     },
-    btn: { alignSelf: 'stretch', minWidth: undefined, marginBottom: spacing.md },
+    btn: { alignSelf: 'stretch', marginBottom: spacing.md },
   });
 }

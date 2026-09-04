@@ -331,13 +331,20 @@ export function GiftGiverCustomizeContent({
     );
   }
 
-  const floatBottom = Math.max(insets.bottom, spacing.md);
+  /** Desktop: float above the home indicator. Mobile: flush + 1px overhang to kill hairline seams. */
+  const floatBottom = isDesktop ? Math.max(insets.bottom, spacing.md) : -1;
+  const summaryBottomPad = isDesktop ? spacing.sm : spacing.sm + insets.bottom + 1;
 
   const summaryPanel = (
     <View
       style={[
         styles.summaryCard,
-        Platform.OS === 'web' ? { boxShadow: shadowsWeb.md } : shadows.md,
+        { paddingBottom: summaryBottomPad },
+        isDesktop
+          ? Platform.OS === 'web'
+            ? { boxShadow: shadowsWeb.md }
+            : shadows.md
+          : null,
       ]}
     >
       <View style={styles.summaryBreakdown}>
@@ -358,7 +365,7 @@ export function GiftGiverCustomizeContent({
           <Text style={styles.totalValue}>{formatDollars(subtotal)}</Text>
         </View>
         {!isAuthenticated ? (
-          <View style={styles.guestCtaRow}>
+          <View style={styles.summaryCtaRow}>
             <Pressable
               style={({ pressed, hovered }) => [
                 styles.checkoutCta,
@@ -385,28 +392,30 @@ export function GiftGiverCustomizeContent({
             </TouchableOpacity>
           </View>
         ) : (
-          <Pressable
-            style={({ pressed, hovered }) => [
-              styles.checkoutCta,
-              (hovered || pressed) && styles.checkoutCtaHover,
-              (submitting || lineItems.length === 0) && styles.checkoutCtaDisabled,
-            ]}
-            onPress={onPay}
-            disabled={submitting || lineItems.length === 0}
-            accessibilityRole="button"
-          >
-            {({ pressed, hovered }) =>
-              submitting ? (
-                <ActivityIndicator color={colors.brand} />
-              ) : (
-                <Text
-                  style={[styles.checkoutText, (hovered || pressed) && styles.checkoutTextHover]}
-                >
-                  Continue to payment
-                </Text>
-              )
-            }
-          </Pressable>
+          <View style={styles.summaryCtaRow}>
+            <Pressable
+              style={({ pressed, hovered }) => [
+                styles.checkoutCta,
+                (hovered || pressed) && styles.checkoutCtaHover,
+                (submitting || lineItems.length === 0) && styles.checkoutCtaDisabled,
+              ]}
+              onPress={onPay}
+              disabled={submitting || lineItems.length === 0}
+              accessibilityRole="button"
+            >
+              {({ pressed, hovered }) =>
+                submitting ? (
+                  <ActivityIndicator color={colors.brand} />
+                ) : (
+                  <Text
+                    style={[styles.checkoutText, (hovered || pressed) && styles.checkoutTextHover]}
+                  >
+                    Continue to payment
+                  </Text>
+                )
+              }
+            </Pressable>
+          </View>
         )}
       </View>
       {payError ? <Text style={styles.payError}>{payError}</Text> : null}
@@ -422,7 +431,7 @@ export function GiftGiverCustomizeContent({
             style={[styles.root, isDesktop && styles.desktopRoot]}
             contentContainerStyle={[
               isDesktop ? styles.desktopScrollContent : detailStyles.scrollContent,
-              { paddingBottom: SUMMARY_FLOAT_CLEARANCE + floatBottom },
+              { paddingBottom: SUMMARY_FLOAT_CLEARANCE + (isDesktop ? floatBottom : insets.bottom) },
             ]}
             onScroll={onScroll}
             scrollEventThrottle={16}
@@ -590,16 +599,16 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     summaryFloatInner: {
       width: '100%',
       maxWidth: isDesktop ? 960 : undefined,
-      paddingHorizontal: isDesktop ? 0 : spacing.sm,
+      paddingHorizontal: 0,
     },
     summaryCard: {
       width: '100%',
       backgroundColor: colors.logoDark,
-      borderRadius: 12,
+      borderRadius: isDesktop ? 12 : 0,
       paddingHorizontal: spacing.md,
       paddingTop: spacing.sm,
-      paddingBottom: spacing.sm,
-      borderWidth: StyleSheet.hairlineWidth,
+      // Mobile: no top hairline — it reads as a seam over scrolling product.
+      borderWidth: isDesktop ? StyleSheet.hairlineWidth : 0,
       borderColor: colors.goldMuted,
     },
     summaryBreakdown: {
@@ -646,7 +655,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       color: colors.brand,
       letterSpacing: -0.22,
     },
-    guestCtaRow: {
+    summaryCtaRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -693,6 +702,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       fontSize: typography.sm,
       color: colors.brand,
       letterSpacing: -0.22,
+      textAlign: 'center',
       ...(Platform.OS === 'web'
         ? ({
             transitionProperty: 'color',

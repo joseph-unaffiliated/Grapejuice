@@ -681,7 +681,7 @@ export function MyBoxScreen() {
 
   if (sessionLoading || loading || draftLoading || guestNeedsOnboarding) {
     return (
-      <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
         <View style={styles.centered}>
           <BrandLoadingMark color={colors.brand} />
         </View>
@@ -692,7 +692,7 @@ export function MyBoxScreen() {
   const hasOwnBox = lineItems.length > 0 || !!openOrder;
   if (user && !guestViewOnly && !hasOwnBox) {
     return (
-      <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
         <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
           <View style={[styles.centered, styles.emptyOwnBox]}>
             <Text style={styles.emptyOwnBoxTitle}>You don&apos;t have a box yet</Text>
@@ -765,13 +765,21 @@ export function MyBoxScreen() {
     renderSection(id, index === visibleSectionIds.length - 1),
   );
 
+  const showSummaryFloat = !isChildProfile;
+  /** Desktop: float above the home indicator. Mobile: flush + 1px overhang to kill hairline seams. */
+  const floatBottom = isDesktop ? Math.max(insets.bottom, spacing.md) : -1;
+  const summaryBottomPad = isDesktop ? spacing.sm : spacing.sm + insets.bottom + 1;
+
   const summaryPanel = (
     <View
       style={[
         styles.summaryCard,
-        Platform.OS === 'web'
-          ? { boxShadow: shadowsWeb.md }
-          : shadows.md,
+        { paddingBottom: summaryBottomPad },
+        isDesktop
+          ? Platform.OS === 'web'
+            ? { boxShadow: shadowsWeb.md }
+            : shadows.md
+          : null,
       ]}
     >
       <View style={styles.summaryBreakdown}>
@@ -806,7 +814,7 @@ export function MyBoxScreen() {
           </Text>
         ) : null}
         {guestViewOnly ? (
-          <View style={styles.guestCtaRow}>
+          <View style={styles.summaryCtaRow}>
             <Pressable
               style={({ pressed, hovered }) => [
                 styles.checkoutCta,
@@ -836,7 +844,7 @@ export function MyBoxScreen() {
             </TouchableOpacity>
           </View>
         ) : orderDirty ? (
-          <View style={styles.orderUpdateCtaRow}>
+          <View style={styles.summaryCtaRow}>
             <TouchableOpacity
               onPress={() => void discardOrderChanges()}
               disabled={savingOrder}
@@ -872,31 +880,33 @@ export function MyBoxScreen() {
             </Pressable>
           </View>
         ) : (
-          <Pressable
-            style={({ pressed, hovered }) => [
-              styles.checkoutCta,
-              (hovered || pressed) && styles.checkoutCtaHover,
-              !openOrder && locked && styles.checkoutCtaDisabled,
-            ]}
-            onPress={goToCheckout}
-            disabled={openOrder ? false : locked || lineItems.length === 0}
-            accessibilityRole="button"
-          >
-            {({ pressed, hovered }) => (
-              <Text
-                style={[
-                  styles.checkoutText,
-                  (hovered || pressed) && styles.checkoutTextHover,
-                ]}
-              >
-                {openOrder
-                  ? 'View order status'
-                  : cardOnFile
-                    ? 'Review shipping'
-                    : 'Add payment & shipping'}
-              </Text>
-            )}
-          </Pressable>
+          <View style={styles.summaryCtaRow}>
+            <Pressable
+              style={({ pressed, hovered }) => [
+                styles.checkoutCta,
+                (hovered || pressed) && styles.checkoutCtaHover,
+                !openOrder && locked && styles.checkoutCtaDisabled,
+              ]}
+              onPress={goToCheckout}
+              disabled={openOrder ? false : locked || lineItems.length === 0}
+              accessibilityRole="button"
+            >
+              {({ pressed, hovered }) => (
+                <Text
+                  style={[
+                    styles.checkoutText,
+                    (hovered || pressed) && styles.checkoutTextHover,
+                  ]}
+                >
+                  {openOrder
+                    ? 'View order status'
+                    : cardOnFile
+                      ? 'Review shipping'
+                      : 'Add payment & shipping'}
+                </Text>
+              )}
+            </Pressable>
+          </View>
         )}
       </View>
     </View>
@@ -924,9 +934,6 @@ export function MyBoxScreen() {
     </>
   );
 
-  const showSummaryFloat = !isChildProfile;
-  const floatBottom = Math.max(insets.bottom, spacing.md);
-
   // `null` keeps primary services nav and omits the category bar; a node
   // replaces only the black secondary bar with practice section links.
   const servicesSlot =
@@ -940,7 +947,7 @@ export function MyBoxScreen() {
     ) : null;
 
   return (
-    <StorefrontChrome bodyMode="fill" servicesSlot={servicesSlot}>
+    <StorefrontChrome bodyMode="fill" hideSearchAndRav servicesSlot={servicesSlot}>
       <View style={styles.pageRoot}>
         <WebContentPanel
           flush
@@ -957,7 +964,9 @@ export function MyBoxScreen() {
                 isDesktop ? styles.desktopScrollContent : detailStyles.scrollContent,
                 showSummaryFloat
                   ? {
-                      paddingBottom: SUMMARY_FLOAT_CLEARANCE + floatBottom,
+                      paddingBottom:
+                        SUMMARY_FLOAT_CLEARANCE +
+                        (isDesktop ? floatBottom : insets.bottom),
                     }
                   : null,
               ]}
@@ -1130,16 +1139,16 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   summaryFloatInner: {
     width: '100%',
     maxWidth: isDesktop ? 960 : undefined,
-    paddingHorizontal: isDesktop ? 0 : spacing.sm,
+    paddingHorizontal: 0,
   },
   summaryCard: {
     width: '100%',
     backgroundColor: colors.logoDark,
-    borderRadius: 12,
+    borderRadius: isDesktop ? 12 : 0,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    borderWidth: StyleSheet.hairlineWidth,
+    // Mobile: no top hairline — it reads as a seam over scrolling product.
+    borderWidth: isDesktop ? StyleSheet.hairlineWidth : 0,
     borderColor: colors.goldMuted,
   },
   summaryBreakdown: {
@@ -1171,20 +1180,11 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   totalLabel: { fontSize: typography.md, fontWeight: '600', color: colors.textInverse, letterSpacing: -0.22 },
   totalValue: { fontSize: typography.md, fontWeight: '700', color: colors.brand, letterSpacing: -0.22 },
-  guestCtaRow: {
+  summaryCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    flexShrink: 0,
-    width: '100%',
-    marginTop: spacing.xs,
-  },
-  orderUpdateCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
     flexShrink: 0,
     width: '100%',
     marginTop: spacing.xs,
@@ -1214,6 +1214,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.pill,
     alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
     ...(Platform.OS === 'web'
       ? ({
@@ -1233,6 +1234,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     fontSize: typography.sm,
     color: colors.brand,
     letterSpacing: -0.22,
+    textAlign: 'center',
     ...(Platform.OS === 'web'
       ? ({
           transitionProperty: 'color',

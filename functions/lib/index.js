@@ -29,8 +29,18 @@ const SHIPPING_FLAT_CENTS = 0;
 const EXPEDITED_SHIPPING_CENTS = 1500;
 const CHECKOUT_TAX_RATE = 0.075;
 const DEFAULT_GIFT_CREDIT_CENTS = 8000;
+function isValidEmail(raw) {
+    const email = raw.trim();
+    if (!email || email.length > 254)
+        return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
 function chargeableLineTotal(lineItems) {
     return lineItems.reduce((s, li) => { var _a, _b; return s + ((_a = li.unitCents) !== null && _a !== void 0 ? _a : 0) * ((_b = li.quantity) !== null && _b !== void 0 ? _b : 1); }, 0);
+}
+/** Recipient owes only add-on value above what the giver already prepaid. */
+function recipientGiftUpgradeCents(lineItems, prepaidAddOnCents) {
+    return Math.max(0, chargeableLineTotal(lineItems) - Math.max(0, prepaidAddOnCents));
 }
 function orderTotalCents(lineItems, boxPriceCents = DEFAULT_BOX_PRICE_CENTS) {
     const hasIncluded = lineItems.some((li) => li.unitCents === 0 || li.slotId);
@@ -874,7 +884,7 @@ exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
     const lineItems = Array.isArray((_k = request.data) === null || _k === void 0 ? void 0 : _k.lineItems) ? request.data.lineItems : undefined;
     const childInterests = Array.isArray((_l = request.data) === null || _l === void 0 ? void 0 : _l.childInterests) ? request.data.childInterests : undefined;
     const childAgeGroups = Array.isArray((_m = request.data) === null || _m === void 0 ? void 0 : _m.childAgeGroups) ? request.data.childAgeGroups : undefined;
-    if (!recipientEmail.includes('@')) {
+    if (!isValidEmail(recipientEmail)) {
         throw new https_1.HttpsError('invalid-argument', 'A valid recipient email is required.');
     }
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
@@ -1010,7 +1020,7 @@ exports.peekGiftInvite = (0, https_1.onCall)(async (request) => {
     };
 });
 exports.claimGiftInvite = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
     const token = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.token) !== null && _c !== void 0 ? _c : '').trim();
@@ -1055,14 +1065,17 @@ exports.claimGiftInvite = (0, https_1.onCall)(async (request) => {
         });
     }
     // Store on household — never merge into the family's own box draft.
+    const boxLines = giftKind === 'box' ? ((_f = invite.lineItems) !== null && _f !== void 0 ? _f : []) : [];
+    const prepaidAddOnCents = giftKind === 'box' ? chargeableLineTotal(boxLines) : 0;
     await db.doc(`households/${householdId}/receivedGifts/${inviteDoc.id}`).set({
         giftInviteId: inviteDoc.id,
         giverName: invite.giverName,
-        message: (_f = invite.message) !== null && _f !== void 0 ? _f : null,
+        message: (_g = invite.message) !== null && _g !== void 0 ? _g : null,
         kind: giftKind,
         creditCents: invite.creditCents,
-        lineItems: giftKind === 'box' ? (_g = invite.lineItems) !== null && _g !== void 0 ? _g : [] : [],
-        childInterests: giftKind === 'box' ? (_h = invite.childInterests) !== null && _h !== void 0 ? _h : [] : [],
+        prepaidAddOnCents,
+        lineItems: giftKind === 'box' ? (_h = invite.lineItems) !== null && _h !== void 0 ? _h : [] : [],
+        childInterests: giftKind === 'box' ? (_j = invite.childInterests) !== null && _j !== void 0 ? _j : [] : [],
         status: 'available',
         claimedAt: now,
         updatedAt: now,
@@ -1077,7 +1090,7 @@ exports.claimGiftInvite = (0, https_1.onCall)(async (request) => {
     // Claiming a gift is not starting a household Hanukkah box. Only force
     // BoxReveal when they already have their own draft in progress.
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
-    const ownLineItems = Array.isArray((_j = draftSnap.data()) === null || _j === void 0 ? void 0 : _j.lineItems)
+    const ownLineItems = Array.isArray((_k = draftSnap.data()) === null || _k === void 0 ? void 0 : _k.lineItems)
         ? draftSnap.data().lineItems
         : [];
     const hasOwnBoxDraft = ownLineItems.length > 0;
@@ -1109,6 +1122,9 @@ function mapReceivedGiftDoc(docId, data) {
         message: typeof data.message === 'string' ? data.message : undefined,
         kind: data.kind === 'box' ? 'box' : 'credit',
         creditCents: Number((_c = data.creditCents) !== null && _c !== void 0 ? _c : 0),
+        prepaidAddOnCents: data.prepaidAddOnCents != null && Number.isFinite(Number(data.prepaidAddOnCents))
+            ? Math.max(0, Math.round(Number(data.prepaidAddOnCents)))
+            : undefined,
         lineItems: Array.isArray(data.lineItems) ? data.lineItems : [],
         status: String((_d = data.status) !== null && _d !== void 0 ? _d : 'available'),
         claimedAt: String((_e = data.claimedAt) !== null && _e !== void 0 ? _e : ''),
@@ -1119,19 +1135,21 @@ function mapReceivedGiftDoc(docId, data) {
     };
 }
 async function backfillReceivedGiftFromInvite(householdId, inviteId, invite) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const now = new Date().toISOString();
     const giftKind = (0, giftPayment_1.resolveGiftInviteKind)(invite);
+    const boxLines = giftKind === 'box' ? ((_a = invite.lineItems) !== null && _a !== void 0 ? _a : []) : [];
     const record = {
         giftInviteId: inviteId,
         giverName: invite.giverName,
-        message: (_a = invite.message) !== null && _a !== void 0 ? _a : null,
+        message: (_b = invite.message) !== null && _b !== void 0 ? _b : null,
         kind: giftKind,
         creditCents: invite.creditCents,
-        lineItems: giftKind === 'box' ? (_b = invite.lineItems) !== null && _b !== void 0 ? _b : [] : [],
-        childInterests: giftKind === 'box' ? (_c = invite.childInterests) !== null && _c !== void 0 ? _c : [] : [],
+        prepaidAddOnCents: giftKind === 'box' ? chargeableLineTotal(boxLines) : 0,
+        lineItems: giftKind === 'box' ? (_c = invite.lineItems) !== null && _c !== void 0 ? _c : [] : [],
+        childInterests: giftKind === 'box' ? (_d = invite.childInterests) !== null && _d !== void 0 ? _d : [] : [],
         status: 'available',
-        claimedAt: (_d = invite.claimedAt) !== null && _d !== void 0 ? _d : now,
+        claimedAt: (_e = invite.claimedAt) !== null && _e !== void 0 ? _e : now,
         updatedAt: now,
     };
     await db.doc(`households/${householdId}/receivedGifts/${inviteId}`).set(record, { merge: true });
@@ -1224,7 +1242,7 @@ function normalizeGiftLineItems(raw) {
 }
 /** Persist curated / add-on line items on a received gift box (status must stay available). */
 exports.updateReceivedGiftLineItems = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
     const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
@@ -1246,9 +1264,14 @@ exports.updateReceivedGiftLineItems = (0, https_1.onCall)(async (request) => {
     }
     const lineItems = normalizeGiftLineItems((Array.isArray((_f = request.data) === null || _f === void 0 ? void 0 : _f.lineItems) ? request.data.lineItems : []));
     const now = new Date().toISOString();
+    const existingLines = (_g = gift.lineItems) !== null && _g !== void 0 ? _g : [];
+    const prepaidAddOnCents = typeof gift.prepaidAddOnCents === 'number' && Number.isFinite(gift.prepaidAddOnCents)
+        ? Math.max(0, Math.round(gift.prepaidAddOnCents))
+        : chargeableLineTotal(existingLines);
     await giftRef.update({
         lineItems,
-        viewedAt: (_g = gift.viewedAt) !== null && _g !== void 0 ? _g : now,
+        prepaidAddOnCents,
+        viewedAt: (_h = gift.viewedAt) !== null && _h !== void 0 ? _h : now,
         updatedAt: now,
     });
     return { ok: true, lineItems };
@@ -1258,7 +1281,7 @@ exports.updateReceivedGiftLineItems = (0, https_1.onCall)(async (request) => {
  * Applies household gift/platform credit; charges remainder via PaymentIntent.
  */
 exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
     try {
@@ -1291,7 +1314,15 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         const lineItems = Array.isArray((_h = request.data) === null || _h === void 0 ? void 0 : _h.lineItems) && request.data.lineItems.length
             ? normalizeGiftLineItems(request.data.lineItems)
             : normalizeGiftLineItems((_j = gift.lineItems) !== null && _j !== void 0 ? _j : []);
-        const subtotalCents = chargeableLineTotal(lineItems);
+        const prepaidAddOnCents = typeof gift.prepaidAddOnCents === 'number' && Number.isFinite(gift.prepaidAddOnCents)
+            ? Math.max(0, Math.round(gift.prepaidAddOnCents))
+            : chargeableLineTotal((_k = gift.lineItems) !== null && _k !== void 0 ? _k : []);
+        // Persist snapshot if missing so later edits don't rewrite the baseline.
+        if (gift.prepaidAddOnCents == null) {
+            await giftRef.set({ prepaidAddOnCents }, { merge: true });
+        }
+        // Giver already paid prepaidAddOnCents — recipient only pays upgrades above that.
+        const subtotalCents = recipientGiftUpgradeCents(lineItems, prepaidAddOnCents);
         const shippingCents = SHIPPING_FLAT_CENTS;
         const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
         let preCreditTotal = subtotalCents + shippingCents + taxCents;
@@ -1304,9 +1335,9 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
             throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
         }
         const configSnap = await db.doc('config/hanukkah-2026').get();
-        const configData = (_k = configSnap.data()) !== null && _k !== void 0 ? _k : {};
-        const estimatedDelivery = (_l = configData.estimatedDeliveryBy) !== null && _l !== void 0 ? _l : '2026-11-21';
-        const skipShipStation = ((_m = request.data) === null || _m === void 0 ? void 0 : _m.skipShipStation) === true;
+        const configData = (_l = configSnap.data()) !== null && _l !== void 0 ? _l : {};
+        const estimatedDelivery = (_m = configData.estimatedDeliveryBy) !== null && _m !== void 0 ? _m : '2026-11-21';
+        const skipShipStation = ((_o = request.data) === null || _o === void 0 ? void 0 : _o.skipShipStation) === true;
         const orderRef = db.collection(`households/${householdId}/orders`).doc();
         const now = new Date().toISOString();
         const orderPayload = {
@@ -1334,7 +1365,7 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         await orderRef.set(orderPayload);
         await giftRef.update({
             lineItems,
-            viewedAt: (_o = gift.viewedAt) !== null && _o !== void 0 ? _o : now,
+            viewedAt: (_p = gift.viewedAt) !== null && _p !== void 0 ? _p : now,
             updatedAt: now,
             checkoutOrderId: orderRef.id,
         });

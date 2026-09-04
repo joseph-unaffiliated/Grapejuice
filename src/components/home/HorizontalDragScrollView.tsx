@@ -38,6 +38,8 @@ export const HorizontalDragScrollView = forwardRef<ScrollView, ScrollViewProps>(
       <ScrollView
         ref={mergeRefs(innerRef, forwardedRef)}
         showsHorizontalScrollIndicator={false}
+        // Slightly longer native coast than default "fast" on iOS.
+        decelerationRate={0.998}
         {...props}
         horizontal
         directionalLockEnabled={directionalLockEnabled ?? true}

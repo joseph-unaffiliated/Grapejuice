@@ -77,8 +77,8 @@ export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }
           })}
         </HorizontalDragScrollView>
         <HorizontalScrollEdgeFades
-          showLeft={edges.showLeft}
-          showRight={edges.showRight}
+          leftProgress={edges.leftProgress}
+          rightProgress={edges.rightProgress}
           color={semanticColors.bgPrimary}
         />
       </View>

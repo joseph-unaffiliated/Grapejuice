@@ -178,7 +178,7 @@ export function GiftGiverCustomizeScreen() {
     ) : null;
 
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
       <GiftGiverCustomizeContent
         form={form}
         catalog={catalog}

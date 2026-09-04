@@ -42,7 +42,7 @@ function firebaseMessage(e: unknown): string {
 
 export function GiftGiverCustomizeScreen() {
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
       <GiftGiverCustomizeBody />
     </StorefrontChrome>
   );

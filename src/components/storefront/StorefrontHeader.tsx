@@ -38,6 +38,16 @@ type Props = {
    * Promo strip normally owns that inset on Home.
    */
   padTopSafeArea?: boolean;
+  /**
+   * Mobile: omit the search + Ask Rav row (logo bar only).
+   * Desktop search cluster is unchanged.
+   */
+  hideSearchAndRav?: boolean;
+  /**
+   * `sticky` — single compact bar for the scroll overlay:
+   * menu · search · account · cart (no promo, Rav, or wordmark).
+   */
+  variant?: 'default' | 'sticky';
 };
 
 /** Preferred side column width on a wide desktop row. */
@@ -65,8 +75,14 @@ function canFitDesktopSearch(windowWidth: number): boolean {
 /**
  * Desktop: logo left, centered SearchPill + Rav, account menu right.
  * Mobile: menu + mark | account; full-width search + Rav below.
+ * Sticky: one compact bar — menu · search · account · cart.
  */
-export function StorefrontHeader({ onLogoPress, padTopSafeArea = false }: Props) {
+export function StorefrontHeader({
+  onLogoPress,
+  padTopSafeArea = false,
+  hideSearchAndRav = false,
+  variant = 'default',
+}: Props) {
   const navigation = useNavigation<Nav>();
   const leave = useStorefrontLeave();
   const { openRav } = useStorefrontRav();
@@ -81,6 +97,11 @@ export function StorefrontHeader({ onLogoPress, padTopSafeArea = false }: Props)
       ? (`max(${spacing.sm}px, env(safe-area-inset-top, 0px))` as unknown as number)
       : spacing.sm + insets.top
     : undefined;
+
+  const stickySafeTop =
+    Platform.OS === 'web'
+      ? (`max(${spacing.sm}px, env(safe-area-inset-top, 0px))` as unknown as number)
+      : spacing.sm + insets.top;
 
   const submitSearch = () => {
     const msg = query.trim();
@@ -119,25 +140,25 @@ export function StorefrontHeader({ onLogoPress, padTopSafeArea = false }: Props)
     </TouchableOpacity>
   );
 
+  const searchPill = (
+    <SearchPill
+      value={query}
+      onChangeText={setQuery}
+      onSubmitEditing={submitSearch}
+      placeholder="Search"
+      animatePlaceholder={false}
+      textAlign="left"
+      accessibilityLabel="Search"
+      leading={<Icon icon={icons.search} size={14} color={semanticColors.goldMuted} />}
+      leadingWidth={SEARCH_LEADING_WIDTH}
+      trailing={searchGo}
+      trailingWidth={SEARCH_TRAILING_WIDTH}
+    />
+  );
+
   const searchCluster = (
     <View style={compact ? styles.searchClusterMobile : styles.searchClusterDesktop}>
-      <View style={compact ? styles.searchWrapMobile : styles.searchWrapDesktop}>
-        <SearchPill
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={submitSearch}
-          placeholder="Search"
-          animatePlaceholder={false}
-          textAlign="left"
-          accessibilityLabel="Search"
-          leading={
-            <Icon icon={icons.search} size={14} color={semanticColors.goldMuted} />
-          }
-          leadingWidth={SEARCH_LEADING_WIDTH}
-          trailing={searchGo}
-          trailingWidth={SEARCH_TRAILING_WIDTH}
-        />
-      </View>
+      <View style={compact ? styles.searchWrapMobile : styles.searchWrapDesktop}>{searchPill}</View>
       {ravButton}
     </View>
   );
@@ -157,25 +178,42 @@ export function StorefrontHeader({ onLogoPress, padTopSafeArea = false }: Props)
   );
 
   const account = (
-    <View style={[styles.sideRight, compact && styles.sideRightCompact]}>
+    <View style={[styles.sideRight, (compact || variant === 'sticky') && styles.sideRightCompact]}>
       <StorefrontAccountMenu />
       <StorefrontCartBoxButton />
     </View>
   );
+
+  const menuButton = (
+    <TouchableOpacity
+      style={styles.menuHit}
+      onPress={() => setNavOpen(true)}
+      accessibilityRole="button"
+      accessibilityLabel="Open menu"
+    >
+      <Icon icon={icons.menu} size={18} color={semanticColors.logoDark} />
+    </TouchableOpacity>
+  );
+
+  if (variant === 'sticky') {
+    return (
+      <View style={[styles.root, styles.rootMobile, styles.stickyRoot, { paddingTop: stickySafeTop }]}>
+        <View style={styles.stickyRow}>
+          {menuButton}
+          <View style={styles.stickySearch}>{searchPill}</View>
+          {account}
+        </View>
+        <StorefrontMobileNav visible={navOpen} onClose={() => setNavOpen(false)} />
+      </View>
+    );
+  }
 
   if (compact) {
     return (
       <View style={[styles.root, styles.rootMobile, safeTopPad != null ? { paddingTop: safeTopPad } : null]}>
         <View style={styles.mobileTop}>
           <View style={styles.mobileLeft}>
-            <TouchableOpacity
-              style={styles.menuHit}
-              onPress={() => setNavOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Open menu"
-            >
-              <Icon icon={icons.menu} size={18} color={semanticColors.logoDark} />
-            </TouchableOpacity>
+            {menuButton}
             <TouchableOpacity
               style={styles.markHit}
               onPress={onLogoPress}
@@ -187,7 +225,7 @@ export function StorefrontHeader({ onLogoPress, padTopSafeArea = false }: Props)
           </View>
           {account}
         </View>
-        {searchCluster}
+        {hideSearchAndRav ? null : searchCluster}
         <StorefrontMobileNav visible={navOpen} onClose={() => setNavOpen(false)} />
       </View>
     );
@@ -217,6 +255,21 @@ const styles = StyleSheet.create({
   },
   rootMobile: {
     paddingHorizontal: MOBILE_HEADER_GUTTER,
+  },
+  stickyRoot: {
+    gap: 0,
+    backgroundColor: semanticColors.bgPrimary,
+  },
+  stickyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    minHeight: 44,
+    gap: spacing.sm,
+  },
+  stickySearch: {
+    flex: 1,
+    minWidth: 0,
   },
   row: {
     flexDirection: 'row',

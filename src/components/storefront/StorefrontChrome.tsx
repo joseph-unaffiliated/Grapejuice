@@ -79,6 +79,11 @@ type Props = {
    */
   hideServicesNav?: boolean;
   /**
+   * Mobile only: hide the search pill + Ask Rav row under the logo bar
+   * (e.g. My Box / reveal — keep menu, mark, account, cart only).
+   */
+  hideSearchAndRav?: boolean;
+  /**
    * Optional replacement for the black secondary bar only (e.g. My Box practice
    * section links). Primary `StorefrontServicesNav` still renders above it.
    * Pass `null` to keep the services strip and omit the secondary bar.
@@ -98,9 +103,12 @@ type ChromeProps = {
   onService: (id: StorefrontServiceId) => void;
   onCategory: (slug: string) => void;
   hideServicesNav?: boolean;
+  hideSearchAndRav?: boolean;
   servicesSlot?: ReactNode;
   showPromoStrip?: boolean;
   onHeaderStackLayout?: (height: number) => void;
+  /** `sticky` — compact scroll overlay (menu · search · account · cart only). */
+  chromeVariant?: 'full' | 'sticky';
 };
 
 /** Fallback when header stack hasn’t measured — ~promo-or-not + header row. */
@@ -112,10 +120,24 @@ function StorefrontChromeBlocks({
   onService,
   onCategory,
   hideServicesNav,
+  hideSearchAndRav,
   servicesSlot,
   showPromoStrip = true,
   onHeaderStackLayout,
+  chromeVariant = 'full',
 }: ChromeProps) {
+  if (chromeVariant === 'sticky') {
+    return (
+      <View
+        style={styles.chromeInner}
+        collapsable={false}
+        onLayout={(e) => onHeaderStackLayout?.(e.nativeEvent.layout.height)}
+      >
+        <StorefrontHeader onLogoPress={onLogoPress} variant="sticky" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.chromeInner}>
       <View
@@ -123,7 +145,11 @@ function StorefrontChromeBlocks({
         onLayout={(e) => onHeaderStackLayout?.(e.nativeEvent.layout.height)}
       >
         {showPromoStrip ? <StorefrontPromoStrip /> : null}
-        <StorefrontHeader onLogoPress={onLogoPress} padTopSafeArea={!showPromoStrip} />
+        <StorefrontHeader
+          onLogoPress={onLogoPress}
+          padTopSafeArea={!showPromoStrip}
+          hideSearchAndRav={hideSearchAndRav}
+        />
       </View>
       {hideServicesNav ? null : (
         <>
@@ -152,8 +178,6 @@ const SCROLL_DIR_THRESHOLD = 8;
 const STICKY_FALLBACK_CHROME_H = 240;
 const STICKY_ENABLE_EXTRA = 80;
 const STICKY_DISABLE_BELOW = 40;
-/** Fade overlay only once scroll has settled at the true top (not at disableY). */
-const TOP_SETTLED_EPS = 4;
 const DESKTOP_RAV_MAX = 380;
 /** Match StorefrontRavDrawer close duration so pinned chrome stays until dock finishes. */
 const RAV_CLOSE_LAYOUT_MS = 280;
@@ -171,17 +195,13 @@ function stickyScrollThresholds(chromeH: number) {
 }
 
 /**
- * Storefront shell: static chrome in document flow + optional overlay clone.
+ * Storefront shell chrome.
  *
- * Scroll mode (Rav closed): chrome sits inside the page ScrollView and scrolls
- * away normally. After scrolling past ~header height, an absolute overlay clone
- * can reappear on upward scroll (no layout height). Overlay only fully opens or
- * fully closes — never a rest state at partial opacity / mid-slide.
+ * Scroll mode: full chrome (promo + header + sub-nav) lives in the scroller.
+ * A compact sticky bar (menu · search · account · cart) slides in on scroll-up
+ * mid-page and dismisses near the top so only the in-flow chrome shows.
  *
- * Desktop Rav open: a full-width absolute chrome tracks scroll 1:1 with a
- * matching spacer in the scroller (header spans the viewport; Rav’s top clears
- * it). Mid-page sticky overlay still only fully opens or fully closes; while it
- * is shown, the scroll-away chrome is hidden and Rav insets to the overlay.
+ * Desktop Rav open: absolute scroll-away chrome tracks 1:1 with the spacer.
  *
  * Fill mode: chrome stays pinned above the body (wizards / My Box).
  */
@@ -203,6 +223,7 @@ function StorefrontChromeInner({
   bodyMode = 'scroll',
   onLeave,
   hideServicesNav,
+  hideSearchAndRav,
   servicesSlot,
   floatingFooter,
 }: Props) {
@@ -259,7 +280,11 @@ function StorefrontChromeInner({
   const lastY = useRef(0);
   const chromeHeight = useRef(0);
   const [chromeH, setChromeH] = useState(0);
+  /** Compact sticky bar height — drives overlay slide distance. */
+  const stickyChromeHeight = useRef(0);
+  const [stickyChromeH, setStickyChromeH] = useState(0);
   const overlayArmed = useRef(false);
+  /** Sticky compact bar starts dismissed — full in-flow chrome owns the top. */
   const overlayShown = useRef(false);
   const [overlayInteractive, setOverlayInteractive] = useState(false);
   const overlayProgress = useRef(new Animated.Value(0)).current;
@@ -343,6 +368,7 @@ function StorefrontChromeInner({
     onService,
     onCategory: goCategory,
     hideServicesNav,
+    hideSearchAndRav,
     servicesSlot,
     showPromoStrip,
     onHeaderStackLayout: setRavHeaderStackH,
@@ -353,6 +379,13 @@ function StorefrontChromeInner({
     if (h <= 0) return;
     chromeHeight.current = h;
     setChromeH(h);
+  };
+
+  const onStickyChromeLayout = (e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h <= 0) return;
+    stickyChromeHeight.current = h;
+    setStickyChromeH(h);
   };
 
   const clearTopFadeTimer = useCallback(() => {
@@ -549,17 +582,16 @@ function StorefrontChromeInner({
     ]
   );
 
-  const fadeOverlayIfSettledAtTop = useCallback(() => {
+  /** Near the top: dismiss the compact sticky so only full in-flow chrome shows. */
+  const dismissStickyNearTop = useCallback(() => {
     if (!useOverlaySticky) return;
-    if (lastY.current > TOP_SETTLED_EPS) return;
     clearTopFadeTimer();
     overlayArmed.current = false;
-    if (!overlayShown.current) return;
-    if (ravDockedLayoutRef.current) {
-      snapFullHeaderAboveRav();
+    if (!overlayShown.current) {
+      syncScrollAwayChrome(lastY.current, false);
+      syncRavTop(lastY.current, false);
       return;
     }
-    // Instant — natural chrome is already at y≈0; a fade would double-stack.
     overlayAnimRef.current?.stop();
     overlayShown.current = false;
     setOverlayInteractive(false);
@@ -571,11 +603,18 @@ function StorefrontChromeInner({
     clearTopFadeTimer,
     overlayOpacity,
     overlayProgress,
-    snapFullHeaderAboveRav,
     syncRavTop,
     syncScrollAwayChrome,
     useOverlaySticky,
   ]);
+
+  const dismissStickyIfNearTop = useCallback(() => {
+    if (!useOverlaySticky) return;
+    const { disableY } = stickyScrollThresholds(chromeHeight.current);
+    if (lastY.current < disableY) {
+      dismissStickyNearTop();
+    }
+  }, [dismissStickyNearTop, useOverlaySticky]);
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -583,30 +622,14 @@ function StorefrontChromeInner({
       const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastY.current;
       lastY.current = y;
-      const docked = ravDockedLayoutRef.current;
-      const h = measuredChrome();
+      const { enableY, disableY } = stickyScrollThresholds(chromeHeight.current);
 
-      // In-flow chrome re-enters the viewport below y≈chromeH. Kill the sticky
-      // clone instantly here — waiting for y≈0 (or a fade) stacks two headers.
-      if (overlayShown.current && y < h) {
-        overlayAnimRef.current?.stop();
-        clearTopFadeTimer();
-        overlayShown.current = false;
-        overlayArmed.current = false;
-        setOverlayInteractive(false);
-        overlayOpacity.setValue(0);
-        overlayProgress.setValue(0);
-        if (docked && y <= TOP_SETTLED_EPS) {
-          snapFullHeaderAboveRav();
-        } else {
-          syncScrollAwayChrome(y, false);
-          syncRavTop(y, false);
-        }
+      // Top band: full in-flow chrome is (or will be) visible — keep sticky away.
+      if (y < disableY) {
+        dismissStickyNearTop();
         return;
       }
 
-      // Scroll-down always dismisses a shown sticky overlay — including inside
-      // the disableY hysteresis band (that early-return was trapping it open).
       if (overlayShown.current && dy > SCROLL_DIR_THRESHOLD) {
         if (suppressOverlayDismissRef.current) return;
         animateOverlay(false, 'slide');
@@ -616,25 +639,6 @@ function StorefrontChromeInner({
       if (!overlayShown.current) {
         syncScrollAwayChrome(y, false);
         syncRavTop(y, false);
-      }
-
-      const { enableY, disableY } = stickyScrollThresholds(chromeHeight.current);
-
-      if (y < disableY) {
-        overlayArmed.current = false;
-        if (y <= TOP_SETTLED_EPS) {
-          if (docked) {
-            clearTopFadeTimer();
-            syncScrollAwayChrome(y, false);
-            syncRavTop(y, false);
-          } else {
-            // Overlay already cleared above when y < h; keep armed false.
-            clearTopFadeTimer();
-          }
-        } else {
-          clearTopFadeTimer();
-        }
-        return;
       }
 
       clearTopFadeTimer();
@@ -654,9 +658,7 @@ function StorefrontChromeInner({
     [
       animateOverlay,
       clearTopFadeTimer,
-      overlayOpacity,
-      overlayProgress,
-      snapFullHeaderAboveRav,
+      dismissStickyNearTop,
       syncRavTop,
       syncScrollAwayChrome,
       useOverlaySticky,
@@ -664,7 +666,10 @@ function StorefrontChromeInner({
   );
 
   useEffect(() => {
-    if (useOverlaySticky) return;
+    if (useOverlaySticky) {
+      dismissStickyIfNearTop();
+      return;
+    }
     clearTopFadeTimer();
     overlayAnimRef.current?.stop();
     overlayShown.current = false;
@@ -676,6 +681,7 @@ function StorefrontChromeInner({
     setScrollAwayInteractive(false);
   }, [
     clearTopFadeTimer,
+    dismissStickyIfNearTop,
     overlayOpacity,
     overlayProgress,
     syncRavTop,
@@ -755,7 +761,8 @@ function StorefrontChromeInner({
 
   useEffect(() => () => clearTopFadeTimer(), [clearTopFadeTimer]);
 
-  const overlayHideOffset = chromeH > 0 ? chromeH : STICKY_FALLBACK_CHROME_H;
+  const overlayHideOffset =
+    stickyChromeH > 0 ? stickyChromeH : Math.min(chromeH || STICKY_FALLBACK_CHROME_H, 96);
   const overlayTranslateY = overlayProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [-overlayHideOffset, 0],
@@ -861,8 +868,8 @@ function StorefrontChromeInner({
         )
       }
       onScroll={onScroll}
-      onScrollEndDrag={fadeOverlayIfSettledAtTop}
-      onMomentumScrollEnd={fadeOverlayIfSettledAtTop}
+      onScrollEndDrag={dismissStickyIfNearTop}
+      onMomentumScrollEnd={dismissStickyIfNearTop}
       onTouchStart={Platform.OS === 'web' ? onPullTouchStart : undefined}
       onTouchMove={Platform.OS === 'web' ? onPullTouchMove : undefined}
       onTouchEnd={Platform.OS === 'web' ? onPullTouchEnd : undefined}
@@ -922,8 +929,8 @@ function StorefrontChromeInner({
           accessibilityElementsHidden={!overlayInteractive}
           importantForAccessibility={overlayInteractive ? 'yes' : 'no-hide-descendants'}
         >
-          <View onLayout={onChromeLayout} collapsable={false}>
-            <StorefrontChromeBlocks {...chromeProps} />
+          <View onLayout={onStickyChromeLayout} collapsable={false}>
+            <StorefrontChromeBlocks {...chromeProps} chromeVariant="sticky" />
           </View>
         </Animated.View>
       ) : null}
@@ -1007,10 +1014,8 @@ const styles = StyleSheet.create({
       : null),
   },
   /**
-   * Scroll-away sticky clone — out of document flow so it never pushes content.
-   * Slides in/out via translateY while armed; fades opacity once settled at y≈0.
-   * Hidden state must keep opacity 0 (translate alone still paints shadow / edge).
-   * Binary only — never rest at partial progress / opacity.
+   * Compact sticky bar for scroll mode — menu · search · account · cart.
+   * Full chrome (promo + sub-nav) stays in document flow.
    */
   chromeOverlay: {
     position: 'absolute',
@@ -1018,9 +1023,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 30,
-    // Upper strips paint their own bg; dark secondary bar is last — keep host
-    // dark so any subpixel seam under the category nav isn’t a white hairline.
-    backgroundColor: semanticColors.logoDark,
+    backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
       ? ({
           boxShadow: '0 4px 16px rgba(17, 2, 34, 0.1)',

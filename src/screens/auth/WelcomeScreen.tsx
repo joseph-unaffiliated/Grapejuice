@@ -109,7 +109,6 @@ const styles = StyleSheet.create({
   },
   btn: {
     alignSelf: 'stretch',
-    minWidth: undefined,
   },
   loginBtn: {
     alignItems: 'center',

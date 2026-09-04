@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     ...typeface('regular'),
   },
-  btn: { alignSelf: 'stretch', minWidth: undefined, marginTop: spacing.xs },
+  btn: { alignSelf: 'stretch', marginTop: spacing.xs },
   hint: {
     marginTop: spacing.md,
     textAlign: 'center',

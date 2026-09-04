@@ -522,7 +522,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       marginBottom: spacing.xl,
       ...typeface('regular'),
     },
-    authBtn: { alignSelf: 'stretch', minWidth: undefined, marginBottom: spacing.md },
+    authBtn: { alignSelf: 'stretch', marginBottom: spacing.md },
     formError: {
       marginTop: spacing.md,
       fontSize: typography.md,

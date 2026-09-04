@@ -72,6 +72,8 @@ export function GrapejuiceButton({
 }
 
 const styles = StyleSheet.create({
-  base: { minWidth: 220 },
+  // Full-width by default so auth/modals stay centered; callers can override.
+  // Avoid fixed minWidth — on narrow phones it overflows the card and looks right-skewed.
+  base: { width: '100%', alignSelf: 'center' },
   disabled: { opacity: 0.5 },
 });

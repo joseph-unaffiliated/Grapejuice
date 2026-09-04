@@ -119,7 +119,6 @@ const styles = StyleSheet.create({
   },
   btn: {
     alignSelf: 'stretch',
-    minWidth: undefined,
   },
   signUpRow: {
     flexDirection: 'row',

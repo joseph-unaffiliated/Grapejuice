@@ -223,7 +223,11 @@ export const borderRadius = {
   chip: 8,
 };
 
-/** Typography — DM Sans (Expo on native; Google Fonts on web). */
+/**
+ * Typography — DM Sans (Expo on native; Google Fonts on web).
+ *
+ * Large mobile-first scale (was xs10–headerLg17). Easy revert to that baseline.
+ */
 export const typography = {
   fontFamily: Platform.select({
     web: {
@@ -239,15 +243,15 @@ export const typography = {
       bold: 'DMSans_700Bold',
     },
   })!,
-  xs: 10,
-  sm: 11,
-  md: 12,
-  lg: 13,
-  xl: 14,
-  xxl: 15,
-  title: 14,
-  titleLg: 16,
-  headerLg: 17,
+  xs: 13,
+  sm: 15,
+  md: 16,
+  lg: 17,
+  xl: 18,
+  xxl: 20,
+  title: 20,
+  titleLg: 24,
+  headerLg: 28,
 };
 
 /** Per-weight typeface — web uses fontWeight; native uses Expo font files. */

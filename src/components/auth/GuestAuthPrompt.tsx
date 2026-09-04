@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     gap: 64,
   },
   actions: { width: '100%', alignItems: 'center', gap: spacing.sm },
-  pillBtn: { minWidth: 220 },
+  pillBtn: { alignSelf: 'stretch' },
   signUpRow: {
     flexDirection: 'row',
     alignItems: 'center',
