@@ -30,6 +30,8 @@ import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
+import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
+import type { ShippingAddress } from '../../types/pilot';
 
 export function CheckoutScreen() {
   return (
@@ -70,6 +72,32 @@ function CheckoutScreenBody() {
   const [submitting, setSubmitting] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
+  const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
+  const [addressFormError, setAddressFormError] = useState<string | null>(null);
+
+  const onAddressChange = (patch: Partial<ShippingAddress>) => {
+    setAddressFieldErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch) as (keyof typeof patch)[]) {
+        if (key in next) delete next[key as keyof ShippingAddressFieldErrors];
+      }
+      return next;
+    });
+    if (Object.keys(patch).length) setAddressFormError(null);
+    updateAddress(patch);
+  };
+
+  const ensureAddressValid = (): boolean => {
+    const result = validateAddress();
+    if (result.ok) {
+      setAddressFieldErrors({});
+      setAddressFormError(null);
+      return true;
+    }
+    setAddressFieldErrors(result.fields);
+    setAddressFormError(result.message);
+    return false;
+  };
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -116,7 +144,7 @@ function CheckoutScreenBody() {
       Alert.alert('Box locked', 'The customization window has closed. Contact support for changes.');
       return;
     }
-    if (!validateAddress()) return;
+    if (!ensureAddressValid()) return;
 
     setSubmitting(true);
     try {
@@ -212,7 +240,12 @@ function CheckoutScreenBody() {
           </View>
         </TouchableOpacity>
       ) : null}
-      <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutAddressFields
+        address={address}
+        onChange={onAddressChange}
+        fieldErrors={addressFieldErrors}
+      />
+      {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
       <CheckoutSmsOptIn
         phone={contactPhone}
         smsOptIn={smsOptIn}
@@ -322,6 +355,13 @@ function createStyles(colors: SemanticColors) {
       marginBottom: spacing.md,
       fontSize: typography.md,
       ...typeface('regular'),
+    },
+    addressFormError: {
+      marginTop: spacing.sm,
+      fontSize: typography.md,
+      color: '#B42318',
+      lineHeight: typography.md * 1.4,
+      ...typeface('medium'),
     },
     expeditedRow: {
       flexDirection: 'row',

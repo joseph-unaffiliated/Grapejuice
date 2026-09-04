@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Platform,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -14,17 +13,13 @@ import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
-import {
-  canCancelOrder,
-  openOrderTracking,
-} from '../../components/orders/OrderHistoryList';
+import { openOrderTracking } from '../../components/orders/OrderHistoryList';
 import { OrderItemsBreakdown } from '../../components/orders/OrderItemsBreakdown';
 import { useAuthStore } from '../../stores/authStore';
 import { useSession } from '../../hooks/useSession';
 import { useUnifiedOrders, type UnifiedOrder } from '../../hooks/useUnifiedOrders';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useWebLayout } from '../../hooks/useWebLayout';
-import { cancelPilotBoxOrder } from '../../services/checkout/cancelPilotBoxOrder';
 import { chargePilotBoxOrder } from '../../services/checkout/chargePilotBoxOrder';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../services/box/pricing';
@@ -60,19 +55,13 @@ function partitionLineItems(lineItems: BoxLineItem[], catalog: CatalogItem[]) {
 function OrderCard({
   order,
   catalog,
-  colors,
   styles,
-  onCancel,
-  cancelling,
   onDevCharge,
   charging,
 }: {
   order: UnifiedOrder;
   catalog: CatalogItem[];
-  colors: SemanticColors;
   styles: ReturnType<typeof createOrdersStyles>;
-  onCancel?: () => void;
-  cancelling?: boolean;
   onDevCharge?: () => void;
   charging?: boolean;
 }) {
@@ -177,7 +166,7 @@ function OrderCard({
 
       {__DEV__ && pilot?.status === 'committed' && order.kind === 'box' && onDevCharge ? (
         <TouchableOpacity
-          style={[styles.devChargeBtn, charging && styles.cancelBtnDisabled]}
+          style={[styles.devChargeBtn, charging && styles.devChargeBtnDisabled]}
           disabled={charging}
           onPress={onDevCharge}
           accessibilityRole="button"
@@ -185,17 +174,6 @@ function OrderCard({
           <Text style={styles.devChargeBtnText}>
             {charging ? 'Charging…' : 'Dev: charge now'}
           </Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {pilot && canCancelOrder(pilot) && onCancel ? (
-        <TouchableOpacity
-          style={[styles.cancelBtn, cancelling && styles.cancelBtnDisabled]}
-          disabled={cancelling}
-          onPress={onCancel}
-          accessibilityRole="button"
-        >
-          <Text style={styles.cancelBtnText}>{cancelling ? 'Cancelling…' : 'Cancel this box'}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -211,36 +189,12 @@ function OrdersScreenBody() {
   const { household } = useSession();
   const { items: catalog } = useCatalog();
   const { orders, loading, loadError, refresh } = useUnifiedOrders();
-  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [chargingOrderId, setChargingOrderId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       void refresh();
     }, [refresh])
-  );
-
-  const performCancel = useCallback(
-    async (orderId: string) => {
-      if (!household?.id || cancellingOrderId) return;
-      setCancellingOrderId(orderId);
-      try {
-        await cancelPilotBoxOrder(household.id, orderId);
-        await refresh();
-        Alert.alert(
-          'Box cancelled',
-          'Your box won’t ship. Any gift credit used on this order has been restored.'
-        );
-      } catch (e) {
-        Alert.alert(
-          'Could not cancel',
-          e instanceof Error ? e.message : 'Try again or contact support.'
-        );
-      } finally {
-        setCancellingOrderId(null);
-      }
-    },
-    [household?.id, cancellingOrderId, refresh]
   );
 
   const performDevCharge = useCallback(
@@ -268,21 +222,6 @@ function OrdersScreenBody() {
     [household?.id, chargingOrderId, refresh]
   );
 
-  const confirmCancel = (order: UnifiedOrder) => {
-    if (!order.pilotOrder || !canCancelOrder(order.pilotOrder)) return;
-    const title = 'Cancel this box?';
-    const body =
-      'We’ll void your order before it ships. You won’t be charged. Any gift credit used will be restored.';
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm(`${title}\n\n${body}`)) void performCancel(order.id);
-      return;
-    }
-    Alert.alert(title, body, [
-      { text: 'Keep box', style: 'cancel' },
-      { text: 'Cancel box', style: 'destructive', onPress: () => void performCancel(order.id) },
-    ]);
-  };
-
   if (!isAuthenticated) {
     return (
       <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
@@ -307,8 +246,8 @@ function OrdersScreenBody() {
         </TouchableOpacity>
         <Text style={styles.title}>Orders</Text>
         <Text style={styles.subtitle}>
-          Gift boxes you&apos;ve sent, your household box, and à la carte add-ons. Gifts appear here
-          as soon as you pay — the recipient does not need to claim first.
+          Status and summaries for gift boxes you&apos;ve sent, your household box, and à la carte
+          add-ons. Tracking appears when a package ships.
         </Text>
 
         {loadError ? (
@@ -332,14 +271,7 @@ function OrdersScreenBody() {
               key={`${order.kind}-${order.id}`}
               order={order}
               catalog={catalog}
-              colors={colors}
               styles={styles}
-              onCancel={
-                order.pilotOrder && canCancelOrder(order.pilotOrder)
-                  ? () => confirmCancel(order)
-                  : undefined
-              }
-              cancelling={cancellingOrderId === order.id}
               onDevCharge={
                 order.kind === 'box' && order.pilotOrder?.status === 'committed'
                   ? () => void performDevCharge(order.id)
@@ -465,17 +397,7 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       borderColor: colors.brand,
       backgroundColor: colors.accentCream,
     },
+    devChargeBtnDisabled: { opacity: 0.45 },
     devChargeBtnText: { color: colors.brand, fontWeight: '700', fontSize: typography.sm },
-    cancelBtn: {
-      marginTop: spacing.md,
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.pill,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    cancelBtnDisabled: { opacity: 0.45 },
-    cancelBtnText: { color: colors.textSecondary, fontWeight: '600' },
   });
 }

@@ -8,6 +8,8 @@ export type GiftPurchaseInput = {
   customize: boolean;
   lineItems?: BoxLineItem[];
   childAgeGroups?: AgeGroup[];
+  /** Charged amount — defaults to flat box price for credit-only gifts. */
+  amountCents?: number;
 };
 
 export type GiftPurchaseResult = {
@@ -22,11 +24,15 @@ export type GiftFinalizeResult = {
 };
 
 export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftPurchaseResult> {
+  const creditCents =
+    typeof input.amountCents === 'number' && input.amountCents > 0
+      ? input.amountCents
+      : DEFAULT_BOX_PRICE_CENTS;
   const result = await purchasePilotGift({
     recipientEmail: input.form.recipientEmail.trim(),
     giverName: input.form.giverName.trim() || 'Someone who loves you',
     message: input.form.message.trim() || undefined,
-    creditCents: DEFAULT_BOX_PRICE_CENTS,
+    creditCents,
     customize: input.customize,
     lineItems: input.customize ? input.lineItems : undefined,
     childAgeGroups: input.customize ? input.childAgeGroups : undefined,

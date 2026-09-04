@@ -1,14 +1,12 @@
 import {
   EXTRA_FLAT_CENTS,
-  inferPricingTier,
-  unitCentsForTier,
+  boxAddOnUnitCents,
 } from '../box/pricing';
 import type { BoxLineItem, CatalogItem, ReceivedGift } from '../../types/pilot';
 
 /** Price when adding an item from another gift into the primary gift box. */
 export function unitCentsForGiftTransfer(item: CatalogItem): number {
-  const tier = inferPricingTier(item);
-  const priced = unitCentsForTier(tier, item.dollarCostCents ?? 0);
+  const priced = boxAddOnUnitCents(item);
   // Included / per-kid lines become a paid add-on when transferred.
   return priced > 0 ? priced : EXTRA_FLAT_CENTS;
 }

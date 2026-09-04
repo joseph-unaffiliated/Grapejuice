@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { useAuthStore } from '../../../stores/authStore';
 import { useGuestSessionStore } from '../../../stores/guestSessionStore';
 import { useSession } from '../../../hooks/useSession';
@@ -13,6 +13,7 @@ import {
 } from '../../../services/box/buildDefaultBox';
 import { EXPEDITED_SHIPPING_CENTS } from '../../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../../types/pilot';
+import { validateShippingAddress } from '../../../utils/formValidation';
 
 export const emptyShippingAddress: ShippingAddress = {
   name: '',
@@ -129,17 +130,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
     postalCode: address.postalCode.trim(),
   });
 
-  const validateAddress = (): boolean => {
-    if (!address.name.trim() || !address.line1.trim() || !address.city.trim()) {
-      Alert.alert('Missing fields', 'Please enter name, street address, and city.');
-      return false;
-    }
-    if (!address.stateProvince.trim() || !address.postalCode.trim()) {
-      Alert.alert('Missing fields', 'Please enter state/province and postal code.');
-      return false;
-    }
-    return true;
-  };
+  const validateAddress = () => validateShippingAddress(address);
 
   const subtotal = totalCents(lineItems, boxPriceCents);
   const shippingCents = SHIPPING_FLAT_CENTS + (expeditedShipping ? EXPEDITED_SHIPPING_CENTS : 0);

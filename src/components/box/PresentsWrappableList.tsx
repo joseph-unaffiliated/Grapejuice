@@ -25,6 +25,8 @@ type Props = {
   /** Controlled selection of itemIds marked “to be wrapped”. */
   selectedItemIds?: ReadonlySet<string> | string[];
   onToggleWrapSelection?: (itemId: string) => void;
+  /** When locked, only show already-selected wrap items as non-interactive. */
+  locked?: boolean;
 };
 
 /** True when the box wrap-control SKU is pre-wrap (vs wrapping paper). */
@@ -75,6 +77,7 @@ function toBeWrappedHeading(lineItems: BoxLineItem[], catalog: CatalogItem[]): s
  * Give Presents checklist — sits below the wrapping-paper listing.
  * Tap a chip to outline it and move it into “To be wrapped” (tap again to undo).
  * Wrap mode is chosen via the wrapping-paper card primary action.
+ * When locked: only already-selected wrap items are shown, non-interactive.
  */
 export function PresentsWrappableList({
   lineItems,
@@ -83,6 +86,7 @@ export function PresentsWrappableList({
   onOpenProduct,
   selectedItemIds: selectedProp,
   onToggleWrapSelection,
+  locked = false,
 }: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -106,6 +110,7 @@ export function PresentsWrappableList({
   );
 
   const toggle = (itemId: string) => {
+    if (locked) return;
     if (onToggleWrapSelection) {
       onToggleWrapSelection(itemId);
       return;
@@ -121,24 +126,18 @@ export function PresentsWrappableList({
   const toWrap = wrappable.filter((row) => selected.has(row.itemId));
   const remaining = wrappable.filter((row) => !selected.has(row.itemId));
 
+  if (locked && toWrap.length === 0) return null;
+
   const renderChip = (row: CoalescedBoxLine, outlined: boolean) => {
     const item = catalog.find((c) => c.id === row.itemId);
     const names = childNamesForLines(row.lines, childrenProfiles);
     const attribution = formatPresentAttribution(names);
     const label = row.primary.label ?? item?.name ?? row.itemId;
-    return (
-      <TouchableOpacity
-        key={row.key}
-        style={[styles.chip, outlined && styles.chipSelected]}
-        onPress={() => toggle(row.itemId)}
-        onLongPress={onOpenProduct ? () => onOpenProduct(row.itemId) : undefined}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityState={{ selected: outlined }}
-        accessibilityLabel={`${label}${row.quantity > 1 ? ` ×${row.quantity}` : ''}${
-          outlined ? ', selected for wrapping' : ''
-        }`}
-      >
+    const accessibilityLabel = `${label}${row.quantity > 1 ? ` ×${row.quantity}` : ''}${
+      outlined ? ', selected for wrapping' : ''
+    }${locked ? ', locked' : ''}`;
+    const body = (
+      <>
         <BoxItemImage
           size={36}
           imageUrl={item?.imageUrl}
@@ -156,6 +155,33 @@ export function PresentsWrappableList({
             </Text>
           ) : null}
         </View>
+      </>
+    );
+    if (locked) {
+      return (
+        <View
+          key={row.key}
+          style={[styles.chip, outlined && styles.chipSelected, styles.chipLocked]}
+          accessibilityRole="text"
+          accessibilityState={{ selected: outlined, disabled: true }}
+          accessibilityLabel={accessibilityLabel}
+        >
+          {body}
+        </View>
+      );
+    }
+    return (
+      <TouchableOpacity
+        key={row.key}
+        style={[styles.chip, outlined && styles.chipSelected]}
+        onPress={() => toggle(row.itemId)}
+        onLongPress={onOpenProduct ? () => onOpenProduct(row.itemId) : undefined}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityState={{ selected: outlined }}
+        accessibilityLabel={accessibilityLabel}
+      >
+        {body}
       </TouchableOpacity>
     );
   };
@@ -168,18 +194,20 @@ export function PresentsWrappableList({
           <View style={styles.list}>{toWrap.map((row) => renderChip(row, true))}</View>
         </View>
       ) : null}
-      <View style={styles.group}>
-        <Text style={styles.heading}>Wrappable in this box</Text>
-        {wrappable.length === 0 ? (
-          <Text style={styles.empty}>
-            Nothing wrappable yet — presents show under their practices above.
-          </Text>
-        ) : remaining.length === 0 ? (
-          <Text style={styles.empty}>All wrappable items are marked to be wrapped.</Text>
-        ) : (
-          <View style={styles.list}>{remaining.map((row) => renderChip(row, false))}</View>
-        )}
-      </View>
+      {!locked ? (
+        <View style={styles.group}>
+          <Text style={styles.heading}>Wrappable in this box</Text>
+          {wrappable.length === 0 ? (
+            <Text style={styles.empty}>
+              Nothing wrappable yet — presents show under their practices above.
+            </Text>
+          ) : remaining.length === 0 ? (
+            <Text style={styles.empty}>All wrappable items are marked to be wrapped.</Text>
+          ) : (
+            <View style={styles.list}>{remaining.map((row) => renderChip(row, false))}</View>
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -193,21 +221,20 @@ function createStyles(colors: SemanticColors) {
       ...typeface('medium'),
       color: colors.textPrimary,
       letterSpacing: -0.26,
-      textAlign: 'center',
+      textAlign: 'left',
     },
     empty: {
       fontSize: typography.sm,
       ...typeface('light'),
       color: colors.textSecondary,
       lineHeight: 18,
-      textAlign: 'center',
+      textAlign: 'left',
     },
     list: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'center',
-      alignItems: 'center',
+      flexDirection: 'column',
+      alignItems: 'stretch',
       gap: spacing.sm,
+      width: '100%',
     },
     chip: {
       flexDirection: 'row',
@@ -216,18 +243,22 @@ function createStyles(colors: SemanticColors) {
       borderWidth: 0.5,
       borderColor: colors.goldMuted,
       borderRadius: borderRadius.md,
-      paddingVertical: 6,
-      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
       backgroundColor: colors.bgPrimary,
-      maxWidth: '100%',
+      width: '100%',
+      alignSelf: 'stretch',
     },
     chipSelected: {
       borderWidth: 1.5,
       borderColor: colors.textPrimary,
       backgroundColor: colors.accentCream,
     },
+    chipLocked: {
+      opacity: 0.85,
+    },
     thumb: { borderRadius: borderRadius.sm, overflow: 'hidden' },
-    chipTextCol: { flexShrink: 1, gap: 2, maxWidth: 180 },
+    chipTextCol: { flex: 1, flexShrink: 1, gap: 2, minWidth: 0 },
     chipTitle: {
       fontSize: typography.sm,
       ...typeface('regular'),

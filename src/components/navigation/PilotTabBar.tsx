@@ -7,7 +7,8 @@ import { MOBILE_GUTTER, shadows, TAB_NAV } from '../../constants/theme';
 /** Figma 366:1799 — icons vertically centered in padded footer row. */
 export function PilotTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const { colors } = useThemeMode();
-  const bottomInset = Platform.OS === 'web' ? 0 : Math.max(insets.bottom, 0);
+  // Web + viewport-fit=cover: honor the home indicator so the bar isn't clipped.
+  const bottomInset = Math.max(insets.bottom, 0);
 
   return (
     <View

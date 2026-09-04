@@ -8,7 +8,8 @@ import Constants from 'expo-constants';
 import { useStripe } from '@stripe/stripe-react-native';
 import type { MainStackParamList } from '../../navigation/types';
 import { useGiftGiverBoxDraft } from '../../hooks/useGiftGiverBoxDraft';
-import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import { orderSubtotalCents } from '../../services/box/pricing';
+import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
@@ -64,10 +65,19 @@ function GiftGiverCustomizeBody() {
     }
   }, [form, childDrafts, navigation]);
 
-  const { catalog, lineItems, children, loading, applySwap, swapOptionsFor } = useGiftGiverBoxDraft(
-    childDrafts,
-    restoredLineItems
-  );
+  const {
+    catalog,
+    lineItems,
+    children,
+    loading,
+    wrapSelectedItemIds,
+    applySwap,
+    swapToPreWrap,
+    swapOptionsBySlot,
+    removeCoalesced,
+    addItem,
+    persistWrapSelection,
+  } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const startAuthForGiftCustomize = useAuthFlowStore((s) => s.startAuthForGiftCustomize);
@@ -76,6 +86,16 @@ function GiftGiverCustomizeBody() {
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
+
+  // Persist so refresh on /gift/customize can restore this draft.
+  React.useEffect(() => {
+    if (form.giftPath === 'credit_only') return;
+    useGiftIntentStore.getState().markIncomplete('customize', {
+      form: { ...form, giftPath: 'customize' },
+      childDrafts,
+      lineItems,
+    });
+  }, [form, childDrafts, lineItems]);
 
   const requireAuth = (entry: 'signup' | 'signin') => {
     const draft = { form, childDrafts, lineItems };
@@ -104,11 +124,14 @@ function GiftGiverCustomizeBody() {
         lineItems,
       });
       const childAgeGroups = childDrafts.map((c) => c.ageGroup);
+      const boxPriceCents = listBoxCentsForKids(Math.max(1, childDrafts.length));
+      const amountCents = orderSubtotalCents(lineItems, boxPriceCents);
       const result = await startGiftPurchase({
         form,
         customize: true,
         lineItems,
         childAgeGroups,
+        amountCents,
       });
 
       const { error: initError } = await initPaymentSheet({
@@ -129,7 +152,7 @@ function GiftGiverCustomizeBody() {
         recipientEmail: form.recipientEmail.trim(),
         customize: true,
         giverName: form.giverName.trim() || undefined,
-        amountCents: DEFAULT_BOX_PRICE_CENTS,
+        amountCents,
         claimUrl: finalized.claimUrl || result.claimUrl,
       });
     } catch (e) {
@@ -152,8 +175,13 @@ function GiftGiverCustomizeBody() {
       kidProfiles={children}
       loading={loading}
       submitting={submitting}
+      wrapSelectedItemIds={wrapSelectedItemIds}
       applySwap={applySwap}
-      swapOptionsFor={swapOptionsFor}
+      swapToPreWrap={swapToPreWrap}
+      swapOptionsBySlot={swapOptionsBySlot}
+      removeCoalesced={removeCoalesced}
+      addItem={addItem}
+      persistWrapSelection={persistWrapSelection}
       onPay={() => void pay()}
       onRequireAuth={requireAuth}
       payError={payError}

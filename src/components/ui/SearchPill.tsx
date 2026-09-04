@@ -381,10 +381,15 @@ export function SearchPill({
             lineHeight: expanded ? textLineHeight : inputSize,
             height: expanded ? inputHeight : inputSize,
             maxHeight: inputMaxHeight,
+            // End the input box before trailing/leading controls so a web
+            // scrollbar can't sit under the send arrow as a gold blob.
+            ...(leftInset > 0 ? { marginLeft: leftInset, paddingLeft: 0 } : null),
+            ...(rightInset > 0 ? { marginRight: rightInset, paddingRight: 0 } : null),
+            ...(Platform.OS === 'web'
+              ? ({ overflowY: expanded ? 'auto' : 'hidden' } as object)
+              : null),
           },
           alignLeft ? styles.inputActive : styles.inputCentered,
-          leftInset > 0 ? { paddingLeft: leftInset } : null,
-          rightInset > 0 ? { paddingRight: rightInset } : null,
           showFaux && styles.inputOverFaux,
           expanded && Platform.OS !== 'web' ? styles.inputMultilineNative : null,
         ]}
@@ -409,7 +414,9 @@ export function SearchPill({
         accessibilityLabel={accessibilityLabel}
         {...(Platform.OS === 'web'
           ? ({
-              className: SEARCH_PILL_INPUT_CLASS,
+              className: expanded
+                ? SEARCH_PILL_INPUT_CLASS
+                : `${SEARCH_PILL_INPUT_CLASS} ${SEARCH_PILL_INPUT_CLASS}--collapsed`,
               rows: 1,
             } as object)
           : null)}
@@ -506,7 +513,6 @@ const styles = StyleSheet.create({
           border: 'none',
           backgroundColor: 'transparent',
           resize: 'none',
-          overflowY: 'auto',
           cursor: 'text',
         } as object)
       : { includeFontPadding: false, textAlignVertical: 'center' }),

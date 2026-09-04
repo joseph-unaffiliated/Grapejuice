@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -10,13 +10,6 @@ import { warmWebAuth } from './src/services/auth/auth';
 // Start Firebase redirect completion before the font gate mounts RootNavigator.
 // Late getRedirectResult is a common cause of "signed in with Google, still a guest".
 warmWebAuth();
-
-/** On web, zero safe-area insets — avoids extra bottom margin below the tab bar. */
-const { width = 0, height = 0 } = Dimensions.get('window');
-const webInitialMetrics = {
-  frame: { x: 0, y: 0, width, height },
-  insets: { top: 0, left: 0, right: 0, bottom: 0 },
-};
 
 const FONT_WAIT_MS = 2500;
 
@@ -72,7 +65,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider initialMetrics={webInitialMetrics}>
+    <SafeAreaProvider>
       <TypographyProvider>
         <StatusBar style="dark" />
         <RootNavigator />

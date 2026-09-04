@@ -199,6 +199,11 @@ export type BoxLineItem = {
   label?: string;
   keepOrToss?: KeepOrToss;
   isSurprise?: boolean;
+  /**
+   * When a SKU can live in multiple practices (e.g. menorah plush under candles + presents),
+   * pin the card to the section the shopper added it from.
+   */
+  displaySectionId?: 'candles' | 'dreidel' | 'food' | 'presents' | 'story';
 };
 
 export type BoxDraft = {
@@ -315,6 +320,11 @@ export type ReceivedGift = {
   message?: string;
   kind: ReceivedGiftKind;
   creditCents: number;
+  /**
+   * Add-on cents the giver already paid (snapshot at claim). Recipient only owes
+   * chargeable line total above this.
+   */
+  prepaidAddOnCents?: number;
   lineItems?: BoxLineItem[];
   status: ReceivedGiftStatus;
   claimedAt: string;

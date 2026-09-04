@@ -35,8 +35,22 @@ const EXPEDITED_SHIPPING_CENTS = 1500;
 const CHECKOUT_TAX_RATE = 0.075;
 const DEFAULT_GIFT_CREDIT_CENTS = 8000;
 
+function isValidEmail(raw: string): boolean {
+  const email = raw.trim();
+  if (!email || email.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
 function chargeableLineTotal(lineItems: Array<{ unitCents?: number; quantity?: number }>): number {
   return lineItems.reduce((s, li) => s + (li.unitCents ?? 0) * (li.quantity ?? 1), 0);
+}
+
+/** Recipient owes only add-on value above what the giver already prepaid. */
+function recipientGiftUpgradeCents(
+  lineItems: Array<{ unitCents?: number; quantity?: number }>,
+  prepaidAddOnCents: number
+): number {
+  return Math.max(0, chargeableLineTotal(lineItems) - Math.max(0, prepaidAddOnCents));
 }
 
 function orderTotalCents(
@@ -1101,7 +1115,7 @@ export const purchasePilotGift = onCall(async (request) => {
   const childInterests = Array.isArray(request.data?.childInterests) ? request.data.childInterests : undefined;
   const childAgeGroups = Array.isArray(request.data?.childAgeGroups) ? request.data.childAgeGroups : undefined;
 
-  if (!recipientEmail.includes('@')) {
+  if (!isValidEmail(recipientEmail)) {
     throw new HttpsError('invalid-argument', 'A valid recipient email is required.');
   }
 
@@ -1306,12 +1320,15 @@ export const claimGiftInvite = onCall(async (request) => {
   }
 
   // Store on household — never merge into the family's own box draft.
+  const boxLines = giftKind === 'box' ? ((invite.lineItems as GiftLineItemInput[]) ?? []) : [];
+  const prepaidAddOnCents = giftKind === 'box' ? chargeableLineTotal(boxLines) : 0;
   await db.doc(`households/${householdId}/receivedGifts/${inviteDoc.id}`).set({
     giftInviteId: inviteDoc.id,
     giverName: invite.giverName,
     message: invite.message ?? null,
     kind: giftKind,
     creditCents: invite.creditCents,
+    prepaidAddOnCents,
     lineItems: giftKind === 'box' ? invite.lineItems ?? [] : [],
     childInterests: giftKind === 'box' ? invite.childInterests ?? [] : [],
     status: 'available',
@@ -1362,6 +1379,7 @@ type ReceivedGiftRow = {
   message?: string;
   kind: 'credit' | 'box';
   creditCents: number;
+  prepaidAddOnCents?: number;
   lineItems: unknown[];
   status: string;
   claimedAt: string;
@@ -1379,6 +1397,10 @@ function mapReceivedGiftDoc(docId: string, data: FirebaseFirestore.DocumentData)
     message: typeof data.message === 'string' ? data.message : undefined,
     kind: data.kind === 'box' ? 'box' : 'credit',
     creditCents: Number(data.creditCents ?? 0),
+    prepaidAddOnCents:
+      data.prepaidAddOnCents != null && Number.isFinite(Number(data.prepaidAddOnCents))
+        ? Math.max(0, Math.round(Number(data.prepaidAddOnCents)))
+        : undefined,
     lineItems: Array.isArray(data.lineItems) ? data.lineItems : [],
     status: String(data.status ?? 'available'),
     claimedAt: String(data.claimedAt ?? ''),
@@ -1396,12 +1418,14 @@ async function backfillReceivedGiftFromInvite(
 ): Promise<ReceivedGiftRow> {
   const now = new Date().toISOString();
   const giftKind = resolveGiftInviteKind(invite);
+  const boxLines = giftKind === 'box' ? ((invite.lineItems as GiftLineItemInput[]) ?? []) : [];
   const record = {
     giftInviteId: inviteId,
     giverName: invite.giverName,
     message: invite.message ?? null,
     kind: giftKind,
     creditCents: invite.creditCents,
+    prepaidAddOnCents: giftKind === 'box' ? chargeableLineTotal(boxLines) : 0,
     lineItems: giftKind === 'box' ? invite.lineItems ?? [] : [],
     childInterests: giftKind === 'box' ? invite.childInterests ?? [] : [],
     status: 'available',
@@ -1530,8 +1554,14 @@ export const updateReceivedGiftLineItems = onCall(async (request) => {
     (Array.isArray(request.data?.lineItems) ? request.data.lineItems : []) as GiftLineItemInput[]
   );
   const now = new Date().toISOString();
+  const existingLines = (gift.lineItems as GiftLineItemInput[]) ?? [];
+  const prepaidAddOnCents =
+    typeof gift.prepaidAddOnCents === 'number' && Number.isFinite(gift.prepaidAddOnCents)
+      ? Math.max(0, Math.round(gift.prepaidAddOnCents))
+      : chargeableLineTotal(existingLines);
   await giftRef.update({
     lineItems,
+    prepaidAddOnCents,
     viewedAt: gift.viewedAt ?? now,
     updatedAt: now,
   });
@@ -1583,7 +1613,16 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
         ? normalizeGiftLineItems(request.data.lineItems as GiftLineItemInput[])
         : normalizeGiftLineItems((gift.lineItems as GiftLineItemInput[]) ?? []);
 
-    const subtotalCents = chargeableLineTotal(lineItems);
+    const prepaidAddOnCents =
+      typeof gift.prepaidAddOnCents === 'number' && Number.isFinite(gift.prepaidAddOnCents)
+        ? Math.max(0, Math.round(gift.prepaidAddOnCents))
+        : chargeableLineTotal((gift.lineItems as GiftLineItemInput[]) ?? []);
+    // Persist snapshot if missing so later edits don't rewrite the baseline.
+    if (gift.prepaidAddOnCents == null) {
+      await giftRef.set({ prepaidAddOnCents }, { merge: true });
+    }
+    // Giver already paid prepaidAddOnCents — recipient only pays upgrades above that.
+    const subtotalCents = recipientGiftUpgradeCents(lineItems, prepaidAddOnCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
     const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
     let preCreditTotal = subtotalCents + shippingCents + taxCents;

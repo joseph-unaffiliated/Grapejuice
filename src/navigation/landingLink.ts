@@ -32,8 +32,8 @@ export async function readMarketingLandingFromPath(pathname: string | null): Pro
   const path = normalizeLandingPath(pathname);
   if (!path) return null;
   if (path === '/gift/claim' || path.startsWith('/gift/claim/')) return null;
-  // Gift keeps its own link effect (?path=).
-  if (path === '/gift') return null;
+  // Gift keeps its own link effect (?path=) / flow deep links.
+  if (path === '/gift' || path === '/gift/give' || path === '/gift/customize') return null;
   if (
     path === '/store' ||
     path.startsWith('/store/') ||
@@ -96,6 +96,7 @@ export function shouldPreserveMarketingPath(pathname: string): boolean {
   const path = normalizeLandingPath(pathname);
   if (!path || path === '/') return false;
   if (path === '/gift' || path === '/gift/claim' || path.startsWith('/gift/claim/')) return false;
+  if (path === '/gift/give' || path === '/gift/customize') return false;
   if (
     path === '/store' ||
     path.startsWith('/store/') ||

@@ -18,6 +18,7 @@ import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from './giftGiveTypes'
 import type { GiftChildDraft } from './giftGiveTypes';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { isValidEmail } from '../../utils/formValidation';
 
 function notify(title: string, message: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -67,8 +68,8 @@ function GiftGiveScreenBody() {
 
   const requireAuth = (entry: 'signup' | 'signin') => {
     const email = values.recipientEmail.trim();
-    if (!email.includes('@')) {
-      setFormError('Enter the recipient family’s email to continue.');
+    if (!isValidEmail(email)) {
+      setFormError('Enter a valid email (like name@example.com).');
       return;
     }
     if (values.giftPath !== 'credit_only') {
@@ -85,8 +86,8 @@ function GiftGiveScreenBody() {
 
   const submit = async () => {
     const email = values.recipientEmail.trim();
-    if (!email.includes('@')) {
-      setFormError('Enter the recipient family’s email to continue.');
+    if (!isValidEmail(email)) {
+      setFormError('Enter a valid email (like name@example.com).');
       return;
     }
 
@@ -150,8 +151,10 @@ function GiftGiveScreenBody() {
     }
 
     if (values.giftPath === 'customize') {
+      const form = { ...values, recipientEmail: email, giftPath: 'customize' as const };
+      useGiftIntentStore.getState().markIncomplete('customize', { form, childDrafts });
       navigation.navigate('GiftGiverCustomize', {
-        form: { ...values, recipientEmail: email, giftPath: 'customize' },
+        form,
         childDrafts,
       });
       return;

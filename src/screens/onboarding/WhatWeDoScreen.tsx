@@ -5,14 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  PanResponder,
-  LayoutChangeEvent,
 } from 'react-native';
 import type { FamiliarityLevel } from '../../types/pilot';
 import {
   OnboardingScreenLayout,
   onboardingBodyText,
 } from '../../components/onboarding/OnboardingScreenLayout';
+import { FamiliaritySliderControl } from '../../components/onboarding/FamiliaritySliderControl';
 import { CHILD_INTEREST_OPTIONS, type ChildInterestId } from '../../constants/childInterests';
 import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { familiarityScoreToLevel } from '../../stores/guestSessionStore';
@@ -28,42 +27,6 @@ type Props = {
     interests: string[];
   }) => void;
 };
-
-function FamiliaritySliderControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const [trackWidth, setTrackWidth] = useState(0);
-
-  const setFromX = (x: number) => {
-    if (trackWidth <= 0) return;
-    const ratio = Math.max(0, Math.min(1, x / trackWidth));
-    onChange(Math.round(ratio * 100));
-  };
-
-  const pan = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (e) => setFromX(e.nativeEvent.locationX),
-    onPanResponderMove: (e) => setFromX(e.nativeEvent.locationX),
-  });
-
-  const onLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
-  const thumbLeft = trackWidth > 0 ? (value / 100) * trackWidth - 12 : 0;
-
-  return (
-    <View style={styles.sliderWrap}>
-      <View style={styles.track} onLayout={onLayout} {...pan.panHandlers}>
-        <View style={[styles.fill, { width: `${value}%` }]} />
-        <View style={[styles.thumb, { left: Math.max(0, Math.min(trackWidth - 24, thumbLeft)) }]} />
-      </View>
-      <View style={styles.stepRow}>
-        {[0, 25, 50, 75, 100].map((step) => (
-          <TouchableOpacity key={step} onPress={() => onChange(step)} style={styles.stepBtn}>
-            <View style={[styles.stepDot, value >= step - 5 && value <= step + 5 && styles.stepDotOn]} />
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-}
 
 function flattenKidInterests(members: ChildDraft[]): string[] {
   const set = new Set<string>();
@@ -261,7 +224,7 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
   );
 }
 
-const CHIP_GAP = 4;
+const CHIP_GAP = 8;
 
 const styles = StyleSheet.create({
   section: {
@@ -278,50 +241,21 @@ const styles = StyleSheet.create({
   sliderLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   sliderLabel: {
     ...typeface('light'),
-    fontSize: typography.sm,
+    fontSize: typography.md,
     color: semanticColors.goldMuted,
     flex: 1,
   },
   sliderLabelRight: { textAlign: 'right' },
-  sliderWrap: { marginVertical: spacing.sm },
-  track: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: semanticColors.border,
-    justifyContent: 'center',
-  },
-  fill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: 4,
-    backgroundColor: '#000000',
-  },
-  thumb: {
-    position: 'absolute',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#000000',
-    top: -8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: semanticColors.brand,
-  },
-  stepRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md },
-  stepBtn: { padding: 6 },
-  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: semanticColors.border },
-  stepDotOn: { backgroundColor: '#000000' },
   kidBlock: {
     gap: spacing.sm,
     marginBottom: spacing.md,
   },
   kidName: {
     ...typeface('regular'),
-    fontSize: typography.lg,
+    fontSize: typography.titleLg,
     color: '#000000',
     letterSpacing: -0.26,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   chips: {
     flexDirection: 'row',
@@ -332,15 +266,18 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
     borderRadius: borderRadius.md,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipOn: {
     backgroundColor: '#000000',
   },
   chipText: {
     ...typeface('light'),
-    fontSize: typography.xs,
+    fontSize: typography.xl,
     color: '#000000',
   },
   chipTextOn: {
@@ -357,13 +294,14 @@ const styles = StyleSheet.create({
   },
   otherInput: {
     alignSelf: 'stretch',
-    height: 36,
+    minHeight: 44,
+    height: 44,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
     borderRadius: borderRadius.xl,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: 0,
-    fontSize: typography.lg,
+    fontSize: typography.titleLg,
     color: '#000000',
   },
 });

@@ -6,13 +6,20 @@ import { BOX_PATH } from './boxLink';
 import { CHECKOUT_PATH } from './checkoutLink';
 import { ACCOUNT_PATH } from './accountLink';
 import { ORDERS_PATH } from './ordersLink';
-import { MY_GIFTS_PATH } from './myGiftsLink';
+import {
+  MY_GIFTS_PATH,
+  readGiftBoxIdFromPath,
+  readGiftRevealIdFromPath,
+} from './myGiftsLink';
 import { readStorePathFromPathname } from './storeLink';
 import { GIFT_LANDING_PATH } from './giftLandingLink';
+import { GIFT_CUSTOMIZE_PATH, GIFT_GIVE_PATH } from './giftFlowLink';
 import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
 import { navigateMainStack, navigateMainTab, navigateToLanding } from './mainStackNavigation';
+import { useGiftIntentStore } from '../stores/giftIntentStore';
+import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 
 type GjHistoryState = { gjNav: true; idx: number };
 
@@ -41,6 +48,14 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
     }
     if (route.name === 'MyGifts') {
       parts.push('my-gifts');
+    }
+    if (route.name === 'GiftBox') {
+      const params = route.params as { giftInviteId?: string } | undefined;
+      parts.push(`gift-box:${params?.giftInviteId ?? ''}`);
+    }
+    if (route.name === 'GiftRecipientReveal') {
+      const params = route.params as { giftInviteId?: string } | undefined;
+      parts.push(`gift-reveal:${params?.giftInviteId ?? ''}`);
     }
     current = route.state;
   }
@@ -100,12 +115,60 @@ function restoreFromBrowserUrl(): void {
     navigateMainStack('MyGifts');
     return;
   }
+  const giftBoxId = readGiftBoxIdFromPath(path);
+  if (giftBoxId) {
+    navigateMainStack('GiftBox', { giftInviteId: giftBoxId });
+    return;
+  }
+  const giftRevealId = readGiftRevealIdFromPath(path);
+  if (giftRevealId) {
+    // Reveal is transitional — land on the editable gift box.
+    navigateMainStack('GiftBox', { giftInviteId: giftRevealId });
+    return;
+  }
   if (path === ACCOUNT_PATH) {
     navigateMainTab('Account');
     return;
   }
   if (path === GIFT_LANDING_PATH) {
     navigateToLanding('gift');
+    return;
+  }
+  if (path === GIFT_CUSTOMIZE_PATH) {
+    const intent = useGiftIntentStore.getState();
+    const draft = intent.status === 'incomplete' ? intent.draft : null;
+    if (draft?.form && draft.childDrafts?.length) {
+      navigateMainStack('GiftGiverCustomize', {
+        form: { ...draft.form, giftPath: 'customize' as const },
+        childDrafts: draft.childDrafts,
+        lineItems: draft.lineItems,
+      });
+    } else {
+      navigateMainStack('GiftGive', {
+        form: {
+          recipientEmail: '',
+          giverName: '',
+          message: '',
+          giftPath: 'customize' as const,
+        },
+        childDrafts: DEFAULT_GIFT_CHILDREN,
+        initialGiftPath: 'customize' as const,
+      });
+    }
+    return;
+  }
+  if (path === GIFT_GIVE_PATH) {
+    const intent = useGiftIntentStore.getState();
+    const draft = intent.status === 'incomplete' ? intent.draft : null;
+    if (draft?.form) {
+      navigateMainStack('GiftGive', {
+        form: draft.form,
+        childDrafts: draft.childDrafts?.length ? draft.childDrafts : DEFAULT_GIFT_CHILDREN,
+        initialGiftPath: draft.form.giftPath ?? undefined,
+      });
+    } else {
+      navigateMainStack('GiftGive');
+    }
     return;
   }
   if (path.startsWith(`${PRODUCT_PATH_PREFIX}/`)) {

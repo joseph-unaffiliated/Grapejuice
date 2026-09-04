@@ -189,7 +189,6 @@ export function BoxRevealScreen({
               item={item}
               meta={kid ? `Present for ${kid.name || 'your kid'}` : undefined}
               locked
-              previewChips
               swapOptions={[]}
               onSwap={() => {}}
               formatPrice={formatDollars}
@@ -257,7 +256,7 @@ export function BoxRevealScreen({
     >
       <WebContentPanel
         flush={isDesktop}
-        gutter={!isDesktop}
+        gutter={false}
         centerDesktop={isDesktop}
         omitDesktopTopPadding={isDesktop}
         style={styles.panel}
@@ -309,6 +308,7 @@ function createRevealStyles(colors: SemanticColors, isDesktop: boolean) {
     contentRoot: {
       width: '100%',
       paddingTop: isDesktop ? CONTENT_TOP_GAP_DESKTOP : CONTENT_TOP_GAP,
+      paddingHorizontal: isDesktop ? 0 : spacing.md,
     },
     contentColumn: {
       alignSelf: 'center',

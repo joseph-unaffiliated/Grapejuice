@@ -7,6 +7,11 @@ import {
   OnboardingScreenLayout,
   onboardingBodyText,
 } from '../../components/onboarding/OnboardingScreenLayout';
+import {
+  ONBOARDING_KID_AGE_CHOICES,
+  KidAgePicker,
+  type KidAgeChoice,
+} from '../../components/family/KidAgePicker';
 import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
 
 export type FamilyMemberRole = 'kid' | 'adult';
@@ -14,16 +19,7 @@ export type FamilyMemberRole = 'kid' | 'adult';
 /** @deprecated Prefer plannerAge — kept for legacy guest drafts. */
 export type FamilyAgeBand = '0-12' | '13-17' | '18+';
 
-type KidAgeChoice = number | '13-17' | '18+';
-
 const MAX_MEMBERS = 8;
-const AGE_CHIP_GAP = 2;
-/** 0–12 individual, then teen + adult chips. */
-const KID_AGE_CHOICES: KidAgeChoice[] = [
-  ...Array.from({ length: 13 }, (_, i) => i),
-  '13-17',
-  '18+',
-];
 
 const LEGACY_BAND_AGE: Record<FamilyAgeBand, number> = {
   '0-12': 6,
@@ -244,26 +240,11 @@ export function BoxIntroScreen({ onContinue, initialChildren, defaultName }: Pro
                       <Text style={[styles.ageText, styles.ageTextOn]}>Adult</Text>
                     </View>
                   ) : (
-                    <View style={styles.ageRow}>
-                      {KID_AGE_CHOICES.map((choice) => {
-                        const on = kidAgeSelected(member, choice);
-                        const isBand = typeof choice === 'string';
-                        return (
-                          <TouchableOpacity
-                            key={String(choice)}
-                            style={[styles.ageChip, isBand && styles.ageChipBand, on && styles.ageChipOn]}
-                            onPress={() => setKidAge(i, choice)}
-                          >
-                            <Text
-                              style={[styles.ageText, isBand && styles.ageTextBand, on && styles.ageTextOn]}
-                              numberOfLines={1}
-                            >
-                              {choice}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                    <KidAgePicker
+                      choices={ONBOARDING_KID_AGE_CHOICES}
+                      isSelected={(choice) => kidAgeSelected(member, choice)}
+                      onSelect={(choice) => setKidAge(i, choice)}
+                    />
                   )}
                 </View>
               </View>
@@ -326,52 +307,41 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     ...typeface('light'),
-    fontSize: typography.lg,
+    fontSize: typography.titleLg,
     color: '#000000',
     letterSpacing: -0.26,
-    lineHeight: 20,
+    lineHeight: 22,
     flexShrink: 0,
-    width: 40,
+    width: 48,
   },
   removeText: {
     ...typeface('light'),
-    fontSize: typography.md,
+    fontSize: typography.lg,
     color: semanticColors.textTertiary,
     flexShrink: 0,
   },
   input: {
     flex: 1,
     minWidth: 0,
-    height: 36,
+    height: 44,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
     borderRadius: borderRadius.xl,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: 0,
-    fontSize: typography.lg,
+    fontSize: typography.titleLg,
     color: '#000000',
   },
   ageInline: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.sm,
     flexWrap: 'nowrap',
   },
-  ageRow: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
-    gap: AGE_CHIP_GAP,
-    minWidth: 0,
-  },
   ageChip: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    minWidth: 0,
-    paddingHorizontal: 1,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minHeight: 44,
     borderRadius: borderRadius.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
@@ -379,26 +349,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ageChipBand: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 'auto',
-    paddingHorizontal: 4,
-  },
   adultChip: {
     flexGrow: 0,
     flexShrink: 0,
     flexBasis: 'auto',
-    paddingHorizontal: 10,
   },
   ageChipOn: { backgroundColor: '#000000' },
   ageText: {
     ...typeface('light'),
-    fontSize: typography.xs,
+    fontSize: typography.md,
     color: '#000000',
-  },
-  ageTextBand: {
-    fontSize: 9,
   },
   ageTextOn: {
     ...typeface('regular'),

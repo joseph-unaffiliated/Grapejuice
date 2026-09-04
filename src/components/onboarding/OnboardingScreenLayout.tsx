@@ -101,7 +101,7 @@ export function OnboardingScreenLayout({
 
   const bottomPad = isDesktopWeb
     ? DESKTOP_CTA_INSET
-    : Math.max(insets.bottom, spacing.sm) + (Platform.OS === 'web' ? 40 : 16);
+    : Math.max(insets.bottom, spacing.xs) + spacing.sm;
   /** Room below the corner logo; under storefront chrome the header already brands. */
   const topPad = underStorefrontChrome
     ? isDesktopWeb
@@ -175,6 +175,8 @@ export function OnboardingScreenLayout({
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        directionalLockEnabled
+        nestedScrollEnabled
       >
         <View
           style={[
@@ -293,7 +295,7 @@ const styles = StyleSheet.create({
     maxWidth: 440,
     alignSelf: 'center',
     ...(Platform.OS === 'web'
-      ? ({ height: '100%', maxHeight: '100vh' } as object)
+      ? ({ height: '100%', maxHeight: '100%' } as object)
       : null),
   },
   copyPaneMobileUnderChrome: {
@@ -372,7 +374,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     ...typeface('regular'),
-    fontSize: typography.sm,
+    fontSize: typography.md,
     color: semanticColors.goldMuted,
     letterSpacing: -0.33,
     marginBottom: spacing.sm,
@@ -384,10 +386,10 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typeface('regular'),
-    fontSize: 24,
+    fontSize: 28,
     color: '#000000',
     letterSpacing: -0.72,
-    lineHeight: 31,
+    lineHeight: 34,
   },
   titleCentered: {
     textAlign: 'center',
@@ -449,21 +451,21 @@ const styles = StyleSheet.create({
   },
 });
 
-/** Shared onboarding body copy — matches home body (`typography.lg`). */
+/** Shared onboarding body copy — slightly larger than home `typography.lg` for phone readability. */
 export const onboardingBodyText = StyleSheet.create({
   text: {
     ...typeface('light'),
-    fontSize: typography.lg,
+    fontSize: typography.titleLg,
     color: '#000000',
     letterSpacing: -0.26,
-    lineHeight: 20,
+    lineHeight: 24,
   },
   lead: {
     ...typeface('light'),
-    fontSize: typography.lg,
+    fontSize: typography.titleLg,
     color: '#000000',
     letterSpacing: -0.26,
-    lineHeight: 20,
+    lineHeight: 24,
     marginBottom: spacing.sm,
   },
 });

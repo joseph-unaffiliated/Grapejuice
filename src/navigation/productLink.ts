@@ -4,9 +4,22 @@ import { STORE_PATH_PREFIX, storefrontFromState } from './storeLink';
 import { BOX_PATH, myBoxFromState } from './boxLink';
 import { ACCOUNT_PATH, accountFromState } from './accountLink';
 import { ORDERS_PATH, ordersFromState } from './ordersLink';
-import { MY_GIFTS_PATH, myGiftsFromState } from './myGiftsLink';
+import {
+  MY_GIFTS_PATH,
+  myGiftsFromState,
+  giftBoxFromState,
+  giftRevealFromState,
+  giftBoxPath,
+  giftRevealPath,
+} from './myGiftsLink';
 import { CHECKOUT_PATH, checkoutFromState } from './checkoutLink';
 import { GIFT_LANDING_PATH, giftLandingFromState } from './giftLandingLink';
+import {
+  GIFT_CUSTOMIZE_PATH,
+  GIFT_GIVE_PATH,
+  giftCustomizeFromState,
+  giftGiveFromState,
+} from './giftFlowLink';
 import {
   dynamicLandingPathFromState,
   shouldPreserveMarketingPath,
@@ -87,6 +100,20 @@ export function browserPathForNavigationState(
     return giftLanding;
   }
 
+  if (giftCustomizeFromState(state)) {
+    if (search.includes('preview=')) {
+      return `${GIFT_CUSTOMIZE_PATH}${search}`;
+    }
+    return GIFT_CUSTOMIZE_PATH;
+  }
+
+  if (giftGiveFromState(state)) {
+    if (search.includes('preview=')) {
+      return `${GIFT_GIVE_PATH}${search}`;
+    }
+    return GIFT_GIVE_PATH;
+  }
+
   const marketingLanding = dynamicLandingPathFromState(state);
   if (marketingLanding) {
     if (search.includes('preview=')) {
@@ -135,6 +162,24 @@ export function browserPathForNavigationState(
       return `${ORDERS_PATH}${search}`;
     }
     return ORDERS_PATH;
+  }
+
+  const giftBox = giftBoxFromState(state);
+  if (giftBox) {
+    const path = giftBoxPath(giftBox.giftInviteId);
+    if (search.includes('preview=')) {
+      return `${path}${search}`;
+    }
+    return path;
+  }
+
+  const giftReveal = giftRevealFromState(state);
+  if (giftReveal) {
+    const path = giftRevealPath(giftReveal.giftInviteId);
+    if (search.includes('preview=')) {
+      return `${path}${search}`;
+    }
+    return path;
   }
 
   if (myGiftsFromState(state)) {
@@ -198,6 +243,9 @@ export function browserPathForNavigationState(
   if (currentPath === MY_GIFTS_PATH) {
     return currentPath + search;
   }
+  if (currentPath.startsWith(`${MY_GIFTS_PATH}/box/`) || currentPath.startsWith(`${MY_GIFTS_PATH}/reveal/`)) {
+    return currentPath + search;
+  }
   if (currentPath === BOX_PATH || currentPath === '/my-box') {
     return BOX_PATH + search;
   }
@@ -205,6 +253,9 @@ export function browserPathForNavigationState(
     return currentPath + search;
   }
   if (currentPath === GIFT_LANDING_PATH) {
+    return currentPath + search;
+  }
+  if (currentPath === GIFT_GIVE_PATH || currentPath === GIFT_CUSTOMIZE_PATH) {
     return currentPath + search;
   }
   if (shouldPreserveMarketingPath(currentPath) || isCulturalLandingPath(currentPath)) {

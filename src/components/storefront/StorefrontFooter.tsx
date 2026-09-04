@@ -17,6 +17,7 @@ import { navigateToLanding } from '../../navigation/mainStackNavigation';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { useEntryContextStore } from '../../stores/entryContextStore';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { useSession } from '../../hooks/useSession';
 import { useMarketingLandings } from '../../hooks/useMarketingLandings';
 import { isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
 import {
@@ -76,6 +77,7 @@ export function StorefrontFooter() {
   const navigation = useNavigation<Nav>();
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
+  const { refresh } = useSession();
   const captureEntry = useEntryContextStore((s) => s.capture);
   const { landings } = useMarketingLandings();
   const whoItsFor = landings.length ? landings : FOOTER_WHO_ITS_FOR;
@@ -86,7 +88,11 @@ export function StorefrontFooter() {
     const goCategory = (slug: string) =>
       navigation.navigate('StorefrontCategory', { category: slug });
 
-    const startBox = () => openBoxSurface(isAuthenticated);
+    const startBox = () =>
+      openBoxSurface(isAuthenticated, {
+        hasOwnBox,
+        refreshSession: refresh,
+      });
 
     const openAudienceLanding = (audience: LandingAudienceConfig) => {
       captureEntry({
@@ -180,7 +186,7 @@ export function StorefrontFooter() {
         ],
       },
     ];
-  }, [captureEntry, hasOwnBox, isAuthenticated, navigation, whoItsFor]);
+  }, [captureEntry, hasOwnBox, isAuthenticated, navigation, refresh, whoItsFor]);
 
   return (
     <View style={styles.root} accessibilityRole="contentinfo">

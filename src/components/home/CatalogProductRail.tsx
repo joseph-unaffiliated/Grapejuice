@@ -70,7 +70,8 @@ export function horizontalRailScrollStyle(): object {
           overflowX: 'auto',
           overflowY: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-x',
+          // pan-y by default — HorizontalDragScrollView axis-lock claims clear pan-x.
+          touchAction: 'pan-y',
           overscrollBehaviorX: 'contain',
         } as object)
       : {}),

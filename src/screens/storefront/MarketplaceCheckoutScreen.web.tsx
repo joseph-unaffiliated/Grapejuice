@@ -33,6 +33,8 @@ import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { useMarketplaceCheckout } from './useMarketplaceCheckout';
 import { GIFT_STRIPE_APPEARANCE } from '../gift/GiftPaymentPanel.web';
+import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
+import type { ShippingAddress } from '../../types/pilot';
 import { MarketplacePaymentPanel } from './MarketplacePaymentPanel.web';
 import {
   marketplaceCheckoutErrorMessage,
@@ -142,6 +144,19 @@ function MarketplaceCheckoutBody() {
   const [formError, setFormError] = useState<string | null>(null);
   const [contactPhone, setContactPhone] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
+  const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
+
+  const onAddressChange = (patch: Partial<ShippingAddress>) => {
+    setAddressFieldErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch) as (keyof typeof patch)[]) {
+        if (key in next) delete next[key as keyof ShippingAddressFieldErrors];
+      }
+      return next;
+    });
+    if (Object.keys(patch).length) setFormError(null);
+    updateAddress(patch);
+  };
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -180,11 +195,13 @@ function MarketplaceCheckoutBody() {
       return;
     }
 
-    const addressError = validateAddress();
-    if (addressError) {
-      setFormError(addressError);
+    const addressResult = validateAddress();
+    if (!addressResult.ok) {
+      setAddressFieldErrors(addressResult.fields);
+      setFormError(addressResult.message);
       return;
     }
+    setAddressFieldErrors({});
     if (!lineItems.length) {
       setFormError('Your cart is empty.');
       return;
@@ -340,7 +357,11 @@ function MarketplaceCheckoutBody() {
 
   const shippingForm = (
     <>
-      <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutAddressFields
+        address={address}
+        onChange={onAddressChange}
+        fieldErrors={addressFieldErrors}
+      />
       <CheckoutSmsOptIn
         phone={contactPhone}
         smsOptIn={smsOptIn}

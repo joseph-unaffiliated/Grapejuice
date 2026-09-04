@@ -32,10 +32,17 @@ import {
   collectFromOtherGifts,
   giftTransferLine,
 } from '../../services/gift/fromOtherGifts';
-import { formatDollars, chargeableLineTotal } from '../../services/box/buildDefaultBox';
-import { SHIPPING_FLAT_CENTS } from '../../services/box/pricing';
+import { formatDollars, chargeableLineTotal, catalogSlotId } from '../../services/box/buildDefaultBox';
+import {
+  boxAddOnUnitCents,
+  resolveGiftPrepaidAddOnCents,
+  recipientGiftUpgradeCents,
+  SHIPPING_FLAT_CENTS,
+} from '../../services/box/pricing';
+import { resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import { isWrapControlSlot } from '../../components/box/boxLineDisplay';
 import type { MainStackParamList } from '../../navigation/types';
-import type { BoxLineItem } from '../../types/pilot';
+import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -51,6 +58,18 @@ function notify(title: string, message: string) {
   Alert.alert(title, message);
 }
 
+function slotIdAfterSwap(currentSlotId: string, newItem: CatalogItem): string {
+  if (isWrapControlSlot(currentSlotId)) {
+    const next =
+      newItem.defaultSlot?.trim() ||
+      catalogSlotId(newItem.slotId) ||
+      newItem.slotId ||
+      currentSlotId;
+    return next;
+  }
+  return currentSlotId;
+}
+
 function GiftBoxBody() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
@@ -64,6 +83,7 @@ function GiftBoxBody() {
 
   const gift = gifts.find((g) => g.giftInviteId === giftInviteId);
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
+  const [prepaidAddOnCents, setPrepaidAddOnCents] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -71,6 +91,7 @@ function GiftBoxBody() {
   useEffect(() => {
     if (!gift || hydrated) return;
     setLineItems(gift.lineItems ?? []);
+    setPrepaidAddOnCents(resolveGiftPrepaidAddOnCents(gift));
     setHydrated(true);
   }, [gift, hydrated]);
 
@@ -88,9 +109,20 @@ function GiftBoxBody() {
     }));
   }, [gift, gifts, catalogById, lineItems]);
 
-  const addOnCents = chargeableLineTotal(lineItems);
-  const taxCents = Math.round((addOnCents + SHIPPING_FLAT_CENTS) * 0.075);
-  const preCredit = addOnCents + SHIPPING_FLAT_CENTS + taxCents;
+  const swapOptionsBySlot = useMemo(() => {
+    if (!catalog.length || !lineItems.length) return {} as Record<string, CatalogItem[]>;
+    const next: Record<string, CatalogItem[]> = {};
+    for (const li of lineItems) {
+      const current = catalogById.get(li.itemId);
+      next[li.slotId] = current ? resolveSwapOptionsForItem(current, catalog, 6) : [];
+    }
+    return next;
+  }, [lineItems, catalog, catalogById]);
+
+  const addOnValueCents = chargeableLineTotal(lineItems);
+  const upgradeCents = recipientGiftUpgradeCents(lineItems, prepaidAddOnCents);
+  const taxCents = Math.round((upgradeCents + SHIPPING_FLAT_CENTS) * 0.075);
+  const preCredit = upgradeCents + SHIPPING_FLAT_CENTS + taxCents;
   const giftCredit = household?.giftCreditCents ?? 0;
   const creditApplied = Math.min(giftCredit, preCredit);
   const dueNow = Math.max(0, preCredit - creditApplied);
@@ -128,6 +160,22 @@ function GiftBoxBody() {
     await setAndSave([...lineItems, line]);
   };
 
+  const onSwap = async (slotId: string, newItem: CatalogItem) => {
+    const nextUnit = boxAddOnUnitCents(newItem);
+    const next = lineItems.map((li) =>
+      li.slotId === slotId
+        ? {
+            ...li,
+            slotId: slotIdAfterSwap(li.slotId, newItem),
+            itemId: newItem.id,
+            unitCents: nextUnit,
+            label: newItem.name,
+          }
+        : li
+    );
+    await setAndSave(next);
+  };
+
   const onRemove = async (itemId: string) => {
     await setAndSave(lineItems.filter((li) => li.itemId !== itemId));
   };
@@ -140,7 +188,7 @@ function GiftBoxBody() {
     setConfirming(true);
     try {
       await persist(lineItems);
-      if (addOnCents > 0) {
+      if (upgradeCents > 0) {
         goCheckout();
         return;
       }
@@ -189,7 +237,7 @@ function GiftBoxBody() {
   }
 
   const ctaLabel =
-    addOnCents > 0
+    upgradeCents > 0
       ? dueNow > 0
         ? `Continue to payment · ${formatDollars(dueNow)}`
         : `Confirm with credit · ${formatDollars(preCredit)}`
@@ -204,8 +252,8 @@ function GiftBoxBody() {
       <Text style={styles.kicker}>Gift from {gift.giverName || 'someone special'}</Text>
       <Text style={styles.title}>Your gift box</Text>
       <Text style={styles.subtitle}>
-        Review what they picked. Add items from other gifts as paid add-ons — gift credit can cover
-        the difference.
+        Swap freely within what they already paid for. You only owe the difference if you upgrade
+        beyond that — gift credit can cover it.
       </Text>
 
       {saving ? (
@@ -224,10 +272,11 @@ function GiftBoxBody() {
               li={li}
               item={catalogItem}
               locked={false}
-              swapOptions={[]}
-              onSwap={() => undefined}
+              swapOptions={swapOptionsBySlot[li.slotId] ?? []}
+              onSwap={(opt) => void onSwap(li.slotId, opt)}
               formatPrice={formatDollars}
-              showPrice
+              showPrice={false}
+              meta={li.unitCents > 0 ? `${formatDollars(li.unitCents)} value` : 'Included in gift'}
               onRemove={() => void onRemove(li.itemId)}
               decrementMode={li.unitCents > 0 ? 'remove' : 'donate'}
             />
@@ -238,9 +287,21 @@ function GiftBoxBody() {
       <GiftFromOtherGiftsRail tiles={otherTiles} onAdd={(t) => void onAddFromOther(t)} />
 
       <View style={styles.summary}>
+        {prepaidAddOnCents > 0 ? (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Covered by gift</Text>
+            <Text style={styles.creditValue}>-{formatDollars(prepaidAddOnCents)}</Text>
+          </View>
+        ) : null}
+        {addOnValueCents > 0 ? (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Add-on value</Text>
+            <Text style={styles.summaryValue}>{formatDollars(addOnValueCents)}</Text>
+          </View>
+        ) : null}
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Add-ons</Text>
-          <Text style={styles.summaryValue}>{formatDollars(addOnCents)}</Text>
+          <Text style={styles.summaryLabel}>Your upgrades</Text>
+          <Text style={styles.summaryValue}>{formatDollars(upgradeCents)}</Text>
         </View>
         {creditApplied > 0 ? (
           <View style={styles.summaryRow}>
@@ -259,7 +320,7 @@ function GiftBoxBody() {
 
       <TouchableOpacity
         style={[styles.cta, confirming && styles.ctaDisabled]}
-        onPress={() => void (addOnCents > 0 ? goCheckout() : confirmFree())}
+        onPress={() => void (upgradeCents > 0 ? goCheckout() : confirmFree())}
         disabled={confirming || saving || lineItems.length === 0}
       >
         {confirming ? (

@@ -24,12 +24,20 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { useCatalog } from '../../hooks/useCatalog';
 import { createReceivedGiftCheckout } from '../../services/gift/giftFlow';
-import { formatDollars, chargeableLineTotal } from '../../services/box/buildDefaultBox';
-import { SHIPPING_FLAT_CENTS } from '../../services/box/pricing';
+import { formatDollars } from '../../services/box/buildDefaultBox';
+import {
+  resolveGiftPrepaidAddOnCents,
+  recipientGiftUpgradeCents,
+  SHIPPING_FLAT_CENTS,
+} from '../../services/box/pricing';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
 import { GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
 import type { MainStackParamList } from '../../navigation/types';
 import type { ShippingAddress } from '../../types/pilot';
+import {
+  validateShippingAddress,
+  type ShippingAddressFieldErrors,
+} from '../../utils/formValidation';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -112,12 +120,28 @@ function GiftBoxCheckoutBody() {
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
+
+  const onAddressChange = (patch: Partial<ShippingAddress>) => {
+    setAddressFieldErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch) as (keyof typeof patch)[]) {
+        if (key in next) delete next[key as keyof ShippingAddressFieldErrors];
+      }
+      return next;
+    });
+    if (Object.keys(patch).length) setFormError(null);
+    setAddress((a) => ({ ...a, ...patch }));
+  };
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
   const stripePromise = useMemo(() => (stripeKey ? loadStripe(stripeKey) : null), [stripeKey]);
 
-  const subtotal = chargeableLineTotal(lineItems);
+  const subtotal = recipientGiftUpgradeCents(
+    lineItems,
+    resolveGiftPrepaidAddOnCents(gift ?? {})
+  );
   const shippingCents = SHIPPING_FLAT_CENTS;
   const taxCents = Math.round((subtotal + shippingCents) * 0.075);
   const preCredit = subtotal + shippingCents + taxCents;
@@ -143,14 +167,13 @@ function GiftBoxCheckoutBody() {
 
   const startCheckout = async () => {
     setFormError(null);
-    if (!address.name.trim() || !address.line1.trim() || !address.city.trim()) {
-      setFormError('Please enter name, street address, and city.');
+    const addressResult = validateShippingAddress(address);
+    if (!addressResult.ok) {
+      setAddressFieldErrors(addressResult.fields);
+      setFormError(addressResult.message);
       return;
     }
-    if (!address.stateProvince.trim() || !address.postalCode.trim()) {
-      setFormError('Please enter state/province and postal code.');
-      return;
-    }
+    setAddressFieldErrors({});
     if (!gift || gift.status !== 'available') {
       setFormError('This gift is no longer available for checkout.');
       return;
@@ -247,7 +270,8 @@ function GiftBoxCheckoutBody() {
       />
       <CheckoutAddressFields
         address={address}
-        onChange={(patch) => setAddress((a) => ({ ...a, ...patch }))}
+        onChange={onAddressChange}
+        fieldErrors={addressFieldErrors}
       />
       {formError ? <Text style={styles.formError}>{formError}</Text> : null}
       <TouchableOpacity

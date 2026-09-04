@@ -23,20 +23,25 @@ import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import { useEffectiveBoxLocked, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
+import { startOwnBoxBuild } from '../../navigation/boxEntry';
 import { useCatalog } from '../../hooks/useCatalog';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
   formatCatalogDollars,
   formatDollars,
   totalCents,
-  unitCentsForTier,
   catalogSlotId,
 } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids, resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
 import { resolveSectionUpsellItems, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
-import { inferPricingTier, resolveCatalogDisplayPrices } from '../../services/box/pricing';
+import {
+  inferPricingTier,
+  resolveCatalogDisplayPrices,
+  boxAddOnUnitCents,
+} from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
+import { BoxProductModal } from '../../components/box/BoxProductModal';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
@@ -94,7 +99,7 @@ function lineItemsFingerprint(items: BoxLineItem[]): string {
   return [...items]
     .map(
       (li) =>
-        `${li.slotId}\0${li.itemId}\0${li.quantity}\0${li.unitCents}\0${li.isSurprise ? 1 : 0}\0${li.childId ?? ''}`
+        `${li.slotId}\0${li.itemId}\0${li.quantity}\0${li.unitCents}\0${li.isSurprise ? 1 : 0}\0${li.childId ?? ''}\0${li.displaySectionId ?? ''}`
     )
     .sort()
     .join('\n');
@@ -143,7 +148,7 @@ export function MyBoxScreen() {
     [colors, isDesktop],
   );
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const { loading: sessionLoading, profile, household } = useSession();
+  const { loading: sessionLoading, profile, household, refresh } = useSession();
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
   const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
@@ -160,6 +165,10 @@ export function MyBoxScreen() {
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [productModalItem, setProductModalItem] = useState<CatalogItem | null>(null);
+  const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(
+    null
+  );
   const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
   const { cardOnFile, openOrder, guardMutation, refreshOrders } = usePaymentGate();
@@ -252,8 +261,7 @@ export function MyBoxScreen() {
   const applySwap = async (slotIds: string[], newItem: CatalogItem) => {
     if (locked) return;
     // Guests edit the local draft (“Sign up to save”); payment gate is for signed-in paid extras.
-    const tier = inferPricingTier(newItem);
-    const nextUnit = unitCentsForTier(tier, newItem.dollarCostCents);
+    const nextUnit = boxAddOnUnitCents(newItem);
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     const idSet = new Set(slotIds);
     const next = lineItems.map((li) =>
@@ -416,16 +424,63 @@ export function MyBoxScreen() {
     );
   };
 
-  const openProduct = (itemId: string) => {
-    navigation.navigate('CatalogProduct', { slug: itemId });
+  const openProduct = (itemId: string, fromSection?: BoxDisplaySectionId) => {
+    const found = catalog.find((c) => c.id === itemId);
+    if (found) {
+      setProductModalSection(fromSection ?? null);
+      setProductModalItem(found);
+    }
   };
 
-  const onUpsellPress = (item: CatalogItem) => {
+  const onUpsellPress = (item: CatalogItem, fromSection: BoxDisplaySectionId) => {
     if (guestViewOnly) {
       requireAuthToCustomize('signup');
       return;
     }
-    openProduct(item.id);
+    setProductModalSection(fromSection);
+    setProductModalItem(item);
+  };
+
+  const modalAddToBox = async (item: CatalogItem) => {
+    if (locked) return;
+    const nextUnit = boxAddOnUnitCents(item);
+    if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
+    if (lineItems.some((li) => li.itemId === item.id)) return;
+    await persist([
+      ...lineItems,
+      {
+        slotId: item.slotId,
+        itemId: item.id,
+        quantity: 1,
+        unitCents: nextUnit,
+        label: item.name,
+        ...(productModalSection ? { displaySectionId: productModalSection } : null),
+      },
+    ]);
+  };
+
+  const modalSwapIntoBox = async (item: CatalogItem, source: BoxLineItem) => {
+    if (locked) return;
+    const nextUnit = boxAddOnUnitCents(item);
+    if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
+    const next = lineItems.map((li) =>
+      li.slotId === source.slotId
+        ? {
+            ...li,
+            slotId: slotIdAfterSwap(li.slotId, item),
+            itemId: item.id,
+            unitCents: nextUnit,
+            label: item.name,
+            ...(productModalSection ? { displaySectionId: productModalSection } : null),
+          }
+        : li
+    );
+    await persist(next);
+  };
+
+  const modalRemoveFromBox = async (item: CatalogItem) => {
+    if (locked) return;
+    await persist(lineItems.filter((li) => li.itemId !== item.id));
   };
 
   const boxItemIds = useMemo(
@@ -452,7 +507,7 @@ export function MyBoxScreen() {
     if (isChildProfile && !rawItems.length && sectionId !== 'presents') return null;
 
     const sectionSealed = sealedSectionIds?.includes(sectionId) ?? false;
-    const showUpsells = !isChildProfile && !sectionSealed;
+    const showUpsells = !isChildProfile && !sectionSealed && !locked;
 
     return (
       <BoxDetailSectionBlock
@@ -463,7 +518,7 @@ export function MyBoxScreen() {
         isLast={isLast}
         showUpsells={showUpsells}
         upsellItems={showUpsells ? upsellsBySection[sectionId] : undefined}
-        onUpsellPress={showUpsells ? onUpsellPress : undefined}
+        onUpsellPress={showUpsells ? (item) => onUpsellPress(item, sectionId) : undefined}
         trailing={
           showPresentsChecklist ? (
             <PresentsWrappableList
@@ -471,12 +526,17 @@ export function MyBoxScreen() {
               catalog={catalog}
               childrenProfiles={children}
               selectedItemIds={wrapSelectedIds}
-              onToggleWrapSelection={(itemId) => {
-                const next = new Set(wrapSelectedIds);
-                if (next.has(itemId)) next.delete(itemId);
-                else next.add(itemId);
-                void persistWrapSelection([...next]);
-              }}
+              locked={locked}
+              onToggleWrapSelection={
+                locked
+                  ? undefined
+                  : (itemId) => {
+                      const next = new Set(wrapSelectedIds);
+                      if (next.has(itemId)) next.delete(itemId);
+                      else next.add(itemId);
+                      void persistWrapSelection([...next]);
+                    }
+              }
             />
           ) : null
         }
@@ -563,7 +623,7 @@ export function MyBoxScreen() {
                       onSetKeepOrToss={(value) => void setKeepOrToss(li.slotId, value)}
                       decrementMode={group.unitCents === 0 ? 'donate' : 'remove'}
                       onRemove={() => void removeCoalesced(group)}
-                      onOpenProduct={() => openProduct(li.itemId)}
+                      onOpenProduct={() => openProduct(li.itemId, sectionId)}
                       formatPrice={formatDollars}
                     />
                   ) : (
@@ -643,14 +703,16 @@ export function MyBoxScreen() {
             <TouchableOpacity
               style={styles.emptyOwnBoxCta}
               onPress={() => {
-                if (!user) {
-                  startBuildBox();
-                  return;
-                }
-                navigation.navigate('StorefrontHome');
+                void startOwnBoxBuild(refresh);
               }}
             >
-              <Text style={styles.emptyOwnBoxCtaText}>Browse the store</Text>
+              <Text style={styles.emptyOwnBoxCtaText}>Build your box</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.emptyOwnBoxLink}
+              onPress={() => navigation.navigate('StorefrontHome')}
+            >
+              <Text style={styles.emptyOwnBoxLinkText}>Browse the store</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.emptyOwnBoxLink} onPress={() => navigation.navigate('Orders')}>
               <Text style={styles.emptyOwnBoxLinkText}>View your orders</Text>
@@ -814,10 +876,10 @@ export function MyBoxScreen() {
             style={({ pressed, hovered }) => [
               styles.checkoutCta,
               (hovered || pressed) && styles.checkoutCtaHover,
-              locked && styles.checkoutCtaDisabled,
+              !openOrder && locked && styles.checkoutCtaDisabled,
             ]}
             onPress={goToCheckout}
-            disabled={locked || lineItems.length === 0}
+            disabled={openOrder ? false : locked || lineItems.length === 0}
             accessibilityRole="button"
           >
             {({ pressed, hovered }) => (
@@ -930,6 +992,22 @@ export function MyBoxScreen() {
           </View>
         ) : null}
       </View>
+      <BoxProductModal
+        visible={!!productModalItem}
+        item={productModalItem}
+        catalog={catalog}
+        lineItems={lineItems}
+        context="ownBox"
+        locked={locked || guestViewOnly}
+        onClose={() => {
+          setProductModalItem(null);
+          setProductModalSection(null);
+        }}
+        onSelectItem={setProductModalItem}
+        onAdd={modalAddToBox}
+        onSwap={modalSwapIntoBox}
+        onRemove={modalRemoveFromBox}
+      />
     </StorefrontChrome>
   );
 }
@@ -1096,16 +1174,20 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   guestCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.sm,
     flexShrink: 0,
-    marginLeft: 'auto',
+    width: '100%',
+    marginTop: spacing.xs,
   },
   orderUpdateCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.md,
     flexShrink: 0,
-    marginLeft: 'auto',
+    width: '100%',
+    marginTop: spacing.xs,
   },
   orderDeltaCopy: {
     width: '100%',
@@ -1133,7 +1215,6 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     borderRadius: borderRadius.pill,
     alignItems: 'center',
     flexShrink: 0,
-    marginLeft: 'auto',
     ...(Platform.OS === 'web'
       ? ({
           cursor: 'pointer',

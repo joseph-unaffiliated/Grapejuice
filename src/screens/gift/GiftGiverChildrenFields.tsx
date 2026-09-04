@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
+import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import type { GiftChildDraft } from './giftGiveTypes';
 import { giftChildFromAge } from './giftGiveTypes';
+import {
+  GIFT_KID_AGE_CHOICES,
+  KidAgePicker,
+  type KidAgeChoice,
+} from '../../components/family/KidAgePicker';
 
-/** Same choices as onboarding Your Family kid Age row (0–12 + teen). */
-type KidAgeChoice = number | '13-17';
-const AGE_CHIP_GAP = 2;
-const KID_AGE_CHOICES: KidAgeChoice[] = [...Array.from({ length: 13 }, (_, i) => i), '13-17'];
 const MAX_KIDS = 4;
 
 type Props = {
@@ -31,12 +32,19 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
   const setKidAge = (index: number, choice: KidAgeChoice) => {
     if (disabled) return;
     const next = [...children];
-    next[index] = choice === '13-17' ? giftChildFromAge(15) : giftChildFromAge(choice);
+    if (choice === '18+') {
+      next[index] = giftChildFromAge(18);
+    } else if (choice === '13-17') {
+      next[index] = giftChildFromAge(15);
+    } else {
+      next[index] = giftChildFromAge(choice);
+    }
     onChange(next);
   };
 
   const kidAgeSelected = (kid: GiftChildDraft, choice: KidAgeChoice) => {
     const age = kid.plannerAge;
+    if (choice === '18+') return age >= 18;
     if (choice === '13-17') return age >= 13 && age <= 17;
     return age === choice;
   };
@@ -44,7 +52,9 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
   return (
     <View style={styles.wrap}>
       <Text style={styles.heading}>Kids&apos; ages (for curation)</Text>
-      <Text style={styles.hint}>Same age chips as box onboarding — we use them for books and presents.</Text>
+      <Text style={styles.hint}>
+        Same ages as box onboarding — we use them for books and presents.
+      </Text>
 
       <View style={styles.row}>
         <Text style={styles.label}>How many kids?</Text>
@@ -76,29 +86,12 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
           {i > 0 ? <View style={styles.divider} /> : null}
           <View style={styles.ageInline}>
             <Text style={styles.fieldLabel}>Kid {i + 1}</Text>
-            <View style={styles.ageRow}>
-              {KID_AGE_CHOICES.map((choice) => {
-                const on = kidAgeSelected(kid, choice);
-                const isBand = typeof choice === 'string';
-                return (
-                  <TouchableOpacity
-                    key={String(choice)}
-                    style={[styles.ageChip, isBand && styles.ageChipBand, on && styles.ageChipOn]}
-                    onPress={() => setKidAge(i, choice)}
-                    disabled={disabled}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                  >
-                    <Text
-                      style={[styles.ageText, isBand && styles.ageTextBand, on && styles.ageTextOn]}
-                      numberOfLines={1}
-                    >
-                      {choice}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <KidAgePicker
+              choices={GIFT_KID_AGE_CHOICES}
+              isSelected={(choice) => kidAgeSelected(kid, choice)}
+              onSelect={(choice) => setKidAge(i, choice)}
+              disabled={disabled}
+            />
           </View>
         </View>
       ))}
@@ -135,9 +128,9 @@ function createStyles() {
     },
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     stepBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: semanticColors.brand,
       backgroundColor: semanticColors.bgPrimary,
@@ -168,56 +161,15 @@ function createStyles() {
     },
     ageInline: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: spacing.sm,
       flexWrap: 'nowrap',
     },
     fieldLabel: {
       width: 48,
+      marginTop: 12,
       fontSize: typography.sm,
       color: semanticColors.textPrimary,
-      ...typeface('medium'),
-    },
-    ageRow: {
-      flex: 1,
-      flexDirection: 'row',
-      flexWrap: 'nowrap',
-      alignItems: 'center',
-      gap: AGE_CHIP_GAP,
-      minWidth: 0,
-    },
-    ageChip: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 0,
-      minWidth: 0,
-      paddingHorizontal: 1,
-      paddingVertical: 3,
-      borderRadius: borderRadius.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: semanticColors.brand,
-      backgroundColor: semanticColors.bgPrimary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    ageChipBand: {
-      flexGrow: 0,
-      flexShrink: 0,
-      flexBasis: 'auto',
-      paddingHorizontal: 4,
-    },
-    ageChipOn: { backgroundColor: '#000000' },
-    ageText: {
-      ...typeface('light'),
-      fontSize: typography.xs,
-      color: '#000000',
-    },
-    ageTextBand: {
-      ...typeface('regular'),
-      fontSize: typography.xs,
-    },
-    ageTextOn: {
-      color: '#FFFFFF',
       ...typeface('medium'),
     },
   });

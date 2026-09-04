@@ -166,6 +166,7 @@ export function displaySectionForLineItem(
   li: BoxLineItem,
   item?: CatalogItem | null
 ): BoxDisplaySectionId {
+  if (li.displaySectionId) return li.displaySectionId;
   if (GIFT_ITEM_SECTION[li.itemId]) return GIFT_ITEM_SECTION[li.itemId];
   if (item) {
     const fromItem = sectionFromBoxSections(item.boxSections);

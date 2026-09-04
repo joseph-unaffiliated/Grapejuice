@@ -5,6 +5,7 @@ import { SHIPPING_FLAT_CENTS } from '../../services/box/buildDefaultBox';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../types/pilot';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
+import { validateShippingAddress } from '../../utils/formValidation';
 
 export function useMarketplaceCheckout() {
   const { household } = useSession();
@@ -39,15 +40,7 @@ export function useMarketplaceCheckout() {
     postalCode: address.postalCode.trim(),
   });
 
-  const validateAddress = (): string | null => {
-    if (!address.name.trim() || !address.line1.trim() || !address.city.trim()) {
-      return 'Please enter name, street address, and city.';
-    }
-    if (!address.stateProvince.trim() || !address.postalCode.trim()) {
-      return 'Please enter state/province and postal code.';
-    }
-    return null;
-  };
+  const validateAddress = () => validateShippingAddress(address);
 
   const subtotal = cartItems.reduce(
     (sum, li) => sum + li.unitCents * Math.max(1, li.quantity || 1),

@@ -99,7 +99,10 @@ export function GiftGiveForm({
 
       {pathChosen ? (
         <>
-          <Text style={styles.label}>Recipient email</Text>
+          <Text style={styles.label}>
+            Recipient email
+            <Text style={styles.requiredMark}> *</Text>
+          </Text>
           <TextInput
             style={[styles.input, error ? styles.inputError : null]}
             value={values.recipientEmail}
@@ -110,7 +113,7 @@ export function GiftGiveForm({
             placeholder="parent@example.com"
             placeholderTextColor={colors.textTertiary}
             editable={!submitting}
-            accessibilityLabel="Recipient email"
+            accessibilityLabel="Recipient email, required"
           />
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -190,6 +193,10 @@ function createStyles(colors: SemanticColors) {
       color: colors.textPrimary,
       marginBottom: spacing.xs,
       marginTop: spacing.md,
+      ...typeface('medium'),
+    },
+    requiredMark: {
+      color: '#B42318',
       ...typeface('medium'),
     },
     input: {

@@ -150,8 +150,8 @@ export function StorefrontHero({
         fill
         style={styles.media}
       />
-      {/* Bottom scrim only — keeps the photo clear above, text readable below */}
-      <View style={styles.scrim} pointerEvents="none" />
+      {/* Bottom scrim — heavier on mobile so white type stays readable */}
+      <View style={[styles.scrim, compact && styles.scrimCompact]} pointerEvents="none" />
       <View
         style={[styles.overlay, compact && styles.overlayCompact]}
         pointerEvents="box-none"
@@ -231,6 +231,15 @@ const styles = StyleSheet.create({
             'linear-gradient(to top, rgba(17, 2, 34, 0.72) 0%, rgba(17, 2, 34, 0.28) 55%, transparent 100%)',
         } as object)
       : { backgroundColor: 'rgba(17, 2, 34, 0.4)' }),
+  },
+  scrimCompact: {
+    height: '72%',
+    ...(Platform.OS === 'web'
+      ? ({
+          backgroundImage:
+            'linear-gradient(to top, rgba(17, 2, 34, 0.88) 0%, rgba(17, 2, 34, 0.55) 42%, rgba(17, 2, 34, 0.22) 72%, transparent 100%)',
+        } as object)
+      : { backgroundColor: 'rgba(17, 2, 34, 0.62)' }),
   },
   overlay: {
     position: 'absolute',

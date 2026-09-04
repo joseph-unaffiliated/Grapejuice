@@ -26,6 +26,7 @@ export function readGiftLandingFromWindow(): {
   const boot = getBootLocation();
   const path = (boot?.pathname ?? window.location.pathname).replace(/\/$/, '') || '/';
   if (path.endsWith('/gift/claim')) return null;
+  if (path === '/gift/give' || path === '/gift/customize') return null;
 
   const fromPath = landingAudienceFromPath(path);
   const utm = readUtmFromWindow();

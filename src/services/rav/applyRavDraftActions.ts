@@ -1,5 +1,5 @@
 import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot';
-import { inferPricingTier, unitCentsForTier } from '../box/pricing';
+import { boxAddOnUnitCents } from '../box/pricing';
 
 export type ApplyRavActionsResult = {
   lineItems: BoxLineItem[];
@@ -8,12 +8,11 @@ export type ApplyRavActionsResult = {
 };
 
 function catalogLine(item: CatalogItem, slotId: string, childId?: string): BoxLineItem {
-  const tier = inferPricingTier(item);
   return {
     slotId,
     itemId: item.id,
     quantity: 1,
-    unitCents: unitCentsForTier(tier, item.dollarCostCents),
+    unitCents: boxAddOnUnitCents(item),
     childId,
     label: item.name,
   };

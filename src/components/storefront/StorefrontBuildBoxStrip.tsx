@@ -26,19 +26,20 @@ const CTA_SHADOW = '#7A6E42';
 const CTA_PRESS_OFFSET_Y = 4;
 
 /**
- * Reverse vignette — circle sized to strip width (diameter = width, top/bottom may clip).
- * Warm dark + soft-light deepens without black-multiply gray-out; light warm multiply adds punch.
+ * Reverse vignette — sized *wider* than the strip so mobile copy stays over the
+ * dark core (farthest-side circles shrink with the viewport and bleach edge text).
+ * Warm dark + soft-light deepens without black-multiply gray-out; light multiply adds punch.
  */
 const VIGNETTE_SOFT_LIGHT_WEB =
-  'radial-gradient(circle farthest-side at 50% 50%, rgba(36, 24, 14, 0.95) 0%, rgba(48, 32, 20, 0.78) 36%, rgba(58, 40, 26, 0.42) 64%, transparent 100%)';
+  'radial-gradient(ellipse 165% 125% at 50% 50%, rgba(36, 24, 14, 0.95) 0%, rgba(48, 32, 20, 0.84) 45%, rgba(58, 40, 26, 0.55) 72%, transparent 100%)';
 const VIGNETTE_MULTIPLY_WEB =
-  'radial-gradient(circle farthest-side at 50% 50%, rgba(52, 34, 20, 0.58) 0%, rgba(58, 40, 26, 0.34) 40%, transparent 72%)';
+  'radial-gradient(ellipse 155% 115% at 50% 50%, rgba(52, 34, 20, 0.62) 0%, rgba(58, 40, 26, 0.4) 50%, transparent 80%)';
 
-/** Warm wood-tone dark for native overlay (no mix-blend); circle radius = half strip width. */
+/** Warm wood-tone dark for native overlay (no mix-blend); radius ~0.85× width so it overshoots the sides. */
 const NATIVE_VIGNETTE_STOPS = [
-  { offset: '0', color: '#24180e', opacity: '0.85' },
-  { offset: '0.36', color: '#322214', opacity: '0.55' },
-  { offset: '0.64', color: '#3a281a', opacity: '0.28' },
+  { offset: '0', color: '#24180e', opacity: '0.88' },
+  { offset: '0.42', color: '#322214', opacity: '0.62' },
+  { offset: '0.72', color: '#3a281a', opacity: '0.36' },
   { offset: '1', color: '#3a281a', opacity: '0' },
 ] as const;
 
@@ -49,7 +50,7 @@ function NativeReverseVignette({ width, height }: { width: number; height: numbe
 
   const cx = width / 2;
   const cy = height / 2;
-  const r = width / 2;
+  const r = width * 0.85;
 
   return (
     <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -107,7 +108,7 @@ export function StorefrontBuildBoxStrip({
       resizeMode="cover"
       onLayout={onLayout}
     >
-      {/* Reverse vignette: warm soft-light + light multiply; circle = strip width */}
+      {/* Reverse vignette: warm soft-light + light multiply; ellipse wider than strip */}
       {isWeb ? (
         <>
           <View style={styles.vignetteSoftLight} pointerEvents="none" />

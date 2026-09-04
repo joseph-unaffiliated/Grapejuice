@@ -56,6 +56,9 @@ import { AdminControlPanel } from '../components/storefront/AdminControlPanel';
 import { getBootLocation } from './bootLocation';
 import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
+import { isGiftCustomizePath, isGiftGivePath } from './giftFlowLink';
+import { useGiftIntentStore } from '../stores/giftIntentStore';
+import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 
 const Stack = createStackNavigator<MainStackParamList>();
 
@@ -78,6 +81,9 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
   if (pendingReturn === 'GiftClaim') return 'GiftClaim';
   if (useAuthFlowStore.getState().pendingGiftClaimToken) return 'GiftClaim';
   if (useGuestSessionStore.getState().openMyBoxAfterReveal) return 'MyBox';
+  const bootPath = getBootLocation()?.pathname;
+  if (bootPath && isGiftCustomizePath(bootPath)) return 'GiftGiverCustomize';
+  if (bootPath && isGiftGivePath(bootPath)) return 'GiftGive';
   const bootAudience = bootLandingAudience();
   if (bootAudience?.id === 'gift') return 'GiftLanding';
   if (bootAudience) return 'DynamicLanding';
@@ -249,17 +255,50 @@ export function MainStack() {
   const pendingAtMount = peekPendingMainNav();
   const giftDraftAtMount =
     initialRouteName === 'GiftGiverCustomize'
-      ? useAuthFlowStore.getState().pendingGiftCustomize
+      ? useAuthFlowStore.getState().pendingGiftCustomize ??
+        (() => {
+          const intent = useGiftIntentStore.getState();
+          if (intent.status === 'incomplete' && intent.draft?.form) {
+            return {
+              form: { ...intent.draft.form, giftPath: 'customize' as const },
+              childDrafts: intent.draft.childDrafts?.length
+                ? intent.draft.childDrafts
+                : DEFAULT_GIFT_CHILDREN,
+              lineItems: intent.draft.lineItems,
+            };
+          }
+          return {
+            form: {
+              recipientEmail: '',
+              giverName: '',
+              message: '',
+              giftPath: 'customize' as const,
+            },
+            childDrafts: DEFAULT_GIFT_CHILDREN,
+          };
+        })()
       : initialRouteName === 'GiftGive'
         ? (() => {
-            const draft = useAuthFlowStore.getState().pendingGiftGive;
-            if (!draft) return null;
-            return {
-              form: draft.form,
-              childDrafts: draft.childDrafts,
-              initialGiftPath: draft.form.giftPath,
-              autoStartPayment: true,
-            };
+            const authDraft = useAuthFlowStore.getState().pendingGiftGive;
+            if (authDraft) {
+              return {
+                form: authDraft.form,
+                childDrafts: authDraft.childDrafts,
+                initialGiftPath: authDraft.form.giftPath,
+                autoStartPayment: true,
+              };
+            }
+            const intent = useGiftIntentStore.getState();
+            if (intent.status === 'incomplete' && intent.draft?.form) {
+              return {
+                form: intent.draft.form,
+                childDrafts: intent.draft.childDrafts?.length
+                  ? intent.draft.childDrafts
+                  : DEFAULT_GIFT_CHILDREN,
+                initialGiftPath: intent.draft.form.giftPath ?? undefined,
+              };
+            }
+            return null;
           })()
         : initialRouteName === 'GiftClaim'
           ? { token: useAuthFlowStore.getState().pendingGiftClaimToken ?? undefined }

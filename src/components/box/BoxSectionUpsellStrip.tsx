@@ -6,7 +6,11 @@ import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import { HorizontalDragScrollView } from '../home/HorizontalDragScrollView';
 import { HORIZONTAL_RAIL_SCROLL_CLASS } from '../home/CatalogProductRail';
-import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
+import {
+  HorizontalScrollEdgeFades,
+  useHorizontalScrollEdges,
+} from '../ui/ScrollEdgeFades';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
@@ -23,6 +27,7 @@ type Props = {
 export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const edges = useHorizontalScrollEdges();
 
   if (!items.length) return null;
 
@@ -31,41 +36,52 @@ export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }
       <Text style={styles.label} numberOfLines={1}>
         {label}
       </Text>
-      <HorizontalDragScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.scroller}
-        contentContainerStyle={styles.scrollerContent}
-        // @ts-expect-error web className
-        className={Platform.OS === 'web' ? HORIZONTAL_RAIL_SCROLL_CLASS : undefined}
-      >
-        {items.map((item) => {
-          const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
-          const cents = memberCents > 0 ? memberCents : nonMemberCents;
-          const price = cents > 0 ? formatCatalogDollars(cents) : 'Add';
-          return (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.tile}
-              onPress={() => onPressItem(item)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`${item.name}, ${price}`}
-            >
-              <BoxItemImage
-                size={TILE}
-                imageUrl={item.imageUrl}
-                itemId={item.id}
-                style={styles.image}
-              />
-              <Text style={styles.price}>{price}</Text>
-              <Text style={styles.name} numberOfLines={2}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </HorizontalDragScrollView>
+      <View style={styles.railWrap}>
+        <HorizontalDragScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.scroller}
+          contentContainerStyle={styles.scrollerContent}
+          onScroll={edges.onScroll}
+          onLayout={edges.onLayout}
+          onContentSizeChange={edges.onContentSizeChange}
+          scrollEventThrottle={16}
+          // @ts-expect-error web className
+          className={Platform.OS === 'web' ? HORIZONTAL_RAIL_SCROLL_CLASS : undefined}
+        >
+          {items.map((item) => {
+            const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
+            const cents = memberCents > 0 ? memberCents : nonMemberCents;
+            const price = cents > 0 ? formatCatalogDollars(cents) : 'Add';
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.tile}
+                onPress={() => onPressItem(item)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, ${price}`}
+              >
+                <BoxItemImage
+                  size={TILE}
+                  imageUrl={item.imageUrl}
+                  itemId={item.id}
+                  style={styles.image}
+                />
+                <Text style={styles.price}>{price}</Text>
+                <Text style={styles.name} numberOfLines={2}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </HorizontalDragScrollView>
+        <HorizontalScrollEdgeFades
+          showLeft={edges.showLeft}
+          showRight={edges.showRight}
+          color={semanticColors.bgPrimary}
+        />
+      </View>
     </View>
   );
 }
@@ -89,6 +105,11 @@ function createStyles(colors: SemanticColors) {
       paddingBottom: 2,
       zIndex: 1,
     },
+    railWrap: {
+      position: 'relative',
+      width: '100%',
+      overflow: 'hidden',
+    },
     /** Edge-to-edge within section content — no side padding on the scroller. */
     scroller: {
       width: '100%',
@@ -100,7 +121,7 @@ function createStyles(colors: SemanticColors) {
             overflowX: 'auto',
             overflowY: 'hidden',
             WebkitOverflowScrolling: 'touch',
-            touchAction: 'pan-x',
+            touchAction: 'pan-y',
             overscrollBehaviorX: 'contain',
           } as object)
         : {}),
@@ -108,9 +129,8 @@ function createStyles(colors: SemanticColors) {
     scrollerContent: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      // Center when thumbs fit; when they overflow, content grows past the
-      // viewport so justifyContent has no free space and scroll stays left-start.
-      justifyContent: 'center',
+      // Left-start so overflow always scrolls rightward from the first product.
+      justifyContent: 'flex-start',
       flexGrow: 1,
       gap: spacing.sm,
       paddingVertical: spacing.xs,

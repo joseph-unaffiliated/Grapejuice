@@ -1,12 +1,12 @@
 import { Platform, StyleSheet } from 'react-native';
-import { spacing, typography, borderRadius, MOBILE_GUTTER, typeface } from '../../constants/theme';
+import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 
 /** Figma 370:3524 — tab row horizontal inset. */
 export const BOX_DETAIL_TAB_GUTTER = 32;
 
-/** Figma 370:3534 — section horizontal inset. */
-export const BOX_DETAIL_SECTION_GUTTER = MOBILE_GUTTER;
+/** Figma 370:3534 — section horizontal inset (tighter than page gutter for mobile). */
+export const BOX_DETAIL_SECTION_GUTTER = 16;
 
 export const BOX_DETAIL_SCROLL_SPY_OFFSET = 56;
 

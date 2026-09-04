@@ -27,11 +27,17 @@ import {
   spacing,
   typeface,
 } from '../../constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
 type Props = {
   onLogoPress?: () => void;
+  /**
+   * When the promo strip is hidden, pad the header for the notch / status bar.
+   * Promo strip normally owns that inset on Home.
+   */
+  padTopSafeArea?: boolean;
 };
 
 /** Preferred side column width on a wide desktop row. */
@@ -60,14 +66,21 @@ function canFitDesktopSearch(windowWidth: number): boolean {
  * Desktop: logo left, centered SearchPill + Rav, account menu right.
  * Mobile: menu + mark | account; full-width search + Rav below.
  */
-export function StorefrontHeader({ onLogoPress }: Props) {
+export function StorefrontHeader({ onLogoPress, padTopSafeArea = false }: Props) {
   const navigation = useNavigation<Nav>();
   const leave = useStorefrontLeave();
   const { openRav } = useStorefrontRav();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [navOpen, setNavOpen] = useState(false);
   const { width } = useWindowDimensions();
   const compact = width < LAYOUT.BREAKPOINT_TABLET || !canFitDesktopSearch(width);
+
+  const safeTopPad = padTopSafeArea
+    ? Platform.OS === 'web'
+      ? (`max(${spacing.sm}px, env(safe-area-inset-top, 0px))` as unknown as number)
+      : spacing.sm + insets.top
+    : undefined;
 
   const submitSearch = () => {
     const msg = query.trim();
@@ -152,7 +165,7 @@ export function StorefrontHeader({ onLogoPress }: Props) {
 
   if (compact) {
     return (
-      <View style={[styles.root, styles.rootMobile]}>
+      <View style={[styles.root, styles.rootMobile, safeTopPad != null ? { paddingTop: safeTopPad } : null]}>
         <View style={styles.mobileTop}>
           <View style={styles.mobileLeft}>
             <TouchableOpacity
@@ -181,7 +194,7 @@ export function StorefrontHeader({ onLogoPress }: Props) {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, safeTopPad != null ? { paddingTop: safeTopPad } : null]}>
       <View style={styles.row}>
         <View style={styles.sideLeft}>{desktopLogo}</View>
         <View style={styles.searchMiddle} pointerEvents="box-none">

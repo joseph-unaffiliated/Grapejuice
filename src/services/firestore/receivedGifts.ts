@@ -16,6 +16,10 @@ function toReceivedGift(id: string, data: Record<string, unknown>): ReceivedGift
     message: typeof data.message === 'string' ? data.message : undefined,
     kind: data.kind === 'box' ? 'box' : 'credit',
     creditCents: Number(data.creditCents ?? 0),
+    prepaidAddOnCents:
+      data.prepaidAddOnCents != null && Number.isFinite(Number(data.prepaidAddOnCents))
+        ? Math.max(0, Math.round(Number(data.prepaidAddOnCents)))
+        : undefined,
     lineItems: Array.isArray(data.lineItems) ? (data.lineItems as BoxLineItem[]) : undefined,
     status,
     claimedAt: String(data.claimedAt ?? ''),

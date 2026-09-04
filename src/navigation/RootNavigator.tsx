@@ -27,6 +27,7 @@ import { readDevPreviewFromWindow } from './devPreview';
 import { WebBrowserHistoryBridge } from './WebBrowserHistoryBridge';
 import { GiftClaimLinkEffect } from './GiftClaimLinkEffect';
 import { GiftLandingLinkEffect } from './GiftLandingLinkEffect';
+import { GiftFlowLinkEffect } from './GiftFlowLinkEffect';
 import { LandingLinkEffect } from './LandingLinkEffect';
 import './bootLocation';
 import { ProductLinkEffect } from './ProductLinkEffect';
@@ -393,6 +394,7 @@ export function RootNavigator() {
         >
           <WebBrowserHistoryBridge />
           <GiftClaimLinkEffect />
+          <GiftFlowLinkEffect />
           <GiftLandingLinkEffect />
           <LandingLinkEffect />
           <ProductLinkEffect />

@@ -151,7 +151,7 @@ function HeroSection({
   return (
     <View style={[styles.hero, compact && styles.heroCompact]}>
       <StorefrontMediaPlaceholder slot={section.slot} quiet fill style={styles.heroMedia} />
-      <View style={styles.scrim} pointerEvents="none" />
+      <View style={[styles.scrim, compact && styles.scrimCompact]} pointerEvents="none" />
       <View style={[styles.heroCopy, compact && styles.heroCopyCompact]}>
         <Text style={[styles.headline, compact && styles.headlineCompact]}>
           {section.slot.headline}
@@ -295,6 +295,15 @@ const styles = StyleSheet.create({
             'linear-gradient(to top, rgba(17, 2, 34, 0.72) 0%, rgba(17, 2, 34, 0.28) 55%, transparent 100%)',
         } as object)
       : { backgroundColor: 'rgba(17, 2, 34, 0.45)' }),
+  },
+  scrimCompact: {
+    height: '76%',
+    ...(Platform.OS === 'web'
+      ? ({
+          backgroundImage:
+            'linear-gradient(to top, rgba(17, 2, 34, 0.88) 0%, rgba(17, 2, 34, 0.55) 42%, rgba(17, 2, 34, 0.22) 72%, transparent 100%)',
+        } as object)
+      : { backgroundColor: 'rgba(17, 2, 34, 0.62)' }),
   },
   heroCopy: {
     paddingHorizontal: MOBILE_GUTTER,

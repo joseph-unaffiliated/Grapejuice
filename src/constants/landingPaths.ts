@@ -10,6 +10,8 @@ export const RESERVED_LANDING_PATHS: readonly string[] = [
   '/product',
   '/gift',
   '/gift/claim',
+  '/gift/give',
+  '/gift/customize',
   '/admin',
   '/checkout',
   '/auth',
@@ -20,6 +22,7 @@ export const RESERVED_LANDING_PATHS: readonly string[] = [
   '/cart',
   '/account',
   '/orders',
+  '/my-gifts',
   '/rav',
 ];
 
@@ -47,6 +50,8 @@ export function isReservedLandingPath(path: string): boolean {
   if (!normalized) return true;
   if (RESERVED_LANDING_PATHS.includes(normalized)) return true;
   if (normalized === '/gift/claim' || normalized.startsWith('/gift/claim/')) return true;
+  if (normalized === '/gift/give' || normalized === '/gift/customize') return true;
+  if (normalized === '/my-gifts' || normalized.startsWith('/my-gifts/')) return true;
   if (normalized.startsWith('/store/')) return true;
   if (normalized.startsWith('/product/')) return true;
   if (normalized.startsWith('/admin')) return true;

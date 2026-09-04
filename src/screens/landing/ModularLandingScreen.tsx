@@ -12,6 +12,7 @@ import { semanticColors } from '../../constants/theme';
 import { useLandingConfig } from '../../hooks/useLandingConfig';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useOwnBoxStep } from '../../hooks/useOwnBoxStep';
+import { useSession } from '../../hooks/useSession';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { applyOwnBoxCtaCopy } from './landingBoxCtas';
 import type { MainStackParamList } from '../../navigation/types';
@@ -41,6 +42,7 @@ export function ModularLandingScreen({
   const { width } = useWindowDimensions();
   const compact = width < 768;
   const isAuthenticated = usePreviewedIsAuthenticated();
+  const { refresh } = useSession();
   const { config, loading: configLoading } = useLandingConfig(audienceId);
   const resolved = config ?? landingAudienceById(audienceId);
   const ownBoxStep = useOwnBoxStep();
@@ -68,9 +70,10 @@ export function ModularLandingScreen({
           navigation.navigate('Checkout');
           break;
         }
-        // Reachable by someone who already has a box, so route through the
-        // shared entry rather than restarting a build the gate would reject.
-        openBoxSurface(isAuthenticated);
+        openBoxSurface(isAuthenticated, {
+          hasOwnBox: ownBoxStep !== 'none',
+          refreshSession: refresh,
+        });
         break;
       case 'store':
         navigation.navigate('StorefrontHome');

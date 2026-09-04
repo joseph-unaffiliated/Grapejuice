@@ -13,17 +13,37 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MainStackParamList } from '../../navigation/types';
-import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
-import { formatDollars } from '../../services/box/buildDefaultBox';
-import { inferPricingTier } from '../../services/box/pricing';
+import {
+  formatCatalogDollars,
+  formatDollars,
+  totalCents,
+  catalogSlotId,
+} from '../../services/box/buildDefaultBox';
+import { listBoxCentsForKids } from '../../services/box/boxRules';
+import { resolveSectionUpsellItems } from '../../services/box/sectionUpsells';
+import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
+import { BoxProductModal } from '../../components/box/BoxProductModal';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
+import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
+import {
+  childNamesForLines,
+  coalesceLinesByItemId,
+  formatBoxItemStatusMeta,
+  fullCardLinesForSection,
+  isWrapControlSlot,
+  resolveBoxItemAttributionKind,
+  wrappableLinesInBox,
+  wrapControlLines,
+  type CoalescedBoxLine,
+} from '../../components/box/boxLineDisplay';
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
+  BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
   nonEmptyDisplaySectionIds,
   type BoxDisplaySectionId,
@@ -55,8 +75,20 @@ type Props = {
   kidProfiles: ChildProfile[];
   loading: boolean;
   submitting: boolean;
-  applySwap: (slotId: string, item: CatalogItem) => void;
-  swapOptionsFor: (li: BoxLineItem) => CatalogItem[];
+  wrapSelectedItemIds?: string[];
+  applySwap: (
+    slotIds: string[],
+    item: CatalogItem,
+    opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
+  ) => void;
+  swapToPreWrap: (slotIds: string[]) => void;
+  swapOptionsBySlot: Record<string, CatalogItem[]>;
+  removeCoalesced: (group: CoalescedBoxLine) => void;
+  addItem: (
+    item: CatalogItem,
+    opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
+  ) => void;
+  persistWrapSelection: (itemIds: string[]) => void;
   onPay: () => void;
   onRequireAuth?: (entry: 'signup' | 'signin') => void;
   payError?: string | null;
@@ -78,8 +110,13 @@ export function GiftGiverCustomizeContent({
   kidProfiles,
   loading,
   submitting,
+  wrapSelectedItemIds = [],
   applySwap,
-  swapOptionsFor,
+  swapToPreWrap,
+  swapOptionsBySlot,
+  removeCoalesced,
+  addItem,
+  persistWrapSelection,
   onPay,
   onRequireAuth,
   payError,
@@ -92,6 +129,10 @@ export function GiftGiverCustomizeContent({
   const insets = useSafeAreaInsets();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [catalogById, setCatalogById] = useState<Record<string, CatalogItem>>({});
+  const [productModalItem, setProductModalItem] = useState<CatalogItem | null>(null);
+  const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(
+    null
+  );
   const styles = useMemo(() => createGiftCustomizeStyles(colors, isDesktop), [colors, isDesktop]);
   const detailStyles = useMemo(
     () => createBoxDetailStyles(colors, { desktop: isDesktop }),
@@ -106,28 +147,64 @@ export function GiftGiverCustomizeContent({
     setCatalogById(map);
   }, [catalog]);
 
-  const includedItems = useMemo(
-    () =>
-      lineItems.filter((li) => {
-        const item = catalogById[li.itemId];
-        if (!item) return true;
-        const tier = inferPricingTier(item);
-        return tier === 'included' || tier === 'perKid';
-      }),
-    [lineItems, catalogById],
-  );
+  const kidsCount = Math.max(1, kidProfiles.length);
+  const boxPriceCents = listBoxCentsForKids(kidsCount);
+  const wrapSelectedIds = useMemo(() => new Set(wrapSelectedItemIds), [wrapSelectedItemIds]);
 
   const grouped = useMemo(
-    () => groupLineItemsByDisplaySection(includedItems, catalog),
-    [includedItems, catalog],
+    () => groupLineItemsByDisplaySection(lineItems, catalog),
+    [lineItems, catalog],
   );
-  const visibleSectionIds = useMemo(() => nonEmptyDisplaySectionIds(grouped), [grouped]);
+
+  const hasPresentsChecklist = useMemo(
+    () =>
+      wrappableLinesInBox(lineItems, catalog).length > 0 || wrapControlLines(lineItems).length > 0,
+    [lineItems, catalog],
+  );
+
+  const visibleSectionIds = useMemo(() => {
+    const candidates = BOX_DISPLAY_SECTIONS.map((section) => section.id);
+    return nonEmptyDisplaySectionIds(
+      grouped,
+      candidates,
+      hasPresentsChecklist ? ['presents'] : undefined,
+    );
+  }, [grouped, hasPresentsChecklist]);
+
   const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
     useBoxDetailScroll({ visibleSectionIds });
 
+  const boxItemIds = useMemo(() => new Set(lineItems.map((li) => li.itemId)), [lineItems]);
+
+  const upsellsBySection = useMemo(() => {
+    const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
+    for (const section of BOX_DISPLAY_SECTIONS) {
+      map[section.id] = resolveSectionUpsellItems(section.id, catalog, boxItemIds, 8);
+    }
+    return map;
+  }, [catalog, boxItemIds]);
+
+  const chargeableExtras = useMemo(
+    () =>
+      lineItems
+        .filter((li) => li.itemId.startsWith('extra-') || li.slotId.startsWith('extra-') || li.unitCents > 0)
+        .reduce((sum, li) => sum + li.unitCents * (li.quantity ?? 1), 0),
+    [lineItems],
+  );
+
+  const subtotal = useMemo(() => totalCents(lineItems, boxPriceCents), [lineItems, boxPriceCents]);
+
   const renderSection = (sectionId: BoxDisplaySectionId, isLast = false) => {
-    const items = grouped[sectionId];
-    if (!items.length) return null;
+    const rawItems = grouped[sectionId] ?? [];
+    const isPresents = sectionId === 'presents';
+    const cardItems = fullCardLinesForSection(sectionId, rawItems);
+    const coalesced = coalesceLinesByItemId(cardItems);
+    const showPresentsChecklist = isPresents && hasPresentsChecklist;
+
+    if (!coalesced.length && !showPresentsChecklist) return null;
+
+    const upsellItems = upsellsBySection[sectionId];
+    const showUpsells = (upsellItems?.length ?? 0) > 0;
 
     return (
       <BoxDetailSectionBlock
@@ -136,19 +213,73 @@ export function GiftGiverCustomizeContent({
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
         isLast={isLast}
+        showUpsells={showUpsells}
+        upsellItems={showUpsells ? upsellItems : undefined}
+        onUpsellPress={
+          showUpsells
+            ? (item) => {
+                setProductModalSection(sectionId);
+                setProductModalItem(item);
+              }
+            : undefined
+        }
+        trailing={
+          showPresentsChecklist ? (
+            <PresentsWrappableList
+              lineItems={lineItems}
+              catalog={catalog}
+              childrenProfiles={kidProfiles}
+              selectedItemIds={wrapSelectedIds}
+              onToggleWrapSelection={(itemId) => {
+                const next = new Set(wrapSelectedIds);
+                if (next.has(itemId)) next.delete(itemId);
+                else next.add(itemId);
+                persistWrapSelection([...next]);
+              }}
+            />
+          ) : null
+        }
       >
-        {items.map((li) => {
-          const item = catalogById[li.itemId];
-          const kid = kidProfiles.find((c) => c.id === li.childId);
+        {coalesced.map((group) => {
+          const li = group.primary;
+          const item = catalogById[li.itemId] ?? catalog.find((c) => c.id === li.itemId);
+          const names = childNamesForLines(group.lines, kidProfiles);
+          const memberValueCents = item ? resolveCatalogDisplayPrices(item).memberCents : 0;
+          const presentMeta = formatBoxItemStatusMeta(
+            group.unitCents,
+            names,
+            formatCatalogDollars,
+            memberValueCents,
+            resolveBoxItemAttributionKind(group.lines, item),
+          );
+          const isWrappingPaper =
+            isWrapControlSlot(li.slotId) &&
+            (catalogSlotId(li.slotId) === 'wrapping-paper' ||
+              catalogSlotId(li.slotId) === 'wrapping' ||
+              /wrapping.?paper/i.test(`${li.itemId} ${li.label ?? ''} ${item?.name ?? ''}`));
+
           return (
             <BoxItemRow
-              key={li.slotId + li.itemId}
+              key={group.key}
               li={li}
               item={item}
-              meta={kid ? `Present for ${kid.name || 'your kid'}` : undefined}
+              meta={presentMeta}
               locked={false}
-              swapOptions={swapOptionsFor(li)}
-              onSwap={(nextItem) => applySwap(li.slotId, nextItem)}
+              swapOptions={swapOptionsBySlot[li.slotId] ?? []}
+              onSwap={(opt) => applySwap(group.lines.map((line) => line.slotId), opt)}
+              swapLabel={isWrappingPaper ? 'pre-wrap presents instead' : undefined}
+              onPrimarySwapAction={
+                isWrappingPaper
+                  ? () => swapToPreWrap(group.lines.map((line) => line.slotId))
+                  : undefined
+              }
+              decrementMode={group.unitCents === 0 ? 'donate' : 'remove'}
+              onRemove={() => removeCoalesced(group)}
+              onOpenProduct={() => {
+                if (!item) return;
+                setProductModalSection(sectionId);
+                setProductModalItem(item);
+              }}
               formatPrice={formatDollars}
             />
           );
@@ -201,7 +332,6 @@ export function GiftGiverCustomizeContent({
   }
 
   const floatBottom = Math.max(insets.bottom, spacing.md);
-  const kidsCount = Math.max(1, kidProfiles.length);
 
   const summaryPanel = (
     <View
@@ -215,11 +345,17 @@ export function GiftGiverCustomizeContent({
           <Text style={styles.summaryLabel}>
             {kidsCount === 1 ? 'Gift box (1 kid)' : `Gift box (${kidsCount} kids)`}
           </Text>
-          <Text style={styles.summaryValue}>{formatDollars(DEFAULT_BOX_PRICE_CENTS)}</Text>
+          <Text style={styles.summaryValue}>{formatDollars(boxPriceCents)}</Text>
         </View>
+        {chargeableExtras > 0 ? (
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Add-ons</Text>
+            <Text style={styles.summaryValue}>{formatDollars(chargeableExtras)}</Text>
+          </View>
+        ) : null}
         <View style={styles.summaryTotalItem}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>{formatDollars(DEFAULT_BOX_PRICE_CENTS)}</Text>
+          <Text style={styles.totalValue}>{formatDollars(subtotal)}</Text>
         </View>
         {!isAuthenticated ? (
           <View style={styles.guestCtaRow}>
@@ -328,6 +464,35 @@ export function GiftGiverCustomizeContent({
       <View style={[styles.summaryFloat, { bottom: floatBottom }]} pointerEvents="box-none">
         <View style={styles.summaryFloatInner}>{summaryPanel}</View>
       </View>
+      <BoxProductModal
+        visible={!!productModalItem}
+        item={productModalItem}
+        catalog={catalog}
+        lineItems={lineItems}
+        context="giftBox"
+        onClose={() => {
+          setProductModalItem(null);
+          setProductModalSection(null);
+        }}
+        onSelectItem={setProductModalItem}
+        onAdd={(next) =>
+          addItem(
+            next,
+            productModalSection ? { displaySectionId: productModalSection } : undefined
+          )
+        }
+        onSwap={(next, source) =>
+          applySwap(
+            [source.slotId],
+            next,
+            productModalSection ? { displaySectionId: productModalSection } : undefined
+          )
+        }
+        onRemove={(next) => {
+          const group = coalesceLinesByItemId(lineItems.filter((li) => li.itemId === next.id))[0];
+          if (group) removeCoalesced(group);
+        }}
+      />
     </View>
   );
 }
@@ -484,9 +649,11 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     guestCtaRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       gap: spacing.sm,
       flexShrink: 0,
-      marginLeft: 'auto',
+      width: '100%',
+      marginTop: spacing.xs,
     },
     guestPrimaryCta: {
       marginLeft: 0,
@@ -508,7 +675,6 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       justifyContent: 'center',
       minHeight: 36,
       flexShrink: 0,
-      marginLeft: 'auto',
       ...(Platform.OS === 'web'
         ? ({
             cursor: 'pointer',

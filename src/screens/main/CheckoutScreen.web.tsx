@@ -37,6 +37,7 @@ import { usePilotOrders } from '../../hooks/usePilotOrders';
 import { householdsService } from '../../services/firestore/households';
 import { CHECKOUT_PATH, checkoutPath, readCheckoutPaymentStepFromWindow } from '../../navigation/checkoutLink';
 import { pushBrowserPath, replaceBrowserPath } from '../../navigation/webBrowserHistory';
+import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 
 /** Match My Box desktop top offset under sticky nav. */
 const DESKTOP_CONTENT_TOP = 41;
@@ -173,6 +174,32 @@ function CheckoutScreenBody() {
   const [committing, setCommitting] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
+  const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
+  const [addressFormError, setAddressFormError] = useState<string | null>(null);
+
+  const onAddressChange = (patch: Partial<import('../../types/pilot').ShippingAddress>) => {
+    setAddressFieldErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch) as (keyof typeof patch)[]) {
+        if (key in next) delete next[key as keyof ShippingAddressFieldErrors];
+      }
+      return next;
+    });
+    if (Object.keys(patch).length) setAddressFormError(null);
+    updateAddress(patch);
+  };
+
+  const ensureAddressValid = (): boolean => {
+    const result = validateAddress();
+    if (result.ok) {
+      setAddressFieldErrors({});
+      setAddressFormError(null);
+      return true;
+    }
+    setAddressFieldErrors(result.fields);
+    setAddressFormError(result.message);
+    return false;
+  };
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -195,7 +222,7 @@ function CheckoutScreenBody() {
       Alert.alert('Box locked', 'The customization window has closed. Contact support for changes.');
       return;
     }
-    if (!validateAddress()) return;
+    if (!ensureAddressValid()) return;
 
     setCommitting(true);
     try {
@@ -231,7 +258,7 @@ function CheckoutScreenBody() {
       Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
       return;
     }
-    if (!validateAddress()) return;
+    if (!ensureAddressValid()) return;
     setPreparing(true);
     try {
       const result = await createPilotSetupIntent(household.id);
@@ -385,7 +412,12 @@ function CheckoutScreenBody() {
       ) : (
         <Text style={styles.cardSavedCopy}>Card on file — confirm shipping and commit.</Text>
       )}
-      <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutAddressFields
+        address={address}
+        onChange={onAddressChange}
+        fieldErrors={addressFieldErrors}
+      />
+      {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
       <CheckoutSmsOptIn
         phone={contactPhone}
         smsOptIn={smsOptIn}
@@ -414,7 +446,12 @@ function CheckoutScreenBody() {
     </Elements>
   ) : (
     <>
-      <CheckoutAddressFields address={address} onChange={updateAddress} />
+      <CheckoutAddressFields
+        address={address}
+        onChange={onAddressChange}
+        fieldErrors={addressFieldErrors}
+      />
+      {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
       <CheckoutSmsOptIn
         phone={contactPhone}
         smsOptIn={smsOptIn}
@@ -646,6 +683,12 @@ function createCheckoutStyles(colors: SemanticColors, isDesktop: boolean) {
       color: colors.textSecondary,
       marginTop: spacing.md,
       marginBottom: spacing.sm,
+      ...typeface('medium'),
+    },
+    addressFormError: {
+      marginTop: spacing.sm,
+      fontSize: typography.sm,
+      color: '#B42318',
       ...typeface('medium'),
     },
     cta: {

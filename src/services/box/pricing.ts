@@ -46,12 +46,51 @@ export function unitCentsForTier(tier: CatalogPricingTier, catalogCents: number)
   return 0;
 }
 
+/**
+ * Amount charged when adding or swapping an item into a Hanukkah box (own or gift).
+ * À la carte uses the member / “add to box” price — not retail (`dollarCostCents` /
+ * non-member). Extras keep the flat add-on fee; included / per-kid stay $0.
+ */
+export function boxAddOnUnitCents(item: CatalogItem): number {
+  const tier = inferPricingTier(item);
+  if (tier === 'extra') return EXTRA_FLAT_CENTS;
+  if (tier === 'alaCarte') return resolveCatalogDisplayPrices(item).memberCents;
+  return 0;
+}
+
 export function isSwappable(item: CatalogItem, tier: CatalogPricingTier): boolean {
   return tier === 'perKid' || (tier === 'included' && item.swapOptions.length > 0);
 }
 
 export function chargeableLineTotal(lineItems: BoxLineItem[]): number {
   return lineItems.reduce((sum, li) => sum + li.unitCents * li.quantity, 0);
+}
+
+/**
+ * What the recipient owes on a claimed gift box: add-on value above what the giver
+ * already prepaid. Giver add-ons stay on the lines for composition, but must not be
+ * charged again.
+ */
+export function recipientGiftUpgradeCents(
+  lineItems: Array<{ unitCents?: number; quantity?: number }>,
+  prepaidAddOnCents: number
+): number {
+  const current = lineItems.reduce(
+    (sum, li) => sum + Math.max(0, li.unitCents ?? 0) * Math.max(1, li.quantity ?? 1),
+    0
+  );
+  return Math.max(0, current - Math.max(0, prepaidAddOnCents));
+}
+
+/** Snapshot / legacy fallback for giver-prepaid add-on cents on a received gift. */
+export function resolveGiftPrepaidAddOnCents(gift: {
+  prepaidAddOnCents?: number | null;
+  lineItems?: Array<{ unitCents?: number; quantity?: number }> | null;
+}): number {
+  if (typeof gift.prepaidAddOnCents === 'number' && Number.isFinite(gift.prepaidAddOnCents)) {
+    return Math.max(0, Math.round(gift.prepaidAddOnCents));
+  }
+  return recipientGiftUpgradeCents(gift.lineItems ?? [], 0);
 }
 
 export function orderSubtotalCents(lineItems: BoxLineItem[], boxPriceCents = DEFAULT_BOX_PRICE_CENTS): number {

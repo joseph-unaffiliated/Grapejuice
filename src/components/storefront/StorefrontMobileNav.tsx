@@ -21,6 +21,7 @@ import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { useSession } from '../../hooks/useSession';
 import {
   semanticColors,
   spacing,
@@ -52,6 +53,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
   const { openRav } = useStorefrontRav();
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
+  const { refresh } = useSession();
   const { width } = useWindowDimensions();
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
@@ -92,7 +94,11 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
     };
 
     const startBox = () =>
-      openBoxSurface(isAuthenticated, leave ? () => leave({ type: 'myBox' }) : undefined);
+      openBoxSurface(isAuthenticated, {
+        leave: leave ? () => leave({ type: 'myBox' }) : undefined,
+        hasOwnBox,
+        refreshSession: refresh,
+      });
 
     return [
       {
@@ -192,7 +198,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         ],
       },
     ];
-  }, [hasOwnBox, isAuthenticated, leave, navigation, onClose, openRav]);
+  }, [hasOwnBox, isAuthenticated, leave, navigation, onClose, openRav, refresh]);
 
   if (!mounted) return null;
 

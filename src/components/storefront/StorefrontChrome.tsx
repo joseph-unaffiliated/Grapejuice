@@ -14,11 +14,13 @@ import {
   ScrollView,
   Animated,
   useWindowDimensions,
+  RefreshControl,
+  ActivityIndicator,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useIsFocused, useRoute } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip } from './StorefrontPromoStrip';
 import { StorefrontHeader } from './StorefrontHeader';
@@ -38,7 +40,8 @@ import {
 } from './storefrontLeaveContext';
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
-import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import { useSession } from '../../hooks/useSession';
 import { LAYOUT, semanticColors, spacing } from '../../constants/theme';
 import {
   STOREFRONT_SCROLL_CLASS,
@@ -96,7 +99,12 @@ type ChromeProps = {
   onCategory: (slug: string) => void;
   hideServicesNav?: boolean;
   servicesSlot?: ReactNode;
+  showPromoStrip?: boolean;
+  onHeaderStackLayout?: (height: number) => void;
 };
+
+/** Fallback when header stack hasn’t measured — ~promo-or-not + header row. */
+const RAV_HEADER_FALLBACK_H = 96;
 
 function StorefrontChromeBlocks({
   activeCategory,
@@ -105,11 +113,18 @@ function StorefrontChromeBlocks({
   onCategory,
   hideServicesNav,
   servicesSlot,
+  showPromoStrip = true,
+  onHeaderStackLayout,
 }: ChromeProps) {
   return (
     <View style={styles.chromeInner}>
-      <StorefrontPromoStrip />
-      <StorefrontHeader onLogoPress={onLogoPress} />
+      <View
+        collapsable={false}
+        onLayout={(e) => onHeaderStackLayout?.(e.nativeEvent.layout.height)}
+      >
+        {showPromoStrip ? <StorefrontPromoStrip /> : null}
+        <StorefrontHeader onLogoPress={onLogoPress} padTopSafeArea={!showPromoStrip} />
+      </View>
       {hideServicesNav ? null : (
         <>
           <StorefrontServicesNav onPress={onService} />
@@ -139,8 +154,6 @@ const STICKY_ENABLE_EXTRA = 80;
 const STICKY_DISABLE_BELOW = 40;
 /** Fade overlay only once scroll has settled at the true top (not at disableY). */
 const TOP_SETTLED_EPS = 4;
-/** Brief dwell so a fling that clamps at 0 doesn't fade mid-momentum (esp. web wheel). */
-const TOP_FADE_SETTLE_MS = 80;
 const DESKTOP_RAV_MAX = 380;
 /** Match StorefrontRavDrawer close duration so pinned chrome stays until dock finishes. */
 const RAV_CLOSE_LAYOUT_MS = 280;
@@ -195,10 +208,21 @@ function StorefrontChromeInner({
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
+  const route = useRoute();
   const isAuthenticated = usePreviewedIsAuthenticated();
+  const hasOwnBox = usePreviewedHasStartedBox();
+  const { refresh } = useSession();
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
   const fillBody = bodyMode === 'fill';
+  /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
+  const showPromoStrip =
+    !compact || route.name === 'Home' || route.name === 'StorefrontHome';
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullPx, setPullPx] = useState(0);
+  const pullStartY = useRef<number | null>(null);
+  /** Promo + header only — Rav sits under this on mobile (not under services/category). */
+  const [ravHeaderStackH, setRavHeaderStackH] = useState(0);
   const {
     visible: ravVisible,
     closeRav,
@@ -284,7 +308,11 @@ function StorefrontChromeInner({
   };
 
   const startBox = () =>
-    openBoxSurface(isAuthenticated, onLeave ? () => onLeave({ type: 'myBox' }) : undefined);
+    openBoxSurface(isAuthenticated, {
+      leave: onLeave ? () => onLeave({ type: 'myBox' }) : undefined,
+      hasOwnBox,
+      refreshSession: refresh,
+    });
 
   const onService = (id: StorefrontServiceId) => {
     if (onLeave) {
@@ -316,6 +344,8 @@ function StorefrontChromeInner({
     onCategory: goCategory,
     hideServicesNav,
     servicesSlot,
+    showPromoStrip,
+    onHeaderStackLayout: setRavHeaderStackH,
   };
 
   const onChromeLayout = (e: LayoutChangeEvent) => {
@@ -519,31 +549,31 @@ function StorefrontChromeInner({
     ]
   );
 
-  const scheduleTopFade = useCallback(() => {
-    overlayArmed.current = false;
-    clearTopFadeTimer();
-    topFadeTimerRef.current = setTimeout(() => {
-      topFadeTimerRef.current = null;
-      if (lastY.current <= TOP_SETTLED_EPS) {
-        animateOverlay(false, 'fade');
-      }
-    }, TOP_FADE_SETTLE_MS);
-  }, [animateOverlay, clearTopFadeTimer]);
-
   const fadeOverlayIfSettledAtTop = useCallback(() => {
     if (!useOverlaySticky) return;
     if (lastY.current > TOP_SETTLED_EPS) return;
     clearTopFadeTimer();
     overlayArmed.current = false;
+    if (!overlayShown.current) return;
     if (ravDockedLayoutRef.current) {
       snapFullHeaderAboveRav();
       return;
     }
-    animateOverlay(false, 'fade');
+    // Instant — natural chrome is already at y≈0; a fade would double-stack.
+    overlayAnimRef.current?.stop();
+    overlayShown.current = false;
+    setOverlayInteractive(false);
+    overlayOpacity.setValue(0);
+    overlayProgress.setValue(0);
+    syncScrollAwayChrome(lastY.current, false);
+    syncRavTop(lastY.current, false);
   }, [
-    animateOverlay,
     clearTopFadeTimer,
+    overlayOpacity,
+    overlayProgress,
     snapFullHeaderAboveRav,
+    syncRavTop,
+    syncScrollAwayChrome,
     useOverlaySticky,
   ]);
 
@@ -554,6 +584,26 @@ function StorefrontChromeInner({
       const dy = y - lastY.current;
       lastY.current = y;
       const docked = ravDockedLayoutRef.current;
+      const h = measuredChrome();
+
+      // In-flow chrome re-enters the viewport below y≈chromeH. Kill the sticky
+      // clone instantly here — waiting for y≈0 (or a fade) stacks two headers.
+      if (overlayShown.current && y < h) {
+        overlayAnimRef.current?.stop();
+        clearTopFadeTimer();
+        overlayShown.current = false;
+        overlayArmed.current = false;
+        setOverlayInteractive(false);
+        overlayOpacity.setValue(0);
+        overlayProgress.setValue(0);
+        if (docked && y <= TOP_SETTLED_EPS) {
+          snapFullHeaderAboveRav();
+        } else {
+          syncScrollAwayChrome(y, false);
+          syncRavTop(y, false);
+        }
+        return;
+      }
 
       // Scroll-down always dismisses a shown sticky overlay — including inside
       // the disableY hysteresis band (that early-return was trapping it open).
@@ -575,19 +625,11 @@ function StorefrontChromeInner({
         if (y <= TOP_SETTLED_EPS) {
           if (docked) {
             clearTopFadeTimer();
-            if (overlayShown.current) {
-              // Hand off sticky → full scroll-away header at the top.
-              overlayShown.current = false;
-              setOverlayInteractive(false);
-              overlayOpacity.setValue(0);
-              overlayProgress.setValue(0);
-              snapFullHeaderAboveRav();
-            } else {
-              syncScrollAwayChrome(y, false);
-              syncRavTop(y, false);
-            }
+            syncScrollAwayChrome(y, false);
+            syncRavTop(y, false);
           } else {
-            scheduleTopFade();
+            // Overlay already cleared above when y < h; keep armed false.
+            clearTopFadeTimer();
           }
         } else {
           clearTopFadeTimer();
@@ -614,7 +656,6 @@ function StorefrontChromeInner({
       clearTopFadeTimer,
       overlayOpacity,
       overlayProgress,
-      scheduleTopFade,
       snapFullHeaderAboveRav,
       syncRavTop,
       syncScrollAwayChrome,
@@ -720,13 +761,12 @@ function StorefrontChromeInner({
     outputRange: [-overlayHideOffset, 0],
   });
 
-  // Desktop dock: clearance is on bodyRow (both columns). Mobile sheet still uses top.
-  const ravTopInset = fillBody
-    ? compact
-      ? chromeH > 0
-        ? chromeH
-        : STICKY_FALLBACK_CHROME_H
-      : 0
+  // Mobile: Rav sits just under promo+header (nav), not below the full chrome stack.
+  // Desktop dock: clearance is on bodyRow; undocked uses scroll-synced headerClearance.
+  const ravTopInset = compact
+    ? ravHeaderStackH > 0
+      ? ravHeaderStackH
+      : RAV_HEADER_FALLBACK_H
     : ravDockedLayout
       ? 0
       : headerClearance;
@@ -743,6 +783,57 @@ function StorefrontChromeInner({
     />
   );
 
+  const runRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setPullPx(0);
+    try {
+      await refresh({ silent: true });
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.reload();
+        return;
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh, refreshing]);
+
+  const onPullTouchStart = useCallback(
+    (e: { nativeEvent: { pageY: number } }) => {
+      if (fillBody || refreshing) return;
+      if (lastY.current > 4) {
+        pullStartY.current = null;
+        return;
+      }
+      pullStartY.current = e.nativeEvent.pageY;
+    },
+    [fillBody, refreshing]
+  );
+
+  const onPullTouchMove = useCallback(
+    (e: { nativeEvent: { pageY: number } }) => {
+      if (pullStartY.current == null || fillBody || refreshing) return;
+      if (lastY.current > 4) {
+        pullStartY.current = null;
+        setPullPx(0);
+        return;
+      }
+      const dy = e.nativeEvent.pageY - pullStartY.current;
+      setPullPx(dy > 0 ? Math.min(dy * 0.45, 72) : 0);
+    },
+    [fillBody, refreshing]
+  );
+
+  const onPullTouchEnd = useCallback(() => {
+    const shouldRefresh = pullPx >= 52;
+    pullStartY.current = null;
+    if (shouldRefresh) {
+      void runRefresh();
+      return;
+    }
+    setPullPx(0);
+  }, [pullPx, runRefresh]);
+
   const pageScroll = (
     <ScrollView
       ref={setScrollRef}
@@ -754,17 +845,38 @@ function StorefrontChromeInner({
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      bounces={false}
-      alwaysBounceVertical={false}
-      overScrollMode="never"
+      bounces
+      alwaysBounceVertical
+      overScrollMode="auto"
+      refreshControl={
+        fillBody ? undefined : (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void runRefresh();
+            }}
+            tintColor={semanticColors.brand}
+            colors={[semanticColors.brand]}
+          />
+        )
+      }
       onScroll={onScroll}
       onScrollEndDrag={fadeOverlayIfSettledAtTop}
       onMomentumScrollEnd={fadeOverlayIfSettledAtTop}
+      onTouchStart={Platform.OS === 'web' ? onPullTouchStart : undefined}
+      onTouchMove={Platform.OS === 'web' ? onPullTouchMove : undefined}
+      onTouchEnd={Platform.OS === 'web' ? onPullTouchEnd : undefined}
+      onTouchCancel={Platform.OS === 'web' ? onPullTouchEnd : undefined}
       scrollEventThrottle={16}
       // @ts-expect-error web className
       className={Platform.OS === 'web' ? STOREFRONT_SCROLL_CLASS : undefined}
       testID="storefront-vertical-scroll"
     >
+      {Platform.OS === 'web' && !fillBody && (pullPx > 0 || refreshing) ? (
+        <View style={[styles.pullHint, { height: Math.max(pullPx, refreshing ? 44 : 0) }]}>
+          <ActivityIndicator color={semanticColors.brand} />
+        </View>
+      ) : null}
       {pinChromeAboveBody || ravDockedLayout ? null : (
         <View onLayout={onChromeLayout} collapsable={false}>
           <StorefrontChromeBlocks {...chromeProps} />
@@ -851,9 +963,15 @@ function StorefrontChromeInner({
 export function useStorefrontActions() {
   const navigation = useNavigation<Nav>();
   const isAuthenticated = usePreviewedIsAuthenticated();
+  const hasOwnBox = usePreviewedHasStartedBox();
+  const { refresh } = useSession();
 
   return {
-    startBox: () => openBoxSurface(isAuthenticated),
+    startBox: () =>
+      openBoxSurface(isAuthenticated, {
+        hasOwnBox,
+        refreshSession: refresh,
+      }),
     askRav: (message?: string) => {
       // Prefer the storefront drawer — screens usually call this hook above Chrome,
       // so React context isn’t available; the provider registers a bridge instead.
@@ -885,7 +1003,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
     backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
-      ? ({ height: '100%', maxHeight: '100dvh' } as object)
+      ? ({ height: '100%', maxHeight: '100svh' } as object)
       : null),
   },
   /**
@@ -978,8 +1096,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
     minHeight: 0,
     ...(Platform.OS === 'web'
-      ? ({ overscrollBehavior: 'none' } as object)
+      ? ({ overscrollBehaviorY: 'contain' } as object)
       : null),
+  },
+  pullHint: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: spacing.sm,
   },
   fillBody: {
     flex: 1,
