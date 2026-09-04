@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
+import { useScrollActiveIntoView } from '../../hooks/useScrollActiveIntoView';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   MOBILE_GUTTER,
@@ -16,12 +17,18 @@ type Props = {
 };
 
 export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
+  const { scrollRef, onItemLayout, onScrollLayout, onContentSizeChange } =
+    useScrollActiveIntoView(activeSlug);
+
   return (
     <View style={styles.root}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
+        onLayout={onScrollLayout}
+        onContentSizeChange={onContentSizeChange}
         // @ts-expect-error web className
         className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
       >
@@ -41,6 +48,7 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
               ) : null}
               <TouchableOpacity
                 style={[styles.linkHit, active && styles.linkHitActive]}
+                onLayout={onItemLayout(c.slug)}
                 onPress={() => onPress(c.slug)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}

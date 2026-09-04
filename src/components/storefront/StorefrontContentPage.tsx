@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import {
   StorefrontChrome,
   useStorefrontActions,
@@ -8,6 +8,7 @@ import { StorefrontAskRavStrip } from './StorefrontAskRavStrip';
 import { StorefrontBuildBoxStrip } from './StorefrontBuildBoxStrip';
 import {
   borderRadius,
+  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -49,17 +50,21 @@ export function StorefrontContentPage({
   secondaryCta,
 }: Props) {
   const { goHome, askRav, startBox } = useStorefrontActions();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
 
   return (
     <StorefrontChrome>
       <View style={styles.page}>
-        <View style={styles.breadcrumb}>
-          <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-            Store
-          </Text>
-          <Text style={styles.crumbSep}> / </Text>
-          <Text style={styles.crumbCurrent}>{crumb}</Text>
-        </View>
+        {isDesktop ? (
+          <View style={styles.breadcrumb}>
+            <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
+              Store
+            </Text>
+            <Text style={styles.crumbSep}> / </Text>
+            <Text style={styles.crumbCurrent}>{crumb}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.hero}>
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}

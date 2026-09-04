@@ -332,25 +332,27 @@ export function CatalogProductScreen() {
     <StorefrontChrome activeCategory={aisle?.slug} floatingFooter={guestFavoritesPrompt}>
       {/* Padding on body only — chrome/footer stay full-bleed like /store */}
       <View style={styles.body}>
-        <View style={styles.breadcrumb}>
-          <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-            Store
-          </Text>
-          {aisle ? (
-            <>
-              <Text style={styles.crumbSep}> / </Text>
-              <Text
-                style={styles.crumbLink}
-                onPress={() => goCategory(aisle.slug)}
-                accessibilityRole="link"
-              >
-                {aisle.label}
-              </Text>
-            </>
-          ) : null}
-          <Text style={styles.crumbSep}> / </Text>
-          <Text style={styles.crumbCurrent}>{item.name}</Text>
-        </View>
+        {desktop ? (
+          <View style={styles.breadcrumb}>
+            <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
+              Store
+            </Text>
+            {aisle ? (
+              <>
+                <Text style={styles.crumbSep}> / </Text>
+                <Text
+                  style={styles.crumbLink}
+                  onPress={() => goCategory(aisle.slug)}
+                  accessibilityRole="link"
+                >
+                  {aisle.label}
+                </Text>
+              </>
+            ) : null}
+            <Text style={styles.crumbSep}> / </Text>
+            <Text style={styles.crumbCurrent}>{item.name}</Text>
+          </View>
+        ) : null}
 
         <View style={[styles.split, desktop && styles.splitDesktop]}>
           <View

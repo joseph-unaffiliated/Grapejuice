@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -22,6 +23,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
 import {
   borderRadius,
+  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -88,6 +90,8 @@ function FilterChipButton({
 
 export function StorefrontFavoritesScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
   const { items, loading } = useCatalog();
   const { ids } = useWishlist();
   const { goHome, askRav, startBox } = useStorefrontActions();
@@ -112,13 +116,15 @@ export function StorefrontFavoritesScreen() {
   return (
     <StorefrontChrome>
       <View style={styles.page}>
-        <View style={styles.breadcrumb}>
-          <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-            Store
-          </Text>
-          <Text style={styles.crumbSep}> / </Text>
-          <Text style={styles.crumbCurrent}>Favorites</Text>
-        </View>
+        {isDesktop ? (
+          <View style={styles.breadcrumb}>
+            <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
+              Store
+            </Text>
+            <Text style={styles.crumbSep}> / </Text>
+            <Text style={styles.crumbCurrent}>Favorites</Text>
+          </View>
+        ) : null}
 
         <View style={styles.headingBlock}>
           <Text style={styles.title}>Favorites</Text>

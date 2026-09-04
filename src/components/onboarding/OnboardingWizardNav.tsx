@@ -4,6 +4,7 @@ import {
   ONBOARDING_WIZARD_NAV_STEPS,
   type OnboardingWizardNavStepId,
 } from '../../navigation/onboardingSteps';
+import { useScrollActiveIntoView } from '../../hooks/useScrollActiveIntoView';
 import { STOREFRONT_H_SCROLL_CLASS } from '../storefront/storefrontScroll';
 import {
   MOBILE_GUTTER,
@@ -25,12 +26,18 @@ type Props = {
  * but lists intake steps instead of product aisles.
  */
 export function OnboardingWizardNav({ activeStep, maxReachedIndex, onPress }: Props) {
+  const { scrollRef, onItemLayout, onScrollLayout, onContentSizeChange } =
+    useScrollActiveIntoView(activeStep);
+
   return (
     <View style={styles.root}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
+        onLayout={onScrollLayout}
+        onContentSizeChange={onContentSizeChange}
         // @ts-expect-error web className
         className={Platform.OS === 'web' ? STOREFRONT_H_SCROLL_CLASS : undefined}
       >
@@ -51,6 +58,7 @@ export function OnboardingWizardNav({ activeStep, maxReachedIndex, onPress }: Pr
               ) : null}
               <TouchableOpacity
                 style={[styles.linkHit, active && styles.linkHitActive]}
+                onLayout={onItemLayout(step.id)}
                 onPress={() => {
                   if (!reachable || active) return;
                   onPress(step.id);

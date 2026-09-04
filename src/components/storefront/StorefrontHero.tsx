@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Platform,
+  type LayoutChangeEvent,
 } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { StorefrontMediaPlaceholder } from './StorefrontMediaPlaceholder';
 import {
   StorefrontHeroJourneyTimeline,
@@ -25,6 +27,50 @@ import {
   spacing,
   typeface,
 } from '../../constants/theme';
+
+/**
+ * Mobile hero vignette — center radial (same geometry as StorefrontBuildBoxStrip),
+ * sized wider than the frame so copy sits in the dark core.
+ */
+const HERO_VIGNETTE_SOFT_WEB =
+  'radial-gradient(ellipse 165% 125% at 50% 50%, rgba(17, 2, 34, 0.92) 0%, rgba(17, 2, 34, 0.72) 42%, rgba(17, 2, 34, 0.4) 70%, transparent 100%)';
+const HERO_VIGNETTE_MULTIPLY_WEB =
+  'radial-gradient(ellipse 155% 115% at 50% 50%, rgba(17, 2, 34, 0.55) 0%, rgba(17, 2, 34, 0.32) 50%, transparent 80%)';
+
+const NATIVE_HERO_VIGNETTE_STOPS = [
+  { offset: '0', color: '#110222', opacity: '0.9' },
+  { offset: '0.42', color: '#110222', opacity: '0.68' },
+  { offset: '0.72', color: '#110222', opacity: '0.32' },
+  { offset: '1', color: '#110222', opacity: '0' },
+] as const;
+
+function NativeHeroVignette({ width, height }: { width: number; height: number }) {
+  const rawId = useId().replace(/:/g, '');
+  const gradId = `storefrontHeroVignette-${rawId}`;
+  if (width <= 0 || height <= 0) return null;
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const r = width * 0.85;
+
+  return (
+    <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Defs>
+        <RadialGradient id={gradId} cx={cx} cy={cy} r={r} gradientUnits="userSpaceOnUse">
+          {NATIVE_HERO_VIGNETTE_STOPS.map((stop) => (
+            <Stop
+              key={stop.offset}
+              offset={stop.offset}
+              stopColor={stop.color}
+              stopOpacity={stop.opacity}
+            />
+          ))}
+        </RadialGradient>
+      </Defs>
+      <Rect x={0} y={0} width={width} height={height} fill={`url(#${gradId})`} />
+    </Svg>
+  );
+}
 
 type Props = {
   mode: StorefrontHomeMode;
@@ -56,6 +102,7 @@ export function StorefrontHero({
 }: Props) {
   const { height, width } = useWindowDimensions();
   const compact = width < 768;
+  const [size, setSize] = useState({ w: 0, h: 0 });
   const hero = mode === 'passover' ? STOREFRONT_HERO_PASSOVER : STOREFRONT_HERO;
   const now = usePreviewNow();
   const duringHanukkah =
@@ -81,6 +128,11 @@ export function StorefrontHero({
     ),
     showTimeline ? 640 : 560
   );
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width: w, height: h } = e.nativeEvent.layout;
+    if (w !== size.w || h !== size.h) setSize({ w, h });
+  };
 
   const journeyHeadline = useMemo(
     () => (journey ? boxJourneyCopy(journey, now).headline : null),
@@ -143,15 +195,25 @@ export function StorefrontHero({
   }
 
   return (
-    <View style={[styles.root, { height: heroHeight }]}>
+    <View style={[styles.root, { height: heroHeight }]} onLayout={onLayout}>
       <StorefrontMediaPlaceholder
         slot={hero}
         quiet
         fill
         style={styles.media}
       />
-      {/* Bottom scrim — heavier on mobile so white type stays readable */}
-      <View style={[styles.scrim, compact && styles.scrimCompact]} pointerEvents="none" />
+      {compact ? (
+        Platform.OS === 'web' ? (
+          <>
+            <View style={styles.scrimRadialSoft} pointerEvents="none" />
+            <View style={styles.scrimRadialMultiply} pointerEvents="none" />
+          </>
+        ) : (
+          <NativeHeroVignette width={size.w} height={size.h} />
+        )
+      ) : (
+        <View style={styles.scrim} pointerEvents="none" />
+      )}
       <View
         style={[styles.overlay, compact && styles.overlayCompact]}
         pointerEvents="box-none"
@@ -219,6 +281,7 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderWidth: 0,
   },
+  /** Desktop: bottom-up linear scrim for copy at the base. */
   scrim: {
     position: 'absolute',
     left: 0,
@@ -232,14 +295,24 @@ const styles = StyleSheet.create({
         } as object)
       : { backgroundColor: 'rgba(17, 2, 34, 0.4)' }),
   },
-  scrimCompact: {
-    height: '72%',
+  /** Mobile: center radial (matches Secure / build-box strip). */
+  scrimRadialSoft: {
+    ...StyleSheet.absoluteFillObject,
     ...(Platform.OS === 'web'
       ? ({
-          backgroundImage:
-            'linear-gradient(to top, rgba(17, 2, 34, 0.88) 0%, rgba(17, 2, 34, 0.55) 42%, rgba(17, 2, 34, 0.22) 72%, transparent 100%)',
+          backgroundImage: HERO_VIGNETTE_SOFT_WEB,
+          mixBlendMode: 'soft-light',
         } as object)
-      : { backgroundColor: 'rgba(17, 2, 34, 0.62)' }),
+      : null),
+  },
+  scrimRadialMultiply: {
+    ...StyleSheet.absoluteFillObject,
+    ...(Platform.OS === 'web'
+      ? ({
+          backgroundImage: HERO_VIGNETTE_MULTIPLY_WEB,
+          mixBlendMode: 'multiply',
+        } as object)
+      : null),
   },
   overlay: {
     position: 'absolute',

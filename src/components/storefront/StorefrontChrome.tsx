@@ -283,6 +283,13 @@ function StorefrontChromeInner({
   /** Compact sticky bar height — drives overlay slide distance. */
   const stickyChromeHeight = useRef(0);
   const [stickyChromeH, setStickyChromeH] = useState(0);
+  /**
+   * Mobile: when Rav opens mid-page, pin under the mini sticky bar instead of
+   * the full in-flow header stack.
+   */
+  const [ravMobilePinSticky, setRavMobilePinSticky] = useState(false);
+  const ravMobilePinStickyRef = useRef(false);
+  ravMobilePinStickyRef.current = ravMobilePinSticky;
   const overlayArmed = useRef(false);
   /** Sticky compact bar starts dismissed — full in-flow chrome owns the top. */
   const overlayShown = useRef(false);
@@ -610,6 +617,8 @@ function StorefrontChromeInner({
 
   const dismissStickyIfNearTop = useCallback(() => {
     if (!useOverlaySticky) return;
+    // Keep mini bar while Rav is pinned under it (open or closing).
+    if (ravMobilePinStickyRef.current) return;
     const { disableY } = stickyScrollThresholds(chromeHeight.current);
     if (lastY.current < disableY) {
       dismissStickyNearTop();
@@ -623,6 +632,14 @@ function StorefrontChromeInner({
       const dy = y - lastY.current;
       lastY.current = y;
       const { enableY, disableY } = stickyScrollThresholds(chromeHeight.current);
+
+      // While Rav is pinned to the mini bar (including close anim), keep sticky up.
+      if (ravMobilePinStickyRef.current) {
+        if (!overlayShown.current) {
+          animateOverlay(true);
+        }
+        return;
+      }
 
       // Top band: full in-flow chrome is (or will be) visible — keep sticky away.
       if (y < disableY) {
@@ -740,6 +757,54 @@ function StorefrontChromeInner({
     snapOverlay,
   ]);
 
+  /**
+   * Mobile: Rav height under the visible chrome —
+   * full promo+header at the top, mini sticky bar mid-page.
+   * Pin mode is held through the close animation so the taller sheet
+   * doesn’t collapse under the full header while sliding out.
+   */
+  useLayoutEffect(() => {
+    if (!compact || fillBody || !useOverlaySticky) {
+      setRavMobilePinSticky(false);
+      return;
+    }
+    if (!ravVisible) {
+      const t = setTimeout(() => setRavMobilePinSticky(false), RAV_CLOSE_LAYOUT_MS);
+      return () => clearTimeout(t);
+    }
+
+    const y = lastY.current;
+    const h = measuredChrome();
+    // Past the in-flow chrome (or sticky already up) → pin under mini bar.
+    const pinSticky =
+      overlayShown.current || overlayInteractive || y >= h;
+
+    setRavMobilePinSticky(pinSticky);
+
+    if (pinSticky) {
+      snapOverlay(true, { remount: false });
+      return;
+    }
+
+    // Partial scroll with full chrome still partly visible — snap to top so Rav
+    // slots cleanly under the full header.
+    if (y > 0 && y < h) {
+      lastY.current = 0;
+      localScrollRef.current?.scrollTo({ y: 0, animated: false });
+    }
+    if (overlayShown.current) {
+      dismissStickyNearTop();
+    }
+  }, [
+    compact,
+    dismissStickyNearTop,
+    fillBody,
+    overlayInteractive,
+    ravVisible,
+    snapOverlay,
+    useOverlaySticky,
+  ]);
+
   useEffect(() => {
     syncRavTop(lastY.current, overlayShown.current);
     syncScrollAwayChrome(lastY.current, overlayShown.current);
@@ -768,12 +833,18 @@ function StorefrontChromeInner({
     outputRange: [-overlayHideOffset, 0],
   });
 
-  // Mobile: Rav sits just under promo+header (nav), not below the full chrome stack.
+  // Mobile: under full promo+header at top, or under mini sticky mid-page.
   // Desktop dock: clearance is on bodyRow; undocked uses scroll-synced headerClearance.
+  const stickyInsetFallback =
+    stickyChromeH > 0
+      ? stickyChromeH
+      : Math.min(chromeH || STICKY_FALLBACK_CHROME_H, 96);
+  const fullHeaderInset =
+    ravHeaderStackH > 0 ? ravHeaderStackH : RAV_HEADER_FALLBACK_H;
   const ravTopInset = compact
-    ? ravHeaderStackH > 0
-      ? ravHeaderStackH
-      : RAV_HEADER_FALLBACK_H
+    ? ravMobilePinSticky
+      ? stickyInsetFallback
+      : fullHeaderInset
     : ravDockedLayout
       ? 0
       : headerClearance;
@@ -994,8 +1065,11 @@ export function useStorefrontActions() {
         },
       });
     },
-    goCategory: (slug: string) => {
-      navigation.navigate('StorefrontCategory', { category: slug });
+    goCategory: (slug: string, opts?: { q?: string }) => {
+      navigation.navigate('StorefrontCategory', {
+        category: slug,
+        ...(opts?.q ? { q: opts.q } : null),
+      });
     },
     goHome: () => navigation.navigate('StorefrontHome'),
     goEligibility: () => navigation.navigate('BoxDiscountEligibility'),

@@ -162,7 +162,7 @@ export function BoxProductModal({
           style={[
             styles.sheet,
             Platform.OS === 'web' ? { boxShadow: shadowsWeb.lg } : shadows.lg,
-            { paddingBottom: Math.max(insets.bottom, spacing.md) },
+            desktop ? { paddingBottom: Math.max(insets.bottom, spacing.md) } : null,
           ]}
           accessibilityViewIsModal
         >
@@ -183,7 +183,12 @@ export function BoxProductModal({
 
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              !desktop && {
+                paddingBottom: spacing.xxl + spacing.md + Math.max(insets.bottom, spacing.sm),
+              },
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -302,6 +307,9 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       justifyContent: desktop ? 'center' : 'flex-end',
       alignItems: 'center',
       padding: desktop ? spacing.xl : 0,
+      ...(Platform.OS === 'web'
+        ? ({ minHeight: '100%', height: '100%', maxHeight: '100dvh' } as object)
+        : null),
     },
     backdropHit: {
       ...StyleSheet.absoluteFillObject,

@@ -1,5 +1,12 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  useWindowDimensions,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import {
@@ -20,6 +27,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
 import {
   borderRadius,
+  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -35,6 +43,8 @@ const THUMB = 72;
  */
 export function StorefrontCartScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
   const { goHome, goCategory, startBox } = useStorefrontActions();
   const lineItems = useMarketplaceCartStore((s) => s.items);
   const changeQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
@@ -70,13 +80,15 @@ export function StorefrontCartScreen() {
   return (
     <StorefrontChrome>
       <View style={styles.page}>
-        <View style={styles.breadcrumb}>
-          <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-            Store
-          </Text>
-          <Text style={styles.crumbSep}> / </Text>
-          <Text style={styles.crumbCurrent}>Cart</Text>
-        </View>
+        {isDesktop ? (
+          <View style={styles.breadcrumb}>
+            <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
+              Store
+            </Text>
+            <Text style={styles.crumbSep}> / </Text>
+            <Text style={styles.crumbCurrent}>Cart</Text>
+          </View>
+        ) : null}
 
         {empty ? (
           <View style={styles.empty} accessibilityRole="summary">

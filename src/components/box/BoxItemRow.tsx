@@ -15,12 +15,78 @@ import { ItemDetailSheet } from './ItemDetailSheet';
 import { useBoxItemVisualVariant } from './boxSectionItemsLayout';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
+import {
+  HorizontalScrollEdgeFades,
+  useHorizontalScrollEdges,
+} from '../ui/ScrollEdgeFades';
 import { spacing, typography, borderRadius, shadowsWeb, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { KeepOrToss } from '../../types/pilot';
 
 type BoxItemRowStyles = ReturnType<typeof createBoxItemRowStyles>;
+
+function SwapOptionsShelf({
+  options,
+  currentItemId,
+  onSwap,
+  onClose,
+  styles,
+  fadeColor,
+}: {
+  options: CatalogItem[];
+  currentItemId: string;
+  onSwap: (item: CatalogItem) => void;
+  onClose: () => void;
+  styles: BoxItemRowStyles;
+  fadeColor: string;
+}) {
+  const edges = useHorizontalScrollEdges();
+
+  return (
+    <View style={styles.shelfWrap}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.shelf}
+        contentContainerStyle={styles.shelfContent}
+        onScroll={edges.onScroll}
+        onLayout={edges.onLayout}
+        onContentSizeChange={edges.onContentSizeChange}
+        scrollEventThrottle={16}
+      >
+        {options.map((opt) => {
+          const selected = opt.id === currentItemId;
+          return (
+            <TouchableOpacity
+              key={opt.id}
+              style={[
+                styles.shelfCard,
+                selected && styles.shelfCardSelected,
+                Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined,
+              ]}
+              onPress={() => {
+                onSwap(opt);
+                onClose();
+              }}
+            >
+              <BoxItemImage size={48} imageUrl={opt.imageUrl} itemId={opt.id} />
+              <Text style={styles.shelfName} numberOfLines={2}>
+                {opt.name}
+              </Text>
+              {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      <HorizontalScrollEdgeFades
+        leftProgress={edges.leftProgress}
+        rightProgress={edges.rightProgress}
+        color={fadeColor}
+      />
+    </View>
+  );
+}
 
 type Props = {
   li: BoxLineItem;
@@ -282,36 +348,14 @@ export function BoxItemRow({
         </View>
 
         {shelfOpen && swappable && !onPrimarySwapAction ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.shelf}
-            contentContainerStyle={styles.shelfContent}
-          >
-            {swapOptions.map((opt) => {
-              const selected = opt.id === li.itemId;
-              return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[
-                    styles.shelfCard,
-                    selected && styles.shelfCardSelected,
-                    Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined,
-                  ]}
-                  onPress={() => {
-                    onSwap(opt);
-                    setShelfOpen(false);
-                  }}
-                >
-                  <BoxItemImage size={48} imageUrl={opt.imageUrl} itemId={opt.id} />
-                  <Text style={styles.shelfName} numberOfLines={2}>
-                    {opt.name}
-                  </Text>
-                  {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <SwapOptionsShelf
+            options={swapOptions}
+            currentItemId={li.itemId}
+            onSwap={onSwap}
+            onClose={() => setShelfOpen(false)}
+            styles={styles}
+            fadeColor={colors.bgPrimary}
+          />
         ) : null}
 
         {!onOpenProduct ? (
@@ -408,36 +452,14 @@ export function BoxItemRow({
       ) : null}
 
       {shelfOpen && swappable && !onPrimarySwapAction ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.shelf}
-          contentContainerStyle={styles.shelfContent}
-        >
-          {swapOptions.map((opt) => {
-            const selected = opt.id === li.itemId;
-            return (
-              <TouchableOpacity
-                key={opt.id}
-                style={[
-                  styles.shelfCard,
-                  selected && styles.shelfCardSelected,
-                  Platform.OS === 'web' ? { boxShadow: shadowsWeb.sm } : undefined,
-                ]}
-                onPress={() => {
-                  onSwap(opt);
-                  setShelfOpen(false);
-                }}
-              >
-                <BoxItemImage size={48} imageUrl={opt.imageUrl} itemId={opt.id} />
-                <Text style={styles.shelfName} numberOfLines={2}>
-                  {opt.name}
-                </Text>
-                {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <SwapOptionsShelf
+          options={swapOptions}
+          currentItemId={li.itemId}
+          onSwap={onSwap}
+          onClose={() => setShelfOpen(false)}
+          styles={styles}
+          fadeColor={colors.bgPrimary}
+        />
       ) : null}
 
       {!onOpenProduct ? (
@@ -609,7 +631,13 @@ function createBoxItemRowStyles(colors: SemanticColors) {
     keepText: { fontSize: typography.sm, color: colors.textSecondary },
     addAnother: { paddingVertical: spacing.xs, paddingLeft: 64 },
     addAnotherText: { color: colors.brand, fontWeight: '600', fontSize: typography.sm },
-    shelf: { marginBottom: spacing.sm },
+    shelfWrap: {
+      position: 'relative',
+      width: '100%',
+      overflow: 'hidden',
+      marginBottom: spacing.sm,
+    },
+    shelf: { width: '100%' },
     shelfContent: { gap: spacing.sm, paddingVertical: spacing.sm },
     shelfCard: {
       width: 100,

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -24,6 +25,10 @@ import {
   storefrontCategoryBySlug,
 } from '../../constants/storefrontCategories';
 import {
+  matchesStorefrontSearchQuery,
+  storefrontCategoriesForSearch,
+} from '../../constants/storefrontSearch';
+import {
   applyContextualFilters,
   contextualFiltersForCategory,
 } from '../../constants/storefrontCategoryFilters';
@@ -33,6 +38,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
 import {
   borderRadius,
+  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -111,30 +117,11 @@ function sortItems(items: CatalogItem[], sort: SortKey): CatalogItem[] {
   }
 }
 
-/** Case-insensitive keyword match across common catalog fields. */
-function matchesSearchQuery(item: CatalogItem, q: string): boolean {
-  const needle = q.trim().toLowerCase();
-  if (!needle) return true;
-  const words = needle.split(/\s+/).filter(Boolean);
-  const hay = [
-    item.name,
-    item.description,
-    item.category,
-    ...(item.categories ?? []),
-    item.brand,
-    item.id,
-    ...(item.curationTags ?? []),
-    ...(item.storefrontRails ?? []),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return words.every((w) => hay.includes(w));
-}
-
 export function StorefrontCategoryScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'StorefrontCategory'>>();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
   const rawSlug = (route.params?.category || DEFAULT_STOREFRONT_CATEGORY).toLowerCase();
   const searchQuery = (route.params?.q ?? '').trim();
   const slug = resolveStorefrontCategorySlug(rawSlug);
@@ -144,7 +131,13 @@ export function StorefrontCategoryScreen() {
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
-  const showCategoryChips = slug === 'collection';
+
+  const categoryChipOptions = useMemo(() => {
+    if (searchQuery) return storefrontCategoriesForSearch(items, searchQuery);
+    if (slug === 'collection') return STOREFRONT_CATEGORIES;
+    return null;
+  }, [items, searchQuery, slug]);
+  const showCategoryChips = Boolean(categoryChipOptions?.length);
 
   usePublishRavSurface({
     type: 'category',
@@ -177,7 +170,7 @@ export function StorefrontCategoryScreen() {
   const categoryItems = useMemo(() => {
     const base = filterByStorefrontCategory(items, slug);
     if (!searchQuery) return base;
-    return base.filter((item) => matchesSearchQuery(item, searchQuery));
+    return base.filter((item) => matchesStorefrontSearchQuery(item, searchQuery));
   }, [items, slug, searchQuery]);
 
   const contextualGroups = useMemo(
@@ -202,15 +195,17 @@ export function StorefrontCategoryScreen() {
   return (
     <StorefrontChrome activeCategory={slug} floatingFooter={guestFavoritesPrompt}>
       <View style={styles.page}>
-        <View style={styles.breadcrumb}>
-          <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-            Store
-          </Text>
-          <Text style={styles.crumbSep}> / </Text>
-          <Text style={styles.crumbCurrent}>
-            {searchQuery ? `“${searchQuery}”` : def?.label ?? slug}
-          </Text>
-        </View>
+        {isDesktop ? (
+          <View style={styles.breadcrumb}>
+            <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
+              Store
+            </Text>
+            <Text style={styles.crumbSep}> / </Text>
+            <Text style={styles.crumbCurrent}>
+              {searchQuery ? `“${searchQuery}”` : def?.label ?? slug}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.headingBlock}>
           <Text style={styles.title}>{title}</Text>
@@ -218,13 +213,13 @@ export function StorefrontCategoryScreen() {
         </View>
 
         <View style={styles.toolbar}>
-          {showCategoryChips ? (
+          {showCategoryChips && categoryChipOptions ? (
             <View style={styles.facetBlock}>
               <Text style={styles.filterLabel}>Category</Text>
               <View style={styles.chipRow}>
-                {STOREFRONT_CATEGORIES.map((c) => (
+                {categoryChipOptions.map((c, index) => (
                   <React.Fragment key={c.slug}>
-                    {c.separatorBefore ? (
+                    {c.separatorBefore && index > 0 ? (
                       <Text
                         style={styles.chipSeparator}
                         accessibilityElementsHidden
@@ -237,7 +232,9 @@ export function StorefrontCategoryScreen() {
                       label={c.label}
                       active={c.slug === slug}
                       accent={c.navStyle === 'sale' ? 'sale' : undefined}
-                      onPress={() => goCategory(c.slug)}
+                      onPress={() =>
+                        goCategory(c.slug, searchQuery ? { q: searchQuery } : undefined)
+                      }
                     />
                   </React.Fragment>
                 ))}
