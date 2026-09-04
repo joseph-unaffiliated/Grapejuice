@@ -53,6 +53,7 @@ import {
 import {
   buildSwapPickPlan,
   buildSwapReviewFromActions,
+  hydrateRavProductBlocks,
   isBoxViewIntent,
   isSwapBrowseIntent,
   stripBlocksForSwapReview,
@@ -153,6 +154,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const unpersistedOpeningRef = useRef(false);
   const [focusComposerNonce, setFocusComposerNonce] = useState(0);
   const replyInputRef = useRef<TextInput>(null);
+  const replyLineHeight = Math.round(typography.lg * 1.35);
+  const replyInputMaxHeight = 180;
+  const [replyInputHeight, setReplyInputHeight] = useState(replyLineHeight);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList<AIChatMessage>>(null);
   const isGuest = !user?.uid;
@@ -195,13 +199,26 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     setMessages([]);
     setError(null);
     setInput('');
+    setReplyInputHeight(replyLineHeight);
     setBlockFeedback(null);
     setThreadId(null);
     setReturnToRecent(false);
     setWelcomeFocused(false);
     unpersistedOpeningRef.current = false;
     setView('welcome');
-  }, []);
+  }, [replyLineHeight]);
+
+  const onReplyContentSizeChange = useCallback(
+    (e: { nativeEvent: { contentSize: { height: number } } }) => {
+      const next = e.nativeEvent.contentSize.height;
+      setReplyInputHeight(Math.min(Math.max(next, replyLineHeight), replyInputMaxHeight));
+    },
+    [replyLineHeight, replyInputMaxHeight]
+  );
+
+  useEffect(() => {
+    if (!input.trim()) setReplyInputHeight(replyLineHeight);
+  }, [input, replyLineHeight]);
 
   const showWelcome = useCallback(() => {
     clearComposer();
@@ -442,8 +459,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         });
 
         let content = reply;
-        let displayBlocks = blocks;
+        let displayBlocks = hydrateRavProductBlocks({
+          blocks,
+          pane: ravPane,
+          message: trimmed,
+          catalog,
+        });
         let openedPane = false;
+        const canOpenCompanion = typeof onOpenCompanionPane === 'function';
 
         if (!ravMode && !boxLocked && actions.length && catalog.length) {
           if (!guardMutation()) {
@@ -454,9 +477,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               lineItems,
               catalog
             );
-            if (pendingActions.length) {
+            if (pendingActions.length && canOpenCompanion) {
               openedPane = true;
-              onOpenCompanionPane?.({
+              onOpenCompanionPane({
                 kind: 'swap_review',
                 source: 'rav',
                 title: 'Review changes',
@@ -475,7 +498,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         }
 
         // Phase 3: honor LLM pane when actions didn't already open review
-        if (!openedPane && !ravMode && ravPane) {
+        if (!openedPane && !ravMode && ravPane && canOpenCompanion) {
           const resolved = resolveRavPaneToOpen({
             pane: ravPane,
             message: trimmed,
@@ -486,7 +509,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           });
           if (resolved) {
             openedPane = true;
-            onOpenCompanionPane?.(resolved);
+            onOpenCompanionPane(resolved);
             displayBlocks =
               resolved.kind === 'box'
                 ? stripProductBlocksForBoxPane(displayBlocks)
@@ -494,11 +517,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           }
         }
 
-        if (!openedPane && wantsSwapBrowse && catalog.length) {
+        if (!openedPane && wantsSwapBrowse && catalog.length && canOpenCompanion) {
           const plan = buildSwapPickPlan(trimmed, recentUserMessages, lineItems, catalog);
           if (plan) {
             openedPane = true;
-            onOpenCompanionPane?.({
+            onOpenCompanionPane({
               kind: 'swap_pick',
               source: 'user',
               title: plan.title,
@@ -516,8 +539,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           }
         }
 
-        if (!openedPane && wantsBoxPane) {
-          onOpenCompanionPane?.({
+        if (!openedPane && wantsBoxPane && canOpenCompanion) {
+          onOpenCompanionPane({
             kind: 'box',
             source: 'user',
             title: 'Your box',
@@ -650,6 +673,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           {item.blocks?.length ? (
             <RavBlockRenderer
               blocks={item.blocks}
+              catalog={catalog}
               lineItems={lineItems}
               boxLocked={boxLocked}
               paymentGated={paymentGated}
@@ -661,7 +685,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         </View>
       );
     },
-    [lineItems, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
+    [lineItems, catalog, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
   );
 
   const chatFooter = messages.length > 0 ? (
@@ -870,15 +894,31 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 </TouchableOpacity>
               ) : null}
               <View style={styles.composerRow}>
-                <View style={[styles.replyPill, goldGlow, styles.replyPillFlex]}>
+                <View
+                  style={[
+                    styles.replyPill,
+                    goldGlow,
+                    styles.replyPillFlex,
+                    replyInputHeight > replyLineHeight + 2 && styles.replyPillMultiline,
+                  ]}
+                >
                   <TextInput
                     ref={replyInputRef}
-                    style={styles.replyInput}
+                    style={[
+                      styles.replyInput,
+                      {
+                        height: replyInputHeight,
+                        maxHeight: replyInputMaxHeight,
+                        lineHeight: replyLineHeight,
+                      },
+                    ]}
                     placeholder="Reply to Rav"
                     placeholderTextColor={colors.goldMuted}
                     value={input}
                     onChangeText={setInput}
+                    onContentSizeChange={onReplyContentSizeChange}
                     multiline
+                    scrollEnabled={replyInputHeight >= replyInputMaxHeight - 1}
                     blurOnSubmit={false}
                     onKeyPress={handleComposerKeyPress}
                     {...(Platform.OS === 'web' ? ({ rows: 1 } as object) : null)}
@@ -1173,7 +1213,7 @@ function createPilotStyles(colors: SemanticColors) {
   },
   composerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: spacing.sm,
   },
   replyPillFlex: {
@@ -1191,23 +1231,24 @@ function createPilotStyles(colors: SemanticColors) {
     minHeight: 40,
     gap: spacing.sm,
   },
+  replyPillMultiline: {
+    alignItems: 'flex-end',
+  },
   replyInput: {
     flex: 1,
     // Web <textarea> won't shrink in a row without this — otherwise icons wrap under.
     minWidth: 0,
     width: 0,
     fontSize: typography.lg,
-    lineHeight: typography.lg,
     color: colors.textPrimary,
-    maxHeight: 180,
     // Match welcome search: zero vertical padding so text shares the icon midline.
     paddingVertical: 0,
     paddingHorizontal: 0,
     margin: 0,
     ...typeface('regular'),
     ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', minHeight: typography.lg } as object)
-      : { includeFontPadding: false, textAlignVertical: 'center' }),
+      ? ({ outlineStyle: 'none', overflowY: 'auto', resize: 'none' } as object)
+      : { includeFontPadding: false, textAlignVertical: 'top' }),
   },
   replyActions: {
     flexDirection: 'row',
@@ -1215,7 +1256,8 @@ function createPilotStyles(colors: SemanticColors) {
     justifyContent: 'center',
     flexShrink: 0,
     gap: spacing.sm,
-    height: typography.lg,
+    height: 24,
+    marginBottom: 0,
   },
   pillIconBtn: {
     width: 24,

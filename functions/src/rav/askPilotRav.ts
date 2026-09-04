@@ -13,10 +13,44 @@ import {
   loadCatalogRows,
 } from './context';
 import { assertKidRavAllowed, stripKidRavActions } from './kidRavGuard';
-import type { AskPilotRavData, RavResponse } from './types';
+import type { AskPilotRavData, RavBlock, RavPaneHint, RavResponse } from './types';
 import { sanitizeRavPane } from './types';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
+
+function blockHasProducts(blocks: RavBlock[]): boolean {
+  return blocks.some(
+    (b) =>
+      (b.type === 'curation' && Array.isArray(b.swapOptions) && b.swapOptions.length > 0) ||
+      (b.type === 'product' && typeof b.itemId === 'string' && !!b.itemId.trim())
+  );
+}
+
+/**
+ * When the model lists products only via pane.optionItemIds / product_detail,
+ * copy them into chat blocks so clients without a companion pane still render a rail.
+ */
+function ensureChatProductBlocks(blocks: RavBlock[], pane?: RavPaneHint): RavBlock[] {
+  if (blockHasProducts(blocks)) return blocks;
+  const next = [...blocks];
+  if (pane?.optionItemIds?.length) {
+    next.push({
+      type: 'curation',
+      title: pane.title?.trim() || 'Picks for you',
+      swapOptions: pane.optionItemIds,
+      ...(pane.slotId ? { slotId: pane.slotId } : {}),
+    });
+    return next;
+  }
+  if (pane?.kind === 'product_detail' && pane.itemId?.trim()) {
+    next.push({
+      type: 'product',
+      title: pane.title?.trim() || 'Product',
+      itemId: pane.itemId.trim(),
+    });
+  }
+  return next;
+}
 
 /** Sonnet sometimes wraps the schema in ```json fences — strip and extract the object. */
 function parseRavResponse(raw: string): RavResponse | null {
@@ -142,10 +176,15 @@ export const askPilotRav = onCall(
       const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
       const parsed = parseRavResponse(raw);
       const text = parsed?.text?.trim() || raw.trim() || 'Sorry, I could not generate a reply.';
-      const blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.blocks) ? parsed!.blocks : [];
+      let blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.blocks) ? parsed!.blocks : [];
       const actions = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.actions) ? parsed!.actions : [];
       const pane =
         modeName === 'facilitator_kid' ? undefined : sanitizeRavPane(parsed?.pane ?? null);
+      // Model often puts product ids only on pane.optionItemIds and leaves blocks empty.
+      // Chat UIs (storefront drawer) have no companion pane — mirror ids into a curation block.
+      if (modeName !== 'facilitator_kid') {
+        blocks = ensureChatProductBlocks(blocks, pane);
+      }
       const payload = stripKidRavActions({ reply: text, text, blocks, actions, pane });
       return payload;
     } catch (err) {

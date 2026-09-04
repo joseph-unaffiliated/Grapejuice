@@ -2,9 +2,14 @@
  * Client-side detection for companion-pane intents.
  */
 
-import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot';
+import type { BoxLineItem, CatalogItem, RavBlock, RavDraftAction } from '../../types/pilot';
 import type { RavPaneProposal, RavTreatPathOption } from '../../types/ravPane';
 import { catalogSlotId } from '../box/buildDefaultBox';
+import {
+  filterByStorefrontCategory,
+  STOREFRONT_CATEGORIES,
+} from '../../constants/storefrontCategories';
+import type { RavPaneHint } from './resolveRavPane';
 
 const BOX_VIEW_PATTERNS: RegExp[] = [
   /\bwhat'?s?\s+in\s+(my|our|the)\s+box\b/,
@@ -86,6 +91,110 @@ export function stripProductBlocksForBoxPane<T extends { type: string }>(blocks:
 /** Drop swap/product cards when a companion pane is handling those changes. */
 export function stripBlocksForSwapReview<T extends { type: string }>(blocks: T[]): T[] {
   return blocks.filter((b) => b.type !== 'product' && b.type !== 'swap');
+}
+
+function blockHasRenderableProducts(blocks: RavBlock[]): boolean {
+  return blocks.some(
+    (b) =>
+      (b.type === 'curation' && Array.isArray(b.swapOptions) && b.swapOptions.length > 0) ||
+      (b.type === 'product' && typeof b.itemId === 'string' && !!b.itemId.trim())
+  );
+}
+
+/**
+ * Mirror pane.optionItemIds / product_detail into chat blocks when the model
+ * listed products only on the companion pane (storefront drawer has no pane).
+ */
+export function blocksFromRavPane(pane: RavPaneHint | undefined | null): RavBlock[] {
+  if (!pane) return [];
+  if (pane.optionItemIds?.length) {
+    return [
+      {
+        type: 'curation',
+        title: pane.title?.trim() || 'Picks for you',
+        swapOptions: pane.optionItemIds,
+        ...(pane.slotId ? { slotId: pane.slotId } : {}),
+      },
+    ];
+  }
+  if (pane.kind === 'product_detail' && pane.itemId?.trim()) {
+    return [
+      {
+        type: 'product',
+        title: pane.title?.trim() || 'Product',
+        itemId: pane.itemId.trim(),
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * When Rav promises products but returns neither blocks nor pane ids,
+ * build a small aisle rail from the catalog using the user message.
+ */
+export function buildCatalogBrowseBlock(
+  message: string,
+  catalog: CatalogItem[],
+  limit = 8
+): RavBlock | null {
+  if (!message.trim() || !catalog.length) return null;
+  const t = message.toLowerCase();
+
+  const keywordToSlug: Array<{ re: RegExp; slug: string }> = [
+    { re: /\bmenorah|hanukkiah|hanukiah\b/, slug: 'menorahs' },
+    { re: /\bdreidel\b/, slug: 'dreidels' },
+    { re: /\bcandle\b/, slug: 'candles' },
+    { re: /\bbook\b/, slug: 'books' },
+    { re: /\bgelt\b/, slug: 'gelt' },
+    { re: /\bfood|latke|sufgan|donut\b/, slug: 'food' },
+    { re: /\bstuff(y|ies)|plush\b/, slug: 'stuffies' },
+    { re: /\btoy\b/, slug: 'toys' },
+    { re: /\bactivit/, slug: 'activity' },
+  ];
+
+  let slug =
+    keywordToSlug.find((k) => k.re.test(t))?.slug ??
+    STOREFRONT_CATEGORIES.find((c) => {
+      if (c.slug === 'collection') return false;
+      const label = c.label.toLowerCase();
+      return t.includes(label) || t.includes(c.slug.replace(/-/g, ' '));
+    })?.slug;
+
+  // Generic “show me products / options / side by side” without aisle → most-loved-ish mix
+  if (!slug && /\b(products?|options?|picks?|side\s*by\s*side|show\s+me|browse)\b/.test(t)) {
+    slug = 'menorahs';
+  }
+  if (!slug) return null;
+
+  const def = STOREFRONT_CATEGORIES.find((c) => c.slug === slug);
+  const items = filterByStorefrontCategory(catalog, slug).slice(0, limit);
+  if (items.length < 1) return null;
+  return {
+    type: 'curation',
+    title: def?.label ?? 'Picks for you',
+    swapOptions: items.map((i) => i.id),
+  };
+}
+
+/** Ensure assistant messages carry a product rail whenever we can recover ids. */
+export function hydrateRavProductBlocks(args: {
+  blocks: RavBlock[];
+  pane?: RavPaneHint | null;
+  message: string;
+  catalog: CatalogItem[];
+}): RavBlock[] {
+  const { blocks, pane, message, catalog } = args;
+  if (blockHasRenderableProducts(blocks)) return blocks;
+
+  const fromPane = blocksFromRavPane(pane ?? undefined);
+  if (blockHasRenderableProducts(fromPane)) {
+    return [...blocks, ...fromPane];
+  }
+
+  const browse = buildCatalogBrowseBlock(message, catalog);
+  if (browse) return [...blocks, browse];
+  return blocks;
 }
 
 function findLineIndex(lineItems: BoxLineItem[], slotId?: string, itemId?: string): number {
