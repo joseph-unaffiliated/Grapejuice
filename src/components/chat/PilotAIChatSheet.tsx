@@ -594,22 +594,32 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     ]
   );
 
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
+
   useEffect(() => {
     if (!focusComposerNonce) return;
     const t = setTimeout(() => replyInputRef.current?.focus(), 80);
     return () => clearTimeout(t);
   }, [focusComposerNonce]);
 
+  /**
+   * Bootstrap / Ask-strip open: fire once per nonce.
+   * Keep `sendMessage` out of deps — its identity churns (catalog, box, etc.)
+   * and was cancelling the timeout after clearing the pending text, so custom
+   * questions never reached Anthropic while welcome chips (direct send) worked.
+   */
   useEffect(() => {
     if (!pendingSendNonce) return;
     const pending = pendingInitialMessage.current;
     if (!pending) return;
-    pendingInitialMessage.current = null;
     const t = setTimeout(() => {
-      void sendMessage(pending, { fromBootstrap: true });
+      if (pendingInitialMessage.current !== pending) return;
+      pendingInitialMessage.current = null;
+      void sendMessageRef.current(pending, { fromBootstrap: true });
     }, 50);
     return () => clearTimeout(t);
-  }, [pendingSendNonce, sendMessage]);
+  }, [pendingSendNonce]);
 
   const showWelcomeUi = view === 'welcome' && messages.length === 0 && !loading;
   const showRecentUi = view === 'recent';
