@@ -1086,7 +1086,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     marginTop: spacing.xl,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.logoDark,
   },
   emptyOwnBoxCtaText: {
@@ -1212,7 +1212,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     borderColor: colors.brand,
     paddingVertical: spacing.xs + 2,
     paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

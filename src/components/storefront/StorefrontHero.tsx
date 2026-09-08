@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  useWindowDimensions,
   Platform,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -17,6 +16,7 @@ import {
   type BoxJourneyDates,
 } from './StorefrontHeroJourneyTimeline';
 import type { StorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
 import { STOREFRONT_HERO, STOREFRONT_HERO_PASSOVER } from '../../constants/storefrontMedia';
@@ -100,8 +100,7 @@ export function StorefrontHero({
   onPrimary,
   onSecondary,
 }: Props) {
-  const { height, width } = useWindowDimensions();
-  const compact = width < 768;
+  const { height, width, isCompact: compact } = useLayoutBreakpoint();
   const [size, setSize] = useState({ w: 0, h: 0 });
   const hero = mode === 'passover' ? STOREFRONT_HERO_PASSOVER : STOREFRONT_HERO;
   const now = usePreviewNow();

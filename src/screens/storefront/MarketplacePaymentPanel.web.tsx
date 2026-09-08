@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -102,11 +102,12 @@ export function MarketplacePaymentPanel({
         accessibilityRole="button"
         accessibilityLabel={`Pay ${formatDollars(totalCents)} and place order`}
       >
-        {paying ? (
-          <BrandLoadingMark large={false} color={colors.goldMuted} />
-        ) : (
-          <Text style={styles.ctaText}>Pay {formatDollars(totalCents)} & place order</Text>
-        )}
+        <ButtonLoadingLabel
+          label={`Pay ${formatDollars(totalCents)} & place order`}
+          loading={paying}
+          loaderColor={colors.goldMuted}
+          labelStyle={styles.ctaText}
+        />
       </TouchableOpacity>
     </View>
   );
@@ -200,7 +201,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: spacing.md,

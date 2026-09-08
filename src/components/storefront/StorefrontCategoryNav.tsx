@@ -1,7 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+} from 'react-native';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import { useScrollActiveIntoView } from '../../hooks/useScrollActiveIntoView';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   MOBILE_GUTTER,
@@ -17,8 +25,10 @@ type Props = {
 };
 
 export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
+  const { isCompact } = useLayoutBreakpoint();
+  // Auto-center the active chip only on narrow viewports — desktop fits the row.
   const { scrollRef, onItemLayout, onScrollLayout, onContentSizeChange } =
-    useScrollActiveIntoView(activeSlug);
+    useScrollActiveIntoView(activeSlug, isCompact);
 
   return (
     <View style={styles.root}>

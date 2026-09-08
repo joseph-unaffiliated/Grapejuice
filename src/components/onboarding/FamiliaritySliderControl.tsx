@@ -22,19 +22,33 @@ const AXIS_LOCK_DX = 8;
 /**
  * 0–100 familiarity slider that yields to vertical ScrollViews until the
  * gesture is clearly horizontal — avoids the iPhone scroll-vs-drag fight.
+ * Click/tap anywhere on the hit strip jumps the thumb; drag still scrubbs.
  */
 export function FamiliaritySliderControl({ value, onChange }: Props) {
   const [trackWidth, setTrackWidth] = useState(0);
   const trackWidthRef = useRef(0);
+  const trackLeftRef = useRef(0);
+  const hitRef = useRef<View>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const draggingRef = useRef(false);
 
-  const setFromX = (x: number) => {
+  const applyXInTrack = (xInTrack: number) => {
     const w = trackWidthRef.current;
     if (w <= 0) return;
-    const ratio = Math.max(0, Math.min(1, x / w));
+    const ratio = Math.max(0, Math.min(1, xInTrack / w));
     onChangeRef.current(Math.round(ratio * 100));
+  };
+
+  const seekToPageX = (pageX: number) => {
+    hitRef.current?.measureInWindow((x, _y, width) => {
+      if (width > 0) {
+        trackLeftRef.current = x;
+        trackWidthRef.current = width;
+        setTrackWidth((prev) => (prev === width ? prev : width));
+      }
+      applyXInTrack(pageX - trackLeftRef.current);
+    });
   };
 
   const pan = useMemo(
@@ -48,10 +62,10 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
           Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > AXIS_LOCK_DX,
         onPanResponderGrant: (e) => {
           draggingRef.current = true;
-          setFromX(e.nativeEvent.locationX);
+          seekToPageX(e.nativeEvent.pageX);
         },
         onPanResponderMove: (e) => {
-          setFromX(e.nativeEvent.locationX);
+          seekToPageX(e.nativeEvent.pageX);
         },
         onPanResponderRelease: () => {
           draggingRef.current = false;
@@ -59,7 +73,6 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
         onPanResponderTerminate: () => {
           draggingRef.current = false;
         },
-        // Keep the thumb while dragging so the parent ScrollView can't yank it.
         onPanResponderTerminationRequest: () => !draggingRef.current,
       }),
     []
@@ -69,36 +82,73 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
     const w = e.nativeEvent.layout.width;
     trackWidthRef.current = w;
     setTrackWidth(w);
+    hitRef.current?.measureInWindow((x) => {
+      trackLeftRef.current = x;
+    });
   };
 
   const thumbLeft = trackWidth > 0 ? (value / 100) * trackWidth - THUMB / 2 : 0;
 
+  const webProps =
+    Platform.OS === 'web'
+      ? ({
+          onMouseDown: (e: {
+            clientX: number;
+            preventDefault: () => void;
+            currentTarget: { getBoundingClientRect: () => DOMRect };
+          }) => {
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            trackLeftRef.current = rect.left;
+            trackWidthRef.current = rect.width;
+            setTrackWidth(rect.width);
+            applyXInTrack(e.clientX - rect.left);
+
+            const onMove = (ev: MouseEvent) => {
+              applyXInTrack(ev.clientX - trackLeftRef.current);
+            };
+            const onUp = () => {
+              window.removeEventListener('mousemove', onMove);
+              window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          },
+        } as object)
+      : null;
+
   return (
     <View style={styles.sliderWrap}>
       <View
+        ref={hitRef}
         style={[
           styles.hit,
-          Platform.OS === 'web' ? ({ touchAction: 'pan-x' } as object) : null,
+          Platform.OS === 'web' ? ({ touchAction: 'none', cursor: 'pointer' } as object) : null,
         ]}
         onLayout={onLayout}
-        {...pan.panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityValue={{ min: 0, max: 100, now: value }}
+        accessibilityLabel="Familiarity"
+        {...(Platform.OS === 'web' ? webProps : pan.panHandlers)}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.track}
-          onPress={(e) => setFromX(e.nativeEvent.locationX)}
-          accessibilityRole="adjustable"
-          accessibilityValue={{ min: 0, max: 100, now: value }}
-        >
+        {Platform.OS !== 'web' ? (
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.hitPress}
+            onPress={(e) => seekToPageX(e.nativeEvent.pageX)}
+            accessibilityRole="adjustable"
+            accessibilityValue={{ min: 0, max: 100, now: value }}
+          />
+        ) : null}
+        <View style={styles.track} pointerEvents="none">
           <View style={[styles.fill, { width: `${value}%` }]} />
           <View
             style={[
               styles.thumb,
-              { left: Math.max(0, Math.min(trackWidth - THUMB, thumbLeft)) },
+              { left: Math.max(0, Math.min(Math.max(trackWidth - THUMB, 0), thumbLeft)) },
             ]}
-            pointerEvents="none"
           />
-        </TouchableOpacity>
+        </View>
       </View>
       <View style={styles.stepRow}>
         {[0, 25, 50, 75, 100].map((step) => (
@@ -128,6 +178,11 @@ const styles = StyleSheet.create({
   hit: {
     justifyContent: 'center',
     paddingVertical: spacing.md,
+    position: 'relative',
+  },
+  hitPress: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
   },
   track: {
     height: TRACK_H,

@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   TouchableOpacity,
-  Text,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
@@ -9,7 +8,7 @@ import {
 } from 'react-native';
 import { useThemeMode } from '../../context/ThemeContext';
 import { designPresets } from '../../constants/designPresets';
-import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
+import { ButtonLoadingLabel } from '../brand/ButtonLoadingLabel';
 
 type Variant = 'pill' | 'pillOutline' | 'filled';
 
@@ -56,17 +55,12 @@ export function GrapejuiceButton({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
-      {loading ? (
-        <GrapejuiceBrandMark
-          markOnly
-          compact
-          animating
-          decorative
-          color={loaderColor}
-        />
-      ) : (
-        <Text style={[designPresets.textPillLabel(colors), { color: labelColor }, textStyle]}>{label}</Text>
-      )}
+      <ButtonLoadingLabel
+        label={label}
+        loading={loading}
+        loaderColor={loaderColor}
+        labelStyle={[designPresets.textPillLabel(colors), { color: labelColor }, textStyle]}
+      />
     </TouchableOpacity>
   );
 }

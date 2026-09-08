@@ -17,7 +17,7 @@ type PrimaryProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Black fill, gold label + hairline border, pill radius (matches app CTAs). */
+/** Black fill, gold label + hairline border, rectangular marketplace CTA. */
 export function OnboardingPrimaryButton({
   label,
   onPress,
@@ -49,7 +49,7 @@ type SecondaryProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Gold outline, extralight label, pill radius. */
+/** Gold outline, extralight label, rectangular marketplace CTA. */
 export function OnboardingSecondaryButton({
   label,
   onPress,
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
     paddingVertical: 12,
     paddingHorizontal: 12,
     alignItems: 'center',
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
     paddingVertical: 8,
     paddingHorizontal: 12,
     alignItems: 'center',

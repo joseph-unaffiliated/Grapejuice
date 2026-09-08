@@ -1,13 +1,14 @@
-import { Platform, useWindowDimensions } from 'react-native';
+import { Platform } from 'react-native';
 import { LAYOUT } from '../constants/theme';
 import { getWebContentMaxWidth } from './useEffectiveWindowDimensions';
+import { useLayoutBreakpoint } from './useLayoutBreakpoint';
 
 export type WebLayoutTier = 'native' | 'mobile-web' | 'tablet-web' | 'desktop-web';
 
 export { getWebContentMaxWidth };
 
 export function useWebLayout() {
-  const { width, height } = useWindowDimensions();
+  const { width, height, isTabletUp, isDesktop } = useLayoutBreakpoint();
 
   if (Platform.OS !== 'web') {
     return {
@@ -26,14 +27,12 @@ export function useWebLayout() {
     };
   }
 
-  const tier: WebLayoutTier =
-    width >= LAYOUT.BREAKPOINT_DESKTOP
-      ? 'desktop-web'
-      : width >= LAYOUT.BREAKPOINT_TABLET
-        ? 'tablet-web'
-        : 'mobile-web';
+  const tier: WebLayoutTier = isDesktop
+    ? 'desktop-web'
+    : isTabletUp
+      ? 'tablet-web'
+      : 'mobile-web';
 
-  const isTabletUp = width >= LAYOUT.BREAKPOINT_TABLET;
   // Legacy left rail is retired — never reserve sidebar width.
   const sidebarWidth = 0;
   const mainAreaWidth = Math.max(0, width - sidebarWidth);

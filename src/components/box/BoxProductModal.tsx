@@ -93,10 +93,31 @@ export function BoxProductModal({
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** Soft-mask the sheet bottom while more scroll content remains below. */
+  const [showBottomFade, setShowBottomFade] = useState(false);
+  const scrollViewportH = React.useRef(0);
+  const scrollContentH = React.useRef(0);
 
   useEffect(() => {
-    if (visible) setDetailsOpen(false);
+    if (visible) {
+      setDetailsOpen(false);
+      setShowBottomFade(false);
+      scrollViewportH.current = 0;
+      scrollContentH.current = 0;
+    }
   }, [visible, item?.id]);
+
+  const syncBottomFade = (offsetY = 0) => {
+    const viewportH = scrollViewportH.current;
+    const contentH = scrollContentH.current;
+    if (viewportH <= 0 || contentH <= 0) {
+      setShowBottomFade(false);
+      return;
+    }
+    const overflows = contentH > viewportH + 4;
+    const atBottom = offsetY + viewportH >= contentH - 4;
+    setShowBottomFade(overflows && !atBottom);
+  };
 
   const inBox = useMemo(
     () => (item ? lineItems.some((li) => li.itemId === item.id) : false),
@@ -162,7 +183,6 @@ export function BoxProductModal({
           style={[
             styles.sheet,
             Platform.OS === 'web' ? { boxShadow: shadowsWeb.lg } : shadows.lg,
-            desktop ? { paddingBottom: Math.max(insets.bottom, spacing.md) } : null,
           ]}
           accessibilityViewIsModal
         >
@@ -181,118 +201,159 @@ export function BoxProductModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={[
-              styles.scrollContent,
-              !desktop && {
-                paddingBottom: spacing.xxl + spacing.md + Math.max(insets.bottom, spacing.sm),
-              },
-            ]}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={[styles.split, desktop && styles.splitDesktop]}>
-              <View style={[styles.galleryCol, desktop && styles.galleryColDesktop]}>
-                <ProductImageGallery
-                  itemId={item.id}
-                  imageUrl={item.imageUrl}
-                  imageUrls={item.imageUrls}
-                  wishlisted={wishlisted}
-                  onToggleWishlist={() => toggleWishlist(item.id)}
-                  wishlistDisabled={wishlistSaving}
-                />
-              </View>
-
-              <View style={[styles.buy, desktop && styles.buyDesktop]}>
-                <Text style={[styles.name, !desktop && styles.nameMobile]}>{item.name}</Text>
-                {bodyCopy ? <Text style={styles.desc}>{bodyCopy}</Text> : null}
-
-                {details.length > 0 ? (
-                  <View style={styles.details}>
-                    <TouchableOpacity
-                      style={styles.detailsToggle}
-                      onPress={() => setDetailsOpen((open) => !open)}
-                      accessibilityRole="button"
-                      accessibilityState={{ expanded: detailsOpen }}
-                      accessibilityLabel="Details"
-                    >
-                      <Text style={styles.detailsHeading}>Details</Text>
-                      <View
-                        style={[
-                          styles.detailsChevron,
-                          detailsOpen ? styles.detailsChevronOpen : null,
-                        ]}
-                      >
-                        <Icon icon={icons.chevronDown} size={12} color={colors.goldMuted} />
-                      </View>
-                    </TouchableOpacity>
-                    {detailsOpen
-                      ? details.map((row) => (
-                          <View key={row.label} style={styles.detailRow}>
-                            <Text style={styles.detailLabel}>{row.label}</Text>
-                            <Text style={styles.detailValue}>{row.value}</Text>
-                          </View>
-                        ))
-                      : null}
-                  </View>
-                ) : null}
-
-                <View style={styles.priceRule}>
-                  <ProductPricingBlock item={item} hasBox />
+          <View style={styles.scrollWrap}>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={[
+                styles.scrollContent,
+                desktop && similar.length > 0 && onSelectItem
+                  ? styles.scrollContentFlushBottom
+                  : null,
+                !desktop && {
+                  paddingBottom:
+                    spacing.xxl + spacing.md + Math.max(insets.bottom, spacing.sm),
+                },
+              ]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              scrollEventThrottle={16}
+              onScroll={(e) => {
+                const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+                scrollViewportH.current = layoutMeasurement.height;
+                scrollContentH.current = contentSize.height;
+                syncBottomFade(contentOffset.y);
+              }}
+              onContentSizeChange={(_w, h) => {
+                scrollContentH.current = h;
+                syncBottomFade(0);
+              }}
+              onLayout={(e) => {
+                scrollViewportH.current = e.nativeEvent.layout.height;
+                syncBottomFade(0);
+              }}
+            >
+              <View style={[styles.split, desktop && styles.splitDesktop]}>
+                <View style={[styles.galleryCol, desktop && styles.galleryColDesktop]}>
+                  <ProductImageGallery
+                    itemId={item.id}
+                    imageUrl={item.imageUrl}
+                    imageUrls={item.imageUrls}
+                    wishlisted={wishlisted}
+                    onToggleWishlist={() => toggleWishlist(item.id)}
+                    wishlistDisabled={wishlistSaving}
+                  />
                 </View>
 
-                <View style={styles.ctaBlock}>
-                  <View style={styles.ctaRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.cta,
-                        styles.ctaPrimary,
-                        (locked || busy) && styles.ctaDisabled,
-                      ]}
-                      onPress={() =>
-                        void run(() =>
-                          showRemove && onRemove ? onRemove(item) : onAdd(item)
-                        )
-                      }
-                      disabled={locked || busy}
-                      accessibilityRole="button"
-                    >
-                      {busy ? (
-                        <ActivityIndicator color={colors.textInverse} />
-                      ) : (
-                        <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
-                      )}
-                    </TouchableOpacity>
-                    {showSecondary ? (
+                <View style={[styles.buy, desktop && styles.buyDesktop]}>
+                  <Text style={[styles.name, !desktop && styles.nameMobile]}>{item.name}</Text>
+                  {bodyCopy ? <Text style={styles.desc}>{bodyCopy}</Text> : null}
+
+                  {details.length > 0 ? (
+                    <View style={styles.details}>
+                      <TouchableOpacity
+                        style={styles.detailsToggle}
+                        onPress={() => setDetailsOpen((open) => !open)}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: detailsOpen }}
+                        accessibilityLabel="Details"
+                      >
+                        <Text style={styles.detailsHeading}>Details</Text>
+                        <View
+                          style={[
+                            styles.detailsChevron,
+                            detailsOpen ? styles.detailsChevronOpen : null,
+                          ]}
+                        >
+                          <Icon icon={icons.chevronDown} size={12} color={colors.goldMuted} />
+                        </View>
+                      </TouchableOpacity>
+                      {detailsOpen
+                        ? details.map((row) => (
+                            <View key={row.label} style={styles.detailRow}>
+                              <Text style={styles.detailLabel}>{row.label}</Text>
+                              <Text style={styles.detailValue}>{row.value}</Text>
+                            </View>
+                          ))
+                        : null}
+                    </View>
+                  ) : null}
+
+                  <View style={styles.priceRule}>
+                    <ProductPricingBlock item={item} hasBox />
+                  </View>
+
+                  <View style={styles.ctaBlock}>
+                    <View style={styles.ctaRow}>
                       <TouchableOpacity
                         style={[
                           styles.cta,
-                          styles.ctaSecondary,
+                          styles.ctaPrimary,
                           (locked || busy) && styles.ctaDisabled,
                         ]}
                         onPress={() =>
-                          void run(() => {
-                            if (swapSource) return onSwap(item, swapSource);
-                          })
+                          void run(() =>
+                            showRemove && onRemove ? onRemove(item) : onAdd(item)
+                          )
                         }
                         disabled={locked || busy}
                         accessibilityRole="button"
                       >
-                        <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>
+                        {busy ? (
+                          <ActivityIndicator color={colors.textInverse} />
+                        ) : (
+                          <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                        )}
                       </TouchableOpacity>
-                    ) : null}
+                      {showSecondary ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.cta,
+                            styles.ctaSecondary,
+                            (locked || busy) && styles.ctaDisabled,
+                          ]}
+                          onPress={() =>
+                            void run(() => {
+                              if (swapSource) return onSwap(item, swapSource);
+                            })
+                          }
+                          disabled={locked || busy}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
                   </View>
                 </View>
               </View>
-            </View>
 
-            {similar.length > 0 && onSelectItem ? (
-              <View style={styles.similarBleed}>
-                <SimilarProductsRail items={similar} onPressItem={onSelectItem} />
-              </View>
+              {similar.length > 0 && onSelectItem ? (
+                <View style={styles.similarBleed}>
+                  <SimilarProductsRail items={similar} onPressItem={onSelectItem} />
+                </View>
+              ) : null}
+            </ScrollView>
+
+            {desktop ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.bottomFade,
+                  {
+                    opacity: showBottomFade ? 1 : 0,
+                    ...(Platform.OS === 'web'
+                      ? ({
+                          backgroundImage: `linear-gradient(to top, ${colors.bgPrimary} 0%, ${colors.bgPrimary} 18%, transparent 100%)`,
+                          transitionProperty: 'opacity',
+                          transitionDuration: '140ms',
+                          transitionTimingFunction: 'ease-out',
+                        } as object)
+                      : { backgroundColor: colors.bgPrimary }),
+                  },
+                ]}
+              />
             ) : null}
-          </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
@@ -346,12 +407,18 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       height: 36,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
     },
     closeGlyph: {
       fontSize: 18,
       color: colors.textPrimary,
       lineHeight: 20,
+    },
+    scrollWrap: {
+      flexGrow: 0,
+      flexShrink: 1,
+      minHeight: 0,
+      position: 'relative',
     },
     scroll: { flexGrow: 0, flexShrink: 1 },
     scrollContent: {
@@ -359,6 +426,18 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       paddingTop: desktop ? spacing.xxl : spacing.xl,
       paddingBottom: spacing.xxl + spacing.md,
       gap: spacing.xxl,
+    },
+    /** Let “You may also like” run to the sheet edge; bottom fade softens the clip. */
+    scrollContentFlushBottom: {
+      paddingBottom: spacing.md,
+    },
+    bottomFade: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: 56,
+      zIndex: 2,
     },
     split: {
       flexDirection: 'column',
@@ -458,7 +537,7 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       alignItems: 'stretch',
     },
     cta: {
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.xl + spacing.sm,
       alignItems: 'center',

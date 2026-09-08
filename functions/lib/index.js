@@ -1542,7 +1542,7 @@ exports.sendDebriefReminders = (0, https_1.onCall)(async (request) => {
     await (0, email_1.sendDebriefReminderEmail)({ to, attempt, claimUrl });
     return { ok: true, attempt };
 });
-/** Daily batch — eligible users who have not completed debrief (up to 2 attempts). */
+/** Daily batch — eligible users who have not completed debrief (only after Hanukkah ends). */
 exports.scheduledDebriefReminders = (0, scheduler_1.onSchedule)('every day 10:00', async () => {
     await (0, debriefReminders_1.runDebriefReminderBatch)(db);
 });

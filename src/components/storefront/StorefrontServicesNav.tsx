@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import {
   boxLockChipLabel,
@@ -15,12 +14,12 @@ import {
   MY_HANUKKAH_BOX_LABEL,
 } from '../../constants/hanukkahBoxLock';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   borderRadius,
-  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -36,8 +35,7 @@ type Props = {
 
 /** Desktop/tablet only — mobile uses the hamburger side menu instead. */
 export function StorefrontServicesNav({ onPress }: Props) {
-  const { width } = useWindowDimensions();
-  const compact = width < LAYOUT.BREAKPOINT_TABLET;
+  const { isCompact: compact } = useLayoutBreakpoint();
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
@@ -57,25 +55,16 @@ export function StorefrontServicesNav({ onPress }: Props) {
     };
   }, []);
 
-  const { yearLabel, chipLabel, boxServiceId } = useMemo(() => {
-    if (mode === 'passover') {
-      return {
-        yearLabel: '2027 Passover',
-        chipLabel: 'Coming soon',
-        boxServiceId: 'passover' as const,
-      };
-    }
+  const { yearLabel, chipLabel } = useMemo(() => {
     if (mode === 'locked') {
       return {
         yearLabel: MY_HANUKKAH_BOX_LABEL,
         chipLabel: lockedBoxChipLabel(estimatedDeliveryBy, now),
-        boxServiceId: 'box' as const,
       };
     }
     return {
       yearLabel: HANUKKAH_BOX_LOCK_YEAR_LABEL,
       chipLabel: boxLockChipLabel(now),
-      boxServiceId: 'box' as const,
     };
   }, [mode, estimatedDeliveryBy, now]);
 
@@ -99,29 +88,32 @@ export function StorefrontServicesNav({ onPress }: Props) {
           <Text style={styles.link}>Shop</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.lockGroup}
-          onPress={() => onPress(boxServiceId)}
-          accessibilityRole="button"
-          accessibilityLabel={`${yearLabel}, ${chipLabel}`}
-        >
-          <Text style={styles.lockYear}>{yearLabel}</Text>
-          <View style={styles.lockChip}>
-            <Text style={styles.lockChipText}>{chipLabel}</Text>
-          </View>
-        </TouchableOpacity>
-
         {mode !== 'passover' ? (
           <TouchableOpacity
-            style={styles.linkHit}
-            onPress={() => onPress('passover')}
+            style={styles.lockGroup}
+            onPress={() => onPress('box')}
             accessibilityRole="button"
-            accessibilityLabel="2027 Passover"
+            accessibilityLabel={`${yearLabel}, ${chipLabel}`}
           >
-            <Text style={styles.link}>2027 Passover</Text>
+            <Text style={styles.lockYear}>{yearLabel}</Text>
+            <View style={styles.lockChip}>
+              <Text style={styles.lockChipText}>{chipLabel}</Text>
+            </View>
           </TouchableOpacity>
         ) : null}
 
+        <View
+          style={styles.lockGroup}
+          accessibilityRole="text"
+          accessibilityLabel="2027 Passover, Coming soon"
+        >
+          <Text style={styles.lockYear}>2027 Passover</Text>
+          <View style={styles.lockChip}>
+            <Text style={styles.lockChipText}>Coming soon</Text>
+          </View>
+        </View>
+
+        {/* Temporarily hidden — Our story
         <TouchableOpacity
           style={styles.linkHit}
           onPress={() => onPress('story')}
@@ -130,6 +122,7 @@ export function StorefrontServicesNav({ onPress }: Props) {
         >
           <Text style={styles.link}>Our story</Text>
         </TouchableOpacity>
+        */}
       </ScrollView>
     </View>
   );

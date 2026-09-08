@@ -216,7 +216,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     addBtn: {
       backgroundColor: colors.brand,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
     },

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Pressable,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -21,12 +20,12 @@ import { useStorefrontRav } from './storefrontRavContext';
 import { useStorefrontLeave } from './storefrontLeaveContext';
 import type { MainStackParamList } from '../../navigation/types';
 import {
-  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
 } from '../../constants/theme';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Nav = StackNavigationProp<MainStackParamList>;
@@ -44,8 +43,9 @@ type Props = {
    */
   hideSearchAndRav?: boolean;
   /**
-   * `sticky` — single compact bar for the scroll overlay:
-   * menu · search · account · cart (no promo, Rav, or wordmark).
+   * `sticky` — compact scroll overlay bar.
+   * Mobile: menu · search · account · cart.
+   * Desktop: logo · search · Rav · account · cart (never the hamburger strip).
    */
   variant?: 'default' | 'sticky';
 };
@@ -75,7 +75,8 @@ function canFitDesktopSearch(windowWidth: number): boolean {
 /**
  * Desktop: logo left, centered SearchPill + Rav, account menu right.
  * Mobile: menu + mark | account; full-width search + Rav below.
- * Sticky: one compact bar — menu · search · account · cart.
+ * Sticky mobile: menu · search · account · cart.
+ * Sticky desktop: same as desktop in-flow header row (no hamburger).
  */
 export function StorefrontHeader({
   onLogoPress,
@@ -89,8 +90,9 @@ export function StorefrontHeader({
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [navOpen, setNavOpen] = useState(false);
-  const { width } = useWindowDimensions();
-  const compact = width < LAYOUT.BREAKPOINT_TABLET || !canFitDesktopSearch(width);
+  const { width, isCompact } = useLayoutBreakpoint();
+  // Collapse to hamburger only on narrow viewports (not when search merely compresses).
+  const compact = isCompact || !canFitDesktopSearch(width);
 
   const safeTopPad = padTopSafeArea
     ? Platform.OS === 'web'
@@ -178,7 +180,7 @@ export function StorefrontHeader({
   );
 
   const account = (
-    <View style={[styles.sideRight, (compact || variant === 'sticky') && styles.sideRightCompact]}>
+    <View style={[styles.sideRight, compact && styles.sideRightCompact]}>
       <StorefrontAccountMenu />
       <StorefrontCartBoxButton />
     </View>
@@ -196,6 +198,21 @@ export function StorefrontHeader({
   );
 
   if (variant === 'sticky') {
+    // Desktop sticky: same logo · search · account row as the in-flow header —
+    // never the mobile hamburger mini-bar.
+    if (!compact) {
+      return (
+        <View style={[styles.root, styles.stickyRoot, { paddingTop: stickySafeTop }]}>
+          <View style={styles.row}>
+            <View style={styles.sideLeft}>{desktopLogo}</View>
+            <View style={styles.searchMiddle} pointerEvents="box-none">
+              {searchCluster}
+            </View>
+            {account}
+          </View>
+        </View>
+      );
+    }
     return (
       <View style={[styles.root, styles.rootMobile, styles.stickyRoot, { paddingTop: stickySafeTop }]}>
         <View style={styles.stickyRow}>

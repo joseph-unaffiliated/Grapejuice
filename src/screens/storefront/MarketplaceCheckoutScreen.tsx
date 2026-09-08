@@ -19,6 +19,7 @@ import { createMarketplaceCheckout } from '../../services/checkout/createMarketp
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -281,13 +282,12 @@ function MarketplaceCheckoutBody() {
         accessibilityRole="button"
         accessibilityLabel="Place order"
       >
-        {submitting ? (
-          <BrandLoadingMark large={false} color={colors.goldMuted} />
-        ) : (
-          <Text style={styles.ctaText}>
-            {total > 0 ? `Place order · ${formatDollars(total)}` : 'Place order'}
-          </Text>
-        )}
+        <ButtonLoadingLabel
+          label={total > 0 ? `Place order · ${formatDollars(total)}` : 'Place order'}
+          loading={submitting}
+          loaderColor={colors.goldMuted}
+          labelStyle={styles.ctaText}
+        />
       </TouchableOpacity>
     </ScrollView>
   );
@@ -354,7 +354,7 @@ function createStyles(colors: SemanticColors) {
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: spacing.lg,

@@ -22,6 +22,10 @@ type Props = {
   loop?: boolean;
   /** Override wobble timing / amplitude. */
   wobble?: GrapeWobbleTune;
+  /** Explicit mark width (px). Overrides variant/compact sizing when set. */
+  width?: number;
+  /** Explicit mark height (px). Defaults from width ÷ aspect when omitted. */
+  height?: number;
 };
 
 function sizeForVariant(
@@ -52,12 +56,22 @@ export function GrapejuiceBrandMark({
   animating = false,
   loop = true,
   wobble,
+  width: widthProp,
+  height: heightProp,
 }: Props) {
-  const { width, height } = sizeForVariant(variant, markOnly, compact);
+  const fallback = sizeForVariant(variant, markOnly, compact);
+  const width = widthProp ?? fallback.width;
+  const height = heightProp ?? (widthProp != null ? width / LOGOMARK_ASPECT : fallback.height);
 
   return (
     <View
-      style={[styles.wrap, align === 'left' && styles.wrapLeft]}
+      style={[
+        styles.wrap,
+        align === 'left' && styles.wrapLeft,
+        widthProp != null || heightProp != null
+          ? { width, height, overflow: 'hidden' as const }
+          : null,
+      ]}
       accessible={!decorative}
       accessibilityLabel={decorative ? undefined : 'Grapejuice'}
       accessibilityRole={decorative ? undefined : 'image'}

@@ -24,6 +24,7 @@ import { spacing, typography, borderRadius, typeface } from '../../constants/the
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
@@ -261,13 +262,12 @@ function CheckoutScreenBody() {
         accessibilityRole="button"
         accessibilityLabel={cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
       >
-        {submitting ? (
-          <BrandLoadingMark large={false} color={colors.goldMuted} />
-        ) : (
-          <Text style={styles.ctaText}>
-            {cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
-          </Text>
-        )}
+        <ButtonLoadingLabel
+          label={cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
+          loading={submitting}
+          loaderColor={colors.goldMuted}
+          labelStyle={styles.ctaText}
+        />
       </TouchableOpacity>
     </ScrollView>
   );
@@ -338,7 +338,7 @@ function createStyles(colors: SemanticColors) {
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: spacing.lg,

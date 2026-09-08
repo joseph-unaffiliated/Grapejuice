@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  useWindowDimensions,
 } from 'react-native';
 import { StorefrontMediaPlaceholder } from './StorefrontMediaPlaceholder';
 import type { StorefrontMediaSlot } from '../../constants/storefrontMedia';
 import type { StorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { LIST_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import {
@@ -177,8 +177,7 @@ type Props = {
 };
 
 export function StorefrontBoxFeature({ mode, onPrimary, onEligibility }: Props) {
-  const { width } = useWindowDimensions();
-  const stacked = width < 768;
+  const { isCompact: stacked } = useLayoutBreakpoint();
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
   const copy = copyForMode(mode, boxPrice);
 

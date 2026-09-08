@@ -385,7 +385,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       backgroundColor: colors.brand,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.xl,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       minWidth: 220,
       alignItems: 'center',
       marginBottom: spacing.sm,

@@ -575,7 +575,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     error: { color: colors.error, marginBottom: spacing.md },
     saveBtn: {
       backgroundColor: colors.brand,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       paddingVertical: spacing.md,
       alignItems: 'center',
       marginTop: spacing.sm,
@@ -585,7 +585,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     deleteBtn: {
       borderWidth: 1,
       borderColor: colors.error,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       paddingVertical: spacing.md,
       alignItems: 'center',
       marginTop: spacing.md,
@@ -627,14 +627,14 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     modalCancelBtn: {
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
     },
     modalCancelText: { color: colors.textSecondary, fontWeight: '600', fontSize: typography.md },
     modalDeleteBtn: {
       backgroundColor: colors.error,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
     },
     modalDeleteText: { color: colors.textInverse, fontWeight: '700', fontSize: typography.md },
     deniedTitle: { fontSize: typography.titleLg, fontWeight: '700', color: colors.textPrimary },

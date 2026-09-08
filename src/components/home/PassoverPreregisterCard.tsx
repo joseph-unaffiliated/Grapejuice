@@ -113,7 +113,7 @@ function createPassoverCardStyles(colors: SemanticColors) {
       marginTop: spacing.sm,
       paddingVertical: 10,
       paddingHorizontal: spacing.sm,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: palette.warm[200],
       alignSelf: 'stretch',

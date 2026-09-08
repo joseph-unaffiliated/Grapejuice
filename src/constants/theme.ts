@@ -226,8 +226,34 @@ export const borderRadius = {
 /**
  * Typography — DM Sans (Expo on native; Google Fonts on web).
  *
- * Large mobile-first scale (was xs10–headerLg17). Easy revert to that baseline.
+ * Web uses the compact desktop scale. Native (phone apps) keeps the larger
+ * mobile-first sizes from the Sep polish. Do not bump web to the mobile scale —
+ * that made desktop type feel huge.
  */
+const TYPE_SIZES_DESKTOP = {
+  xs: 10,
+  sm: 11,
+  md: 12,
+  lg: 13,
+  xl: 14,
+  xxl: 15,
+  title: 14,
+  titleLg: 16,
+  headerLg: 17,
+} as const;
+
+const TYPE_SIZES_MOBILE = {
+  xs: 13,
+  sm: 15,
+  md: 16,
+  lg: 17,
+  xl: 18,
+  xxl: 20,
+  title: 20,
+  titleLg: 24,
+  headerLg: 28,
+} as const;
+
 export const typography = {
   fontFamily: Platform.select({
     web: {
@@ -243,15 +269,7 @@ export const typography = {
       bold: 'DMSans_700Bold',
     },
   })!,
-  xs: 13,
-  sm: 15,
-  md: 16,
-  lg: 17,
-  xl: 18,
-  xxl: 20,
-  title: 20,
-  titleLg: 24,
-  headerLg: 28,
+  ...(Platform.OS === 'web' ? TYPE_SIZES_DESKTOP : TYPE_SIZES_MOBILE),
 };
 
 /** Per-weight typeface — web uses fontWeight; native uses Expo font files. */

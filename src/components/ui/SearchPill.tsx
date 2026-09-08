@@ -7,12 +7,10 @@ import {
   Platform,
   AppState,
   Pressable,
-  useWindowDimensions,
   type AppStateStatus,
 } from 'react-native';
 import {
   borderRadius,
-  LAYOUT,
   MOBILE_GUTTER,
   shadows,
   shadowsWeb,
@@ -21,6 +19,7 @@ import {
 } from '../../constants/theme';
 import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 
 const LINE_DESKTOP = typography.lg;
 /** iOS Safari zooms inputs under 16px — typed input stays at 16 on mobile. */
@@ -132,8 +131,7 @@ export function SearchPill({
   contentInsetRight = 0,
 }: Props) {
   const { colors } = useThemeMode();
-  const { width } = useWindowDimensions();
-  const compact = width < LAYOUT.BREAKPOINT_TABLET;
+  const { isCompact: compact } = useLayoutBreakpoint();
   const inputSize = compact ? INPUT_MOBILE : LINE_DESKTOP;
   const fauxSize = compact ? FAUX_MOBILE : LINE_DESKTOP;
   /** Readable multiline leading; collapsed single-line keeps inputSize for the 37px pill. */

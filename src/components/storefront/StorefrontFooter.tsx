@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  useWindowDimensions,
   Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -16,12 +15,12 @@ import type { MainStackParamList } from '../../navigation/types';
 import { navigateToLanding } from '../../navigation/mainStackNavigation';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { useEntryContextStore } from '../../stores/entryContextStore';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { useMarketingLandings } from '../../hooks/useMarketingLandings';
 import { isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
 import {
-  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -81,8 +80,7 @@ export function StorefrontFooter() {
   const captureEntry = useEntryContextStore((s) => s.capture);
   const { landings } = useMarketingLandings();
   const whoItsFor = landings.length ? landings : FOOTER_WHO_ITS_FOR;
-  const { width } = useWindowDimensions();
-  const compact = width < LAYOUT.BREAKPOINT_TABLET;
+  const { width, isCompact: compact } = useLayoutBreakpoint();
 
   const columns = useMemo((): FooterColumn[] => {
     const goCategory = (slug: string) =>

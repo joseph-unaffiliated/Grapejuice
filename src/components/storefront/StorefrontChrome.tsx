@@ -13,13 +13,13 @@ import {
   Platform,
   ScrollView,
   Animated,
-  useWindowDimensions,
   RefreshControl,
   ActivityIndicator,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
   type LayoutChangeEvent,
 } from 'react-native';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { useNavigation, useIsFocused, useRoute } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip } from './StorefrontPromoStrip';
@@ -42,7 +42,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
-import { LAYOUT, semanticColors, spacing } from '../../constants/theme';
+import { semanticColors, spacing } from '../../constants/theme';
 import {
   STOREFRONT_SCROLL_CLASS,
   STOREFRONT_H_SCROLL_CLASS,
@@ -107,7 +107,7 @@ type ChromeProps = {
   servicesSlot?: ReactNode;
   showPromoStrip?: boolean;
   onHeaderStackLayout?: (height: number) => void;
-  /** `sticky` — compact scroll overlay (menu · search · account · cart only). */
+  /** `sticky` — mobile-only mini overlay (menu · search · account · cart). */
   chromeVariant?: 'full' | 'sticky';
 };
 
@@ -233,8 +233,7 @@ function StorefrontChromeInner({
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
-  const { width: windowWidth } = useWindowDimensions();
-  const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
+  const { width: windowWidth, isCompact: compact } = useLayoutBreakpoint();
   const fillBody = bodyMode === 'fill';
   /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
   const showPromoStrip =
@@ -275,6 +274,7 @@ function StorefrontChromeInner({
 
   /** Fill mode only — Rav-open uses absolute full-width scroll-away chrome instead. */
   const pinChromeAboveBody = fillBody;
+  /** Compact sticky bar on scroll-up (mobile hamburger / desktop logo·search·account). */
   const useOverlaySticky = !fillBody;
 
   const lastY = useRef(0);
@@ -318,6 +318,12 @@ function StorefrontChromeInner({
 
   const measuredChrome = () =>
     chromeHeight.current > 0 ? chromeHeight.current : STICKY_FALLBACK_CHROME_H;
+
+  /** Sticky mini-bar height once measured; falls back to a short header estimate. */
+  const measuredStickyChrome = () =>
+    stickyChromeHeight.current > 0
+      ? stickyChromeHeight.current
+      : Math.min(chromeHeight.current || STICKY_FALLBACK_CHROME_H, 96);
 
   const ravWidth = compact
     ? windowWidth
@@ -433,15 +439,17 @@ function StorefrontChromeInner({
 
   const syncRavTop = useCallback(
     (y: number, overlayFullyShown: boolean) => {
-      const h = measuredChrome();
+      const fullH = measuredChrome();
       if (fillBody) {
-        ravTopAnim.setValue(compact ? h : 0);
+        ravTopAnim.setValue(compact ? fullH : 0);
         setHeaderClearance(0);
         return;
       }
+      // When the sticky mini-bar is up, clear only that height — not the full chrome stack.
+      const h = overlayFullyShown ? measuredStickyChrome() : fullH;
       const clearance = overlayFullyShown
         ? h
-        : Math.max(0, h - Math.max(0, y));
+        : Math.max(0, fullH - Math.max(0, y));
       ravTopAnim.setValue(clearance);
       setHeaderClearance(clearance);
     },
@@ -526,8 +534,9 @@ function StorefrontChromeInner({
         setOverlayInteractive(true);
         overlayOpacity.setValue(1);
         syncScrollAwayChrome(y, true);
-        setHeaderClearance(h);
-        ravTopAnim.setValue(h);
+        const stickyH = measuredStickyChrome();
+        setHeaderClearance(stickyH);
+        ravTopAnim.setValue(stickyH);
         overlayAnimRef.current = Animated.timing(overlayProgress, {
           toValue: 1,
           duration: 220,
@@ -737,22 +746,22 @@ function StorefrontChromeInner({
       snapFullHeaderAboveRav();
       return;
     }
-    // Deep mid-page: no header, Rav full-bleed.
-    // In-flow chrome leaves the scroller — pull offset back by chrome height.
+    // Deep mid-page: pin under the short sticky nav (desktop logo·search / mobile menu).
+    // Keep scroll position — do not jump to top or open Rav full-bleed.
     const compensated = Math.max(0, y - h);
+    suppressOverlayDismissRef.current = true;
     lastY.current = compensated;
     localScrollRef.current?.scrollTo({ y: compensated, animated: false });
-    snapOverlay(false);
-    scrollAwayY.setValue(-h);
-    setScrollAwayInteractive(false);
-    ravTopAnim.setValue(0);
-    setHeaderClearance(0);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        suppressOverlayDismissRef.current = false;
+      });
+    });
+    snapOverlay(true, { remount: false });
   }, [
     clearTopFadeTimer,
     overlayInteractive,
     ravDockedLayout,
-    ravTopAnim,
-    scrollAwayY,
     snapFullHeaderAboveRav,
     snapOverlay,
   ]);
@@ -808,7 +817,7 @@ function StorefrontChromeInner({
   useEffect(() => {
     syncRavTop(lastY.current, overlayShown.current);
     syncScrollAwayChrome(lastY.current, overlayShown.current);
-  }, [chromeH, syncRavTop, syncScrollAwayChrome]);
+  }, [chromeH, stickyChromeH, syncRavTop, syncScrollAwayChrome]);
 
   useEffect(() => {
     if (!isFocused) {

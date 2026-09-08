@@ -12,6 +12,7 @@ import {
 } from '../ui/ScrollEdgeFades';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
 
 const TILE = 72;
@@ -26,7 +27,8 @@ type Props = {
 /** Compact thumbnail + price rail under a My Box section (replaces text browse chips). */
 export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }: Props) {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { isDesktop } = useWebLayout();
+  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const edges = useHorizontalScrollEdges();
 
   if (!items.length) return null;
@@ -86,7 +88,7 @@ export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }
   );
 }
 
-function createStyles(colors: SemanticColors) {
+function createStyles(colors: SemanticColors, desktop: boolean) {
   return StyleSheet.create({
     root: {
       width: '100%',
@@ -129,8 +131,8 @@ function createStyles(colors: SemanticColors) {
     scrollerContent: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      // Left-start so overflow always scrolls rightward from the first product.
-      justifyContent: 'flex-start',
+      // Desktop: center the rail when it fits. Mobile: start left so overflow scrolls right.
+      justifyContent: desktop ? 'center' : 'flex-start',
       flexGrow: 1,
       gap: spacing.sm,
       paddingVertical: spacing.xs,

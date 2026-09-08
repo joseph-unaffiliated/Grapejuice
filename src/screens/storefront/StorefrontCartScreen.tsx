@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   },
   ctaPrimary: {
     backgroundColor: semanticColors.logoDark,
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   ctaSecondary: {
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     color: semanticColors.logoDark,
   },
   ctaTertiary: {
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',

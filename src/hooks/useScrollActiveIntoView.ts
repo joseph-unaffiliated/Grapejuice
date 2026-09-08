@@ -7,23 +7,30 @@ import {
 /**
  * Horizontally scroll a tab strip so the active item stays centered when possible.
  * Same behavior as box StickySectionNav — click or route change brings the tab into view.
+ * Pass `enabled={false}` on desktop/tablet where the strip is fully visible.
  */
-export function useScrollActiveIntoView<T extends string>(activeId: T | undefined) {
+export function useScrollActiveIntoView<T extends string>(
+  activeId: T | undefined,
+  enabled = true
+) {
   const scrollRef = useRef<ScrollView>(null);
   const layouts = useRef<Partial<Record<T, { x: number; width: number }>>>({});
   const viewportW = useRef(0);
   const contentW = useRef(0);
 
-  const ensureVisible = useCallback((id: T | undefined, animated = true) => {
-    if (!id) return;
-    const layout = layouts.current[id];
-    const viewW = viewportW.current;
-    if (!layout || viewW <= 0) return;
-    const maxX = Math.max(0, contentW.current - viewW);
-    const centered = layout.x + layout.width / 2 - viewW / 2;
-    const next = Math.max(0, Math.min(maxX, centered));
-    scrollRef.current?.scrollTo({ x: next, animated });
-  }, []);
+  const ensureVisible = useCallback(
+    (id: T | undefined, animated = true) => {
+      if (!enabled || !id) return;
+      const layout = layouts.current[id];
+      const viewW = viewportW.current;
+      if (!layout || viewW <= 0) return;
+      const maxX = Math.max(0, contentW.current - viewW);
+      const centered = layout.x + layout.width / 2 - viewW / 2;
+      const next = Math.max(0, Math.min(maxX, centered));
+      scrollRef.current?.scrollTo({ x: next, animated });
+    },
+    [enabled]
+  );
 
   useEffect(() => {
     ensureVisible(activeId);

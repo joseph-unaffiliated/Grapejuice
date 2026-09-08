@@ -23,6 +23,7 @@ import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -67,11 +68,12 @@ function CheckoutCta({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      {loading ? (
-        <BrandLoadingMark large={false} color={colors.goldMuted} />
-      ) : (
-        <Text style={styles.ctaText}>{label}</Text>
-      )}
+      <ButtonLoadingLabel
+        label={label}
+        loading={loading}
+        loaderColor={colors.goldMuted}
+        labelStyle={styles.ctaText}
+      />
     </TouchableOpacity>
   );
 }
@@ -533,7 +535,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: spacing.lg,

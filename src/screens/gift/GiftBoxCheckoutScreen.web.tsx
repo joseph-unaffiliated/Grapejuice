@@ -16,6 +16,7 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
@@ -91,11 +92,12 @@ function WebPayStep({
         onPress={() => void pay()}
         disabled={paying}
       >
-        {paying ? (
-          <BrandLoadingMark large={false} color={colors.goldMuted} />
-        ) : (
-          <Text style={styles.ctaText}>Pay & confirm gift box</Text>
-        )}
+        <ButtonLoadingLabel
+          label="Pay & confirm gift box"
+          loading={paying}
+          loaderColor={colors.goldMuted}
+          labelStyle={styles.ctaText}
+        />
       </TouchableOpacity>
     </View>
   );
@@ -227,7 +229,7 @@ function GiftBoxCheckoutBody() {
     return (
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
         <TouchableOpacity onPress={() => setPaymentSecret(null)} style={styles.backRow}>
-          <Text style={styles.backLink}>← Back to shipping</Text>
+          <Text style={styles.backLink}>? Back to shipping</Text>
         </TouchableOpacity>
         <Elements
           stripe={stripePromise}
@@ -249,7 +251,7 @@ function GiftBoxCheckoutBody() {
         onPress={() => navigation.navigate('GiftBox', { giftInviteId })}
         style={styles.backRow}
       >
-        <Text style={styles.backLink}>← Back to gift box</Text>
+        <Text style={styles.backLink}>? Back to gift box</Text>
       </TouchableOpacity>
       <Text style={styles.title}>Gift box checkout</Text>
       <Text style={styles.lead}>
@@ -279,13 +281,14 @@ function GiftBoxCheckoutBody() {
         onPress={() => void startCheckout()}
         disabled={preparing}
       >
-        {preparing ? (
-          <BrandLoadingMark large={false} color={colors.goldMuted} />
-        ) : (
-          <Text style={styles.ctaText}>
-            {total > 0 ? `Continue to payment · ${formatDollars(total)}` : 'Confirm gift box'}
-          </Text>
-        )}
+        <ButtonLoadingLabel
+          label={
+            total > 0 ? `Continue to payment · ${formatDollars(total)}` : 'Confirm gift box'
+          }
+          loading={preparing}
+          loaderColor={colors.goldMuted}
+          labelStyle={styles.ctaText}
+        />
       </TouchableOpacity>
     </ScrollView>
   );
@@ -340,7 +343,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       marginTop: spacing.lg,
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
     },
     ctaDisabled: { opacity: 0.5 },

@@ -126,7 +126,7 @@ function createStyles(colors: SemanticColors) {
       borderColor: colors.brand,
       paddingVertical: spacing.xs + 2,
       paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       flexShrink: 0,
       ...(Platform.OS === 'web'

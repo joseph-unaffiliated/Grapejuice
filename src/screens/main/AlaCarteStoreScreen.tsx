@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.brand,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
   },
   ctaAdded: { backgroundColor: semanticColors.bgPrimary, borderWidth: 1, borderColor: semanticColors.border },
   ctaDisabled: { opacity: 0.5 },

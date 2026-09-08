@@ -282,7 +282,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       alignSelf: 'stretch',

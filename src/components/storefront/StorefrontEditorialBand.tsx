@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { StorefrontMediaPlaceholder } from './StorefrontMediaPlaceholder';
 import type { StorefrontMediaSlot } from '../../constants/storefrontMedia';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -18,8 +19,7 @@ type Props = {
 };
 
 export function StorefrontEditorialBand({ slot, reverse, onCta }: Props) {
-  const { width } = useWindowDimensions();
-  const stacked = width < 768;
+  const { isCompact: stacked } = useLayoutBreakpoint();
 
   return (
     <View style={[styles.root, reverse && !stacked && styles.rootReverse]}>

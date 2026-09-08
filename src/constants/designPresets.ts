@@ -18,6 +18,14 @@ const goldGlowSm =
 const goldGlow =
   Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlow } as ViewStyle) : (shadows.goldGlow as ViewStyle);
 
+/** Larger tap targets on native; web keeps the tighter desktop chrome. */
+const BUTTON_PAD_V = Platform.OS === 'web' ? 12 : 16;
+const BUTTON_MIN_H = Platform.OS === 'web' ? undefined : 52;
+const CHIP_PAD_H = Platform.OS === 'web' ? 12 : 14;
+const CHIP_PAD_V = Platform.OS === 'web' ? 4 : 8;
+const STARTER_PAD_H = Platform.OS === 'web' ? 10 : 12;
+const STARTER_PAD_V = Platform.OS === 'web' ? 6 : 8;
+
 export const designPresets = {
   cardHero: (colors: SemanticColors): ViewStyle => ({
     borderRadius: 16,
@@ -38,24 +46,24 @@ export const designPresets = {
     borderColor: colors.border,
   }),
 
-  /** Roomier touch targets to match the larger type scale. */
+  /** Marketplace CTAs — rectangular (`md`), not the old app pill. */
   buttonPillPrimary: (colors: SemanticColors): ViewStyle => ({
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.bgPrimary,
     paddingHorizontal: MOBILE_GUTTER,
-    paddingVertical: 16,
-    minHeight: 52,
+    paddingVertical: BUTTON_PAD_V,
+    ...(BUTTON_MIN_H != null ? { minHeight: BUTTON_MIN_H } : null),
     alignItems: 'center',
     justifyContent: 'center',
     ...goldGlowSm,
   }),
 
   buttonPillSecondary: (colors: SemanticColors): ViewStyle => ({
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.bgPrimary,
     paddingHorizontal: MOBILE_GUTTER,
-    paddingVertical: 16,
-    minHeight: 52,
+    paddingVertical: BUTTON_PAD_V,
+    ...(BUTTON_MIN_H != null ? { minHeight: BUTTON_MIN_H } : null),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -63,11 +71,11 @@ export const designPresets = {
   }),
 
   buttonFilled: (colors: SemanticColors): ViewStyle => ({
-    borderRadius: borderRadius.pill,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.brand,
     paddingHorizontal: MOBILE_GUTTER,
-    paddingVertical: 16,
-    minHeight: 52,
+    paddingVertical: BUTTON_PAD_V,
+    ...(BUTTON_MIN_H != null ? { minHeight: BUTTON_MIN_H } : null),
     alignItems: 'center',
     justifyContent: 'center',
   }),
@@ -76,8 +84,8 @@ export const designPresets = {
     borderRadius: 32,
     borderWidth: 0.5,
     borderColor: colors.brand,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: CHIP_PAD_H,
+    paddingVertical: CHIP_PAD_V,
     backgroundColor: colors.bgPrimary,
   }),
 
@@ -85,8 +93,8 @@ export const designPresets = {
     borderRadius: borderRadius.chip,
     borderWidth: 1,
     borderColor: colors.goldMuted,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: STARTER_PAD_H,
+    paddingVertical: STARTER_PAD_V,
     backgroundColor: colors.bgPrimary,
   }),
 

@@ -14,6 +14,7 @@ import Constants from 'expo-constants';
 import { useStripe } from '@stripe/stripe-react-native';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
@@ -202,13 +203,12 @@ export function GiftBoxCheckoutScreen() {
           onPress={() => void startCheckout()}
           disabled={preparing}
         >
-          {preparing ? (
-            <BrandLoadingMark large={false} color={colors.goldMuted} />
-          ) : (
-            <Text style={styles.ctaText}>
-              {total > 0 ? `Place order · ${formatDollars(total)}` : 'Confirm gift box'}
-            </Text>
-          )}
+          <ButtonLoadingLabel
+            label={total > 0 ? `Place order · ${formatDollars(total)}` : 'Confirm gift box'}
+            loading={preparing}
+            loaderColor={colors.goldMuted}
+            labelStyle={styles.ctaText}
+          />
         </TouchableOpacity>
       </ScrollView>
     </StorefrontChrome>
@@ -233,7 +233,7 @@ function createStyles(colors: SemanticColors) {
       marginTop: spacing.lg,
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
     },
     ctaDisabled: { opacity: 0.5 },

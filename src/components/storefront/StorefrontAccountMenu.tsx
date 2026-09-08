@@ -8,7 +8,6 @@ import {
   Pressable,
   Platform,
   Animated,
-  useWindowDimensions,
   type View as RNView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -19,11 +18,11 @@ import { useWishlist } from '../../hooks/useWishlist';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   borderRadius,
-  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -57,8 +56,7 @@ export function StorefrontAccountMenu() {
   const logout = useAuthStore((s) => s.logout);
   const startAuthInPlace = useAuthFlowStore((s) => s.startAuthInPlace);
   const isAuthenticated = usePreviewedIsAuthenticated();
-  const { width: windowWidth } = useWindowDimensions();
-  const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
+  const { width: windowWidth, isCompact: compact } = useLayoutBreakpoint();
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, right: MOBILE_GUTTER });
   const [drawerMounted, setDrawerMounted] = useState(false);

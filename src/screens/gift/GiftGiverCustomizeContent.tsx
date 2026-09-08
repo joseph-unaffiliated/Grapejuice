@@ -679,7 +679,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       borderColor: colors.brand,
       paddingVertical: spacing.xs + 2,
       paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: 36,

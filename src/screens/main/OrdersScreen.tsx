@@ -392,7 +392,7 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       alignSelf: 'flex-start',
       paddingVertical: spacing.xs,
       paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: colors.brand,
       backgroundColor: colors.accentCream,

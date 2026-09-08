@@ -8,7 +8,7 @@ import {
   Platform,
 } from 'react-native';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import {
   CURATED_GIFT_BOX_LABEL,
@@ -148,11 +148,12 @@ export function GiftPaymentPanel({
         accessibilityRole="button"
         accessibilityLabel={`Pay ${formatDollars(amountCents)} and send`}
       >
-        {paying ? (
-          <BrandLoadingMark large={false} color={colors.goldMuted} />
-        ) : (
-          <Text style={styles.ctaText}>Pay {formatDollars(amountCents)} & send gift</Text>
-        )}
+        <ButtonLoadingLabel
+          label={`Pay ${formatDollars(amountCents)} & send gift`}
+          loading={paying}
+          loaderColor={colors.goldMuted}
+          labelStyle={styles.ctaText}
+        />
       </TouchableOpacity>
     </View>
   );
@@ -256,7 +257,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: spacing.md,

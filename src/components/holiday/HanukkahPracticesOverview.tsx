@@ -25,10 +25,15 @@ const THUMB_SIZE = 72;
 const GRID_GAP = spacing.sm;
 const CARD_INNER_WIDTH = 2 * THUMB_SIZE + GRID_GAP;
 const CARD_WIDTH = CARD_INNER_WIDTH + spacing.md * 2;
-const ACCORDION_MS = 260;
+/** Open/close — slightly longer with an ease-out so height changes feel less abrupt. */
+const ACCORDION_MS = 340;
+const ACCORDION_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 /** Matches goldGlowSm blur (8px) so ScrollView overflowX doesn't clip the side glow. */
 const STACK_SHADOW_BLEED = 8;
-/** Accordion body always animates against this ceiling — keep in sync with maxHeight below. */
+/**
+ * Desktop stack reserves room for the tallest open body so onboarding chrome
+ * doesn’t shift. Keep ≥ real content; animation uses measured height.
+ */
 const STACK_BODY_MAX_HEIGHT = 320;
 /** stackHeader paddingVertical sm×2 + title (typography.xl). */
 const STACK_ROW_HEADER_HEIGHT = spacing.sm * 2 + typography.xl;
@@ -105,38 +110,73 @@ function PracticeAccordionRow({
   onToggle: () => void;
 }) {
   const chevron = useRef(new Animated.Value(expanded ? 1 : 0)).current;
-  const bodyProgress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const heightAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const opacityAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   const [bodyMounted, setBodyMounted] = useState(expanded);
+  const [contentHeight, setContentHeight] = useState(0);
+  const heightAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const opacityAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
   useEffect(() => {
     Animated.timing(chevron, {
       toValue: expanded ? 1 : 0,
       duration: ACCORDION_MS,
-      easing: Easing.inOut(Easing.cubic),
+      easing: ACCORDION_EASING,
       useNativeDriver: Platform.OS !== 'web',
     }).start();
   }, [chevron, expanded]);
 
   useEffect(() => {
     if (expanded) setBodyMounted(true);
+  }, [expanded]);
 
-    const anim = Animated.timing(bodyProgress, {
-      toValue: expanded ? 1 : 0,
+  useEffect(() => {
+    if (!bodyMounted) return;
+    // Wait until the body has a real measured height before opening.
+    if (expanded && contentHeight <= 0) return;
+
+    heightAnimRef.current?.stop();
+    opacityAnimRef.current?.stop();
+
+    const open = expanded;
+    heightAnimRef.current = Animated.timing(heightAnim, {
+      toValue: open ? 1 : 0,
       duration: ACCORDION_MS,
-      easing: Easing.inOut(Easing.cubic),
+      easing: ACCORDION_EASING,
+      useNativeDriver: false,
+    });
+    opacityAnimRef.current = Animated.timing(opacityAnim, {
+      toValue: open ? 1 : 0,
+      // Fade slightly ahead of height so text doesn’t linger while the clip closes.
+      duration: open ? ACCORDION_MS * 0.85 : ACCORDION_MS * 0.55,
+      delay: open ? 40 : 0,
+      easing: ACCORDION_EASING,
       useNativeDriver: false,
     });
 
-    anim.start(({ finished }) => {
-      if (finished && !expanded) setBodyMounted(false);
+    heightAnimRef.current.start(({ finished }) => {
+      if (finished && !open) setBodyMounted(false);
     });
+    opacityAnimRef.current.start();
 
-    return () => anim.stop();
-  }, [bodyProgress, expanded]);
+    return () => {
+      heightAnimRef.current?.stop();
+      opacityAnimRef.current?.stop();
+    };
+  }, [bodyMounted, contentHeight, expanded, heightAnim, opacityAnim]);
 
   const chevronRotate = chevron.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '180deg'],
   });
+
+  const animatedHeight =
+    contentHeight > 0
+      ? heightAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, contentHeight],
+        })
+      : 0;
 
   return (
     // Glow on the outer wrap — stackRow keeps overflow:hidden for the accordion clip.
@@ -163,24 +203,29 @@ function PracticeAccordionRow({
         {bodyMounted ? (
           <Animated.View
             style={[
-              styles.stackBodyWrap,
+              styles.stackBodyClip,
               {
-                opacity: bodyProgress,
-                maxHeight: bodyProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, STACK_BODY_MAX_HEIGHT],
-                }),
+                height: animatedHeight,
+                opacity: opacityAnim,
               },
             ]}
           >
-            <Text style={styles.stackTagline}>{practice.tagline}</Text>
-            <Text style={styles.stackBody}>{practice.description}</Text>
-            <Text style={styles.stackBoxLabel}>In your box</Text>
-            {practice.boxItems.map((item) => (
-              <Text key={item} style={styles.stackBoxItem}>
-                · {item}
-              </Text>
-            ))}
+            <View
+              style={styles.stackBodyInner}
+              onLayout={(e) => {
+                const next = Math.ceil(e.nativeEvent.layout.height);
+                if (next > 0 && next !== contentHeight) setContentHeight(next);
+              }}
+            >
+              <Text style={styles.stackTagline}>{practice.tagline}</Text>
+              <Text style={styles.stackBody}>{practice.description}</Text>
+              <Text style={styles.stackBoxLabel}>In your box</Text>
+              {practice.boxItems.map((item) => (
+                <Text key={item} style={styles.stackBoxItem}>
+                  · {item}
+                </Text>
+              ))}
+            </View>
           </Animated.View>
         ) : null}
       </View>
@@ -370,10 +415,12 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#000000',
   },
-  stackBodyWrap: {
+  stackBodyClip: {
+    overflow: 'hidden',
+  },
+  stackBodyInner: {
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.sm,
-    overflow: 'hidden',
   },
   stackTagline: {
     fontSize: typography.sm,

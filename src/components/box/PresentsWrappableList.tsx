@@ -15,6 +15,7 @@ import { resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
 import { EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
 
 type Props = {
@@ -89,7 +90,8 @@ export function PresentsWrappableList({
   locked = false,
 }: Props) {
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { isDesktop } = useWebLayout();
+  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const [localSelected, setLocalSelected] = useState<Set<string>>(() => new Set());
 
   const selected = useMemo(() => {
@@ -145,12 +147,12 @@ export function PresentsWrappableList({
           style={styles.thumb}
         />
         <View style={styles.chipTextCol}>
-          <Text style={styles.chipTitle} numberOfLines={2}>
+          <Text style={styles.chipTitle} numberOfLines={1} ellipsizeMode="tail">
             {label}
             {row.quantity > 1 ? ` ×${row.quantity}` : ''}
           </Text>
           {attribution ? (
-            <Text style={styles.chipMeta} numberOfLines={1}>
+            <Text style={styles.chipMeta} numberOfLines={1} ellipsizeMode="tail">
               {attribution}
             </Text>
           ) : null}
@@ -212,7 +214,7 @@ export function PresentsWrappableList({
   );
 }
 
-function createStyles(colors: SemanticColors) {
+function createStyles(colors: SemanticColors, desktop: boolean) {
   return StyleSheet.create({
     root: { gap: spacing.md, width: '100%' },
     group: { gap: spacing.sm, width: '100%' },
@@ -221,21 +223,29 @@ function createStyles(colors: SemanticColors) {
       ...typeface('medium'),
       color: colors.textPrimary,
       letterSpacing: -0.26,
-      textAlign: 'left',
+      textAlign: desktop ? 'center' : 'left',
     },
     empty: {
       fontSize: typography.sm,
       ...typeface('light'),
       color: colors.textSecondary,
       lineHeight: 18,
-      textAlign: 'left',
+      textAlign: desktop ? 'center' : 'left',
     },
-    list: {
-      flexDirection: 'column',
-      alignItems: 'stretch',
-      gap: spacing.sm,
-      width: '100%',
-    },
+    list: desktop
+      ? {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: spacing.sm,
+        }
+      : {
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: spacing.sm,
+          width: '100%',
+        },
     chip: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -243,11 +253,12 @@ function createStyles(colors: SemanticColors) {
       borderWidth: 0.5,
       borderColor: colors.goldMuted,
       borderRadius: borderRadius.md,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.md,
+      paddingVertical: desktop ? 6 : spacing.sm,
+      paddingHorizontal: desktop ? spacing.sm : spacing.md,
       backgroundColor: colors.bgPrimary,
-      width: '100%',
-      alignSelf: 'stretch',
+      ...(desktop
+        ? { maxWidth: '100%' as const }
+        : { width: '100%' as const, alignSelf: 'stretch' as const }),
     },
     chipSelected: {
       borderWidth: 1.5,
@@ -258,7 +269,9 @@ function createStyles(colors: SemanticColors) {
       opacity: 0.85,
     },
     thumb: { borderRadius: borderRadius.sm, overflow: 'hidden' },
-    chipTextCol: { flex: 1, flexShrink: 1, gap: 2, minWidth: 0 },
+    chipTextCol: desktop
+      ? { flexShrink: 1, gap: 2, maxWidth: 180 }
+      : { flex: 1, flexShrink: 1, gap: 2, minWidth: 0 },
     chipTitle: {
       fontSize: typography.sm,
       ...typeface('regular'),

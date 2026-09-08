@@ -405,7 +405,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       marginTop: spacing.lg,
       backgroundColor: colors.textPrimary,
       paddingVertical: spacing.md,
-      borderRadius: borderRadius.pill,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
     },
     ctaDisabled: { opacity: 0.5 },
