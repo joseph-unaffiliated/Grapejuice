@@ -39,7 +39,8 @@ import {
   recipientGiftUpgradeCents,
   SHIPPING_FLAT_CENTS,
 } from '../../services/box/pricing';
-import { resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import { resolveSwapOptionsForItem, resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
+import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { isWrapControlSlot } from '../../components/box/boxLineDisplay';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
@@ -161,7 +162,14 @@ function GiftBoxBody() {
   };
 
   const onSwap = async (slotId: string, newItem: CatalogItem) => {
-    const nextUnit = boxAddOnUnitCents(newItem);
+    // Free-swap policy is keyed off whatever is currently in that slot — resolve it so
+    // `'included'` targets stay $0 even when the catalog's tier says otherwise.
+    const sourceLine = lineItems.find((li) => li.slotId === slotId);
+    const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
+    const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined;
+    const nextUnit =
+      (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
+      boxAddOnUnitCents(newItem);
     const next = lineItems.map((li) =>
       li.slotId === slotId
         ? {

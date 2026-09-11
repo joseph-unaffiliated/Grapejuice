@@ -70,6 +70,9 @@ export function GiftGiverCustomizeScreen() {
     swapOptionsBySlot,
     removeCoalesced,
     addItem,
+    addFreeItem,
+    setKidGift,
+    setKidBook,
     persistWrapSelection,
   } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
   const giftAmountCents = useMemo(() => {
@@ -192,6 +195,9 @@ export function GiftGiverCustomizeScreen() {
         swapOptionsBySlot={swapOptionsBySlot}
         removeCoalesced={removeCoalesced}
         addItem={addItem}
+        addFreeItem={addFreeItem}
+        setKidGift={setKidGift}
+        setKidBook={setKidBook}
         persistWrapSelection={persistWrapSelection}
         onPay={() => void pay()}
         onRequireAuth={requireAuth}

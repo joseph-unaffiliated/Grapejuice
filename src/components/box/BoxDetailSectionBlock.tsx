@@ -45,6 +45,12 @@ type Props = {
   upsellItems?: CatalogItem[];
   onUpsellPress?: (item: CatalogItem) => void;
   showUpsells?: boolean;
+  /** Override the upsell strip label (defaults to “Add more”). */
+  upsellLabel?: string;
+  /** Item ids in the strip that are free to add (rendered as “$0 ($X value)”). */
+  upsellIncludedItemIds?: ReadonlySet<string>;
+  /** Empty section: tighter header gap + medium Add items tiles. */
+  emptySection?: boolean;
   /** Hide bottom divider when this is the last visible section. */
   isLast?: boolean;
 };
@@ -60,6 +66,9 @@ export function BoxDetailSectionBlock({
   upsellItems,
   onUpsellPress,
   showUpsells = true,
+  upsellLabel,
+  upsellIncludedItemIds,
+  emptySection = false,
   isLast = false,
 }: Props) {
   const { colors } = useThemeMode();
@@ -90,6 +99,7 @@ export function BoxDetailSectionBlock({
   const stripItems = showUpsells && upsellItems?.length ? upsellItems : [];
   const isPresents = sectionId === 'presents';
   const tileRows = useTileGrid ? chunkElements(children, maxPerRow) : null;
+  const isEmpty = emptySection || itemCount === 0;
 
   return (
     <View
@@ -114,37 +124,45 @@ export function BoxDetailSectionBlock({
           } as object)
         : null)}
     >
-      <View style={styles.sectionHeader}>
+      <View style={[styles.sectionHeader, isEmpty ? styles.sectionHeaderEmpty : null]}>
         <View style={styles.sectionTitleRow}>
           <Text style={styles.sectionTitle}>{meta.title}</Text>
         </View>
         <Text style={styles.sectionDesc}>{blurb}</Text>
       </View>
       {leading ? <View style={styles.sectionLeading}>{leading}</View> : null}
-      <BoxItemVisualVariantProvider value={itemVariant}>
-        <View
-          style={[styles.itemList, isPresents ? styles.itemListPresents : null]}
-          onLayout={(e) => setListWidth(e.nativeEvent.layout.width)}
-        >
-          {tileRows
-            ? tileRows.map((row, rowIndex) => (
-                <View key={`tile-row-${rowIndex}`} style={styles.itemRow}>
-                  {row.map((child, colIndex) => (
-                    <View
-                      key={child.key != null ? String(child.key) : `tile-${rowIndex}-${colIndex}`}
-                      style={styles.itemTile}
-                    >
-                      {child}
-                    </View>
-                  ))}
-                </View>
-              ))
-            : children}
-        </View>
-      </BoxItemVisualVariantProvider>
+      {!isEmpty ? (
+        <BoxItemVisualVariantProvider value={itemVariant}>
+          <View
+            style={[styles.itemList, isPresents ? styles.itemListPresents : null]}
+            onLayout={(e) => setListWidth(e.nativeEvent.layout.width)}
+          >
+            {tileRows
+              ? tileRows.map((row, rowIndex) => (
+                  <View key={`tile-row-${rowIndex}`} style={styles.itemRow}>
+                    {row.map((child, colIndex) => (
+                      <View
+                        key={child.key != null ? String(child.key) : `tile-${rowIndex}-${colIndex}`}
+                        style={styles.itemTile}
+                      >
+                        {child}
+                      </View>
+                    ))}
+                  </View>
+                ))
+              : children}
+          </View>
+        </BoxItemVisualVariantProvider>
+      ) : null}
       {trailing ? <View style={styles.sectionTrailing}>{trailing}</View> : null}
       {stripItems.length && onUpsellPress ? (
-        <BoxSectionUpsellStrip items={stripItems} onPressItem={onUpsellPress} />
+        <BoxSectionUpsellStrip
+          items={stripItems}
+          onPressItem={onUpsellPress}
+          label={upsellLabel}
+          includedItemIds={upsellIncludedItemIds}
+          tileSize={isEmpty ? 'medium' : 'compact'}
+        />
       ) : null}
     </View>
   );

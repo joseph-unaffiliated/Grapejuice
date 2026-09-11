@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   View,
@@ -31,13 +31,22 @@ import {
   formatDollars,
   totalCents,
   catalogSlotId,
+  chargeableLineTotal,
+  repairExtraPerKidPricing,
+  repairWoodDreidelIncluded,
 } from '../../services/box/buildDefaultBox';
-import { listBoxCentsForKids, resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
-import { resolveSectionUpsellItems, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import { listBoxCentsForKids } from '../../services/box/boxRules';
 import {
-  inferPricingTier,
+  resolveSectionUpsellItems,
+  resolveSwapOptionsForItem,
+  resolveFreeSwapUnitCents,
+  resolveFreeSlotAddOptions,
+  resolveIncludedGiftOptions,
+} from '../../services/box/sectionUpsells';
+import {
   resolveCatalogDisplayPrices,
   boxAddOnUnitCents,
+  EXTRA_FLAT_CENTS,
 } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
@@ -48,22 +57,34 @@ import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
 import {
+  assignKidBookLines,
+  assignKidGiftLines,
+  childIdFromSlot,
   childNamesForLines,
   coalesceLinesByItemId,
   formatBoxItemStatusMeta,
   fullCardLinesForSection,
+  bookBadgeLabelForLines,
+  giftBadgeLabelForLines,
+  isGiftSlotLine,
   isWrapControlSlot,
+  kidsNeedingBook,
+  kidsNeedingGift,
   removeCoalescedGroup,
   resolveBoxItemAttributionKind,
+  uniqueSlotForFreeSectionAdd,
   wrappableLinesInBox,
   wrapControlLines,
 } from '../../components/box/boxLineDisplay';
+import { PerKidSlotAddBlock } from '../../components/box/PerKidSlotAddBlock';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import {
   BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
   nonEmptyDisplaySectionIds,
+  displaySectionForCatalogItem,
+  displaySectionForLineItem,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { GuestBoxAuthBanner } from '../../components/box/GuestBoxAuthBanner';
@@ -87,12 +108,20 @@ import {
   shadows,
   shadowsWeb,
   MOBILE_GUTTER,
+  typeface,
 } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
 /** Clearance under scroll content for the floating order-summary card. */
 const SUMMARY_FLOAT_CLEARANCE = 140;
+
+/**
+ * Slot suffix for paid "extra" units added beyond a card's included baseline via the
+ * quantity counter. Kept off the `extra-` prefix so the unit still displays/coalesces
+ * onto its source card (grouping skips `extra-` lines).
+ */
+const EXTRA_UNIT_SUFFIX = '::x';
 
 /** Stable compare of draft vs committed order lines (swaps / qty / wrap). */
 function lineItemsFingerprint(items: BoxLineItem[]): string {
@@ -203,6 +232,24 @@ export function MyBoxScreen() {
     }
   }, [guestNeedsOnboarding, startBuildBox]);
 
+  /** Re-price books/gifts that slipped in as free Add-more extras; keep wood included. */
+  useEffect(() => {
+    if (draftLoading || locked || !catalog.length || !lineItems.length) return;
+    let next = lineItems;
+    let dirty = false;
+    const books = repairExtraPerKidPricing(next, catalog);
+    if (books.dirty) {
+      next = books.lineItems;
+      dirty = true;
+    }
+    const wood = repairWoodDreidelIncluded(next, catalog);
+    if (wood.dirty) {
+      next = wood.lineItems;
+      dirty = true;
+    }
+    if (dirty) void persist(next);
+  }, [catalog, lineItems, draftLoading, locked, persist]);
+
   const grouped = useMemo(
     () => groupLineItemsByDisplaySection(lineItems, catalog),
     [lineItems, catalog]
@@ -221,31 +268,13 @@ export function MyBoxScreen() {
       // Kid gifts may live under dreidel/candles/etc. — follow real section homes.
       return nonEmptyDisplaySectionIds(grouped);
     }
-    const candidates = BOX_DISPLAY_SECTIONS.map((section) => section.id);
-    return nonEmptyDisplaySectionIds(
-      grouped,
-      candidates,
-      hasPresentsChecklist ? ['presents'] : undefined
-    );
-  }, [grouped, isChildProfile, hasPresentsChecklist]);
+    // Parent view: always show every section, even empty ones — an empty section
+    // renders a "add these for free" placeholder instead of disappearing.
+    return BOX_DISPLAY_SECTIONS.map((section) => section.id);
+  }, [isChildProfile]);
 
   const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
     useBoxDetailScroll({ visibleSectionIds });
-
-  const extraLineItems = useMemo(
-    () => lineItems.filter((li) => li.itemId.startsWith('extra-') || li.slotId.startsWith('extra-')),
-    [lineItems]
-  );
-
-  const alaCarteItems = useMemo(
-    () =>
-      lineItems.filter((li) => {
-        if (li.unitCents <= 0) return false;
-        const item = catalog.find((c) => c.id === li.itemId);
-        return item && inferPricingTier(item) === 'alaCarte';
-      }),
-    [lineItems, catalog]
-  );
 
   /** Recompute when catalog/lines change — never cache empty results across loads. */
   const swapOptionsBySlot = useMemo(() => {
@@ -253,17 +282,35 @@ export function MyBoxScreen() {
     const next: Record<string, CatalogItem[]> = {};
     for (const li of lineItems) {
       const current = catalog.find((c) => c.id === li.itemId);
-      next[li.slotId] = current ? resolveSwapOptionsForItem(current, catalog, 6) : [];
+      if (!current) {
+        next[li.slotId] = [];
+        continue;
+      }
+      // Per-kid gift lines swap among the included gift set (not their catalog
+      // section's peers) — e.g. an airdry-dreidel gift offers other gifts, not dreidels.
+      next[li.slotId] = isGiftSlotLine(li)
+        ? resolveIncludedGiftOptions(catalog, li.itemId, 6)
+        : resolveSwapOptionsForItem(current, catalog, 6);
     }
     return next;
   }, [lineItems, catalog]);
 
   const applySwap = async (slotIds: string[], newItem: CatalogItem) => {
     if (locked) return;
-    // Guests edit the local draft (“Sign up to save”); payment gate is for signed-in paid extras.
-    const nextUnit = boxAddOnUnitCents(newItem);
-    if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     const idSet = new Set(slotIds);
+    // Free-swap policy is keyed off whatever is currently in that slot — resolve it so
+    // `'included'` targets (e.g. airdry dreidel, MYO candles) stay $0 even when the
+    // catalog's own pricing tier says otherwise.
+    const sourceLine = lineItems.find((li) => idSet.has(li.slotId));
+    const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
+    const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined;
+    // Per-kid gift swaps stay free regardless of the target's catalog tier.
+    const nextUnit = sourceLine && isGiftSlotLine(sourceLine)
+      ? 0
+      : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
+        boxAddOnUnitCents(newItem);
+    // Guests edit the local draft (“Sign up to save”); payment gate is for signed-in paid extras.
+    if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     const next = lineItems.map((li) =>
       idSet.has(li.slotId)
         ? {
@@ -279,25 +326,152 @@ export function MyBoxScreen() {
   };
 
   const swapToPreWrap = async (slotIds: string[]) => {
-    const row = resolveByDefaultSlot(catalog, WRAP_POLICY.preWrapSlot);
-    const preWrap =
-      (row ? catalog.find((c) => c.id === row.id) : undefined) ??
-      catalog.find(
-        (c) =>
-          catalogSlotId(c.slotId) === 'pre-wrap' ||
-          c.defaultSlot === 'pre-wrap' ||
-          /pre.?wrap/i.test(`${c.id} ${c.name}`)
-      );
-    if (!preWrap) return;
-    await applySwap(slotIds, preWrap);
+    if (locked) return;
+    const idSet = new Set(slotIds);
+    // Drop wrapping paper entirely — pre-wrap is a mode (checklist shows Included),
+    // and paper reappears first in Add More when it's not in the box.
+    const next = lineItems.filter(
+      (li) => !idSet.has(li.slotId) && !isWrapControlSlot(li.slotId)
+    );
+    await persist(next);
   };
 
-  /** Box lines are one-per-slot; donate/remove only (no qty stepper — that is à-la-carte). */
   const removeCoalesced = async (
     group: ReturnType<typeof coalesceLinesByItemId>[number]
   ) => {
     if (locked) return;
     await persist(removeCoalescedGroup(lineItems, group));
+  };
+
+  /**
+   * Quantity counter for a box card. Units up to the included baseline stay at $0
+   * (so 4→3→4 gelt never charges the 4th). Only units *beyond* that baseline are
+   * charged at the member/à-la-carte price on a `${slot}${EXTRA_UNIT_SUFFIX}` line.
+   * Decrement removes paid extras first, then trims included qty; at quantity 1 it
+   * donates/removes the item.
+   */
+  const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
+
+  const changeBoxQuantity = async (
+    group: ReturnType<typeof coalesceLinesByItemId>[number],
+    delta: 1 | -1,
+    sectionId: BoxDisplaySectionId
+  ) => {
+    if (locked) return;
+    const item = catalog.find((c) => c.id === group.itemId);
+    const freeLines = lineItems.filter(
+      (li) => li.itemId === group.itemId && !li.slotId.endsWith(EXTRA_UNIT_SUFFIX)
+    );
+    const freeQty = freeLines.reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+    const persistedBaseline = freeLines.reduce(
+      (s, li) => s + Math.max(0, li.includedQty ?? 0),
+      0
+    );
+    const baselines = includedBaselineByItemId.current;
+    const prevBaseline = Math.max(baselines.get(group.itemId) ?? 0, persistedBaseline);
+    // Lock in (and raise) the free baseline whenever we see free units — never lower
+    // it when the user donates down, so re-adding up to that count stays free.
+    if (freeQty > prevBaseline) baselines.set(group.itemId, freeQty);
+    else if (prevBaseline > 0) baselines.set(group.itemId, prevBaseline);
+    const baseline = baselines.get(group.itemId) ?? freeQty;
+
+    if (delta === 1) {
+      if (!item) return;
+      // Restore free units first when below the included baseline.
+      if (freeQty < baseline) {
+        const multi = freeLines[0];
+        if (!multi) return;
+        await persist(
+          lineItems.map((li) =>
+            li.slotId === multi.slotId
+              ? {
+                  ...li,
+                  quantity: (li.quantity ?? 1) + 1,
+                  includedQty: li.includedQty ?? baseline,
+                }
+              : li
+          )
+        );
+        return;
+      }
+      const price = resolveCatalogDisplayPrices(item).memberCents;
+      if (!guestViewOnly && price > 0 && !guardMutation()) return;
+      const extra = lineItems.find(
+        (li) => li.itemId === group.itemId && li.slotId.endsWith(EXTRA_UNIT_SUFFIX)
+      );
+      const next = extra
+        ? lineItems.map((li) =>
+            li.slotId === extra.slotId ? { ...li, quantity: li.quantity + 1 } : li
+          )
+        : [
+            ...lineItems,
+            {
+              slotId: `${group.primary.slotId}${EXTRA_UNIT_SUFFIX}`,
+              itemId: group.itemId,
+              quantity: 1,
+              unitCents: price,
+              label: group.primary.label,
+              displaySectionId: sectionId,
+              ...(group.primary.childId ? { childId: group.primary.childId } : null),
+            } as BoxLineItem,
+          ];
+      await persist(next);
+      return;
+    }
+
+    // delta === -1
+    if (group.quantity <= 1) {
+      await removeCoalesced(group);
+      return;
+    }
+    // 1) Remove a paid extra unit first.
+    const extra = lineItems.find(
+      (li) => li.itemId === group.itemId && li.slotId.endsWith(EXTRA_UNIT_SUFFIX) && li.quantity > 0
+    );
+    if (extra) {
+      const next =
+        extra.quantity > 1
+          ? lineItems.map((li) =>
+              li.slotId === extra.slotId ? { ...li, quantity: li.quantity - 1 } : li
+            )
+          : lineItems.filter((li) => li.slotId !== extra.slotId);
+      await persist(next);
+      return;
+    }
+    // 2) Trim an included line that carries multiple units (e.g. gelt ×4).
+    const multi = freeLines.find((li) => (li.quantity ?? 1) > 1);
+    if (multi) {
+      const beforeQty = multi.quantity ?? 1;
+      await persist(
+        lineItems.map((li) =>
+          li.slotId === multi.slotId
+            ? {
+                ...li,
+                quantity: beforeQty - 1,
+                includedQty: li.includedQty ?? beforeQty,
+              }
+            : li
+        )
+      );
+      return;
+    }
+    // 3) Otherwise drop one per-kid included line from the group.
+    const dropSlot = freeLines[freeLines.length - 1]?.slotId;
+    const keep = freeLines[0];
+    if (dropSlot && keep && dropSlot !== keep.slotId) {
+      // Preserve baseline on the remaining sibling so 2→1→2 stays free.
+      await persist(
+        lineItems
+          .filter((li) => li.slotId !== dropSlot)
+          .map((li) =>
+            li.slotId === keep.slotId
+              ? { ...li, includedQty: li.includedQty ?? baseline }
+              : li
+          )
+      );
+      return;
+    }
+    if (dropSlot) await persist(lineItems.filter((li) => li.slotId !== dropSlot));
   };
 
   const toggleSurprise = async (slotId: string) => {
@@ -443,25 +617,49 @@ export function MyBoxScreen() {
 
   const modalAddToBox = async (item: CatalogItem) => {
     if (locked) return;
-    const nextUnit = boxAddOnUnitCents(item);
+    let nextUnit = boxAddOnUnitCents(item);
+    const isPaper =
+      item.defaultSlot === 'wrapping-paper' ||
+      item.slotId === 'wrapping-paper' ||
+      /wrapping.?paper/i.test(`${item.id} ${item.name}`);
+    // Restoring wrapping paper after pre-wrap is an add-on (not free).
+    if (nextUnit === 0 && isPaper) nextUnit = EXTRA_FLAT_CENTS;
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     if (lineItems.some((li) => li.itemId === item.id)) return;
+    // Never reuse an occupied practice slot — "Add" means in addition to what's
+    // already there (e.g. Roll Your Own candles next to Beeswax), not a silent no-op
+    // or overwrite when slotIds collide. Also avoid catalog `extra-*` slots.
+    const rawSlot = (item.slotId || 'addon').trim() || 'addon';
+    const baseSlot = rawSlot.startsWith('extra-') ? `addon-${item.id}` : rawSlot;
+    const slotTaken = lineItems.some((li) => li.slotId === baseSlot);
+    const slotId = isPaper
+      ? 'wrapping-paper'
+      : slotTaken || nextUnit > 0 || rawSlot.startsWith('extra-')
+        ? `addon-${item.id}`
+        : baseSlot;
+    const sectionId =
+      productModalSection ?? displaySectionForCatalogItem(item);
     await persist([
       ...lineItems,
       {
-        slotId: item.slotId,
+        slotId,
         itemId: item.id,
         quantity: 1,
         unitCents: nextUnit,
         label: item.name,
-        ...(productModalSection ? { displaySectionId: productModalSection } : null),
+        displaySectionId: sectionId,
       },
     ]);
   };
 
   const modalSwapIntoBox = async (item: CatalogItem, source: BoxLineItem) => {
     if (locked) return;
-    const nextUnit = boxAddOnUnitCents(item);
+    const sourceItem = catalog.find((c) => c.id === source.itemId);
+    const sectionId = productModalSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
+    const nextUnit = isGiftSlotLine(source)
+      ? 0
+      : (sectionId ? resolveFreeSwapUnitCents(sourceItem, item, sectionId) : undefined) ??
+        boxAddOnUnitCents(item);
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     const next = lineItems.map((li) =>
       li.slotId === source.slotId
@@ -483,6 +681,91 @@ export function MyBoxScreen() {
     await persist(lineItems.filter((li) => li.itemId !== item.id));
   };
 
+  /** Empty-section placeholder tap — insert a fresh line at $0 (nothing to swap from yet). */
+  const addFreeItemToEmptySlot = async (sectionId: BoxDisplaySectionId, item: CatalogItem) => {
+    if (locked) return;
+    // Same SKU already filling this section — re-home legacy `extra-*` catalog
+    // slots so the line shows; otherwise nothing to do.
+    const existingInSection = lineItems.find(
+      (li) =>
+        li.itemId === item.id &&
+        !isGiftSlotLine(li) &&
+        displaySectionForLineItem(li, item) === sectionId
+    );
+    if (existingInSection) {
+      if (existingInSection.slotId.startsWith('extra-')) {
+        const nextSlot = uniqueSlotForFreeSectionAdd(
+          sectionId,
+          item,
+          lineItems.filter((x) => x.slotId !== existingInSection.slotId)
+        );
+        await persist(
+          lineItems.map((li) =>
+            li.slotId === existingInSection.slotId
+              ? { ...li, slotId: nextSlot, unitCents: 0, displaySectionId: sectionId }
+              : li
+          )
+        );
+      }
+      return;
+    }
+
+    // Prefer converting a paid copy rather than duplicating.
+    const paid = lineItems.find(
+      (li) => li.itemId === item.id && (li.unitCents ?? 0) > 0 && !isGiftSlotLine(li)
+    );
+    if (paid) {
+      const qty = paid.quantity ?? 1;
+      if (qty <= 1) {
+        await persist(
+          lineItems.map((li) =>
+            li.slotId === paid.slotId
+              ? {
+                  ...li,
+                  unitCents: 0,
+                  displaySectionId: sectionId,
+                  slotId: uniqueSlotForFreeSectionAdd(
+                    sectionId,
+                    item,
+                    lineItems.filter((x) => x.slotId !== paid.slotId)
+                  ),
+                }
+              : li
+          )
+        );
+      } else {
+        await persist([
+          ...lineItems.map((li) =>
+            li.slotId === paid.slotId ? { ...li, quantity: qty - 1 } : li
+          ),
+          {
+            slotId: uniqueSlotForFreeSectionAdd(sectionId, item, lineItems),
+            itemId: item.id,
+            quantity: 1,
+            unitCents: 0,
+            label: item.name,
+            displaySectionId: sectionId,
+          },
+        ]);
+      }
+      return;
+    }
+
+    // Allow adding even when the SKU exists as a gift elsewhere (gift SKUs can
+    // also fill the candles/dreidel practice). Never leave slotId empty.
+    await persist([
+      ...lineItems,
+      {
+        slotId: uniqueSlotForFreeSectionAdd(sectionId, item, lineItems),
+        itemId: item.id,
+        quantity: 1,
+        unitCents: 0,
+        label: item.name,
+        displaySectionId: sectionId,
+      },
+    ]);
+  };
+
   const boxItemIds = useMemo(
     () => new Set(lineItems.map((li) => li.itemId)),
     [lineItems]
@@ -496,6 +779,37 @@ export function MyBoxScreen() {
     return map;
   }, [catalog, boxItemIds]);
 
+  /** Free ('included' policy) items offered on an empty section's placeholder. */
+  const freeAddOptionsBySection = useMemo(() => {
+    const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
+    for (const section of BOX_DISPLAY_SECTIONS) {
+      map[section.id] = resolveFreeSlotAddOptions(section.id, catalog, 8);
+    }
+    return map;
+  }, [catalog]);
+
+  /** Fixed included per-kid gift set (toy menorah, dreidels, stuffie, book, DIY candles). */
+  const includedGiftOptions = useMemo(
+    () => resolveIncludedGiftOptions(catalog, undefined, 8),
+    [catalog]
+  );
+  const includedGiftIds = useMemo(
+    () => new Set(includedGiftOptions.map((i) => i.id)),
+    [includedGiftOptions]
+  );
+
+  /** Set (re-point or create) a kid's single gift line at $0; convert paid SKUs in place. */
+  const setKidGift = async (childId: string, item: CatalogItem) => {
+    if (locked) return;
+    await persist(assignKidGiftLines(lineItems, childId, item));
+  };
+
+  /** Add / convert a kid's book line at $0. */
+  const setKidBook = async (childId: string, item: CatalogItem) => {
+    if (locked) return;
+    await persist(assignKidBookLines(lineItems, childId, item));
+  };
+
   const renderSection = (sectionId: BoxDisplaySectionId, isLast = false) => {
     const rawItems = grouped[sectionId] ?? [];
     const isPresents = sectionId === 'presents';
@@ -503,11 +817,71 @@ export function MyBoxScreen() {
     const coalesced = coalesceLinesByItemId(cardItems);
     const showPresentsChecklist = isPresents && !isChildProfile && hasPresentsChecklist;
 
-    if (!coalesced.length && !showPresentsChecklist && !isChildProfile) return null;
     if (isChildProfile && !rawItems.length && sectionId !== 'presents') return null;
+    // Parent view: an empty section stays visible with a free-add placeholder
+    // instead of disappearing (see `emptySectionAddOptions` below).
+    const isEmpty = !coalesced.length && !showPresentsChecklist && !isChildProfile;
 
     const sectionSealed = sealedSectionIds?.includes(sectionId) ?? false;
     const showUpsells = !isChildProfile && !sectionSealed && !locked;
+
+    // Per-kid "add a gift/book" affordances: gifts in Give Presents, books in Tell the Story.
+    const showKidAddCtas = !isChildProfile && !sectionSealed && !locked;
+    const kidGiftNeeds =
+      showKidAddCtas && sectionId === 'presents' ? kidsNeedingGift(lineItems, children) : [];
+    /** Any section: kids missing a gift can claim eligible cards already in the box. */
+    const claimGiftNeeds =
+      showKidAddCtas && !isChildProfile ? kidsNeedingGift(lineItems, children) : [];
+    const kidBookNeeds =
+      showKidAddCtas && sectionId === 'story' ? kidsNeedingBook(lineItems, children) : [];
+    const kidName = (child: (typeof children)[number]) => child.name?.trim() || 'your kid';
+    const kidAddBlocks =
+      kidGiftNeeds.length || kidBookNeeds.length ? (
+        <View style={styles.kidAddBlocks}>
+          {kidGiftNeeds.map(({ child, reason }) => (
+            <PerKidSlotAddBlock
+              key={`gift-need-${child.id}`}
+              title={`Add a gift for ${kidName(child)}`}
+              note={
+                reason === 'donated'
+                  ? `${kidName(child)}’s gift was donated or removed. Add something else at no additional cost.`
+                  : `${kidName(child)}’s gift repeats another item — pick something special.`
+              }
+              items={includedGiftOptions}
+              onPressItem={(item) => void setKidGift(child.id, item)}
+            />
+          ))}
+          {kidBookNeeds.map((child) => (
+            <PerKidSlotAddBlock
+              key={`book-need-${child.id}`}
+              title={`Add a book for ${kidName(child)}`}
+              note={`${kidName(child)}’s book was donated — pick one to add it back.`}
+              items={freeAddOptionsBySection.story ?? []}
+              onPressItem={(item) => void setKidBook(child.id, item)}
+            />
+          ))}
+        </View>
+      ) : null;
+
+    // Empty section: merge the free ("included") add options and paid upsells into a
+    // single "Add items" rail — included/default first at "$0 ($X value)", paid after.
+    const freeAddOptions = isEmpty ? freeAddOptionsBySection[sectionId] ?? [] : [];
+    const freeAddIds = new Set(freeAddOptions.map((i) => i.id));
+    const emptyRailItems = isEmpty
+      ? [
+          ...freeAddOptions,
+          ...(upsellsBySection[sectionId] ?? []).filter((i) => !freeAddIds.has(i.id)),
+        ]
+      : [];
+
+    const handleUpsellPress = (item: CatalogItem) => {
+      // Free (included/default) taps add directly at $0; paid taps go through the modal.
+      if (isEmpty && freeAddIds.has(item.id)) {
+        void addFreeItemToEmptySlot(sectionId, item);
+        return;
+      }
+      onUpsellPress(item, sectionId);
+    };
 
     return (
       <BoxDetailSectionBlock
@@ -516,28 +890,38 @@ export function MyBoxScreen() {
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
         isLast={isLast}
+        emptySection={isEmpty}
         showUpsells={showUpsells}
-        upsellItems={showUpsells ? upsellsBySection[sectionId] : undefined}
-        onUpsellPress={showUpsells ? (item) => onUpsellPress(item, sectionId) : undefined}
+        upsellItems={
+          showUpsells ? (isEmpty ? emptyRailItems : upsellsBySection[sectionId]) : undefined
+        }
+        upsellLabel={isEmpty ? 'Add items' : undefined}
+        upsellIncludedItemIds={isEmpty ? freeAddIds : undefined}
+        onUpsellPress={showUpsells ? handleUpsellPress : undefined}
         trailing={
-          showPresentsChecklist ? (
-            <PresentsWrappableList
-              lineItems={lineItems}
-              catalog={catalog}
-              childrenProfiles={children}
-              selectedItemIds={wrapSelectedIds}
-              locked={locked}
-              onToggleWrapSelection={
-                locked
-                  ? undefined
-                  : (itemId) => {
-                      const next = new Set(wrapSelectedIds);
-                      if (next.has(itemId)) next.delete(itemId);
-                      else next.add(itemId);
-                      void persistWrapSelection([...next]);
-                    }
-              }
-            />
+          showPresentsChecklist || kidAddBlocks ? (
+            <View style={styles.presentsTrailingStack}>
+              {kidAddBlocks}
+              {showPresentsChecklist ? (
+                <PresentsWrappableList
+                  lineItems={lineItems}
+                  catalog={catalog}
+                  childrenProfiles={children}
+                  selectedItemIds={wrapSelectedIds}
+                  locked={locked}
+                  onToggleWrapSelection={
+                    locked
+                      ? undefined
+                      : (itemId) => {
+                          const next = new Set(wrapSelectedIds);
+                          if (next.has(itemId)) next.delete(itemId);
+                          else next.add(itemId);
+                          void persistWrapSelection([...next]);
+                        }
+                  }
+                />
+              ) : null}
+            </View>
           ) : null
         }
       >
@@ -545,6 +929,37 @@ export function MyBoxScreen() {
           const li = group.primary;
           const item = catalog.find((c) => c.id === li.itemId);
           const names = childNamesForLines(group.lines, children);
+          const giftBadge = giftBadgeLabelForLines(group.lines, children);
+          const bookBadge = bookBadgeLabelForLines(group.lines, children);
+          const imageBadge = giftBadge ?? bookBadge;
+          const isGiftGroup = group.lines.some((line) => isGiftSlotLine(line));
+          const isBookCard =
+            group.lines.some((line) => catalogSlotId(line.slotId) === 'story') ||
+            item?.category === 'Book' ||
+            item?.slotId === 'story';
+          const claimGiftChips =
+            !imageBadge &&
+            !isGiftGroup &&
+            item &&
+            includedGiftIds.has(item.id) &&
+            claimGiftNeeds.length
+              ? claimGiftNeeds.map(({ child }) => ({
+                  label: `Make this ${kidName(child)}’s included gift`,
+                  onPress: () => void setKidGift(child.id, item),
+                }))
+              : undefined;
+          const claimBookChips =
+            sectionId === 'story' &&
+            !imageBadge &&
+            isBookCard &&
+            item &&
+            kidBookNeeds.length
+              ? kidBookNeeds.map((child) => ({
+                  label: `Make this ${kidName(child)}’s included book`,
+                  onPress: () => void setKidBook(child.id, item),
+                }))
+              : undefined;
+          const claimChips = [...(claimGiftChips ?? []), ...(claimBookChips ?? [])];
           const memberValueCents = item
             ? resolveCatalogDisplayPrices(item).memberCents
             : 0;
@@ -553,7 +968,9 @@ export function MyBoxScreen() {
             names,
             formatCatalogDollars,
             memberValueCents,
-            resolveBoxItemAttributionKind(group.lines, item)
+            resolveBoxItemAttributionKind(group.lines, item),
+            group.quantity,
+            group.includedQuantity
           );
           const wrapped =
             isChildProfile &&
@@ -600,8 +1017,12 @@ export function MyBoxScreen() {
                       li={li}
                       item={item}
                       meta={presentMeta}
+                      imageBadge={imageBadge}
+                      claimGiftChips={claimChips.length ? claimChips : undefined}
                       locked={locked || sectionSealed}
-                      swapOptions={swapOptionsBySlot[li.slotId] ?? []}
+                      swapOptions={
+                        group.unitCents > 0 ? [] : (swapOptionsBySlot[li.slotId] ?? [])
+                      }
                       onSwap={(opt) =>
                         void applySwap(
                           group.lines.map((line) => line.slotId),
@@ -610,7 +1031,7 @@ export function MyBoxScreen() {
                       }
                       swapLabel={isWrappingPaper ? 'pre-wrap presents instead' : undefined}
                       onPrimarySwapAction={
-                        isWrappingPaper
+                        isWrappingPaper && group.unitCents === 0
                           ? () =>
                               void swapToPreWrap(group.lines.map((line) => line.slotId))
                           : undefined
@@ -621,8 +1042,14 @@ export function MyBoxScreen() {
                           : undefined
                       }
                       onSetKeepOrToss={(value) => void setKeepOrToss(li.slotId, value)}
+                      quantity={group.quantity}
                       decrementMode={group.unitCents === 0 ? 'donate' : 'remove'}
-                      onRemove={() => void removeCoalesced(group)}
+                      {...(isWrappingPaper
+                        ? { onRemove: () => void removeCoalesced(group) }
+                        : {
+                            onQuantityChange: (delta) =>
+                              void changeBoxQuantity(group, delta, sectionId),
+                          })}
                       onOpenProduct={() => openProduct(li.itemId, sectionId)}
                       formatPrice={formatDollars}
                     />
@@ -725,8 +1152,8 @@ export function MyBoxScreen() {
 
   const subtotal = totalCents(lineItems, boxPriceCents);
   const kidsCount = Math.max(1, children.length);
-  const chargeableExtras = extraLineItems.reduce((s, li) => s + li.unitCents * li.quantity, 0);
-  const chargeableAlaCarte = alaCarteItems.reduce((s, li) => s + li.unitCents * li.quantity, 0);
+  const chargeableAddOns = chargeableLineTotal(lineItems);
+  // Everything paid beyond the base box rolls into one “Add-ons” line.
 
   const lockBanner = locked && lockAt ? (
     <Text style={[styles.lockBanner, styles.lockBannerClosed]}>
@@ -787,23 +1214,17 @@ export function MyBoxScreen() {
           <Text style={styles.summaryLabel}>
             {kidsCount === 1 ? 'Base box (1 kid)' : `Base box (${kidsCount} kids)`}
           </Text>
-          <Text style={styles.summaryValue}>{formatDollars(boxPriceCents)}</Text>
+          <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
         </View>
-        {chargeableExtras > 0 ? (
+        {chargeableAddOns > 0 ? (
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Add-ons</Text>
-            <Text style={styles.summaryValue}>{formatDollars(chargeableExtras)}</Text>
-          </View>
-        ) : null}
-        {chargeableAlaCarte > 0 ? (
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>À la carte</Text>
-            <Text style={styles.summaryValue}>{formatDollars(chargeableAlaCarte)}</Text>
+            <Text style={styles.summaryValue}>{formatCatalogDollars(chargeableAddOns)}</Text>
           </View>
         ) : null}
         <View style={styles.summaryTotalItem}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>{formatDollars(subtotal)}</Text>
+          <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
           {guestViewOnly ? <GuestBoxAuthBanner /> : null}
         </View>
         {orderDirty && orderDeltaCents !== 0 ? (
@@ -956,7 +1377,17 @@ export function MyBoxScreen() {
           gutter={!isDesktop}
           style={styles.panel}
         >
-          <View style={styles.scrollHost} testID="box-scroll-host">
+          <View
+            style={[
+              styles.scrollHost,
+              // Constrain the scrollport (not an inner shell) so the scrollbar sits
+              // on the content column edge instead of floating in the side margin.
+              isDesktop
+                ? { maxWidth: widePanelMaxWidth, width: '100%', alignSelf: 'center' }
+                : null,
+            ]}
+            testID="box-scroll-host"
+          >
             <ScrollView
               ref={scrollRef}
               style={[styles.root, isDesktop && styles.desktopRoot]}
@@ -972,15 +1403,13 @@ export function MyBoxScreen() {
               ]}
               onScroll={onScroll}
               scrollEventThrottle={16}
+              showsVerticalScrollIndicator={false}
               {...(Platform.OS === 'web'
                 ? ({ className: 'gj-box-scroll', testID: 'box-vertical-scroll' } as object)
                 : null)}
             >
               <View
-                style={[
-                  isDesktop && styles.desktopShell,
-                  isDesktop ? { maxWidth: widePanelMaxWidth } : null,
-                ]}
+                style={isDesktop ? styles.desktopShell : undefined}
                 ref={contentRef}
                 collapsable={false}
               >
@@ -1117,6 +1546,9 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     marginTop: spacing.sm,
     lineHeight: 20,
   },
+  kidAddBlocks: { width: '100%', gap: spacing.md, marginTop: spacing.lg },
+  /** Space between “Add a gift for…” rails and “Wrappable in this box”. */
+  presentsTrailingStack: { width: '100%', gap: spacing.xl },
   childItemHeader: { paddingVertical: spacing.sm },
   childItemTitle: { fontSize: typography.lg, fontWeight: '700', color: colors.textPrimary },
   childItemMeta: { fontSize: typography.sm, color: colors.goldMuted, marginTop: 2 },
@@ -1144,7 +1576,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   summaryCard: {
     width: '100%',
-    backgroundColor: colors.logoDark,
+    backgroundColor: '#000000',
     borderRadius: isDesktop ? 12 : 0,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
@@ -1165,8 +1597,18 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     gap: spacing.xs,
     flexShrink: 0,
   },
-  summaryLabel: { fontSize: typography.sm, color: colors.goldMuted, letterSpacing: -0.22 },
-  summaryValue: { fontSize: typography.sm, fontWeight: '600', color: colors.textInverse, letterSpacing: -0.22 },
+  summaryLabel: {
+    fontSize: typography.sm,
+    color: colors.goldMuted,
+    ...typeface('medium'),
+    letterSpacing: -0.22,
+  },
+  summaryValue: {
+    fontSize: typography.titleLg,
+    color: colors.textInverse,
+    ...typeface('light'),
+    letterSpacing: -0.32,
+  },
   summaryTotalItem: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1180,8 +1622,18 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     borderLeftColor: colors.goldMuted,
     minWidth: 0,
   },
-  totalLabel: { fontSize: typography.md, fontWeight: '600', color: colors.textInverse, letterSpacing: -0.22 },
-  totalValue: { fontSize: typography.md, fontWeight: '700', color: colors.brand, letterSpacing: -0.22 },
+  totalLabel: {
+    fontSize: typography.titleLg,
+    color: colors.textInverse,
+    ...typeface('light'),
+    letterSpacing: -0.32,
+  },
+  totalValue: {
+    fontSize: typography.titleLg,
+    color: colors.brand,
+    ...typeface('light'),
+    letterSpacing: -0.32,
+  },
   summaryCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1234,10 +1686,10 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   checkoutCtaDisabled: { opacity: 0.5 },
   checkoutText: {
-    fontWeight: '700',
-    fontSize: typography.sm,
+    ...typeface('light'),
+    fontSize: typography.titleLg,
     color: colors.brand,
-    letterSpacing: -0.22,
+    letterSpacing: -0.32,
     textAlign: 'center',
     ...(Platform.OS === 'web'
       ? ({

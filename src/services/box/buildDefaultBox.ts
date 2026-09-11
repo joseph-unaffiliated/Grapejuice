@@ -1,6 +1,7 @@
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import {
   ALA_CARTE_SLOT_IDS,
+  boxAddOnUnitCents,
   inferPricingTier,
   unitCentsForTier,
   chargeableLineTotal,
@@ -10,6 +11,7 @@ import {
   EXTRA_FLAT_CENTS,
 } from './pricing';
 import {
+  defaultAdults,
   geltSlotForSize,
   planKnowNothingOutline,
   representativeAgeForBand,
@@ -143,10 +145,34 @@ export function buildDefaultLineItems(
   const candles = resolveSlotItem(catalog, rows, 'candles');
   if (candles) pushLineItem(lineItems, 'candles', candles);
 
-  for (const d of outline.dreidels) {
-    const item = resolveSlotItem(catalog, rows, d.kind);
-    const child = paired[d.kidIndex]?.child;
-    if (item && child) pushLineItem(lineItems, d.kind, item, child.id);
+  // Under 5 kids → all wood: one household line at kids + adults (same share as gelt).
+  // 5+ → mixed kinds stay one line per kid.
+  const allWood =
+    outline.dreidels.length > 0 &&
+    outline.dreidels.every((d) => d.kind === 'wood-dreidel');
+  if (allWood) {
+    const item = resolveSlotItem(catalog, rows, 'wood-dreidel');
+    if (item) {
+      const kidCount = paired.length;
+      const woodQty =
+        kidCount <= 1
+          ? Math.max(1, kidCount)
+          : kidCount + defaultAdults(outline.inputs.adults);
+      lineItems.push({
+        slotId: 'wood-dreidel',
+        itemId: item.id,
+        quantity: woodQty,
+        includedQty: woodQty,
+        unitCents: 0,
+        label: item.name,
+      });
+    }
+  } else {
+    for (const d of outline.dreidels) {
+      const item = resolveSlotItem(catalog, rows, d.kind);
+      const child = paired[d.kidIndex]?.child;
+      if (item && child) pushLineItem(lineItems, d.kind, item, child.id);
+    }
   }
 
   const geltSlot = geltSlotForSize(outline.gelt.size);
@@ -159,6 +185,7 @@ export function buildDefaultLineItems(
       slotId: geltSlot,
       itemId: gelt.id,
       quantity: geltQty,
+      includedQty: geltQty,
       unitCents: 0,
       label: gelt.name,
     };
@@ -195,6 +222,186 @@ export function buildDefaultLineItems(
 export function catalogSlotId(lineSlotId: string): string {
   const match = lineSlotId.match(/^(story|gift|wood-dreidel|blank-dreidel|airdry-dreidel)-/);
   return match ? match[1] : lineSlotId;
+}
+
+/**
+ * Upgrade old “1 wood dreidel per kid” drafts to household qty (kids + adults)
+ * when the box still looks like the previous know-nothing default.
+ */
+export function repairWoodDreidelHouseholdQty(
+  lineItems: BoxLineItem[],
+  kids: ChildProfile[],
+  adults?: number
+): { lineItems: BoxLineItem[]; dirty: boolean } {
+  const kidCount = kids.length;
+  if (kidCount < 2 || kidCount >= 5) return { lineItems, dirty: false };
+
+  const woodLines = lineItems.filter((li) => catalogSlotId(li.slotId) === 'wood-dreidel');
+  if (woodLines.length === 0) return { lineItems, dirty: false };
+
+  const totalQty = woodLines.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+  const targetQty = kidCount + defaultAdults(adults);
+  if (totalQty >= targetQty) return { lineItems, dirty: false };
+
+  // Old default: one qty-1 line per kid (or a single line already at kidCount).
+  const looksLikeOldPerKidDefault =
+    woodLines.length === kidCount &&
+    woodLines.every((li) => Math.max(1, li.quantity || 1) === 1) &&
+    totalQty === kidCount;
+  const looksLikeShortHousehold =
+    woodLines.length === 1 &&
+    Math.max(1, woodLines[0].includedQty ?? woodLines[0].quantity ?? 1) === kidCount;
+
+  if (!looksLikeOldPerKidDefault && !looksLikeShortHousehold) {
+    return { lineItems, dirty: false };
+  }
+
+  const template = woodLines[0];
+  const next = lineItems.filter((li) => catalogSlotId(li.slotId) !== 'wood-dreidel');
+  next.push({
+    slotId: 'wood-dreidel',
+    itemId: template.itemId,
+    quantity: targetQty,
+    includedQty: targetQty,
+    unitCents: 0,
+    label: template.label,
+  });
+  return { lineItems: next, dirty: true };
+}
+
+/**
+ * Re-price books/gifts that were added as extras at $0 (old Add-more bug).
+ * Leaves true per-kid `story-{childId}` / `gift-{childId}` lines alone, and never
+ * touches practice defaults (wood dreidel, candles, gelt, food kits, etc.).
+ */
+export function repairExtraPerKidPricing(
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[]
+): { lineItems: BoxLineItem[]; dirty: boolean } {
+  let dirty = false;
+  const byId = new Map(catalog.map((c) => [c.id, c]));
+  /** Concrete practice slots — never reprice these as à la carte extras. */
+  const practiceSlots = new Set([
+    'wood-dreidel',
+    'blank-dreidel',
+    'airdry-dreidel',
+    'candles',
+    'latke-mix',
+    'latke-kit',
+    'sufganiyot-mix',
+    'sufganiyot-kit',
+    'applesauce',
+    'gelt',
+    'gelt-small',
+    'gelt-medium',
+    'gelt-party',
+    'wrapping-paper',
+    'wrapping',
+    'pre-wrap',
+  ]);
+  const next = lineItems.map((li) => {
+    if (li.unitCents > 0) return li;
+    const base = catalogSlotId(li.slotId);
+    if (practiceSlots.has(base)) return li;
+    const isPerKidSlot =
+      (base === 'story' || base === 'gift') &&
+      (li.slotId.startsWith(`${base}-`) || !!li.childId);
+    if (isPerKidSlot) return li;
+
+    const item = byId.get(li.itemId);
+    if (!item) return li;
+    // Wood dreidel SKU even if the line slot was already mangled to addon-*.
+    if (
+      item.slotId === 'wood-dreidel' ||
+      item.defaultSlot === 'wood-dreidel' ||
+      /wood.*dreidel|classic.*wooden.*dreidel/i.test(`${item.id} ${item.name}`)
+    ) {
+      return li;
+    }
+    const tier = inferPricingTier(item);
+    if (tier !== 'perKid' && li.slotId !== 'story' && li.slotId !== 'gift') return li;
+
+    const cents = boxAddOnUnitCents(item);
+    if (cents <= 0) return li;
+    dirty = true;
+    return {
+      ...li,
+      unitCents: cents,
+      slotId: li.slotId.startsWith('addon-') ? li.slotId : `addon-${li.itemId}`,
+      childId: undefined,
+    };
+  });
+  return { lineItems: next, dirty };
+}
+
+/**
+ * Classic wood dreidel practice lines are always included ($0).
+ * Also restores SKUs that were wrongly rewritten to `addon-*` by older repairs,
+ * merging any stray copies into a single household wood line.
+ */
+export function repairWoodDreidelIncluded(
+  lineItems: BoxLineItem[],
+  catalog?: CatalogItem[]
+): { lineItems: BoxLineItem[]; dirty: boolean } {
+  const byId = catalog ? new Map(catalog.map((c) => [c.id, c])) : undefined;
+  const isWoodSku = (li: BoxLineItem): boolean => {
+    if (catalogSlotId(li.slotId) === 'wood-dreidel') return true;
+    const item = byId?.get(li.itemId);
+    if (!item) {
+      return /wood.*dreidel|classic.*wooden.*dreidel/i.test(`${li.itemId} ${li.label ?? ''}`);
+    }
+    return (
+      item.slotId === 'wood-dreidel' ||
+      item.defaultSlot === 'wood-dreidel' ||
+      /wood.*dreidel|classic.*wooden.*dreidel/i.test(`${item.id} ${item.name}`)
+    );
+  };
+
+  const wood: BoxLineItem[] = [];
+  const rest: BoxLineItem[] = [];
+  let droppedExtras = false;
+  for (const li of lineItems) {
+    if (!isWoodSku(li)) {
+      rest.push(li);
+      continue;
+    }
+    // Drop paid overflow units — household wood is included at the free qty.
+    if (li.slotId.includes('::x')) {
+      droppedExtras = true;
+      continue;
+    }
+    wood.push(li);
+  }
+  if (!wood.length) {
+    return droppedExtras ? { lineItems: rest, dirty: true } : { lineItems, dirty: false };
+  }
+
+  const qty = wood.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+  const includedQty = Math.max(
+    qty,
+    ...wood.map((li) => Math.max(0, li.includedQty ?? 0))
+  );
+  const needsFix =
+    droppedExtras ||
+    wood.length > 1 ||
+    wood.some((li) => li.unitCents > 0 || catalogSlotId(li.slotId) !== 'wood-dreidel');
+  if (!needsFix) return { lineItems, dirty: false };
+
+  const template = wood[0]!;
+  return {
+    dirty: true,
+    lineItems: [
+      ...rest,
+      {
+        ...template,
+        slotId: 'wood-dreidel',
+        quantity: qty,
+        includedQty,
+        unitCents: 0,
+        childId: undefined,
+      },
+    ],
+  };
 }
 
 export function totalCents(lineItems: BoxLineItem[], boxPriceCents = DEFAULT_BOX_PRICE_CENTS): number {

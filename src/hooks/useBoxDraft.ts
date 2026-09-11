@@ -6,6 +6,11 @@ import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
 import { repairAdultLeakedAsFirstChild } from '../services/guest/persistGuestToAccount';
+import {
+  repairExtraPerKidPricing,
+  repairWoodDreidelHouseholdQty,
+  repairWoodDreidelIncluded,
+} from '../services/box/buildDefaultBox';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
@@ -58,7 +63,22 @@ export function useBoxDraft() {
         if (guestLineItems.length) setGuestLineItems([]);
         setLineItems([]);
       } else {
-        setLineItems(guestLineItems);
+        let lines = guestLineItems;
+        const repairedWood = repairWoodDreidelHouseholdQty(lines, kids);
+        if (repairedWood.dirty) lines = repairedWood.lineItems;
+        try {
+          const catalog = await catalogService.getAll();
+          const repairedBooks = repairExtraPerKidPricing(lines, catalog);
+          if (repairedBooks.dirty) lines = repairedBooks.lineItems;
+          const repairedIncluded = repairWoodDreidelIncluded(lines, catalog);
+          if (repairedIncluded.dirty) lines = repairedIncluded.lineItems;
+        } catch (e) {
+          console.warn('[box] guest extra book pricing repair skipped', e);
+          const repairedIncluded = repairWoodDreidelIncluded(lines);
+          if (repairedIncluded.dirty) lines = repairedIncluded.lineItems;
+        }
+        if (lines !== guestLineItems) setGuestLineItems(lines);
+        setLineItems(lines);
       }
       setLoading(false);
       return;
@@ -70,7 +90,7 @@ export function useBoxDraft() {
     }
 
     setLoading(true);
-    const [draft, , kids] = await Promise.all([
+    const [draft, catalog, kids] = await Promise.all([
       boxDraftService.get(household.id),
       catalogService.getAll(),
       childrenService.list(user.uid),
@@ -108,6 +128,29 @@ export function useBoxDraft() {
         });
       } catch (e) {
         console.warn('[box] failed to persist adult-as-child repair', e);
+      }
+    }
+
+    const repairedWood = repairWoodDreidelHouseholdQty(nextLines, nextKids);
+    if (repairedWood.dirty) nextLines = repairedWood.lineItems;
+
+    const repairedBooks = repairExtraPerKidPricing(nextLines, catalog);
+    if (repairedBooks.dirty) nextLines = repairedBooks.lineItems;
+
+    const repairedWoodIncluded = repairWoodDreidelIncluded(nextLines, catalog);
+    if (repairedWoodIncluded.dirty) nextLines = repairedWoodIncluded.lineItems;
+
+    if (repairedWood.dirty || repairedWoodIncluded.dirty || repairedBooks.dirty) {
+      try {
+        await boxDraftService.save(household.id, user.uid, nextLines, {
+          familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel,
+          childInterests: draft?.childInterests,
+          slotVotes: draft?.slotVotes,
+          wrapSelectedItemIds: draft?.wrapSelectedItemIds,
+          sealedSectionIds: draft?.sealedSectionIds,
+        });
+      } catch (e) {
+        console.warn('[box] failed to persist box line repairs', e);
       }
     }
 

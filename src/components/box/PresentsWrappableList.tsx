@@ -30,10 +30,10 @@ type Props = {
   locked?: boolean;
 };
 
-/** True when the box wrap-control SKU is pre-wrap (vs wrapping paper). */
+/** True when the box has no wrapping-paper card (pre-wrap / wrap-included mode). */
 function isPreWrapSelected(lineItems: BoxLineItem[], catalog: CatalogItem[]): boolean {
   const wrap = wrapControlLines(lineItems)[0];
-  if (!wrap) return false;
+  if (!wrap) return true;
   const base = catalogSlotId(wrap.slotId);
   if (base === 'pre-wrap') return true;
   if (base === 'wrapping-paper' || base === 'wrapping') return false;

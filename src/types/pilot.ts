@@ -200,6 +200,11 @@ export type BoxLineItem = {
   keepOrToss?: KeepOrToss;
   isSurprise?: boolean;
   /**
+   * Free units allotted for this line (e.g. default gelt ×4). Quantity may drop
+   * below this when the shopper donates down; re-adding up to `includedQty` stays $0.
+   */
+  includedQty?: number;
+  /**
    * When a SKU can live in multiple practices (e.g. menorah plush under candles + presents),
    * pin the card to the section the shopper added it from.
    */

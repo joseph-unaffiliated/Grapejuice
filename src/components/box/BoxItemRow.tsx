@@ -13,8 +13,6 @@ import { inferKeepOrToss } from '../../constants/boxPracticeGroups';
 import { BoxItemImage } from './BoxItemImage';
 import { ItemDetailSheet } from './ItemDetailSheet';
 import { useBoxItemVisualVariant } from './boxSectionItemsLayout';
-import { Icon } from '../ui/Icon';
-import { icons } from '../../constants/icons';
 import {
   HorizontalScrollEdgeFades,
   useHorizontalScrollEdges,
@@ -129,6 +127,13 @@ type Props = {
   decrementMode?: 'donate' | 'remove';
   /** Prefer product page; falls back to ItemDetailSheet. */
   onOpenProduct?: () => void;
+  /** Floating overlay label on the image (bottom-left), e.g. “Sam’s gift”. */
+  imageBadge?: string;
+  /**
+   * Outline chips on the image for claiming this SKU as a missing kid’s included gift.
+   * White text + white stroke, no fill — distinct from the gold “A gift for …” badge.
+   */
+  claimGiftChips?: { label: string; onPress: () => void }[];
 };
 
 function ActionChip({
@@ -163,39 +168,34 @@ function QtyStepper({
   decrementMode,
   onQuantityChange,
   styles,
-  colors,
 }: {
   quantity: number;
   locked: boolean;
   decrementMode: 'donate' | 'remove';
   onQuantityChange?: (delta: 1 | -1) => void;
   styles: BoxItemRowStyles;
-  colors: SemanticColors;
 }) {
   if (!onQuantityChange || locked) {
     return null;
   }
   const atOne = quantity <= 1;
+  const wideMinus = atOne; // "donate" / "remove" need more width than "−"
   return (
     <View style={styles.qtyRow}>
       <TouchableOpacity
-        style={[styles.qtyBtn, atOne && decrementMode === 'donate' && styles.qtyBtnDonate]}
+        style={[styles.qtyBtn, wideMinus && styles.qtyBtnDonate]}
         onPress={() => onQuantityChange(-1)}
         accessibilityRole="button"
         accessibilityLabel={atOne ? (decrementMode === 'donate' ? 'Donate' : 'Remove') : 'Decrease quantity'}
       >
-        {atOne && decrementMode === 'remove' ? (
-          <Icon icon={icons.trash} size={11} color={colors.goldMuted} />
-        ) : (
-          <Text
-            style={[
-              styles.qtyBtnText,
-              atOne && decrementMode === 'donate' && styles.qtyBtnTextDonate,
-            ]}
-          >
-            {atOne ? (decrementMode === 'donate' ? 'Donate' : '−') : '−'}
-          </Text>
-        )}
+        <Text
+          style={[
+            styles.qtyBtnText,
+            atOne && styles.qtyBtnTextDonate,
+          ]}
+        >
+          {atOne ? (decrementMode === 'donate' ? 'Donate' : 'Remove') : '−'}
+        </Text>
       </TouchableOpacity>
       <Text style={styles.qtyValue}>{quantity}</Text>
       <TouchableOpacity
@@ -232,6 +232,8 @@ export function BoxItemRow({
   onQuantityChange,
   decrementMode,
   onOpenProduct,
+  imageBadge,
+  claimGiftChips,
 }: Props) {
   const { colors } = useThemeMode();
   const layoutVariant = useBoxItemVisualVariant();
@@ -284,20 +286,47 @@ export function BoxItemRow({
     return (
       <>
         <View style={vertical ? styles.tileCard : styles.cardRow}>
-          <TouchableOpacity
-            style={vertical ? styles.tileImageWrap : styles.cardImageWrap}
-            onPress={openDetail}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${displayName}`}
-          >
-            <BoxItemImage
-              size={vertical ? 96 : 112}
-              imageUrl={item?.imageUrl}
-              itemId={item?.id ?? li.itemId}
-              style={vertical ? styles.tileImage : styles.cardImage}
-            />
-          </TouchableOpacity>
+          <View style={vertical ? styles.tileImageWrap : styles.cardImageWrap}>
+            <TouchableOpacity
+              style={styles.imagePressFill}
+              onPress={openDetail}
+              activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${displayName}`}
+            >
+              <BoxItemImage
+                size={vertical ? 96 : 112}
+                imageUrl={item?.imageUrl}
+                itemId={item?.id ?? li.itemId}
+                style={vertical ? styles.tileImage : styles.cardImage}
+              />
+            </TouchableOpacity>
+            {imageBadge ? (
+              <View style={styles.imageBadge} pointerEvents="none">
+                <Text style={styles.imageBadgeText} numberOfLines={1}>
+                  {imageBadge}
+                </Text>
+              </View>
+            ) : null}
+            {claimGiftChips?.length ? (
+              <View style={styles.claimGiftChipStack} pointerEvents="box-none">
+                {claimGiftChips.map((chip) => (
+                  <TouchableOpacity
+                    key={chip.label}
+                    style={styles.claimGiftChip}
+                    onPress={chip.onPress}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={chip.label}
+                  >
+                    <Text style={styles.claimGiftChipText} numberOfLines={1}>
+                      {chip.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </View>
           <View style={vertical ? styles.tileBody : styles.cardBody}>
             <View style={styles.cardTop}>
               {meta ? <Text style={styles.cardTag}>{meta}</Text> : null}
@@ -311,7 +340,7 @@ export function BoxItemRow({
                 }
               >
                 <Text style={styles.cardName}>{displayName}</Text>
-                {quantity > 1 ? (
+                {quantity > 1 && !onQuantityChange ? (
                   <View style={styles.qtyBadge} accessibilityElementsHidden>
                     <Text style={styles.qtyBadgeText}>{quantity}</Text>
                   </View>
@@ -342,7 +371,6 @@ export function BoxItemRow({
                       decrementMode={resolvedDecrement}
                       onQuantityChange={onQuantityChange}
                       styles={styles}
-                      colors={colors}
                     />
                   ) : showAddAnother && onAddAnother && !locked ? (
                     <ActionChip label="Add more" onPress={onAddAnother} styles={styles} />
@@ -399,7 +427,34 @@ export function BoxItemRow({
     <>
       <View style={styles.row}>
         <TouchableOpacity style={styles.body} onPress={openDetail} activeOpacity={0.85}>
-          <BoxItemImage size={56} imageUrl={item?.imageUrl} itemId={item?.id ?? li.itemId} />
+          <View style={styles.rowImageWrap}>
+            <BoxItemImage size={56} imageUrl={item?.imageUrl} itemId={item?.id ?? li.itemId} />
+            {imageBadge ? (
+              <View style={styles.imageBadge} pointerEvents="none">
+                <Text style={styles.imageBadgeText} numberOfLines={1}>
+                  {imageBadge}
+                </Text>
+              </View>
+            ) : null}
+            {claimGiftChips?.length ? (
+              <View style={styles.claimGiftChipStack} pointerEvents="box-none">
+                {claimGiftChips.map((chip) => (
+                  <TouchableOpacity
+                    key={chip.label}
+                    style={styles.claimGiftChip}
+                    onPress={chip.onPress}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={chip.label}
+                  >
+                    <Text style={styles.claimGiftChipText} numberOfLines={1}>
+                      {chip.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </View>
           <View style={styles.text}>
             <Text style={styles.name}>{displayName}</Text>
             {meta ? <Text style={styles.meta}>{meta}</Text> : null}
@@ -438,7 +493,6 @@ export function BoxItemRow({
             decrementMode={resolvedDecrement}
             onQuantityChange={onQuantityChange}
             styles={styles}
-            colors={colors}
           />
         </View>
       ) : showAddAnother && onAddAnother && !locked ? (
@@ -509,8 +563,71 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       borderRadius: borderRadius.md,
       overflow: 'hidden',
       flexShrink: 0,
+      position: 'relative',
+    },
+    imagePressFill: {
+      width: '100%',
+      height: '100%',
     },
     cardImage: { width: '100%', height: '100%', borderRadius: borderRadius.md },
+    rowImageWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: borderRadius.md,
+      overflow: 'hidden',
+      flexShrink: 0,
+      position: 'relative',
+    },
+    /** Matches the qty badge look — gold pill, dark text, white stroke. */
+    imageBadge: {
+      position: 'absolute',
+      left: 10,
+      bottom: 10,
+      maxWidth: '88%',
+      height: 22,
+      paddingHorizontal: 8,
+      borderRadius: 11,
+      backgroundColor: colors.brand,
+      borderWidth: 1,
+      borderColor: '#FFFFFF',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    imageBadgeText: {
+      fontSize: typography.sm,
+      lineHeight: 14,
+      color: colors.logoDark,
+      ...typeface('medium'),
+      letterSpacing: -0.2,
+    },
+    /** Stack of outline “Make this X’s included gift” chips on the image. */
+    claimGiftChipStack: {
+      position: 'absolute',
+      left: 10,
+      bottom: 10,
+      maxWidth: '88%',
+      gap: 4,
+      zIndex: 2,
+    },
+    claimGiftChip: {
+      height: 22,
+      paddingHorizontal: 8,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: '#FFFFFF',
+      backgroundColor: 'transparent',
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'flex-start',
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+    },
+    claimGiftChipText: {
+      fontSize: typography.sm,
+      lineHeight: 14,
+      color: '#FFFFFF',
+      ...typeface('medium'),
+      letterSpacing: -0.2,
+    },
     cardBody: { flex: 1, justifyContent: 'space-between', gap: 4 },
     /** Desktop web — image on top, copy below; sits in a side-by-side grid. */
     tileCard: {
@@ -525,6 +642,7 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       borderRadius: borderRadius.xxl,
       overflow: 'hidden',
       backgroundColor: colors.bgElevated,
+      position: 'relative',
     },
     tileImage: { width: '100%', height: '100%', borderRadius: borderRadius.xxl },
     tileBody: { width: '100%', gap: 4 },
@@ -613,7 +731,7 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       justifyContent: 'center',
       paddingHorizontal: 4,
     },
-    qtyBtnDonate: { minWidth: 44 },
+    qtyBtnDonate: { minWidth: 52 },
     qtyBtnText: {
       fontSize: 12,
       color: colors.goldMuted,
@@ -680,7 +798,14 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       alignItems: 'center',
     },
     shelfCardSelected: { borderColor: colors.goldMuted, backgroundColor: colors.accentCream },
-    shelfName: { fontSize: typography.sm, textAlign: 'center', marginTop: 4 },
+    shelfName: {
+      fontSize: typography.sm,
+      ...typeface('regular'),
+      color: colors.textPrimary,
+      letterSpacing: -0.33,
+      textAlign: 'center',
+      marginTop: 4,
+    },
     selectedMark: { color: colors.brand, fontWeight: '700', marginTop: 2 },
   });
 }

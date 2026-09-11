@@ -84,7 +84,7 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
 
 const styles = StyleSheet.create({
   root: {
-    backgroundColor: semanticColors.logoDark,
+    backgroundColor: '#000000',
     // No light/white bottom stroke on the dark secondary bar.
     borderBottomWidth: 0,
     borderTopWidth: 0,

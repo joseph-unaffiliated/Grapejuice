@@ -33,6 +33,8 @@ import {
   boxAddOnUnitCents,
 } from '../../services/box/pricing';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
+import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
+import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { similarCatalogItems } from '../../constants/catalogCuration';
 import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
 import { storefrontCategoryForItem } from '../../constants/storefrontCategories';
@@ -185,8 +187,17 @@ export function CatalogProductScreen() {
     if (!item || !hasStartedBox || inBox) return null;
     return findSwapSourceLine(item, swapLineItems, catalog);
   }, [item, hasStartedBox, inBox, swapLineItems, catalog]);
+  const swapSourceItem = useMemo(
+    () => (swapSource ? catalog.find((c) => c.id === swapSource.itemId) : undefined),
+    [swapSource, catalog]
+  );
+  const swapUnitCents = useMemo(() => {
+    if (!swapSource || !item) return 0;
+    const sectionId = displaySectionForCatalogItem(swapSourceItem ?? item);
+    return resolveFreeSwapUnitCents(swapSourceItem, item, sectionId) ?? boxUnitCents;
+  }, [swapSource, swapSourceItem, item, boxUnitCents]);
   const swapDeltaCents = swapSource
-    ? Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0))
+    ? Math.max(0, swapUnitCents - (swapSource.unitCents ?? 0))
     : 0;
 
   const persist = async (next: BoxLineItem[]) => {
@@ -245,7 +256,7 @@ export function CatalogProductScreen() {
             ...li,
             itemId: item.id,
             label: item.name,
-            unitCents: boxUnitCents,
+            unitCents: swapUnitCents,
             quantity: 1,
           }
         : li
@@ -286,15 +297,23 @@ export function CatalogProductScreen() {
         ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
         : 'Add to cart';
 
+  const canPolicySwap = useMemo(() => {
+    if (!swapSource || !item || !swapSourceItem) return false;
+    const sectionId = displaySectionForCatalogItem(swapSourceItem);
+    return resolveFreeSwapUnitCents(swapSourceItem, item, sectionId) !== undefined;
+  }, [swapSource, swapSourceItem, item]);
+
   const secondaryLabel = hasStartedBox
-    ? `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`
+    ? swapDeltaCents > 0
+      ? `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`
+      : 'Swap into my box'
     : memberCents > 0
       ? `Buy with a box (${formatCatalogDollars(memberCents)})`
       : 'Buy with a box';
 
   const showMarketplaceQty = !hasStartedBox && inMarketplaceCart;
   const showSecondary = hasStartedBox
-    ? !inCart && Boolean(swapSource)
+    ? !inCart && Boolean(swapSource) && canPolicySwap
     : true;
 
   const onPrimaryPress = hasStartedBox

@@ -141,6 +141,19 @@ function sectionFromBoxSections(boxSections?: string[]): BoxDisplaySectionId | n
   return null;
 }
 
+/** Practice section implied by a SKU's name/category (null when nothing matches). */
+function practiceSectionFromIdentity(item: CatalogItem): BoxDisplaySectionId | null {
+  const hay = `${item.id} ${item.name} ${item.category ?? ''}`.toLowerCase();
+  if (/book|story|maccabee/.test(hay) || item.category === 'Book') return 'story';
+  if (/dreidel|gelt/.test(hay) || item.category === 'Dreidel') return 'dreidel';
+  if (/menorah|hanukkiah|candle/.test(hay) || item.category === 'Menorah' || item.category === 'Candles') {
+    return 'candles';
+  }
+  if (/latke|sufgan|applesauce|napkin|cookie.?cutter|food|donut/.test(hay) || item.category === 'Food') return 'food';
+  if (/wrap|paper|pre.?wrap/.test(hay)) return 'presents';
+  return null;
+}
+
 /** Infer practice section from catalog facts when gift-* would otherwise land in Presents. */
 export function inferDisplaySectionForCatalogItem(item: CatalogItem): BoxDisplaySectionId {
   if (GIFT_ITEM_SECTION[item.id]) return GIFT_ITEM_SECTION[item.id];
@@ -151,14 +164,25 @@ export function inferDisplaySectionForCatalogItem(item: CatalogItem): BoxDisplay
   if (SLOT_TO_DISPLAY[base]) return SLOT_TO_DISPLAY[base];
   if (base.startsWith('story')) return 'story';
 
-  const hay = `${item.id} ${item.name} ${item.category ?? ''}`.toLowerCase();
-  if (/book|story|maccabee/.test(hay) || item.category === 'Book') return 'story';
-  if (/dreidel|gelt/.test(hay) || item.category === 'Dreidel') return 'dreidel';
-  if (/menorah|hanukkiah|candle/.test(hay) || item.category === 'Menorah' || item.category === 'Candles') {
-    return 'candles';
-  }
-  if (/latke|sufgan|applesauce|napkin|cookie.?cutter|food|donut/.test(hay) || item.category === 'Food') return 'food';
-  if (/wrap|paper|pre.?wrap/.test(hay)) return 'presents';
+  return practiceSectionFromIdentity(item) ?? 'presents';
+}
+
+/**
+ * Gift SKUs: prefer the natural practice implied by the item's name/category
+ * (a "…Latke Stuffie" → Eat & Drink, a "…Dreidel" → Play Dreidel) over a generic
+ * catalog slot such as `decor`, so every per-kid gift lands on a real practice
+ * card instead of vanishing into Presents (which shows no gift cards).
+ */
+export function inferGiftDisplaySection(item: CatalogItem): BoxDisplaySectionId {
+  if (GIFT_ITEM_SECTION[item.id]) return GIFT_ITEM_SECTION[item.id];
+  const fromAirtable = sectionFromBoxSections(item.boxSections);
+  if (fromAirtable) return fromAirtable;
+
+  const byIdentity = practiceSectionFromIdentity(item);
+  if (byIdentity && byIdentity !== 'presents') return byIdentity;
+
+  const base = catalogSlotId(item.slotId);
+  if (SLOT_TO_DISPLAY[base]) return SLOT_TO_DISPLAY[base];
   return 'presents';
 }
 
@@ -176,9 +200,9 @@ export function displaySectionForLineItem(
   const base = catalogSlotId(li.slotId);
   if (base.startsWith('story')) return 'story';
 
-  // Gift lines: place by catalog identity, not by gift-* slot alone.
+  // Gift lines: place by catalog identity (name/category first), not by gift-* slot alone.
   if (base === 'gift' || li.slotId.startsWith('gift-')) {
-    if (item) return inferDisplaySectionForCatalogItem(item);
+    if (item) return inferGiftDisplaySection(item);
     return GIFT_ITEM_SECTION[li.itemId] ?? 'presents';
   }
 
@@ -203,7 +227,9 @@ export function groupLineItemsByDisplaySection(
     presents: [],
   };
   for (const li of lineItems) {
-    if (li.itemId.startsWith('extra-') || li.slotId.startsWith('extra-')) continue;
+    // Only skip synthetic overflow rows (`extra-{id}` / `::x`), not catalog slots
+    // like `extra-candles` / `extra-gelt` which belong in practice sections.
+    if (li.itemId.startsWith('extra-') || li.slotId.includes('::x')) continue;
     const item = catalog?.find((c) => c.id === li.itemId);
     groups[displaySectionForLineItem(li, item)].push(li);
   }

@@ -36,7 +36,16 @@ export function inferPricingTier(item: CatalogItem): CatalogPricingTier {
   if (item.pricingTier) return item.pricingTier;
   if (ALA_CARTE_SLOT_IDS.has(item.slotId) || item.id.includes('ala-')) return 'alaCarte';
   if (item.slotId.startsWith('extra-') || item.id.startsWith('extra-')) return 'extra';
-  if (item.slot === 'story' || item.slot === 'gift') return 'perKid';
+  // Per-kid books/gifts: free when filling a kid slot; charged when added as extras.
+  if (
+    item.slot === 'story' ||
+    item.slot === 'gift' ||
+    item.slotId === 'story' ||
+    item.slotId === 'gift' ||
+    item.category === 'Book'
+  ) {
+    return 'perKid';
+  }
   return 'included';
 }
 
@@ -47,14 +56,19 @@ export function unitCentsForTier(tier: CatalogPricingTier, catalogCents: number)
 }
 
 /**
- * Amount charged when adding or swapping an item into a Hanukkah box (own or gift).
- * À la carte uses the member / “add to box” price — not retail (`dollarCostCents` /
- * non-member). Extras keep the flat add-on fee; included / per-kid stay $0.
+ * Amount charged when adding an item into a Hanukkah box as an extra (Add more /
+ * product modal). À la carte and per-kid (books/gifts beyond the included one-
+ * per-kid slots) use the member price. Included practice defaults stay $0 here —
+ * free slot fills and kid-slot restores set `unitCents: 0` explicitly. Swaps that
+ * are policy-`included` resolve via `resolveFreeSwapUnitCents` before this.
  */
 export function boxAddOnUnitCents(item: CatalogItem): number {
   const tier = inferPricingTier(item);
   if (tier === 'extra') return EXTRA_FLAT_CENTS;
-  if (tier === 'alaCarte') return resolveCatalogDisplayPrices(item).memberCents;
+  if (tier === 'alaCarte' || tier === 'perKid') {
+    const { memberCents } = resolveCatalogDisplayPrices(item);
+    return memberCents > 0 ? memberCents : EXTRA_FLAT_CENTS;
+  }
   return 0;
 }
 

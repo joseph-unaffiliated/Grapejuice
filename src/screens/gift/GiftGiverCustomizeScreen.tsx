@@ -76,6 +76,9 @@ function GiftGiverCustomizeBody() {
     swapOptionsBySlot,
     removeCoalesced,
     addItem,
+    addFreeItem,
+    setKidGift,
+    setKidBook,
     persistWrapSelection,
   } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -181,6 +184,9 @@ function GiftGiverCustomizeBody() {
       swapOptionsBySlot={swapOptionsBySlot}
       removeCoalesced={removeCoalesced}
       addItem={addItem}
+      addFreeItem={addFreeItem}
+      setKidGift={setKidGift}
+      setKidBook={setKidBook}
       persistWrapSelection={persistWrapSelection}
       onPay={() => void pay()}
       onRequireAuth={requireAuth}

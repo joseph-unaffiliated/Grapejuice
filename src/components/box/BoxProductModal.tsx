@@ -27,6 +27,8 @@ import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { boxAddOnUnitCents } from '../../services/box/pricing';
+import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
+import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
@@ -133,10 +135,27 @@ export function BoxProductModal({
     return findSwapSourceLine(item, lineItems, catalog, fromSection);
   }, [item, inBox, lineItems, catalog, fromSection]);
 
+  const swapSourceItem = useMemo(
+    () => (swapSource ? catalog.find((c) => c.id === swapSource.itemId) : undefined),
+    [swapSource, catalog]
+  );
+
   const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
-  const swapDeltaCents = swapSource
-    ? Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0))
-    : 0;
+  const swapDeltaCents = useMemo(() => {
+    if (!swapSource || !item) return 0;
+    const sectionId = fromSection ?? (swapSourceItem ? displaySectionForCatalogItem(swapSourceItem) : undefined);
+    const resolved = sectionId ? resolveFreeSwapUnitCents(swapSourceItem, item, sectionId) : undefined;
+    return resolved ?? Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0));
+  }, [swapSource, swapSourceItem, item, fromSection, boxUnitCents]);
+
+  /** Only offer Swap when the target is an included/policy swap — not paid extras like brass. */
+  const canPolicySwap = useMemo(() => {
+    if (!swapSource || !item) return false;
+    const sectionId =
+      fromSection ?? (swapSourceItem ? displaySectionForCatalogItem(swapSourceItem) : undefined);
+    if (!sectionId) return false;
+    return resolveFreeSwapUnitCents(swapSourceItem, item, sectionId) !== undefined;
+  }, [swapSource, swapSourceItem, item, fromSection]);
 
   const bodyCopy = item ? pdpBodyCopyForItem(item) : undefined;
   const details = item ? detailRowsFromItem(item) : [];
@@ -153,11 +172,15 @@ export function BoxProductModal({
       : `Add to ${noun}`;
 
   const secondaryLabel =
-    context === 'giftBox'
-      ? `Swap into gift (+${formatCatalogDollars(swapDeltaCents)})`
-      : `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`;
+    swapDeltaCents > 0
+      ? context === 'giftBox'
+        ? `Swap into gift (+${formatCatalogDollars(swapDeltaCents)})`
+        : `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`
+      : context === 'giftBox'
+        ? 'Swap into gift'
+        : 'Swap into my box';
 
-  const showSecondary = !inBox && Boolean(swapSource);
+  const showSecondary = !inBox && Boolean(swapSource) && canPolicySwap;
   const showRemove = inBox && Boolean(onRemove);
 
   const run = async (fn: () => void | Promise<void>) => {
@@ -190,20 +213,15 @@ export function BoxProductModal({
           ]}
           accessibilityViewIsModal
         >
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetEyebrow}>
-              {context === 'giftBox' ? 'Add to their gift' : 'Add to your box'}
-            </Text>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              hitSlop={8}
-            >
-              <Text style={styles.closeGlyph}>✕</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.closeBtnFloat}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={8}
+          >
+            <Text style={styles.closeGlyph}>✕</Text>
+          </TouchableOpacity>
 
           <View style={styles.scrollWrap}>
             <ScrollView
@@ -303,7 +321,7 @@ export function BoxProductModal({
                         accessibilityRole="button"
                       >
                         {busy ? (
-                          <ActivityIndicator color={colors.textInverse} />
+                          <ActivityIndicator color={colors.brand} />
                         ) : (
                           <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
                         )}
@@ -389,29 +407,19 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       borderBottomRightRadius: desktop ? borderRadius.lg : 0,
       overflow: 'hidden',
       zIndex: 2,
+      position: 'relative',
     },
-    sheetHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: desktop ? spacing.xxl : MOBILE_GUTTER,
-      paddingTop: spacing.lg,
-      paddingBottom: spacing.md + 2,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    sheetEyebrow: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      color: colors.goldMuted,
-      letterSpacing: 0.2,
-    },
-    closeBtn: {
-      width: 36,
-      height: 36,
+    closeBtnFloat: {
+      position: 'absolute',
+      top: spacing.md,
+      right: spacing.md,
+      zIndex: 4,
+      width: 40,
+      height: 40,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: borderRadius.md,
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
     closeGlyph: {
       fontSize: 18,
@@ -427,7 +435,7 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
     scroll: { flexGrow: 0, flexShrink: 1 },
     scrollContent: {
       paddingHorizontal: desktop ? spacing.xxl : MOBILE_GUTTER,
-      paddingTop: desktop ? spacing.xxl : spacing.xl,
+      paddingTop: desktop ? spacing.xxl + spacing.sm : spacing.xl + spacing.sm,
       paddingBottom: spacing.xxl + spacing.md,
       gap: spacing.xxl,
     },
@@ -550,7 +558,9 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
     ctaPrimary: {
-      backgroundColor: colors.logoDark,
+      backgroundColor: '#000000',
+      borderWidth: 1,
+      borderColor: colors.brand,
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: desktop ? 260 : 200,
@@ -565,14 +575,15 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
     },
     ctaDisabled: { opacity: 0.45 },
     ctaPrimaryText: {
-      ...typeface('bold'),
-      fontSize: typography.md,
-      color: colors.textInverse,
+      ...typeface('light'),
+      fontSize: typography.titleLg,
+      color: colors.brand,
+      letterSpacing: -0.32,
       textAlign: 'center',
       ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : null),
     },
     ctaSecondaryText: {
-      ...typeface('bold'),
+      ...typeface('medium'),
       fontSize: typography.md,
       color: colors.logoDark,
       textAlign: 'center',

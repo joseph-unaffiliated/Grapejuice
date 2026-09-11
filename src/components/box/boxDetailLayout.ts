@@ -155,6 +155,10 @@ export function createBoxDetailStyles(
       // Title ↔ blurb (was spacing.xs / 6).
       gap: spacing.sm,
     },
+    /** Empty section — blurb sits closer to the Add items rail. */
+    sectionHeaderEmpty: {
+      marginBottom: spacing.sm,
+    },
     sectionTitleRow: {
       flexDirection: 'row',
       alignItems: 'center',

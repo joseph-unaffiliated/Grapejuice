@@ -198,17 +198,26 @@ function isMenorahOrDreidel(item: CatalogItem): boolean {
 
 /**
  * Presents Add more:
+ * 0) wrapping paper (when restorable after pre-wrap)
  * 1) wrappable items that are not menorahs or dreidels
  * 2) then dreidels / menorahs (books only appear under Tell the Story)
  */
+function isWrappingPaperCatalogItem(item: CatalogItem): boolean {
+  const hay = haystack(item);
+  if (item.defaultSlot === 'wrapping-paper' || item.slotId === 'wrapping-paper') return true;
+  return /wrapping.?paper/i.test(hay);
+}
+
 function sortPresentsUpsells(items: CatalogItem[]): CatalogItem[] {
+  const paper: CatalogItem[] = [];
   const primary: CatalogItem[] = [];
   const assortment: CatalogItem[] = [];
   for (const item of items) {
-    if (isMenorahOrDreidel(item)) assortment.push(item);
+    if (isWrappingPaperCatalogItem(item)) paper.push(item);
+    else if (isMenorahOrDreidel(item)) assortment.push(item);
     else primary.push(item);
   }
-  return [...primary, ...assortment];
+  return [...paper, ...primary, ...assortment];
 }
 
 function isWrappableCatalogAddOn(item: CatalogItem): boolean {
@@ -232,20 +241,44 @@ function isFoodUpsellCandidate(item: CatalogItem): boolean {
   return displaySectionForCatalogItem(item) === 'food';
 }
 
-/** Swap shelf: included + extra swaps (not donate). */
+/**
+ * A slot's default kind, but only when it maps to a concrete default-slot SKU
+ * (e.g. `candles`, `wood-dreidel`, `latke-mix`) — not the per-kid `gift`/`story-book`
+ * descriptors, which resolve through the gift/book flows instead.
+ */
+function concreteDefaultKind(slot: { defaultKind: string }): string | undefined {
+  const cleaned = cleanKindLabel(slot.defaultKind);
+  return DEFAULT_SLOTS.has(normalizeKind(cleaned)) ? cleaned : undefined;
+}
+
+/**
+ * Swap shelf: `'included'` swaps only, plus each slot's own default so a swapped-away
+ * default (e.g. beeswax candles, classic wooden dreidel) can always be restored.
+ * `'extra'` targets (e.g. brass dreidel) are not true swaps — they're à la carte
+ * add-ons purchased alongside the existing item, so they only surface via the
+ * "Add more" upsell rail (`collectUpsellKinds`), not here.
+ */
 function collectSwapKinds(sectionId: BoxSectionId): string[] {
   const section = SECTION_RULES.find((s) => s.id === sectionId);
   if (!section) return [];
   const kinds: string[] = [];
   const seen = new Set<string>();
+  const push = (raw: string) => {
+    const k = normalizeKind(raw);
+    if (k === 'donate' || seen.has(k)) return;
+    if (sectionId !== 'story' && isBookUpsellOrSwapKind(raw)) return;
+    seen.add(k);
+    kinds.push(raw);
+  };
+  // Slot defaults first, so restoring/adding the default leads the shelf and free rail.
+  for (const slot of section.slots) {
+    const dk = concreteDefaultKind(slot);
+    if (dk) push(dk);
+  }
   for (const slot of section.slots) {
     for (const s of slot.swaps) {
-      if (s.price === 'donate') continue;
-      const k = normalizeKind(s.targetSlotOrKind);
-      if (k === 'donate' || seen.has(k)) continue;
-      if (sectionId !== 'story' && isBookUpsellOrSwapKind(s.targetSlotOrKind)) continue;
-      seen.add(k);
-      kinds.push(s.targetSlotOrKind);
+      if (s.price !== 'included') continue;
+      push(s.targetSlotOrKind);
     }
   }
   return kinds;
@@ -300,15 +333,29 @@ export function resolveSectionUpsellItems(
   if (!catalog.length || limit <= 0) return [];
   const exclude = excludeItemIds instanceof Set ? excludeItemIds : new Set(excludeItemIds);
 
-  // Give Presents Add more: wrapping-eligible catalog items not already in the box.
+  // Give Presents Add more: wrapping paper first (restore after pre-wrap), then
+  // wrapping-eligible catalog items not already in the box.
   if (sectionId === 'presents') {
     const out: CatalogItem[] = [];
     const seen = new Set<string>();
-    for (const item of catalog) {
-      if (exclude.has(item.id) || seen.has(item.id)) continue;
-      if (!isWrappableCatalogAddOn(item)) continue;
+    const push = (item: CatalogItem | undefined) => {
+      if (!item || exclude.has(item.id) || seen.has(item.id)) return;
       seen.add(item.id);
       out.push(item);
+    };
+
+    const paperRow = resolveByDefaultSlot(catalog, 'wrapping-paper');
+    push(
+      (paperRow ? catalog.find((c) => c.id === paperRow.id) : undefined) ??
+        catalog.find((c) => isWrappingPaperCatalogItem(c))
+    );
+    for (const item of catalog) {
+      if (isWrappingPaperCatalogItem(item)) {
+        push(item);
+        continue;
+      }
+      if (!isWrappableCatalogAddOn(item)) continue;
+      push(item);
     }
     return sortPresentsUpsells(out).slice(0, limit);
   }
@@ -371,6 +418,44 @@ export function resolveSectionSwapItems(
   return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
 }
 
+/**
+ * Strictly `'included'`-policy items for a section — used for the "empty section"
+ * placeholder ("add any of these at no extra cost"). Unlike `resolveSectionSwapItems`,
+ * this never pads with arbitrary same-section peers, so a priced item never ends up
+ * surfaced under a "free" label just because the documented graph ran short.
+ */
+export function resolveFreeSlotAddOptions(
+  sectionId: BoxDisplaySectionId,
+  catalog: CatalogItem[],
+  limit = 8
+): CatalogItem[] {
+  if (!catalog.length || limit <= 0) return [];
+  const kinds = collectSwapKinds(sectionId);
+  return excludeBooksUnlessStory(sectionId, resolveKindsToCatalog(kinds, catalog, new Set(), limit));
+}
+
+/**
+ * Included per-kid gift options — the fixed set from box rules (toy menorah, blank
+ * dreidel, airdry clay dreidel, stuffie, extra book, DIY candles). Powers both a gift
+ * line's swap shelf and the "add a gift for {kid}" row. Unlike the section resolvers,
+ * this does NOT drop books, so the "extra book" gift stays available.
+ */
+export function resolveIncludedGiftOptions(
+  catalog: CatalogItem[],
+  excludeItemId?: string,
+  limit = 6
+): CatalogItem[] {
+  if (!catalog.length || limit <= 0) return [];
+  const presents = SECTION_RULES.find((s) => s.id === 'presents');
+  const giftSlot = presents?.slots.find((slot) => /^gift\b/i.test(cleanKindLabel(slot.defaultKind)));
+  if (!giftSlot) return [];
+  const kinds = giftSlot.swaps
+    .filter((s) => s.price === 'included')
+    .map((s) => s.targetSlotOrKind);
+  const exclude = new Set(excludeItemId ? [excludeItemId] : []);
+  return resolveKindsToCatalog(kinds, catalog, exclude, limit);
+}
+
 /** Strip planner notes in parentheses / em-dashes from boxRules kind labels. */
 function cleanKindLabel(raw: string): string {
   return raw.replace(/\([^)]*\)/g, ' ').replace(/—.*$/, ' ').trim();
@@ -400,7 +485,7 @@ function itemMatchesSlotKind(item: CatalogItem, rawKind: string): boolean {
   return matchesKind(item, cleaned);
 }
 
-function findSlotRuleForItem(sectionId: BoxSectionId, item: CatalogItem) {
+export function findSlotRuleForItem(sectionId: BoxSectionId, item: CatalogItem) {
   const section = SECTION_RULES.find((s) => s.id === sectionId);
   if (!section) return undefined;
   for (const slot of section.slots) {
@@ -414,6 +499,33 @@ function findSlotRuleForItem(sectionId: BoxSectionId, item: CatalogItem) {
   }
   if (section.slots.length === 1) return section.slots[0];
   return undefined;
+}
+
+/**
+ * Price to charge when swapping `sourceItem` for `targetItem` within `sectionId`.
+ * Returns `0` when the source item's slot rule documents `targetItem` as an
+ * `'included'` (free) swap. Returns `undefined` when no matching slot rule / swap
+ * offer is found — callers should fall back to the standard tier-based add-on price
+ * (e.g. `boxAddOnUnitCents`) for anything outside the documented swap graph.
+ *
+ * `'extra'`-priced offers intentionally do NOT resolve here — per product policy,
+ * those aren't swaps at all (they're à la carte add-ons purchased alongside the
+ * existing item), so a caller reaching this with an `'extra'` target should treat it
+ * as "not a free swap" and fall back too.
+ */
+export function resolveFreeSwapUnitCents(
+  sourceItem: CatalogItem | undefined,
+  targetItem: CatalogItem,
+  sectionId: BoxSectionId
+): number | undefined {
+  if (!sourceItem) return undefined;
+  const slotRule = findSlotRuleForItem(sectionId, sourceItem);
+  if (!slotRule) return undefined;
+  // Swapping back to the slot's own default is always free.
+  if (itemMatchesSlotKind(targetItem, slotRule.defaultKind)) return 0;
+  const offer = slotRule.swaps.find((s) => itemMatchesSlotKind(targetItem, s.targetSlotOrKind));
+  if (!offer) return undefined;
+  return offer.price === 'included' ? 0 : undefined;
 }
 
 function sameSlotPeers(item: CatalogItem, catalog: CatalogItem[], limit: number): CatalogItem[] {
@@ -434,6 +546,30 @@ function sameSlotPeers(item: CatalogItem, catalog: CatalogItem[], limit: number)
   return out;
 }
 
+function isFoodMixCatalogItem(item: CatalogItem): boolean {
+  const hay = haystack(item);
+  if (/stuffie|plush|toy|cookie|napkin|gelt|menorah|candle|dreidel|book/.test(hay)) return false;
+  return /latke|sufgan|applesauce|\bmix\b/.test(hay) || item.category === 'Food';
+}
+
+function isMenorahOrCandleCatalogItem(item: CatalogItem): boolean {
+  const hay = haystack(item);
+  return (
+    item.category === 'Menorah' ||
+    item.category === 'Candles' ||
+    /menorah|hanukkiah/.test(hay) ||
+    (/candle/.test(hay) && !/cookie/.test(hay))
+  );
+}
+
+/** Block nonsense cross-practice swaps (e.g. latke mix ↔ Lego menorah). */
+function isIncompatibleSwap(source: CatalogItem, target: CatalogItem): boolean {
+  if (source.id === target.id) return true;
+  if (isFoodMixCatalogItem(source) && isMenorahOrCandleCatalogItem(target)) return true;
+  if (isMenorahOrCandleCatalogItem(source) && isFoodMixCatalogItem(target)) return true;
+  return false;
+}
+
 /**
  * Per-line swap shelf options for My Box / gift customize.
  * Prefer catalog.swapOptions → matching boxRules slot swaps → same-slot peers → section peers.
@@ -451,23 +587,28 @@ export function resolveSwapOptionsForItem(
   if (item.swapOptions?.length) {
     const fromIds = item.swapOptions
       .map((id) => catalog.find((c) => c.id === id))
-      .filter((c): c is CatalogItem => !!c && c.id !== item.id);
+      .filter((c): c is CatalogItem => !!c && c.id !== item.id && !isIncompatibleSwap(item, c));
     const scoped =
       sectionId === 'story' ? fromIds : fromIds.filter((c) => !isBookishCatalogItem(c));
     if (scoped.length) return scoped.slice(0, limit);
   }
 
   const slotRule = findSlotRuleForItem(sectionId, item);
+  const slotDefaultKind = slotRule ? concreteDefaultKind(slotRule) : undefined;
   const kinds = (
     slotRule
-      ? slotRule.swaps.filter((s) => s.price !== 'donate').map((s) => s.targetSlotOrKind)
+      ? [
+          // Default first so a swapped-away default is offered back at the top.
+          ...(slotDefaultKind ? [slotDefaultKind] : []),
+          ...slotRule.swaps.filter((s) => s.price === 'included').map((s) => s.targetSlotOrKind),
+        ]
       : collectSwapKinds(sectionId)
   ).filter((k) => sectionId === 'story' || !isBookUpsellOrSwapKind(k));
 
   const exclude = new Set([item.id]);
   const out = excludeBooksUnlessStory(
     sectionId,
-    resolveKindsToCatalog(kinds, catalog, exclude, limit)
+    resolveKindsToCatalog(kinds, catalog, exclude, limit).filter((c) => !isIncompatibleSwap(item, c))
   );
   const seen = new Set(out.map((i) => i.id));
 
@@ -475,6 +616,7 @@ export function resolveSwapOptionsForItem(
     for (const peer of sameSlotPeers(item, catalog, limit)) {
       if (out.length >= limit) break;
       if (seen.has(peer.id)) continue;
+      if (isIncompatibleSwap(item, peer)) continue;
       if (sectionId !== 'story' && isBookishCatalogItem(peer)) continue;
       seen.add(peer.id);
       out.push(peer);
@@ -492,6 +634,7 @@ export function resolveSwapOptionsForItem(
       if (out.length >= limit) break;
       if (exclude.has(c.id) || seen.has(c.id)) continue;
       if (displaySectionForCatalogItem(c) !== sectionId) continue;
+      if (isIncompatibleSwap(item, c)) continue;
       if (sectionId !== 'story' && isBookishCatalogItem(c)) continue;
       seen.add(c.id);
       out.push(c);
@@ -505,6 +648,7 @@ export function resolveSwapOptionsForItem(
       if (out.length >= limit) break;
       if (exclude.has(c.id) || seen.has(c.id)) continue;
       if (displaySectionForCatalogItem(c) !== sectionId) continue;
+      if (isIncompatibleSwap(item, c)) continue;
       if (sectionId !== 'story' && isBookishCatalogItem(c)) continue;
       seen.add(c.id);
       out.push(c);

@@ -1,5 +1,7 @@
 import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot';
 import { boxAddOnUnitCents } from '../box/pricing';
+import { resolveFreeSwapUnitCents } from '../box/sectionUpsells';
+import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 
 export type ApplyRavActionsResult = {
   lineItems: BoxLineItem[];
@@ -7,15 +9,30 @@ export type ApplyRavActionsResult = {
   skipped: RavDraftAction[];
 };
 
-function catalogLine(item: CatalogItem, slotId: string, childId?: string): BoxLineItem {
+function catalogLine(
+  item: CatalogItem,
+  slotId: string,
+  childId?: string,
+  unitCentsOverride?: number
+): BoxLineItem {
   return {
     slotId,
     itemId: item.id,
     quantity: 1,
-    unitCents: boxAddOnUnitCents(item),
+    unitCents: unitCentsOverride ?? boxAddOnUnitCents(item),
     childId,
     label: item.name,
   };
+}
+
+/**
+ * Price for a Rav-driven `'swap'` action. `'included'`-policy targets (per boxRules)
+ * stay $0 even when the catalog's own pricing tier says otherwise; `'extra'`-policy /
+ * undocumented targets fall back to the standard add-on price.
+ */
+function swapUnitCents(sourceItem: CatalogItem | undefined, targetItem: CatalogItem): number {
+  const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : displaySectionForCatalogItem(targetItem);
+  return resolveFreeSwapUnitCents(sourceItem, targetItem, sectionId) ?? boxAddOnUnitCents(targetItem);
 }
 
 function findLineIndex(lineItems: BoxLineItem[], slotId?: string, itemId?: string): number {
@@ -79,7 +96,8 @@ export function applyRavDraftActions(
       const idx = findLineIndex(next, slotId, action.itemId);
       if (idx >= 0) {
         const existing = next[idx];
-        next[idx] = catalogLine(item, existing.slotId, existing.childId);
+        const sourceItem = catalog.find((c) => c.id === existing.itemId);
+        next[idx] = catalogLine(item, existing.slotId, existing.childId, swapUnitCents(sourceItem, item));
       } else {
         const childId = action.childId;
         const newSlot = childId ? `${slotId}-${childId}` : slotId;

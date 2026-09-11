@@ -17,7 +17,9 @@ type Props = {
 const BUTTON_LOADER_HEIGHT = typography.lg;
 const BUTTON_LOADER_WIDTH = BUTTON_LOADER_HEIGHT * LOGOMARK_ASPECT;
 
-/** Gold grape wobble — replaces ActivityIndicator for branded loading states. */
+/** Gold grape wobble — replaces ActivityIndicator for branded loading states.
+ *  Motion intensity is tuned via `GRAPE_WOBBLE_INTENSITY` in GrapejuiceLogomarkSvg.
+ */
 export function BrandLoadingMark({ large = true, color = semanticColors.brand }: Props) {
   if (large) {
     return (

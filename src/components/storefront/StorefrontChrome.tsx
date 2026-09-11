@@ -1158,7 +1158,7 @@ const styles = StyleSheet.create({
   },
   /** Black secondary bar host — no light bottom stroke under category / practice links. */
   secondaryBar: {
-    backgroundColor: semanticColors.logoDark,
+    backgroundColor: '#000000',
     borderBottomWidth: 0,
     borderTopWidth: 0,
     // Cover RN-web subpixel gaps under the dark bar (parent light bg seams).

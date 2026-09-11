@@ -522,8 +522,10 @@ export function planGifts(inputs: DefaultBoxInputs): GiftAssignment[] {
 }
 
 /**
- * Dreidel assignment: 1 per kid.
- * Under 5 kids → all wood. 5+ → mix by age (older → blank/airdry activity).
+ * Dreidel assignment by kid (used for mixed 5+ boxes).
+ * Under 5 kids → all wood; `buildDefaultLineItems` materializes one household
+ * wood line at kids+adults (1 per person), not one line per kid.
+ * 5+ → mix by age (older → blank/airdry activity), still one line per kid.
  */
 export function planDreidels(inputs: DefaultBoxInputs): DreidelAssignment[] {
   const kidCount = inputs.kids.length;

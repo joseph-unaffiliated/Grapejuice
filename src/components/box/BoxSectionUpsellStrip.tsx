@@ -15,29 +15,57 @@ import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
 
-const TILE = 72;
+/** Compact Add more rail (default). */
+export const UPSELL_TILE_COMPACT = 72;
+/** Medium tiles for empty-section “Add items” rails. */
+export const UPSELL_TILE_MEDIUM = 112;
+
+export type UpsellTileSize = 'compact' | 'medium';
 
 type Props = {
   items: CatalogItem[];
   onPressItem: (item: CatalogItem) => void;
   /** Optional strip label; defaults to “Add more”. */
   label?: string;
+  /**
+   * Item ids that are free to add (included). Rendered as “$0 ($X value)” instead of
+   * their catalog price, since tapping them adds at no extra cost.
+   */
+  includedItemIds?: ReadonlySet<string>;
+  /** Tile scale — medium for empty sections, compact under populated cards. */
+  tileSize?: UpsellTileSize;
 };
 
 /** Compact thumbnail + price rail under a My Box section (replaces text browse chips). */
-export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }: Props) {
+export function BoxSectionUpsellStrip({
+  items,
+  onPressItem,
+  label = 'Add more',
+  includedItemIds,
+  tileSize = 'compact',
+}: Props) {
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const tile = tileSize === 'medium' ? UPSELL_TILE_MEDIUM : UPSELL_TILE_COMPACT;
+  const styles = useMemo(
+    () => createStyles(colors, isDesktop, tile, tileSize),
+    [colors, isDesktop, tile, tileSize]
+  );
   const edges = useHorizontalScrollEdges();
 
   if (!items.length) return null;
 
   return (
-    <View style={styles.root} accessibilityRole="list" accessibilityLabel={label}>
-      <Text style={styles.label} numberOfLines={1}>
-        {label}
-      </Text>
+    <View
+      style={[styles.root, !label ? styles.rootFlush : null]}
+      accessibilityRole="list"
+      accessibilityLabel={label || undefined}
+    >
+      {label ? (
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
+        </Text>
+      ) : null}
       <View style={styles.railWrap}>
         <HorizontalDragScrollView
           horizontal
@@ -54,7 +82,11 @@ export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }
           {items.map((item) => {
             const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
             const cents = memberCents > 0 ? memberCents : nonMemberCents;
-            const price = cents > 0 ? formatCatalogDollars(cents) : 'Add';
+            const included = includedItemIds?.has(item.id);
+            const valueLabel =
+              included && cents > 0 ? `(${formatCatalogDollars(cents)} value)` : null;
+            const priceMain = included ? '$0' : cents > 0 ? formatCatalogDollars(cents) : 'Add';
+            const a11yPrice = valueLabel ? `${priceMain} ${valueLabel}` : priceMain;
             return (
               <TouchableOpacity
                 key={item.id}
@@ -62,15 +94,20 @@ export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }
                 onPress={() => onPressItem(item)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel={`${item.name}, ${price}`}
+                accessibilityLabel={`${item.name}, ${a11yPrice}`}
               >
                 <BoxItemImage
-                  size={TILE}
+                  size={tile}
                   imageUrl={item.imageUrl}
                   itemId={item.id}
                   style={styles.image}
                 />
-                <Text style={styles.price}>{price}</Text>
+                <Text style={styles.price}>
+                  {priceMain}
+                  {valueLabel ? (
+                    <Text style={styles.priceValue}> {valueLabel}</Text>
+                  ) : null}
+                </Text>
                 <Text style={styles.name} numberOfLines={2}>
                   {item.name}
                 </Text>
@@ -88,13 +125,22 @@ export function BoxSectionUpsellStrip({ items, onPressItem, label = 'Add more' }
   );
 }
 
-function createStyles(colors: SemanticColors, desktop: boolean) {
+function createStyles(
+  colors: SemanticColors,
+  desktop: boolean,
+  tile: number,
+  tileSize: UpsellTileSize
+) {
+  const medium = tileSize === 'medium';
   return StyleSheet.create({
     root: {
       width: '100%',
       gap: spacing.xs,
       marginTop: spacing.sm,
       overflow: 'visible',
+    },
+    rootFlush: {
+      marginTop: 0,
     },
     label: {
       fontSize: typography.sm,
@@ -131,36 +177,44 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
     scrollerContent: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      // Desktop: center the rail when it fits. Mobile: start left so overflow scrolls right.
-      justifyContent: desktop ? 'center' : 'flex-start',
-      flexGrow: 1,
-      gap: spacing.sm,
+      // Always start left — centering wide rails via justifyContent expands
+      // min-content width and can push a page-level horizontal scrollbar.
+      justifyContent: 'flex-start',
+      gap: medium ? spacing.md : spacing.sm,
       paddingVertical: spacing.xs,
       paddingHorizontal: 0,
+      ...(desktop
+        ? ({ marginLeft: 'auto', marginRight: 'auto' } as object)
+        : null),
     },
     tile: {
-      width: TILE,
-      gap: 4,
+      width: tile,
+      gap: medium ? 6 : 4,
       flexShrink: 0,
     },
     image: {
-      width: TILE,
-      height: TILE,
+      width: tile,
+      height: tile,
       borderRadius: borderRadius.md,
       backgroundColor: 'rgba(0,0,0,0.05)',
     },
     name: {
-      fontSize: 10,
+      fontSize: medium ? typography.sm : 10,
       ...typeface('regular'),
       color: colors.textPrimary,
       letterSpacing: -0.2,
-      lineHeight: 12,
-      minHeight: 24,
+      lineHeight: medium ? 14 : 12,
+      minHeight: medium ? 28 : 24,
     },
     price: {
       fontSize: typography.sm,
       ...typeface('medium'),
       color: colors.textPrimary,
+      letterSpacing: -0.22,
+    },
+    priceValue: {
+      ...typeface('medium'),
+      color: colors.goldMuted,
       letterSpacing: -0.22,
     },
   });

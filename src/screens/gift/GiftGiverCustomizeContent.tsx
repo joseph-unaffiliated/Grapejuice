@@ -20,7 +20,11 @@ import {
   catalogSlotId,
 } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
-import { resolveSectionUpsellItems } from '../../services/box/sectionUpsells';
+import {
+  resolveSectionUpsellItems,
+  resolveFreeSlotAddOptions,
+  resolveIncludedGiftOptions,
+} from '../../services/box/sectionUpsells';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
@@ -29,12 +33,18 @@ import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
+import { PerKidSlotAddBlock } from '../../components/box/PerKidSlotAddBlock';
 import {
   childNamesForLines,
   coalesceLinesByItemId,
   formatBoxItemStatusMeta,
   fullCardLinesForSection,
+  giftBadgeLabelForLines,
+  bookBadgeLabelForLines,
+  isGiftSlotLine,
   isWrapControlSlot,
+  kidsNeedingBook,
+  kidsNeedingGift,
   resolveBoxItemAttributionKind,
   wrappableLinesInBox,
   wrapControlLines,
@@ -45,7 +55,6 @@ import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
   BOX_DISPLAY_SECTIONS,
   groupLineItemsByDisplaySection,
-  nonEmptyDisplaySectionIds,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
@@ -88,6 +97,15 @@ type Props = {
     item: CatalogItem,
     opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
   ) => void;
+  /** Insert at $0 — used by the empty-section "add these for free" placeholder. */
+  addFreeItem: (
+    item: CatalogItem,
+    opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
+  ) => void;
+  /** Set (re-point or create) a kid's gift line at $0. */
+  setKidGift: (childId: string, item: CatalogItem) => void;
+  /** Add a kid's book line at $0. */
+  setKidBook: (childId: string, item: CatalogItem) => void;
   persistWrapSelection: (itemIds: string[]) => void;
   onPay: () => void;
   onRequireAuth?: (entry: 'signup' | 'signin') => void;
@@ -116,6 +134,9 @@ export function GiftGiverCustomizeContent({
   swapOptionsBySlot,
   removeCoalesced,
   addItem,
+  addFreeItem,
+  setKidGift,
+  setKidBook,
   persistWrapSelection,
   onPay,
   onRequireAuth,
@@ -162,14 +183,12 @@ export function GiftGiverCustomizeContent({
     [lineItems, catalog],
   );
 
-  const visibleSectionIds = useMemo(() => {
-    const candidates = BOX_DISPLAY_SECTIONS.map((section) => section.id);
-    return nonEmptyDisplaySectionIds(
-      grouped,
-      candidates,
-      hasPresentsChecklist ? ['presents'] : undefined,
-    );
-  }, [grouped, hasPresentsChecklist]);
+  // Always show every section, even empty ones — an empty section renders a
+  // "add these for free" placeholder instead of disappearing.
+  const visibleSectionIds = useMemo(
+    () => BOX_DISPLAY_SECTIONS.map((section) => section.id),
+    [],
+  );
 
   const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
     useBoxDetailScroll({ visibleSectionIds });
@@ -184,10 +203,34 @@ export function GiftGiverCustomizeContent({
     return map;
   }, [catalog, boxItemIds]);
 
+  /** Free ('included' policy) items offered on an empty section's placeholder. */
+  const freeAddOptionsBySection = useMemo(() => {
+    const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
+    for (const section of BOX_DISPLAY_SECTIONS) {
+      map[section.id] = resolveFreeSlotAddOptions(section.id, catalog, 8);
+    }
+    return map;
+  }, [catalog]);
+
+  /** Fixed included per-kid gift set for the add-gift affordance. */
+  const includedGiftOptions = useMemo(
+    () => resolveIncludedGiftOptions(catalog, undefined, 8),
+    [catalog]
+  );
+  const includedGiftIds = useMemo(
+    () => new Set(includedGiftOptions.map((i) => i.id)),
+    [includedGiftOptions]
+  );
+
   const chargeableExtras = useMemo(
     () =>
       lineItems
-        .filter((li) => li.itemId.startsWith('extra-') || li.slotId.startsWith('extra-') || li.unitCents > 0)
+        .filter(
+          (li) =>
+            li.itemId.startsWith('extra-') ||
+            li.slotId.includes('::x') ||
+            li.unitCents > 0
+        )
         .reduce((sum, li) => sum + li.unitCents * (li.quantity ?? 1), 0),
     [lineItems],
   );
@@ -200,11 +243,62 @@ export function GiftGiverCustomizeContent({
     const cardItems = fullCardLinesForSection(sectionId, rawItems);
     const coalesced = coalesceLinesByItemId(cardItems);
     const showPresentsChecklist = isPresents && hasPresentsChecklist;
-
-    if (!coalesced.length && !showPresentsChecklist) return null;
+    // Stays visible with a free-add placeholder instead of disappearing.
+    const isEmpty = !coalesced.length && !showPresentsChecklist;
 
     const upsellItems = upsellsBySection[sectionId];
-    const showUpsells = (upsellItems?.length ?? 0) > 0;
+
+    // Per-kid "add a gift/book" affordances (kids may be unnamed in the gift-giver flow).
+    const kidGiftNeeds = sectionId === 'presents' ? kidsNeedingGift(lineItems, kidProfiles) : [];
+    const claimGiftNeeds = kidsNeedingGift(lineItems, kidProfiles);
+    const kidBookNeeds = sectionId === 'story' ? kidsNeedingBook(lineItems, kidProfiles) : [];
+    const kidLabel = (child: ChildProfile) => child.name?.trim() || 'this kid';
+    const kidAddBlocks =
+      kidGiftNeeds.length || kidBookNeeds.length ? (
+        <View style={styles.kidAddBlocks}>
+          {kidGiftNeeds.map(({ child, reason }) => (
+            <PerKidSlotAddBlock
+              key={`gift-need-${child.id}`}
+              title={`Add a gift for ${kidLabel(child)}`}
+              note={
+                reason === 'donated'
+                  ? `${kidLabel(child)}’s gift was donated or removed. Add something else at no additional cost.`
+                  : `${kidLabel(child)}’s gift repeats another item — pick something special.`
+              }
+              items={includedGiftOptions}
+              onPressItem={(item) => setKidGift(child.id, item)}
+            />
+          ))}
+          {kidBookNeeds.map((child) => (
+            <PerKidSlotAddBlock
+              key={`book-need-${child.id}`}
+              title={`Add a book for ${kidLabel(child)}`}
+              note={`${kidLabel(child)}’s book was donated — pick one to add it back.`}
+              items={freeAddOptionsBySection.story ?? []}
+              onPressItem={(item) => setKidBook(child.id, item)}
+            />
+          ))}
+        </View>
+      ) : null;
+
+    // Empty section: merge the free ("included") add options and paid upsells into a
+    // single "Add items" rail — included/default first at "$0 ($X value)", paid after.
+    const freeAddOptions = isEmpty ? freeAddOptionsBySection[sectionId] ?? [] : [];
+    const freeAddIds = new Set(freeAddOptions.map((i) => i.id));
+    const emptyRailItems = isEmpty
+      ? [...freeAddOptions, ...(upsellItems ?? []).filter((i) => !freeAddIds.has(i.id))]
+      : [];
+    const showUpsells = isEmpty ? emptyRailItems.length > 0 : (upsellItems?.length ?? 0) > 0;
+
+    const handleUpsellPress = (item: CatalogItem) => {
+      // Free (included/default) taps add directly at $0; paid taps go through the modal.
+      if (isEmpty && freeAddIds.has(item.id)) {
+        addFreeItem(item, { displaySectionId: sectionId });
+        return;
+      }
+      setProductModalSection(sectionId);
+      setProductModalItem(item);
+    };
 
     return (
       <BoxDetailSectionBlock
@@ -213,30 +307,31 @@ export function GiftGiverCustomizeContent({
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
         isLast={isLast}
+        emptySection={isEmpty}
         showUpsells={showUpsells}
-        upsellItems={showUpsells ? upsellItems : undefined}
-        onUpsellPress={
-          showUpsells
-            ? (item) => {
-                setProductModalSection(sectionId);
-                setProductModalItem(item);
-              }
-            : undefined
-        }
+        upsellItems={showUpsells ? (isEmpty ? emptyRailItems : upsellItems) : undefined}
+        upsellLabel={isEmpty ? 'Add items' : undefined}
+        upsellIncludedItemIds={isEmpty ? freeAddIds : undefined}
+        onUpsellPress={showUpsells ? handleUpsellPress : undefined}
         trailing={
-          showPresentsChecklist ? (
-            <PresentsWrappableList
-              lineItems={lineItems}
-              catalog={catalog}
-              childrenProfiles={kidProfiles}
-              selectedItemIds={wrapSelectedIds}
-              onToggleWrapSelection={(itemId) => {
-                const next = new Set(wrapSelectedIds);
-                if (next.has(itemId)) next.delete(itemId);
-                else next.add(itemId);
-                persistWrapSelection([...next]);
-              }}
-            />
+          showPresentsChecklist || kidAddBlocks ? (
+            <View style={styles.presentsTrailingStack}>
+              {kidAddBlocks}
+              {showPresentsChecklist ? (
+                <PresentsWrappableList
+                  lineItems={lineItems}
+                  catalog={catalog}
+                  childrenProfiles={kidProfiles}
+                  selectedItemIds={wrapSelectedIds}
+                  onToggleWrapSelection={(itemId) => {
+                    const next = new Set(wrapSelectedIds);
+                    if (next.has(itemId)) next.delete(itemId);
+                    else next.add(itemId);
+                    persistWrapSelection([...next]);
+                  }}
+                />
+              ) : null}
+            </View>
           ) : null
         }
       >
@@ -244,6 +339,37 @@ export function GiftGiverCustomizeContent({
           const li = group.primary;
           const item = catalogById[li.itemId] ?? catalog.find((c) => c.id === li.itemId);
           const names = childNamesForLines(group.lines, kidProfiles);
+          const giftBadge = giftBadgeLabelForLines(group.lines, kidProfiles, 'A gift for them');
+          const bookBadge = bookBadgeLabelForLines(group.lines, kidProfiles, 'A book for them');
+          const imageBadge = giftBadge ?? bookBadge;
+          const isGiftGroup = group.lines.some((line) => isGiftSlotLine(line));
+          const isBookCard =
+            group.lines.some((line) => catalogSlotId(line.slotId) === 'story') ||
+            item?.category === 'Book' ||
+            item?.slotId === 'story';
+          const claimGiftChips =
+            !imageBadge &&
+            !isGiftGroup &&
+            item &&
+            includedGiftIds.has(item.id) &&
+            claimGiftNeeds.length
+              ? claimGiftNeeds.map(({ child }) => ({
+                  label: `Make this ${kidLabel(child)}’s included gift`,
+                  onPress: () => setKidGift(child.id, item),
+                }))
+              : undefined;
+          const claimBookChips =
+            sectionId === 'story' &&
+            !imageBadge &&
+            isBookCard &&
+            item &&
+            kidBookNeeds.length
+              ? kidBookNeeds.map((child) => ({
+                  label: `Make this ${kidLabel(child)}’s included book`,
+                  onPress: () => setKidBook(child.id, item),
+                }))
+              : undefined;
+          const claimChips = [...(claimGiftChips ?? []), ...(claimBookChips ?? [])];
           const memberValueCents = item ? resolveCatalogDisplayPrices(item).memberCents : 0;
           const presentMeta = formatBoxItemStatusMeta(
             group.unitCents,
@@ -251,6 +377,8 @@ export function GiftGiverCustomizeContent({
             formatCatalogDollars,
             memberValueCents,
             resolveBoxItemAttributionKind(group.lines, item),
+            group.quantity,
+            group.includedQuantity,
           );
           const isWrappingPaper =
             isWrapControlSlot(li.slotId) &&
@@ -264,8 +392,10 @@ export function GiftGiverCustomizeContent({
               li={li}
               item={item}
               meta={presentMeta}
+              imageBadge={imageBadge}
+              claimGiftChips={claimChips.length ? claimChips : undefined}
               locked={false}
-              swapOptions={swapOptionsBySlot[li.slotId] ?? []}
+              swapOptions={group.unitCents > 0 ? [] : (swapOptionsBySlot[li.slotId] ?? [])}
               onSwap={(opt) => applySwap(group.lines.map((line) => line.slotId), opt)}
               swapLabel={isWrappingPaper ? 'pre-wrap presents instead' : undefined}
               onPrimarySwapAction={
@@ -352,17 +482,17 @@ export function GiftGiverCustomizeContent({
           <Text style={styles.summaryLabel}>
             {kidsCount === 1 ? 'Gift box (1 kid)' : `Gift box (${kidsCount} kids)`}
           </Text>
-          <Text style={styles.summaryValue}>{formatDollars(boxPriceCents)}</Text>
+          <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
         </View>
         {chargeableExtras > 0 ? (
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Add-ons</Text>
-            <Text style={styles.summaryValue}>{formatDollars(chargeableExtras)}</Text>
+            <Text style={styles.summaryValue}>{formatCatalogDollars(chargeableExtras)}</Text>
           </View>
         ) : null}
         <View style={styles.summaryTotalItem}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>{formatDollars(subtotal)}</Text>
+          <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
         </View>
         {!isAuthenticated ? (
           <View style={styles.summaryCtaRow}>
@@ -425,7 +555,14 @@ export function GiftGiverCustomizeContent({
   return (
     <View style={styles.pageRoot}>
       <WebContentPanel flush centerDesktop omitDesktopTopPadding gutter={!isDesktop} style={styles.panel}>
-        <View style={styles.scrollHost}>
+        <View
+          style={[
+            styles.scrollHost,
+            isDesktop
+              ? { maxWidth: widePanelMaxWidth, width: '100%', alignSelf: 'center' }
+              : null,
+          ]}
+        >
           <ScrollView
             ref={scrollRef}
             style={[styles.root, isDesktop && styles.desktopRoot]}
@@ -435,15 +572,13 @@ export function GiftGiverCustomizeContent({
             ]}
             onScroll={onScroll}
             scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
             {...(Platform.OS === 'web'
               ? ({ className: 'gj-box-scroll', testID: 'gift-box-vertical-scroll' } as object)
               : null)}
           >
             <View
-              style={[
-                isDesktop && styles.desktopShell,
-                isDesktop ? { maxWidth: widePanelMaxWidth } : null,
-              ]}
+              style={isDesktop ? styles.desktopShell : undefined}
               ref={contentRef}
               collapsable={false}
             >
@@ -581,6 +716,9 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       justifyContent: 'center',
       backgroundColor: colors.bgPrimary,
     },
+    kidAddBlocks: { width: '100%', gap: spacing.md, marginTop: spacing.lg },
+    /** Space between “Add a gift for…” rails and “Wrappable in this box”. */
+    presentsTrailingStack: { width: '100%', gap: spacing.xl },
     lead: {
       fontSize: typography.md,
       lineHeight: typography.md * 1.45,
@@ -625,7 +763,12 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       gap: spacing.xs,
       flexShrink: 0,
     },
-    summaryLabel: { fontSize: typography.sm, color: colors.goldMuted, letterSpacing: -0.22 },
+    summaryLabel: {
+      fontSize: typography.sm,
+      color: colors.goldMuted,
+      ...typeface('medium'),
+      letterSpacing: -0.22,
+    },
     summaryValue: {
       fontSize: typography.sm,
       fontWeight: '600',

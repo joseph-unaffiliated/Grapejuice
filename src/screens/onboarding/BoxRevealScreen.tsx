@@ -15,6 +15,7 @@ import { getHanukkahConfig } from '../../services/firestore/config';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../services/box/pricing';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
+import { giftBadgeLabelForLines } from '../../components/box/boxLineDisplay';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
@@ -182,12 +183,14 @@ export function BoxRevealScreen({
         {items.map((li) => {
           const item = catalog.find((c) => c.id === li.itemId);
           const kid = children.find((c) => c.id === li.childId);
+          const giftBadge = giftBadgeLabelForLines([li], children);
           return (
             <BoxItemRow
               key={li.slotId + li.itemId}
               li={li}
               item={item}
               meta={kid ? `Present for ${kid.name || 'your kid'}` : undefined}
+              imageBadge={giftBadge}
               locked
               swapOptions={[]}
               onSwap={() => {}}

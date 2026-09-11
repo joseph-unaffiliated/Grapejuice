@@ -17,6 +17,12 @@ const AnimatedG = Animated.createAnimatedComponent(G);
 
 export type GrapePulseMode = 'sequence' | 'random';
 
+/**
+ * Global subtlety for the branded grape loading / thinking wobble.
+ * `1` = full motion; `0.8` ≈ 20% subtler. Tweak this first when the loader feels off.
+ */
+export const GRAPE_WOBBLE_INTENSITY = 0.8;
+
 /** Live-tunable knobs for the Rav thinking wobble. */
 export type GrapeWobbleTune = {
   /** Multiplier on per-grape tilt amplitude. Default 1. */
@@ -41,12 +47,12 @@ export type GrapeWobbleTune = {
 };
 
 export const DEFAULT_GRAPE_WOBBLE: Required<GrapeWobbleTune> = {
-  ampScale: 1.47,
+  ampScale: 1.47 * GRAPE_WOBBLE_INTENSITY,
   speedScale: 0.49,
   pauseMs: 0,
   pulseMode: 'sequence',
-  pulseDepth: 0.21,
-  squash: 0.07,
+  pulseDepth: 0.21 * GRAPE_WOBBLE_INTENSITY,
+  squash: 0.07 * GRAPE_WOBBLE_INTENSITY,
 };
 
 type Props = {

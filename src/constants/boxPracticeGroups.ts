@@ -94,7 +94,8 @@ export function groupLineItemsByPractice(lineItems: BoxLineItem[]): Record<Pract
     keep: [],
   };
   for (const li of lineItems) {
-    if (li.itemId.startsWith('extra-') || li.slotId.startsWith('extra-')) continue;
+    // Synthetic overflow only — catalog `extra-candles` / `extra-gelt` still group.
+    if (li.itemId.startsWith('extra-') || li.slotId.includes('::x')) continue;
     const g = practiceGroupForLineItem(li);
     groups[g].push(li);
   }

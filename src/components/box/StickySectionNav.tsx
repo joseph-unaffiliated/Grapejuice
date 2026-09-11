@@ -168,7 +168,7 @@ function createNavStyles(
       paddingTop: services ? 0 : spacing.md,
       paddingBottom: 0,
       paddingHorizontal: services ? 0 : isDesktop ? 0 : BOX_DETAIL_TAB_GUTTER,
-      backgroundColor: services ? semanticColors.logoDark : colors.bgPrimary,
+      backgroundColor: services ? '#000000' : colors.bgPrimary,
       // Dark secondary bar — no light/white bottom stroke.
       borderBottomWidth: 0,
       zIndex: 10,
