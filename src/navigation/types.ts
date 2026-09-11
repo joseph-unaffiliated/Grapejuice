@@ -6,6 +6,8 @@ export type AuthStackParamList = {
   Welcome: undefined;
   SignIn: undefined;
   SignInEmail: { email?: string } | undefined;
+  ForgotPassword: { email?: string } | undefined;
+  ResetPasswordConfirm: { oobCode?: string } | undefined;
   SignUp: undefined;
   SignUpEmail: undefined;
 };

@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { STORE_PATH_PREFIX, storefrontFromState } from './storeLink';
-import { BOX_PATH, myBoxFromState } from './boxLink';
+import { BOX_PATH, myBoxFromState, shouldPreserveInboundBoxUrl, consumeInboundBoxUrlPreserve } from './boxLink';
 import { ACCOUNT_PATH, accountFromState } from './accountLink';
 import { ORDERS_PATH, ordersFromState } from './ordersLink';
 import {
@@ -137,6 +137,7 @@ export function browserPathForNavigationState(
   if (slug) return productPathForSlug(slug);
 
   if (myBoxFromState(state)) {
+    consumeInboundBoxUrlPreserve();
     if (search.includes('preview=')) {
       return `${BOX_PATH}${search}`;
     }
@@ -210,6 +211,10 @@ export function browserPathForNavigationState(
         return path + inboundSearch;
       }
     }
+    // Same race for /box: preserve until MyBox is the active route.
+    if (shouldPreserveInboundBoxUrl() && !myBoxFromState(state)) {
+      return BOX_PATH + (getBootLocation()?.search ?? search);
+    }
     if (search.includes('preview=')) {
       return `${store.path}${search}`;
     }
@@ -250,6 +255,13 @@ export function browserPathForNavigationState(
     return BOX_PATH + search;
   }
   if (currentPath === CHECKOUT_PATH) {
+    return currentPath + search;
+  }
+  if (
+    currentPath === '/auth/action' ||
+    currentPath === '/reset-password' ||
+    currentPath === '/__/auth/action'
+  ) {
     return currentPath + search;
   }
   if (currentPath === GIFT_LANDING_PATH) {

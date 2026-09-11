@@ -38,8 +38,12 @@ import { OrdersLinkEffect } from './OrdersLinkEffect';
 import { MyGiftsLinkEffect } from './MyGiftsLinkEffect';
 import { CheckoutLinkEffect } from './CheckoutLinkEffect';
 import { BoxLinkEffect } from './BoxLinkEffect';
+import { PasswordResetLinkEffect } from './PasswordResetLinkEffect';
+import { hydratePasswordResetFromBoot } from './passwordResetLink';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { consumePendingAuthReturn } from '../services/auth/auth';
+
+hydratePasswordResetFromBoot();
 import { MockFlowBanner } from '../components/storefront/MockFlowBanner';
 import {
   currentMainRouteName,
@@ -217,6 +221,7 @@ function RootRoutes() {
   const pendingGiftClaimToken = useAuthFlowStore((s) => s.pendingGiftClaimToken);
   const pendingGiftCustomize = useAuthFlowStore((s) => s.pendingGiftCustomize);
   const pendingGiftGive = useAuthFlowStore((s) => s.pendingGiftGive);
+  const passwordResetOobCode = useAuthFlowStore((s) => s.passwordResetOobCode);
   const previewGate = useDevPreviewStore((s) => s.forceGate);
   const previewActive = readDevPreviewFromWindow() != null;
 
@@ -261,7 +266,10 @@ function RootRoutes() {
 
   let gateKey: 'auth' | 'onboarding' | 'main' = 'auth';
 
-  if (previewActive && previewGate) {
+  if (passwordResetOobCode) {
+    // Email reset link — always show branded Auth handler (photo + card).
+    gateKey = 'auth';
+  } else if (previewActive && previewGate) {
     gateKey = previewGate;
   } else if (isAuthenticated) {
     const guestHasBox =
@@ -295,11 +303,11 @@ function RootRoutes() {
       <MockFlowBanner />
       <View style={styles.gate}>
         <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
-          {!isAuthenticated && gateKey === 'auth' ? (
+          {gateKey === 'auth' ? (
             <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
               {() => (
                 <ThemeProvider mode="parent">
-                  <AuthStack checkoutAuth={!!pendingAuth} />
+                  <AuthStack checkoutAuth={!!pendingAuth && !passwordResetOobCode} />
                 </ThemeProvider>
               )}
             </Stack.Screen>
@@ -405,6 +413,7 @@ export function RootNavigator() {
           <MyGiftsLinkEffect />
           <CheckoutLinkEffect />
           <BoxLinkEffect />
+          <PasswordResetLinkEffect />
           <AuthResumeMainEffect />
           <DevPreviewEffect />
           <RootRoutes />

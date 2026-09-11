@@ -15,6 +15,7 @@ import { householdsService } from '../services/firestore/households';
 import { catalogService } from '../services/firestore/catalog';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
+import { remapGuestChildIds } from '../services/guest/persistGuestToAccount';
 import type { BoxLineItem, FamiliarityLevel, ChildProfile } from '../types/pilot';
 import { semanticColors } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
@@ -266,7 +267,7 @@ export function OnboardingStack({
       // Silent: keep the building splash up instead of flashing the boot spinner.
       await refresh({ silent: true });
       const householdId = await ensureHouseholdId(user.uid, household?.id ?? profile?.householdId);
-      await childrenService.replaceAll(
+      const savedKids = await childrenService.replaceAll(
         user.uid,
         kids
           .filter((c) => c.role !== 'adult')
@@ -276,7 +277,8 @@ export function OnboardingStack({
             birthdate: c.birthdate,
           }))
       );
-      await boxDraftService.save(householdId, user.uid, items, {
+      const remappedItems = remapGuestChildIds(items, savedKids);
+      await boxDraftService.save(householdId, user.uid, remappedItems, {
         familiarityLevel: level,
         childInterests: interests,
       });
@@ -288,7 +290,7 @@ export function OnboardingStack({
         lockReminderAttempts: 0,
       });
       setFamiliarity(level);
-      setLineItems(items);
+      setLineItems(remappedItems);
       goToStep('building');
     } catch (error) {
       const message = onboardingErrorMessage(error);

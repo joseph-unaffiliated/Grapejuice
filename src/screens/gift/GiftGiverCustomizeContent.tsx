@@ -479,6 +479,7 @@ export function GiftGiverCustomizeContent({
         catalog={catalog}
         lineItems={lineItems}
         context="giftBox"
+        fromSection={productModalSection}
         onClose={() => {
           setProductModalItem(null);
           setProductModalSection(null);

@@ -173,7 +173,7 @@ function QtyStepper({
   colors: SemanticColors;
 }) {
   if (!onQuantityChange || locked) {
-    return quantity > 1 ? <Text style={styles.qtyReadonly}>×{quantity}</Text> : null;
+    return null;
   }
   const atOne = quantity <= 1;
   return (
@@ -301,8 +301,21 @@ export function BoxItemRow({
           <View style={vertical ? styles.tileBody : styles.cardBody}>
             <View style={styles.cardTop}>
               {meta ? <Text style={styles.cardTag}>{meta}</Text> : null}
-              <TouchableOpacity onPress={openDetail} activeOpacity={0.85}>
+              <TouchableOpacity
+                onPress={openDetail}
+                activeOpacity={0.85}
+                style={styles.cardNameRow}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  quantity > 1 ? `${displayName}, quantity ${quantity}` : `Open ${displayName}`
+                }
+              >
                 <Text style={styles.cardName}>{displayName}</Text>
+                {quantity > 1 ? (
+                  <View style={styles.qtyBadge} accessibilityElementsHidden>
+                    <Text style={styles.qtyBadgeText}>{quantity}</Text>
+                  </View>
+                ) : null}
               </TouchableOpacity>
               {item?.description ? (
                 <Text style={styles.cardDesc} numberOfLines={vertical ? 3 : 2}>
@@ -322,7 +335,7 @@ export function BoxItemRow({
               ) : (
                 <>
                   {swappable ? swapPrimary : null}
-                  {onQuantityChange || quantity > 1 ? (
+                  {onQuantityChange && !locked ? (
                     <QtyStepper
                       quantity={quantity}
                       locked={locked}
@@ -516,6 +529,12 @@ function createBoxItemRowStyles(colors: SemanticColors) {
     tileImage: { width: '100%', height: '100%', borderRadius: borderRadius.xxl },
     tileBody: { width: '100%', gap: 4 },
     cardTop: { gap: 4 },
+    cardNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+    },
     cardTag: {
       fontSize: typography.sm,
       color: colors.goldMuted,
@@ -527,6 +546,23 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       color: colors.textPrimary,
       ...typeface('regular'),
       letterSpacing: -0.26,
+      flexShrink: 1,
+    },
+    qtyBadge: {
+      minWidth: 22,
+      height: 22,
+      paddingHorizontal: 6,
+      borderRadius: 11,
+      backgroundColor: colors.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    qtyBadgeText: {
+      fontSize: typography.sm,
+      color: colors.logoDark,
+      ...typeface('medium'),
+      letterSpacing: -0.2,
+      lineHeight: 14,
     },
     cardDesc: {
       fontSize: typography.sm,
@@ -591,11 +627,6 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       ...typeface('medium'),
       minWidth: 14,
       textAlign: 'center',
-    },
-    qtyReadonly: {
-      fontSize: typography.sm,
-      color: colors.goldMuted,
-      ...typeface('regular'),
     },
     defaultQtyWrap: { paddingLeft: 64, marginBottom: spacing.xs },
     row: {

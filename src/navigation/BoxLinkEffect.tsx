@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
-import { readBoxPathFromWindow } from './boxLink';
+import { readBoxPathFromBoot } from './boxLink';
 
 function navigateToMyBox(): void {
   if (!navigationRef.isReady()) return;
@@ -12,6 +12,8 @@ function navigateToMyBox(): void {
 /**
  * Web: `/box` (and `/my-box`) → My Box.
  * Guests who land cold are put into explore so MainGate can mount.
+ * Uses the boot URL — the default storefront route rewrites the address bar to
+ * `/store` before mount, so reading `window.location` here is too late.
  */
 export function BoxLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -19,7 +21,7 @@ export function BoxLinkEffect() {
   const exploreStarted = useGuestSessionStore((s) => s.exploreStarted);
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
-  const pending = useRef(readBoxPathFromWindow());
+  const pending = useRef(readBoxPathFromBoot());
 
   useEffect(() => {
     if (!pending.current) return;

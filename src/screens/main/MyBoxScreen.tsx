@@ -1007,6 +1007,7 @@ export function MyBoxScreen() {
         catalog={catalog}
         lineItems={lineItems}
         context="ownBox"
+        fromSection={productModalSection}
         locked={locked || guestViewOnly}
         onClose={() => {
           setProductModalItem(null);
@@ -1155,7 +1156,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: isDesktop ? 'flex-start' : 'space-between',
     gap: spacing.sm,
   },
   summaryItem: {
@@ -1172,7 +1173,8 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     alignItems: 'center',
     gap: spacing.xs,
     flexShrink: 1,
-    flexGrow: 1,
+    // Desktop: don’t grow into empty space — leave room for CTAs on the same row.
+    flexGrow: isDesktop ? 0 : 1,
     paddingLeft: spacing.xs,
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: colors.goldMuted,
@@ -1183,13 +1185,15 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   summaryCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: isDesktop ? 'flex-end' : 'center',
     gap: spacing.sm,
     flexShrink: 0,
-    width: '100%',
-    marginTop: spacing.xs,
+    ...(isDesktop
+      ? { marginLeft: 'auto' }
+      : { width: '100%' as const, marginTop: spacing.xs }),
   },
   orderDeltaCopy: {
+    // Full-width note — forces a second row only when this copy is present.
     width: '100%',
     fontSize: typography.sm,
     lineHeight: 18,

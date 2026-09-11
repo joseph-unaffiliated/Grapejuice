@@ -10,18 +10,15 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
-import { FOOTER_WHO_ITS_FOR, type LandingAudienceConfig } from '../../constants/landingAudiences';
 import type { MainStackParamList } from '../../navigation/types';
-import { navigateToLanding } from '../../navigation/mainStackNavigation';
 import { openBoxSurface } from '../../navigation/boxEntry';
-import { useEntryContextStore } from '../../stores/entryContextStore';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
-import { useMarketingLandings } from '../../hooks/useMarketingLandings';
 import { isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
 import {
   MOBILE_GUTTER,
+  borderRadius,
   semanticColors,
   spacing,
   typeface,
@@ -32,7 +29,9 @@ type Nav = StackNavigationProp<MainStackParamList>;
 
 type FooterLink = {
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
+  /** Non-interactive chip beside the label (e.g. Coming soon). */
+  badge?: string;
 };
 
 type FooterColumn = {
@@ -55,15 +54,39 @@ function chunkLinks(links: FooterLink[], columns: number): FooterLink[][] {
   );
 }
 
-function FooterLinkButton({ link }: { link: FooterLink }) {
+function FooterLinkRow({ link }: { link: FooterLink }) {
+  const label = (
+    <Text style={[styles.link, !link.onPress && styles.linkMuted]}>{link.label}</Text>
+  );
+  const badge = link.badge ? (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>{link.badge}</Text>
+    </View>
+  ) : null;
+
+  if (!link.onPress) {
+    return (
+      <View
+        style={styles.linkRow}
+        accessibilityRole="text"
+        accessibilityLabel={link.badge ? `${link.label}, ${link.badge}` : link.label}
+      >
+        {label}
+        {badge}
+      </View>
+    );
+  }
+
   return (
     <TouchableOpacity
       onPress={link.onPress}
       accessibilityRole="link"
       accessibilityLabel={link.label}
       hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
+      style={styles.linkRow}
     >
-      <Text style={styles.link}>{link.label}</Text>
+      {label}
+      {badge}
     </TouchableOpacity>
   );
 }
@@ -77,10 +100,7 @@ export function StorefrontFooter() {
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
-  const captureEntry = useEntryContextStore((s) => s.capture);
-  const { landings } = useMarketingLandings();
-  const whoItsFor = landings.length ? landings : FOOTER_WHO_ITS_FOR;
-  const { width, isCompact: compact } = useLayoutBreakpoint();
+  const { isCompact: compact } = useLayoutBreakpoint();
 
   const columns = useMemo((): FooterColumn[] => {
     const goCategory = (slug: string) =>
@@ -91,15 +111,6 @@ export function StorefrontFooter() {
         hasOwnBox,
         refreshSession: refresh,
       });
-
-    const openAudienceLanding = (audience: LandingAudienceConfig) => {
-      captureEntry({
-        audienceId: audience.id,
-        sourcePath: audience.path,
-        utm: null,
-      });
-      navigateToLanding(audience.id);
-    };
 
     const marketplaceLinks: FooterLink[] = STOREFRONT_CATEGORIES.filter(
       (c) => c.slug !== 'collection'
@@ -118,17 +129,10 @@ export function StorefrontFooter() {
         ],
       },
       {
-        heading: 'Who its for',
-        links: whoItsFor.map((audience) => ({
-          label: audience.navLabel,
-          onPress: () => openAudienceLanding(audience),
-        })),
-      },
-      {
         heading: 'Seasonal boxes',
         links: [
           { label: '2026 Hanukkah Box', onPress: startBox },
-          { label: '2027 Passover', onPress: () => navigation.navigate('StorefrontPassover') },
+          { label: '2027 Passover', badge: 'Coming soon' },
           ...(hasOwnBox
             ? [{ label: 'My Box', onPress: () => navigation.navigate('MyBox') }]
             : []),
@@ -137,10 +141,8 @@ export function StorefrontFooter() {
       {
         heading: 'Company',
         links: [
-          {
-            label: 'Our story',
-            onPress: () => navigation.navigate('StorefrontOurStory'),
-          },
+          // Temporarily hidden — Our story
+          // { label: 'Our story', onPress: () => navigation.navigate('StorefrontOurStory') },
           {
             label: 'Account',
             onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
@@ -184,7 +186,7 @@ export function StorefrontFooter() {
         ],
       },
     ];
-  }, [captureEntry, hasOwnBox, isAuthenticated, navigation, refresh, whoItsFor]);
+  }, [hasOwnBox, isAuthenticated, navigation, refresh]);
 
   return (
     <View style={styles.root} accessibilityRole="contentinfo">
@@ -213,7 +215,7 @@ export function StorefrontFooter() {
                     {stacks.map((stack, i) => (
                       <View key={`${col.heading}-${i}`} style={styles.linkStack}>
                         {stack.map((link) => (
-                          <FooterLinkButton key={link.label} link={link} />
+                          <FooterLinkRow key={link.label} link={link} />
                         ))}
                       </View>
                     ))}
@@ -221,7 +223,7 @@ export function StorefrontFooter() {
                 ) : (
                   <View style={styles.linkStack}>
                     {col.links.map((link) => (
-                      <FooterLinkButton key={link.label} link={link} />
+                      <FooterLinkRow key={link.label} link={link} />
                     ))}
                   </View>
                 )}
@@ -294,11 +296,34 @@ const styles = StyleSheet.create({
     // Tighter vertical rhythm between links (was spacing.sm / 12).
     gap: spacing.xs,
   },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+  },
   link: {
     ...typeface('regular'),
     fontSize: typography.sm,
     color: FOOTER_LINK,
     letterSpacing: -0.2,
     paddingVertical: 0,
+  },
+  linkMuted: {
+    color: 'rgba(216, 201, 144, 0.72)',
+  },
+  badge: {
+    backgroundColor: 'rgba(244, 237, 220, 0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: FOOTER_LINK,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+  },
+  badgeText: {
+    ...typeface('regular'),
+    fontSize: typography.xs,
+    color: FOOTER_LINK,
+    letterSpacing: -0.1,
   },
 });

@@ -84,6 +84,12 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
   const bootPath = getBootLocation()?.pathname;
   if (bootPath && isGiftCustomizePath(bootPath)) return 'GiftGiverCustomize';
   if (bootPath && isGiftGivePath(bootPath)) return 'GiftGive';
+  // Refresh on /box must not land on StorefrontHome (that rewrites the URL to /store).
+  if (bootPath) {
+    const normalized = bootPath.replace(/\/$/, '') || '/';
+    if (normalized === '/box' || normalized === '/my-box') return 'MyBox';
+    if (normalized === '/checkout') return 'Checkout';
+  }
   const bootAudience = bootLandingAudience();
   if (bootAudience?.id === 'gift') return 'GiftLanding';
   if (bootAudience) return 'DynamicLanding';

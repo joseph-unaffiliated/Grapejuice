@@ -1,6 +1,6 @@
 /**
  * Resolve addable browse/upsell catalog rows for a My Box practice section.
- * Prefer boxRules upsells + extra-priced swap targets; fill from section catalog.
+ * Prefer swappable targets (also addable) first, then explicit upsells; fill from section catalog.
  */
 
 import {
@@ -110,7 +110,11 @@ function matchesKind(item: CatalogItem, kind: string): boolean {
   );
 }
 
-/** Upsell rail: explicit upsells + extra-priced swaps + food Add-more kinds. */
+/**
+ * Upsell rail kinds — order matters (first kinds lead the rail):
+ * 1) Swappable targets (included + extra) so they appear as add-ons too, not only swaps
+ * 2) Explicit upsells
+ */
 function collectUpsellKinds(sectionId: BoxSectionId): string[] {
   const section = SECTION_RULES.find((s) => s.id === sectionId);
   if (!section) return [];
@@ -119,25 +123,32 @@ function collectUpsellKinds(sectionId: BoxSectionId): string[] {
   const push = (raw: string) => {
     const k = normalizeKind(raw);
     if (k === 'donate' || seen.has(k)) return;
+    // Books only surface under Tell the Story — not candles/dreidel/food/presents.
+    if (sectionId !== 'story' && isBookUpsellOrSwapKind(raw)) return;
     seen.add(k);
     kinds.push(raw);
   };
 
-  // Eat & Drink Add more: napkins + cookie cutters (included swaps, not only extras).
-  if (sectionId === 'food') {
-    push('cookie-cutters');
-    push('napkins');
+  // Swaps first — available in Add more as add-ons (not swap-only).
+  for (const slot of section.slots) {
+    for (const s of slot.swaps) {
+      if (s.price === 'donate') continue;
+      push(s.targetSlotOrKind);
+    }
   }
 
   for (const slot of section.slots) {
     for (const u of slot.upsells ?? []) {
       push(u.targetSlotOrKind);
     }
-    for (const s of slot.swaps) {
-      if (s.price !== 'extra') continue;
-      push(s.targetSlotOrKind);
-    }
   }
+
+  // Eat & Drink: keep napkins + cookie cutters even if a slot graph omits them.
+  if (sectionId === 'food') {
+    push('cookie-cutters');
+    push('napkins');
+  }
+
   return kinds;
 }
 
@@ -150,20 +161,35 @@ function isBookishCatalogItem(item: CatalogItem): boolean {
   );
 }
 
-/** Books sort last in Add more rails. */
-function sortBooksLast(items: CatalogItem[]): CatalogItem[] {
-  const nonBooks: CatalogItem[] = [];
-  const books: CatalogItem[] = [];
-  for (const item of items) {
-    if (isBookishCatalogItem(item)) books.push(item);
-    else nonBooks.push(item);
+/** Book-related boxRules kinds — only valid under Tell the Story. */
+function isBookUpsellOrSwapKind(raw: string): boolean {
+  const cleaned = raw.replace(/\([^)]*\)/g, ' ').replace(/—.*$/, ' ').trim();
+  const k = normalizeKind(cleaned);
+  if (!k || k === 'donate') return false;
+  if (
+    k === 'more-books' ||
+    k === 'any-book' ||
+    k === 'extra-book' ||
+    k.startsWith('story-book') ||
+    k === 'story' ||
+    k.startsWith('story-')
+  ) {
+    return true;
   }
-  return [...nonBooks, ...books];
+  return /\bbook/.test(k) && !/cookie|facebook|notebook/.test(k);
 }
 
-/** Menorah / dreidel / book — second tier in Presents Add more. */
-function isMenorahDreidelOrBook(item: CatalogItem): boolean {
-  if (isBookishCatalogItem(item)) return true;
+function excludeBooksUnlessStory(
+  sectionId: BoxDisplaySectionId,
+  items: CatalogItem[]
+): CatalogItem[] {
+  if (sectionId === 'story') return items;
+  return items.filter((item) => !isBookishCatalogItem(item));
+}
+
+/** Menorah / dreidel — second tier in Presents Add more (books live under Story). */
+function isMenorahOrDreidel(item: CatalogItem): boolean {
+  if (isBookishCatalogItem(item)) return false;
   const hay = haystack(item);
   if (item.category === 'Menorah' || /menorah|hanukkiah/.test(hay)) return true;
   if (item.category === 'Dreidel' || /dreidel/.test(hay)) return true;
@@ -172,27 +198,27 @@ function isMenorahDreidelOrBook(item: CatalogItem): boolean {
 
 /**
  * Presents Add more:
- * 1) wrappable items that are not menorahs, dreidels, or books
- * 2) then an assortment of dreidels, menorahs, and books (books last within that band)
+ * 1) wrappable items that are not menorahs or dreidels
+ * 2) then dreidels / menorahs (books only appear under Tell the Story)
  */
 function sortPresentsUpsells(items: CatalogItem[]): CatalogItem[] {
   const primary: CatalogItem[] = [];
   const assortment: CatalogItem[] = [];
   for (const item of items) {
-    if (isMenorahDreidelOrBook(item)) assortment.push(item);
+    if (isMenorahOrDreidel(item)) assortment.push(item);
     else primary.push(item);
   }
-  return [...primary, ...sortBooksLast(assortment)];
+  return [...primary, ...assortment];
 }
 
 function isWrappableCatalogAddOn(item: CatalogItem): boolean {
+  if (isBookishCatalogItem(item)) return false;
   if (item.wrappable === true) return true;
   if (item.wrappable === false) return false;
   const hay = `${item.id} ${item.name} ${item.category ?? ''} ${item.slotId ?? ''}`.toLowerCase();
   if (/napkin|cookie.?cutter|gelt|latke|sufgan|applesauce|mix|wrapping|pre.?wrap/.test(hay)) {
     return false;
   }
-  if (/book|story/.test(hay) || item.category === 'Book') return true;
   if (/dreidel|menorah|hanukkiah|plush|stuffie|toy|lego|blanket|pyjama|pajama|diy|craft/.test(hay)) {
     return true;
   }
@@ -217,6 +243,7 @@ function collectSwapKinds(sectionId: BoxSectionId): string[] {
       if (s.price === 'donate') continue;
       const k = normalizeKind(s.targetSlotOrKind);
       if (k === 'donate' || seen.has(k)) continue;
+      if (sectionId !== 'story' && isBookUpsellOrSwapKind(s.targetSlotOrKind)) continue;
       seen.add(k);
       kinds.push(s.targetSlotOrKind);
     }
@@ -260,9 +287,9 @@ function resolveKindsToCatalog(
 
 /**
  * Catalog items to show under a section as browse/upsell thumbnails.
- * Excludes SKUs already in the box; prefers boxRules targets, then section peers.
- * Presents: wrappable catalog add-ons not already in the box.
- * Books always sort last.
+ * Excludes SKUs already in the box; prefers swappable targets first, then
+ * boxRules upsells, then section peers. Presents: wrappable catalog add-ons.
+ * Books only appear under Tell the Story.
  */
 export function resolveSectionUpsellItems(
   sectionId: BoxDisplaySectionId,
@@ -287,7 +314,10 @@ export function resolveSectionUpsellItems(
   }
 
   const kinds = collectUpsellKinds(sectionId);
-  const out = resolveKindsToCatalog(kinds, catalog, exclude, limit);
+  const out = excludeBooksUnlessStory(
+    sectionId,
+    resolveKindsToCatalog(kinds, catalog, exclude, limit)
+  );
   const seen = new Set(out.map((i) => i.id));
 
   if (out.length < limit) {
@@ -295,18 +325,22 @@ export function resolveSectionUpsellItems(
       if (out.length >= limit) break;
       if (exclude.has(item.id) || seen.has(item.id)) continue;
       if (displaySectionForCatalogItem(item) !== sectionId) continue;
+      if (sectionId !== 'story' && isBookishCatalogItem(item)) continue;
       if (sectionId === 'food' && !isFoodUpsellCandidate(item)) continue;
       seen.add(item.id);
       out.push(item);
     }
   }
 
-  return sortBooksLast(out.slice(0, limit));
+  // Story: keep books in natural kind order. Other sections should have none.
+  if (sectionId === 'story') return out.slice(0, limit);
+  return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
 }
 
 /**
  * Swap alternatives for a section from boxRules (when catalog.swapOptions is empty).
  * Fills with same-section peers so Swap still appears when specific kinds are missing.
+ * Books only appear under Tell the Story.
  */
 export function resolveSectionSwapItems(
   sectionId: BoxDisplaySectionId,
@@ -317,7 +351,10 @@ export function resolveSectionSwapItems(
   if (!catalog.length || limit <= 0) return [];
   const exclude = new Set([currentItemId]);
   const kinds = collectSwapKinds(sectionId);
-  const out = resolveKindsToCatalog(kinds, catalog, exclude, limit);
+  const out = excludeBooksUnlessStory(
+    sectionId,
+    resolveKindsToCatalog(kinds, catalog, exclude, limit)
+  );
   const seen = new Set(out.map((i) => i.id));
 
   if (out.length < limit) {
@@ -325,12 +362,13 @@ export function resolveSectionSwapItems(
       if (out.length >= limit) break;
       if (exclude.has(item.id) || seen.has(item.id)) continue;
       if (displaySectionForCatalogItem(item) !== sectionId) continue;
+      if (sectionId !== 'story' && isBookishCatalogItem(item)) continue;
       seen.add(item.id);
       out.push(item);
     }
   }
 
-  return out.slice(0, limit);
+  return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
 }
 
 /** Strip planner notes in parentheses / em-dashes from boxRules kind labels. */
@@ -403,34 +441,48 @@ function sameSlotPeers(item: CatalogItem, catalog: CatalogItem[], limit: number)
 export function resolveSwapOptionsForItem(
   item: CatalogItem,
   catalog: CatalogItem[],
-  limit = 6
+  limit = 6,
+  opts?: { includeSectionPeers?: boolean }
 ): CatalogItem[] {
   if (!catalog.length || limit <= 0) return [];
+  const includeSectionPeers = opts?.includeSectionPeers !== false;
+  const sectionId = displaySectionForCatalogItem(item);
 
   if (item.swapOptions?.length) {
     const fromIds = item.swapOptions
       .map((id) => catalog.find((c) => c.id === id))
       .filter((c): c is CatalogItem => !!c && c.id !== item.id);
-    if (fromIds.length) return fromIds.slice(0, limit);
+    const scoped =
+      sectionId === 'story' ? fromIds : fromIds.filter((c) => !isBookishCatalogItem(c));
+    if (scoped.length) return scoped.slice(0, limit);
   }
 
-  const sectionId = displaySectionForCatalogItem(item);
   const slotRule = findSlotRuleForItem(sectionId, item);
-  const kinds = slotRule
-    ? slotRule.swaps.filter((s) => s.price !== 'donate').map((s) => s.targetSlotOrKind)
-    : collectSwapKinds(sectionId);
+  const kinds = (
+    slotRule
+      ? slotRule.swaps.filter((s) => s.price !== 'donate').map((s) => s.targetSlotOrKind)
+      : collectSwapKinds(sectionId)
+  ).filter((k) => sectionId === 'story' || !isBookUpsellOrSwapKind(k));
 
   const exclude = new Set([item.id]);
-  const out = resolveKindsToCatalog(kinds, catalog, exclude, limit);
+  const out = excludeBooksUnlessStory(
+    sectionId,
+    resolveKindsToCatalog(kinds, catalog, exclude, limit)
+  );
   const seen = new Set(out.map((i) => i.id));
 
   if (out.length < limit) {
     for (const peer of sameSlotPeers(item, catalog, limit)) {
       if (out.length >= limit) break;
       if (seen.has(peer.id)) continue;
+      if (sectionId !== 'story' && isBookishCatalogItem(peer)) continue;
       seen.add(peer.id);
       out.push(peer);
     }
+  }
+
+  if (!includeSectionPeers) {
+    return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
   }
 
   // Broad section peers only when we couldn't pin a slot swap graph
@@ -440,6 +492,7 @@ export function resolveSwapOptionsForItem(
       if (out.length >= limit) break;
       if (exclude.has(c.id) || seen.has(c.id)) continue;
       if (displaySectionForCatalogItem(c) !== sectionId) continue;
+      if (sectionId !== 'story' && isBookishCatalogItem(c)) continue;
       seen.add(c.id);
       out.push(c);
     }
@@ -452,10 +505,11 @@ export function resolveSwapOptionsForItem(
       if (out.length >= limit) break;
       if (exclude.has(c.id) || seen.has(c.id)) continue;
       if (displaySectionForCatalogItem(c) !== sectionId) continue;
+      if (sectionId !== 'story' && isBookishCatalogItem(c)) continue;
       seen.add(c.id);
       out.push(c);
     }
   }
 
-  return out.slice(0, limit);
+  return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
 }

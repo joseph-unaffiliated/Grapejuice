@@ -43,6 +43,8 @@ const PREVIEW_SIGNED_IN_USER = {
   email: 'alex@example.com',
   emails: ['alex@example.com'],
   displayName: 'Alex',
+  photoURL: null as string | null,
+  hasPasswordProvider: true,
 };
 
 const PREVIEW_HOUSEHOLD: Household = {
@@ -84,6 +86,9 @@ function AccountScreenBody() {
   const styles = useMemo(() => createAccountStyles(colors, isDesktop), [colors, isDesktop]);
   const authUser = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const changePassword = useAuthStore((s) => s.changePassword);
+  const authError = useAuthStore((s) => s.error);
+  const clearAuthError = useAuthStore((s) => s.clearError);
   const { household: sessionHousehold, profile: sessionProfile, loading: sessionLoading } = useSession();
   const { activeProfile, activeChild } = useActiveProfile();
   const guestHidden = useGuestSessionStore((s) => s.hiddenHolidays);
@@ -102,6 +107,12 @@ function AccountScreenBody() {
   const [inviteCode, setInviteCode] = useState('');
   const [inviteSending, setInviteSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordLocalError, setPasswordLocalError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   const hiddenHolidays = profile?.hiddenHolidays ?? guestHidden;
 
@@ -175,6 +186,40 @@ function AccountScreenBody() {
     void logout();
   };
 
+  const onChangePassword = async () => {
+    clearAuthError();
+    setPasswordLocalError(null);
+    setPasswordSuccess(false);
+    if (fakeSignedIn) {
+      setPasswordLocalError('Preview mode — password changes are disabled.');
+      return;
+    }
+    if (!currentPassword || !nextPassword) {
+      setPasswordLocalError('Enter your current password and a new password.');
+      return;
+    }
+    if (nextPassword.length < 6) {
+      setPasswordLocalError('New password must be at least 6 characters.');
+      return;
+    }
+    if (nextPassword !== confirmPassword) {
+      setPasswordLocalError('New password and confirmation do not match.');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      await changePassword(currentPassword, nextPassword);
+      setCurrentPassword('');
+      setNextPassword('');
+      setConfirmPassword('');
+      setPasswordSuccess(true);
+    } catch {
+      /* store surfaces error */
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
   const goOrders = () => navigation.navigate('Orders');
 
   if (!fakeSignedIn && (sessionLoading || loading)) {
@@ -209,6 +254,72 @@ function AccountScreenBody() {
         <Text style={styles.title}>Account</Text>
         <Text style={styles.email}>{user?.email ?? 'Exploring as guest'}</Text>
         {profile?.displayName ? <Text style={styles.meta}>{profile.displayName}</Text> : null}
+
+        <Text style={styles.section}>Password</Text>
+        {user.hasPasswordProvider ? (
+          <>
+            <Text style={styles.hint}>Change the password for {user.email ?? 'your account'}.</Text>
+            <TextInput
+              style={styles.input}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              placeholder="Current password"
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password"
+              textContentType="password"
+              editable={!fakeSignedIn && !passwordBusy}
+              fontSize={16}
+            />
+            <TextInput
+              style={styles.input}
+              value={nextPassword}
+              onChangeText={setNextPassword}
+              placeholder="New password"
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password-new"
+              textContentType="newPassword"
+              editable={!fakeSignedIn && !passwordBusy}
+              fontSize={16}
+            />
+            <TextInput
+              style={styles.input}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm new password"
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password-new"
+              textContentType="newPassword"
+              editable={!fakeSignedIn && !passwordBusy}
+              fontSize={16}
+              onSubmitEditing={() => void onChangePassword()}
+            />
+            <TouchableOpacity
+              style={[styles.inviteBtn, (passwordBusy || fakeSignedIn) && styles.inviteBtnDisabled]}
+              onPress={() => void onChangePassword()}
+              disabled={passwordBusy || fakeSignedIn}
+              accessibilityRole="button"
+              accessibilityLabel="Update password"
+            >
+              <Text style={styles.inviteBtnText}>
+                {passwordBusy ? 'Updating…' : 'Update password'}
+              </Text>
+            </TouchableOpacity>
+            {passwordLocalError || authError ? (
+              <Text style={styles.passwordError}>{passwordLocalError || authError}</Text>
+            ) : null}
+            {passwordSuccess ? (
+              <Text style={styles.passwordSuccess}>Password updated.</Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.hint}>
+            You sign in with Google or Apple on this account, so there’s no password to change
+            here. Use “Forgot password?” on email sign-in if you also created an email password.
+          </Text>
+        )}
 
         <Text style={styles.section}>Household</Text>
         <Text style={styles.meta}>{household?.name ?? 'Your household'}</Text>
@@ -363,6 +474,17 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
     inviteBtnDisabled: { opacity: 0.45 },
     inviteBtnText: { color: colors.brand, fontWeight: '600' },
     inviteRow: { fontSize: typography.sm, color: colors.textSecondary, marginTop: spacing.xs },
+    passwordError: {
+      marginTop: spacing.sm,
+      fontSize: typography.sm,
+      color: colors.error,
+    },
+    passwordSuccess: {
+      marginTop: spacing.sm,
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
     profilesBtn: {
       marginTop: spacing.lg,
       padding: spacing.md,

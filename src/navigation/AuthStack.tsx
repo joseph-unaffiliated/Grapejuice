@@ -4,6 +4,8 @@ import type { AuthStackParamList } from './types';
 import { WelcomeScreen } from '../screens/auth/WelcomeScreen';
 import { SignInScreen } from '../screens/auth/SignInScreen';
 import { SignInEmailScreen } from '../screens/auth/SignInEmailScreen';
+import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
+import { ResetPasswordConfirmScreen } from '../screens/auth/ResetPasswordConfirmScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
 import { SignUpEmailScreen } from '../screens/auth/SignUpEmailScreen';
 import { useAuthFlowStore } from '../stores/authFlowStore';
@@ -19,14 +21,17 @@ export function AuthStack({ checkoutAuth = false }: Props) {
   const authScreen = useAuthFlowStore((s) => s.authScreen);
   const authEntry = useAuthFlowStore((s) => s.authEntry);
   const restoreSignInEmail = useAuthFlowStore((s) => s.restoreSignInEmail);
+  const passwordResetOobCode = useAuthFlowStore((s) => s.passwordResetOobCode);
   const previewRoute = useDevPreviewStore((s) => s.authInitialRoute);
   const initialRoute =
     previewRoute ??
-    (restoreSignInEmail
-      ? 'SignInEmail'
-      : checkoutAuth
-        ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
-        : 'Welcome');
+    (passwordResetOobCode
+      ? 'ResetPasswordConfirm'
+      : restoreSignInEmail
+        ? 'SignInEmail'
+        : checkoutAuth
+          ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
+          : 'Welcome');
 
   return (
     <Stack.Navigator
@@ -46,6 +51,17 @@ export function AuthStack({ checkoutAuth = false }: Props) {
         component={SignInEmailScreen}
         options={{ title: 'Sign in' }}
         initialParams={restoreSignInEmail ? { email: restoreSignInEmail } : undefined}
+      />
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{ title: 'Forgot password' }}
+      />
+      <Stack.Screen
+        name="ResetPasswordConfirm"
+        component={ResetPasswordConfirmScreen}
+        options={{ title: 'Reset password' }}
+        initialParams={passwordResetOobCode ? { oobCode: passwordResetOobCode } : undefined}
       />
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Sign up' }} />
       <Stack.Screen

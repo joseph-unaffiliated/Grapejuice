@@ -39,6 +39,8 @@ type AuthFlowState = {
   authScreen: keyof AuthStackParamList | null;
   /** Prefill SignInEmail after visitor playthrough Exit. */
   restoreSignInEmail: string | null;
+  /** Firebase email-link oobCode for branded password reset. */
+  passwordResetOobCode: string | null;
   startAuthForCheckout: (entry?: AuthEntry) => void;
   startAuthForMarketplaceCheckout: (entry?: AuthEntry) => void;
   startAuthForRav: (entry?: AuthEntry) => void;
@@ -55,6 +57,8 @@ type AuthFlowState = {
   startAuthForGiftGive: (entry: AuthEntry, draft: PendingGiftGive) => void;
   prepareAdminSignIn: (email: string) => void;
   clearRestoreSignInEmail: () => void;
+  beginPasswordReset: (oobCode: string) => void;
+  clearPasswordReset: () => void;
   setPendingGiftClaimToken: (token: string | null) => void;
   clearPending: () => void;
 };
@@ -67,6 +71,7 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
   authEntry: 'signup',
   authScreen: null,
   restoreSignInEmail: null,
+  passwordResetOobCode: null,
   startAuthForCheckout: (entry = 'signup') =>
     set({
       pendingReturn: 'Checkout',
@@ -134,6 +139,18 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
       restoreSignInEmail: email.trim(),
     }),
   clearRestoreSignInEmail: () => set({ restoreSignInEmail: null }),
+  beginPasswordReset: (oobCode) =>
+    set({
+      passwordResetOobCode: oobCode,
+      pendingReturn: null,
+      pendingGiftClaimToken: null,
+      pendingGiftCustomize: null,
+      pendingGiftGive: null,
+      authEntry: 'signin',
+      authScreen: 'ResetPasswordConfirm',
+      restoreSignInEmail: null,
+    }),
+  clearPasswordReset: () => set({ passwordResetOobCode: null, authScreen: null }),
   setPendingGiftClaimToken: (token) => set({ pendingGiftClaimToken: token }),
   clearPending: () =>
     set({
@@ -143,5 +160,6 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
       pendingGiftCustomize: null,
       pendingGiftGive: null,
       restoreSignInEmail: null,
+      passwordResetOobCode: null,
     }),
 }));

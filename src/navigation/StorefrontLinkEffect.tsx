@@ -4,7 +4,7 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
 import { readStorePathFromBoot } from './storeLink';
-import { readBoxPathFromWindow } from './boxLink';
+import { readBoxPathFromBoot } from './boxLink';
 import { readCheckoutPathFromWindow } from './checkoutLink';
 import { readDevPreviewFromWindow } from './devPreview';
 import { peekPendingMainNav } from './pendingMainNav';
@@ -62,7 +62,7 @@ export function StorefrontLinkEffect() {
     const target = pending.current;
     if (!target) return;
 
-    if (readBoxPathFromWindow() || peekPendingMainNav()?.screen === 'MyBox') {
+    if (readBoxPathFromBoot() || peekPendingMainNav()?.screen === 'MyBox') {
       pending.current = null;
       return;
     }

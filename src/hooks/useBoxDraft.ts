@@ -5,6 +5,7 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
+import { repairAdultLeakedAsFirstChild } from '../services/guest/persistGuestToAccount';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
@@ -69,26 +70,60 @@ export function useBoxDraft() {
     }
 
     setLoading(true);
-    const [draft, catalog, kids] = await Promise.all([
+    const [draft, , kids] = await Promise.all([
       boxDraftService.get(household.id),
       catalogService.getAll(),
       childrenService.list(user.uid),
     ]);
-    setChildren(kids);
+
+    let nextKids = kids;
+    let nextLines = draft?.lineItems?.length ? draft.lineItems : [];
+    const repaired = repairAdultLeakedAsFirstChild(
+      nextKids,
+      nextLines,
+      user.displayName ?? profile?.displayName
+    );
+    if (repaired.dirty) {
+      nextKids = repaired.children;
+      nextLines = repaired.lineItems;
+      try {
+        await childrenService.replaceAll(
+          user.uid,
+          nextKids.map((c) => ({
+            name: c.name,
+            ageGroup: c.ageGroup,
+            birthdate: c.birthdate,
+            hebrewName: c.hebrewName,
+            barMitzvahDate: c.barMitzvahDate,
+            beamStatus: c.beamStatus,
+            ravEnabled: c.ravEnabled,
+          }))
+        );
+        await boxDraftService.save(household.id, user.uid, nextLines, {
+          familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel,
+          childInterests: draft?.childInterests,
+          slotVotes: draft?.slotVotes,
+          wrapSelectedItemIds: draft?.wrapSelectedItemIds,
+          sealedSectionIds: draft?.sealedSectionIds,
+        });
+      } catch (e) {
+        console.warn('[box] failed to persist adult-as-child repair', e);
+      }
+    }
+
+    setChildren(nextKids);
     setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
     setSlotVotes(draft?.slotVotes ?? emptySlotVotes());
     setSealedSectionIds(draft?.sealedSectionIds);
     setWrapSelectedItemIds(draft?.wrapSelectedItemIds ?? []);
-    if (draft?.lineItems?.length) {
-      setLineItems(draft.lineItems);
-    } else {
-      setLineItems([]);
-    }
+    setLineItems(nextLines);
     setLoading(false);
   }, [
     isAuthenticated,
     household?.id,
     user?.uid,
+    user?.displayName,
+    profile?.displayName,
     profile?.familiarityLevel,
     profile?.onboardingComplete,
     profile?.boxRevealComplete,
@@ -120,7 +155,16 @@ export function useBoxDraft() {
         wrapSelectedItemIds,
       });
     },
-    [isAuthenticated, household?.id, user?.uid, profile?.familiarityLevel, familiarity, slotVotes, wrapSelectedItemIds, setGuestLineItems]
+    [
+      isAuthenticated,
+      household?.id,
+      user?.uid,
+      profile?.familiarityLevel,
+      familiarity,
+      slotVotes,
+      wrapSelectedItemIds,
+      setGuestLineItems,
+    ]
   );
 
   const persistSlotVotes = useCallback(

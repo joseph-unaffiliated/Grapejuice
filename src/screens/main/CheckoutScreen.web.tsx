@@ -42,6 +42,26 @@ import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 
 /** Match My Box desktop top offset under sticky nav. */
 const DESKTOP_CONTENT_TOP = 41;
+const SHIPPING_CONFIRMED_KEY = 'gj.checkout.shippingConfirmed';
+
+function readShippingConfirmed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.sessionStorage.getItem(SHIPPING_CONFIRMED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeShippingConfirmed(value: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) window.sessionStorage.setItem(SHIPPING_CONFIRMED_KEY, '1');
+    else window.sessionStorage.removeItem(SHIPPING_CONFIRMED_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 function checkoutReturnUrl(): string | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -172,6 +192,12 @@ function CheckoutScreenBody() {
    * Prevents flashing back to the "continue to payment" shipping step.
    */
   const [awaitingCardOnFile, setAwaitingCardOnFile] = useState(false);
+  /** Set when shipping is confirmed and we move on to payment (or skip payment). */
+  const [shippingConfirmed, setShippingConfirmedState] = useState(() => readShippingConfirmed());
+  const setShippingConfirmed = (value: boolean) => {
+    writeShippingConfirmed(value);
+    setShippingConfirmedState(value);
+  };
   const [preparing, setPreparing] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
@@ -235,6 +261,7 @@ function CheckoutScreenBody() {
         skipShipStation,
       });
       clearStoredCheckoutAddress();
+      writeShippingConfirmed(false);
       navigation.replace('OrderConfirmation', { orderId });
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not commit your box.');
@@ -261,11 +288,13 @@ function CheckoutScreenBody() {
       return;
     }
     if (!ensureAddressValid()) return;
+    setShippingConfirmed(true);
     setPreparing(true);
     try {
       const result = await createPilotSetupIntent(household.id);
       if (!result.clientSecret) {
         Alert.alert('Error', 'No setup secret returned.');
+        setShippingConfirmed(false);
         return;
       }
       setupSecretRef.current = result.clientSecret;
@@ -273,6 +302,7 @@ function CheckoutScreenBody() {
       // Own history entry so Back returns to shipping, not My Box.
       pushBrowserPath(checkoutPath('payment'));
     } catch (e) {
+      setShippingConfirmed(false);
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not start payment setup.');
     } finally {
       setPreparing(false);
@@ -288,6 +318,8 @@ function CheckoutScreenBody() {
         return;
       }
       setSetupClientSecret(null);
+      // Browser Back from payment → shipping form again.
+      setShippingConfirmed(false);
     };
     window.addEventListener('popstate', syncStepFromUrl);
     return () => window.removeEventListener('popstate', syncStepFromUrl);
@@ -304,17 +336,25 @@ function CheckoutScreenBody() {
         return;
       }
       setSetupClientSecret(null);
+      setShippingConfirmed(false);
+      return;
+    }
+    if (shippingConfirmed && !setupClientSecret) {
+      // Post-payment commit step — let them revisit shipping if needed.
+      setShippingConfirmed(false);
       return;
     }
     navigation.goBack();
   };
 
   const onCardSaved = async () => {
+    // Persist before URL/history changes so a remount still sees commit-only.
+    setShippingConfirmed(true);
+    setAwaitingCardOnFile(true);
     // Drop the payment history step without going "back" to shipping UX.
     replaceBrowserPath(CHECKOUT_PATH);
     setupSecretRef.current = null;
     setSetupClientSecret(null);
-    setAwaitingCardOnFile(true);
 
     const householdId = household?.id;
     if (!householdId) {
@@ -342,6 +382,7 @@ function CheckoutScreenBody() {
     const setupIntent = params.get('setup_intent');
     if (!setupIntent || redirectStatus !== 'succeeded') return;
     replaceBrowserPath(CHECKOUT_PATH);
+    setShippingConfirmed(true);
     setAwaitingCardOnFile(true);
     void (async () => {
       const householdId = household?.id;
@@ -403,8 +444,14 @@ function CheckoutScreenBody() {
   );
 
   const cardReady = cardOnFile || awaitingCardOnFile;
+  /** Address already collected this session — never re-open the form after card save. */
+  const addressAlreadyCaptured = validateAddress().ok;
+  /** After shipping → payment, don't re-ask for address; just commit. */
+  const commitOnly = cardReady && (shippingConfirmed || addressAlreadyCaptured);
+  /** Card already on file and no address yet — collect shipping once. */
+  const shippingThenCommit = cardReady && !commitOnly;
 
-  const checkoutForm = cardReady ? (
+  const checkoutForm = commitOnly ? (
     <>
       {awaitingCardOnFile && !cardOnFile ? (
         <View style={styles.savingCardRow}>
@@ -412,8 +459,20 @@ function CheckoutScreenBody() {
           <Text style={styles.savingCardCopy}>Saving your card…</Text>
         </View>
       ) : (
-        <Text style={styles.cardSavedCopy}>Card on file — confirm shipping and commit.</Text>
+        <Text style={styles.cardSavedCopy}>Card saved. Commit when you&apos;re ready.</Text>
       )}
+      <CheckoutCta
+        label="Commit to box"
+        onPress={() => void handleCommit()}
+        loading={committing}
+        disabled={committing || locked || (awaitingCardOnFile && !cardOnFile)}
+        colors={colors}
+        styles={styles}
+      />
+    </>
+  ) : shippingThenCommit ? (
+    <>
+      <Text style={styles.cardSavedCopy}>Card on file — add shipping and commit.</Text>
       <CheckoutAddressFields
         address={address}
         onChange={onAddressChange}
@@ -428,9 +487,13 @@ function CheckoutScreenBody() {
       />
       <CheckoutCta
         label="Commit to box"
-        onPress={() => void handleCommit()}
+        onPress={() => {
+          if (!ensureAddressValid()) return;
+          setShippingConfirmed(true);
+          void handleCommit();
+        }}
         loading={committing}
-        disabled={committing || locked || (awaitingCardOnFile && !cardOnFile)}
+        disabled={committing || locked}
         colors={colors}
         styles={styles}
       />
@@ -507,10 +570,10 @@ function CheckoutScreenBody() {
       </TouchableOpacity>
 
       <Text style={styles.title}>
-        {onPaymentStep ? 'Payment' : cardReady ? 'Review & commit' : 'Shipping'}
+        {onPaymentStep ? 'Payment' : commitOnly ? 'Commit' : 'Shipping'}
       </Text>
       <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
-      {!cardOnFile ? (
+      {!cardOnFile && !commitOnly ? (
         <Text style={styles.pendingCopy}>
           Your box will not ship until you add payment information and a shipping address.
         </Text>

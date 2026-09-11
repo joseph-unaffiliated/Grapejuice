@@ -4,6 +4,7 @@ import {
   signOut as firebaseSignOut,
   GoogleAuthProvider,
   OAuthProvider,
+  EmailAuthProvider,
   signInWithCredential,
   signInWithPopup,
   signInWithRedirect,
@@ -12,6 +13,11 @@ import {
   User,
   sendPasswordResetEmail,
   updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
+  type ActionCodeSettings,
 } from 'firebase/auth';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -70,6 +76,8 @@ export interface AuthUser {
   emails: string[];
   displayName: string | null;
   photoURL: string | null;
+  /** True when this account has an email/password credential (not Google/Apple-only). */
+  hasPasswordProvider: boolean;
 }
 
 function collectEmails(user: User): string[] {
@@ -86,6 +94,10 @@ function collectEmails(user: User): string[] {
   return out;
 }
 
+function userHasPasswordProvider(user: User): boolean {
+  return user.providerData.some((profile) => profile.providerId === 'password');
+}
+
 function formatUser(user: User): AuthUser {
   const emails = collectEmails(user);
   const adminEmail = emails.find((email) => isAdminEmail(email));
@@ -95,6 +107,7 @@ function formatUser(user: User): AuthUser {
     emails,
     displayName: user.displayName ?? null,
     photoURL: user.photoURL ?? null,
+    hasPasswordProvider: userHasPasswordProvider(user),
   };
 }
 
@@ -358,7 +371,63 @@ export async function signOut(): Promise<void> {
 
 export async function resetPassword(email: string): Promise<void> {
   if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
-  await sendPasswordResetEmail(auth, email);
+  const settings = buildPasswordResetActionCodeSettings();
+  await sendPasswordResetEmail(auth, email, settings);
+}
+
+/** Continue / handler URL for branded reset — must match Firebase Console action URL. */
+export const PASSWORD_RESET_PATH = '/auth/action';
+
+function getWebAppOrigin(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return 'https://grapejuice.co';
+}
+
+function buildPasswordResetActionCodeSettings(): ActionCodeSettings {
+  return {
+    // After Firebase processes the link it lands on our branded handler (once
+    // Console → Authentication → Templates → Action URL is set to this path).
+    url: `${getWebAppOrigin()}${PASSWORD_RESET_PATH}`,
+    handleCodeInApp: false,
+  };
+}
+
+/** Validate a reset code from the email link; returns the account email. */
+export async function verifyPasswordReset(oobCode: string): Promise<string> {
+  if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
+  return verifyPasswordResetCode(auth, oobCode);
+}
+
+/** Set a new password using the email-link oobCode. */
+export async function completePasswordReset(
+  oobCode: string,
+  newPassword: string
+): Promise<void> {
+  if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
+  await confirmPasswordReset(auth, oobCode, newPassword);
+}
+
+/**
+ * Reauthenticate with the current password, then set a new one.
+ * Only works for accounts that have an email/password provider.
+ */
+export async function changePassword(
+  currentPassword: string,
+  nextPassword: string
+): Promise<void> {
+  if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
+  const user = auth.currentUser;
+  if (!user?.email) {
+    throw new Error('Sign in again to change your password.');
+  }
+  if (!userHasPasswordProvider(user)) {
+    throw new Error('This account signs in with Google or Apple, not a password.');
+  }
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, nextPassword);
 }
 
 export function onAuthStateChange(callback: (user: AuthUser | null) => void): () => void {

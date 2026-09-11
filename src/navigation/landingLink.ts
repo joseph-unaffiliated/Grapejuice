@@ -42,7 +42,10 @@ export async function readMarketingLandingFromPath(pathname: string | null): Pro
     path === '/box' ||
     path === '/my-box' ||
     path === '/product' ||
-    path.startsWith('/product/')
+    path.startsWith('/product/') ||
+    path === '/auth/action' ||
+    path === '/reset-password' ||
+    path === '/account'
   ) {
     return null;
   }

@@ -6,6 +6,7 @@ import {
   signInWithApple,
   signOut,
   resetPassword,
+  changePassword as changePasswordRequest,
   onAuthStateChange,
   completeGoogleRedirectIfNeeded,
   getCurrentAuthUser,
@@ -79,10 +80,12 @@ function getErrorMessage(error: unknown): string {
       }
       return 'Google sign-in failed (auth/internal-error). Try Chrome on localhost, or use email sign-in. If it keeps failing, check the browser console for CSP errors and confirm Google is enabled in Firebase Auth.';
     }
+    if (code === 'auth/wrong-password') {
+      return 'Current password is incorrect.';
+    }
     if (
       code === 'auth/invalid-credential' ||
       code === 'auth/invalid-login-credentials' ||
-      code === 'auth/wrong-password' ||
       code === 'auth/user-not-found'
     ) {
       return 'Email or password did not match. If you usually use Google, tap Continue with Google instead — or create an account if you have not signed up on this project yet.';
@@ -92,6 +95,18 @@ function getErrorMessage(error: unknown): string {
     }
     if (code === 'auth/too-many-requests') {
       return 'Too many failed attempts. Wait a minute and try again, or reset your password.';
+    }
+    if (code === 'auth/expired-action-code' || code === 'auth/invalid-action-code') {
+      return 'This reset link is invalid or has expired. Request a new one from sign in.';
+    }
+    if (code === 'auth/weak-password') {
+      return 'Use a password with at least 6 characters.';
+    }
+    if (code === 'auth/requires-recent-login') {
+      return 'For security, sign out and sign back in, then try changing your password again.';
+    }
+    if (code === 'auth/missing-email') {
+      return 'Enter the email address for your account.';
     }
     if (code === 'auth/operation-not-allowed') {
       return 'Email/password sign-in is disabled for this Firebase project. Enable it in Authentication → Sign-in method.';
@@ -124,6 +139,7 @@ interface AuthState {
   appleSignIn: () => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, nextPassword: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -270,6 +286,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ error: null });
     try {
       await resetPassword(email);
+    } catch (error) {
+      // Don’t reveal whether the email exists — show a generic path via the UI success state.
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code: unknown }).code)
+          : null;
+      if (code === 'auth/user-not-found' || code === 'auth/invalid-email') {
+        // Still surface invalid-email; swallow user-not-found for privacy.
+        if (code === 'auth/invalid-email') {
+          set({ error: getErrorMessage(error) });
+          throw error;
+        }
+        return;
+      }
+      set({ error: getErrorMessage(error) });
+      throw error;
+    }
+  },
+
+  changePassword: async (currentPassword, nextPassword) => {
+    set({ error: null });
+    try {
+      await changePasswordRequest(currentPassword, nextPassword);
     } catch (error) {
       set({ error: getErrorMessage(error) });
       throw error;

@@ -15,6 +15,8 @@ export const RESERVED_LANDING_PATHS: readonly string[] = [
   '/admin',
   '/checkout',
   '/auth',
+  '/auth/action',
+  '/reset-password',
   '/api',
   '/assets',
   '/box',

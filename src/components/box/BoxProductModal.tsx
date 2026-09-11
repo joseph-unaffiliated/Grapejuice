@@ -30,6 +30,7 @@ import { boxAddOnUnitCents } from '../../services/box/pricing';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import type { SemanticColors } from '../../constants/themeMode';
 import {
   MOBILE_GUTTER,
@@ -63,6 +64,8 @@ type Props = {
   catalog: CatalogItem[];
   lineItems: BoxLineItem[];
   context: BoxProductModalContext;
+  /** Practice section the modal was opened from — scopes Swap to that section only. */
+  fromSection?: BoxDisplaySectionId | null;
   locked?: boolean;
   onClose: () => void;
   /** Switch product while staying in the modal (similar rail). */
@@ -78,6 +81,7 @@ export function BoxProductModal({
   catalog,
   lineItems,
   context,
+  fromSection = null,
   locked = false,
   onClose,
   onSelectItem,
@@ -126,8 +130,8 @@ export function BoxProductModal({
 
   const swapSource = useMemo(() => {
     if (!item || inBox) return null;
-    return findSwapSourceLine(item, lineItems, catalog);
-  }, [item, inBox, lineItems, catalog]);
+    return findSwapSourceLine(item, lineItems, catalog, fromSection);
+  }, [item, inBox, lineItems, catalog, fromSection]);
 
   const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
   const swapDeltaCents = swapSource

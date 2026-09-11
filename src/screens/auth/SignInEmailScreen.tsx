@@ -3,11 +3,13 @@ import {
   Text,
   TextInput,
   StyleSheet,
+  TouchableOpacity,
   Platform,
   type NativeSyntheticEvent,
   type TextInputChangeEventData,
 } from 'react-native';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -29,6 +31,7 @@ function readInputValue(
 
 export function SignInEmailScreen() {
   const { colors } = useThemeMode();
+  const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
   const { signIn, isLoading, error, clearError } = useAuthStore();
   const route = useRoute<RouteProp<AuthStackParamList, 'SignInEmail'>>();
   const restoreSignInEmail = useAuthFlowStore((s) => s.restoreSignInEmail);
@@ -97,6 +100,16 @@ export function SignInEmailScreen() {
         }}
         onSubmitEditing={() => void onSubmit()}
       />
+      <TouchableOpacity
+        onPress={() =>
+          navigation.navigate('ForgotPassword', { email: email.trim() || undefined })
+        }
+        style={styles.forgotHit}
+        accessibilityRole="button"
+        accessibilityLabel="Forgot password"
+      >
+        <Text style={[styles.forgotLink, { color: colors.goldMuted }]}>Forgot password?</Text>
+      </TouchableOpacity>
       <GrapejuiceButton
         label="Sign in"
         variant="filled"
@@ -127,6 +140,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     ...typeface('regular'),
+  },
+  forgotHit: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.sm,
+    marginTop: -spacing.xs,
+  },
+  forgotLink: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
   },
   btn: { alignSelf: 'stretch', marginTop: spacing.xs },
   error: {
