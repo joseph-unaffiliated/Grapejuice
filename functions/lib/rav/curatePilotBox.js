@@ -54,7 +54,7 @@ function sectionAllowsIncludedSwap() {
     return boxRules_1.SECTION_RULES.length > 0;
 }
 function validateResult(parsed, data) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const allowedBySlot = new Map();
     for (const row of (_a = data.allowedSwaps) !== null && _a !== void 0 ? _a : []) {
         if (!(row === null || row === void 0 ? void 0 : row.slotId))
@@ -86,6 +86,18 @@ function validateResult(parsed, data) {
     void deviationKeys;
     void sectionAllowsIncludedSwap;
     const actionsRaw = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.actions) ? parsed.actions : [];
+    const baselineGiftItems = new Map();
+    for (const li of (_e = data.baseline) !== null && _e !== void 0 ? _e : []) {
+        const slot = asString(li.slotId);
+        const childId = asString(li.childId);
+        const itemId = asString(li.itemId);
+        if (!childId || !itemId)
+            continue;
+        if (slot === 'gift' || slot.startsWith('gift-') || slot.startsWith('gift')) {
+            baselineGiftItems.set(childId, itemId);
+        }
+    }
+    const claimedGiftItems = new Set(baselineGiftItems.values());
     const actions = [];
     for (const raw of actionsRaw) {
         if (actions.length >= MAX_ACTIONS)
@@ -100,22 +112,36 @@ function validateResult(parsed, data) {
         const slotId = asString(a.slotId);
         const itemId = asString(a.itemId);
         const reason = asString(a.reason);
+        const childId = asString(a.childId);
         if (!slotId || !itemId || !reason)
             continue;
         if (slotBlocked(slotId)) {
             logger.info('curatePilotBox dropped blocked slot', slotId);
             continue;
         }
-        const allowed = (_e = allowedBySlot.get(slotId)) !== null && _e !== void 0 ? _e : 
-        // Also accept base slot keys (e.g. candles) when line uses candles-{child}
-        (_f = [...allowedBySlot.entries()].find(([k]) => slotId === k || slotId.startsWith(`${k}-`))) === null || _f === void 0 ? void 0 : _f[1];
+        const allowed = (_f = allowedBySlot.get(slotId)) !== null && _f !== void 0 ? _f : (_g = Array.from(allowedBySlot.entries()).find(([k]) => slotId === k || slotId.startsWith(`${k}-`))) === null || _g === void 0 ? void 0 : _g[1];
         if (!allowed || !allowed.has(itemId)) {
             logger.info('curatePilotBox dropped swap not in allowlist', { slotId, itemId });
             continue;
         }
+        const isGiftSlot = slotId === 'gift' || slotId.startsWith('gift-') || slotId.startsWith('gift');
+        if (isGiftSlot) {
+            if (!childId) {
+                logger.info('curatePilotBox dropped gift swap without childId', { slotId, itemId });
+                continue;
+            }
+            const otherHasSame = Array.from(baselineGiftItems.entries()).some(([cid, existing]) => cid !== childId && existing === itemId);
+            if (otherHasSame ||
+                (claimedGiftItems.has(itemId) && baselineGiftItems.get(childId) !== itemId)) {
+                logger.info('curatePilotBox dropped duplicate gift across kids', { slotId, itemId, childId });
+                continue;
+            }
+            baselineGiftItems.set(childId, itemId);
+            claimedGiftItems.add(itemId);
+        }
         actions.push(Object.assign({ type: 'swap', slotId,
             itemId,
-            reason }, (asString(a.childId) ? { childId: asString(a.childId) } : {})));
+            reason }, (childId ? { childId } : {})));
     }
     return { notes, actions };
 }

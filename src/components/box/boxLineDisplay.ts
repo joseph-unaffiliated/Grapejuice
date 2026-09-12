@@ -348,8 +348,8 @@ function resolveChildDisplayName(
 
 /**
  * Floating image-badge label for a per-kid gift card, e.g. "A gift for Sam".
- * Only for gift-slot lines resolving to a single kid; falls back to `fallback`
- * (e.g. a generic "A gift for them") when the kid has no display name.
+ * When multiple kids share a coalesced card, name them all ("Gifts for Sam & Ava").
+ * Falls back to `fallback` when a gift line has no resolvable display name.
  */
 export function giftBadgeLabelForLines(
   lines: BoxLineItem[],
@@ -359,6 +359,7 @@ export function giftBadgeLabelForLines(
   if (!lines.some((li) => isGiftSlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `A gift for ${names[0]}`;
+  if (names.length > 1) return `Gifts for ${names.join(' & ')}`;
   if (names.length === 0 && fallback) return fallback;
   return undefined;
 }
@@ -374,6 +375,7 @@ export function bookBadgeLabelForLines(
   if (!lines.some((li) => isStorySlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `A book for ${names[0]}`;
+  if (names.length > 1) return `Books for ${names.join(' & ')}`;
   if (names.length === 0) {
     const attributed = lines.some((li) => !!(li.childId || childIdFromSlot(li.slotId)));
     if (attributed) return fallback ?? 'A book for them';
@@ -397,19 +399,27 @@ export function childNamesForLines(
   return names;
 }
 
-/** Collapse same `itemId` into one row; sum quantities; collect child ids. */
+/** Collapse same `itemId` into one row; sum quantities; collect child ids.
+ * Per-kid gifts and books stay separate cards so each kid keeps their badge.
+ */
 export function coalesceLinesByItemId(lines: BoxLineItem[]): CoalescedBoxLine[] {
   const order: string[] = [];
   const map = new Map<string, BoxLineItem[]>();
   for (const li of lines) {
-    if (!map.has(li.itemId)) {
-      map.set(li.itemId, []);
-      order.push(li.itemId);
+    const kidId =
+      (isGiftSlotLine(li) || isStorySlotLine(li)) && (li.childId || childIdFromSlot(li.slotId))
+        ? li.childId || childIdFromSlot(li.slotId)
+        : undefined;
+    const key = kidId ? `${li.itemId}::${kidId}` : li.itemId;
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
     }
-    map.get(li.itemId)!.push(li);
+    map.get(key)!.push(li);
   }
-  return order.map((itemId) => {
-    const group = map.get(itemId)!;
+  return order.map((key) => {
+    const group = map.get(key)!;
+    const itemId = group[0]!.itemId;
     const quantity = group.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
     const includedQuantity = group
       .filter((li) => li.unitCents <= 0 && !li.slotId.includes('::x'))
@@ -423,7 +433,7 @@ export function coalesceLinesByItemId(lines: BoxLineItem[]): CoalescedBoxLine[] 
       (li) => li.unitCents <= 0 && !li.slotId.includes('::x')
     );
     return {
-      key: `${itemId}:${group.map((g) => g.slotId).join('+')}`,
+      key: `${key}:${group.map((g) => g.slotId).join('+')}`,
       itemId,
       primary,
       lines: group,

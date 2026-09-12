@@ -153,6 +153,18 @@ function validateResult(
   void sectionAllowsIncludedSwap;
 
   const actionsRaw = Array.isArray(parsed?.actions) ? parsed!.actions : [];
+  const baselineGiftItems = new Map<string, string>();
+  for (const li of data.baseline ?? []) {
+    const slot = asString(li.slotId);
+    const childId = asString(li.childId);
+    const itemId = asString(li.itemId);
+    if (!childId || !itemId) continue;
+    if (slot === 'gift' || slot.startsWith('gift-') || slot.startsWith('gift')) {
+      baselineGiftItems.set(childId, itemId);
+    }
+  }
+  const claimedGiftItems = new Set(baselineGiftItems.values());
+
   const actions: CuratePilotBoxAction[] = [];
   for (const raw of actionsRaw) {
     if (actions.length >= MAX_ACTIONS) break;
@@ -165,6 +177,7 @@ function validateResult(
     const slotId = asString(a.slotId);
     const itemId = asString(a.itemId);
     const reason = asString(a.reason);
+    const childId = asString(a.childId);
     if (!slotId || !itemId || !reason) continue;
     if (slotBlocked(slotId)) {
       logger.info('curatePilotBox dropped blocked slot', slotId);
@@ -172,18 +185,38 @@ function validateResult(
     }
     const allowed =
       allowedBySlot.get(slotId) ??
-      // Also accept base slot keys (e.g. candles) when line uses candles-{child}
-      [...allowedBySlot.entries()].find(([k]) => slotId === k || slotId.startsWith(`${k}-`))?.[1];
+      Array.from(allowedBySlot.entries()).find(([k]) => slotId === k || slotId.startsWith(`${k}-`))?.[1];
     if (!allowed || !allowed.has(itemId)) {
       logger.info('curatePilotBox dropped swap not in allowlist', { slotId, itemId });
       continue;
     }
+
+    const isGiftSlot = slotId === 'gift' || slotId.startsWith('gift-') || slotId.startsWith('gift');
+    if (isGiftSlot) {
+      if (!childId) {
+        logger.info('curatePilotBox dropped gift swap without childId', { slotId, itemId });
+        continue;
+      }
+      const otherHasSame = Array.from(baselineGiftItems.entries()).some(
+        ([cid, existing]) => cid !== childId && existing === itemId
+      );
+      if (
+        otherHasSame ||
+        (claimedGiftItems.has(itemId) && baselineGiftItems.get(childId) !== itemId)
+      ) {
+        logger.info('curatePilotBox dropped duplicate gift across kids', { slotId, itemId, childId });
+        continue;
+      }
+      baselineGiftItems.set(childId, itemId);
+      claimedGiftItems.add(itemId);
+    }
+
     actions.push({
       type: 'swap',
       slotId,
       itemId,
       reason,
-      ...(asString(a.childId) ? { childId: asString(a.childId) } : {}),
+      ...(childId ? { childId } : {}),
     });
   }
 

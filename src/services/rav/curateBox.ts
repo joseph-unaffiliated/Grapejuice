@@ -190,28 +190,63 @@ export function applyCurateBoxResult(
 
   if (result?.actions?.length) {
     const validActions: RavDraftAction[] = [];
+    const giftItemIdsByChild = new Map<string, string>();
+    for (const li of next) {
+      if (!li.childId) continue;
+      if (baseSlot(li.slotId) !== 'gift' && !li.slotId.startsWith('gift')) continue;
+      giftItemIdsByChild.set(li.childId, li.itemId);
+    }
+    const claimedGiftItems = new Set(giftItemIdsByChild.values());
+
     for (const action of result.actions) {
       if (action.type !== 'swap') continue;
       const target = catalog.find((c) => c.id === action.itemId);
       if (!target) continue;
       const idx = next.findIndex(
         (li) =>
+          (action.childId && li.childId === action.childId && baseSlot(li.slotId) === baseSlot(action.slotId)) ||
           li.slotId === action.slotId ||
-          li.slotId.startsWith(`${action.slotId}-`) ||
-          (action.childId && li.childId === action.childId && baseSlot(li.slotId) === baseSlot(action.slotId))
+          li.slotId.startsWith(`${action.slotId}-`)
       );
       if (idx < 0) continue;
-      const source = catalog.find((c) => c.id === next[idx].itemId);
+      const sourceLine = next[idx];
+      const source = catalog.find((c) => c.id === sourceLine.itemId);
       const section = source
         ? displaySectionForCatalogItem(source)
         : displaySectionForCatalogItem(target);
       const cents = resolveFreeSwapUnitCents(source, target, section);
       if (cents !== 0) continue;
+
+      const isGiftLine =
+        baseSlot(sourceLine.slotId) === 'gift' || sourceLine.slotId.startsWith('gift');
+      if (isGiftLine) {
+        // Prefer requiring childId for gift swaps so one kid's preference doesn't hit everyone.
+        const childId = action.childId ?? sourceLine.childId;
+        if (!childId) continue;
+        // Don't put two kids on the same gift SKU via Rav.
+        const otherHasSame = Array.from(giftItemIdsByChild.entries()).some(
+          ([cid, itemId]) => cid !== childId && itemId === action.itemId
+        );
+        if (otherHasSame || (claimedGiftItems.has(action.itemId) && giftItemIdsByChild.get(childId) !== action.itemId)) {
+          continue;
+        }
+        giftItemIdsByChild.set(childId, action.itemId);
+        claimedGiftItems.add(action.itemId);
+        validActions.push({
+          type: 'swap',
+          itemId: action.itemId,
+          slotId: sourceLine.slotId,
+          childId,
+          reason: action.reason,
+        });
+        continue;
+      }
+
       validActions.push({
         type: 'swap',
         itemId: action.itemId,
-        slotId: next[idx].slotId,
-        childId: action.childId ?? next[idx].childId,
+        slotId: sourceLine.slotId,
+        childId: action.childId ?? sourceLine.childId,
         reason: action.reason,
       });
     }

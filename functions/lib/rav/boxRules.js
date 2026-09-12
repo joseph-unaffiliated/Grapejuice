@@ -513,14 +513,23 @@ function planCuratedOutline(inputs = { kids: [{ age: 5 }] }) {
     let dreidels = planPracticeDreidels(inputs, practice);
     let gifts = planGifts(inputs).map((g) => (Object.assign({}, g)));
     // all-in: tilt passive gifts (stuffie) toward activity kinds when possible.
+    // Prefer distinct kinds across kids — never give every kid the same activity gift.
     if (practice === 'all-in') {
+        const usedKinds = new Set();
+        for (const g of gifts) {
+            if (ACTIVITY_GIFT_KINDS.includes(g.kind))
+                usedKinds.add(g.kind);
+        }
         gifts = gifts.map((g) => {
             var _a;
             if (ACTIVITY_GIFT_KINDS.includes(g.kind))
                 return g;
-            // Prefer activity order (lego → DIY → blank → airdry → wood menorah), then fallbacks.
-            const tilted = (_a = ACTIVITY_GIFT_KINDS.find((k) => k !== g.kind)) !== null && _a !== void 0 ? _a : giftKindFallbackOrder(g.age).find((k) => ACTIVITY_GIFT_KINDS.includes(k) && k !== g.kind);
-            return tilted ? Object.assign(Object.assign({}, g), { kind: tilted }) : g;
+            const tilted = (_a = ACTIVITY_GIFT_KINDS.find((k) => k !== g.kind && !usedKinds.has(k))) !== null && _a !== void 0 ? _a : giftKindFallbackOrder(g.age).find((k) => ACTIVITY_GIFT_KINDS.includes(k) && k !== g.kind && !usedKinds.has(k));
+            if (tilted) {
+                usedKinds.add(tilted);
+                return Object.assign(Object.assign({}, g), { kind: tilted });
+            }
+            return g;
         });
     }
     // Dedupe: never put the same kind in a kid's practice slot and gift slot.
@@ -529,7 +538,10 @@ function planCuratedOutline(inputs = { kids: [{ age: 5 }] }) {
         let kinds = practiceKindsForKid(candlesDefault, dreidels, g.kidIndex);
         if (!giftConflictsWithPractice(g.kind, kinds))
             continue;
-        const alt = giftKindFallbackOrder(g.age).find((k) => k !== g.kind && !giftConflictsWithPractice(k, kinds));
+        const usedByOthers = new Set(gifts.filter((x) => x.kidIndex !== g.kidIndex).map((x) => x.kind));
+        const alt = giftKindFallbackOrder(g.age).find((k) => k !== g.kind &&
+            !usedByOthers.has(k) &&
+            !giftConflictsWithPractice(k, kinds));
         if (alt) {
             g.kind = alt;
             continue;
@@ -550,6 +562,22 @@ function planCuratedOutline(inputs = { kids: [{ age: 5 }] }) {
             giftConflictsWithPractice(g.kind, practiceKindsForKid(finalCandles, dreidels, g.kidIndex)));
         if (stillConflicts)
             finalCandles = 'candles';
+    }
+    // Re-assert distinct gift kinds across kids after practice conflict resolution.
+    {
+        const claimed = new Set();
+        gifts = gifts.map((g) => {
+            if (!claimed.has(g.kind)) {
+                claimed.add(g.kind);
+                return g;
+            }
+            const kinds = practiceKindsForKid(finalCandles, dreidels, g.kidIndex);
+            const alt = giftKindFallbackOrder(g.age).find((k) => k !== g.kind && !claimed.has(k) && !giftConflictsWithPractice(k, kinds));
+            if (!alt)
+                return g;
+            claimed.add(alt);
+            return Object.assign(Object.assign({}, g), { kind: alt });
+        });
     }
     const traditionalDreidels = planDreidels(inputs);
     const traditionalGifts = planGifts(inputs);
@@ -787,8 +815,9 @@ function renderBoxRulesContext(catalog) {
         'Practice level policy (onboarding slider — current practice intensity, NOT knowledge):',
         '- Left / minimal: household does little Hanukkah now — traditional defaults (beeswax candles, wooden dreidel, age-default book + gift).',
         '- Middle / moderate: one deliberate craft deviation — kids 4+ get airdry clay dreidel (per kid); under 4 keep wood; candles stay beeswax.',
-        '- Right / all-in: fuller practice — roll-your-own candles; dreidel as moderate plus kids 8+ blank/draw-your-own; gifts tilt toward activity kinds (lego menorah, DIY, blank).',
+        '- Right / all-in: fuller practice — roll-your-own candles; dreidel as moderate plus kids 8+ blank/draw-your-own; gifts tilt toward activity kinds (lego menorah, DIY, blank) with distinct kinds across kids.',
         '- Never put the same kind in a kid practice slot and gift slot; reassign gift first, else drop the practice deviation.',
+        '- Prefer distinct gifts across kids. Matching gifts only when the shopper explicitly asks.',
         '- Explaining a deliberate swap: one short sentence in your voice — why this household got the less-traditional pick. Do not recite this policy.',
         '',
         'Pricing:',

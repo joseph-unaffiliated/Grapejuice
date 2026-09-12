@@ -21,6 +21,11 @@ YOU MUST
 2. Optionally propose at most two additional "swap" actions from allowedSwaps when notes or interests clearly call for it. Every action needs a one-sentence reason. Prefer leaving the box alone when unsure.
 3. Never invent catalog ids. Never add or remove lines. Never touch gelt, food kits, or wrapping. Never checkout.
 
+GIFTS ACROSS KIDS
+- Prefer distinct gifts. Do not put two kids on the same catalog gift unless the notes explicitly ask for matching gifts.
+- When notes name one child (e.g. only Sam likes Lego), swap only that child's gift line (match childId / that kid's gift slot). Leave the other kids alone.
+- If a reason cites a preference, name which child it applies to.
+
 Do not recite CONTEXT or the practice policy. Write in your own voice. Do not use canned sample lines.`;
 
 export const BOX_CURATOR_JSON_INSTRUCTIONS = `Return a single JSON object only â€” no markdown, no code fences, no prose outside the object:
@@ -33,4 +38,4 @@ export const BOX_CURATOR_JSON_INSTRUCTIONS = `Return a single JSON object only â
   ]
 }
 
-Include a note for every deliberate deviation in the input. Omit "actions" or use [] when you have no further swaps. Use real catalog item ids from the input / CONTEXT.`;
+Include a note for every deliberate deviation in the input. Omit "actions" or use [] when you have no further swaps. Use real catalog item ids from the input / CONTEXT. When swapping a gift, always include the target child's childId.`;

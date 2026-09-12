@@ -38,6 +38,16 @@ function toProfile(uid: string, data: Record<string, unknown>): UserProfile {
   };
 }
 
+/** Firestore rejects `undefined` anywhere in a document — drop those keys. */
+function omitUndefined(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 export const usersService = {
   async get(uid: string): Promise<UserProfile | null> {
     if (!db) return null;
@@ -56,10 +66,10 @@ export const usersService = {
     const ref = doc(db, 'users', uid);
     const existing = await getDoc(ref);
     const now = new Date().toISOString();
-    const payload: Record<string, unknown> = {
+    const payload: Record<string, unknown> = omitUndefined({
       ...data,
       updatedAt: now,
-    };
+    });
     if (!existing.exists()) {
       payload.createdAt = now;
       payload.role = data.role ?? 'parent';
