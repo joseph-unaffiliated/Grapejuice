@@ -66,6 +66,7 @@ import {
   fullCardLinesForSection,
   bookBadgeLabelForLines,
   giftBadgeLabelForLines,
+  oneForBadgeLabelForLines,
   isGiftSlotLine,
   isWrapControlSlot,
   kidsNeedingBook,
@@ -319,6 +320,9 @@ export function MyBoxScreen() {
             itemId: newItem.id,
             unitCents: nextUnit,
             label: newItem.name,
+            // Household sets (wood/gelt) keep qty/includedQty — never peel one unit.
+            // Fresh swap drops any prior curation note.
+            curationNote: undefined,
           }
         : li
     );
@@ -931,15 +935,22 @@ export function MyBoxScreen() {
           const names = childNamesForLines(group.lines, children);
           const giftBadge = giftBadgeLabelForLines(group.lines, children);
           const bookBadge = bookBadgeLabelForLines(group.lines, children);
-          const imageBadge = giftBadge ?? bookBadge;
+          const oneForBadge = oneForBadgeLabelForLines(group.lines, children);
+          const imageBadge = giftBadge ?? bookBadge ?? oneForBadge;
           const isGiftGroup = group.lines.some((line) => isGiftSlotLine(line));
+          const isPracticeDreidelCard = group.lines.some((line) =>
+            ['wood-dreidel', 'blank-dreidel', 'airdry-dreidel'].includes(catalogSlotId(line.slotId))
+          );
           const isBookCard =
             group.lines.some((line) => catalogSlotId(line.slotId) === 'story') ||
             item?.category === 'Book' ||
             item?.slotId === 'story';
+          // Never claim practice dreidels/candles as a kid's gift — they're practice sets/kits.
           const claimGiftChips =
             !imageBadge &&
             !isGiftGroup &&
+            !isPracticeDreidelCard &&
+            catalogSlotId(li.slotId) !== 'candles' &&
             item &&
             includedGiftIds.has(item.id) &&
             claimGiftNeeds.length

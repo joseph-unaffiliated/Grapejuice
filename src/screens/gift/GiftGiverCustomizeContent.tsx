@@ -41,6 +41,7 @@ import {
   fullCardLinesForSection,
   giftBadgeLabelForLines,
   bookBadgeLabelForLines,
+  oneForBadgeLabelForLines,
   isGiftSlotLine,
   isWrapControlSlot,
   kidsNeedingBook,
@@ -341,8 +342,12 @@ export function GiftGiverCustomizeContent({
           const names = childNamesForLines(group.lines, kidProfiles);
           const giftBadge = giftBadgeLabelForLines(group.lines, kidProfiles, 'A gift for them');
           const bookBadge = bookBadgeLabelForLines(group.lines, kidProfiles, 'A book for them');
-          const imageBadge = giftBadge ?? bookBadge;
+          const oneForBadge = oneForBadgeLabelForLines(group.lines, kidProfiles, 'One for them');
+          const imageBadge = giftBadge ?? bookBadge ?? oneForBadge;
           const isGiftGroup = group.lines.some((line) => isGiftSlotLine(line));
+          const isPracticeDreidelCard = group.lines.some((line) =>
+            ['wood-dreidel', 'blank-dreidel', 'airdry-dreidel'].includes(catalogSlotId(line.slotId))
+          );
           const isBookCard =
             group.lines.some((line) => catalogSlotId(line.slotId) === 'story') ||
             item?.category === 'Book' ||
@@ -350,6 +355,8 @@ export function GiftGiverCustomizeContent({
           const claimGiftChips =
             !imageBadge &&
             !isGiftGroup &&
+            !isPracticeDreidelCard &&
+            catalogSlotId(li.slotId) !== 'candles' &&
             item &&
             includedGiftIds.has(item.id) &&
             claimGiftNeeds.length

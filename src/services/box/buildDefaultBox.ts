@@ -192,28 +192,30 @@ export function buildCuratedBox(
   const candles = resolveCandlesItem(catalog, rows, outline.candlesDefault);
   if (candles) pushLineItem(lineItems, 'candles', candles);
 
-  // Wood-eligible kids share a household line (kids + adults when 2–4 wood kids).
-  // Craft dreidels (airdry / blank) stay one line per kid.
+  // Wood-eligible kids + adults share a household wood line (same “1 per person”
+  // coverage as gelt). Craft kits replace that kid’s wood share; adults never get craft.
   const woodAssignments = outline.dreidels.filter((d) => d.kind === 'wood-dreidel');
   const craftAssignments = outline.dreidels.filter((d) => d.kind !== 'wood-dreidel');
+  const adultsN = defaultAdults(outline.inputs.adults);
+  const woodKidCount = woodAssignments.length;
+  const allWood = craftAssignments.length === 0 && woodKidCount > 0;
 
-  if (woodAssignments.length > 0) {
+  // Always cover adults with wood when any craft kids exist (or when some kids stay on wood).
+  // All-wood 1-kid boxes keep legacy qty 1; 2+ kids → kids + adults.
+  const woodQty = allWood
+    ? woodKidCount <= 1
+      ? Math.max(1, woodKidCount)
+      : woodKidCount + adultsN
+    : woodKidCount + adultsN;
+
+  if (woodQty > 0) {
     const item = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
     if (item) {
-      const woodKidCount = woodAssignments.length;
-      const allWood = craftAssignments.length === 0;
-      // All-wood household boxes (legacy <5 kids): kids + adults when 2+.
-      // Mixed wood + craft: one included wood per wood-eligible kid only.
-      const qty = allWood
-        ? woodKidCount <= 1
-          ? Math.max(1, woodKidCount)
-          : woodKidCount + defaultAdults(outline.inputs.adults)
-        : Math.max(1, woodKidCount);
       lineItems.push({
         slotId: 'wood-dreidel',
         itemId: item.id,
-        quantity: qty,
-        includedQty: qty,
+        quantity: woodQty,
+        includedQty: woodQty,
         unitCents: 0,
         label: item.name,
       });

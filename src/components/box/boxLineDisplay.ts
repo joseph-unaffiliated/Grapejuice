@@ -365,6 +365,25 @@ export function giftBadgeLabelForLines(
 }
 
 /**
+ * Floating image-badge for a per-kid practice card (craft dreidel, etc.), e.g. "One for Sam".
+ */
+export function oneForBadgeLabelForLines(
+  lines: BoxLineItem[],
+  children: ChildProfile[],
+  fallback?: string
+): string | undefined {
+  if (lines.some((li) => isGiftSlotLine(li) || isStorySlotLine(li))) return undefined;
+  const names = childNamesForLines(lines, children);
+  if (names.length === 1) return `One for ${names[0]}`;
+  if (names.length > 1) return `One for ${names.join(' & ')}`;
+  if (names.length === 0) {
+    const attributed = lines.some((li) => !!(li.childId || childIdFromSlot(li.slotId)));
+    if (attributed) return fallback ?? 'One for them';
+  }
+  return undefined;
+}
+
+/**
  * Floating image-badge for a per-kid book card, e.g. "A book for Sam".
  */
 export function bookBadgeLabelForLines(
