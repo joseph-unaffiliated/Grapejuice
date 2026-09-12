@@ -37,6 +37,11 @@ export type CatalogPricingTier = 'included' | 'perKid' | 'extra' | 'alaCarte';
 export type AccountRole = 'parent' | 'child';
 export type KeepOrToss = 'keep' | 'toss';
 
+/** How much the household currently does Hanukkah (practice intensity, not knowledge). */
+export type FamiliarityLevel = 'minimal' | 'moderate' | 'all-in';
+/** Alias — same values; prefer this name in new curation code. */
+export type PracticeLevel = FamiliarityLevel;
+
 export type UserProfile = {
   uid: string;
   email: string | null;
@@ -44,6 +49,8 @@ export type UserProfile = {
   role: AccountRole;
   householdId: string | null;
   familiarityLevel?: FamiliarityLevel;
+  /** Free-text notes from onboarding for Rav. */
+  ravNotes?: string;
   onboardingComplete: boolean;
   boxRevealComplete?: boolean;
   notificationsOptIn?: boolean;
@@ -209,6 +216,8 @@ export type BoxLineItem = {
    * pin the card to the section the shopper added it from.
    */
   displaySectionId?: 'candles' | 'dreidel' | 'food' | 'presents' | 'story';
+  /** One-sentence why this item was deliberately chosen (rules deviation or Rav swap). */
+  curationNote?: string;
 };
 
 export type BoxDraft = {
@@ -299,6 +308,8 @@ export type RavDraftAction = {
   itemId: string;
   slotId?: string;
   childId?: string;
+  /** Optional one-sentence why this mutation was chosen. */
+  reason?: string;
 };
 
 export type PartnerInvite = {

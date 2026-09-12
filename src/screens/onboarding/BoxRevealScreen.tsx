@@ -190,6 +190,7 @@ export function BoxRevealScreen({
               li={li}
               item={item}
               meta={kid ? `Present for ${kid.name || 'your kid'}` : undefined}
+              note={li.curationNote}
               imageBadge={giftBadge}
               locked
               swapOptions={[]}

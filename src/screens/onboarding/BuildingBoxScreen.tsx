@@ -18,12 +18,13 @@ const BUILD_STEPS = [
   'Reading your family…',
   'Matching stories to ages…',
   'Picking treats and candles…',
+  'Asking Rav to look over the picks…',
   BUILD_LOADER_REST_MESSAGE,
 ];
 
 const MESSAGE_INTERVAL_MS = 700;
 /** Hold the splash long enough to read, even when the box builds instantly. */
-const MIN_SPLASH_MS = 2200;
+const MIN_SPLASH_MS = 2800;
 
 /**
  * Loader splash. Renders bare (no screen chrome) so it centers within the

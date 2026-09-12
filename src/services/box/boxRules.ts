@@ -69,10 +69,15 @@ export type UpsellOffer = {
 
 export type BoxKid = { age: number };
 
+/** Practice intensity — same values as FamiliarityLevel / onboarding slider bands. */
+export type PracticeLevel = 'minimal' | 'moderate' | 'all-in';
+
 export type DefaultBoxInputs = {
   kids: BoxKid[];
   /** Adults in household; default 2 when unknown. */
   adults?: number;
+  /** How much this household currently does Hanukkah. Default minimal = traditional. */
+  practice?: PracticeLevel;
 };
 
 export type GeltSize = 'small' | 'medium' | 'party';
@@ -86,6 +91,9 @@ export type GeltPlan = {
 
 export type DreidelKind = 'wood-dreidel' | 'blank-dreidel' | 'airdry-dreidel';
 
+/** Candles practice default — diy-candles is an included swap, not a Default slot. */
+export type CandlesKind = 'candles' | 'diy-candles';
+
 export type DreidelAssignment = {
   kidIndex: number;
   age: number;
@@ -96,6 +104,16 @@ export type GiftAssignment = {
   kidIndex: number;
   age: number;
   kind: GiftKindId;
+};
+
+/** Planner-level deliberate swap away from the traditional know-nothing default. */
+export type PracticeDeviation = {
+  section: BoxSectionId;
+  /** Logical slot id used when materializing the line (candles, airdry-dreidel, gift, …). */
+  slotId: string;
+  fromKind: string;
+  toKind: string;
+  kidIndex?: number;
 };
 
 /** Intake age bands (ChildrenScreen / ChildProfile). */
@@ -561,7 +579,177 @@ export function planKnowNothingOutline(inputs: DefaultBoxInputs = { kids: [{ age
     presentsPerKid: inputs.kids.length,
     foodDefaults: ['latke-mix', 'sufganiyot-mix', 'applesauce'] as const,
     wrapDefault: 'wrapping-paper' as const,
-    candlesDefault: 'candles' as const,
+    candlesDefault: 'candles' as CandlesKind,
+  };
+}
+
+const ACTIVITY_GIFT_KINDS: GiftKindId[] = [
+  'lego-menorah',
+  'diy-candles',
+  'blank',
+  'airdry',
+  'wood-toy-menorah',
+];
+
+function giftConflictsWithPractice(gift: GiftKindId, practiceKinds: Set<string>): boolean {
+  if (gift === 'airdry' && practiceKinds.has('airdry-dreidel')) return true;
+  if (gift === 'blank' && practiceKinds.has('blank-dreidel')) return true;
+  if (gift === 'diy-candles' && practiceKinds.has('diy-candles')) return true;
+  return false;
+}
+
+function practiceKindsForKid(
+  candlesKind: CandlesKind,
+  dreidels: DreidelAssignment[],
+  kidIndex: number
+): Set<string> {
+  const kinds = new Set<string>();
+  if (candlesKind === 'diy-candles') kinds.add('diy-candles');
+  const d = dreidels.find((x) => x.kidIndex === kidIndex);
+  if (d && d.kind !== 'wood-dreidel') kinds.add(d.kind);
+  return kinds;
+}
+
+/**
+ * Dreidel assignment under practice intensity.
+ * minimal → same as planDreidels (all wood under 5 kids; age mix at 5+).
+ * moderate+ → kids 4+ get airdry; all-in → kids 8+ get blank.
+ */
+export function planPracticeDreidels(
+  inputs: DefaultBoxInputs,
+  practice: PracticeLevel
+): DreidelAssignment[] {
+  if (practice === 'minimal') return planDreidels(inputs);
+  return inputs.kids.map((kid, kidIndex) => {
+    let kind: DreidelKind = 'wood-dreidel';
+    if (practice === 'all-in' && kid.age >= 8) kind = 'blank-dreidel';
+    else if (kid.age >= 4) kind = 'airdry-dreidel';
+    return { kidIndex, age: kid.age, kind };
+  });
+}
+
+/**
+ * Practice-intensity curated outline: traditional on the left, deliberate
+ * deviations on the right. Returns deviations that were kept after gift dedupe.
+ */
+export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 }] }) {
+  const practice: PracticeLevel = inputs.practice ?? 'minimal';
+  const base = planKnowNothingOutline(inputs);
+  if (practice === 'minimal') {
+    return { ...base, practice, deviations: [] as PracticeDeviation[] };
+  }
+
+  const candlesDefault: CandlesKind = practice === 'all-in' ? 'diy-candles' : 'candles';
+  let dreidels = planPracticeDreidels(inputs, practice);
+  let gifts = planGifts(inputs).map((g) => ({ ...g }));
+
+  // all-in: tilt passive gifts (stuffie) toward activity kinds when possible.
+  if (practice === 'all-in') {
+    gifts = gifts.map((g) => {
+      if (ACTIVITY_GIFT_KINDS.includes(g.kind)) return g;
+      // Prefer activity order (lego → DIY → blank → airdry → wood menorah), then fallbacks.
+      const tilted =
+        ACTIVITY_GIFT_KINDS.find((k) => k !== g.kind) ??
+        giftKindFallbackOrder(g.age).find((k) => ACTIVITY_GIFT_KINDS.includes(k) && k !== g.kind);
+      return tilted ? { ...g, kind: tilted } : g;
+    });
+  }
+
+  // Dedupe: never put the same kind in a kid's practice slot and gift slot.
+  // Prefer reassigning the gift; if no alternative, drop the practice deviation.
+  for (const g of gifts) {
+    let kinds = practiceKindsForKid(candlesDefault, dreidels, g.kidIndex);
+    if (!giftConflictsWithPractice(g.kind, kinds)) continue;
+
+    const alt = giftKindFallbackOrder(g.age).find(
+      (k) => k !== g.kind && !giftConflictsWithPractice(k, kinds)
+    );
+    if (alt) {
+      g.kind = alt;
+      continue;
+    }
+
+    // Drop conflicting dreidel deviation for this kid.
+    const dIdx = dreidels.findIndex((d) => d.kidIndex === g.kidIndex);
+    if (dIdx >= 0 && dreidels[dIdx].kind !== 'wood-dreidel') {
+      dreidels = dreidels.map((d, i) =>
+        i === dIdx ? { ...d, kind: 'wood-dreidel' as DreidelKind } : d
+      );
+      kinds = practiceKindsForKid(candlesDefault, dreidels, g.kidIndex);
+      if (!giftConflictsWithPractice(g.kind, kinds)) continue;
+    }
+  }
+
+  // If diy candles still conflicts with any unresolved diy-candles gift, drop candles deviation.
+  let finalCandles = candlesDefault;
+  if (finalCandles === 'diy-candles') {
+    const stillConflicts = gifts.some(
+      (g) =>
+        g.kind === 'diy-candles' &&
+        giftConflictsWithPractice(
+          g.kind,
+          practiceKindsForKid(finalCandles, dreidels, g.kidIndex)
+        )
+    );
+    if (stillConflicts) finalCandles = 'candles';
+  }
+
+  const traditionalDreidels = planDreidels(inputs);
+  const traditionalGifts = planGifts(inputs);
+  const deviations: PracticeDeviation[] = [];
+
+  if (finalCandles === 'diy-candles') {
+    deviations.push({
+      section: 'candles',
+      slotId: 'candles',
+      fromKind: 'candles',
+      toKind: 'diy-candles',
+    });
+  }
+
+  for (const d of dreidels) {
+    const traditional = traditionalDreidels.find((t) => t.kidIndex === d.kidIndex);
+    const fromKind = traditional?.kind ?? 'wood-dreidel';
+    if (d.kind === fromKind) continue;
+    // Only record as a deliberate practice deviation when leaving wood for craft.
+    if (fromKind === 'wood-dreidel' && d.kind !== 'wood-dreidel') {
+      deviations.push({
+        section: 'dreidel',
+        slotId: d.kind,
+        fromKind,
+        toKind: d.kind,
+        kidIndex: d.kidIndex,
+      });
+    } else if (fromKind !== d.kind) {
+      deviations.push({
+        section: 'dreidel',
+        slotId: d.kind,
+        fromKind,
+        toKind: d.kind,
+        kidIndex: d.kidIndex,
+      });
+    }
+  }
+
+  for (const g of gifts) {
+    const traditional = traditionalGifts.find((t) => t.kidIndex === g.kidIndex);
+    if (!traditional || traditional.kind === g.kind) continue;
+    deviations.push({
+      section: 'presents',
+      slotId: 'gift',
+      fromKind: traditional.kind,
+      toKind: g.kind,
+      kidIndex: g.kidIndex,
+    });
+  }
+
+  return {
+    ...base,
+    practice,
+    candlesDefault: finalCandles,
+    dreidels,
+    gifts,
+    deviations,
   };
 }
 
@@ -765,6 +953,13 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     'Gift-by-age defaults (prefer distinct across kids; stock-aware Inventory≥2, never last unit; books infinite/no hold):',
     '- 0 stuffie, 1 wood-toy-menorah, 2 stuffie, 3 stuffie, 4 airdry, 5 stuffie, 6 lego-menorah, 7 blank, 8 DIY-candles; 9+ bias blank/DIY/lego/airdry/books',
     '- Dual-home browse OK; same catalog id twice → confirm in UX (not a hard block)',
+    '',
+    'Practice level policy (onboarding slider — current practice intensity, NOT knowledge):',
+    '- Left / minimal: household does little Hanukkah now — traditional defaults (beeswax candles, wooden dreidel, age-default book + gift).',
+    '- Middle / moderate: one deliberate craft deviation — kids 4+ get airdry clay dreidel (per kid); under 4 keep wood; candles stay beeswax.',
+    '- Right / all-in: fuller practice — roll-your-own candles; dreidel as moderate plus kids 8+ blank/draw-your-own; gifts tilt toward activity kinds (lego menorah, DIY, blank).',
+    '- Never put the same kind in a kid practice slot and gift slot; reassign gift first, else drop the practice deviation.',
+    '- Explaining a deliberate swap: one short sentence in your voice — why this household got the less-traditional pick. Do not recite this policy.',
     '',
     'Pricing:',
     `- List ~$${PRICING_POLICY.listBoxCents / 100} + $${PRICING_POLICY.perExtraKidCents / 100}/kid after first (even if donated)`,

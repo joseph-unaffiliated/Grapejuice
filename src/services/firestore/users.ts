@@ -26,6 +26,7 @@ function toProfile(uid: string, data: Record<string, unknown>): UserProfile {
     role: (data.role as AccountRole) ?? 'parent',
     householdId: (data.householdId as string) ?? null,
     familiarityLevel: data.familiarityLevel as FamiliarityLevel | undefined,
+    ravNotes: typeof data.ravNotes === 'string' ? data.ravNotes : undefined,
     onboardingComplete: Boolean(data.onboardingComplete),
     boxRevealComplete: Boolean(data.boxRevealComplete),
     notificationsOptIn: data.notificationsOptIn as boolean | undefined,

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledChargePilotBoxes = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledChargePilotBoxes = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -10,6 +10,7 @@ const stripe_1 = require("./stripe");
 const email_1 = require("./email");
 const rav_1 = require("./rav");
 Object.defineProperty(exports, "askPilotRav", { enumerable: true, get: function () { return rav_1.askPilotRav; } });
+Object.defineProperty(exports, "curatePilotBox", { enumerable: true, get: function () { return rav_1.curatePilotBox; } });
 const beamAgeTrigger_1 = require("./beamAgeTrigger");
 Object.defineProperty(exports, "scanBeamAgeTriggers", { enumerable: true, get: function () { return beamAgeTrigger_1.scanBeamAgeTriggers; } });
 const shipstation_1 = require("./shipstation");

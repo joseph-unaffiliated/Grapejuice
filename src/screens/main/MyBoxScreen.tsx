@@ -1017,6 +1017,7 @@ export function MyBoxScreen() {
                       li={li}
                       item={item}
                       meta={presentMeta}
+                      note={group.note ?? li.curationNote}
                       imageBadge={imageBadge}
                       claimGiftChips={claimChips.length ? claimChips : undefined}
                       locked={locked || sectionSealed}

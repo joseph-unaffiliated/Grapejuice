@@ -124,6 +124,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const user = useAuthStore((s) => s.user);
   const startAuthForRav = useAuthFlowStore((s) => s.startAuthForRav);
   const recordGuestRavPrompt = useGuestSessionStore((s) => s.recordGuestRavPrompt);
+  const guestFamiliarityLevel = useGuestSessionStore((s) => s.familiarityLevel);
   const { lineItems, persist } = useBoxDraft();
   const { household } = useSession();
   const { ids: wishlistIds } = useWishlist();
@@ -452,6 +453,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           message: trimmed,
           conversationHistory: historyPrior.slice(-MAX_HISTORY_TURNS * 2),
           boxDraftSummary: ravMode ? undefined : summarizeLineItemsForRav(lineItems),
+          familiarityLevel: isGuest ? guestFamiliarityLevel : undefined,
           mode: ravMode,
           childId: ravMode ? activeChild?.id : undefined,
           surface: copilot.surface,
@@ -575,7 +577,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, guestFamiliarityLevel, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id]
   );
 
   /** Web: Enter sends, Shift+Enter inserts a newline.

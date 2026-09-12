@@ -5,7 +5,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { stripe, verifyWebhook } from './stripe';
 import { sendEmail, sendDebriefReminderEmail } from './email';
-import { askPilotRav } from './rav';
+import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
 import { exportOrderToShipStation, applyShipStationTracking } from './shipstation';
 import { finalizeGiftInvitePayment, resolveGiftInviteKind, type GiftInviteRecord } from './giftPayment';
@@ -22,7 +22,7 @@ import {
 } from './chargePilotBox';
 import { randomBytes } from 'crypto';
 
-export { askPilotRav, scanBeamAgeTriggers };
+export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
 export { sendWelcomeOnSignup } from './welcome';
 
 initializeApp();

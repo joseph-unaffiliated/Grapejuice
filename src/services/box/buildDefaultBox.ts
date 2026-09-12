@@ -1,4 +1,4 @@
-import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
+import type { BoxLineItem, CatalogItem, ChildProfile, PracticeLevel } from '../../types/pilot';
 import {
   ALA_CARTE_SLOT_IDS,
   boxAddOnUnitCents,
@@ -13,14 +13,18 @@ import {
 import {
   defaultAdults,
   geltSlotForSize,
-  planKnowNothingOutline,
+  planCuratedOutline,
   representativeAgeForBand,
   resolveBookForAge,
   resolveByDefaultSlot,
   resolveGiftKind,
   type BoxRulesCatalogRow,
+  type CandlesKind,
   type DefaultSlotId,
+  type DreidelKind,
+  type GiftKindId,
   type IntakeAgeGroup,
+  type PracticeDeviation,
 } from './boxRules';
 
 function toRulesRow(item: CatalogItem): BoxRulesCatalogRow {
@@ -78,6 +82,26 @@ function resolveSlotItem(
   return undefined;
 }
 
+function resolveCandlesItem(
+  catalog: CatalogItem[],
+  rows: BoxRulesCatalogRow[],
+  kind: CandlesKind
+): CatalogItem | undefined {
+  if (kind === 'diy-candles') {
+    const row = resolveGiftKind(rows, 'diy-candles');
+    return findById(catalog, row?.id);
+  }
+  return resolveSlotItem(catalog, rows, 'candles');
+}
+
+function resolveDreidelKindItem(
+  catalog: CatalogItem[],
+  rows: BoxRulesCatalogRow[],
+  kind: DreidelKind
+): CatalogItem | undefined {
+  return resolveSlotItem(catalog, rows, kind);
+}
+
 function kidsFromChildren(children: ChildProfile[]): { age: number; child: ChildProfile }[] {
   return children.map((child) => {
     if (typeof child.plannerAge === 'number' && Number.isFinite(child.plannerAge)) {
@@ -107,92 +131,113 @@ function pushLineItem(
   });
 }
 
+export type ResolvedDeviation = {
+  section: PracticeDeviation['section'];
+  slotId: string;
+  fromKind: string;
+  toKind: string;
+  fromItemId?: string;
+  toItemId: string;
+  childId?: string;
+  kidIndex?: number;
+};
+
+export type CuratedBoxResult = {
+  lineItems: BoxLineItem[];
+  deviations: ResolvedDeviation[];
+  practice: PracticeLevel;
+};
+
+export type BuildCuratedBoxOptions = {
+  practice?: PracticeLevel;
+  adults?: number;
+  childInterests?: string[];
+};
+
 /**
- * Know-nothing default box from shared planners (`boxRules.ts`).
- * Resolves SKUs from the live catalog (Default slot tags when present, else name/slug).
+ * Practice-intensity curated box. Returns line items plus resolved deviations
+ * (for Rav reasons / further refinement).
  */
-export function buildDefaultLineItems(
+export function buildCuratedBox(
   catalog: CatalogItem[],
   children: ChildProfile[],
-  _childInterests: string[] = [],
-  adults?: number
-): BoxLineItem[] {
+  options: BuildCuratedBoxOptions = {}
+): CuratedBoxResult {
+  const practice: PracticeLevel = options.practice ?? 'minimal';
   const lineItems: BoxLineItem[] = [];
-  if (!catalog.length) return lineItems;
+  if (!catalog.length) return { lineItems, deviations: [], practice };
 
   const paired = kidsFromChildren(children);
-  const outline = planKnowNothingOutline({
+  const outline = planCuratedOutline({
     kids: paired.map((p) => ({ age: p.age })),
-    adults,
+    adults: options.adults,
+    practice,
   });
   const rows = catalog.map(toRulesRow);
 
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
-    // Once per build — helps smoke-test section/line expectations.
-    console.log('[box] know-nothing outline', {
+    console.log('[box] curated outline', {
+      practice: outline.practice,
       kids: outline.inputs.kids,
       adults: outline.inputs.adults,
       listCents: outline.listCents,
       gelt: outline.gelt,
       dreidels: outline.dreidels,
       gifts: outline.gifts,
-      foodDefaults: outline.foodDefaults,
-      wrapDefault: outline.wrapDefault,
       candlesDefault: outline.candlesDefault,
+      deviations: outline.deviations,
     });
   }
 
-  const candles = resolveSlotItem(catalog, rows, 'candles');
+  const candles = resolveCandlesItem(catalog, rows, outline.candlesDefault);
   if (candles) pushLineItem(lineItems, 'candles', candles);
 
-  // Under 5 kids → all wood: one household line at kids + adults (same share as gelt).
-  // 5+ → mixed kinds stay one line per kid.
-  const allWood =
-    outline.dreidels.length > 0 &&
-    outline.dreidels.every((d) => d.kind === 'wood-dreidel');
-  if (allWood) {
-    const item = resolveSlotItem(catalog, rows, 'wood-dreidel');
+  // Wood-eligible kids share a household line (kids + adults when 2–4 wood kids).
+  // Craft dreidels (airdry / blank) stay one line per kid.
+  const woodAssignments = outline.dreidels.filter((d) => d.kind === 'wood-dreidel');
+  const craftAssignments = outline.dreidels.filter((d) => d.kind !== 'wood-dreidel');
+
+  if (woodAssignments.length > 0) {
+    const item = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
     if (item) {
-      const kidCount = paired.length;
-      const woodQty =
-        kidCount <= 1
-          ? Math.max(1, kidCount)
-          : kidCount + defaultAdults(outline.inputs.adults);
+      const woodKidCount = woodAssignments.length;
+      const allWood = craftAssignments.length === 0;
+      // All-wood household boxes (legacy <5 kids): kids + adults when 2+.
+      // Mixed wood + craft: one included wood per wood-eligible kid only.
+      const qty = allWood
+        ? woodKidCount <= 1
+          ? Math.max(1, woodKidCount)
+          : woodKidCount + defaultAdults(outline.inputs.adults)
+        : Math.max(1, woodKidCount);
       lineItems.push({
         slotId: 'wood-dreidel',
         itemId: item.id,
-        quantity: woodQty,
-        includedQty: woodQty,
+        quantity: qty,
+        includedQty: qty,
         unitCents: 0,
         label: item.name,
       });
     }
-  } else {
-    for (const d of outline.dreidels) {
-      const item = resolveSlotItem(catalog, rows, d.kind);
-      const child = paired[d.kidIndex]?.child;
-      if (item && child) pushLineItem(lineItems, d.kind, item, child.id);
-    }
+  }
+
+  for (const d of craftAssignments) {
+    const item = resolveDreidelKindItem(catalog, rows, d.kind);
+    const child = paired[d.kidIndex]?.child;
+    if (item && child) pushLineItem(lineItems, d.kind, item, child.id);
   }
 
   const geltSlot = geltSlotForSize(outline.gelt.size);
   const gelt = resolveSlotItem(catalog, rows, geltSlot);
   if (gelt) {
-    // One line, quantity from planGelt (e.g. 2 kids + 2 adults → small ×4).
-    // Do not use pushLineItem here — it hardcodes quantity: 1.
     const geltQty = Math.max(1, outline.gelt.quantity);
-    const geltLine: BoxLineItem = {
+    lineItems.push({
       slotId: geltSlot,
       itemId: gelt.id,
       quantity: geltQty,
       includedQty: geltQty,
       unitCents: 0,
       label: gelt.name,
-    };
-    lineItems.push(geltLine);
-    if (typeof __DEV__ !== 'undefined' && __DEV__) {
-      console.log('[box] gelt line', geltLine);
-    }
+    });
   }
 
   for (const foodSlot of outline.foodDefaults) {
@@ -216,7 +261,69 @@ export function buildDefaultLineItems(
     if (gift && child) pushLineItem(lineItems, 'gift', gift, child.id);
   }
 
-  return lineItems;
+  const traditionalCandles = resolveCandlesItem(catalog, rows, 'candles');
+  const traditionalWood = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
+
+  const deviations: ResolvedDeviation[] = [];
+  for (const d of outline.deviations) {
+    let toItem: CatalogItem | undefined;
+    let fromItemId: string | undefined;
+    let childId: string | undefined;
+    let slotId = d.slotId;
+
+    if (d.section === 'candles') {
+      toItem = resolveCandlesItem(catalog, rows, d.toKind as CandlesKind);
+      fromItemId = traditionalCandles?.id;
+      slotId = 'candles';
+    } else if (d.section === 'dreidel') {
+      toItem = resolveDreidelKindItem(catalog, rows, d.toKind as DreidelKind);
+      fromItemId =
+        d.fromKind === 'wood-dreidel'
+          ? traditionalWood?.id
+          : resolveDreidelKindItem(catalog, rows, d.fromKind as DreidelKind)?.id;
+      const child = d.kidIndex != null ? paired[d.kidIndex]?.child : undefined;
+      childId = child?.id;
+      slotId = childId ? `${d.toKind}-${childId}` : d.toKind;
+    } else if (d.section === 'presents') {
+      toItem = findById(catalog, resolveGiftKind(rows, d.toKind as GiftKindId)?.id);
+      fromItemId = resolveGiftKind(rows, d.fromKind as GiftKindId)?.id;
+      const child = d.kidIndex != null ? paired[d.kidIndex]?.child : undefined;
+      childId = child?.id;
+      slotId = childId ? `gift-${childId}` : 'gift';
+    }
+
+    if (!toItem) continue;
+    deviations.push({
+      section: d.section,
+      slotId,
+      fromKind: d.fromKind,
+      toKind: d.toKind,
+      fromItemId,
+      toItemId: toItem.id,
+      childId,
+      kidIndex: d.kidIndex,
+    });
+  }
+
+  return { lineItems, deviations, practice };
+}
+
+/**
+ * Know-nothing default box from shared planners (`boxRules.ts`).
+ * Resolves SKUs from the live catalog (Default slot tags when present, else name/slug).
+ * Thin wrapper around `buildCuratedBox` at practice `'minimal'`.
+ */
+export function buildDefaultLineItems(
+  catalog: CatalogItem[],
+  children: ChildProfile[],
+  _childInterests: string[] = [],
+  adults?: number
+): BoxLineItem[] {
+  return buildCuratedBox(catalog, children, {
+    practice: 'minimal',
+    adults,
+    childInterests: _childInterests,
+  }).lineItems;
 }
 
 export function catalogSlotId(lineSlotId: string): string {

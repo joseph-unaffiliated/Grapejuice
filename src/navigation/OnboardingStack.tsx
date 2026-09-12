@@ -14,9 +14,11 @@ import { usersService } from '../services/firestore/users';
 import { householdsService } from '../services/firestore/households';
 import { catalogService } from '../services/firestore/catalog';
 import { boxDraftService } from '../services/firestore/boxDraft';
-import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
+import { buildCuratedBox } from '../services/box/buildDefaultBox';
+import { curateBox, applyCurateBoxResult } from '../services/rav/curateBox';
 import { remapGuestChildIds } from '../services/guest/persistGuestToAccount';
 import type { BoxLineItem, FamiliarityLevel, ChildProfile } from '../types/pilot';
+import { representativeAgeForBand, type IntakeAgeGroup } from '../services/box/boxRules';
 import { semanticColors } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
@@ -124,6 +126,8 @@ export function OnboardingStack({
   const [ravNotes, setRavNotes] = useState(guestRavNotes);
   const [lineItems, setLineItems] = useState<BoxLineItem[]>(guestLineItems);
   const [saving, setSaving] = useState(false);
+  /** Baseline persisted; Rav pass finished (or timed out). BuildingBoxScreen advances when true. */
+  const [buildingReady, setBuildingReady] = useState(false);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [completingReveal, setCompletingReveal] = useState(false);
   const [loadingReveal, setLoadingReveal] = useState(revealOnly);
@@ -198,7 +202,10 @@ export function OnboardingStack({
         const items =
           draft?.lineItems?.length
             ? draft.lineItems
-            : buildDefaultLineItems(catalog, kids, draft?.childInterests ?? []);
+            : buildCuratedBox(catalog, kids, {
+                practice: profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate',
+                childInterests: draft?.childInterests ?? [],
+              }).lineItems;
         setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
         setLineItems(items);
       } catch (error) {
@@ -232,6 +239,7 @@ export function OnboardingStack({
   ) => {
     setBuildError(null);
     setSaving(true);
+    setBuildingReady(false);
     try {
       const catalog = await catalogService.getAll();
       if (!catalog.length) {
@@ -240,7 +248,13 @@ export function OnboardingStack({
         );
       }
       const profiles = draftsToProfiles(kids);
-      const items = buildDefaultLineItems(catalog, profiles, interests, adultCountFromDrafts(kids));
+      const adults = adultCountFromDrafts(kids);
+      const curated = buildCuratedBox(catalog, profiles, {
+        practice: level,
+        adults,
+        childInterests: interests,
+      });
+      let items = curated.lineItems;
       if (!items.length) {
         throw new Error('We could not build a default box from the catalog. Please try again later.');
       }
@@ -250,6 +264,29 @@ export function OnboardingStack({
       setGuestFamiliarityScore(score);
       setGuestRavNotes(notes);
 
+      const runRavPass = async (baseline: BoxLineItem[], childProfiles: ChildProfile[]) => {
+        const curateKids = childProfiles.map((c) => ({
+          id: c.id,
+          firstName: c.name,
+          age:
+            typeof c.plannerAge === 'number' && Number.isFinite(c.plannerAge)
+              ? Math.max(0, Math.floor(c.plannerAge))
+              : representativeAgeForBand(c.ageGroup as IntakeAgeGroup),
+        }));
+        const result = await curateBox({
+          practiceLevel: level,
+          practiceScore: score,
+          kids: curateKids,
+          adults,
+          interests,
+          notes,
+          baseline,
+          deviations: curated.deviations,
+          catalog,
+        });
+        return applyCurateBoxResult(baseline, catalog, result, curated.deviations);
+      };
+
       if (guestMode) {
         setGuestLineItems(items);
         completeGuestOnboarding();
@@ -257,6 +294,15 @@ export function OnboardingStack({
         setFamiliarityScore(score);
         setLineItems(items);
         goToStep('building');
+        // Fail-open Rav pass after baseline is visible to the loader.
+        try {
+          items = await runRavPass(items, profiles);
+          setGuestLineItems(items);
+          setLineItems(items);
+        } catch (err) {
+          console.warn('[onboarding] curateBox failed (guest)', err);
+        }
+        setBuildingReady(true);
         return;
       }
 
@@ -277,13 +323,30 @@ export function OnboardingStack({
             birthdate: c.birthdate,
           }))
       );
-      const remappedItems = remapGuestChildIds(items, savedKids);
+      let remappedItems = remapGuestChildIds(items, savedKids);
+      // Remap deviation child ids to saved kids as well.
+      const guestToSaved = new Map<string, string>();
+      profiles.forEach((p, i) => {
+        const saved = savedKids[i];
+        if (saved) guestToSaved.set(p.id, saved.id);
+      });
+      const remappedDeviations = curated.deviations.map((d) => ({
+        ...d,
+        childId: d.childId ? guestToSaved.get(d.childId) ?? d.childId : d.childId,
+        slotId:
+          d.childId && guestToSaved.get(d.childId)
+            ? d.slotId.replace(d.childId, guestToSaved.get(d.childId)!)
+            : d.slotId,
+      }));
+      curated.deviations = remappedDeviations;
+
       await boxDraftService.save(householdId, user.uid, remappedItems, {
         familiarityLevel: level,
         childInterests: interests,
       });
       await usersService.upsert(user.uid, {
         familiarityLevel: level,
+        ravNotes: notes || undefined,
         onboardingComplete: true,
         boxRevealComplete: false,
         lockReminderEligible: true,
@@ -292,6 +355,18 @@ export function OnboardingStack({
       setFamiliarity(level);
       setLineItems(remappedItems);
       goToStep('building');
+
+      try {
+        remappedItems = await runRavPass(remappedItems, savedKids);
+        await boxDraftService.save(householdId, user.uid, remappedItems, {
+          familiarityLevel: level,
+          childInterests: interests,
+        });
+        setLineItems(remappedItems);
+      } catch (err) {
+        console.warn('[onboarding] curateBox failed', err);
+      }
+      setBuildingReady(true);
     } catch (error) {
       const message = onboardingErrorMessage(error);
       setBuildError(message);
@@ -531,7 +606,13 @@ export function OnboardingStack({
       );
       break;
     case 'building':
-      stepContent = <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready />;
+      stepContent = (
+        <BuildingBoxScreen
+          onComplete={goToReveal}
+          hold={buildingPreviewHold}
+          ready={buildingReady}
+        />
+      );
       break;
     case 'reveal':
       stepContent = (

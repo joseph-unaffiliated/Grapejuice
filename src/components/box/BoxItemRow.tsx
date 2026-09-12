@@ -129,6 +129,8 @@ type Props = {
   onOpenProduct?: () => void;
   /** Floating overlay label on the image (bottom-left), e.g. “Sam’s gift”. */
   imageBadge?: string;
+  /** Optional one-sentence why this item was curated into the box. */
+  note?: string;
   /**
    * Outline chips on the image for claiming this SKU as a missing kid’s included gift.
    * White text + white stroke, no fill — distinct from the gold “A gift for …” badge.
@@ -233,6 +235,7 @@ export function BoxItemRow({
   decrementMode,
   onOpenProduct,
   imageBadge,
+  note,
   claimGiftChips,
 }: Props) {
   const { colors } = useThemeMode();
@@ -346,6 +349,11 @@ export function BoxItemRow({
                   </View>
                 ) : null}
               </TouchableOpacity>
+              {note ? (
+                <Text style={styles.cardNote} numberOfLines={2}>
+                  {note}
+                </Text>
+              ) : null}
               {item?.description ? (
                 <Text style={styles.cardDesc} numberOfLines={vertical ? 3 : 2}>
                   {item.description}
@@ -458,6 +466,11 @@ export function BoxItemRow({
           <View style={styles.text}>
             <Text style={styles.name}>{displayName}</Text>
             {meta ? <Text style={styles.meta}>{meta}</Text> : null}
+            {note ? (
+              <Text style={styles.cardNote} numberOfLines={2}>
+                {note}
+              </Text>
+            ) : null}
             <View style={styles.badges}>
               <Text style={styles.badge}>
                 {keepOrToss === 'keep' ? 'Keep (storage box)' : "Use it up — we'll send more next year"}
@@ -688,6 +701,14 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       lineHeight: 16.5,
       ...typeface('light'),
       letterSpacing: -0.33,
+    },
+    cardNote: {
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      lineHeight: 16.5,
+      ...typeface('light'),
+      letterSpacing: -0.2,
+      fontStyle: 'italic',
     },
     cardActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 },
     /** Match qty stepper pill height (~27px). */

@@ -123,9 +123,14 @@ export const askPilotRav = onCall(
         : Promise.resolve(
             modeName === 'facilitator_kid' && kidChildName
               ? `Child profile: ${kidChildName}. Hanukkah 2026 at-home guide only.`
-              : clientDraft
-                ? `Current box (guest): ${clientDraft}`
-                : ''
+              : [
+                  clientDraft ? `Current box (guest): ${clientDraft}` : '',
+                  typeof data.familiarityLevel === 'string' && data.familiarityLevel
+                    ? `Practice intensity (how much they currently do Hanukkah — not knowledge): ${data.familiarityLevel}`
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join('\n')
           ),
       modeName === 'facilitator_kid' ? Promise.resolve([]) : loadCatalogRows(),
     ]);

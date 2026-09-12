@@ -128,7 +128,7 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
         onLayout={onLayout}
         accessibilityRole="adjustable"
         accessibilityValue={{ min: 0, max: 100, now: value }}
-        accessibilityLabel="Familiarity"
+        accessibilityLabel="Practice level"
         {...(Platform.OS === 'web' ? webProps : pan.panHandlers)}
       >
         {Platform.OS !== 'web' ? (
@@ -157,7 +157,7 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
             onPress={() => onChange(step)}
             style={styles.stepBtn}
             accessibilityRole="button"
-            accessibilityLabel={`Set familiarity to ${step}`}
+            accessibilityLabel={`Set practice level to ${step}`}
           >
             <View
               style={[

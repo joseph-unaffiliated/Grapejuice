@@ -9,6 +9,8 @@ export type AskRavParams = {
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   /** Current box draft summary from client (guest or authed). */
   boxDraftSummary?: string;
+  /** Practice intensity for guests (authed users load from user doc). */
+  familiarityLevel?: 'minimal' | 'moderate' | 'all-in';
   /** Rav mode — defaults to facilitator (Grapejuice holiday guide). */
   mode?: RavMode;
   /** Required for facilitator_kid mode. */

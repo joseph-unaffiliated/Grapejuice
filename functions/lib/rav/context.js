@@ -207,9 +207,13 @@ async function buildHouseholdContext(uid, clientDraft) {
     const user = (_a = userSnap.data()) !== null && _a !== void 0 ? _a : {};
     const householdId = user.householdId;
     const familiarity = user.familiarityLevel;
+    const ravNotes = typeof user.ravNotes === 'string' ? user.ravNotes.trim() : '';
     const lines = [];
-    if (familiarity)
-        lines.push(`Family familiarity: ${familiarity}`);
+    if (familiarity) {
+        lines.push(`Practice intensity (how much they currently do Hanukkah — not knowledge): ${familiarity}`);
+    }
+    if (ravNotes)
+        lines.push(`Family notes for Rav: ${ravNotes}`);
     const childrenSnap = await db.collection(`users/${uid}/children`).get();
     if (!childrenSnap.empty) {
         const kids = childrenSnap.docs.map((d) => {

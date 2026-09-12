@@ -237,9 +237,15 @@ export async function buildHouseholdContext(uid: string, clientDraft?: string): 
   const user = userSnap.data() ?? {};
   const householdId = user.householdId as string | undefined;
   const familiarity = user.familiarityLevel as string | undefined;
+  const ravNotes = typeof user.ravNotes === 'string' ? user.ravNotes.trim() : '';
   const lines: string[] = [];
 
-  if (familiarity) lines.push(`Family familiarity: ${familiarity}`);
+  if (familiarity) {
+    lines.push(
+      `Practice intensity (how much they currently do Hanukkah — not knowledge): ${familiarity}`
+    );
+  }
+  if (ravNotes) lines.push(`Family notes for Rav: ${ravNotes}`);
 
   const childrenSnap = await db.collection(`users/${uid}/children`).get();
   if (!childrenSnap.empty) {

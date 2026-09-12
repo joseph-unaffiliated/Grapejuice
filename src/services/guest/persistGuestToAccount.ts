@@ -219,6 +219,7 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
 
   await usersService.upsert(user.uid, {
     familiarityLevel: guest.familiarityLevel,
+    ravNotes: guest.ravNotes?.trim() ? guest.ravNotes.trim() : undefined,
     onboardingComplete: guestHasOwnBox
       ? true
       : giftResume

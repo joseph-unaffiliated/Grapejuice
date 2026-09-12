@@ -48,7 +48,9 @@ function sanitizeLineItem(li: BoxLineItem): Record<string, unknown> {
     label: li.label,
     keepOrToss: li.keepOrToss,
     isSurprise: li.isSurprise,
+    includedQty: li.includedQty,
     displaySectionId: li.displaySectionId,
+    curationNote: li.curationNote,
   });
 }
 

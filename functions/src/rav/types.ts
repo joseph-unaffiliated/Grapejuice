@@ -16,6 +16,8 @@ export type RavDraftAction = {
   itemId: string;
   slotId?: string;
   childId?: string;
+  /** Optional one-sentence why this mutation was chosen. */
+  reason?: string;
 };
 
 /** LLM-authored companion pane hint (client resolves against live catalog/box). */
@@ -42,6 +44,8 @@ export type AskPilotRavData = {
   message: string;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   boxDraftSummary?: string;
+  /** Practice intensity (guests have no user doc — client sends this). */
+  familiarityLevel?: 'minimal' | 'moderate' | 'all-in';
   mode?: RavModeName;
   childId?: string;
   /** Client co-pilot: current screen / focused entity */

@@ -19,6 +19,8 @@ export type CoalescedBoxLine = {
   includedQuantity: number;
   childIds: string[];
   unitCents: number;
+  /** Curation reason from the primary line, if any. */
+  note?: string;
 };
 
 export function isWrapControlSlot(slotId: string): boolean {
@@ -429,6 +431,7 @@ export function coalesceLinesByItemId(lines: BoxLineItem[]): CoalescedBoxLine[] 
       includedQuantity,
       childIds,
       unitCents: hasFreePractice ? 0 : primary.unitCents,
+      note: primary.curationNote,
     };
   });
 }

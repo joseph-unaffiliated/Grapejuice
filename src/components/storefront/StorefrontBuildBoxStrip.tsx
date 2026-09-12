@@ -82,7 +82,7 @@ type Props = {
 
 const DEFAULT_HEADLINE = 'Reveal your Personalized Hanukkah Box';
 const DEFAULT_BODY =
-  "Each box is tailored just for your family based on how many people live with you, their ages, and your familiarity with the holiday, and includes all the essentials you'll need for Hanukkah: Candles, latkes, a dreidel and gelt, wrapping paper, books, and more. Arrives a week or two before the first night.";
+  "Each box is tailored just for your family based on how many people live with you, their ages, and how much you currently do, and includes all the essentials you'll need for Hanukkah: Candles, latkes, a dreidel and gelt, wrapping paper, books, and more. Arrives a week or two before the first night.";
 const DEFAULT_CTA = 'Reveal now';
 
 export function StorefrontBuildBoxStrip({

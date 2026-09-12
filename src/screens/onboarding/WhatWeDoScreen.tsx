@@ -151,7 +151,7 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
       <View style={styles.section}>
         <Text style={[onboardingBodyText.lead, styles.sectionLead]}>How has Hanukkah gone in past years?</Text>
         <Text style={onboardingBodyText.text}>
-          Slide to where you are — not where you think you should be. This shapes your box and your guide.
+          Slide to where you are now — not where you grew up or think you should be. This shapes your box and your guide.
         </Text>
 
         <View style={styles.sliderLabels}>
