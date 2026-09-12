@@ -19,9 +19,9 @@ export type GrapePulseMode = 'sequence' | 'random';
 
 /**
  * Global subtlety for the branded grape loading / thinking wobble.
- * `1` = full motion; `0.8` ≈ 20% subtler. Tweak this first when the loader feels off.
+ * `1` = full motion; lower = subtler. Tweak this first when the loader feels off.
  */
-export const GRAPE_WOBBLE_INTENSITY = 0.8;
+export const GRAPE_WOBBLE_INTENSITY = 0.42;
 
 /** Live-tunable knobs for the Rav thinking wobble. */
 export type GrapeWobbleTune = {

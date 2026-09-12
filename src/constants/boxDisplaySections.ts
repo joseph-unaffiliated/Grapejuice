@@ -227,9 +227,12 @@ export function groupLineItemsByDisplaySection(
     presents: [],
   };
   for (const li of lineItems) {
-    // Only skip synthetic overflow rows (`extra-{id}` / `::x`), not catalog slots
-    // like `extra-candles` / `extra-gelt` which belong in practice sections.
-    if (li.itemId.startsWith('extra-') || li.slotId.includes('::x')) continue;
+    // Skip synthetic overflow rows keyed by itemId (`extra-{id}`). Paid quantity
+    // overflow uses `slotId` `…::x` and must stay in the section so it coalesces
+    // with the included line (qty counter / − +).
+    if (li.itemId.startsWith('extra-')) continue;
+    // Cash donation lives only in the summary bar — not a practice-section card.
+    if (li.slotId === 'cash-donation' || li.itemId === 'cash-donation') continue;
     const item = catalog?.find((c) => c.id === li.itemId);
     groups[displaySectionForLineItem(li, item)].push(li);
   }

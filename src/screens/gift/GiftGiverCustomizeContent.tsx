@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -24,8 +24,11 @@ import {
   resolveSectionUpsellItems,
   resolveFreeSlotAddOptions,
   resolveIncludedGiftOptions,
+  kidPlannerAges,
+  filterBooksForKidAges,
+  catalogBookFitsKidAge,
 } from '../../services/box/sectionUpsells';
-import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
+import { resolveCatalogDisplayPrices, boxALaCarteRetailValueCents } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
@@ -37,24 +40,32 @@ import { PerKidSlotAddBlock } from '../../components/box/PerKidSlotAddBlock';
 import {
   childNamesForLines,
   coalesceLinesByItemId,
+  donatedMemberValueCents,
   formatBoxItemStatusMeta,
   fullCardLinesForSection,
   giftBadgeLabelForLines,
   bookBadgeLabelForLines,
   oneForBadgeLabelForLines,
+  getCashDonationCents,
+  isCashDonationLine,
   isGiftSlotLine,
   isWrapControlSlot,
+  isWrappingPaperItem,
   kidsNeedingBook,
   kidsNeedingGift,
   resolveBoxItemAttributionKind,
+  seedIncludedBaselines,
+  includedPracticeSlotVacant,
   wrappableLinesInBox,
   wrapControlLines,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
+import { BoxSummaryDonated } from '../../components/box/BoxSummaryDonated';
 import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
   BOX_DISPLAY_SECTIONS,
+  displaySectionForCatalogItem,
   groupLineItemsByDisplaySection,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
@@ -108,6 +119,7 @@ type Props = {
   /** Add a kid's book line at $0. */
   setKidBook: (childId: string, item: CatalogItem) => void;
   persistWrapSelection: (itemIds: string[]) => void;
+  setCashDonation?: (cents: number) => void;
   onPay: () => void;
   onRequireAuth?: (entry: 'signup' | 'signin') => void;
   payError?: string | null;
@@ -139,6 +151,7 @@ export function GiftGiverCustomizeContent({
   setKidGift,
   setKidBook,
   persistWrapSelection,
+  setCashDonation,
   onPay,
   onRequireAuth,
   payError,
@@ -172,6 +185,36 @@ export function GiftGiverCustomizeContent({
   const kidsCount = Math.max(1, kidProfiles.length);
   const boxPriceCents = listBoxCentsForKids(kidsCount);
   const wrapSelectedIds = useMemo(() => new Set(wrapSelectedItemIds), [wrapSelectedItemIds]);
+  const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
+  seedIncludedBaselines(lineItems, includedBaselineByItemId.current);
+  const donatedCents = donatedMemberValueCents(
+    lineItems,
+    catalog,
+    includedBaselineByItemId.current,
+    { wrapSelectedCount: wrapSelectedIds.size }
+  );
+  const cashDonationCents = getCashDonationCents(lineItems);
+
+  const trackAndRemoveCoalesced = (group: CoalescedBoxLine) => {
+    const removingWrapPaper = isWrappingPaperItem(group.itemId, catalog, group.primary);
+    const havingItemsToWrap = wrapSelectedIds.size > 0;
+    const freeQty = group.lines
+      .filter((li) => !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0)
+      .reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+    const persistedBaseline = group.lines
+      .filter((li) => !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0)
+      .reduce((s, li) => s + Math.max(0, li.includedQty ?? 0), 0);
+    const baselines = includedBaselineByItemId.current;
+    if (removingWrapPaper && havingItemsToWrap) {
+      baselines.delete(group.itemId);
+    } else if (freeQty > 0 && (baselines.has(group.itemId) || persistedBaseline > 0)) {
+      baselines.set(
+        group.itemId,
+        Math.max(baselines.get(group.itemId) ?? 0, persistedBaseline, freeQty)
+      );
+    }
+    removeCoalesced(group);
+  };
 
   const grouped = useMemo(
     () => groupLineItemsByDisplaySection(lineItems, catalog),
@@ -194,21 +237,55 @@ export function GiftGiverCustomizeContent({
   const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
     useBoxDetailScroll({ visibleSectionIds });
 
+  const assignKidGiftAndReveal = (childId: string, item: CatalogItem) => {
+    setKidGift(childId, item);
+    const target = displaySectionForCatalogItem(item);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToSection(target));
+    });
+  };
+
+  const assignKidBookAndReveal = (childId: string, item: CatalogItem) => {
+    setKidBook(childId, item);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToSection('story'));
+    });
+  };
+
   const boxItemIds = useMemo(() => new Set(lineItems.map((li) => li.itemId)), [lineItems]);
 
   const upsellsBySection = useMemo(() => {
     const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
+    const ages = kidPlannerAges(kidProfiles);
     for (const section of BOX_DISPLAY_SECTIONS) {
-      map[section.id] = resolveSectionUpsellItems(section.id, catalog, boxItemIds, 8);
+      const limit = section.id === 'story' ? 48 : 8;
+      const raw = resolveSectionUpsellItems(section.id, catalog, boxItemIds, limit);
+      map[section.id] =
+        section.id === 'story' ? filterBooksForKidAges(raw, ages, 8) : raw;
     }
     return map;
-  }, [catalog, boxItemIds]);
+  }, [catalog, boxItemIds, kidProfiles]);
 
   /** Free ('included' policy) items offered on an empty section's placeholder. */
   const freeAddOptionsBySection = useMemo(() => {
     const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
+    const ages = kidPlannerAges(kidProfiles);
     for (const section of BOX_DISPLAY_SECTIONS) {
-      map[section.id] = resolveFreeSlotAddOptions(section.id, catalog, 8);
+      const limit = section.id === 'story' ? 48 : 8;
+      const raw = resolveFreeSlotAddOptions(section.id, catalog, limit);
+      map[section.id] =
+        section.id === 'story' ? filterBooksForKidAges(raw, ages, 8) : raw;
+    }
+    return map;
+  }, [catalog, kidProfiles]);
+
+  /** Included-policy swap targets per section — drives “$X or swap” on Add more tiles. */
+  const swapEligibleIdsBySection = useMemo(() => {
+    const map = {} as Record<BoxDisplaySectionId, Set<string>>;
+    for (const section of BOX_DISPLAY_SECTIONS) {
+      map[section.id] = new Set(
+        resolveFreeSlotAddOptions(section.id, catalog, 64).map((i) => i.id)
+      );
     }
     return map;
   }, [catalog]);
@@ -228,15 +305,20 @@ export function GiftGiverCustomizeContent({
       lineItems
         .filter(
           (li) =>
-            li.itemId.startsWith('extra-') ||
-            li.slotId.includes('::x') ||
-            li.unitCents > 0
+            !isCashDonationLine(li) &&
+            (li.itemId.startsWith('extra-') ||
+              li.slotId.includes('::x') ||
+              li.unitCents > 0)
         )
         .reduce((sum, li) => sum + li.unitCents * (li.quantity ?? 1), 0),
     [lineItems],
   );
 
   const subtotal = useMemo(() => totalCents(lineItems, boxPriceCents), [lineItems, boxPriceCents]);
+  const retailValueCents = useMemo(
+    () => boxALaCarteRetailValueCents(lineItems, catalog),
+    [lineItems, catalog]
+  );
 
   const renderSection = (sectionId: BoxDisplaySectionId, isLast = false) => {
     const rawItems = grouped[sectionId] ?? [];
@@ -267,7 +349,7 @@ export function GiftGiverCustomizeContent({
                   : `${kidLabel(child)}’s gift repeats another item — pick something special.`
               }
               items={includedGiftOptions}
-              onPressItem={(item) => setKidGift(child.id, item)}
+              onPressItem={(item) => assignKidGiftAndReveal(child.id, item)}
             />
           ))}
           {kidBookNeeds.map((child) => (
@@ -275,16 +357,22 @@ export function GiftGiverCustomizeContent({
               key={`book-need-${child.id}`}
               title={`Add a book for ${kidLabel(child)}`}
               note={`${kidLabel(child)}’s book was donated — pick one to add it back.`}
-              items={freeAddOptionsBySection.story ?? []}
-              onPressItem={(item) => setKidBook(child.id, item)}
+              items={(freeAddOptionsBySection.story ?? []).filter((item) =>
+                catalogBookFitsKidAge(
+                  item,
+                  kidPlannerAges([child])[0] ?? 0
+                )
+              )}
+              onPressItem={(item) => assignKidBookAndReveal(child.id, item)}
             />
           ))}
         </View>
       ) : null;
 
-    // Empty section: merge the free ("included") add options and paid upsells into a
-    // single "Add items" rail — included/default first at "$0 ($X value)", paid after.
-    const freeAddOptions = isEmpty ? freeAddOptionsBySection[sectionId] ?? [] : [];
+    // Empty section OR donated practice slot: included options restore at $0.
+    const practiceVacant = includedPracticeSlotVacant(sectionId, lineItems);
+    const freeAddOptions =
+      isEmpty || practiceVacant ? freeAddOptionsBySection[sectionId] ?? [] : [];
     const freeAddIds = new Set(freeAddOptions.map((i) => i.id));
     const emptyRailItems = isEmpty
       ? [...freeAddOptions, ...(upsellItems ?? []).filter((i) => !freeAddIds.has(i.id))]
@@ -292,8 +380,16 @@ export function GiftGiverCustomizeContent({
     const showUpsells = isEmpty ? emptyRailItems.length > 0 : (upsellItems?.length ?? 0) > 0;
 
     const handleUpsellPress = (item: CatalogItem) => {
-      // Free (included/default) taps add directly at $0; paid taps go through the modal.
-      if (isEmpty && freeAddIds.has(item.id)) {
+      if (freeAddIds.has(item.id) && (isEmpty || practiceVacant)) {
+        if (practiceVacant) {
+          for (const opt of freeAddOptionsBySection[sectionId] ?? []) {
+            includedBaselineByItemId.current.delete(opt.id);
+          }
+        }
+        includedBaselineByItemId.current.set(
+          item.id,
+          Math.max(includedBaselineByItemId.current.get(item.id) ?? 0, 1)
+        );
         addFreeItem(item, { displaySectionId: sectionId });
         return;
       }
@@ -312,7 +408,9 @@ export function GiftGiverCustomizeContent({
         showUpsells={showUpsells}
         upsellItems={showUpsells ? (isEmpty ? emptyRailItems : upsellItems) : undefined}
         upsellLabel={isEmpty ? 'Add items' : undefined}
-        upsellIncludedItemIds={isEmpty ? freeAddIds : undefined}
+        upsellIncludedItemIds={freeAddIds.size ? freeAddIds : undefined}
+        upsellSwapEligibleItemIds={swapEligibleIdsBySection[sectionId]}
+        childrenProfiles={kidProfiles}
         onUpsellPress={showUpsells ? handleUpsellPress : undefined}
         trailing={
           showPresentsChecklist || kidAddBlocks ? (
@@ -412,7 +510,7 @@ export function GiftGiverCustomizeContent({
                   : undefined
               }
               decrementMode={group.unitCents === 0 ? 'donate' : 'remove'}
-              onRemove={() => removeCoalesced(group)}
+              onRemove={() => trackAndRemoveCoalesced(group)}
               onOpenProduct={() => {
                 if (!item) return;
                 setProductModalSection(sectionId);
@@ -498,9 +596,24 @@ export function GiftGiverCustomizeContent({
             <Text style={styles.summaryValue}>{formatCatalogDollars(chargeableExtras)}</Text>
           </View>
         ) : null}
+        {donatedCents > 0 || cashDonationCents > 0 ? (
+          <BoxSummaryDonated
+            cents={donatedCents}
+            cashDonationCents={cashDonationCents}
+            onCashDonationChange={setCashDonation}
+            labelStyle={styles.summaryLabel}
+            valueStyle={styles.summaryDonatedValue}
+            itemStyle={styles.summaryItem}
+          />
+        ) : null}
         <View style={styles.summaryTotalItem}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
+          {retailValueCents > 0 ? (
+            <Text style={styles.summaryRetailValue}>
+              ({formatCatalogDollars(retailValueCents)} value)
+            </Text>
+          ) : null}
         </View>
         {!isAuthenticated ? (
           <View style={styles.summaryCtaRow}>
@@ -628,12 +741,26 @@ export function GiftGiverCustomizeContent({
           setProductModalSection(null);
         }}
         onSelectItem={setProductModalItem}
-        onAdd={(next) =>
+        onAdd={(next) => {
+          const sectionId = productModalSection ?? displaySectionForCatalogItem(next);
+          const freeOpts = freeAddOptionsBySection[sectionId] ?? [];
+          const freeIds = new Set(freeOpts.map((i) => i.id));
+          if (freeIds.has(next.id) && includedPracticeSlotVacant(sectionId, lineItems)) {
+            for (const opt of freeOpts) {
+              includedBaselineByItemId.current.delete(opt.id);
+            }
+            includedBaselineByItemId.current.set(
+              next.id,
+              Math.max(includedBaselineByItemId.current.get(next.id) ?? 0, 1)
+            );
+            addFreeItem(next, { displaySectionId: sectionId });
+            return;
+          }
           addItem(
             next,
             productModalSection ? { displaySectionId: productModalSection } : undefined
-          )
-        }
+          );
+        }}
         onSwap={(next, source) =>
           applySwap(
             [source.slotId],
@@ -643,7 +770,7 @@ export function GiftGiverCustomizeContent({
         }
         onRemove={(next) => {
           const group = coalesceLinesByItemId(lineItems.filter((li) => li.itemId === next.id))[0];
-          if (group) removeCoalesced(group);
+          if (group) trackAndRemoveCoalesced(group);
         }}
       />
     </View>
@@ -762,7 +889,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: isDesktop ? 'space-between' : 'center',
       gap: spacing.sm,
     },
     summaryItem: {
@@ -783,13 +910,19 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       color: colors.textInverse,
       letterSpacing: -0.22,
     },
+    summaryDonatedValue: {
+      fontSize: typography.sm,
+      fontWeight: '600',
+      color: colors.brand,
+      letterSpacing: -0.22,
+    },
     summaryTotalItem: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: spacing.xs,
       flexShrink: 1,
-      flexGrow: 1,
+      flexGrow: 0,
       paddingLeft: spacing.xs,
       borderLeftWidth: StyleSheet.hairlineWidth,
       borderLeftColor: colors.goldMuted,
@@ -807,6 +940,13 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       color: colors.brand,
       letterSpacing: -0.22,
     },
+    summaryRetailValue: {
+      fontSize: typography.sm,
+      color: colors.goldMuted,
+      ...typeface('medium'),
+      letterSpacing: -0.22,
+      opacity: 0.6,
+    },
     summaryCtaRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -820,9 +960,9 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       marginLeft: 0,
     },
     guestSignIn: {
-      fontWeight: '600',
       fontSize: typography.sm,
-      color: colors.brand,
+      color: colors.goldMuted,
+      ...typeface('medium'),
       letterSpacing: -0.22,
     },
     checkoutCta: {

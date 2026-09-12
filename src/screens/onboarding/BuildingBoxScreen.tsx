@@ -22,9 +22,9 @@ const BUILD_STEPS = [
   BUILD_LOADER_REST_MESSAGE,
 ];
 
-const MESSAGE_INTERVAL_MS = 700;
+const MESSAGE_INTERVAL_MS = 2200;
 /** Hold the splash long enough to read, even when the box builds instantly. */
-const MIN_SPLASH_MS = 2800;
+const MIN_SPLASH_MS = 4800;
 
 /**
  * Loader splash. Renders bare (no screen chrome) so it centers within the

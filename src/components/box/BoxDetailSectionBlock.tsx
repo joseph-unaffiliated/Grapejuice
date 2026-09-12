@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Platform, type LayoutChangeEvent } from 'react-native';
 import { BOX_DISPLAY_SECTIONS, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
-import type { CatalogItem } from '../../types/pilot';
+import type { CatalogItem, ChildProfile } from '../../types/pilot';
 import { BOX_DETAIL_SCROLL_SPY_OFFSET, createBoxDetailStyles } from './boxDetailLayout';
 import {
   BOX_TILE_GRID_MIN_WIDTH,
@@ -49,6 +49,10 @@ type Props = {
   upsellLabel?: string;
   /** Item ids in the strip that are free to add (rendered as “$0 ($X value)”). */
   upsellIncludedItemIds?: ReadonlySet<string>;
+  /** Item ids eligible as an included swap (rendered as “$X or swap”). */
+  upsellSwapEligibleItemIds?: ReadonlySet<string>;
+  /** Kids — book Add more tiles show “For Sam” / “For Sam or Riley”. */
+  childrenProfiles?: readonly ChildProfile[];
   /** Empty section: tighter header gap + medium Add items tiles. */
   emptySection?: boolean;
   /** Hide bottom divider when this is the last visible section. */
@@ -68,6 +72,8 @@ export function BoxDetailSectionBlock({
   showUpsells = true,
   upsellLabel,
   upsellIncludedItemIds,
+  upsellSwapEligibleItemIds,
+  childrenProfiles,
   emptySection = false,
   isLast = false,
 }: Props) {
@@ -161,6 +167,8 @@ export function BoxDetailSectionBlock({
           onPressItem={onUpsellPress}
           label={upsellLabel}
           includedItemIds={upsellIncludedItemIds}
+          swapEligibleItemIds={upsellSwapEligibleItemIds}
+          childrenProfiles={childrenProfiles}
           tileSize={isEmpty ? 'medium' : 'compact'}
         />
       ) : null}

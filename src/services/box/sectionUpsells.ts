@@ -5,9 +5,12 @@
 
 import {
   SECTION_RULES,
+  ageGroupForNumericAge,
+  representativeAgeForBand,
   type BoxSectionId,
   type DefaultSlotId,
   type GiftKindId,
+  type IntakeAgeGroup,
   resolveByDefaultSlot,
   resolveGiftKind,
 } from './boxRules';
@@ -15,7 +18,102 @@ import {
   displaySectionForCatalogItem,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
-import type { CatalogItem } from '../../types/pilot';
+import type { AgeGroup, CatalogItem, ChildProfile } from '../../types/pilot';
+
+const ALL_AGE_BANDS: AgeGroup[] = ['0-2', '3-5', '6-8', '9-12'];
+
+export function isBookishCatalogItem(item: CatalogItem): boolean {
+  return (
+    item.category === 'Book' ||
+    item.slotId === 'story' ||
+    (item.slotId ?? '').startsWith('story') ||
+    /book|story/i.test(`${item.id} ${item.name} ${item.category ?? ''}`)
+  );
+}
+
+/** Numeric ages for book/gift filters from child profiles. */
+export function kidPlannerAges(children: readonly ChildProfile[]): number[] {
+  return children.map((child) => {
+    if (typeof child.plannerAge === 'number' && Number.isFinite(child.plannerAge)) {
+      return Math.max(0, Math.floor(child.plannerAge));
+    }
+    return representativeAgeForBand(child.ageGroup as IntakeAgeGroup);
+  });
+}
+
+/** Whether a book catalog row fits a single kid age (Default book ages, else bands). */
+export function catalogBookFitsKidAge(item: CatalogItem, age: number): boolean {
+  const n = Math.max(0, Math.floor(age));
+  const ageStr = String(n);
+  const bookAges = item.defaultBookAges ?? [];
+  if (bookAges.length > 0 && bookAges.map(String).includes(ageStr)) return true;
+  const band = ageGroupForNumericAge(n);
+  if ((item.defaultFor ?? []).includes(band)) return true;
+  if ((item.ageGroups ?? []).includes(band)) return true;
+  return false;
+}
+
+export function catalogBookFitsAnyKidAge(
+  item: CatalogItem,
+  kidAges: readonly number[]
+): boolean {
+  if (!kidAges.length) return true;
+  return kidAges.some((age) => catalogBookFitsKidAge(item, age));
+}
+
+/** Keep books that fit at least one kid; optional cap after filter. */
+export function filterBooksForKidAges(
+  items: CatalogItem[],
+  kidAges: readonly number[],
+  limit?: number
+): CatalogItem[] {
+  const filtered =
+    kidAges.length > 0
+      ? items.filter((item) => catalogBookFitsAnyKidAge(item, kidAges))
+      : items;
+  return limit != null ? filtered.slice(0, limit) : filtered;
+}
+
+/** Small gold label under book titles — “For Sam” / “For Sam or Riley” when kids fit. */
+export function formatBookForKidsLabel(
+  item: CatalogItem,
+  children: readonly ChildProfile[]
+): string | null {
+  if (!isBookishCatalogItem(item)) return null;
+  if (!children.length) return formatCatalogBookAgeLabel(item);
+
+  const matching = children.filter((child) => {
+    const age = kidPlannerAges([child])[0] ?? 0;
+    return catalogBookFitsKidAge(item, age);
+  });
+  if (!matching.length) return formatCatalogBookAgeLabel(item);
+
+  const names = matching.map((c) => c.name?.trim() || 'your kid');
+  if (names.length === 1) return `For ${names[0]}`;
+  if (names.length === 2) return `For ${names[0]} or ${names[1]}`;
+  return `For ${names.slice(0, -1).join(', ')}, or ${names[names.length - 1]}`;
+}
+
+/** Small gold label under book titles in Add more — null when not a book / no ages. */
+export function formatCatalogBookAgeLabel(item: CatalogItem): string | null {
+  if (!isBookishCatalogItem(item)) return null;
+
+  const nums = (item.defaultBookAges ?? [])
+    .map((a) => parseInt(String(a), 10))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => a - b);
+  if (nums.length) {
+    const lo = nums[0]!;
+    const hi = nums[nums.length - 1]!;
+    return lo === hi ? `Age ${lo}` : `Ages ${lo}–${hi}`;
+  }
+
+  const bands = [...(item.ageGroups ?? [])] as AgeGroup[];
+  if (!bands.length) return null;
+  if (ALL_AGE_BANDS.every((b) => bands.includes(b))) return 'Ages 0–12';
+  if (bands.length === 1) return `Ages ${bands[0]}`;
+  return `Ages ${bands.join(', ')}`;
+}
 
 const DEFAULT_SLOTS = new Set<string>([
   'candles',
@@ -150,15 +248,6 @@ function collectUpsellKinds(sectionId: BoxSectionId): string[] {
   }
 
   return kinds;
-}
-
-function isBookishCatalogItem(item: CatalogItem): boolean {
-  return (
-    item.category === 'Book' ||
-    item.slotId === 'story' ||
-    (item.slotId ?? '').startsWith('story') ||
-    /book|story/i.test(`${item.id} ${item.name} ${item.category ?? ''}`)
-  );
 }
 
 /** Book-related boxRules kinds — only valid under Tell the Story. */

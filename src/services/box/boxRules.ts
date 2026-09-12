@@ -612,20 +612,15 @@ function practiceKindsForKid(
 
 /**
  * Dreidel assignment under practice intensity.
- * minimal → same as planDreidels (all wood under 5 kids; age mix at 5+).
- * moderate+ → kids 4+ get airdry; all-in → kids 8+ get blank.
+ * Wood stays a household “1 per person” set at every practice level — we do not
+ * peel craft kits into the practice slot (those stay gift/swap choices).
  */
 export function planPracticeDreidels(
   inputs: DefaultBoxInputs,
-  practice: PracticeLevel
+  _practice: PracticeLevel
 ): DreidelAssignment[] {
-  if (practice === 'minimal') return planDreidels(inputs);
-  return inputs.kids.map((kid, kidIndex) => {
-    let kind: DreidelKind = 'wood-dreidel';
-    if (practice === 'all-in' && kid.age >= 8) kind = 'blank-dreidel';
-    else if (kid.age >= 4) kind = 'airdry-dreidel';
-    return { kidIndex, age: kid.age, kind };
-  });
+  void _practice;
+  return planDreidels(inputs);
 }
 
 /**
@@ -640,7 +635,8 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
   }
 
   const candlesDefault: CandlesKind = practice === 'all-in' ? 'diy-candles' : 'candles';
-  let dreidels = planPracticeDreidels(inputs, practice);
+  // Dreidels stay on the know-nothing household wood set (never split for practice).
+  const dreidels = planDreidels(inputs);
   let gifts = planGifts(inputs).map((g) => ({ ...g }));
 
   // all-in: tilt passive gifts (stuffie) toward activity kinds when possible.
@@ -668,7 +664,7 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
   // Dedupe: never put the same kind in a kid's practice slot and gift slot.
   // Prefer reassigning the gift; if no alternative, drop the practice deviation.
   for (const g of gifts) {
-    let kinds = practiceKindsForKid(candlesDefault, dreidels, g.kidIndex);
+    const kinds = practiceKindsForKid(candlesDefault, dreidels, g.kidIndex);
     if (!giftConflictsWithPractice(g.kind, kinds)) continue;
 
     const usedByOthers = new Set(
@@ -682,18 +678,9 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
     );
     if (alt) {
       g.kind = alt;
-      continue;
     }
-
-    // Drop conflicting dreidel deviation for this kid.
-    const dIdx = dreidels.findIndex((d) => d.kidIndex === g.kidIndex);
-    if (dIdx >= 0 && dreidels[dIdx].kind !== 'wood-dreidel') {
-      dreidels = dreidels.map((d, i) =>
-        i === dIdx ? { ...d, kind: 'wood-dreidel' as DreidelKind } : d
-      );
-      kinds = practiceKindsForKid(candlesDefault, dreidels, g.kidIndex);
-      if (!giftConflictsWithPractice(g.kind, kinds)) continue;
-    }
+    // If still conflicting (e.g. diy-candles gift vs diy candles practice), finalCandles
+    // resolution below drops the practice candles deviation rather than peeling wood.
   }
 
   // If diy candles still conflicts with any unresolved diy-candles gift, drop candles deviation.
@@ -990,10 +977,10 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     '',
     'Practice level policy (onboarding slider — current practice intensity, NOT knowledge):',
     '- Left / minimal: household does little Hanukkah now — traditional defaults (beeswax candles, wooden dreidel, age-default book + gift).',
-    '- Middle / moderate: one deliberate craft deviation — kids 4+ get airdry clay dreidel (per kid); under 4 keep wood; adults stay on the wood household set; candles stay beeswax.',
-    '- Right / all-in: fuller practice — roll-your-own candles; dreidel as moderate plus kids 8+ blank/draw-your-own; gifts tilt toward activity kinds (lego menorah, DIY, blank) with distinct kinds across kids.',
-    '- Wood dreidel / gelt are household “1 per person” sets — never peel one unit out for a swap; swap the whole set or leave it.',
-    '- Never put the same kind in a kid practice slot and gift slot; reassign gift first, else drop the practice deviation.',
+    '- Middle / moderate: keep traditional wood dreidel household set + beeswax candles; express practice via gift tilt only when stock allows (prefer activity gifts over peeling practice slots).',
+    '- Right / all-in: fuller practice — roll-your-own candles when it doesn’t collide with a DIY gift; wood dreidel stays the household set; gifts tilt toward activity kinds (lego menorah, DIY, blank) with distinct kinds across kids.',
+    '- Wood dreidel / gelt are household “1 per person” sets — never peel one unit out for a craft kit or per-kid airdry/blank practice line; swap the whole set or leave it. Craft kits stay gift/swap/add-more choices.',
+    '- Never put the same kind in a kid practice slot and gift slot; reassign gift first, else drop the practice deviation (candles DIY ↔ DIY gift).',
     '- Prefer distinct gifts across kids. Matching gifts only when the shopper explicitly asks.',
     '- Explaining a deliberate swap: one short sentence in your voice — why this household got the less-traditional pick. Do not recite this policy.',
     '',

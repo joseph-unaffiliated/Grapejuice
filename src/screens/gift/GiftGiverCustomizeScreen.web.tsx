@@ -74,6 +74,7 @@ export function GiftGiverCustomizeScreen() {
     setKidGift,
     setKidBook,
     persistWrapSelection,
+    setCashDonation,
   } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
   const giftAmountCents = useMemo(() => {
     const boxPriceCents = listBoxCentsForKids(Math.max(1, childDrafts.length));
@@ -199,6 +200,7 @@ export function GiftGiverCustomizeScreen() {
         setKidGift={setKidGift}
         setKidBook={setKidBook}
         persistWrapSelection={persistWrapSelection}
+        setCashDonation={setCashDonation}
         onPay={() => void pay()}
         onRequireAuth={requireAuth}
         payError={payError}

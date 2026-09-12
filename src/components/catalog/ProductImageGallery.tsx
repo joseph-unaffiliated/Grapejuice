@@ -69,7 +69,7 @@ export function ProductImageGallery({
   const showThumbs = urls.length > 1;
 
   const thumbs = showThumbs ? (
-    <View style={[styles.thumbsCol, compact && styles.thumbsRow]}>
+    <View style={styles.thumbsRow}>
       {urls.map((url, i) => {
         const isActive = i === activeIndex;
         return (
@@ -98,31 +98,19 @@ export function ProductImageGallery({
     <View
       style={[
         styles.root,
-        compact && styles.rootCompact,
         maxWidth != null ? { maxWidth, width: '100%' } : undefined,
         style,
       ]}
     >
-      {!compact ? thumbs : null}
-
       <View
         style={[
           styles.heroWrap,
-          compact && styles.heroWrapCompact,
-          !compact && Platform.OS === 'web'
-            ? ({ width: 'min(100%, 80vh)', maxWidth: '100%' } as object)
-            : !compact
-              ? styles.heroWrapDesktopNative
-              : null,
+          Platform.OS === 'web'
+            ? ({ width: '100%', maxWidth: '100%' } as object)
+            : styles.heroWrapDesktopNative,
         ]}
       >
-        <View
-          style={[
-            styles.hero,
-            compact && styles.heroCompact,
-            { backgroundColor: colors.brandLight },
-          ]}
-        >
+        <View style={[styles.hero, { backgroundColor: colors.brandLight }]}>
           {activeUrl ? (
             <Image source={{ uri: activeUrl }} style={styles.heroImage} resizeMode="cover" />
           ) : (
@@ -184,7 +172,7 @@ export function ProductImageGallery({
         ) : null}
       </View>
 
-      {compact ? thumbs : null}
+      {thumbs}
     </View>
   );
 }
@@ -192,22 +180,10 @@ export function ProductImageGallery({
 const styles = StyleSheet.create({
   root: {
     width: '100%',
-    flexDirection: 'row',
-    // Pack thumbs + hero toward the details column so missing thumbs
-    // don't open a gap between the main image and the buy panel.
-    justifyContent: 'flex-end',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-  },
-  rootCompact: {
     flexDirection: 'column',
     justifyContent: 'flex-start',
+    alignItems: 'stretch',
     gap: spacing.md,
-  },
-  thumbsCol: {
-    width: THUMB,
-    gap: spacing.sm,
-    flexShrink: 0,
   },
   thumbsRow: {
     width: '100%',
@@ -231,20 +207,14 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   heroWrap: {
-    flexGrow: 0,
-    flexShrink: 1,
+    width: '100%',
+    alignSelf: 'stretch',
     position: 'relative',
     minWidth: 0,
   },
-  heroWrapCompact: {
-    width: '100%',
-    alignSelf: 'stretch',
-  },
   heroWrapDesktopNative: {
-    flexGrow: 1,
-    flexShrink: 1,
+    width: '100%',
     maxWidth: '100%',
-    alignItems: 'flex-end',
   },
   hero: {
     width: '100%',
@@ -254,16 +224,6 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({ height: 'auto', maxHeight: '80vh' } as object)
       : { minHeight: 320 }),
-  },
-  heroCompact: {
-    ...(Platform.OS === 'web'
-      ? ({
-          width: '100%',
-          maxWidth: '100%',
-          maxHeight: undefined,
-          height: 'auto',
-        } as object)
-      : { minHeight: 280 }),
   },
   heroImage: {
     width: '100%',

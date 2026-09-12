@@ -80,6 +80,7 @@ function GiftGiverCustomizeBody() {
     setKidGift,
     setKidBook,
     persistWrapSelection,
+    setCashDonation,
   } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -188,6 +189,7 @@ function GiftGiverCustomizeBody() {
       setKidGift={setKidGift}
       setKidBook={setKidBook}
       persistWrapSelection={persistWrapSelection}
+      setCashDonation={setCashDonation}
       onPay={() => void pay()}
       onRequireAuth={requireAuth}
       payError={payError}

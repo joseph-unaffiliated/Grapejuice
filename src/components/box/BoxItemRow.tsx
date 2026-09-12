@@ -19,6 +19,7 @@ import {
 } from '../ui/ScrollEdgeFades';
 import { spacing, typography, borderRadius, shadowsWeb, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { KeepOrToss } from '../../types/pilot';
 
@@ -239,9 +240,13 @@ export function BoxItemRow({
   claimGiftChips,
 }: Props) {
   const { colors } = useThemeMode();
+  const { isDesktop } = useWebLayout();
   const layoutVariant = useBoxItemVisualVariant();
   const resolvedVariant = variant ?? (layoutVariant === 'tile' ? 'tile' : 'card');
-  const styles = useMemo(() => createBoxItemRowStyles(colors), [colors]);
+  const styles = useMemo(
+    () => createBoxItemRowStyles(colors, { mobileBanner: !isDesktop }),
+    [colors, isDesktop]
+  );
   const [shelfOpen, setShelfOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const keepOrToss = li.keepOrToss ?? inferKeepOrToss(li.slotId);
@@ -566,7 +571,11 @@ export function BoxItemRow({
   );
 }
 
-function createBoxItemRowStyles(colors: SemanticColors) {
+function createBoxItemRowStyles(
+  colors: SemanticColors,
+  opts: { mobileBanner?: boolean } = {}
+) {
+  const mobileBanner = !!opts.mobileBanner;
   return StyleSheet.create({
     cardRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'stretch', width: '100%' },
     cardImageWrap: {
@@ -591,56 +600,114 @@ function createBoxItemRowStyles(colors: SemanticColors) {
       flexShrink: 0,
       position: 'relative',
     },
-    /** Matches the qty badge look — gold pill, dark text, white stroke. */
-    imageBadge: {
-      position: 'absolute',
-      left: 10,
-      bottom: 10,
-      maxWidth: '88%',
-      height: 22,
-      paddingHorizontal: 8,
-      borderRadius: 11,
-      backgroundColor: colors.brand,
-      borderWidth: 1,
-      borderColor: '#FFFFFF',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    imageBadgeText: {
-      fontSize: typography.sm,
-      lineHeight: 14,
-      color: colors.logoDark,
-      ...typeface('medium'),
-      letterSpacing: -0.2,
-    },
+    /** Desktop: soft chip. Mobile: full-bleed bottom banner, gold on black (swap chip type size). */
+    imageBadge: mobileBanner
+      ? {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 22,
+          paddingHorizontal: spacing.xs,
+          borderRadius: 0,
+          backgroundColor: '#000000',
+          borderWidth: 0,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }
+      : {
+          position: 'absolute',
+          right: 10,
+          bottom: 10,
+          maxWidth: '88%',
+          height: 22,
+          paddingHorizontal: 8,
+          borderRadius: 11,
+          backgroundColor: '#FFFFFF',
+          borderWidth: 1,
+          borderColor: colors.brand,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+    imageBadgeText: mobileBanner
+      ? {
+          fontSize: 9,
+          lineHeight: 12,
+          color: colors.brand,
+          ...typeface('regular'),
+          letterSpacing: -0.18,
+          textTransform: 'lowercase',
+          textAlign: 'center',
+        }
+      : {
+          fontSize: typography.sm,
+          lineHeight: 14,
+          color: colors.logoDark,
+          ...typeface('medium'),
+          letterSpacing: -0.2,
+        },
     /** Stack of outline “Make this X’s included gift” chips on the image. */
-    claimGiftChipStack: {
-      position: 'absolute',
-      left: 10,
-      bottom: 10,
-      maxWidth: '88%',
-      gap: 4,
-      zIndex: 2,
-    },
-    claimGiftChip: {
-      height: 22,
-      paddingHorizontal: 8,
-      borderRadius: 11,
-      borderWidth: 1,
-      borderColor: '#FFFFFF',
-      backgroundColor: 'transparent',
-      alignItems: 'center',
-      justifyContent: 'center',
-      alignSelf: 'flex-start',
-      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
-    },
-    claimGiftChipText: {
-      fontSize: typography.sm,
-      lineHeight: 14,
-      color: '#FFFFFF',
-      ...typeface('medium'),
-      letterSpacing: -0.2,
-    },
+    claimGiftChipStack: mobileBanner
+      ? {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          maxWidth: '100%',
+          gap: 0,
+          zIndex: 2,
+          alignItems: 'stretch',
+        }
+      : {
+          position: 'absolute',
+          right: 10,
+          bottom: 10,
+          maxWidth: '88%',
+          gap: 4,
+          zIndex: 2,
+          alignItems: 'flex-end',
+        },
+    claimGiftChip: mobileBanner
+      ? {
+          height: 22,
+          paddingHorizontal: spacing.xs,
+          borderRadius: 0,
+          borderWidth: 0,
+          backgroundColor: '#000000',
+          alignItems: 'center',
+          justifyContent: 'center',
+          alignSelf: 'stretch',
+          ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+        }
+      : {
+          height: 22,
+          paddingHorizontal: 8,
+          borderRadius: 11,
+          borderWidth: 1,
+          borderColor: '#000000',
+          backgroundColor: 'transparent',
+          alignItems: 'center',
+          justifyContent: 'center',
+          alignSelf: 'flex-end',
+          ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+        },
+    claimGiftChipText: mobileBanner
+      ? {
+          fontSize: 9,
+          lineHeight: 12,
+          color: colors.brand,
+          ...typeface('regular'),
+          letterSpacing: -0.18,
+          textTransform: 'lowercase',
+          textAlign: 'center',
+        }
+      : {
+          fontSize: typography.sm,
+          lineHeight: 14,
+          color: '#000000',
+          ...typeface('medium'),
+          letterSpacing: -0.2,
+        },
     cardBody: { flex: 1, justifyContent: 'space-between', gap: 4 },
     /** Desktop web — image on top, copy below; sits in a side-by-side grid. */
     tileCard: {

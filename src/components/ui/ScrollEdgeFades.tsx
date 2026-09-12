@@ -24,6 +24,8 @@ export type HorizontalScrollEdges = {
  * Track whether a horizontal scroller can move further left/right.
  */
 export function useHorizontalScrollEdges(): HorizontalScrollEdges & {
+  /** True when horizontal content is wider than the viewport. */
+  overflows: boolean;
   onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onLayout: (e: LayoutChangeEvent) => void;
   onContentSizeChange: (w: number, h: number) => void;
@@ -51,12 +53,12 @@ export function useHorizontalScrollEdges(): HorizontalScrollEdges & {
     setContentW(w);
   }, []);
 
-  const overflow = contentW > viewportW + EDGE_EPS;
+  const overflows = contentW > viewportW + EDGE_EPS;
   const maxScroll = Math.max(0, contentW - viewportW);
-  const leftProgress = overflow && offsetX > EDGE_EPS ? 1 : 0;
-  const rightProgress = overflow && offsetX < maxScroll - EDGE_EPS ? 1 : 0;
+  const leftProgress = overflows && offsetX > EDGE_EPS ? 1 : 0;
+  const rightProgress = overflows && offsetX < maxScroll - EDGE_EPS ? 1 : 0;
 
-  return { leftProgress, rightProgress, onScroll, onLayout, onContentSizeChange };
+  return { leftProgress, rightProgress, overflows, onScroll, onLayout, onContentSizeChange };
 }
 
 type FadeProps = {

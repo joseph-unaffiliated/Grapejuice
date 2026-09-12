@@ -1,6 +1,7 @@
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { WRAP_POLICY } from '../../services/box/boxRules';
+import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 
 /** One UI row after coalescing duplicate catalog SKUs. */
@@ -31,6 +32,30 @@ export function isWrapControlSlot(slotId: string): boolean {
     base === 'pre-wrap' ||
     base === 'wrap'
   );
+}
+
+/** True for the wrapping-paper SKU / line (not pre-wrap mode). */
+export function isWrappingPaperItem(
+  itemId: string,
+  catalog: readonly CatalogItem[] = [],
+  line?: Pick<BoxLineItem, 'slotId' | 'itemId' | 'label'>
+): boolean {
+  if (line && isWrapControlSlot(line.slotId)) {
+    const base = catalogSlotId(line.slotId);
+    if (base === 'pre-wrap') return false;
+    if (base === 'wrapping-paper' || base === 'wrapping') return true;
+  }
+  const item = catalog.find((c) => c.id === itemId);
+  const hay = `${itemId} ${item?.name ?? ''} ${item?.slotId ?? ''} ${item?.defaultSlot ?? ''} ${line?.label ?? ''}`.toLowerCase();
+  if (/pre.?wrap/.test(hay)) return false;
+  if (
+    catalogSlotId(item?.slotId ?? '') === 'wrapping-paper' ||
+    catalogSlotId(item?.defaultSlot ?? '') === 'wrapping-paper' ||
+    item?.defaultSlot === 'wrapping-paper'
+  ) {
+    return true;
+  }
+  return /wrapping.?paper/.test(hay);
 }
 
 /** Gift-per-kid lines — full cards belong in natural practice sections, not Presents. */
@@ -494,6 +519,7 @@ export function wrappableLinesInBox(
   catalog: CatalogItem[]
 ): BoxLineItem[] {
   return lineItems.filter((li) => {
+    if (isCashDonationLine(li)) return false;
     if (li.itemId.startsWith('extra-') || li.slotId.includes('::x')) return false;
     if (isWrapControlSlot(li.slotId)) return false;
     const item = catalog.find((c) => c.id === li.itemId);
@@ -578,6 +604,36 @@ export function uniqueSlotForFreeSectionAdd(
     if (!used.has(c)) return c;
   }
   return `addon-${item.id}`;
+}
+
+/**
+ * Practice slots that count as the section’s included default (donate removes these).
+ * Gift/story lines and paid `addon-*` extras do not fill these.
+ */
+const INCLUDED_PRACTICE_SLOT_IDS: Partial<Record<BoxDisplaySectionId, readonly string[]>> = {
+  candles: ['candles'],
+  dreidel: ['wood-dreidel', 'blank-dreidel', 'airdry-dreidel'],
+  food: ['latke-mix', 'sufganiyot-mix', 'applesauce', 'latke-kit', 'sufganiyot-kit', 'latke-recipe-printed'],
+};
+
+/**
+ * True when the section’s included practice line was donated/removed — restoring
+ * beeswax / MYO / electric candles (etc.) should be $0, not an add-on, even if
+ * other cards (e.g. a kid gift menorah) still sit in the section.
+ */
+export function includedPracticeSlotVacant(
+  sectionId: BoxDisplaySectionId,
+  lineItems: BoxLineItem[]
+): boolean {
+  const slots = INCLUDED_PRACTICE_SLOT_IDS[sectionId];
+  if (!slots?.length) return false;
+  return !lineItems.some((li) => {
+    if (isGiftSlotLine(li)) return false;
+    if (li.slotId.startsWith('addon-') || li.slotId.startsWith('extra-')) return false;
+    if (li.slotId.includes('::x')) return false;
+    if ((li.unitCents ?? 0) > 0) return false;
+    return slots.includes(catalogSlotId(li.slotId));
+  });
 }
 
 /**
@@ -748,4 +804,121 @@ export function assignKidBookLines(
       label: item.name,
     },
   ];
+}
+
+const EXTRA_UNIT_SUFFIX = '::x';
+
+/**
+ * Seed included baselines from free (unitCents===0) lines.
+ *
+ * - Empty map: record every free SKU currently in the box (initial / default allotment).
+ * - Non-empty map: only *raise* counts for SKUs already tracked — never add newly added
+ *   free extras (Add more / $0 included-tier adds). Those must not inflate Donated when
+ *   removed.
+ */
+export function seedIncludedBaselines(
+  lineItems: BoxLineItem[],
+  into: Map<string, number> = new Map()
+): Map<string, number> {
+  const allowNewKeys = into.size === 0;
+  for (const li of lineItems) {
+    if (li.slotId.endsWith(EXTRA_UNIT_SUFFIX)) continue;
+    if ((li.unitCents ?? 0) > 0) continue;
+    const qty = Math.max(0, li.quantity ?? 1);
+    const inc = Math.max(qty, li.includedQty ?? 0);
+    if (inc <= 0) continue;
+    if (!allowNewKeys && !into.has(li.itemId)) continue;
+    into.set(li.itemId, Math.max(into.get(li.itemId) ?? 0, inc));
+  }
+  return into;
+}
+
+/**
+ * Member-price value of included units that were donated/removed (not charged; not
+ * subtracted from box total). Uses per-SKU included baselines vs current free qty.
+ * Only SKUs in `includedBaselines` count — paid à-la-carte add/remove and newly added
+ * free extras are excluded.
+ *
+ * Wrapping paper is excluded while anything is marked “to be wrapped”: removing paper
+ * in favor of included pre-wrap is not a donation.
+ */
+export function donatedMemberValueCents(
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[],
+  includedBaselines: ReadonlyMap<string, number>,
+  opts?: { wrapSelectedCount?: number }
+): number {
+  if (includedBaselines.size === 0) return 0;
+  const skipWrappingPaper = (opts?.wrapSelectedCount ?? 0) > 0;
+
+  const freeQtyByItem = new Map<string, number>();
+  for (const li of lineItems) {
+    if (li.slotId.endsWith(EXTRA_UNIT_SUFFIX)) continue;
+    if ((li.unitCents ?? 0) > 0) continue;
+    const qty = Math.max(0, li.quantity ?? 1);
+    freeQtyByItem.set(li.itemId, (freeQtyByItem.get(li.itemId) ?? 0) + qty);
+  }
+
+  let cents = 0;
+  for (const [itemId, baselineRaw] of includedBaselines) {
+    if (skipWrappingPaper && isWrappingPaperItem(itemId, catalog)) continue;
+    const baseline = Math.max(0, baselineRaw);
+    if (baseline <= 0) continue;
+    const freeQty = freeQtyByItem.get(itemId) ?? 0;
+    const missing = Math.max(0, baseline - freeQty);
+    if (missing <= 0) continue;
+    const item = catalog.find((c) => c.id === itemId);
+    if (!item) continue;
+    const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
+    const unit = memberCents > 0 ? memberCents : nonMemberCents;
+    if (unit <= 0) continue;
+    cents += missing * unit;
+  }
+  return cents;
+}
+
+/** Summary-bar cash donation — charged in Total, not shown as a section card. */
+export const CASH_DONATION_SLOT_ID = 'cash-donation';
+export const CASH_DONATION_ITEM_ID = 'cash-donation';
+
+export function isCashDonationLine(li: Pick<BoxLineItem, 'slotId' | 'itemId'>): boolean {
+  return li.slotId === CASH_DONATION_SLOT_ID || li.itemId === CASH_DONATION_ITEM_ID;
+}
+
+export function getCashDonationCents(lineItems: readonly BoxLineItem[]): number {
+  let cents = 0;
+  for (const li of lineItems) {
+    if (!isCashDonationLine(li)) continue;
+    cents += Math.max(0, li.unitCents ?? 0) * Math.max(1, li.quantity ?? 1);
+  }
+  return cents;
+}
+
+/** Upsert / clear the cash-donation line. `cents <= 0` removes it. */
+export function withCashDonationCents(
+  lineItems: BoxLineItem[],
+  cents: number
+): BoxLineItem[] {
+  const without = lineItems.filter((li) => !isCashDonationLine(li));
+  const amount = Math.max(0, Math.round(cents));
+  if (amount <= 0) return without;
+  return [
+    ...without,
+    {
+      slotId: CASH_DONATION_SLOT_ID,
+      itemId: CASH_DONATION_ITEM_ID,
+      quantity: 1,
+      unitCents: amount,
+      label: 'Cash donation',
+    },
+  ];
+}
+
+/** Parse a typed dollar string ("5", "5.50", "$12") into cents. Empty → 0. */
+export function parseDonationDollarsToCents(raw: string): number {
+  const cleaned = raw.replace(/[^0-9.]/g, '');
+  if (!cleaned) return 0;
+  const dollars = Number.parseFloat(cleaned);
+  if (!Number.isFinite(dollars) || dollars < 0) return 0;
+  return Math.round(dollars * 100);
 }

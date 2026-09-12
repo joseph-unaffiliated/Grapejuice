@@ -18,6 +18,7 @@ import {
   isGiftSlotLine,
   isWrapControlSlot,
   removeCoalescedGroup,
+  withCashDonationCents,
   type CoalescedBoxLine,
 } from '../components/box/boxLineDisplay';
 import type { BoxLineItem, CatalogItem } from '../types/pilot';
@@ -147,7 +148,8 @@ export function useGiftGiverBoxDraft(
     setLineItems((prev) => removeCoalescedGroup(prev, group));
   }, []);
 
-  /** Always append as an add-on (modal “Add to gift”). */
+  /** Always append as an add-on (modal “Add to gift”), except wrapping paper with
+   * an empty wrap list restores included paper (inverse of pre-wrap). */
   const addItem = useCallback(
     (
       item: CatalogItem,
@@ -160,7 +162,9 @@ export function useGiftGiverBoxDraft(
           item.defaultSlot === 'wrapping-paper' ||
           item.slotId === 'wrapping-paper' ||
           /wrapping.?paper/i.test(`${item.id} ${item.name}`);
-        if (unitCents === 0 && isPaper) unitCents = EXTRA_FLAT_CENTS;
+        if (unitCents === 0 && isPaper && wrapSelectedItemIds.length > 0) {
+          unitCents = EXTRA_FLAT_CENTS;
+        }
         return [
           ...prev,
           {
@@ -174,7 +178,7 @@ export function useGiftGiverBoxDraft(
         ];
       });
     },
-    []
+    [wrapSelectedItemIds]
   );
 
   /** Insert a fresh line at $0 for an empty section's "add these for free" placeholder. */
@@ -280,6 +284,10 @@ export function useGiftGiverBoxDraft(
     setWrapSelectedItemIds(itemIds);
   }, []);
 
+  const setCashDonation = useCallback((cents: number) => {
+    setLineItems((prev) => withCashDonationCents(prev, cents));
+  }, []);
+
   const swapOptionsFor = useCallback(
     (li: BoxLineItem): CatalogItem[] => swapOptionsBySlot[li.slotId] ?? [],
     [swapOptionsBySlot]
@@ -301,5 +309,6 @@ export function useGiftGiverBoxDraft(
     setKidGift,
     setKidBook,
     persistWrapSelection,
+    setCashDonation,
   };
 }

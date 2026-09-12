@@ -583,9 +583,10 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : null),
     },
     ctaSecondaryText: {
-      ...typeface('medium'),
-      fontSize: typography.md,
+      ...typeface('light'),
+      fontSize: typography.titleLg,
       color: colors.logoDark,
+      letterSpacing: -0.32,
       textAlign: 'center',
       ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : null),
     },

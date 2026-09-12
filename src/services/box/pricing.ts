@@ -141,6 +141,27 @@ export function resolveCatalogDisplayPrices(item: CatalogItem): {
   return { memberCents, nonMemberCents, savingsCents };
 }
 
+/**
+ * Sum of catalog non-member (à-la-carte / non-subscriber) prices for every unit
+ * currently in the box — used for “($X value)” next to Total.
+ */
+export function boxALaCarteRetailValueCents(
+  lineItems: readonly BoxLineItem[],
+  catalog: readonly CatalogItem[]
+): number {
+  let cents = 0;
+  for (const li of lineItems) {
+    if (li.slotId === 'cash-donation' || li.itemId === 'cash-donation') continue;
+    const item = catalog.find((c) => c.id === li.itemId);
+    if (!item) continue;
+    const { nonMemberCents, memberCents } = resolveCatalogDisplayPrices(item);
+    const unit = nonMemberCents > 0 ? nonMemberCents : memberCents;
+    if (unit <= 0) continue;
+    cents += unit * Math.max(1, li.quantity ?? 1);
+  }
+  return cents;
+}
+
 /** Percent discount from retail → member (rounded). */
 export function catalogPercentOff(nonMemberCents: number, memberCents: number): number | null {
   if (nonMemberCents <= 0 || memberCents >= nonMemberCents) return null;

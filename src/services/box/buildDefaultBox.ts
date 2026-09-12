@@ -329,8 +329,9 @@ export function buildDefaultLineItems(
 }
 
 export function catalogSlotId(lineSlotId: string): string {
-  const match = lineSlotId.match(/^(story|gift|wood-dreidel|blank-dreidel|airdry-dreidel)-/);
-  return match ? match[1] : lineSlotId;
+  const withoutExtra = lineSlotId.replace(/::x$/i, '');
+  const match = withoutExtra.match(/^(story|gift|wood-dreidel|blank-dreidel|airdry-dreidel)-/);
+  return match ? match[1] : withoutExtra;
 }
 
 /**
@@ -444,9 +445,9 @@ export function repairExtraPerKidPricing(
 }
 
 /**
- * Classic wood dreidel practice lines are always included ($0).
- * Also restores SKUs that were wrongly rewritten to `addon-*` by older repairs,
- * merging any stray copies into a single household wood line.
+ * Keep free household wood as one included practice line (merge stray free copies /
+ * restore SKUs wrongly rewritten to `addon-*`). Paid overflow (`::x` / unitCents > 0)
+ * is preserved — extras beyond the included set are à la carte, same as gelt +.
  */
 export function repairWoodDreidelIncluded(
   lineItems: BoxLineItem[],
@@ -466,37 +467,36 @@ export function repairWoodDreidelIncluded(
     );
   };
 
-  const wood: BoxLineItem[] = [];
+  const woodFree: BoxLineItem[] = [];
+  const woodPaid: BoxLineItem[] = [];
   const rest: BoxLineItem[] = [];
-  let droppedExtras = false;
   for (const li of lineItems) {
     if (!isWoodSku(li)) {
       rest.push(li);
       continue;
     }
-    // Drop paid overflow units — household wood is included at the free qty.
-    if (li.slotId.includes('::x')) {
-      droppedExtras = true;
+    if (li.slotId.includes('::x') || (li.unitCents ?? 0) > 0) {
+      woodPaid.push(li);
       continue;
     }
-    wood.push(li);
-  }
-  if (!wood.length) {
-    return droppedExtras ? { lineItems: rest, dirty: true } : { lineItems, dirty: false };
+    woodFree.push(li);
   }
 
-  const qty = wood.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+  if (!woodFree.length) {
+    return { lineItems, dirty: false };
+  }
+
+  const qty = woodFree.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
   const includedQty = Math.max(
     qty,
-    ...wood.map((li) => Math.max(0, li.includedQty ?? 0))
+    ...woodFree.map((li) => Math.max(0, li.includedQty ?? 0))
   );
-  const needsFix =
-    droppedExtras ||
-    wood.length > 1 ||
-    wood.some((li) => li.unitCents > 0 || catalogSlotId(li.slotId) !== 'wood-dreidel');
-  if (!needsFix) return { lineItems, dirty: false };
+  const needsMerge =
+    woodFree.length > 1 ||
+    woodFree.some((li) => catalogSlotId(li.slotId) !== 'wood-dreidel');
+  if (!needsMerge) return { lineItems, dirty: false };
 
-  const template = wood[0]!;
+  const template = woodFree[0]!;
   return {
     dirty: true,
     lineItems: [
@@ -509,6 +509,7 @@ export function repairWoodDreidelIncluded(
         unitCents: 0,
         childId: undefined,
       },
+      ...woodPaid,
     ],
   };
 }
