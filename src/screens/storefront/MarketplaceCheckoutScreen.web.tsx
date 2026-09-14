@@ -464,20 +464,25 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       alignItems: 'flex-start',
       gap: spacing.xl,
       marginTop: spacing.md,
+      width: '100%',
+      minWidth: 0,
     },
     desktopMain: {
-      flexGrow: 0,
-      flexShrink: 0,
-      width: '100%',
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
       maxWidth: 480,
       minWidth: 0,
     },
     desktopSummary: {
-      flex: 1,
-      minWidth: 280,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 280,
+      minWidth: 260,
+      maxWidth: 400,
       alignSelf: 'flex-start',
       ...(Platform.OS === 'web'
-        ? ({ position: 'sticky' as const, top: DESKTOP_CONTENT_TOP, zIndex: 5 } as object)
+        ? ({ position: 'sticky' as const, top: DESKTOP_CONTENT_TOP, zIndex: 1 } as object)
         : null),
     },
     summaryCard: {

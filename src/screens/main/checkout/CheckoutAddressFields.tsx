@@ -169,7 +169,7 @@ function createStyles(colors: SemanticColors) {
       color: '#B42318',
       ...typeface('medium'),
     },
-    row2: { flexDirection: 'row', gap: spacing.sm },
-    half: { flex: 1 },
+    row2: { flexDirection: 'row', gap: spacing.sm, minWidth: 0 },
+    half: { flex: 1, minWidth: 0 },
   });
 }
