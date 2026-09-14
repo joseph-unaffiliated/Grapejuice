@@ -133,7 +133,9 @@ export function PresentsWrappableList({
   const renderChip = (row: CoalescedBoxLine, outlined: boolean) => {
     const item = catalog.find((c) => c.id === row.itemId);
     const names = childNamesForLines(row.lines, childrenProfiles);
-    const attribution = formatPresentAttribution(names);
+    const attribution = formatPresentAttribution(names, {
+      householdKidCount: childrenProfiles.length,
+    });
     const label = row.primary.label ?? item?.name ?? row.itemId;
     const accessibilityLabel = `${label}${row.quantity > 1 ? ` ×${row.quantity}` : ''}${
       outlined ? ', selected for wrapping' : ''

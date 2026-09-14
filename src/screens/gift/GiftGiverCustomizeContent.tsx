@@ -412,6 +412,14 @@ export function GiftGiverCustomizeContent({
         upsellSwapEligibleItemIds={swapEligibleIdsBySection[sectionId]}
         childrenProfiles={kidProfiles}
         onUpsellPress={showUpsells ? handleUpsellPress : undefined}
+        upsellFooterAction={
+          showUpsells && sectionId === 'story'
+            ? {
+                label: 'browse all books',
+                onPress: () => navigation.navigate('StorefrontCategory', { category: 'books' }),
+              }
+            : undefined
+        }
         trailing={
           showPresentsChecklist || kidAddBlocks ? (
             <View style={styles.presentsTrailingStack}>

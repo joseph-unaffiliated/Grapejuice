@@ -12,7 +12,8 @@ const params_1 = require("firebase-functions/params");
 /** Customer.io App API key — bind on every function that calls sendEmail / SMS. */
 exports.customerioAppApiKey = (0, params_1.defineSecret)('CUSTOMERIO_APP_API_KEY');
 const BASE_URL = 'https://api.customer.io/v1';
-const FROM_EMAIL = (_a = process.env.CUSTOMERIO_FROM_EMAIL) !== null && _a !== void 0 ? _a : 'hello@grapejuice.co';
+/** Address-only env override still allowed; default includes display name for inbox From. */
+const FROM_EMAIL = (_a = process.env.CUSTOMERIO_FROM_EMAIL) !== null && _a !== void 0 ? _a : 'Grapejuice <hello@grapejuice.co>';
 const TEMPLATE_IDS = {
     'order-confirmed': parseInt((_b = process.env.CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED) !== null && _b !== void 0 ? _b : '0', 10) || 10,
     'partner-invite': parseInt((_c = process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE) !== null && _c !== void 0 ? _c : '0', 10) || 0,

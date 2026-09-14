@@ -182,7 +182,15 @@ export function isLineWrappable(li: BoxLineItem, item?: CatalogItem | null): boo
   });
 }
 
-export function formatPresentAttribution(childNames: string[]): string | undefined {
+/**
+ * Wrap-chip attribution, e.g. “Gift for Sam”.
+ * Pass `householdKidCount` so single-kid boxes can omit the redundant name line.
+ */
+export function formatPresentAttribution(
+  childNames: string[],
+  opts?: { householdKidCount?: number }
+): string | undefined {
+  if ((opts?.householdKidCount ?? 0) === 1) return undefined;
   const names = childNames.map((n) => n.trim()).filter(Boolean);
   if (names.length === 0) return undefined;
   if (names.length === 1) return `Gift for ${names[0]}`;
@@ -381,6 +389,7 @@ export function giftBadgeLabelForLines(
   children: ChildProfile[],
   fallback?: string
 ): string | undefined {
+  if (children.length === 1) return undefined;
   if (!lines.some((li) => isGiftSlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `A gift for ${names[0]}`;
@@ -397,6 +406,7 @@ export function oneForBadgeLabelForLines(
   children: ChildProfile[],
   fallback?: string
 ): string | undefined {
+  if (children.length === 1) return undefined;
   if (lines.some((li) => isGiftSlotLine(li) || isStorySlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `One for ${names[0]}`;
@@ -416,6 +426,7 @@ export function bookBadgeLabelForLines(
   children: ChildProfile[],
   fallback?: string
 ): string | undefined {
+  if (children.length === 1) return undefined;
   if (!lines.some((li) => isStorySlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `A book for ${names[0]}`;
@@ -921,4 +932,90 @@ export function parseDonationDollarsToCents(raw: string): number {
   const dollars = Number.parseFloat(cleaned);
   if (!Number.isFinite(dollars) || dollars < 0) return 0;
   return Math.round(dollars * 100);
+}
+
+/**
+ * While wrapping paper remains in the box and anything is marked “to be wrapped”,
+ * charge a flat EXTRA_FLAT once on the paper line. Clearing the wrap list restores $0.
+ * Pre-wrap mode (no paper line) is unchanged.
+ */
+export function syncWrappingPaperUnitCentsForWrapSelection(
+  lineItems: BoxLineItem[],
+  catalog: readonly CatalogItem[],
+  wrapSelectedCount: number,
+  extraFlatCents: number
+): BoxLineItem[] {
+  const charge = wrapSelectedCount > 0 ? extraFlatCents : 0;
+  let dirty = false;
+  const next = lineItems.map((li) => {
+    if (!isWrappingPaperItem(li.itemId, catalog, li)) return li;
+    const current = li.unitCents ?? 0;
+    // Only flip included ($0) or the wrap-fee EXTRA_FLAT — leave other prices alone.
+    if (current !== 0 && current !== extraFlatCents) return li;
+    if (current === charge) return li;
+    dirty = true;
+    return { ...li, unitCents: charge };
+  });
+  return dirty ? next : lineItems;
+}
+
+/**
+ * After donating the included practice item, convert one paid same-section sibling
+ * (non-gift) to included so the practice slot is filled and Add-ons drop.
+ */
+export function promotePaidSiblingToIncludedPractice(
+  lineItems: BoxLineItem[],
+  sectionId: BoxDisplaySectionId,
+  catalog: readonly CatalogItem[],
+  displaySectionFor: (
+    li: BoxLineItem,
+    item: CatalogItem | undefined
+  ) => BoxDisplaySectionId
+): BoxLineItem[] {
+  if (!includedPracticeSlotVacant(sectionId, lineItems)) return lineItems;
+
+  const paid = lineItems.find((li) => {
+    if (isGiftSlotLine(li)) return false;
+    if ((li.unitCents ?? 0) <= 0) return false;
+    const item = catalog.find((c) => c.id === li.itemId);
+    return displaySectionFor(li, item) === sectionId;
+  });
+  if (!paid) return lineItems;
+
+  const item = catalog.find((c) => c.id === paid.itemId);
+  if (!item) return lineItems;
+
+  const qty = paid.quantity ?? 1;
+  if (qty <= 1) {
+    return lineItems.map((li) =>
+      li.slotId === paid.slotId
+        ? {
+            ...li,
+            unitCents: 0,
+            displaySectionId: sectionId,
+            slotId: uniqueSlotForFreeSectionAdd(
+              sectionId,
+              item,
+              lineItems.filter((x) => x.slotId !== paid.slotId)
+            ),
+            includedQty: Math.max(1, li.includedQty ?? 1),
+          }
+        : li
+    );
+  }
+
+  return [
+    ...lineItems.map((li) =>
+      li.slotId === paid.slotId ? { ...li, quantity: qty - 1 } : li
+    ),
+    {
+      slotId: uniqueSlotForFreeSectionAdd(sectionId, item, lineItems),
+      itemId: item.id,
+      quantity: 1,
+      unitCents: 0,
+      label: item.name,
+      displaySectionId: sectionId,
+      includedQty: 1,
+    },
+  ];
 }

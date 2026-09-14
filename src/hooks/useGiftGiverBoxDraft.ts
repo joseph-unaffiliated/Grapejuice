@@ -10,14 +10,19 @@ import {
   resolveIncludedGiftOptions,
 } from '../services/box/sectionUpsells';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS } from '../services/box/pricing';
-import { displaySectionForCatalogItem } from '../constants/boxDisplaySections';
+import {
+  displaySectionForCatalogItem,
+  displaySectionForLineItem,
+} from '../constants/boxDisplaySections';
 import {
   assignKidBookLines,
   assignKidGiftLines,
   childIdFromSlot,
   isGiftSlotLine,
   isWrapControlSlot,
+  promotePaidSiblingToIncludedPractice,
   removeCoalescedGroup,
+  syncWrappingPaperUnitCentsForWrapSelection,
   withCashDonationCents,
   type CoalescedBoxLine,
 } from '../components/box/boxLineDisplay';
@@ -144,9 +149,27 @@ export function useGiftGiverBoxDraft(
     []
   );
 
-  const removeCoalesced = useCallback((group: CoalescedBoxLine) => {
-    setLineItems((prev) => removeCoalescedGroup(prev, group));
-  }, []);
+  const removeCoalesced = useCallback(
+    (group: CoalescedBoxLine) => {
+      setLineItems((prev) => {
+        let next = removeCoalescedGroup(prev, group);
+        const removedItem = catalog.find((c) => c.id === group.itemId);
+        const sectionId =
+          (removedItem ? displaySectionForCatalogItem(removedItem) : undefined) ??
+          group.primary.displaySectionId;
+        if (sectionId) {
+          next = promotePaidSiblingToIncludedPractice(
+            next,
+            sectionId,
+            catalog,
+            displaySectionForLineItem
+          );
+        }
+        return next;
+      });
+    },
+    [catalog]
+  );
 
   /** Always append as an add-on (modal “Add to gift”), except wrapping paper with
    * an empty wrap list restores included paper (inverse of pre-wrap). */
@@ -280,9 +303,20 @@ export function useGiftGiverBoxDraft(
     setLineItems((prev) => assignKidBookLines(prev, childId, item));
   }, []);
 
-  const persistWrapSelection = useCallback((itemIds: string[]) => {
-    setWrapSelectedItemIds(itemIds);
-  }, []);
+  const persistWrapSelection = useCallback(
+    (itemIds: string[]) => {
+      setWrapSelectedItemIds(itemIds);
+      setLineItems((prev) =>
+        syncWrappingPaperUnitCentsForWrapSelection(
+          prev,
+          catalog,
+          itemIds.length,
+          EXTRA_FLAT_CENTS
+        )
+      );
+    },
+    [catalog]
+  );
 
   const setCashDonation = useCallback((cents: number) => {
     setLineItems((prev) => withCashDonationCents(prev, cents));

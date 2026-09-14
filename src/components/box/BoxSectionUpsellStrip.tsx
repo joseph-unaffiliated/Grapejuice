@@ -55,6 +55,8 @@ type Props = {
   tileSize?: UpsellTileSize;
   /** Kids in the household — book tiles show “For Sam” / “For Sam or Riley”. */
   childrenProfiles?: readonly ChildProfile[];
+  /** Shown at the bottom of the expanded grid (e.g. “browse all books”). */
+  footerAction?: { label: string; onPress: () => void };
 };
 
 type CollapseAdjust = {
@@ -113,6 +115,7 @@ export function BoxSectionUpsellStrip({
   swapEligibleItemIds,
   tileSize = 'compact',
   childrenProfiles,
+  footerAction,
 }: Props) {
   const { colors } = useThemeMode();
   const [expanded, setExpanded] = useState(false);
@@ -341,6 +344,17 @@ export function BoxSectionUpsellStrip({
       {expanded ? (
         <View style={styles.expandedShell}>
           <View style={styles.expandedGrid}>{orderedItems.map(renderTile)}</View>
+          {footerAction ? (
+            <TouchableOpacity
+              style={styles.footerBtn}
+              onPress={footerAction.onPress}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={footerAction.label}
+            >
+              <Text style={styles.footerBtnLabel}>{footerAction.label}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : (
         <View style={styles.railWrap}>
@@ -529,6 +543,26 @@ function createStyles(
       ...typeface('medium'),
       color: colors.goldMuted,
       letterSpacing: -0.22,
+    },
+    footerBtn: {
+      alignSelf: 'center',
+      marginTop: spacing.md,
+      marginBottom: spacing.xs,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.bgPrimary,
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+    },
+    footerBtnLabel: {
+      fontSize: typography.sm,
+      lineHeight: 18,
+      ...typeface('medium'),
+      color: colors.textPrimary,
+      letterSpacing: -0.22,
+      textAlign: 'center',
     },
   });
 }

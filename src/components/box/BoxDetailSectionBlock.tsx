@@ -53,6 +53,8 @@ type Props = {
   upsellSwapEligibleItemIds?: ReadonlySet<string>;
   /** Kids — book Add more tiles show “For Sam” / “For Sam or Riley”. */
   childrenProfiles?: readonly ChildProfile[];
+  /** Footer CTA under the expanded upsell grid (e.g. browse all books). */
+  upsellFooterAction?: { label: string; onPress: () => void };
   /** Empty section: tighter header gap + medium Add items tiles. */
   emptySection?: boolean;
   /** Hide bottom divider when this is the last visible section. */
@@ -74,6 +76,7 @@ export function BoxDetailSectionBlock({
   upsellIncludedItemIds,
   upsellSwapEligibleItemIds,
   childrenProfiles,
+  upsellFooterAction,
   emptySection = false,
   isLast = false,
 }: Props) {
@@ -169,6 +172,7 @@ export function BoxDetailSectionBlock({
           includedItemIds={upsellIncludedItemIds}
           swapEligibleItemIds={upsellSwapEligibleItemIds}
           childrenProfiles={childrenProfiles}
+          footerAction={upsellFooterAction}
           tileSize={isEmpty ? 'medium' : 'compact'}
         />
       ) : null}

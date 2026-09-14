@@ -74,13 +74,17 @@ export function filterBooksForKidAges(
   return limit != null ? filtered.slice(0, limit) : filtered;
 }
 
-/** Small gold label under book titles — “For Sam” / “For Sam or Riley” when kids fit. */
+/** Small gold label under book titles — “For Sam” / “For Sam or Riley” when kids fit.
+ * Single-kid households omit the redundant “For Name” line (age band only if available).
+ */
 export function formatBookForKidsLabel(
   item: CatalogItem,
   children: readonly ChildProfile[]
 ): string | null {
   if (!isBookishCatalogItem(item)) return null;
   if (!children.length) return formatCatalogBookAgeLabel(item);
+  // One kid — no need to say “For Jacob” on every tile.
+  if (children.length === 1) return formatCatalogBookAgeLabel(item);
 
   const matching = children.filter((child) => {
     const age = kidPlannerAges([child])[0] ?? 0;

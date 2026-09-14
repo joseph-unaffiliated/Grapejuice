@@ -4,7 +4,9 @@ import { defineSecret } from 'firebase-functions/params';
 export const customerioAppApiKey = defineSecret('CUSTOMERIO_APP_API_KEY');
 
 const BASE_URL = 'https://api.customer.io/v1';
-const FROM_EMAIL = process.env.CUSTOMERIO_FROM_EMAIL ?? 'hello@grapejuice.co';
+/** Address-only env override still allowed; default includes display name for inbox From. */
+const FROM_EMAIL =
+  process.env.CUSTOMERIO_FROM_EMAIL ?? 'Grapejuice <hello@grapejuice.co>';
 
 const TEMPLATE_IDS: Record<string, number> = {
   'order-confirmed': parseInt(process.env.CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED ?? '0', 10) || 10,

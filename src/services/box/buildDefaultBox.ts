@@ -198,15 +198,9 @@ export function buildCuratedBox(
   const craftAssignments = outline.dreidels.filter((d) => d.kind !== 'wood-dreidel');
   const adultsN = defaultAdults(outline.inputs.adults);
   const woodKidCount = woodAssignments.length;
-  const allWood = craftAssignments.length === 0 && woodKidCount > 0;
 
-  // Always cover adults with wood when any craft kids exist (or when some kids stay on wood).
-  // All-wood 1-kid boxes keep legacy qty 1; 2+ kids → kids + adults.
-  const woodQty = allWood
-    ? woodKidCount <= 1
-      ? Math.max(1, woodKidCount)
-      : woodKidCount + adultsN
-    : woodKidCount + adultsN;
+  // Household “1 per person”: kids on wood + adults (never legacy qty-1 for 1-kid all-wood).
+  const woodQty = woodKidCount > 0 ? woodKidCount + adultsN : 0;
 
   if (woodQty > 0) {
     const item = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
@@ -335,8 +329,9 @@ export function catalogSlotId(lineSlotId: string): string {
 }
 
 /**
- * Upgrade old “1 wood dreidel per kid” drafts to household qty (kids + adults)
- * when the box still looks like the previous know-nothing default.
+ * Upgrade wood dreidel drafts to household qty (kids + adults).
+ * Also converts paid overflow back into free units when free qty is short of the
+ * household allotment (e.g. qty 3 with only 1 free + 2 paid after a low baseline).
  */
 export function repairWoodDreidelHouseholdQty(
   lineItems: BoxLineItem[],
@@ -344,38 +339,72 @@ export function repairWoodDreidelHouseholdQty(
   adults?: number
 ): { lineItems: BoxLineItem[]; dirty: boolean } {
   const kidCount = kids.length;
-  if (kidCount < 2 || kidCount >= 5) return { lineItems, dirty: false };
+  if (kidCount < 1 || kidCount >= 5) return { lineItems, dirty: false };
 
   const woodLines = lineItems.filter((li) => catalogSlotId(li.slotId) === 'wood-dreidel');
   if (woodLines.length === 0) return { lineItems, dirty: false };
 
-  const totalQty = woodLines.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
   const targetQty = kidCount + defaultAdults(adults);
-  if (totalQty >= targetQty) return { lineItems, dirty: false };
+  const freeLines = woodLines.filter(
+    (li) => !li.slotId.includes('::x') && (li.unitCents ?? 0) === 0
+  );
+  const paidLines = woodLines.filter(
+    (li) => li.slotId.includes('::x') || (li.unitCents ?? 0) > 0
+  );
+  const freeQty = freeLines.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+  const paidQty = paidLines.reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+  const totalQty = freeQty + paidQty;
+  const persistedIncluded = freeLines.reduce(
+    (s, li) => s + Math.max(0, li.includedQty ?? 0),
+    0
+  );
 
-  // Old default: one qty-1 line per kid (or a single line already at kidCount).
+  if (freeQty >= targetQty && Math.max(freeQty, persistedIncluded) >= targetQty) {
+    return { lineItems, dirty: false };
+  }
+
+  // Legacy short seeds, or free allotment below household size with paid overflow.
   const looksLikeOldPerKidDefault =
+    kidCount >= 2 &&
     woodLines.length === kidCount &&
     woodLines.every((li) => Math.max(1, li.quantity || 1) === 1) &&
     totalQty === kidCount;
   const looksLikeShortHousehold =
-    woodLines.length === 1 &&
-    Math.max(1, woodLines[0].includedQty ?? woodLines[0].quantity ?? 1) === kidCount;
+    freeLines.length === 1 &&
+    freeQty < targetQty &&
+    (Math.max(1, freeLines[0].includedQty ?? freeQty) === kidCount ||
+      Math.max(1, freeLines[0].includedQty ?? freeQty) === 1 ||
+      paidQty > 0);
+  const needsPaidAbsorb = freeQty < targetQty && (paidQty > 0 || totalQty < targetQty);
 
-  if (!looksLikeOldPerKidDefault && !looksLikeShortHousehold) {
+  if (!looksLikeOldPerKidDefault && !looksLikeShortHousehold && !needsPaidAbsorb) {
     return { lineItems, dirty: false };
   }
 
-  const template = woodLines[0];
+  const template = freeLines[0] ?? paidLines[0] ?? woodLines[0]!;
+  // Fill free allotment to household target; absorb paid overflow into free first.
+  const seededFreeQty = Math.max(targetQty, freeQty);
+  const consumedFromPaid = Math.min(paidQty, Math.max(0, seededFreeQty - freeQty));
+  const paidLeft = paidQty - consumedFromPaid;
+
   const next = lineItems.filter((li) => catalogSlotId(li.slotId) !== 'wood-dreidel');
   next.push({
     slotId: 'wood-dreidel',
     itemId: template.itemId,
-    quantity: targetQty,
-    includedQty: targetQty,
+    quantity: seededFreeQty,
+    includedQty: seededFreeQty,
     unitCents: 0,
     label: template.label,
   });
+  if (paidLeft > 0) {
+    next.push({
+      slotId: 'wood-dreidel::x',
+      itemId: template.itemId,
+      quantity: paidLeft,
+      unitCents: paidLines[0]?.unitCents && paidLines[0].unitCents > 0 ? paidLines[0].unitCents : 100,
+      label: template.label,
+    });
+  }
   return { lineItems: next, dirty: true };
 }
 

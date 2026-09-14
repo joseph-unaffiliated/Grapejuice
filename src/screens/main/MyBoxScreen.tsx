@@ -84,6 +84,8 @@ import {
   seedIncludedBaselines,
   includedPracticeSlotVacant,
   uniqueSlotForFreeSectionAdd,
+  syncWrappingPaperUnitCentsForWrapSelection,
+  promotePaidSiblingToIncludedPractice,
   wrappableLinesInBox,
   wrapControlLines,
 } from '../../components/box/boxLineDisplay';
@@ -341,6 +343,8 @@ export function MyBoxScreen() {
   };
 
   const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
+  const lineItemsRef = useRef(lineItems);
+  lineItemsRef.current = lineItems;
 
   const swapToPreWrap = async (slotIds: string[]) => {
     if (locked) return;
@@ -387,7 +391,32 @@ export function MyBoxScreen() {
         Math.max(baselines.get(group.itemId) ?? 0, persistedBaseline, freeQty)
       );
     }
-    await persist(removeCoalescedGroup(lineItems, group));
+    let next = removeCoalescedGroup(lineItems, group);
+    const removedItem = catalog.find((c) => c.id === group.itemId);
+    const sectionId =
+      (removedItem ? displaySectionForCatalogItem(removedItem) : undefined) ??
+      group.primary.displaySectionId;
+    if (sectionId) {
+      const before = next;
+      next = promotePaidSiblingToIncludedPractice(
+        next,
+        sectionId,
+        catalog,
+        displaySectionForLineItem
+      );
+      if (next !== before) {
+        for (const li of next) {
+          if ((li.unitCents ?? 0) !== 0 || isGiftSlotLine(li)) continue;
+          const wasPaid = before.some(
+            (b) => b.itemId === li.itemId && (b.unitCents ?? 0) > 0
+          );
+          if (wasPaid) {
+            baselines.set(li.itemId, Math.max(baselines.get(li.itemId) ?? 0, li.includedQty ?? 1));
+          }
+        }
+      }
+    }
+    await persist(next);
   };
 
   /**
@@ -1031,6 +1060,14 @@ export function MyBoxScreen() {
         upsellSwapEligibleItemIds={swapEligibleIdsBySection[sectionId]}
         childrenProfiles={children}
         onUpsellPress={showUpsells ? handleUpsellPress : undefined}
+        upsellFooterAction={
+          showUpsells && sectionId === 'story'
+            ? {
+                label: 'browse all books',
+                onPress: () => navigation.navigate('StorefrontCategory', { category: 'books' }),
+              }
+            : undefined
+        }
         trailing={
           showPresentsChecklist || kidAddBlocks ? (
             <View style={styles.presentsTrailingStack}>
@@ -1049,7 +1086,18 @@ export function MyBoxScreen() {
                           const next = new Set(wrapSelectedIds);
                           if (next.has(itemId)) next.delete(itemId);
                           else next.add(itemId);
-                          void persistWrapSelection([...next]);
+                          const ids = [...next];
+                          void (async () => {
+                            await persistWrapSelection(ids);
+                            const current = lineItemsRef.current;
+                            const synced = syncWrappingPaperUnitCentsForWrapSelection(
+                              current,
+                              catalog,
+                              ids.length,
+                              EXTRA_FLAT_CENTS
+                            );
+                            if (synced !== current) await persist(synced);
+                          })();
                         }
                   }
                 />
