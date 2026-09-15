@@ -11,6 +11,12 @@ export const BOX_DETAIL_SECTION_GUTTER = 16;
 export const BOX_DETAIL_SCROLL_SPY_OFFSET = 56;
 
 /**
+ * Clearance when jumping from the “Your box” summary tiles.
+ * Slightly less than the tab spy offset so the section lands closer to the top.
+ */
+export const BOX_SUMMARY_SCROLL_INSET = Math.max(0, BOX_DETAIL_SCROLL_SPY_OFFSET - 36);
+
+/**
  * Optical rhythm: sticky-nav → title, lock line → gold divider, and
  * divider → first section heading share this gap.
  * Literal 48 — theme has no exact 48 token (md=20, lg=28).

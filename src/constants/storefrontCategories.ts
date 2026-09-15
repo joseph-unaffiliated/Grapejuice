@@ -58,6 +58,7 @@ export function isBookItem(item: CatalogItem): boolean {
 }
 
 export function isFoodItem(item: CatalogItem): boolean {
+  if (isBookItem(item)) return false;
   if (itemHasCategory(item, 'Food')) return true;
   // Gelt is its own aisle — don't pull gelt-named SKUs into Food via name alone.
   return /latke|sufgan|cookie.?cutter|applesauce|donut|napkin/i.test(item.name);
@@ -67,7 +68,13 @@ function matchByCategory(
   airtableName: string,
   extras?: (item: CatalogItem) => boolean
 ): (item: CatalogItem) => boolean {
-  return (item) => itemHasCategory(item, airtableName) || Boolean(extras?.(item));
+  return (item) => {
+    // Books only belong in the Books aisle — never via name keywords in other aisles.
+    if (airtableName !== 'Book' && isBookItem(item)) {
+      return itemHasCategory(item, airtableName);
+    }
+    return itemHasCategory(item, airtableName) || Boolean(extras?.(item));
+  };
 }
 
 export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
@@ -86,7 +93,8 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     match: matchByCategory(
       'Menorah',
       (item) =>
-        getCurationTags(item).includes('hanukkiah') || /menorah|hanukkiah/i.test(item.name)
+        !isBookItem(item) &&
+        (getCurationTags(item).includes('hanukkiah') || /menorah|hanukkiah/i.test(item.name))
     ),
   },
   {
@@ -94,7 +102,10 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     label: 'Candles',
     title: 'Candles',
     description: 'Wax and light for eight nights.',
-    match: matchByCategory('Candles', (item) => /candle/i.test(item.name)),
+    match: matchByCategory(
+      'Candles',
+      (item) => !isBookItem(item) && /candle/i.test(item.name)
+    ),
   },
   {
     slug: 'dreidels',
@@ -103,7 +114,10 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     description: 'Spin, play, and pass them down.',
     match: matchByCategory(
       'Dreidel',
-      (item) => getCurationTags(item).includes('dreidel') || /dreidel/i.test(item.name)
+      (item) =>
+        !isBookItem(item) &&
+        !/cookie.?cutter/i.test(item.name) &&
+        (getCurationTags(item).includes('dreidel') || /dreidel/i.test(item.name))
     ),
   },
   {
@@ -111,7 +125,10 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     label: 'Gelt',
     title: 'Gelt',
     description: 'Chocolate coins for the dreidel pot and beyond.',
-    match: matchByCategory('Gelt', (item) => /gelt/i.test(item.name)),
+    match: matchByCategory(
+      'Gelt',
+      (item) => !isBookItem(item) && /gelt/i.test(item.name)
+    ),
   },
   {
     slug: 'food',
@@ -139,7 +156,10 @@ export const STOREFRONT_CATEGORIES: StorefrontCategoryDef[] = [
     label: 'Stuffies',
     title: 'Stuffies',
     description: 'Soft companions for the holiday.',
-    match: matchByCategory('Stuffies', (item) => /plush|stuff/i.test(item.name)),
+    match: matchByCategory(
+      'Stuffies',
+      (item) => !isBookItem(item) && /plush|stuff/i.test(item.name)
+    ),
   },
   {
     slug: 'books',
@@ -201,7 +221,12 @@ export function filterByStorefrontCategory(
 ): CatalogItem[] {
   const def = storefrontCategoryBySlug(slug);
   if (!def) return items.filter((item) => !isBookItem(item));
-  return items.filter(def.match);
+  const resolved = resolveStorefrontCategorySlug(slug);
+  if (resolved === 'books' || resolved === 'collection' || resolved === 'on-sale') {
+    return items.filter(def.match);
+  }
+  // Non-book aisles never include books (even if Airtable multi-tags Book + Candles).
+  return items.filter((item) => !isBookItem(item) && def.match(item));
 }
 
 /** Non-book catalog for mixed merchandising rails (Most loved, etc.). */
@@ -227,19 +252,50 @@ export function kidsMenorahs(items: CatalogItem[]): CatalogItem[] {
 
 /**
  * Craft / soft / blank dreidels for kids — keep out of “the collection”.
- * Airdry, blank, plush (and similar) land here; brass / slipcast / wood stay collection.
+ * Airdry, draw-your-own (blank), plush/stuffie land here; brass / slipcast / wood stay collection.
  */
 export function isKidsDreidel(item: CatalogItem): boolean {
   if (!filterByStorefrontCategory([item], 'dreidels').length) return false;
-  return /airdry|air.?dry|blank|plush|clay|toy|stuff|craft|play/i.test(item.name);
+  const hay = `${item.name} ${item.slotId ?? ''} ${item.defaultSlot ?? ''}`.toLowerCase();
+  return /airdry|air.?dry|blank|draw.?your.?own|diy|decorate|plush|clay|toy|stuff|craft|play/.test(
+    hay
+  );
+}
+
+/** Homepage “The collection” preference: brass → slipcast → wood → others. */
+function dreidelCollectionSortKey(item: CatalogItem): number {
+  const hay = item.name.toLowerCase();
+  if (/brass/.test(hay)) return 0;
+  if (/slip.?cast|slipcast|ceramic/.test(hay)) return 1;
+  if (/wood|wooden/.test(hay) && !/draw.?your.?own|blank/.test(hay)) return 2;
+  return 50;
+}
+
+/** Homepage “For kids” preference: airdry → draw your own → stuffie → others. */
+function dreidelKidsSortKey(item: CatalogItem): number {
+  const hay = item.name.toLowerCase();
+  if (/airdry|air.?dry|clay/.test(hay)) return 0;
+  if (/draw.?your.?own|blank/.test(hay)) return 1;
+  if (/plush|stuff/.test(hay)) return 2;
+  return 50;
 }
 
 export function collectionDreidels(items: CatalogItem[]): CatalogItem[] {
-  return filterByStorefrontCategory(items, 'dreidels').filter((item) => !isKidsDreidel(item));
+  return filterByStorefrontCategory(items, 'dreidels')
+    .filter((item) => !isKidsDreidel(item))
+    .sort((a, b) => {
+      const d = dreidelCollectionSortKey(a) - dreidelCollectionSortKey(b);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
 }
 
 export function kidsDreidels(items: CatalogItem[]): CatalogItem[] {
-  return filterByStorefrontCategory(items, 'dreidels').filter(isKidsDreidel);
+  return filterByStorefrontCategory(items, 'dreidels')
+    .filter(isKidsDreidel)
+    .sort((a, b) => {
+      const d = dreidelKidsSortKey(a) - dreidelKidsSortKey(b);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
 }
 
 /**

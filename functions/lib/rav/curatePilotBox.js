@@ -145,8 +145,29 @@ function validateResult(parsed, data) {
     }
     return { notes, actions };
 }
+function practiceFamiliarityPlain(level, score) {
+    const n = typeof score === 'number' && Number.isFinite(score) ? score : undefined;
+    if (n != null) {
+        if (n <= 33) {
+            return 'they said they do not really do Hanukkah much at home right now (even if they grew up with it)';
+        }
+        if (n <= 66) {
+            return 'they said they do some of the holiday — familiar, but not all-in every night';
+        }
+        return 'they said they are familiar with the holiday and already lean into more of it';
+    }
+    switch (level) {
+        case 'minimal':
+            return 'they said they do not really do Hanukkah much at home right now (even if they grew up with it)';
+        case 'all-in':
+            return 'they said they are familiar with the holiday and already lean into more of it';
+        case 'moderate':
+        default:
+            return 'they said they do some of the holiday — familiar, but not all-in every night';
+    }
+}
 function buildUserMessage(data) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f;
     const kids = ((_a = data.kids) !== null && _a !== void 0 ? _a : [])
         .map((k) => `${k.firstName || 'Kid'} age ${k.age} [${k.id}]`)
         .join('; ');
@@ -169,17 +190,16 @@ function buildUserMessage(data) {
         .map((s) => { var _a; return `${s.slotId}→[${((_a = s.optionItemIds) !== null && _a !== void 0 ? _a : []).join(', ')}]`; })
         .join('; ');
     return [
-        `practiceLevel: ${(_e = data.practiceLevel) !== null && _e !== void 0 ? _e : 'minimal'}`,
-        `practiceScore: ${(_f = data.practiceScore) !== null && _f !== void 0 ? _f : ''}`,
-        `adults: ${(_g = data.adults) !== null && _g !== void 0 ? _g : ''}`,
+        `How familiar / how much they do Hanukkah (plain language for your reasons — never quote scores or internal labels): ${practiceFamiliarityPlain(data.practiceLevel, data.practiceScore)}`,
+        `adults: ${(_e = data.adults) !== null && _e !== void 0 ? _e : ''}`,
         `kids: ${kids || '(none)'}`,
-        `interests: ${((_h = data.interests) !== null && _h !== void 0 ? _h : []).join(', ') || '(none)'}`,
-        `notes: ${asString(data.notes) || '(none)'}`,
+        `interests: ${((_f = data.interests) !== null && _f !== void 0 ? _f : []).join(', ') || '(none)'}`,
+        `notes from them: ${asString(data.notes) || '(none)'}`,
         `baseline: ${baseline || 'empty'}`,
-        `deviations: ${deviations || '(none)'}`,
+        `deviations (write a hand-picked reason for each): ${deviations || '(none)'}`,
         `allowedSwaps: ${allowed || '(none)'}`,
         '',
-        'Write one reason per deviation. Optionally up to two included-price swaps with reasons.',
+        'Write a warm, personal reason per deviation (no scores, no rule jargon). Optionally up to two included-price swaps with reasons.',
     ].join('\n');
 }
 exports.curatePilotBox = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInstances: 10 }, async (request) => {
@@ -196,7 +216,7 @@ exports.curatePilotBox = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxIn
     try {
         const response = await anthropic.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 700,
+            max_tokens: 900,
             system,
             messages: [{ role: 'user', content: buildUserMessage(data) }],
         });

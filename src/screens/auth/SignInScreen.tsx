@@ -25,7 +25,7 @@ export function SignInScreen() {
         {claimGift ? (
           <View style={styles.claimCopy}>
             <Text style={[styles.claimTitle, { color: colors.textPrimary }]}>
-              Sign in to claim your gift
+              Log in to claim your gift
             </Text>
             <Text style={[styles.claimBody, { color: colors.textSecondary }]}>
               Use the recipient family account to claim gift credit or a curated gift box.
@@ -51,7 +51,7 @@ export function SignInScreen() {
         />
 
         <GrapejuiceButton
-          label="Sign in with Email"
+          label="Log in with Email"
           variant="pill"
           onPress={() => navigation.navigate('SignInEmail')}
           style={styles.btn}
@@ -59,7 +59,7 @@ export function SignInScreen() {
 
         {Platform.OS === 'ios' ? (
           <GrapejuiceButton
-            label="Sign in with Apple"
+            label="Log in with Apple"
             variant="pill"
             onPress={async () => {
               clearError();

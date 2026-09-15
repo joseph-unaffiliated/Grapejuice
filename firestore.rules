@@ -69,6 +69,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    /** Live sale / allocation counters — public read; server-only write. */
+    match /catalog/{holidayId}/inventory/{itemId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     /** Marketing landings CMS — public read; admin write. */
     match /landings/{landingId} {
       allow read: if true;

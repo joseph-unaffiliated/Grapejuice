@@ -62,6 +62,11 @@ function docToRow(id, c) {
         inventory: typeof c.inventory === 'number' ? c.inventory : null,
         holdInventory: typeof c.holdInventory === 'boolean' ? c.holdInventory : null,
         wrappable: typeof c.wrappable === 'boolean' ? c.wrappable : null,
+        directSaleCapBeforeLock: typeof c.directSaleCapBeforeLock === 'number' ? c.directSaleCapBeforeLock : null,
+        sellAfterLock: c.sellAfterLock === 'yes' || c.sellAfterLock === 'flag' || c.sellAfterLock === 'no'
+            ? c.sellAfterLock
+            : null,
+        boxRoles: asStringArray(c.boxRoles),
     };
 }
 function formatCatalogRow(row, detail) {
@@ -81,7 +86,15 @@ function formatCatalogRow(row, detail) {
         priceBits.push(`price=$${(row.dollarCostCents / 100).toFixed(0)}`);
     }
     const price = priceBits.length ? ` ${priceBits.join(' ')}` : '';
-    const head = `${row.id} (${row.slotId}): ${row.name}${ages}${cat}${brand}${rails}${tier}${price}${swaps}`;
+    const isBook = row.id.startsWith('book-') ||
+        row.category.toLowerCase() === 'book' ||
+        /\bbook\b/i.test(row.name);
+    const avail = isBook
+        ? ' avail=box_only(book)'
+        : row.directSaleCapBeforeLock != null && row.directSaleCapBeforeLock > 0
+            ? ` avail=direct_cap=${row.directSaleCapBeforeLock}`
+            : ' avail=box_only';
+    const head = `${row.id} (${row.slotId}): ${row.name}${ages}${cat}${brand}${rails}${tier}${price}${avail}${swaps}`;
     if (!detail)
         return head;
     const extras = [];

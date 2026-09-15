@@ -117,7 +117,7 @@ export function ResetPasswordConfirmScreen() {
       </Text>
       <Text style={[styles.lead, { color: colors.textSecondary }]}>
         {done
-          ? 'You’re all set. Sign in with your new password.'
+          ? 'You’re all set. Log in with your new password.'
           : checking
             ? 'Checking your reset link…'
             : linkError
@@ -171,7 +171,7 @@ export function ResetPasswordConfirmScreen() {
 
       {(done || linkError) && !checking ? (
         <GrapejuiceButton
-          label={done ? 'Sign in' : 'Back to sign in'}
+          label={done ? 'Log in' : 'Back to log in'}
           variant="filled"
           onPress={goSignIn}
           style={styles.btn}

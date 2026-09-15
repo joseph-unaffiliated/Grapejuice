@@ -92,9 +92,9 @@ export function SignUpScreen() {
           <TouchableOpacity
             onPress={() => navigation.navigate('SignIn')}
             accessibilityRole="button"
-            accessibilityLabel="Sign in"
+            accessibilityLabel="Log in"
           >
-            <Text style={[styles.signInLink, { color: colors.goldMuted }]}>Sign in</Text>
+            <Text style={[styles.signInLink, { color: colors.goldMuted }]}>Log in</Text>
           </TouchableOpacity>
         </View>
       </View>

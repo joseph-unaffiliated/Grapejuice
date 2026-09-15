@@ -59,7 +59,7 @@ export function WelcomeScreen() {
 
         {Platform.OS === 'ios' ? (
           <GrapejuiceButton
-            label="Sign in with Apple"
+            label="Log in with Apple"
             variant="pillOutline"
             onPress={async () => {
               clearError();

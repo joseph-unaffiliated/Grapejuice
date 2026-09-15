@@ -1,4 +1,5 @@
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import { shipWindowLabel } from '../../constants/hanukkahBoxLock';
 
 /** Flat add-on fee for optional extras (extra gelt, extra candles, etc.). */
 export const EXTRA_FLAT_CENTS = 500;
@@ -19,7 +20,7 @@ export const LIST_BOX_VALUE_CENTS = 25000;
 export const DEFAULT_BOX_PRICE_CENTS = 8000;
 
 /** Display window for “arrives in time for Hanukkah” (inclusive). */
-export const HANUKKAH_SHIP_WINDOW_LABEL = 'Nov 15–20';
+export const HANUKKAH_SHIP_WINDOW_LABEL = shipWindowLabel(null);
 
 /** Awarded on Hanukkah debrief completion (panel Jun 10). */
 export const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;
@@ -169,7 +170,7 @@ export function catalogPercentOff(nonMemberCents: number, memberCents: number): 
 }
 
 /**
- * Storefront member offer copy, e.g. "$18 (74% off) for subscribers".
+ * Storefront member offer copy, e.g. "$18 (74% off) when in a box".
  * Pass preformatted dollar strings from `formatCatalogDollars`.
  */
 export function formatSubscriberOfferLine(
@@ -179,6 +180,6 @@ export function formatSubscriberOfferLine(
 ): string {
   const off = catalogPercentOff(nonMemberCents, memberCents);
   return off
-    ? `${memberPriceLabel} (${off}% off) for subscribers`
-    : `${memberPriceLabel} for subscribers`;
+    ? `${memberPriceLabel} (${off}% off) when in a box`
+    : `${memberPriceLabel} when in a box`;
 }

@@ -314,8 +314,7 @@ export function StorefrontHomeScreen() {
         items,
         'dreidels-collection',
         collectionDreidels(items),
-        6,
-        ['dreidels']
+        6
       ),
     [items]
   );
@@ -393,8 +392,8 @@ export function StorefrontHomeScreen() {
           }}
         >
           <SectionHeader
-            title="Most loved"
-            subtitle="Pieces households keep coming back to"
+            title="Top picks"
+            subtitle="The most favorited products from our collection"
           />
           {loading ? (
             <ActivityIndicator color={semanticColors.brand} style={styles.loader} />

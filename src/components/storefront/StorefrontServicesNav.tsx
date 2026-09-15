@@ -64,9 +64,9 @@ export function StorefrontServicesNav({ onPress }: Props) {
     }
     return {
       yearLabel: HANUKKAH_BOX_LOCK_YEAR_LABEL,
-      chipLabel: boxLockChipLabel(now),
+      chipLabel: boxLockChipLabel(now, lockAt),
     };
-  }, [mode, estimatedDeliveryBy, now]);
+  }, [mode, estimatedDeliveryBy, lockAt, now]);
 
   if (compact) return null;
 

@@ -68,7 +68,7 @@ exports.PRICING_POLICY = {
     /** Applied even when that kid's lines are donated. */
     perExtraKidCents: 1000,
     holidayId: 'hanukkah-2026',
-    shipWindowLabel: 'Nov 15–20',
+    shipWindowLabel: 'Nov 24',
     shipping: 'free for pilot',
 };
 exports.DONATE_POLICY = {

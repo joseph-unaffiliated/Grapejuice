@@ -32,6 +32,8 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const draggingRef = useRef(false);
+  const startPageRef = useRef<{ x: number; y: number } | null>(null);
+  const axisLockedRef = useRef(false);
 
   const applyXInTrack = (xInTrack: number) => {
     const w = trackWidthRef.current;
@@ -54,24 +56,54 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
   const pan = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
+        // Claim the touch on the hit strip so we can tap-to-seek and drag without
+        // a competing TouchableOpacity overlay. Yield only when the gesture is vertical.
+        onStartShouldSetPanResponder: () => true,
         onStartShouldSetPanResponderCapture: () => false,
-        onMoveShouldSetPanResponder: (_, g) =>
-          Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > AXIS_LOCK_DX,
-        onMoveShouldSetPanResponderCapture: (_, g) =>
-          Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > AXIS_LOCK_DX,
+        onMoveShouldSetPanResponder: (_, g) => {
+          if (draggingRef.current || axisLockedRef.current) return true;
+          if (Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > AXIS_LOCK_DX) return false;
+          return Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > AXIS_LOCK_DX;
+        },
+        onMoveShouldSetPanResponderCapture: (_, g) => {
+          if (draggingRef.current || axisLockedRef.current) return true;
+          if (Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > AXIS_LOCK_DX) return false;
+          return Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > AXIS_LOCK_DX;
+        },
         onPanResponderGrant: (e) => {
-          draggingRef.current = true;
+          startPageRef.current = {
+            x: e.nativeEvent.pageX,
+            y: e.nativeEvent.pageY,
+          };
+          axisLockedRef.current = false;
+          draggingRef.current = false;
+          // Tap-to-seek immediately; drag continues on move once horizontal.
           seekToPageX(e.nativeEvent.pageX);
         },
-        onPanResponderMove: (e) => {
-          seekToPageX(e.nativeEvent.pageX);
+        onPanResponderMove: (e, g) => {
+          if (!axisLockedRef.current) {
+            if (Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > AXIS_LOCK_DX) {
+              // Vertical scroll — release so ScrollView can take over.
+              return;
+            }
+            if (Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > AXIS_LOCK_DX) {
+              axisLockedRef.current = true;
+              draggingRef.current = true;
+            }
+          }
+          if (axisLockedRef.current || Math.abs(g.dx) <= AXIS_LOCK_DX) {
+            seekToPageX(e.nativeEvent.pageX);
+          }
         },
         onPanResponderRelease: () => {
           draggingRef.current = false;
+          axisLockedRef.current = false;
+          startPageRef.current = null;
         },
         onPanResponderTerminate: () => {
           draggingRef.current = false;
+          axisLockedRef.current = false;
+          startPageRef.current = null;
         },
         onPanResponderTerminationRequest: () => !draggingRef.current,
       }),
@@ -89,30 +121,84 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
 
   const thumbLeft = trackWidth > 0 ? (value / 100) * trackWidth - THUMB / 2 : 0;
 
+  const bindPointerListeners = (el: {
+    getBoundingClientRect: () => DOMRect;
+    clientX?: number;
+  }, clientX: number) => {
+    const rect = el.getBoundingClientRect();
+    trackLeftRef.current = rect.left;
+    trackWidthRef.current = rect.width;
+    setTrackWidth(rect.width);
+    applyXInTrack(clientX - rect.left);
+
+    const onMove = (ev: PointerEvent | TouchEvent | MouseEvent) => {
+      const x =
+        'clientX' in ev
+          ? ev.clientX
+          : 'touches' in ev && ev.touches[0]
+            ? ev.touches[0].clientX
+            : trackLeftRef.current;
+      applyXInTrack(x - trackLeftRef.current);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove as EventListener);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('mousemove', onMove as EventListener);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove as EventListener);
+      window.removeEventListener('touchend', onUp);
+      window.removeEventListener('touchcancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove as EventListener);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    window.addEventListener('mousemove', onMove as EventListener);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove as EventListener, { passive: false });
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('touchcancel', onUp);
+  };
+
   const webProps =
     Platform.OS === 'web'
       ? ({
+          onPointerDown: (e: {
+            clientX: number;
+            pointerId?: number;
+            preventDefault: () => void;
+            currentTarget: { getBoundingClientRect: () => DOMRect; setPointerCapture?: (id: number) => void };
+          }) => {
+            e.preventDefault();
+            if (typeof e.pointerId === 'number' && e.currentTarget.setPointerCapture) {
+              try {
+                e.currentTarget.setPointerCapture(e.pointerId);
+              } catch {
+                /* ignore */
+              }
+            }
+            bindPointerListeners(e.currentTarget, e.clientX);
+          },
           onMouseDown: (e: {
             clientX: number;
             preventDefault: () => void;
             currentTarget: { getBoundingClientRect: () => DOMRect };
           }) => {
+            // Fallback for browsers without pointer events.
             e.preventDefault();
-            const rect = e.currentTarget.getBoundingClientRect();
-            trackLeftRef.current = rect.left;
-            trackWidthRef.current = rect.width;
-            setTrackWidth(rect.width);
-            applyXInTrack(e.clientX - rect.left);
-
-            const onMove = (ev: MouseEvent) => {
-              applyXInTrack(ev.clientX - trackLeftRef.current);
-            };
-            const onUp = () => {
-              window.removeEventListener('mousemove', onMove);
-              window.removeEventListener('mouseup', onUp);
-            };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
+            bindPointerListeners(e.currentTarget, e.clientX);
+          },
+          onTouchStart: (e: {
+            preventDefault: () => void;
+            nativeEvent?: { touches?: { clientX: number }[] };
+            touches?: { clientX: number }[];
+            currentTarget: { getBoundingClientRect: () => DOMRect };
+          }) => {
+            e.preventDefault();
+            const touch =
+              e.nativeEvent?.touches?.[0] ?? e.touches?.[0];
+            if (!touch) return;
+            bindPointerListeners(e.currentTarget, touch.clientX);
           },
         } as object)
       : null;
@@ -131,15 +217,6 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
         accessibilityLabel="Practice level"
         {...(Platform.OS === 'web' ? webProps : pan.panHandlers)}
       >
-        {Platform.OS !== 'web' ? (
-          <TouchableOpacity
-            activeOpacity={1}
-            style={styles.hitPress}
-            onPress={(e) => seekToPageX(e.nativeEvent.pageX)}
-            accessibilityRole="adjustable"
-            accessibilityValue={{ min: 0, max: 100, now: value }}
-          />
-        ) : null}
         <View style={styles.track} pointerEvents="none">
           <View style={[styles.fill, { width: `${value}%` }]} />
           <View
@@ -179,10 +256,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: spacing.md,
     position: 'relative',
-  },
-  hitPress: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
   },
   track: {
     height: TRACK_H,

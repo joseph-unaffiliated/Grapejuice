@@ -72,7 +72,7 @@ export function GuestFavoritesAuthBanner({ count, onSignUp, onSignIn }: Props) {
           )}
         </Pressable>
         <TouchableOpacity onPress={onSignIn} accessibilityRole="button" hitSlop={8}>
-          <Text style={styles.signIn}>Sign in</Text>
+          <Text style={styles.signIn}>Log in</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -98,7 +98,7 @@ export function ForgotPasswordScreen() {
         </>
       ) : (
         <GrapejuiceButton
-          label="Back to sign in"
+          label="Back to log in"
           variant="filled"
           onPress={() => navigation.navigate('SignInEmail', { email: email.trim() || undefined })}
           style={styles.btn}
@@ -114,9 +114,9 @@ export function ForgotPasswordScreen() {
           onPress={() => navigation.navigate('SignInEmail', { email: email.trim() || undefined })}
           style={styles.backHit}
           accessibilityRole="button"
-          accessibilityLabel="Back to sign in"
+          accessibilityLabel="Back to log in"
         >
-          <Text style={[styles.backLink, { color: colors.goldMuted }]}>Back to sign in</Text>
+          <Text style={[styles.backLink, { color: colors.goldMuted }]}>Back to log in</Text>
         </TouchableOpacity>
       ) : null}
     </AuthHeroShell>

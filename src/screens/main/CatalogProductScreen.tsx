@@ -14,6 +14,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
+import { useCatalogInventory } from '../../hooks/useCatalogInventory';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useBrowsingHistoryStore } from '../../stores/browsingHistoryStore';
 import {
@@ -23,15 +24,24 @@ import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import {
   useEffectiveBoxLocked,
+  usePreviewNow,
   usePreviewedHasStartedBox,
+  useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { formatCatalogDollars, buildDefaultLineItems } from '../../services/box/buildDefaultBox';
+import { boxLockChipLabel, shipWindowLabel } from '../../constants/hanukkahBoxLock';
 import {
   HANUKKAH_SHIP_WINDOW_LABEL,
   resolveCatalogDisplayPrices,
   boxAddOnUnitCents,
 } from '../../services/box/pricing';
+import {
+  availabilityAllowsDirectPurchase,
+  availabilityRemaining,
+  emptyInventoryCounters,
+  resolveAvailability,
+} from '../../services/catalog/availability';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
@@ -96,6 +106,9 @@ export function CatalogProductScreen() {
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const recordBrowseView = useBrowsingHistoryStore((s) => s.recordView);
   const { items: catalog, loading: catalogLoading } = useCatalog();
+  const { byId: inventoryById } = useCatalogInventory();
+  const previewNow = usePreviewNow();
+  const preview = useUserStatePreview();
   const { goHome, goCategory } = useStorefrontActions();
   const item = useMemo(
     () => catalog.find((c) => c.id === slug) ?? null,
@@ -128,10 +141,48 @@ export function CatalogProductScreen() {
   const [lockAt, setLockAt] = useState<string | null>(null);
   const locked = useEffectiveBoxLocked(lockAt);
   const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+
+  const effectiveLockAtForAvail = useMemo(() => {
+    if (preview === 'signed_in_locked') return '2000-01-01T00:00:00.000Z';
+    if (
+      preview === 'signed_in_box' ||
+      preview === 'signed_in_needs_payment' ||
+      preview === 'signed_in_no_box' ||
+      preview === 'signed_out' ||
+      preview === 'signed_out_box'
+    ) {
+      return null;
+    }
+    return lockAt;
+  }, [preview, lockAt]);
+
+  const availability = useMemo(() => {
+    if (!item) return undefined;
+    return resolveAvailability(
+      item,
+      inventoryById[item.id] ?? emptyInventoryCounters(item.id),
+      effectiveLockAtForAvail,
+      previewNow
+    );
+  }, [item, inventoryById, effectiveLockAtForAvail, previewNow]);
+
+  const directOk = availability ? availabilityAllowsDirectPurchase(availability) : false;
+  const directRemaining = availability ? availabilityRemaining(availability) : null;
+  const lockLabel = useMemo(() => {
+    if (!lockAt) return null;
+    try {
+      return new Date(lockAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return boxLockChipLabel(previewNow, lockAt);
+    }
+  }, [lockAt, previewNow]);
 
   useEffect(() => {
-    setDetailsOpen(false);
+    setDetailsOpen(true);
   }, [slug]);
 
   useEffect(() => {
@@ -140,9 +191,7 @@ export function CatalogProductScreen() {
     getHanukkahConfig().then((config) => {
       if (cancelled) return;
       setLockAt(config.lockAt);
-      if (config.estimatedDeliveryBy) {
-        setShipWindow(HANUKKAH_SHIP_WINDOW_LABEL);
-      }
+      setShipWindow(shipWindowLabel(config.estimatedDeliveryBy));
       setLoadingConfig(false);
     });
     return () => {
@@ -210,7 +259,8 @@ export function CatalogProductScreen() {
   };
 
   const addToCart = async () => {
-    if (!item || locked) return;
+    if (!item || !directOk) return;
+    if (directRemaining != null && marketplaceQty >= directRemaining) return;
     setSaving(true);
     try {
       addCartItem({
@@ -285,17 +335,29 @@ export function CatalogProductScreen() {
     });
   };
 
-  const primaryLabel = inCart
-    ? hasStartedBox
-      ? 'Remove from box'
-      : 'Add another'
-    : hasStartedBox
-      ? boxUnitCents > 0
-        ? `Add to box (+${formatCatalogDollars(boxUnitCents)})`
-        : 'Add to box'
-      : nonMemberCents > 0
-        ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
-        : 'Add to cart';
+  const isBoxOnly = availability?.status === 'box_only';
+  const isSoldOut = availability?.status === 'sold_out';
+  /** No box yet + box-only/sold-out: primary drives into a box (or disabled). */
+  const marketplaceBoxOnlyPath = !hasStartedBox && isBoxOnly;
+  const marketplaceBlocked = !hasStartedBox && isSoldOut;
+
+  const primaryLabel = marketplaceBlocked
+    ? 'Sold out'
+    : marketplaceBoxOnlyPath
+      ? memberCents > 0
+        ? `Add to a box (${formatCatalogDollars(memberCents)})`
+        : 'Add to a box'
+      : inCart
+        ? hasStartedBox
+          ? 'Remove from box'
+          : 'Add another'
+        : hasStartedBox
+          ? boxUnitCents > 0
+            ? `Add to box (+${formatCatalogDollars(boxUnitCents)})`
+            : 'Add to box'
+          : nonMemberCents > 0
+            ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
+            : 'Add to cart';
 
   const canPolicySwap = useMemo(() => {
     if (!swapSource || !item || !swapSourceItem) return false;
@@ -311,18 +373,30 @@ export function CatalogProductScreen() {
       ? `Buy with a box (${formatCatalogDollars(memberCents)})`
       : 'Buy with a box';
 
-  const showMarketplaceQty = !hasStartedBox && inMarketplaceCart;
-  const showSecondary = hasStartedBox
-    ? !inCart && Boolean(swapSource) && canPolicySwap
-    : true;
+  const showMarketplaceQty = !hasStartedBox && inMarketplaceCart && directOk;
+  const showSecondary = marketplaceBlocked || marketplaceBoxOnlyPath
+    ? false
+    : hasStartedBox
+      ? !inCart && Boolean(swapSource) && canPolicySwap
+      : true;
 
-  const onPrimaryPress = hasStartedBox
-    ? inCart
-      ? removeFromCartOrBox
-      : addToBox
-    : addToCart;
+  const marketplacePrimaryDisabled =
+    marketplaceBlocked || saving || (!directOk && !marketplaceBoxOnlyPath);
+  const boxPrimaryDisabled = locked || saving;
+
+  const onPrimaryPress = marketplaceBlocked
+    ? () => undefined
+    : marketplaceBoxOnlyPath
+      ? buyWithBox
+      : hasStartedBox
+        ? inCart
+          ? removeFromCartOrBox
+          : addToBox
+        : addToCart;
 
   const onSecondaryPress = hasStartedBox ? swapIntoBox : buyWithBox;
+
+  const primaryDisabled = hasStartedBox ? boxPrimaryDisabled : marketplacePrimaryDisabled;
 
   if (loading || draftLoading) {
     return (
@@ -445,6 +519,9 @@ export function CatalogProductScreen() {
               <ProductPricingBlock
                 item={item}
                 hasBox={hasStartedBox}
+                availability={availability}
+                boxLocked={locked}
+                lockLabel={lockLabel}
                 onWhatsInTheBox={
                   hasStartedBox ? undefined : () => navigation.navigate('MyBox')
                 }
@@ -457,14 +534,28 @@ export function CatalogProductScreen() {
                   <CartQtyStepper
                     quantity={marketplaceQty}
                     label={item.name}
-                    disabled={locked || saving}
-                    onChange={(delta) => changeCartQuantity(slug, delta)}
+                    disabled={saving}
+                    maxQuantity={directRemaining ?? undefined}
+                    onChange={(delta) => {
+                      if (
+                        delta > 0 &&
+                        directRemaining != null &&
+                        marketplaceQty >= directRemaining
+                      ) {
+                        return;
+                      }
+                      changeCartQuantity(slug, delta);
+                    }}
                   />
                 ) : (
                   <TouchableOpacity
-                    style={[styles.cta, styles.ctaPrimary, (locked || saving) && styles.ctaDisabled]}
+                    style={[
+                      styles.cta,
+                      styles.ctaPrimary,
+                      primaryDisabled && styles.ctaDisabled,
+                    ]}
                     onPress={onPrimaryPress}
-                    disabled={locked || saving}
+                    disabled={primaryDisabled}
                     accessibilityRole="button"
                   >
                     {saving ? (
@@ -476,9 +567,13 @@ export function CatalogProductScreen() {
                 )}
                 {showSecondary ? (
                   <TouchableOpacity
-                    style={[styles.cta, styles.ctaSecondary, (locked || saving) && styles.ctaDisabled]}
+                    style={[
+                      styles.cta,
+                      styles.ctaSecondary,
+                      (hasStartedBox ? locked || saving : saving) && styles.ctaDisabled,
+                    ]}
                     onPress={onSecondaryPress}
-                    disabled={locked || saving}
+                    disabled={hasStartedBox ? locked || saving : saving}
                     accessibilityRole="button"
                   >
                     <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>

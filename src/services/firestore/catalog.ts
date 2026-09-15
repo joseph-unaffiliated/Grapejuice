@@ -116,6 +116,17 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
     inventory: typeof data.inventory === 'number' ? data.inventory : null,
     holdInventory: typeof data.holdInventory === 'boolean' ? data.holdInventory : null,
     wrappable: typeof data.wrappable === 'boolean' ? data.wrappable : null,
+    directSaleCapBeforeLock:
+      data.directSaleCapBeforeLock != null && Number.isFinite(Number(data.directSaleCapBeforeLock))
+        ? Number(data.directSaleCapBeforeLock)
+        : null,
+    sellAfterLock:
+      data.sellAfterLock === 'yes' || data.sellAfterLock === 'flag' || data.sellAfterLock === 'no'
+        ? data.sellAfterLock
+        : null,
+    boxRoles: Array.isArray(data.boxRoles)
+      ? (data.boxRoles as unknown[]).filter((r): r is string => typeof r === 'string')
+      : undefined,
   };
 }
 

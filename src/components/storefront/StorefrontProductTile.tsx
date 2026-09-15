@@ -8,13 +8,16 @@ import {
   formatSubscriberOfferLine,
   resolveCatalogDisplayPrices,
 } from '../../services/box/pricing';
-import type { CatalogItem } from '../../types/pilot';
+import {
+  boxOnlyAvailabilityLine,
+  boxOnlyHeroPrice,
+} from '../../services/catalog/availabilityCopy';
+import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import {
   borderRadius,
   semanticColors,
   spacing,
   typeface,
-  typography,
 } from '../../constants/theme';
 import {
   WelcomeSubscriberBadge,
@@ -27,6 +30,7 @@ type Props = {
   wishlisted: boolean;
   onPress: () => void;
   onToggleWishlist: () => void;
+  availability?: CatalogAvailability;
 };
 
 export function StorefrontProductTile({
@@ -35,6 +39,7 @@ export function StorefrontProductTile({
   wishlisted,
   onPress,
   onToggleWishlist,
+  availability,
 }: Props) {
   const imageSize = Math.max(120, width);
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
@@ -47,6 +52,9 @@ export function StorefrontProductTile({
         ? formatCatalogDollars(memberCents)
         : formatCatalogDollars(item.dollarCostCents);
   const showWelcomeBadge = isWelcomeMenorah(item);
+  const isBoxOnly = availability?.status === 'box_only';
+  const isSoldOut = availability?.status === 'sold_out';
+  const description = item.description?.trim() ?? '';
 
   return (
     <View style={[styles.root, { width }]}>
@@ -64,7 +72,7 @@ export function StorefrontProductTile({
             style={styles.image}
           />
         </TouchableOpacity>
-        {showWelcomeBadge ? (
+        {showWelcomeBadge && !isBoxOnly ? (
           <View style={styles.welcomeBadge}>
             <WelcomeSubscriberBadge compact />
           </View>
@@ -89,7 +97,19 @@ export function StorefrontProductTile({
         <Text style={styles.name} numberOfLines={2}>
           {item.name}
         </Text>
-        {showMember ? (
+        {description ? (
+          <Text style={styles.description} numberOfLines={2}>
+            {description}
+          </Text>
+        ) : null}
+        {isBoxOnly ? (
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>{boxOnlyHeroPrice(item)}</Text>
+            <Text style={styles.memberPrice}>{boxOnlyAvailabilityLine()}</Text>
+          </View>
+        ) : isSoldOut ? (
+          <Text style={[styles.price, styles.soldOutPrice]}>Sold out</Text>
+        ) : showMember ? (
           <View style={styles.priceRow}>
             <Text style={styles.price}>{defaultPrice}</Text>
             <Text style={styles.memberPrice}>
@@ -141,10 +161,19 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   name: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
+    ...typeface('medium'),
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: -0.3,
     color: semanticColors.textPrimary,
     marginBottom: 4,
+  },
+  description: {
+    ...typeface('regular'),
+    fontSize: 11,
+    lineHeight: 14,
+    color: semanticColors.textSecondary,
+    marginBottom: 10,
   },
   priceRow: {
     flexDirection: 'row',
@@ -156,6 +185,10 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     fontSize: 18,
     color: semanticColors.logoDark,
+  },
+  soldOutPrice: {
+    color: semanticColors.textTertiary,
+    textDecorationLine: 'line-through',
   },
   memberPrice: {
     ...typeface('regular'),

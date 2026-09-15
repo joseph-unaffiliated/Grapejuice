@@ -1,10 +1,14 @@
-import type { AgeGroup, CatalogItem } from '../types/pilot';
+import type { AgeGroup, CatalogAvailability, CatalogItem } from '../types/pilot';
 import { getCurationTags } from './catalogCuration';
 import {
   isKidsDreidel,
   isKidsMenorah,
   itemHasCategory,
 } from './storefrontCategories';
+import {
+  isBoxOnlyAvailability,
+  isBuyNowAvailability,
+} from '../services/catalog/availabilityCopy';
 
 export type AgeFilterKey = AgeGroup | 'all';
 
@@ -18,6 +22,37 @@ export type ContextualFilterGroup = {
   label: string;
   options: FilterChip[];
 };
+
+export const AVAILABILITY_FILTER_OPTIONS: FilterChip[] = [
+  { key: 'all', label: 'All' },
+  { key: 'buy-now', label: 'Buy now' },
+  { key: 'box-only', label: 'Only with a box' },
+];
+
+/**
+ * Availability chips when the aisle has both buy-now and box-only items.
+ * Books aisle is all box-only — hide the filter.
+ */
+export function availabilityFilterGroup(
+  items: CatalogItem[],
+  availabilityById: Record<string, CatalogAvailability>
+): ContextualFilterGroup | null {
+  if (items.length < 2) return null;
+  let hasBuy = false;
+  let hasBox = false;
+  for (const item of items) {
+    const a = availabilityById[item.id];
+    if (isBuyNowAvailability(a)) hasBuy = true;
+    if (isBoxOnlyAvailability(a) || a?.status === 'sold_out') hasBox = true;
+    if (hasBuy && hasBox) break;
+  }
+  if (!hasBuy || !hasBox) return null;
+  return {
+    id: 'availability',
+    label: 'Availability',
+    options: AVAILABILITY_FILTER_OPTIONS,
+  };
+}
 
 /** Known materials we surface when present in `materials` or product name. */
 const MATERIAL_KEYWORDS: { key: string; label: string; pattern: RegExp }[] = [
@@ -154,12 +189,19 @@ function foodTypeOptions(items: CatalogItem[]): FilterChip[] {
 /**
  * Build aisle-specific filter groups from the live category items.
  * Sort is handled separately by the screen (always shown).
+ * Pass `availabilityById` to prepend a Buy now / Only with a box group when useful.
  */
 export function contextualFiltersForCategory(
   slug: string,
-  items: CatalogItem[]
+  items: CatalogItem[],
+  availabilityById?: Record<string, CatalogAvailability>
 ): ContextualFilterGroup[] {
   const groups: ContextualFilterGroup[] = [];
+
+  if (availabilityById) {
+    const avail = availabilityFilterGroup(items, availabilityById);
+    if (avail) groups.push(avail);
+  }
 
   switch (slug) {
     case 'books': {
@@ -210,9 +252,22 @@ export function contextualFiltersForCategory(
 export function applyContextualFilters(
   items: CatalogItem[],
   slug: string,
-  selected: Record<string, string>
+  selected: Record<string, string>,
+  availabilityById?: Record<string, CatalogAvailability>
 ): CatalogItem[] {
   let list = items;
+
+  const availability = selected.availability;
+  if (availability && availability !== 'all' && availabilityById) {
+    list = list.filter((item) => {
+      const a = availabilityById[item.id];
+      if (availability === 'buy-now') return isBuyNowAvailability(a);
+      if (availability === 'box-only') {
+        return isBoxOnlyAvailability(a) || a?.status === 'sold_out';
+      }
+      return true;
+    });
+  }
 
   const age = selected.age;
   if (age && age !== 'all') {

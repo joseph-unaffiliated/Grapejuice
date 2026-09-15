@@ -189,10 +189,10 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
               }),
           },
           {
-            label: 'hello@grapejuice.com',
+            label: 'hello@grapejuice.co',
             onPress: () => {
               onClose();
-              void Linking.openURL('mailto:hello@grapejuice.com');
+              void Linking.openURL('mailto:hello@grapejuice.co');
             },
           },
         ],

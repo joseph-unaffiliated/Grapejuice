@@ -135,16 +135,19 @@ export function BoxSectionUpsellStrip({
   const edges = useHorizontalScrollEdges();
   const showMore = !expanded && edges.overflows;
 
-  /** Included ($0) options float to the front of the rail / grid. */
+  /** Included ($0) first, then swap-eligible, then paid-only add-ons. */
   const orderedItems = useMemo(() => {
-    if (!includedItemIds?.size) return items;
     const included: CatalogItem[] = [];
+    const swapEligible: CatalogItem[] = [];
     const rest: CatalogItem[] = [];
     for (const item of items) {
-      (includedItemIds.has(item.id) ? included : rest).push(item);
+      if (includedItemIds?.has(item.id)) included.push(item);
+      else if (swapEligibleItemIds?.has(item.id)) swapEligible.push(item);
+      else rest.push(item);
     }
-    return included.length ? [...included, ...rest] : items;
-  }, [items, includedItemIds]);
+    if (!included.length && !swapEligible.length) return items;
+    return [...included, ...swapEligible, ...rest];
+  }, [items, includedItemIds, swapEligibleItemIds]);
 
   const renderTile = useCallback(
     (item: CatalogItem) => {

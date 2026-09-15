@@ -66,6 +66,12 @@ const F = {
     menorahHomepage: 'fld11aALd1jA7S2Oh',
     /** singleSelect: collection | kids — merged into storefrontRails as dreidels-* */
     dreidelHomepage: 'fldtNYSxTNtwO9TMg',
+    /** Number — units sellable à la carte before box lock. */
+    availableBeforeLock: 'fld5lpY35uPMK9dWl',
+    /** singleSelect: Yes | Flag | No — leftover release after lock. */
+    sellAfterLock: 'fldBsSszQ2lmutIX1',
+    /** Multi-select box roles (base, swap, upsell, gift-eligible, store-only, …). */
+    boxRoles: 'fldxFZn1AVEGMCjjD',
 };
 const B = {
     title: 'fldCZVbxyEy7pFpl5',
@@ -117,6 +123,17 @@ function selectName(v) {
     if (typeof v === 'object' && v !== null && 'name' in v) {
         return String(v.name);
     }
+    return null;
+}
+function sellAfterLockFromAirtable(v) {
+    var _a;
+    const name = (_a = selectName(v)) === null || _a === void 0 ? void 0 : _a.trim().toLowerCase();
+    if (name === 'yes')
+        return 'yes';
+    if (name === 'flag')
+        return 'flag';
+    if (name === 'no')
+        return 'no';
     return null;
 }
 function selectNames(v) {
@@ -448,6 +465,9 @@ function listingToItem(rec, images) {
         materials: textField(f[F.materials]),
         whatsIncluded: textField(f[F.whatsIncluded]),
         careNotes: textField(f[F.careNotes]),
+        directSaleCapBeforeLock: numberField(f[F.availableBeforeLock]),
+        sellAfterLock: sellAfterLockFromAirtable(f[F.sellAfterLock]),
+        boxRoles: selectNames(f[F.boxRoles]),
     };
 }
 function bookToItem(rec, images) {
@@ -502,6 +522,10 @@ function bookToItem(rec, images) {
         materials: null,
         whatsIncluded: textField(f[B.whatsIncluded]),
         careNotes: textField(f[B.careNotes]),
+        // Books are never sold à la carte — caps/FBA unused by the resolver.
+        directSaleCapBeforeLock: null,
+        sellAfterLock: null,
+        boxRoles: [],
     };
 }
 function wireBookSwaps(items) {

@@ -14,17 +14,37 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
 import { isOpsAdmin } from '../../constants/admin';
 import { catalogService } from '../../services/firestore/catalog';
+import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import { useCatalogInventory } from '../../hooks/useCatalogInventory';
 import { formatDollars } from '../../services/box/buildDefaultBox';
+import { availabilityRemaining } from '../../services/catalog/availability';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { spacing, typography, borderRadius } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
-import type { CatalogItem } from '../../types/pilot';
+import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 
 type Nav = StackNavigationProp<MainStackParamList>;
+
+function formatAvailLabel(
+  a: CatalogAvailability | undefined,
+  counters: { reserved: number; sold: number; box: number } | undefined
+): string {
+  const c = counters
+    ? ` · r${counters.reserved}/s${counters.sold}/b${counters.box}`
+    : '';
+  if (!a) return `unknown${c}`;
+  if (a.status === 'direct') {
+    const rem = a.remaining != null ? ` (${a.remaining} left)` : '';
+    return `buy now${rem}${c}`;
+  }
+  if (a.status === 'limited') return `limited (${a.remaining} left)${c}`;
+  if (a.status === 'sold_out') return `sold out${c}`;
+  return `box only (${a.reason})${c}`;
+}
 
 /** Ops list of Hanukkah catalog SKUs — admin-gated. */
 export function AdminCatalogScreen() {
@@ -39,6 +59,9 @@ export function AdminCatalogScreen() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { byId: availabilityById, locked } = useCatalogAvailabilityMap();
+  const { byId: inventoryById } = useCatalogInventory();
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,7 +123,9 @@ export function AdminCatalogScreen() {
               <Text style={styles.backLink}>← Account</Text>
             </TouchableOpacity>
             <Text style={styles.title}>Catalog admin</Text>
-            <Text style={styles.subtitle}>{items.length} Hanukkah items</Text>
+            <Text style={styles.subtitle}>
+              {items.length} Hanukkah items · lock {locked ? 'passed' : 'open'}
+            </Text>
           </View>
 
           <View style={styles.toolbar}>
@@ -138,27 +163,44 @@ export function AdminCatalogScreen() {
               contentContainerStyle={styles.listContent}
               keyboardShouldPersistTaps="handled"
             >
-              {filtered.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.row}
-                  onPress={() => navigation.navigate('AdminCatalogItem', { itemId: item.id })}
-                >
-                  <BoxItemImage itemId={item.id} imageUrl={item.imageUrl} size={48} />
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
-                      {item.slot} · {item.slotId} · {formatDollars(item.dollarCostCents)}
-                    </Text>
-                    <Text style={styles.rowId} numberOfLines={1}>
-                      {item.id}
-                    </Text>
-                  </View>
-                  <Text style={styles.chevron}>›</Text>
-                </TouchableOpacity>
-              ))}
+              {filtered.map((item) => {
+                const avail = availabilityById[item.id];
+                const inv = inventoryById[item.id];
+                const rem = avail ? availabilityRemaining(avail) : null;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.row}
+                    onPress={() => navigation.navigate('AdminCatalogItem', { itemId: item.id })}
+                  >
+                    <BoxItemImage itemId={item.id} imageUrl={item.imageUrl} size={48} />
+                    <View style={styles.rowBody}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.rowMeta} numberOfLines={1}>
+                        {item.slot} · {item.slotId} · {formatDollars(item.dollarCostCents)}
+                        {item.directSaleCapBeforeLock != null
+                          ? ` · cap ${item.directSaleCapBeforeLock}`
+                          : ''}
+                        {item.sellAfterLock ? ` · FBA ${item.sellAfterLock}` : ''}
+                      </Text>
+                      <Text style={styles.rowAvail} numberOfLines={1}>
+                        {formatAvailLabel(avail, {
+                          reserved: inv?.directReservedQty ?? 0,
+                          sold: inv?.directSoldQty ?? 0,
+                          box: inv?.boxAllocatedQty ?? 0,
+                        })}
+                        {rem != null ? ` · rem ${rem}` : ''}
+                      </Text>
+                      <Text style={styles.rowId} numberOfLines={1}>
+                        {item.id}
+                      </Text>
+                    </View>
+                    <Text style={styles.chevron}>›</Text>
+                  </TouchableOpacity>
+                );
+              })}
               {filtered.length === 0 ? (
                 <Text style={styles.empty}>No items match “{query.trim()}”.</Text>
               ) : null}
@@ -240,6 +282,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     rowBody: { flex: 1, minWidth: 0 },
     rowTitle: { fontSize: typography.lg, fontWeight: '600', color: colors.textPrimary },
     rowMeta: { fontSize: typography.sm, color: colors.textSecondary, marginTop: 2 },
+    rowAvail: { fontSize: typography.sm, color: colors.brand, marginTop: 2, fontWeight: '600' },
     rowId: { fontSize: typography.xs, color: colors.textTertiary, marginTop: 2 },
     chevron: { fontSize: 22, color: colors.textTertiary },
     empty: { textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xl },

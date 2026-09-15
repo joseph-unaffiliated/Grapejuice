@@ -45,11 +45,11 @@ export function AuthStack({ checkoutAuth = false }: Props) {
       initialRouteName={initialRoute}
     >
       <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ title: 'Welcome' }} />
-      <Stack.Screen name="SignIn" component={SignInScreen} options={{ title: 'Sign in' }} />
+      <Stack.Screen name="SignIn" component={SignInScreen} options={{ title: 'Log in' }} />
       <Stack.Screen
         name="SignInEmail"
         component={SignInEmailScreen}
-        options={{ title: 'Sign in' }}
+        options={{ title: 'Log in' }}
         initialParams={restoreSignInEmail ? { email: restoreSignInEmail } : undefined}
       />
       <Stack.Screen

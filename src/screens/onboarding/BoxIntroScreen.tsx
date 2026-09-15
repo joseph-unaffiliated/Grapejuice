@@ -13,6 +13,7 @@ import {
   type KidAgeChoice,
 } from '../../components/family/KidAgePicker';
 import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
+import { firstNameFromDisplayName } from '../../utils/personName';
 
 export type FamilyMemberRole = 'kid' | 'adult';
 
@@ -98,7 +99,7 @@ export function normalizeFamilyDraft(d: ChildDraft): ChildDraft {
 }
 
 function ensureAdultLead(members: ChildDraft[], defaultName?: string): ChildDraft[] {
-  const adultName = defaultName?.trim() || 'Joseph';
+  const adultName = firstNameFromDisplayName(defaultName) || 'Joseph';
   const normalized = members.map(normalizeFamilyDraft);
   if (normalized[0]?.role === 'adult') {
     if (!normalized[0].name.trim()) {
@@ -110,7 +111,7 @@ function ensureAdultLead(members: ChildDraft[], defaultName?: string): ChildDraf
 }
 
 function defaultMembers(defaultName?: string): ChildDraft[] {
-  const adultName = defaultName?.trim() || 'Joseph';
+  const adultName = firstNameFromDisplayName(defaultName) || 'Joseph';
   return [makeAdultDraft(adultName), makeKidDraft('Sam', 5)];
 }
 

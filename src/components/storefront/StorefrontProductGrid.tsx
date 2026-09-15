@@ -10,7 +10,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontProductTile } from './StorefrontProductTile';
 import { useWishlist } from '../../hooks/useWishlist';
-import type { CatalogItem } from '../../types/pilot';
+import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   MOBILE_GUTTER,
@@ -32,6 +33,8 @@ type Props = {
    * sections stay visible (e.g. landings before catalog resolves).
    */
   placeholderCount?: number;
+  /** Optional precomputed availability (avoids a second subscription). */
+  availabilityById?: Record<string, CatalogAvailability>;
 };
 
 /** Prefer 3-up when the grid’s own width is tablet+; else 2. Uses container, not window,
@@ -40,10 +43,17 @@ function columnsForWidth(width: number): number {
   return width >= 768 ? 3 : 2;
 }
 
-export function StorefrontProductGrid({ items, limit, placeholderCount = 0 }: Props) {
+export function StorefrontProductGrid({
+  items,
+  limit,
+  placeholderCount = 0,
+  availabilityById: availabilityProp,
+}: Props) {
   const navigation = useNavigation<Nav>();
   const { width: windowWidth } = useWindowDimensions();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const availHook = useCatalogAvailabilityMap();
+  const availabilityById = availabilityProp ?? availHook.byId;
   const [containerWidth, setContainerWidth] = useState(0);
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -76,6 +86,7 @@ export function StorefrontProductGrid({ items, limit, placeholderCount = 0 }: Pr
           item={item}
           width={tileWidth}
           wishlisted={isWishlisted(item.id)}
+          availability={availabilityById[item.id]}
           onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
           onToggleWishlist={() => void toggleWishlist(item.id)}
         />

@@ -143,7 +143,7 @@ export function AuthHeroShell({ children, modal }: Props) {
             style={StyleSheet.absoluteFillObject}
             onPress={onDismiss}
             accessibilityRole="button"
-            accessibilityLabel="Dismiss sign in"
+            accessibilityLabel="Dismiss log in"
           />
         ) : null}
         {/* Card sits above the backdrop press target — not nested inside a <button>. */}

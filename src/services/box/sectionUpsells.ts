@@ -183,6 +183,12 @@ function normalizeKind(raw: string): string {
 function matchesKind(item: CatalogItem, kind: string): boolean {
   const key = normalizeKind(kind);
   if (key === 'donate') return false;
+  // Catch-all dreidel shelf: spinning tops only — not cookie cutters or gelt bags.
+  if (key === 'more-dreidels') {
+    const h = haystack(item);
+    if (/cookie.?cutter|gelt/.test(h)) return false;
+    return /dreidel/.test(h);
+  }
   if (DEFAULT_SLOTS.has(key)) {
     const hit = resolveByDefaultSlot([item], key as DefaultSlotId);
     return hit?.id === item.id;
@@ -249,6 +255,27 @@ function collectUpsellKinds(sectionId: BoxSectionId): string[] {
   if (sectionId === 'food') {
     push('cookie-cutters');
     push('napkins');
+  }
+
+  // Play Dreidel: surface gelt bags before the greedy `more-dreidels` catch-all
+  // fills the rail (otherwise Little/Big/Party bag never appear).
+  if (sectionId === 'dreidel') {
+    const geltPreferred = [
+      'more-gelt-small',
+      'more-gelt-medium',
+      'gelt-party',
+      'gelt-small×2',
+    ];
+    const rest = kinds.filter((k) => !geltPreferred.includes(normalizeKind(k)) && k !== 'more-dreidels');
+    const hasMoreDreidels = kinds.some((k) => normalizeKind(k) === 'more-dreidels');
+    kinds.length = 0;
+    // Keep specific dreidel swaps/upsells first, then gelt, then catch-all.
+    const specific = rest.filter((k) => normalizeKind(k) !== 'dreidel-stuffie');
+    const stuffie = rest.filter((k) => normalizeKind(k) === 'dreidel-stuffie');
+    for (const k of [...specific, ...geltPreferred, ...stuffie]) {
+      if (!kinds.includes(k)) kinds.push(k);
+    }
+    if (hasMoreDreidels) kinds.push('more-dreidels');
   }
 
   return kinds;

@@ -50,6 +50,12 @@ const F = {
   menorahHomepage: 'fld11aALd1jA7S2Oh',
   /** singleSelect: collection | kids — merged into storefrontRails as dreidels-* */
   dreidelHomepage: 'fldtNYSxTNtwO9TMg',
+  /** Number — units sellable à la carte before box lock. */
+  availableBeforeLock: 'fld5lpY35uPMK9dWl',
+  /** singleSelect: Yes | Flag | No — leftover release after lock. */
+  sellAfterLock: 'fldBsSszQ2lmutIX1',
+  /** Multi-select box roles (base, swap, upsell, gift-eligible, store-only, …). */
+  boxRoles: 'fldxFZn1AVEGMCjjD',
 } as const;
 
 const B = {
@@ -127,6 +133,12 @@ export type SyncedCatalogItem = {
   materials: string | null;
   whatsIncluded: string | null;
   careNotes: string | null;
+  /** Airtable "Available for Sale Before Box Close". */
+  directSaleCapBeforeLock: number | null;
+  /** Airtable "Sell After Lock via FBA" → yes | flag | no. */
+  sellAfterLock: 'yes' | 'flag' | 'no' | null;
+  /** Airtable "Box roles" multi-select. */
+  boxRoles: string[];
 };
 
 function requirePat(): string {
@@ -155,6 +167,14 @@ function selectName(v: unknown): string | null {
   if (typeof v === 'object' && v !== null && 'name' in v) {
     return String((v as { name: string }).name);
   }
+  return null;
+}
+
+function sellAfterLockFromAirtable(v: unknown): 'yes' | 'flag' | 'no' | null {
+  const name = selectName(v)?.trim().toLowerCase();
+  if (name === 'yes') return 'yes';
+  if (name === 'flag') return 'flag';
+  if (name === 'no') return 'no';
   return null;
 }
 
@@ -488,6 +508,9 @@ function listingToItem(
     materials: textField(f[F.materials]),
     whatsIncluded: textField(f[F.whatsIncluded]),
     careNotes: textField(f[F.careNotes]),
+    directSaleCapBeforeLock: numberField(f[F.availableBeforeLock]),
+    sellAfterLock: sellAfterLockFromAirtable(f[F.sellAfterLock]),
+    boxRoles: selectNames(f[F.boxRoles]),
   };
 }
 
@@ -545,6 +568,10 @@ function bookToItem(
     materials: null,
     whatsIncluded: textField(f[B.whatsIncluded]),
     careNotes: textField(f[B.careNotes]),
+    // Books are never sold à la carte — caps/FBA unused by the resolver.
+    directSaleCapBeforeLock: null,
+    sellAfterLock: null,
+    boxRoles: [],
   };
 }
 

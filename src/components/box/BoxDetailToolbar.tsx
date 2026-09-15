@@ -47,7 +47,7 @@ export function BoxDetailToolbar({
   const showBack = !!onBack && !hideBack;
   const lockLabel = isBoxLocked(lockAt, now)
     ? lockedBoxChipLabel(estimatedDeliveryBy, now)
-    : boxLockChipLabel(now);
+    : boxLockChipLabel(now, lockAt);
 
   return (
     <View>

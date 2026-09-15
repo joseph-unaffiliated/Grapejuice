@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import type { CatalogItem } from '../../types/pilot';
+import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import {
   catalogPercentOff,
@@ -8,6 +8,12 @@ import {
   inferPricingTier,
   resolveCatalogDisplayPrices,
 } from '../../services/box/pricing';
+import {
+  boxOnlyMemberLine,
+  boxOnlyPdpHero,
+  boxOnlyPdpSubcopy,
+  limitedRemainingLabel,
+} from '../../services/catalog/availabilityCopy';
 import { spacing, typography } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 
@@ -16,9 +22,20 @@ type Props = {
   /** Household already has a Hanukkah box (draft or order) — show member price first. */
   hasBox?: boolean;
   onWhatsInTheBox?: () => void;
+  availability?: CatalogAvailability;
+  boxLocked?: boolean;
+  /** Human lock date for cap-exhausted copy, e.g. "Nov 4". */
+  lockLabel?: string | null;
 };
 
-export function ProductPricingBlock({ item, hasBox, onWhatsInTheBox }: Props) {
+export function ProductPricingBlock({
+  item,
+  hasBox,
+  onWhatsInTheBox,
+  availability,
+  boxLocked,
+  lockLabel,
+}: Props) {
   const { colors } = useThemeMode();
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const tier = inferPricingTier(item);
@@ -45,6 +62,39 @@ export function ProductPricingBlock({ item, hasBox, onWhatsInTheBox }: Props) {
     );
   }
 
+  if (availability?.status === 'box_only') {
+    const sub = boxOnlyPdpSubcopy(availability.reason, lockLabel);
+    return (
+      <View style={styles.root}>
+        <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>
+          {boxOnlyPdpHero(availability.reason)}
+        </Text>
+        <Text style={[styles.offer, { color: colors.textPrimary }]}>
+          {boxOnlyMemberLine(item)}
+        </Text>
+        {sub ? <Text style={[styles.retail, { color: colors.textSecondary }]}>{sub}</Text> : null}
+        {onWhatsInTheBox ? (
+          <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link">
+            <Text style={[styles.secondaryLink, { color: colors.textPrimary }]}>
+              See what’s in the box
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  }
+
+  if (availability?.status === 'sold_out') {
+    return (
+      <View style={styles.root}>
+        <Text style={[styles.heroPrice, { color: colors.textSecondary }]}>Sold out</Text>
+        <Text style={[styles.retail, { color: colors.textSecondary }]}>
+          This item isn’t available for direct purchase right now.
+        </Text>
+      </View>
+    );
+  }
+
   const heroRetail =
     nonMemberCents > 0
       ? formatCatalogDollars(nonMemberCents)
@@ -54,7 +104,7 @@ export function ProductPricingBlock({ item, hasBox, onWhatsInTheBox }: Props) {
 
   let offerLine: string | null = null;
   if (includedOrMemberZero && nonMemberCents > 0) {
-    offerLine = off ? `Free (${off}% off) for subscribers` : 'Free for subscribers';
+    offerLine = off ? `Free (${off}% off) when in a box` : 'Free when in a box';
   } else if (memberCents > 0 && nonMemberCents > memberCents) {
     offerLine = formatSubscriberOfferLine(
       formatCatalogDollars(memberCents),
@@ -62,6 +112,15 @@ export function ProductPricingBlock({ item, hasBox, onWhatsInTheBox }: Props) {
       memberCents
     );
   }
+
+  const remaining =
+    availability?.status === 'limited'
+      ? availability.remaining
+      : availability?.status === 'direct'
+        ? availability.remaining
+        : null;
+  const showLimited =
+    availability?.status === 'limited' && remaining != null && remaining > 0;
 
   return (
     <View style={styles.root}>
@@ -82,6 +141,11 @@ export function ProductPricingBlock({ item, hasBox, onWhatsInTheBox }: Props) {
             </TouchableOpacity>
           ) : null}
         </View>
+      ) : null}
+      {showLimited ? (
+        <Text style={[styles.limited, { color: colors.textPrimary }]}>
+          {limitedRemainingLabel(remaining!, Boolean(boxLocked))}
+        </Text>
       ) : null}
     </View>
   );
@@ -126,5 +190,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0,
     textDecorationLine: 'underline',
+  },
+  limited: {
+    fontSize: typography.sm,
+    fontWeight: '500',
+    lineHeight: 18,
+    marginTop: 2,
   },
 });

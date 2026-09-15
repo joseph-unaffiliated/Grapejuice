@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.scheduledChargePilotBoxes = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -19,6 +19,7 @@ const debriefReminders_1 = require("./debriefReminders");
 const lockReminders_1 = require("./lockReminders");
 const airtableCatalogSync_1 = require("./airtableCatalogSync");
 const chargePilotBox_1 = require("./chargePilotBox");
+const catalogInventory_1 = require("./catalogInventory");
 const crypto_1 = require("crypto");
 var welcome_1 = require("./welcome");
 Object.defineProperty(exports, "sendWelcomeOnSignup", { enumerable: true, get: function () { return welcome_1.sendWelcomeOnSignup; } });
@@ -225,7 +226,7 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
     if (totalCents < 50) {
         throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
     }
-    const estimatedDelivery = (_e = configData.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-11-21';
+    const estimatedDelivery = (_e = configData.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-11-24';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set({
         status: 'pending',
@@ -297,9 +298,12 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
         }
         const configSnap = await db.doc('config/hanukkah-2026').get();
         const configData = (_g = configSnap.data()) !== null && _g !== void 0 ? _g : {};
-        const estimatedDelivery = (_h = configData.estimatedDeliveryBy) !== null && _h !== void 0 ? _h : '2026-11-21';
+        const estimatedDelivery = (_h = configData.estimatedDeliveryBy) !== null && _h !== void 0 ? _h : '2026-11-24';
+        const lockAt = typeof configData.lockAt === 'string' ? configData.lockAt : null;
         const orderRef = db.collection(`households/${householdId}/orders`).doc();
         const skipShipStation = data.skipShipStation === true;
+        const reservedLines = await db.runTransaction(async (tx) => (0, catalogInventory_1.reserveMarketplaceInventoryInTx)(db, tx, lineItems.map((li) => ({ itemId: li.itemId, quantity: li.quantity })), lockAt));
+        const reservedAt = new Date().toISOString();
         const orderPayload = {
             status: totalCents === 0 ? 'confirmed' : 'pending',
             orderType: 'marketplace',
@@ -315,52 +319,78 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
             holidayId: HOLIDAY_ID,
             userId: request.auth.uid,
             estimatedDelivery,
+            inventoryReserved: true,
+            inventoryReservedAt: reservedAt,
+            inventoryReservedLines: reservedLines,
             createdAt: firestore_1.FieldValue.serverTimestamp(),
         };
         if (totalCents === 0)
             orderPayload.confirmedAt = firestore_1.FieldValue.serverTimestamp();
         if (skipShipStation)
             orderPayload.playthrough = true;
-        await orderRef.set(orderPayload);
-        if (creditApplied > 0) {
-            await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0
-                ? { platformCreditCents: platformCreditCents - platformCreditApplied }
-                : {})), { updatedAt: new Date().toISOString() }));
-        }
-        // Fully credit-covered carts confirm without Stripe.
-        if (totalCents === 0) {
-            await fulfillMarketplaceOrder(householdId, orderRef.id, orderPayload, skipShipStation);
+        try {
+            await orderRef.set(orderPayload);
+            if (creditApplied > 0) {
+                await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0
+                    ? { platformCreditCents: platformCreditCents - platformCreditApplied }
+                    : {})), { updatedAt: new Date().toISOString() }));
+            }
+            // Fully credit-covered carts confirm without Stripe.
+            if (totalCents === 0) {
+                await (0, catalogInventory_1.commitMarketplaceReservations)(db, reservedLines);
+                await orderRef.update({
+                    inventoryReserved: false,
+                    inventoryCommittedAt: new Date().toISOString(),
+                });
+                await fulfillMarketplaceOrder(householdId, orderRef.id, orderPayload, skipShipStation);
+                return {
+                    orderId: orderRef.id,
+                    totalCents: 0,
+                    clientSecret: null,
+                    status: 'confirmed',
+                };
+            }
+            if (!stripe_1.stripe) {
+                throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+            }
+            const paymentIntent = await stripe_1.stripe.paymentIntents.create({
+                amount: totalCents,
+                currency: 'usd',
+                metadata: {
+                    householdId,
+                    orderId: orderRef.id,
+                    userId: request.auth.uid,
+                    type: 'marketplace',
+                },
+                automatic_payment_methods: { enabled: true },
+            });
+            if (!paymentIntent.client_secret) {
+                throw new https_1.HttpsError('internal', 'PaymentIntent missing client secret.');
+            }
+            await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
             return {
+                clientSecret: paymentIntent.client_secret,
                 orderId: orderRef.id,
-                totalCents: 0,
-                clientSecret: null,
-                status: 'confirmed',
+                totalCents,
+                status: 'pending',
             };
         }
-        if (!stripe_1.stripe) {
-            throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+        catch (innerErr) {
+            // Release reservation if we fail after reserving (Stripe/config errors).
+            try {
+                await (0, catalogInventory_1.releaseMarketplaceReservations)(db, reservedLines);
+                await orderRef.set({
+                    status: 'cancelled',
+                    cancelReason: 'checkout_failed_after_reserve',
+                    inventoryReserved: false,
+                    reservationReleasedAt: new Date().toISOString(),
+                }, { merge: true });
+            }
+            catch (releaseErr) {
+                logger.error('Failed to release marketplace reservation after checkout error', releaseErr);
+            }
+            throw innerErr;
         }
-        const paymentIntent = await stripe_1.stripe.paymentIntents.create({
-            amount: totalCents,
-            currency: 'usd',
-            metadata: {
-                householdId,
-                orderId: orderRef.id,
-                userId: request.auth.uid,
-                type: 'marketplace',
-            },
-            automatic_payment_methods: { enabled: true },
-        });
-        if (!paymentIntent.client_secret) {
-            throw new https_1.HttpsError('internal', 'PaymentIntent missing client secret.');
-        }
-        await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
-        return {
-            clientSecret: paymentIntent.client_secret,
-            orderId: orderRef.id,
-            totalCents,
-            status: 'pending',
-        };
     }
     catch (err) {
         if (err instanceof https_1.HttpsError)
@@ -453,7 +483,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     if (totalCents < 0) {
         throw new https_1.HttpsError('invalid-argument', 'Order total is invalid.');
     }
-    const estimatedDelivery = (_f = (expeditedShipping ? configData.expeditedDeliveryBy : configData.estimatedDeliveryBy)) !== null && _f !== void 0 ? _f : '2026-11-21';
+    const estimatedDelivery = (_f = (expeditedShipping ? configData.expeditedDeliveryBy : configData.estimatedDeliveryBy)) !== null && _f !== void 0 ? _f : '2026-11-24';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
         subtotalCents,
@@ -629,7 +659,7 @@ exports.chargePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     return (0, chargePilotBox_1.chargePilotBoxOrderForUser)(db, stripe_1.stripe, request.auth.uid, householdId, orderId, force);
 });
 exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
         return;
@@ -696,6 +726,23 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                     const orderSnap = await orderRef.get();
                     if (orderSnap.exists && ((_k = orderSnap.data()) === null || _k === void 0 ? void 0 : _k.status) !== 'confirmed') {
                         const order = orderSnap.data();
+                        const isMarketplaceOrder = order.orderType === 'marketplace' || ((_l = pi.metadata) === null || _l === void 0 ? void 0 : _l.type) === 'marketplace';
+                        const isReceivedGift = order.orderType === 'received_gift' || ((_m = pi.metadata) === null || _m === void 0 ? void 0 : _m.type) === 'received_gift';
+                        if (isMarketplaceOrder &&
+                            order.inventoryReserved === true &&
+                            !order.inventoryCommittedAt) {
+                            try {
+                                const reserved = (0, catalogInventory_1.reservedLinesFromOrder)(order);
+                                await (0, catalogInventory_1.commitMarketplaceReservations)(db, reserved);
+                                await orderRef.update({
+                                    inventoryReserved: false,
+                                    inventoryCommittedAt: new Date().toISOString(),
+                                });
+                            }
+                            catch (invErr) {
+                                logger.error('Marketplace inventory commit failed', { orderId, invErr });
+                            }
+                        }
                         await orderRef.update({
                             status: 'confirmed',
                             confirmedAt: firestore_1.FieldValue.serverTimestamp(),
@@ -703,11 +750,8 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                             chargeFailedAt: firestore_1.FieldValue.delete(),
                             chargeFailureMessage: firestore_1.FieldValue.delete(),
                         });
-                        const fresh = (_l = (await orderRef.get()).data()) !== null && _l !== void 0 ? _l : order;
-                        if (order.orderType === 'marketplace' ||
-                            order.orderType === 'received_gift' ||
-                            ((_m = pi.metadata) === null || _m === void 0 ? void 0 : _m.type) === 'marketplace' ||
-                            ((_o = pi.metadata) === null || _o === void 0 ? void 0 : _o.type) === 'received_gift') {
+                        const fresh = (_o = (await orderRef.get()).data()) !== null && _o !== void 0 ? _o : order;
+                        if (isMarketplaceOrder || isReceivedGift) {
                             await fulfillMarketplaceOrder(householdId, orderId, Object.assign(Object.assign({}, fresh), { totalCents: fresh.totalCents }), fresh.playthrough === true);
                             const giftInviteId = (typeof fresh.giftInviteId === 'string' && fresh.giftInviteId) ||
                                 ((_p = pi.metadata) === null || _p === void 0 ? void 0 : _p.giftInviteId);
@@ -766,6 +810,55 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                         chargeFailureMessage: message,
                     });
                     logger.warn('Hanukkah box charge failed', { householdId, orderId, message });
+                }
+            }
+            if (((_x = pi.metadata) === null || _x === void 0 ? void 0 : _x.type) === 'marketplace') {
+                const householdId = pi.metadata.householdId;
+                const orderId = pi.metadata.orderId;
+                if (householdId && orderId) {
+                    const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+                    const orderSnap = await orderRef.get();
+                    const order = orderSnap.data();
+                    if ((order === null || order === void 0 ? void 0 : order.inventoryReserved) === true && !order.reservationReleasedAt) {
+                        try {
+                            await (0, catalogInventory_1.releaseMarketplaceReservations)(db, (0, catalogInventory_1.reservedLinesFromOrder)(order));
+                            await orderRef.update({
+                                inventoryReserved: false,
+                                reservationReleasedAt: new Date().toISOString(),
+                                chargeFailedAt: new Date().toISOString(),
+                                chargeFailureMessage: (_z = (_y = pi.last_payment_error) === null || _y === void 0 ? void 0 : _y.message) !== null && _z !== void 0 ? _z : 'Payment failed',
+                            });
+                        }
+                        catch (relErr) {
+                            logger.error('Marketplace reservation release on payment_failed failed', relErr);
+                        }
+                    }
+                }
+            }
+        }
+        if (event.type === 'payment_intent.canceled') {
+            const pi = event.data.object;
+            if (((_0 = pi.metadata) === null || _0 === void 0 ? void 0 : _0.type) === 'marketplace') {
+                const householdId = pi.metadata.householdId;
+                const orderId = pi.metadata.orderId;
+                if (householdId && orderId) {
+                    const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+                    const orderSnap = await orderRef.get();
+                    const order = orderSnap.data();
+                    if ((order === null || order === void 0 ? void 0 : order.inventoryReserved) === true && !order.reservationReleasedAt) {
+                        try {
+                            await (0, catalogInventory_1.releaseMarketplaceReservations)(db, (0, catalogInventory_1.reservedLinesFromOrder)(order));
+                            await orderRef.update({
+                                inventoryReserved: false,
+                                reservationReleasedAt: new Date().toISOString(),
+                                status: 'cancelled',
+                                cancelReason: 'payment_intent_canceled',
+                            });
+                        }
+                        catch (relErr) {
+                            logger.error('Marketplace reservation release on canceled failed', relErr);
+                        }
+                    }
                 }
             }
         }
@@ -1337,7 +1430,7 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         }
         const configSnap = await db.doc('config/hanukkah-2026').get();
         const configData = (_l = configSnap.data()) !== null && _l !== void 0 ? _l : {};
-        const estimatedDelivery = (_m = configData.estimatedDeliveryBy) !== null && _m !== void 0 ? _m : '2026-11-21';
+        const estimatedDelivery = (_m = configData.estimatedDeliveryBy) !== null && _m !== void 0 ? _m : '2026-11-24';
         const skipShipStation = ((_o = request.data) === null || _o === void 0 ? void 0 : _o.skipShipStation) === true;
         const orderRef = db.collection(`households/${householdId}/orders`).doc();
         const now = new Date().toISOString();
@@ -1558,9 +1651,35 @@ exports.scheduledLockReminders = (0, scheduler_1.onSchedule)('every day 09:00', 
 exports.scheduledChargePilotBoxes = (0, scheduler_1.onSchedule)('every 1 hours', async () => {
     if (!stripe_1.stripe) {
         logger.warn('scheduledChargePilotBoxes skipped — Stripe not configured');
-        return;
     }
-    await (0, chargePilotBox_1.runChargeEligiblePilotBoxOrders)(db, stripe_1.stripe);
+    else {
+        await (0, chargePilotBox_1.runChargeEligiblePilotBoxOrders)(db, stripe_1.stripe);
+    }
+    try {
+        const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);
+        logger.info('scheduledChargePilotBoxes box allocations', alloc);
+    }
+    catch (allocErr) {
+        logger.error('recomputeBoxAllocations failed', allocErr);
+    }
+});
+/** Release stale marketplace inventory reservations (pending unpaid checkouts). */
+exports.scheduledReleaseStaleMarketplaceReservations = (0, scheduler_1.onSchedule)('every 1 hours', async () => {
+    const result = await (0, catalogInventory_1.releaseStaleMarketplaceReservations)(db);
+    logger.info('scheduledReleaseStaleMarketplaceReservations', result);
+});
+/** Admin / QA: recompute boxAllocatedQty from box orders (works before lock with force). */
+exports.recomputeCatalogBoxAllocations = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
+        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+    }
+    const email = (_b = request.auth.token.email) !== null && _b !== void 0 ? _b : '';
+    if (!/^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email)) {
+        throw new https_1.HttpsError('permission-denied', 'Admin only.');
+    }
+    const force = ((_c = request.data) === null || _c === void 0 ? void 0 : _c.force) === true;
+    return (0, catalogInventory_1.recomputeBoxAllocations)(db, { force });
 });
 /**
  * Replace-sync Grapejuice Airtable catalog → Firestore catalog/hanukkah/items.

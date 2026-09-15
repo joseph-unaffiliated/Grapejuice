@@ -97,7 +97,7 @@ export function BoxProductModal({
   const desktop = width >= 768;
   const styles = useMemo(() => createStyles(colors, desktop), [colors, desktop]);
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   /** Soft-mask the sheet bottom while more scroll content remains below. */
   const [showBottomFade, setShowBottomFade] = useState(false);
@@ -106,7 +106,7 @@ export function BoxProductModal({
 
   useEffect(() => {
     if (visible) {
-      setDetailsOpen(false);
+      setDetailsOpen(true);
       setShowBottomFade(false);
       scrollViewportH.current = 0;
       scrollContentH.current = 0;

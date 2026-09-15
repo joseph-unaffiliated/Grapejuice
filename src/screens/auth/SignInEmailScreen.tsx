@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
+  View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   type NativeSyntheticEvent,
   type TextInputChangeEventData,
 } from 'react-native';
@@ -32,8 +32,9 @@ function readInputValue(
 export function SignInEmailScreen() {
   const { colors } = useThemeMode();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
-  const { signIn, isLoading, error, clearError } = useAuthStore();
+  const { signIn, googleSignIn, isLoading, error, clearError } = useAuthStore();
   const route = useRoute<RouteProp<AuthStackParamList, 'SignInEmail'>>();
+  const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
   const restoreSignInEmail = useAuthFlowStore((s) => s.restoreSignInEmail);
   const clearRestoreSignInEmail = useAuthFlowStore((s) => s.clearRestoreSignInEmail);
   const [email, setEmail] = useState(
@@ -111,7 +112,7 @@ export function SignInEmailScreen() {
         <Text style={[styles.forgotLink, { color: colors.goldMuted }]}>Forgot password?</Text>
       </TouchableOpacity>
       <GrapejuiceButton
-        label="Sign in"
+        label="Log In"
         variant="filled"
         onPress={() => void onSubmit()}
         disabled={isLoading}
@@ -121,11 +122,25 @@ export function SignInEmailScreen() {
       {localError || error ? (
         <Text style={[styles.error, { color: colors.error }]}>{localError || error}</Text>
       ) : null}
-      {Platform.OS === 'web' ? (
-        <Text style={[styles.hint, { color: colors.textTertiary }]}>
-          Signed up with Google? Use Continue with Google on the previous screen instead.
-        </Text>
-      ) : null}
+      <View
+        style={[styles.goldDivider, { backgroundColor: colors.border }]}
+        accessibilityRole="none"
+      />
+      <GrapejuiceButton
+        label="Continue with Google"
+        variant="pill"
+        onPress={async () => {
+          clearError();
+          try {
+            await googleSignIn(pendingReturn === 'Stay' ? 'Stay' : undefined);
+          } catch {
+            /* store */
+          }
+        }}
+        disabled={isLoading}
+        loading={isLoading}
+        style={styles.btn}
+      />
     </AuthHeroShell>
   );
 }
@@ -151,16 +166,14 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
   },
   btn: { alignSelf: 'stretch', marginTop: spacing.xs },
+  goldDivider: {
+    alignSelf: 'stretch',
+    height: StyleSheet.hairlineWidth,
+    marginVertical: spacing.lg,
+  },
   error: {
     marginTop: spacing.md,
     textAlign: 'center',
     fontSize: typography.md,
-  },
-  hint: {
-    fontSize: typography.sm,
-    ...typeface('light'),
-    textAlign: 'center',
-    marginTop: spacing.lg,
-    lineHeight: 18,
   },
 });

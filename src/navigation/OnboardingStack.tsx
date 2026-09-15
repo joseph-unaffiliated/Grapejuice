@@ -23,6 +23,7 @@ import { semanticColors } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { clearDevPreview } from './devPreview';
+import { firstNameFromDisplayName } from '../utils/personName';
 import {
   onboardingErrorMessage,
   resolveOnboardingStep,
@@ -558,7 +559,9 @@ export function OnboardingStack({
       stepContent = (
         <BoxIntroScreen
           initialChildren={childDrafts.length ? childDrafts : undefined}
-          defaultName={profile?.displayName ?? user?.displayName ?? 'Joseph'}
+          defaultName={
+            firstNameFromDisplayName(profile?.displayName ?? user?.displayName) || 'Joseph'
+          }
           onContinue={(kids) => {
             setChildDrafts(kids);
             setGuestChildDrafts(kids);

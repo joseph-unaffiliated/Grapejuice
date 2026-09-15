@@ -16,7 +16,7 @@ const db = admin.firestore();
 const LOCK_AT = '2026-11-07T05:00:00.000Z'; // 14 days before estimated delivery — Eastern interpret in ops
 const EXPEDITED_LOCK_AT = '2026-11-14T05:00:00.000Z'; // ~7 days after standard lock
 const HANUKKAH_START = '2026-12-05';
-const ESTIMATED_DELIVERY_BY = '2026-11-21'; // 14 days before Hanukkah start
+const ESTIMATED_DELIVERY_BY = '2026-11-24'; // Arrives-by date for Hanukkah box
 
 const nights = [
   { night: 1, title: 'Night 1', suggestion: 'Light the first candle. Use the lyric sheet in your box — try singing together.', songTitle: 'Maoz Tzur', storySnippet: 'A small start counts.' },

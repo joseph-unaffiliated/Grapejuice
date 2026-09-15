@@ -178,7 +178,45 @@ export type CatalogItem = {
   inventory?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
+  /**
+   * Airtable "Available for Sale Before Box Close" — max units sellable à la carte
+   * before lock. null/0 → box-only until (and unless) post-lock release.
+   */
+  directSaleCapBeforeLock?: number | null;
+  /**
+   * Airtable "Sell After Lock via FBA".
+   * yes → leftover inventory opens for direct sale after lock;
+   * flag/no → stay box-only.
+   */
+  sellAfterLock?: 'yes' | 'flag' | 'no' | null;
+  /** Airtable "Box roles" multi-select (base, swap, upsell, gift-eligible, store-only, …). */
+  boxRoles?: string[];
 };
+
+/** Live marketplace / box allocation counters — not overwritten by Airtable sync. */
+export type CatalogInventoryCounters = {
+  itemId: string;
+  directReservedQty: number;
+  directSoldQty: number;
+  boxAllocatedQty: number;
+  boxAllocatedAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type CatalogAvailabilityStatus = 'direct' | 'limited' | 'box_only' | 'sold_out';
+
+export type CatalogBoxOnlyReason =
+  | 'book'
+  | 'no_cap'
+  | 'cap_exhausted'
+  | 'post_lock_no_release'
+  | 'post_lock_flag';
+
+export type CatalogAvailability =
+  | { status: 'direct'; remaining: number | null }
+  | { status: 'limited'; remaining: number }
+  | { status: 'box_only'; reason: CatalogBoxOnlyReason }
+  | { status: 'sold_out' };
 
 /** Box journey on Home — derived from draft + order data */
 export type BoxLifecycleStatus =

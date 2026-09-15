@@ -20,6 +20,7 @@ import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavori
 import {
   DEFAULT_STOREFRONT_CATEGORY,
   filterByStorefrontCategory,
+  isBookItem,
   resolveStorefrontCategorySlug,
   STOREFRONT_CATEGORIES,
   storefrontCategoryBySlug,
@@ -32,7 +33,7 @@ import {
   applyContextualFilters,
   contextualFiltersForCategory,
 } from '../../constants/storefrontCategoryFilters';
-import { useCatalog } from '../../hooks/useCatalog';
+import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
@@ -103,18 +104,29 @@ function FilterChipButton({
   );
 }
 
-function sortItems(items: CatalogItem[], sort: SortKey): CatalogItem[] {
+function sortItems(
+  items: CatalogItem[],
+  sort: SortKey,
+  booksLast = false
+): CatalogItem[] {
   const next = [...items];
   switch (sort) {
     case 'price-asc':
-      return next.sort((a, b) => a.dollarCostCents - b.dollarCostCents);
+      next.sort((a, b) => a.dollarCostCents - b.dollarCostCents);
+      break;
     case 'price-desc':
-      return next.sort((a, b) => b.dollarCostCents - a.dollarCostCents);
+      next.sort((a, b) => b.dollarCostCents - a.dollarCostCents);
+      break;
     case 'name':
-      return next.sort((a, b) => a.name.localeCompare(b.name));
+      next.sort((a, b) => a.name.localeCompare(b.name));
+      break;
     default:
-      return next;
+      break;
   }
+  if (!booksLast) return next;
+  const nonBooks = next.filter((item) => !isBookItem(item));
+  const books = next.filter((item) => isBookItem(item));
+  return [...nonBooks, ...books];
 }
 
 export function StorefrontCategoryScreen() {
@@ -124,9 +136,14 @@ export function StorefrontCategoryScreen() {
   const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
   const rawSlug = (route.params?.category || DEFAULT_STOREFRONT_CATEGORY).toLowerCase();
   const searchQuery = (route.params?.q ?? '').trim();
+  const availParam = route.params?.avail;
   const slug = resolveStorefrontCategorySlug(rawSlug);
   const def = storefrontCategoryBySlug(slug);
-  const { items, loading } = useCatalog();
+  const {
+    items,
+    byId: availabilityById,
+    loading,
+  } = useCatalogAvailabilityMap();
   const { goHome, askRav, startBox, goCategory } = useStorefrontActions();
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const [sort, setSort] = useState<SortKey>('relevant');
@@ -150,9 +167,10 @@ export function StorefrontCategoryScreen() {
       navigation.replace('StorefrontCategory', {
         category: slug,
         ...(searchQuery ? { q: searchQuery } : null),
+        ...(availParam ? { avail: availParam } : null),
       });
     }
-  }, [navigation, rawSlug, slug, searchQuery]);
+  }, [navigation, rawSlug, slug, searchQuery, availParam]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -163,9 +181,13 @@ export function StorefrontCategoryScreen() {
   }, [navigation, def?.label, def?.title, searchQuery]);
 
   useEffect(() => {
-    setFacetFilters({});
+    const next: Record<string, string> = {};
+    if (availParam && availParam !== 'all') {
+      next.availability = availParam;
+    }
+    setFacetFilters(next);
     setSort('relevant');
-  }, [slug, searchQuery]);
+  }, [slug, searchQuery, availParam]);
 
   const categoryItems = useMemo(() => {
     const base = filterByStorefrontCategory(items, slug);
@@ -174,14 +196,20 @@ export function StorefrontCategoryScreen() {
   }, [items, slug, searchQuery]);
 
   const contextualGroups = useMemo(
-    () => contextualFiltersForCategory(slug, categoryItems),
-    [slug, categoryItems]
+    () => contextualFiltersForCategory(slug, categoryItems, availabilityById),
+    [slug, categoryItems, availabilityById]
   );
 
   const filtered = useMemo(() => {
-    const faceted = applyContextualFilters(categoryItems, slug, facetFilters);
-    return sortItems(faceted, sort);
-  }, [categoryItems, slug, facetFilters, sort]);
+    const faceted = applyContextualFilters(
+      categoryItems,
+      slug,
+      facetFilters,
+      availabilityById
+    );
+    const booksLast = facetFilters.availability === 'box-only';
+    return sortItems(faceted, sort, booksLast);
+  }, [categoryItems, slug, facetFilters, sort, availabilityById]);
 
   const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';
   const description = searchQuery
@@ -190,6 +218,11 @@ export function StorefrontCategoryScreen() {
 
   const setFacet = (groupId: string, key: string) => {
     setFacetFilters((prev) => ({ ...prev, [groupId]: key }));
+    if (groupId === 'availability') {
+      navigation.setParams({
+        avail: key === 'all' ? undefined : (key as 'buy-now' | 'box-only'),
+      });
+    }
   };
 
   return (
@@ -233,7 +266,17 @@ export function StorefrontCategoryScreen() {
                       active={c.slug === slug}
                       accent={c.navStyle === 'sale' ? 'sale' : undefined}
                       onPress={() =>
-                        goCategory(c.slug, searchQuery ? { q: searchQuery } : undefined)
+                        goCategory(c.slug, {
+                          ...(searchQuery ? { q: searchQuery } : null),
+                          ...(facetFilters.availability &&
+                          facetFilters.availability !== 'all'
+                            ? {
+                                avail: facetFilters.availability as
+                                  | 'buy-now'
+                                  | 'box-only',
+                              }
+                            : null),
+                        })
                       }
                     />
                   </React.Fragment>
@@ -301,7 +344,10 @@ export function StorefrontCategoryScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <StorefrontProductGrid items={filtered} />
+          <StorefrontProductGrid
+            items={filtered}
+            availabilityById={availabilityById}
+          />
         )}
 
         <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />

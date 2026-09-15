@@ -125,6 +125,7 @@ function pushLineItem(
     slotId: childId ? `${slotId}-${childId}` : slotId,
     itemId: item.id,
     quantity: 1,
+    includedQty: 1,
     unitCents: 0,
     childId,
     label: item.name,
@@ -199,8 +200,10 @@ export function buildCuratedBox(
   const adultsN = defaultAdults(outline.inputs.adults);
   const woodKidCount = woodAssignments.length;
 
-  // Household “1 per person”: kids on wood + adults (never legacy qty-1 for 1-kid all-wood).
-  const woodQty = woodKidCount > 0 ? woodKidCount + adultsN : 0;
+  const woodQty = woodKidCount > 0 ? householdPracticeQty(
+    { length: woodKidCount },
+    adultsN,
+  ) : 0;
 
   if (woodQty > 0) {
     const item = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
@@ -329,6 +332,62 @@ export function catalogSlotId(lineSlotId: string): string {
 }
 
 /**
+ * Household “1 per person” count for wood/airdry/blank dreidel and small gelt.
+ * Prefer an existing free gelt line qty (same headcount), then explicit adults,
+ * and only then `defaultAdults` (2) when adults are unknown.
+ */
+export function householdPracticeQty(
+  kids: ChildProfile[] | { length: number },
+  adults?: number,
+  lineItems?: BoxLineItem[]
+): number {
+  const kidCount = kids.length;
+  if (kidCount < 1) return Math.max(1, defaultAdults(adults));
+  if (kidCount >= 5) return 1; // party gelt / special cases — callers usually skip
+
+  if (lineItems?.length) {
+    const geltFree = lineItems
+      .filter((li) => {
+        const base = catalogSlotId(li.slotId);
+        return (
+          (base === 'gelt' ||
+            base === 'gelt-small' ||
+            base === 'gelt-medium' ||
+            base === 'gelt-party' ||
+            base.startsWith('gelt')) &&
+          !li.slotId.includes('::x') &&
+          (li.unitCents ?? 0) === 0
+        );
+      })
+      .reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+    if (geltFree >= kidCount) return geltFree;
+  }
+
+  if (adults != null && adults >= 0) return kidCount + adults;
+  // Unknown adults: do not invent +2 when a coherent free wood qty already matches gelt-less kid+1 heuristics.
+  return kidCount + defaultAdults(adults);
+}
+
+/**
+ * True when free-adding this SKU into a vacant dreidel/gelt practice should use
+ * full household qty (not a single unit).
+ */
+export function isHouseholdPracticeCatalogItem(item: {
+  id: string;
+  name?: string;
+  slotId?: string;
+  defaultSlot?: string;
+}): boolean {
+  const slot = `${item.defaultSlot ?? ''} ${item.slotId ?? ''} ${item.id} ${item.name ?? ''}`.toLowerCase();
+  return (
+    /wood.?dreidel|classic.?wooden.?dreidel/.test(slot) ||
+    /airdry|clay.?dreidel/.test(slot) ||
+    /blank.?dreidel|draw.?your.?own.?dreidel/.test(slot) ||
+    /gelt/.test(slot)
+  );
+}
+
+/**
  * Upgrade wood dreidel drafts to household qty (kids + adults).
  * Also converts paid overflow back into free units when free qty is short of the
  * household allotment (e.g. qty 3 with only 1 free + 2 paid after a low baseline).
@@ -344,7 +403,7 @@ export function repairWoodDreidelHouseholdQty(
   const woodLines = lineItems.filter((li) => catalogSlotId(li.slotId) === 'wood-dreidel');
   if (woodLines.length === 0) return { lineItems, dirty: false };
 
-  const targetQty = kidCount + defaultAdults(adults);
+  const targetQty = householdPracticeQty(kids, adults, lineItems);
   const freeLines = woodLines.filter(
     (li) => !li.slotId.includes('::x') && (li.unitCents ?? 0) === 0
   );
@@ -359,8 +418,29 @@ export function repairWoodDreidelHouseholdQty(
     0
   );
 
+  // Already at (or above) household size — never inflate further via defaultAdults=2.
   if (freeQty >= targetQty && Math.max(freeQty, persistedIncluded) >= targetQty) {
     return { lineItems, dirty: false };
+  }
+  // Prefer gelt as SOT: if free wood already equals gelt headcount, leave it.
+  if (lineItems.length) {
+    const geltQty = householdPracticeQty(kids, adults != null ? adults : 0, lineItems);
+    // When adults unknown, householdPracticeQty may still return kid+2; if free wood
+    // matches gelt qty and gelt was used, stop.
+    const geltFree = lineItems
+      .filter((li) => {
+        const base = catalogSlotId(li.slotId);
+        return (
+          (base.startsWith('gelt') || base === 'gelt') &&
+          !li.slotId.includes('::x') &&
+          (li.unitCents ?? 0) === 0
+        );
+      })
+      .reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+    if (geltFree >= kidCount && freeQty === geltFree && paidQty === 0) {
+      return { lineItems, dirty: false };
+    }
+    void geltQty;
   }
 
   // Legacy short seeds, or free allotment below household size with paid overflow.
@@ -383,7 +463,20 @@ export function repairWoodDreidelHouseholdQty(
 
   const template = freeLines[0] ?? paidLines[0] ?? woodLines[0]!;
   // Fill free allotment to household target; absorb paid overflow into free first.
-  const seededFreeQty = Math.max(targetQty, freeQty);
+  // Never grow past gelt headcount when gelt is present and adults were omitted.
+  const geltCap = lineItems
+    .filter((li) => {
+      const base = catalogSlotId(li.slotId);
+      return (
+        (base.startsWith('gelt') || base === 'gelt') &&
+        !li.slotId.includes('::x') &&
+        (li.unitCents ?? 0) === 0
+      );
+    })
+    .reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
+  const cappedTarget =
+    adults == null && geltCap >= kidCount ? Math.min(targetQty, geltCap) : targetQty;
+  const seededFreeQty = Math.max(cappedTarget, freeQty);
   const consumedFromPaid = Math.min(paidQty, Math.max(0, seededFreeQty - freeQty));
   const paidLeft = paidQty - consumedFromPaid;
 

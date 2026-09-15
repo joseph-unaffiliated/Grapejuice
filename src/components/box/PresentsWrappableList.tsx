@@ -69,7 +69,9 @@ function wrappingPaperAddonCents(lineItems: BoxLineItem[], catalog: CatalogItem[
 }
 
 function toBeWrappedHeading(lineItems: BoxLineItem[], catalog: CatalogItem[]): string {
+  // Pre-wrap mode (no paper card) — wrap allotment is the included choice.
   if (isPreWrapSelected(lineItems, catalog)) return 'To be wrapped (Included)';
+  // Paper still in the box + items marked to wrap → wrap service is the +$ add-on.
   const cents = wrappingPaperAddonCents(lineItems, catalog);
   return `To be wrapped (+${formatCatalogDollars(cents)})`;
 }

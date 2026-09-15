@@ -178,9 +178,9 @@ export function StorefrontFooter() {
             },
           },
           {
-            label: 'hello@grapejuice.com',
+            label: 'hello@grapejuice.co',
             onPress: () => {
-              void Linking.openURL('mailto:hello@grapejuice.com');
+              void Linking.openURL('mailto:hello@grapejuice.co');
             },
           },
         ],

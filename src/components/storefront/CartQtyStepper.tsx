@@ -12,6 +12,8 @@ type Props = {
   quantity: number;
   onChange: (delta: 1 | -1) => void;
   disabled?: boolean;
+  /** Cap on + (e.g. remaining marketplace inventory). */
+  maxQuantity?: number;
   /** Used in accessibility labels, e.g. the product name. */
   label?: string;
 };
@@ -20,9 +22,10 @@ type Props = {
  * Compact − / qty / + control. At quantity 1, minus removes the line
  * (trash icon) instead of going to zero.
  */
-export function CartQtyStepper({ quantity, onChange, disabled, label }: Props) {
+export function CartQtyStepper({ quantity, onChange, disabled, maxQuantity, label }: Props) {
   const qty = Math.max(1, quantity);
   const atOne = qty <= 1;
+  const atMax = maxQuantity != null && qty >= maxQuantity;
   const name = label?.trim() || 'item';
 
   return (
@@ -46,7 +49,7 @@ export function CartQtyStepper({ quantity, onChange, disabled, label }: Props) {
       <TouchableOpacity
         style={styles.btn}
         onPress={() => onChange(1)}
-        disabled={disabled}
+        disabled={disabled || atMax}
         accessibilityRole="button"
         accessibilityLabel={`Increase quantity of ${name}`}
       >

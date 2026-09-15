@@ -166,7 +166,7 @@ export function StorefrontAccountMenu() {
     : [
         {
           key: 'signin',
-          label: 'Sign in',
+          label: 'Log in',
           icon: icons.user,
           onPress: () => startAuthInPlace('signin', 'SignInEmail'),
         },

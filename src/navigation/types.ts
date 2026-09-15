@@ -46,7 +46,7 @@ export type MainStackParamList = {
   /** C&B-style retail experiment — no global sidebar. */
   StorefrontHome: undefined;
   StorefrontFavorites: undefined;
-  StorefrontCategory: { category: string; q?: string };
+  StorefrontCategory: { category: string; q?: string; avail?: 'buy-now' | 'box-only' | 'all' };
   StorefrontOurStory: undefined;
   StorefrontPassover: undefined;
   CatalogProduct: { slug: string };

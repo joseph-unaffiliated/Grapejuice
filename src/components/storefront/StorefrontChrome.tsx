@@ -1074,10 +1074,11 @@ export function useStorefrontActions() {
         },
       });
     },
-    goCategory: (slug: string, opts?: { q?: string }) => {
+    goCategory: (slug: string, opts?: { q?: string; avail?: 'buy-now' | 'box-only' | 'all' }) => {
       navigation.navigate('StorefrontCategory', {
         category: slug,
         ...(opts?.q ? { q: opts.q } : null),
+        ...(opts?.avail && opts.avail !== 'all' ? { avail: opts.avail } : null),
       });
     },
     goHome: () => navigation.navigate('StorefrontHome'),

@@ -20,6 +20,14 @@ import {
   fulfillHanukkahBoxOrder,
   runChargeEligiblePilotBoxOrders,
 } from './chargePilotBox';
+import {
+  commitMarketplaceReservations,
+  recomputeBoxAllocations,
+  releaseMarketplaceReservations,
+  releaseStaleMarketplaceReservations,
+  reserveMarketplaceInventoryInTx,
+  reservedLinesFromOrder,
+} from './catalogInventory';
 import { randomBytes } from 'crypto';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
@@ -307,7 +315,7 @@ export const createPilotCheckout = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Order total is too small.');
   }
 
-  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-21';
+  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
 
   const orderRef = db.collection(`households/${householdId}/orders`).doc();
   await orderRef.set({
@@ -393,10 +401,23 @@ export const createMarketplaceCheckout = onCall(async (request) => {
 
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = configSnap.data() ?? {};
-    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-21';
+    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
+    const lockAt =
+      typeof configData.lockAt === 'string' ? (configData.lockAt as string) : null;
 
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     const skipShipStation = data.skipShipStation === true;
+
+    const reservedLines = await db.runTransaction(async (tx) =>
+      reserveMarketplaceInventoryInTx(
+        db,
+        tx,
+        lineItems.map((li) => ({ itemId: li.itemId, quantity: li.quantity })),
+        lockAt
+      )
+    );
+
+    const reservedAt = new Date().toISOString();
     const orderPayload: Record<string, unknown> = {
       status: totalCents === 0 ? 'confirmed' : 'pending',
       orderType: 'marketplace',
@@ -412,65 +433,92 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       holidayId: HOLIDAY_ID,
       userId: request.auth.uid,
       estimatedDelivery,
+      inventoryReserved: true,
+      inventoryReservedAt: reservedAt,
+      inventoryReservedLines: reservedLines,
       createdAt: FieldValue.serverTimestamp(),
     };
     if (totalCents === 0) orderPayload.confirmedAt = FieldValue.serverTimestamp();
     if (skipShipStation) orderPayload.playthrough = true;
 
-    await orderRef.set(orderPayload);
+    try {
+      await orderRef.set(orderPayload);
 
-    if (creditApplied > 0) {
-      await db.doc(`households/${householdId}`).update({
-        ...(giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {}),
-        ...(platformCreditApplied > 0
-          ? { platformCreditCents: platformCreditCents - platformCreditApplied }
-          : {}),
-        updatedAt: new Date().toISOString(),
+      if (creditApplied > 0) {
+        await db.doc(`households/${householdId}`).update({
+          ...(giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {}),
+          ...(platformCreditApplied > 0
+            ? { platformCreditCents: platformCreditCents - platformCreditApplied }
+            : {}),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Fully credit-covered carts confirm without Stripe.
+      if (totalCents === 0) {
+        await commitMarketplaceReservations(db, reservedLines);
+        await orderRef.update({
+          inventoryReserved: false,
+          inventoryCommittedAt: new Date().toISOString(),
+        });
+        await fulfillMarketplaceOrder(householdId, orderRef.id, orderPayload, skipShipStation);
+        return {
+          orderId: orderRef.id,
+          totalCents: 0,
+          clientSecret: null as string | null,
+          status: 'confirmed' as const,
+        };
+      }
+
+      if (!stripe) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.'
+        );
+      }
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: totalCents,
+        currency: 'usd',
+        metadata: {
+          householdId,
+          orderId: orderRef.id,
+          userId: request.auth.uid,
+          type: 'marketplace',
+        },
+        automatic_payment_methods: { enabled: true },
       });
-    }
 
-    // Fully credit-covered carts confirm without Stripe.
-    if (totalCents === 0) {
-      await fulfillMarketplaceOrder(householdId, orderRef.id, orderPayload, skipShipStation);
+      if (!paymentIntent.client_secret) {
+        throw new HttpsError('internal', 'PaymentIntent missing client secret.');
+      }
+
+      await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
+
       return {
+        clientSecret: paymentIntent.client_secret,
         orderId: orderRef.id,
-        totalCents: 0,
-        clientSecret: null as string | null,
-        status: 'confirmed' as const,
+        totalCents,
+        status: 'pending' as const,
       };
+    } catch (innerErr) {
+      // Release reservation if we fail after reserving (Stripe/config errors).
+      try {
+        await releaseMarketplaceReservations(db, reservedLines);
+        await orderRef.set(
+          {
+            status: 'cancelled',
+            cancelReason: 'checkout_failed_after_reserve',
+            inventoryReserved: false,
+            reservationReleasedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (releaseErr) {
+        logger.error('Failed to release marketplace reservation after checkout error', releaseErr);
+      }
+      throw innerErr;
     }
-
-    if (!stripe) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.'
-      );
-    }
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalCents,
-      currency: 'usd',
-      metadata: {
-        householdId,
-        orderId: orderRef.id,
-        userId: request.auth.uid,
-        type: 'marketplace',
-      },
-      automatic_payment_methods: { enabled: true },
-    });
-
-    if (!paymentIntent.client_secret) {
-      throw new HttpsError('internal', 'PaymentIntent missing client secret.');
-    }
-
-    await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
-
-    return {
-      clientSecret: paymentIntent.client_secret,
-      orderId: orderRef.id,
-      totalCents,
-      status: 'pending' as const,
-    };
   } catch (err) {
     if (err instanceof HttpsError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
@@ -579,7 +627,7 @@ export const commitPilotBox = onCall(async (request) => {
 
   const estimatedDelivery =
     (expeditedShipping ? (configData.expeditedDeliveryBy as string) : (configData.estimatedDeliveryBy as string)) ??
-    '2026-11-21';
+    '2026-11-24';
 
   const orderRef = db.collection(`households/${householdId}/orders`).doc();
   await orderRef.set({
@@ -911,6 +959,28 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
           const orderSnap = await orderRef.get();
           if (orderSnap.exists && orderSnap.data()?.status !== 'confirmed') {
             const order = orderSnap.data()!;
+            const isMarketplaceOrder =
+              order.orderType === 'marketplace' || pi.metadata?.type === 'marketplace';
+            const isReceivedGift =
+              order.orderType === 'received_gift' || pi.metadata?.type === 'received_gift';
+
+            if (
+              isMarketplaceOrder &&
+              order.inventoryReserved === true &&
+              !order.inventoryCommittedAt
+            ) {
+              try {
+                const reserved = reservedLinesFromOrder(order);
+                await commitMarketplaceReservations(db, reserved);
+                await orderRef.update({
+                  inventoryReserved: false,
+                  inventoryCommittedAt: new Date().toISOString(),
+                });
+              } catch (invErr) {
+                logger.error('Marketplace inventory commit failed', { orderId, invErr });
+              }
+            }
+
             await orderRef.update({
               status: 'confirmed',
               confirmedAt: FieldValue.serverTimestamp(),
@@ -919,12 +989,7 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
               chargeFailureMessage: FieldValue.delete(),
             });
             const fresh = (await orderRef.get()).data() ?? order;
-            if (
-              order.orderType === 'marketplace' ||
-              order.orderType === 'received_gift' ||
-              pi.metadata?.type === 'marketplace' ||
-              pi.metadata?.type === 'received_gift'
-            ) {
+            if (isMarketplaceOrder || isReceivedGift) {
               await fulfillMarketplaceOrder(
                 householdId,
                 orderId,
@@ -995,6 +1060,53 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
             chargeFailureMessage: message,
           });
           logger.warn('Hanukkah box charge failed', { householdId, orderId, message });
+        }
+      }
+      if (pi.metadata?.type === 'marketplace') {
+        const householdId = pi.metadata.householdId;
+        const orderId = pi.metadata.orderId;
+        if (householdId && orderId) {
+          const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+          const orderSnap = await orderRef.get();
+          const order = orderSnap.data();
+          if (order?.inventoryReserved === true && !order.reservationReleasedAt) {
+            try {
+              await releaseMarketplaceReservations(db, reservedLinesFromOrder(order));
+              await orderRef.update({
+                inventoryReserved: false,
+                reservationReleasedAt: new Date().toISOString(),
+                chargeFailedAt: new Date().toISOString(),
+                chargeFailureMessage: pi.last_payment_error?.message ?? 'Payment failed',
+              });
+            } catch (relErr) {
+              logger.error('Marketplace reservation release on payment_failed failed', relErr);
+            }
+          }
+        }
+      }
+    }
+    if (event.type === 'payment_intent.canceled') {
+      const pi = event.data.object as { id: string; metadata?: Record<string, string> };
+      if (pi.metadata?.type === 'marketplace') {
+        const householdId = pi.metadata.householdId;
+        const orderId = pi.metadata.orderId;
+        if (householdId && orderId) {
+          const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+          const orderSnap = await orderRef.get();
+          const order = orderSnap.data();
+          if (order?.inventoryReserved === true && !order.reservationReleasedAt) {
+            try {
+              await releaseMarketplaceReservations(db, reservedLinesFromOrder(order));
+              await orderRef.update({
+                inventoryReserved: false,
+                reservationReleasedAt: new Date().toISOString(),
+                status: 'cancelled',
+                cancelReason: 'payment_intent_canceled',
+              });
+            } catch (relErr) {
+              logger.error('Marketplace reservation release on canceled failed', relErr);
+            }
+          }
         }
       }
     }
@@ -1638,7 +1750,7 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
 
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = configSnap.data() ?? {};
-    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-21';
+    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
     const skipShipStation = request.data?.skipShipStation === true;
 
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
@@ -1882,9 +1994,37 @@ export const scheduledLockReminders = onSchedule('every day 09:00', async () => 
 export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () => {
   if (!stripe) {
     logger.warn('scheduledChargePilotBoxes skipped — Stripe not configured');
-    return;
+  } else {
+    await runChargeEligiblePilotBoxOrders(db, stripe);
   }
-  await runChargeEligiblePilotBoxOrders(db, stripe);
+  try {
+    const alloc = await recomputeBoxAllocations(db);
+    logger.info('scheduledChargePilotBoxes box allocations', alloc);
+  } catch (allocErr) {
+    logger.error('recomputeBoxAllocations failed', allocErr);
+  }
+});
+
+/** Release stale marketplace inventory reservations (pending unpaid checkouts). */
+export const scheduledReleaseStaleMarketplaceReservations = onSchedule(
+  'every 1 hours',
+  async () => {
+    const result = await releaseStaleMarketplaceReservations(db);
+    logger.info('scheduledReleaseStaleMarketplaceReservations', result);
+  }
+);
+
+/** Admin / QA: recompute boxAllocatedQty from box orders (works before lock with force). */
+export const recomputeCatalogBoxAllocations = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  const email = (request.auth.token.email as string | undefined) ?? '';
+  if (!/^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email)) {
+    throw new HttpsError('permission-denied', 'Admin only.');
+  }
+  const force = (request.data as { force?: boolean } | undefined)?.force === true;
+  return recomputeBoxAllocations(db, { force });
 });
 
 /**

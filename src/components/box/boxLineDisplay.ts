@@ -83,14 +83,34 @@ function isStorySlot(slotId: string): boolean {
 }
 
 /**
- * Practice allocation copy: gelt + wood dreidels ship as a household share
+ * Small / little-bag gelt ships 1 per person. Big bag (medium) and party bag are
+ * one shared household bag — do not show “1 per person”.
+ */
+function isSmallPerPersonGelt(li: BoxLineItem, item?: CatalogItem | null): boolean {
+  const base = catalogSlotId(li.slotId);
+  if (base === 'gelt-medium' || base === 'gelt-party') return false;
+  if (base === 'gelt-small') return true;
+  const hay = lineHaystack(li, item);
+  if (/party.?bag|big.?bag|gelt-medium|gelt-party|medium.?gelt|party.?gelt/i.test(hay)) {
+    return false;
+  }
+  if (/little.?bag|gelt-small|small.?gelt/i.test(hay)) return true;
+  // Generic `gelt` / Gelt category with no size cue: treat as shared unless small.
+  if (isGeltSlot(li.slotId) || /gelt/.test(hay) || item?.category === 'Gelt') {
+    return base === 'gelt-small';
+  }
+  return false;
+}
+
+/**
+ * Practice allocation copy: small gelt + wood dreidels ship as a household share
  * (kids + grownups), not named “One for…” gifts.
  */
 export function isPerKidHouseholdLine(li: BoxLineItem, item?: CatalogItem | null): boolean {
   if (catalogSlotId(li.slotId) === 'wood-dreidel') return true;
-  if (isGeltSlot(li.slotId)) return true;
-  const hay = lineHaystack(li, item);
-  if (/gelt/.test(hay) || item?.category === 'Gelt') return true;
+  if (isGeltSlot(li.slotId) || /gelt/.test(lineHaystack(li, item)) || item?.category === 'Gelt') {
+    return isSmallPerPersonGelt(li, item);
+  }
   return false;
 }
 
@@ -307,7 +327,10 @@ export function kidsNeedingGift(
   for (const li of lineItems) {
     if (isGiftSlotLine(li)) {
       const cid = li.childId || childIdFromSlot(li.slotId);
-      if (cid) giftLineByChild.set(cid, li);
+      if (!cid) continue;
+      // Match guest-N lines to saved kids the same way books do.
+      const child = resolveChildProfileForLineId(cid, children);
+      giftLineByChild.set(child?.id ?? cid, li);
     } else {
       nonGiftItemIds.add(li.itemId);
     }
@@ -319,6 +342,18 @@ export function kidsNeedingGift(
     else if (nonGiftItemIds.has(giftLine.itemId)) out.push({ child, reason: 'duplicated' });
   }
   return out;
+}
+
+/** Resolve a line's childId (including leftover `guest-N`) to a profile. */
+function resolveChildProfileForLineId(
+  childId: string,
+  children: ChildProfile[]
+): ChildProfile | undefined {
+  const direct = children.find((c) => c.id === childId);
+  if (direct) return direct;
+  const guest = /^guest-(\d+)$/.exec(childId);
+  if (guest) return children[Number(guest[1])];
+  return undefined;
 }
 
 /** Kids with no `story-{childId}` book line (donated/removed). */
@@ -389,7 +424,6 @@ export function giftBadgeLabelForLines(
   children: ChildProfile[],
   fallback?: string
 ): string | undefined {
-  if (children.length === 1) return undefined;
   if (!lines.some((li) => isGiftSlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `A gift for ${names[0]}`;
@@ -406,7 +440,6 @@ export function oneForBadgeLabelForLines(
   children: ChildProfile[],
   fallback?: string
 ): string | undefined {
-  if (children.length === 1) return undefined;
   if (lines.some((li) => isGiftSlotLine(li) || isStorySlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `One for ${names[0]}`;
@@ -426,7 +459,6 @@ export function bookBadgeLabelForLines(
   children: ChildProfile[],
   fallback?: string
 ): string | undefined {
-  if (children.length === 1) return undefined;
   if (!lines.some((li) => isStorySlotLine(li))) return undefined;
   const names = childNamesForLines(lines, children);
   if (names.length === 1) return `A book for ${names[0]}`;
@@ -935,9 +967,12 @@ export function parseDonationDollarsToCents(raw: string): number {
 }
 
 /**
- * While wrapping paper remains in the box and anything is marked “to be wrapped”,
- * charge a flat EXTRA_FLAT once on the paper line. Clearing the wrap list restores $0.
- * Pre-wrap mode (no paper line) is unchanged.
+ * When wrapping paper is in the box and anything is marked “to be wrapped”,
+ * charge EXTRA_FLAT once on the paper line (wrap service add-on). Clearing the
+ * wrap list restores $0 on included paper. Paid paper (`includedQty === 0`,
+ * paper re-added on top of pre-wrap) stays at EXTRA_FLAT either way.
+ * The paper *card* still displays “1 included”; the fee surfaces on
+ * “To be wrapped (+$N)” and Add-ons.
  */
 export function syncWrappingPaperUnitCentsForWrapSelection(
   lineItems: BoxLineItem[],
@@ -950,11 +985,23 @@ export function syncWrappingPaperUnitCentsForWrapSelection(
   const next = lineItems.map((li) => {
     if (!isWrappingPaperItem(li.itemId, catalog, li)) return li;
     const current = li.unitCents ?? 0;
+    // Paid paper on top of pre-wrap — never drop back to $0 via wrap-list clears.
+    if (li.includedQty === 0) {
+      if (current !== extraFlatCents) {
+        dirty = true;
+        return { ...li, unitCents: extraFlatCents };
+      }
+      return li;
+    }
     // Only flip included ($0) or the wrap-fee EXTRA_FLAT — leave other prices alone.
     if (current !== 0 && current !== extraFlatCents) return li;
     if (current === charge) return li;
     dirty = true;
-    return { ...li, unitCents: charge };
+    return {
+      ...li,
+      unitCents: charge,
+      includedQty: li.includedQty ?? 1,
+    };
   });
   return dirty ? next : lineItems;
 }

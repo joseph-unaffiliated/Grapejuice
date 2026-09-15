@@ -223,6 +223,28 @@ function validateResult(
   return { notes, actions };
 }
 
+function practiceFamiliarityPlain(level?: string, score?: number): string {
+  const n = typeof score === 'number' && Number.isFinite(score) ? score : undefined;
+  if (n != null) {
+    if (n <= 33) {
+      return 'they said they do not really do Hanukkah much at home right now (even if they grew up with it)';
+    }
+    if (n <= 66) {
+      return 'they said they do some of the holiday — familiar, but not all-in every night';
+    }
+    return 'they said they are familiar with the holiday and already lean into more of it';
+  }
+  switch (level) {
+    case 'minimal':
+      return 'they said they do not really do Hanukkah much at home right now (even if they grew up with it)';
+    case 'all-in':
+      return 'they said they are familiar with the holiday and already lean into more of it';
+    case 'moderate':
+    default:
+      return 'they said they do some of the holiday — familiar, but not all-in every night';
+  }
+}
+
 function buildUserMessage(data: CuratePilotBoxData): string {
   const kids = (data.kids ?? [])
     .map((k) => `${k.firstName || 'Kid'} age ${k.age} [${k.id}]`)
@@ -246,17 +268,16 @@ function buildUserMessage(data: CuratePilotBoxData): string {
     .join('; ');
 
   return [
-    `practiceLevel: ${data.practiceLevel ?? 'minimal'}`,
-    `practiceScore: ${data.practiceScore ?? ''}`,
+    `How familiar / how much they do Hanukkah (plain language for your reasons — never quote scores or internal labels): ${practiceFamiliarityPlain(data.practiceLevel, data.practiceScore)}`,
     `adults: ${data.adults ?? ''}`,
     `kids: ${kids || '(none)'}`,
     `interests: ${(data.interests ?? []).join(', ') || '(none)'}`,
-    `notes: ${asString(data.notes) || '(none)'}`,
+    `notes from them: ${asString(data.notes) || '(none)'}`,
     `baseline: ${baseline || 'empty'}`,
-    `deviations: ${deviations || '(none)'}`,
+    `deviations (write a hand-picked reason for each): ${deviations || '(none)'}`,
     `allowedSwaps: ${allowed || '(none)'}`,
     '',
-    'Write one reason per deviation. Optionally up to two included-price swaps with reasons.',
+    'Write a warm, personal reason per deviation (no scores, no rule jargon). Optionally up to two included-price swaps with reasons.',
   ].join('\n');
 }
 
@@ -280,7 +301,7 @@ export const curatePilotBox = onCall(
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 700,
+        max_tokens: 900,
         system,
         messages: [{ role: 'user', content: buildUserMessage(data) }],
       });

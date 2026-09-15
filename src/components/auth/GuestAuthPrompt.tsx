@@ -63,7 +63,7 @@ export function GuestAuthPrompt({ returnTo = 'Account', showBack = false, onBack
           />
 
           <GrapejuiceButton
-            label="Sign in with Email"
+            label="Log in with Email"
             variant="pill"
             onPress={() => startAuth(returnTo, 'signin', 'SignInEmail')}
             disabled={busy}

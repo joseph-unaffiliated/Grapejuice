@@ -66,7 +66,7 @@ const Stack = createStackNavigator<RootStackParamList>();
 function humanizeRoute(name: string): string {
   const map: Record<string, string> = {
     Main: 'Home',
-    Auth: 'Sign in',
+    Auth: 'Log in',
     Onboarding: 'Welcome',
   };
   if (map[name]) return map[name];
@@ -304,7 +304,7 @@ function RootRoutes() {
       <View style={styles.gate}>
         <Stack.Navigator key={gateKey} screenOptions={{ headerShown: false }}>
           {gateKey === 'auth' ? (
-            <Stack.Screen name="Auth" options={{ title: 'Sign in' }}>
+            <Stack.Screen name="Auth" options={{ title: 'Log in' }}>
               {() => (
                 <ThemeProvider mode="parent">
                   <AuthStack checkoutAuth={!!pendingAuth && !passwordResetOobCode} />

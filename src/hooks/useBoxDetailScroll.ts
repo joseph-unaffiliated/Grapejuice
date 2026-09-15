@@ -23,6 +23,12 @@ export type UseBoxDetailScrollOptions = {
   contentReady?: boolean;
 };
 
+/** Optional per-call override for sticky clearance above the section. */
+export type ScrollToSectionOptions = {
+  /** Pixels of clearance above the section top (defaults to BOX_DETAIL_SCROLL_SPY_OFFSET). */
+  inset?: number;
+};
+
 function sectionDomId(id: BoxDisplaySectionId): string {
   return `box-section-${id}`;
 }
@@ -272,8 +278,10 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
   }, [contentReady, getScrollElement, updateActiveFromDom]);
 
   const scrollToSection = useCallback(
-    (id: BoxDisplaySectionId) => {
+    (id: BoxDisplaySectionId, options?: ScrollToSectionOptions) => {
       if (!visibleSectionIds.includes(id)) return;
+
+      const inset = options?.inset ?? BOX_DETAIL_SCROLL_SPY_OFFSET;
 
       setActiveSection(id);
       scrollingToSection.current = true;
@@ -296,10 +304,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
             sectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
           }
-          const y = Math.max(
-            0,
-            sectionOffsetInScrollport(sectionEl, scrollEl) - BOX_DETAIL_SCROLL_SPY_OFFSET,
-          );
+          const y = Math.max(0, sectionOffsetInScrollport(sectionEl, scrollEl) - inset);
           scrollWebContainer(scrollEl, y, true);
           return;
         }
@@ -312,7 +317,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
       const scrollToY = (y: number) => {
         const host = scrollRef.current as unknown as HostNode | null;
         if (host?.scrollTo) {
-          host.scrollTo({ y: Math.max(0, y - BOX_DETAIL_SCROLL_SPY_OFFSET), animated: true });
+          host.scrollTo({ y: Math.max(0, y - inset), animated: true });
           return true;
         }
         return false;

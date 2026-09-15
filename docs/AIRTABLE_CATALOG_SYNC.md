@@ -13,9 +13,18 @@
 
 **Book PDP details:** **What’s Included**, **Care Notes** → Firestore `whatsIncluded` / `careNotes` (same as Full Catalog). Books leave `dimensions` / `weight` / `materials` null.
 
-**PDP physical details (Full Catalog):** **Dimensions**, **Weight**, **Materials** → Firestore `dimensions` / `weight` / `materials` (single-line text).
+**PDP physical details (Full Catalog):** **Dimensions**, **Weight**, **Materials** → Firestore `dimensions` / `weight` / `materials` (single-line text). Use **US units** for dimensions (inches) and weight (lb / oz). **Description** is product-level “what it’s for / how to use” body copy on the PDP (category educational blurbs are no longer preferred).
 
 **Homepage rails:** Full Catalog **Storefront rails** + **Storefront rank**, plus **Menorah homepage** / **Dreidel homepage** (`collection` | `kids`) which sync to `menorahs-*` / `dreidels-*`. Food section uses category Food (gelt, latkes, sufganiyot, stuffies, cookie cutters) or rail `food`. Kids dreidel fallback: airdry / blank / plush / clay.
+
+**Marketplace availability (Full Catalog):**
+
+- **Available for Sale Before Box Close** → `directSaleCapBeforeLock` (null/0 = box-only until lock)
+- **Sell After Lock via FBA** (`Yes` / `Flag` / `No`) → `sellAfterLock` (`yes` | `flag` | `no`) — leftover release after lock when `yes`
+- **Box roles** → `boxRoles`
+- **Hold inventory** is ignored by the app for availability
+- **Books** are always box-only (never sold à la carte), regardless of caps/prices
+- Live sale counters live separately at `catalog/hanukkah/inventory/{itemId}` (not overwritten by sync)
 
 ## Pipeline
 

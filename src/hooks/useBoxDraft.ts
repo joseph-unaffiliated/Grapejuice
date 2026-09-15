@@ -5,7 +5,7 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
-import { repairAdultLeakedAsFirstChild } from '../services/guest/persistGuestToAccount';
+import { repairAdultLeakedAsFirstChild, remapGuestChildIds } from '../services/guest/persistGuestToAccount';
 import {
   EXTRA_FLAT_CENTS,
   repairExtraPerKidPricing,
@@ -27,6 +27,11 @@ function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
       birthdate: d.birthdate,
       plannerAge: d.plannerAge,
     }));
+}
+
+function adultCountFromDrafts(drafts: ChildDraft[]): number | undefined {
+  const n = drafts.filter((d) => d.role === 'adult').length;
+  return n > 0 ? n : undefined;
 }
 
 export function useBoxDraft() {
@@ -67,7 +72,8 @@ export function useBoxDraft() {
       } else {
         let lines = guestLineItems;
         const wrapIds = guestWrapSelectedItemIds ?? [];
-        const repairedWood = repairWoodDreidelHouseholdQty(lines, kids);
+        const adults = adultCountFromDrafts(guestDrafts);
+        const repairedWood = repairWoodDreidelHouseholdQty(lines, kids, adults);
         if (repairedWood.dirty) lines = repairedWood.lineItems;
         try {
           const catalog = await catalogService.getAll();
@@ -107,6 +113,33 @@ export function useBoxDraft() {
 
     let nextKids = kids;
     let nextLines = draft?.lineItems?.length ? draft.lineItems : [];
+
+    // Leftover guest-N ids after account create — remap so gifts/books count for kids.
+    const hadGuestIds = nextLines.some((li) => {
+      const id = li.childId || '';
+      return /^guest-\d+$/.test(id) || /guest-\d+/.test(li.slotId);
+    });
+    if (hadGuestIds && nextKids.length) {
+      const remapped = remapGuestChildIds(nextLines, nextKids);
+      const changed = remapped.some(
+        (li, i) => li.childId !== nextLines[i]?.childId || li.slotId !== nextLines[i]?.slotId
+      );
+      if (changed) {
+        nextLines = remapped;
+        try {
+          await boxDraftService.save(household.id, user.uid, nextLines, {
+            familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel,
+            childInterests: draft?.childInterests,
+            slotVotes: draft?.slotVotes,
+            wrapSelectedItemIds: draft?.wrapSelectedItemIds,
+            sealedSectionIds: draft?.sealedSectionIds,
+          });
+        } catch (e) {
+          console.warn('[box] failed to persist guest-id remap', e);
+        }
+      }
+    }
+
     const repaired = repairAdultLeakedAsFirstChild(
       nextKids,
       nextLines,

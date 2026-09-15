@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,12 +17,16 @@ import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
-import { useCatalog } from '../../hooks/useCatalog';
+import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import {
   marketplaceCartCount,
   useMarketplaceCartStore,
 } from '../../stores/marketplaceCartStore';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import {
+  availabilityAllowsDirectPurchase,
+  availabilityRemaining,
+} from '../../services/catalog/availability';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem } from '../../types/pilot';
 import {
@@ -48,16 +52,73 @@ export function StorefrontCartScreen() {
   const { goHome, goCategory, startBox } = useStorefrontActions();
   const lineItems = useMarketplaceCartStore((s) => s.items);
   const changeQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
-  const { items: catalog, loading: catalogLoading } = useCatalog();
+  const setQuantity = useMarketplaceCartStore((s) => s.setQuantity);
+  const removeItem = useMarketplaceCartStore((s) => s.removeItem);
+  const {
+    items: catalog,
+    byId: availabilityById,
+    loading: catalogLoading,
+  } = useCatalogAvailabilityMap();
 
   const catalogById = useMemo(() => {
     const map = new Map(catalog.map((c) => [c.id, c]));
     return map;
   }, [catalog]);
 
+  const lineIssues = useMemo(() => {
+    const issues: Record<
+      string,
+      { kind: 'unavailable' | 'over_qty'; message: string; maxQty?: number }
+    > = {};
+    for (const li of lineItems) {
+      const avail = availabilityById[li.itemId];
+      const label = li.label || catalogById.get(li.itemId)?.name || li.itemId;
+      const qty = Math.max(1, li.quantity || 1);
+      if (!avail || !availabilityAllowsDirectPurchase(avail)) {
+        issues[li.itemId] = {
+          kind: 'unavailable',
+          message:
+            avail?.status === 'sold_out'
+              ? `${label} is sold out — remove it to continue.`
+              : `${label} is only available in a box — remove it to continue.`,
+        };
+        continue;
+      }
+      const remaining = availabilityRemaining(avail);
+      if (remaining != null && qty > remaining) {
+        issues[li.itemId] = {
+          kind: 'over_qty',
+          message: `Only ${remaining} left — lower quantity to continue.`,
+          maxQty: remaining,
+        };
+      }
+    }
+    return issues;
+  }, [lineItems, availabilityById, catalogById]);
+
+  const hasCartIssues = Object.keys(lineIssues).length > 0;
+
+  // Clamp over-qty lines once availability is known.
+  useEffect(() => {
+    for (const li of lineItems) {
+      const issue = lineIssues[li.itemId];
+      if (
+        issue?.kind === 'over_qty' &&
+        issue.maxQty != null &&
+        issue.maxQty > 0 &&
+        Math.max(1, li.quantity || 1) > issue.maxQty
+      ) {
+        setQuantity(li.itemId, issue.maxQty);
+      }
+    }
+  }, [lineItems, lineIssues, setQuantity]);
+
   const subtotalCents = useMemo(
-    () => lineItems.reduce((sum, li) => sum + li.unitCents * Math.max(1, li.quantity || 1), 0),
-    [lineItems]
+    () =>
+      lineItems
+        .filter((li) => !lineIssues[li.itemId] || lineIssues[li.itemId].kind === 'over_qty')
+        .reduce((sum, li) => sum + li.unitCents * Math.max(1, li.quantity || 1), 0),
+    [lineItems, lineIssues]
   );
 
   const openProduct = (li: BoxLineItem) => {
@@ -130,6 +191,8 @@ export function StorefrontCartScreen() {
                 const label = li.label || catalogItem?.name || li.itemId;
                 const qty = Math.max(1, li.quantity || 1);
                 const lineTotal = li.unitCents * qty;
+                const issue = lineIssues[li.itemId];
+                const remaining = availabilityRemaining(availabilityById[li.itemId]);
                 return (
                   <View key={`${li.slotId}-${li.itemId}`} style={styles.row}>
                     <TouchableOpacity
@@ -151,13 +214,28 @@ export function StorefrontCartScreen() {
                         <Text style={styles.rowPrice}>
                           {lineTotal > 0 ? formatCatalogDollars(lineTotal) : '—'}
                         </Text>
+                        {issue ? (
+                          <Text style={styles.rowIssue}>{issue.message}</Text>
+                        ) : null}
                       </View>
                     </TouchableOpacity>
-                    <CartQtyStepper
-                      quantity={qty}
-                      label={label}
-                      onChange={(delta) => changeQuantity(li.itemId, delta)}
-                    />
+                    {issue?.kind === 'unavailable' ? (
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        onPress={() => removeItem(li.itemId)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${label}`}
+                      >
+                        <Text style={styles.removeBtnText}>Remove</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <CartQtyStepper
+                        quantity={qty}
+                        label={label}
+                        maxQuantity={remaining ?? undefined}
+                        onChange={(delta) => changeQuantity(li.itemId, delta)}
+                      />
+                    )}
                   </View>
                 );
               })}
@@ -170,10 +248,17 @@ export function StorefrontCartScreen() {
               </Text>
             </View>
 
+            {hasCartIssues ? (
+              <Text style={styles.cartIssueBanner}>
+                Fix or remove unavailable items before checkout.
+              </Text>
+            ) : null}
+
             <View style={styles.ctas}>
               <TouchableOpacity
-                style={styles.ctaPrimary}
+                style={[styles.ctaPrimary, hasCartIssues && styles.ctaDisabled]}
                 onPress={() => navigation.navigate('MarketplaceCheckout')}
+                disabled={hasCartIssues}
                 accessibilityRole="button"
                 accessibilityLabel="Checkout"
               >
@@ -320,6 +405,30 @@ const styles = StyleSheet.create({
     color: semanticColors.logoDark,
     marginTop: 2,
   },
+  rowIssue: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.secondary,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  removeBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  removeBtnText: {
+    ...typeface('medium'),
+    fontSize: typography.sm,
+    color: semanticColors.secondary,
+    textDecorationLine: 'underline',
+  },
+  cartIssueBanner: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.secondary,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -347,6 +456,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
+  },
+  ctaDisabled: {
+    opacity: 0.45,
   },
   ctaPrimaryText: {
     ...typeface('medium'),

@@ -20,9 +20,11 @@ import {
   catalogSlotId,
 } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
+import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import {
   resolveSectionUpsellItems,
   resolveFreeSlotAddOptions,
+  resolveFreeSwapUnitCents,
   resolveIncludedGiftOptions,
   kidPlannerAges,
   filterBooksForKidAges,
@@ -36,6 +38,7 @@ import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
+import { BoxSummaryList } from '../../components/box/BoxSummaryList';
 import { PerKidSlotAddBlock } from '../../components/box/PerKidSlotAddBlock';
 import {
   childNamesForLines,
@@ -61,7 +64,7 @@ import {
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
 import { BoxSummaryDonated } from '../../components/box/BoxSummaryDonated';
-import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
+import { createBoxDetailStyles, BOX_SUMMARY_SCROLL_INSET } from '../../components/box/boxDetailLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import {
   BOX_DISPLAY_SECTIONS,
@@ -258,7 +261,7 @@ export function GiftGiverCustomizeContent({
     const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
     const ages = kidPlannerAges(kidProfiles);
     for (const section of BOX_DISPLAY_SECTIONS) {
-      const limit = section.id === 'story' ? 48 : 8;
+      const limit = section.id === 'story' ? 48 : section.id === 'dreidel' ? 12 : 8;
       const raw = resolveSectionUpsellItems(section.id, catalog, boxItemIds, limit);
       map[section.id] =
         section.id === 'story' ? filterBooksForKidAges(raw, ages, 8) : raw;
@@ -271,7 +274,7 @@ export function GiftGiverCustomizeContent({
     const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
     const ages = kidPlannerAges(kidProfiles);
     for (const section of BOX_DISPLAY_SECTIONS) {
-      const limit = section.id === 'story' ? 48 : 8;
+      const limit = section.id === 'story' ? 48 : section.id === 'dreidel' ? 12 : 8;
       const raw = resolveFreeSlotAddOptions(section.id, catalog, limit);
       map[section.id] =
         section.id === 'story' ? filterBooksForKidAges(raw, ages, 8) : raw;
@@ -279,16 +282,23 @@ export function GiftGiverCustomizeContent({
     return map;
   }, [catalog, kidProfiles]);
 
-  /** Included-policy swap targets per section — drives “$X or swap” on Add more tiles. */
+  /** Included-policy swap targets that can actually replace a line in this gift box. */
   const swapEligibleIdsBySection = useMemo(() => {
     const map = {} as Record<BoxDisplaySectionId, Set<string>>;
     for (const section of BOX_DISPLAY_SECTIONS) {
-      map[section.id] = new Set(
-        resolveFreeSlotAddOptions(section.id, catalog, 64).map((i) => i.id)
-      );
+      const candidates = resolveFreeSlotAddOptions(section.id, catalog, 64);
+      const eligible = new Set<string>();
+      for (const item of candidates) {
+        const source = findSwapSourceLine(item, lineItems, catalog, section.id);
+        if (!source) continue;
+        const sourceItem = catalog.find((c) => c.id === source.itemId);
+        if (resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
+        eligible.add(item.id);
+      }
+      map[section.id] = eligible;
     }
     return map;
-  }, [catalog]);
+  }, [catalog, lineItems]);
 
   /** Fixed included per-kid gift set for the add-gift affordance. */
   const includedGiftOptions = useMemo(
@@ -484,21 +494,22 @@ export function GiftGiverCustomizeContent({
               : undefined;
           const claimChips = [...(claimGiftChips ?? []), ...(claimBookChips ?? [])];
           const memberValueCents = item ? resolveCatalogDisplayPrices(item).memberCents : 0;
-          const presentMeta = formatBoxItemStatusMeta(
-            group.unitCents,
-            names,
-            formatCatalogDollars,
-            memberValueCents,
-            resolveBoxItemAttributionKind(group.lines, item),
-            group.quantity,
-            group.includedQuantity,
-          );
           const isWrappingPaper =
             isWrapControlSlot(li.slotId) &&
             (catalogSlotId(li.slotId) === 'wrapping-paper' ||
               catalogSlotId(li.slotId) === 'wrapping' ||
               /wrapping.?paper/i.test(`${li.itemId} ${li.label ?? ''} ${item?.name ?? ''}`));
-
+          const statusUnitCents =
+            isWrappingPaper && wrapSelectedIds.size > 0 ? 0 : group.unitCents;
+          const presentMeta = formatBoxItemStatusMeta(
+            statusUnitCents,
+            names,
+            formatCatalogDollars,
+            memberValueCents,
+            resolveBoxItemAttributionKind(group.lines, item),
+            group.quantity,
+            group.includedQuantity ?? (isWrappingPaper ? 1 : undefined),
+          );
           return (
             <BoxItemRow
               key={group.key}
@@ -730,6 +741,16 @@ export function GiftGiverCustomizeContent({
               {visibleSectionIds.map((id, index) =>
                 renderSection(id, index === visibleSectionIds.length - 1),
               )}
+              <BoxSummaryList
+                lineItems={lineItems}
+                catalog={catalog}
+                childrenProfiles={kidProfiles}
+                onPressItem={(_itemId, sectionId) => {
+                  requestAnimationFrame(() =>
+                    scrollToSection(sectionId, { inset: BOX_SUMMARY_SCROLL_INSET })
+                  );
+                }}
+              />
             </View>
           </ScrollView>
         </View>

@@ -23,11 +23,11 @@ export function WelcomeSubscriberBadge({ compact }: Props) {
   return (
     <View
       style={[styles.badge, compact && styles.badgeCompact]}
-      accessibilityLabel="$18 for subscribers"
+      accessibilityLabel="$18 when in a box"
       pointerEvents="none"
     >
       <Text style={[styles.price, compact && styles.priceCompact]}>$18</Text>
-      <Text style={[styles.caption, compact && styles.captionCompact]}>for subscribers</Text>
+      <Text style={[styles.caption, compact && styles.captionCompact]}>when in a box</Text>
     </View>
   );
 }

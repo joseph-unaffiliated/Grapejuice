@@ -3,6 +3,8 @@ import { catalogService } from '../services/firestore/catalog';
 import {
   buildDefaultLineItems,
   catalogSlotId,
+  householdPracticeQty,
+  isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
 import {
   resolveSwapOptionsForItem,
@@ -195,6 +197,7 @@ export function useGiftGiverBoxDraft(
             itemId: item.id,
             quantity: 1,
             unitCents,
+            includedQty: unitCents === 0 ? 1 : 0,
             label: item.name,
             ...(opts?.displaySectionId ? { displaySectionId: opts.displaySectionId } : null),
           },
@@ -211,6 +214,9 @@ export function useGiftGiverBoxDraft(
       opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
     ) => {
       setLineItems((prev) => {
+        const householdQty = isHouseholdPracticeCatalogItem(item)
+          ? Math.max(1, householdPracticeQty(children, undefined, prev))
+          : 1;
         // Prefer converting a paid copy rather than silent no-op / duplicate.
         const paid = prev.find(
           (li) => li.itemId === item.id && (li.unitCents ?? 0) > 0 && !isGiftSlotLine(li)
@@ -223,6 +229,8 @@ export function useGiftGiverBoxDraft(
                 ? {
                     ...li,
                     unitCents: 0,
+                    quantity: householdQty,
+                    includedQty: householdQty,
                     ...(opts?.displaySectionId
                       ? { displaySectionId: opts.displaySectionId }
                       : null),
@@ -241,7 +249,8 @@ export function useGiftGiverBoxDraft(
             {
               slotId: uniqueAddSlotId(item, prev),
               itemId: item.id,
-              quantity: 1,
+              quantity: householdQty,
+              includedQty: householdQty,
               unitCents: 0,
               label: item.name,
               ...(opts?.displaySectionId ? { displaySectionId: opts.displaySectionId } : null),
@@ -268,6 +277,8 @@ export function useGiftGiverBoxDraft(
                       prev.filter((x) => x.slotId !== existingPractice.slotId)
                     ),
                     unitCents: 0,
+                    quantity: householdQty,
+                    includedQty: householdQty,
                     ...(opts?.displaySectionId
                       ? { displaySectionId: opts.displaySectionId }
                       : null),
@@ -282,7 +293,8 @@ export function useGiftGiverBoxDraft(
           {
             slotId: uniqueAddSlotId(item, prev),
             itemId: item.id,
-            quantity: 1,
+            quantity: householdQty,
+            includedQty: householdQty,
             unitCents: 0,
             label: item.name,
             ...(opts?.displaySectionId ? { displaySectionId: opts.displaySectionId } : null),
@@ -290,7 +302,7 @@ export function useGiftGiverBoxDraft(
         ];
       });
     },
-    []
+    [children]
   );
 
   /** Set (re-point or create) a kid's single gift line at $0; convert paid SKUs in place. */

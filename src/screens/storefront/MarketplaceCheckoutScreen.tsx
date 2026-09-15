@@ -47,7 +47,7 @@ function MarketplaceCheckoutAuthGate() {
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
         <Text style={styles.backLink}>← Back to cart</Text>
       </TouchableOpacity>
-      <Text style={styles.title}>Sign in to checkout</Text>
+      <Text style={styles.title}>Log in to checkout</Text>
       <Text style={styles.authBody}>
         Create a free account or log in to complete your order. Your cart will stay saved.
       </Text>
@@ -135,7 +135,7 @@ function MarketplaceCheckoutBody() {
     setFormError(null);
 
     if (!user) {
-      setFormError('Sign in to continue.');
+      setFormError('Log in to continue.');
       return;
     }
     if (sessionLoading) {

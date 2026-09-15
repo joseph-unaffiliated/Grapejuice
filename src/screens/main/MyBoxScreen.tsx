@@ -32,10 +32,13 @@ import {
   totalCents,
   catalogSlotId,
   chargeableLineTotal,
+  householdPracticeQty,
+  isHouseholdPracticeCatalogItem,
   repairExtraPerKidPricing,
   repairWoodDreidelIncluded,
 } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
+import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import {
   resolveSectionUpsellItems,
   resolveSwapOptionsForItem,
@@ -60,6 +63,7 @@ import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
+import { BoxSummaryList } from '../../components/box/BoxSummaryList';
 import {
   assignKidBookLines,
   assignKidGiftLines,
@@ -114,7 +118,7 @@ import {
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { updatePilotBoxOrder } from '../../services/checkout/updatePilotBoxOrder';
 import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
-import { createBoxDetailStyles } from '../../components/box/boxDetailLayout';
+import { createBoxDetailStyles, BOX_SUMMARY_SCROLL_INSET } from '../../components/box/boxDetailLayout';
 import {
   spacing,
   typography,
@@ -208,6 +212,10 @@ export function MyBoxScreen() {
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  /** Fingerprint of the committed order when this screen first loaded it — for session revert. */
+  const [sessionBaselineFp, setSessionBaselineFp] = useState<string | null>(null);
+  const sessionBaselineItemsRef = useRef<BoxLineItem[]>([]);
+  const sessionOrderIdRef = useRef<string | null>(null);
   const [productModalItem, setProductModalItem] = useState<CatalogItem | null>(null);
   const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(
     null
@@ -634,21 +642,33 @@ export function MyBoxScreen() {
     (openOrder.status === 'committed' || openOrder.status === 'pending') &&
     !locked;
 
+  // Capture order contents once per order id so Revert undoes this session's edits.
+  useEffect(() => {
+    if (!openOrder?.id) {
+      sessionOrderIdRef.current = null;
+      sessionBaselineItemsRef.current = [];
+      setSessionBaselineFp(null);
+      return;
+    }
+    if (sessionOrderIdRef.current === openOrder.id) return;
+    sessionOrderIdRef.current = openOrder.id;
+    const baseline = (openOrder.lineItems ?? []).map((li) => ({
+      ...li,
+      quantity: li.quantity ?? 1,
+    }));
+    sessionBaselineItemsRef.current = baseline;
+    setSessionBaselineFp(lineItemsFingerprint(baseline));
+  }, [openOrder]);
+
   const orderDirty = useMemo(() => {
     if (!canUpdateCommittedOrder || !openOrder) return false;
     return lineItemsFingerprint(lineItems) !== lineItemsFingerprint(openOrder.lineItems ?? []);
   }, [canUpdateCommittedOrder, openOrder, lineItems]);
 
-  const committedSubtotalCents = useMemo(() => {
-    if (!openOrder) return 0;
-    if (typeof openOrder.subtotalCents === 'number') return openOrder.subtotalCents;
-    return totalCents(openOrder.lineItems ?? [], boxPriceCents);
-  }, [openOrder, boxPriceCents]);
-
-  const orderDeltaCents = useMemo(() => {
-    if (!orderDirty) return 0;
-    return totalCents(lineItems, boxPriceCents) - committedSubtotalCents;
-  }, [orderDirty, lineItems, boxPriceCents, committedSubtotalCents]);
+  const hasSessionEdits = useMemo(() => {
+    if (!canUpdateCommittedOrder || sessionBaselineFp == null) return false;
+    return lineItemsFingerprint(lineItems) !== sessionBaselineFp;
+  }, [canUpdateCommittedOrder, sessionBaselineFp, lineItems]);
 
   const saveOrderUpdates = async () => {
     if (savingOrder) return;
@@ -670,14 +690,25 @@ export function MyBoxScreen() {
   };
 
   const discardOrderChanges = async () => {
-    if (!openOrder || !orderDirty || savingOrder) return;
+    if (!openOrder || !hasSessionEdits || savingOrder) return;
+    const baseline = sessionBaselineItemsRef.current;
     await persist(
-      (openOrder.lineItems ?? []).map((li) => ({
+      baseline.map((li) => ({
         ...li,
         quantity: li.quantity ?? 1,
       }))
     );
   };
+
+  // Committed / pending orders: push swaps to the server automatically.
+  useEffect(() => {
+    if (!canUpdateCommittedOrder || !orderDirty || locked || savingOrder) return;
+    const handle = setTimeout(() => {
+      void saveOrderUpdates();
+    }, 700);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- save when dirty fingerprint changes
+  }, [canUpdateCommittedOrder, orderDirty, lineItems, locked, savingOrder]);
 
   const openProduct = (itemId: string, fromSection?: BoxDisplaySectionId) => {
     const found = catalog.find((c) => c.id === itemId);
@@ -746,6 +777,7 @@ export function MyBoxScreen() {
         itemId: item.id,
         quantity: 1,
         unitCents: nextUnit,
+        includedQty: nextUnit === 0 ? 1 : 0,
         label: item.name,
         displaySectionId: sectionId,
       },
@@ -791,11 +823,16 @@ export function MyBoxScreen() {
         includedBaselineByItemId.current.delete(opt.id);
       }
     }
+    const householdQty =
+      (sectionId === 'dreidel' || sectionId === 'food') &&
+      isHouseholdPracticeCatalogItem(item)
+        ? Math.max(1, householdPracticeQty(children, undefined, lineItems))
+        : 1;
     // This claim is the included allotment for the section — track so a later donate counts.
     const markIncludedBaseline = () => {
       includedBaselineByItemId.current.set(
         item.id,
-        Math.max(includedBaselineByItemId.current.get(item.id) ?? 0, 1)
+        Math.max(includedBaselineByItemId.current.get(item.id) ?? 0, householdQty)
       );
     };
     // Same SKU already filling this section — re-home legacy `extra-*` catalog
@@ -839,6 +876,8 @@ export function MyBoxScreen() {
               ? {
                   ...li,
                   unitCents: 0,
+                  quantity: householdQty,
+                  includedQty: householdQty,
                   displaySectionId: sectionId,
                   slotId: uniqueSlotForFreeSectionAdd(
                     sectionId,
@@ -857,7 +896,8 @@ export function MyBoxScreen() {
           {
             slotId: uniqueSlotForFreeSectionAdd(sectionId, item, lineItems),
             itemId: item.id,
-            quantity: 1,
+            quantity: householdQty,
+            includedQty: householdQty,
             unitCents: 0,
             label: item.name,
             displaySectionId: sectionId,
@@ -875,7 +915,8 @@ export function MyBoxScreen() {
       {
         slotId: uniqueSlotForFreeSectionAdd(sectionId, item, lineItems),
         itemId: item.id,
-        quantity: 1,
+        quantity: householdQty,
+        includedQty: householdQty,
         unitCents: 0,
         label: item.name,
         displaySectionId: sectionId,
@@ -892,7 +933,7 @@ export function MyBoxScreen() {
     const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
     const ages = kidPlannerAges(children);
     for (const section of BOX_DISPLAY_SECTIONS) {
-      const limit = section.id === 'story' ? 48 : 8;
+      const limit = section.id === 'story' ? 48 : section.id === 'dreidel' ? 12 : 8;
       const raw = resolveSectionUpsellItems(section.id, catalog, boxItemIds, limit);
       map[section.id] =
         section.id === 'story' ? filterBooksForKidAges(raw, ages, 8) : raw;
@@ -905,7 +946,7 @@ export function MyBoxScreen() {
     const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
     const ages = kidPlannerAges(children);
     for (const section of BOX_DISPLAY_SECTIONS) {
-      const limit = section.id === 'story' ? 48 : 8;
+      const limit = section.id === 'story' ? 48 : section.id === 'dreidel' ? 12 : 8;
       const raw = resolveFreeSlotAddOptions(section.id, catalog, limit);
       map[section.id] =
         section.id === 'story' ? filterBooksForKidAges(raw, ages, 8) : raw;
@@ -913,16 +954,23 @@ export function MyBoxScreen() {
     return map;
   }, [catalog, children]);
 
-  /** Included-policy swap targets per section — drives “$X or swap” on Add more tiles. */
+  /** Included-policy swap targets that can actually replace a line in this box. */
   const swapEligibleIdsBySection = useMemo(() => {
     const map = {} as Record<BoxDisplaySectionId, Set<string>>;
     for (const section of BOX_DISPLAY_SECTIONS) {
-      map[section.id] = new Set(
-        resolveFreeSlotAddOptions(section.id, catalog, 64).map((i) => i.id)
-      );
+      const candidates = resolveFreeSlotAddOptions(section.id, catalog, 64);
+      const eligible = new Set<string>();
+      for (const item of candidates) {
+        const source = findSwapSourceLine(item, lineItems, catalog, section.id);
+        if (!source) continue;
+        const sourceItem = catalog.find((c) => c.id === source.itemId);
+        if (resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
+        eligible.add(item.id);
+      }
+      map[section.id] = eligible;
     }
     return map;
-  }, [catalog]);
+  }, [catalog, lineItems]);
 
   /** Fixed included per-kid gift set (toy menorah, dreidels, stuffie, book, DIY candles). */
   const includedGiftOptions = useMemo(
@@ -1151,14 +1199,23 @@ export function MyBoxScreen() {
           const memberValueCents = item
             ? resolveCatalogDisplayPrices(item).memberCents
             : 0;
+          const isWrappingPaper =
+            isWrapControlSlot(li.slotId) &&
+            (catalogSlotId(li.slotId) === 'wrapping-paper' ||
+              catalogSlotId(li.slotId) === 'wrapping' ||
+              /wrapping.?paper/i.test(`${li.itemId} ${li.label ?? ''} ${item?.name ?? ''}`));
+          // Wrap fee rides on paper unitCents for Add-ons, but the paper card stays “1 included”.
+          // Don't gate on coalesced includedQuantity — charging paper zeros that field.
+          const statusUnitCents =
+            isWrappingPaper && wrapSelectedIds.size > 0 ? 0 : group.unitCents;
           const presentMeta = formatBoxItemStatusMeta(
-            group.unitCents,
+            statusUnitCents,
             names,
             formatCatalogDollars,
             memberValueCents,
             resolveBoxItemAttributionKind(group.lines, item),
             group.quantity,
-            group.includedQuantity
+            group.includedQuantity ?? (isWrappingPaper ? 1 : undefined)
           );
           const wrapped =
             isChildProfile &&
@@ -1187,12 +1244,6 @@ export function MyBoxScreen() {
                 isVotablePerKidSlot(line.slotId) &&
                 (!showKidBoxUi || line.childId === activeChild?.id)
             ) ?? li;
-
-          const isWrappingPaper =
-            isWrapControlSlot(li.slotId) &&
-            (catalogSlotId(li.slotId) === 'wrapping-paper' ||
-              catalogSlotId(li.slotId) === 'wrapping' ||
-              /wrapping.?paper/i.test(`${li.itemId} ${li.label ?? ''} ${item?.name ?? ''}`));
 
           return (
             <View key={group.key}>
@@ -1448,13 +1499,6 @@ export function MyBoxScreen() {
           ) : null}
           {guestViewOnly ? <GuestBoxAuthBanner /> : null}
         </View>
-        {orderDirty && orderDeltaCents !== 0 ? (
-          <Text style={styles.orderDeltaCopy} accessibilityRole="summary">
-            {orderDeltaCents > 0
-              ? `This update adds ${formatDollars(orderDeltaCents)} to your box. You’ll be charged the new total when it ships.`
-              : `This update reduces your box by ${formatDollars(Math.abs(orderDeltaCents))}. You’ll be charged the new total when it ships.`}
-          </Text>
-        ) : null}
         {guestViewOnly ? (
           <View style={styles.summaryCtaRow}>
             <Pressable
@@ -1482,31 +1526,49 @@ export function MyBoxScreen() {
               accessibilityRole="button"
               hitSlop={8}
             >
-              <Text style={styles.guestSignIn}>Sign in</Text>
+              <Text style={styles.guestSignIn}>Log in</Text>
             </TouchableOpacity>
           </View>
-        ) : orderDirty ? (
-          <View style={styles.summaryCtaRow}>
-            <TouchableOpacity
-              onPress={() => void discardOrderChanges()}
-              disabled={savingOrder}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel changes"
-              hitSlop={8}
-            >
-              <Text style={[styles.guestSignIn, savingOrder && styles.checkoutCtaDisabled]}>
-                Cancel
+        ) : canUpdateCommittedOrder ? (
+          <View style={styles.summaryCtaRow} accessibilityLiveRegion="polite">
+            {savingOrder || (hasSessionEdits && orderDirty) ? (
+              <Text style={styles.orderSaveStatus}>Saving changes…</Text>
+            ) : hasSessionEdits ? (
+              <Text style={styles.orderSaveStatus} accessibilityRole="text">
+                ✓ All changes saved
               </Text>
-            </TouchableOpacity>
+            ) : null}
+            {hasSessionEdits ? (
+              <Pressable
+                style={({ pressed, hovered }) => [
+                  styles.checkoutCta,
+                  (hovered || pressed) && !savingOrder && styles.checkoutCtaHover,
+                  savingOrder && styles.checkoutCtaDisabled,
+                ]}
+                onPress={() => void discardOrderChanges()}
+                disabled={savingOrder}
+                accessibilityRole="button"
+                accessibilityLabel="Revert changes"
+                accessibilityState={{ disabled: savingOrder }}
+              >
+                {({ pressed, hovered }) => (
+                  <Text
+                    style={[
+                      styles.checkoutText,
+                      (hovered || pressed) && !savingOrder && styles.checkoutTextHover,
+                    ]}
+                  >
+                    Revert changes
+                  </Text>
+                )}
+              </Pressable>
+            ) : null}
             <Pressable
               style={({ pressed, hovered }) => [
                 styles.checkoutCta,
-                styles.guestPrimaryCta,
                 (hovered || pressed) && styles.checkoutCtaHover,
-                (savingOrder || locked) && styles.checkoutCtaDisabled,
               ]}
-              onPress={() => void saveOrderUpdates()}
-              disabled={savingOrder || locked}
+              onPress={goToCheckout}
               accessibilityRole="button"
             >
               {({ pressed, hovered }) => (
@@ -1516,7 +1578,7 @@ export function MyBoxScreen() {
                     (hovered || pressed) && styles.checkoutTextHover,
                   ]}
                 >
-                  {savingOrder ? 'Saving…' : 'Save and update box'}
+                  View order status
                 </Text>
               )}
             </Pressable>
@@ -1527,10 +1589,10 @@ export function MyBoxScreen() {
               style={({ pressed, hovered }) => [
                 styles.checkoutCta,
                 (hovered || pressed) && styles.checkoutCtaHover,
-                !openOrder && locked && styles.checkoutCtaDisabled,
+                locked && styles.checkoutCtaDisabled,
               ]}
               onPress={goToCheckout}
-              disabled={openOrder ? false : locked || lineItems.length === 0}
+              disabled={locked || lineItems.length === 0}
               accessibilityRole="button"
             >
               {({ pressed, hovered }) => (
@@ -1540,11 +1602,7 @@ export function MyBoxScreen() {
                     (hovered || pressed) && styles.checkoutTextHover,
                   ]}
                 >
-                  {openOrder
-                    ? 'View order status'
-                    : cardOnFile
-                      ? 'Review shipping'
-                      : 'Add payment & shipping'}
+                  {cardOnFile ? 'Review shipping' : 'Add payment & shipping'}
                 </Text>
               )}
             </Pressable>
@@ -1573,6 +1631,18 @@ export function MyBoxScreen() {
       {scrollHeader}
       {kidEmptyState}
       {kidEmptyState ? null : sections}
+      {!isChildProfile && !kidEmptyState ? (
+        <BoxSummaryList
+          lineItems={lineItems}
+          catalog={catalog}
+          childrenProfiles={children}
+          onPressItem={(_itemId, sectionId) => {
+            requestAnimationFrame(() =>
+              scrollToSection(sectionId, { inset: BOX_SUMMARY_SCROLL_INSET })
+            );
+          }}
+        />
+      ) : null}
     </>
   );
 
@@ -1872,21 +1942,19 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   summaryCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: isDesktop ? 'flex-end' : 'center',
+    justifyContent: 'flex-end',
     gap: spacing.sm,
-    flexShrink: 0,
-    ...(isDesktop
-      ? { marginLeft: 'auto' }
-      : { width: '100%' as const, marginTop: spacing.xs }),
+    flexShrink: 1,
+    flexGrow: 1,
+    flexWrap: 'wrap',
+    marginLeft: 'auto',
+    minWidth: 0,
   },
-  orderDeltaCopy: {
-    // Full-width note — forces a second row only when this copy is present.
-    width: '100%',
+  orderSaveStatus: {
     fontSize: typography.sm,
-    lineHeight: 18,
     color: colors.goldMuted,
+    ...typeface('medium'),
     letterSpacing: -0.22,
-    marginTop: spacing.xs,
   },
   guestPrimaryCta: {
     marginLeft: 0,
