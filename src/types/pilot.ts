@@ -318,6 +318,7 @@ export type PilotOrder = {
   chargeFailureMessage?: string;
   orderConfirmedEmailSentAt?: string;
   shipStationExportedAt?: string;
+  shipStationOrderId?: string;
 };
 
 export type HolidayCardStatus = 'active' | 'upcoming' | 'notify';

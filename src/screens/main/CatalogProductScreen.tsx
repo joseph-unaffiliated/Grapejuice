@@ -45,6 +45,7 @@ import {
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
+import { transferLiveIncludedBaselineOnSwap } from '../../components/box/boxLineDisplay';
 import { similarCatalogItems } from '../../constants/catalogCuration';
 import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
 import { storefrontCategoryForItem } from '../../constants/storefrontCategories';
@@ -300,6 +301,12 @@ export function CatalogProductScreen() {
     if (swapDeltaCents > 0 && !guardMutation()) return;
     // Use live draft when present; otherwise persist the seeded default box + swap.
     const base = lineItems.length > 0 ? lineItems : swapLineItems;
+    transferLiveIncludedBaselineOnSwap(
+      swapSource.itemId,
+      item.id,
+      Math.max(1, swapSource.quantity ?? 1),
+      swapUnitCents
+    );
     const next = base.map((li) =>
       li.slotId === swapSource.slotId && li.itemId === swapSource.itemId
         ? {

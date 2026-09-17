@@ -123,7 +123,7 @@ export async function fulfillHanukkahBoxOrder(
   }
 
   try {
-    await exportOrderToShipStation({
+    const exported = await exportOrderToShipStation({
       orderId,
       householdId,
       shippingAddress: (order.shippingAddress as Record<string, unknown>) ?? {},
@@ -131,7 +131,10 @@ export async function fulfillHanukkahBoxOrder(
       totalCents: (order.totalCents as number) ?? 0,
       expeditedShipping: order.expeditedShipping === true,
     });
-    await orderRef.update({ shipStationExportedAt: new Date().toISOString() });
+    await orderRef.update({
+      shipStationExportedAt: new Date().toISOString(),
+      ...(exported.externalId ? { shipStationOrderId: exported.externalId } : {}),
+    });
   } catch (shipErr) {
     logger.error('Hanukkah box ShipStation export failed', { orderId, shipErr });
   }

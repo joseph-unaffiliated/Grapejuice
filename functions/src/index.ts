@@ -7,7 +7,12 @@ import { stripe, verifyWebhook } from './stripe';
 import { sendEmail, sendDebriefReminderEmail } from './email';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
-import { exportOrderToShipStation, applyShipStationTracking } from './shipstation';
+import {
+  exportOrderToShipStation,
+  applyShipStationTracking,
+  processShipStationShipNotify,
+  verifyShipStationWebhookSecret,
+} from './shipstation';
 import { finalizeGiftInvitePayment, resolveGiftInviteKind, type GiftInviteRecord } from './giftPayment';
 import { runDebriefReminderBatch } from './debriefReminders';
 import { runLockReminderBatch } from './lockReminders';
@@ -1211,6 +1216,37 @@ export const writeOrderTracking = onCall(async (request) => {
   await assertHouseholdMember(request.auth.uid, householdId);
   await applyShipStationTracking(db, householdId, orderId, { trackingNumber, carrier });
   return { ok: true };
+});
+
+/**
+ * ShipStation → Grapejuice tracking writeback.
+ * Configure in ShipStation: Settings → Integrations → Webhooks → SHIP_NOTIFY
+ * URL: https://<region>-<project>.cloudfunctions.net/shipStationWebhook?key=<SHIPSTATION_WEBHOOK_SECRET>
+ */
+export const shipStationWebhook = onRequest({ cors: false }, async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).send('Method not allowed');
+    return;
+  }
+  if (!verifyShipStationWebhookSecret(req)) {
+    res.status(401).send('Unauthorized');
+    return;
+  }
+
+  try {
+    const body =
+      typeof req.body === 'object' && req.body != null
+        ? (req.body as Record<string, unknown>)
+        : (JSON.parse(String((req as { rawBody?: Buffer }).rawBody ?? '{}')) as Record<
+            string,
+            unknown
+          >);
+    const result = await processShipStationShipNotify(db, body);
+    res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    logger.error('ShipStation webhook failed', err);
+    res.status(500).send('Webhook Error');
+  }
 });
 
 export const purchasePilotGift = onCall(async (request) => {

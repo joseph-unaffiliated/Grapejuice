@@ -86,6 +86,8 @@ import {
   removeCoalescedGroup,
   resolveBoxItemAttributionKind,
   seedIncludedBaselines,
+  transferIncludedBaselineOnSwap,
+  setLiveIncludedBaselines,
   includedPracticeSlotVacant,
   uniqueSlotForFreeSectionAdd,
   syncWrappingPaperUnitCentsForWrapSelection,
@@ -333,6 +335,19 @@ export function MyBoxScreen() {
         boxAddOnUnitCents(newItem);
     // Guests edit the local draft (“Sign up to save”); payment gate is for signed-in paid extras.
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
+    const swappedQty = lineItems
+      .filter((li) => idSet.has(li.slotId))
+      .reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+    if (sourceLine?.itemId) {
+      // Swaps replace included allotment — do not count the old SKU as Donated.
+      transferIncludedBaselineOnSwap(
+        includedBaselineByItemId.current,
+        sourceLine.itemId,
+        newItem.id,
+        swappedQty,
+        nextUnit
+      );
+    }
     const next = lineItems.map((li) =>
       idSet.has(li.slotId)
         ? {
@@ -351,6 +366,10 @@ export function MyBoxScreen() {
   };
 
   const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    setLiveIncludedBaselines(includedBaselineByItemId.current);
+    return () => setLiveIncludedBaselines(null);
+  }, []);
   const lineItemsRef = useRef(lineItems);
   lineItemsRef.current = lineItems;
 
@@ -793,6 +812,13 @@ export function MyBoxScreen() {
       : (sectionId ? resolveFreeSwapUnitCents(sourceItem, item, sectionId) : undefined) ??
         boxAddOnUnitCents(item);
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
+    transferIncludedBaselineOnSwap(
+      includedBaselineByItemId.current,
+      source.itemId,
+      item.id,
+      Math.max(1, source.quantity ?? 1),
+      nextUnit
+    );
     const next = lineItems.map((li) =>
       li.slotId === source.slotId
         ? {

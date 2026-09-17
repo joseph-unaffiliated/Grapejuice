@@ -80,6 +80,15 @@ export function replaceBrowserPath(path: string): void {
   window.history.replaceState({ gjNav: true, idx: historyIdx }, '', path);
 }
 
+/** Push a new history entry — e.g. shipping → payment so Back returns to shipping. */
+export function pushBrowserPath(path: string): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const current = window.location.pathname + window.location.search;
+  if (current === path) return;
+  historyIdx += 1;
+  window.history.pushState({ gjNav: true, idx: historyIdx }, '', path);
+}
+
 /**
  * Pathname of the screen React Navigation thinks is active (no query).
  * Used to detect in-screen history (checkout shipping ↔ payment).

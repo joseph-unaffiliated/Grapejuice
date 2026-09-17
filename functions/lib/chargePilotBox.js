@@ -90,7 +90,7 @@ async function fulfillHanukkahBoxOrder(db, householdId, orderId, orderInput) {
         return;
     }
     try {
-        await (0, shipstation_1.exportOrderToShipStation)({
+        const exported = await (0, shipstation_1.exportOrderToShipStation)({
             orderId,
             householdId,
             shippingAddress: (_d = order.shippingAddress) !== null && _d !== void 0 ? _d : {},
@@ -98,7 +98,7 @@ async function fulfillHanukkahBoxOrder(db, householdId, orderId, orderInput) {
             totalCents: (_f = order.totalCents) !== null && _f !== void 0 ? _f : 0,
             expeditedShipping: order.expeditedShipping === true,
         });
-        await orderRef.update({ shipStationExportedAt: new Date().toISOString() });
+        await orderRef.update(Object.assign({ shipStationExportedAt: new Date().toISOString() }, (exported.externalId ? { shipStationOrderId: exported.externalId } : {})));
     }
     catch (shipErr) {
         logger.error('Hanukkah box ShipStation export failed', { orderId, shipErr });

@@ -25,6 +25,7 @@ import {
   promotePaidSiblingToIncludedPractice,
   removeCoalescedGroup,
   syncWrappingPaperUnitCentsForWrapSelection,
+  transferLiveIncludedBaselineOnSwap,
   withCashDonationCents,
   type CoalescedBoxLine,
 } from '../components/box/boxLineDisplay';
@@ -122,6 +123,17 @@ export function useGiftGiverBoxDraft(
           ? 0
           : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
             boxAddOnUnitCents(newItem);
+        if (sourceLine?.itemId) {
+          const swappedQty = prev
+            .filter((li) => idSet.has(li.slotId))
+            .reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+          transferLiveIncludedBaselineOnSwap(
+            sourceLine.itemId,
+            newItem.id,
+            swappedQty,
+            nextUnit
+          );
+        }
         return prev.map((li) =>
           idSet.has(li.slotId)
             ? {

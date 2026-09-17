@@ -30,7 +30,7 @@ import {
   filterBooksForKidAges,
   catalogBookFitsKidAge,
 } from '../../services/box/sectionUpsells';
-import { resolveCatalogDisplayPrices, boxALaCarteRetailValueCents } from '../../services/box/pricing';
+import { resolveCatalogDisplayPrices, boxALaCarteRetailValueCents, boxAddOnUnitCents } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
@@ -58,6 +58,8 @@ import {
   kidsNeedingGift,
   resolveBoxItemAttributionKind,
   seedIncludedBaselines,
+  transferIncludedBaselineOnSwap,
+  setLiveIncludedBaselines,
   includedPracticeSlotVacant,
   wrappableLinesInBox,
   wrapControlLines,
@@ -189,6 +191,10 @@ export function GiftGiverCustomizeContent({
   const boxPriceCents = listBoxCentsForKids(kidsCount);
   const wrapSelectedIds = useMemo(() => new Set(wrapSelectedItemIds), [wrapSelectedItemIds]);
   const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    setLiveIncludedBaselines(includedBaselineByItemId.current);
+    return () => setLiveIncludedBaselines(null);
+  }, []);
   seedIncludedBaselines(lineItems, includedBaselineByItemId.current);
   const donatedCents = donatedMemberValueCents(
     lineItems,
@@ -521,7 +527,16 @@ export function GiftGiverCustomizeContent({
               claimGiftChips={claimChips.length ? claimChips : undefined}
               locked={false}
               swapOptions={group.unitCents > 0 ? [] : (swapOptionsBySlot[li.slotId] ?? [])}
-              onSwap={(opt) => applySwap(group.lines.map((line) => line.slotId), opt)}
+              onSwap={(opt) => {
+                transferIncludedBaselineOnSwap(
+                  includedBaselineByItemId.current,
+                  group.itemId,
+                  opt.id,
+                  Math.max(1, group.quantity ?? 1),
+                  0
+                );
+                applySwap(group.lines.map((line) => line.slotId), opt);
+              }}
               swapLabel={isWrappingPaper ? 'pre-wrap presents instead' : undefined}
               onPrimarySwapAction={
                 isWrappingPaper
@@ -790,13 +805,27 @@ export function GiftGiverCustomizeContent({
             productModalSection ? { displaySectionId: productModalSection } : undefined
           );
         }}
-        onSwap={(next, source) =>
+        onSwap={(next, source) => {
+          const sourceItem = catalog.find((c) => c.id === source.itemId);
+          const sectionId =
+            productModalSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
+          const nextUnit = isGiftSlotLine(source)
+            ? 0
+            : (sectionId ? resolveFreeSwapUnitCents(sourceItem, next, sectionId) : undefined) ??
+              boxAddOnUnitCents(next);
+          transferIncludedBaselineOnSwap(
+            includedBaselineByItemId.current,
+            source.itemId,
+            next.id,
+            Math.max(1, source.quantity ?? 1),
+            nextUnit
+          );
           applySwap(
             [source.slotId],
             next,
             productModalSection ? { displaySectionId: productModalSection } : undefined
-          )
-        }
+          );
+        }}
         onRemove={(next) => {
           const group = coalesceLinesByItemId(lineItems.filter((li) => li.itemId === next.id))[0];
           if (group) trackAndRemoveCoalesced(group);

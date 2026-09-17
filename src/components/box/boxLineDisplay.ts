@@ -877,6 +877,57 @@ export function seedIncludedBaselines(
 }
 
 /**
+ * Lateral included swaps replace one free SKU with another — they are not donations.
+ * Drop (or reduce) the source baseline and, when the target stays free ($0), move that
+ * included allotment onto the new itemId so Donated stays accurate.
+ */
+export function transferIncludedBaselineOnSwap(
+  baselines: Map<string, number>,
+  fromItemId: string,
+  toItemId: string,
+  qty: number,
+  toUnitCents: number
+): void {
+  const n = Math.max(0, Math.floor(qty));
+  if (!fromItemId || n <= 0) return;
+  if (fromItemId === toItemId) {
+    if (toUnitCents === 0 && toItemId) {
+      baselines.set(toItemId, Math.max(baselines.get(toItemId) ?? 0, n));
+    }
+    return;
+  }
+  const prev = baselines.get(fromItemId) ?? 0;
+  if (prev > 0) {
+    const left = prev - n;
+    if (left <= 0) baselines.delete(fromItemId);
+    else baselines.set(fromItemId, left);
+  } else {
+    // Source may have been seeded only via free lines; ensure it can't linger as "missing".
+    baselines.delete(fromItemId);
+  }
+  if (toUnitCents === 0 && toItemId) {
+    baselines.set(toItemId, Math.max(baselines.get(toItemId) ?? 0, n));
+  }
+}
+
+/** My Box / gift customize register their live baseline map so PDP swaps can transfer too. */
+let liveIncludedBaselines: Map<string, number> | null = null;
+
+export function setLiveIncludedBaselines(map: Map<string, number> | null): void {
+  liveIncludedBaselines = map;
+}
+
+export function transferLiveIncludedBaselineOnSwap(
+  fromItemId: string,
+  toItemId: string,
+  qty: number,
+  toUnitCents: number
+): void {
+  if (!liveIncludedBaselines) return;
+  transferIncludedBaselineOnSwap(liveIncludedBaselines, fromItemId, toItemId, qty, toUnitCents);
+}
+
+/**
  * Member-price value of included units that were donated/removed (not charged; not
  * subtracted from box total). Uses per-SKU included baselines vs current free qty.
  * Only SKUs in `includedBaselines` count — paid à-la-carte add/remove and newly added

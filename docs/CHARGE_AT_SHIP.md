@@ -87,8 +87,9 @@ See root `package.json` scripts. Minimum for this feature:
 # functions/.env.grapejuice-pilot
 #   STRIPE_SECRET_KEY=sk_test_...
 #   STRIPE_WEBHOOK_SECRET=whsec_...
-#   SHIPSTATION_API_KEY=...      # optional until SS ready
+#   SHIPSTATION_API_KEY=...
 #   SHIPSTATION_API_SECRET=...
+#   SHIPSTATION_WEBHOOK_SECRET=...   # shared secret in webhook URL ?key=
 
 cd functions && npm run build && cd ..
 
@@ -106,12 +107,19 @@ npm run deploy:hosting
 
 **ShipStation:** Export runs after charge; no-op without keys in `functions/.env.grapejuice-pilot`.
 
+**ShipStation tracking writeback:** Deploy `shipStationWebhook`, then in ShipStation → Settings → Integrations → Webhooks add **SHIP_NOTIFY** (and optionally **ITEM_SHIP_NOTIFY**) pointing at:
+
+```text
+https://us-central1-grapejuice-pilot.cloudfunctions.net/shipStationWebhook?key=<SHIPSTATION_WEBHOOK_SECRET>
+```
+
+ShipStation POSTs `{ resource_url, resource_type }`; we GET shipments and set `trackingNumber` / `carrier` / `status: shipped` on the household order.
+
 ---
 
 ## Still open (Phase 3)
 
 - Production Stripe live keys (with Joseph)
-- ShipStation API keys + v1 webhook for tracking writeback
 - Customer.io email when charge fails
 - My Box payment-pending copy (Q9) — separate card
 - Optional: charge at **ship** instead of lock (product decision)

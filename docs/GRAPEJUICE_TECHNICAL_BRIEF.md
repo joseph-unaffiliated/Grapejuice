@@ -221,7 +221,7 @@ draft → committed → (charged at ship) → shipped → delivered
 | **Customer.io** | Partial | Transactional email (order confirm, partner invite); skips gracefully if API key unset |
 | **Google Sign-In** | Live on web | OAuth; native requires dev build |
 | **Sign in with Apple** | Implemented (iOS) | App Store requirement when Google offered |
-| **ShipStation** | **Code shipped** | `exportOrderToShipStation` after box charge; no-op without API keys; tracking via `writeOrderTracking` / webhook TBD |
+| **ShipStation** | **Export + tracking webhook** | `exportOrderToShipStation` after box charge; `shipStationWebhook` for SHIP_NOTIFY writeback |
 | **Customer.io SMS** | **Not integrated** | Locked decision for reminders |
 | **Hebcal** | Indirect | Holiday dates stored in app constants and seeded config |
 | **Beam (sibling product)** | Schema hooks only | `birthdate`, `beamStatus`, nightly age-trigger function; no Beam UI in Grapejuice |

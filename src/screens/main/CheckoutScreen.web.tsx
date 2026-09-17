@@ -44,6 +44,27 @@ import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 const DESKTOP_CONTENT_TOP = 41;
 const SHIPPING_CONFIRMED_KEY = 'gj.checkout.shippingConfirmed';
 
+function notifyCheckout(title: string, body: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${body}`);
+    return;
+  }
+  Alert.alert(title, body);
+}
+
+function formatSetupIntentError(e: unknown): string {
+  const code =
+    e && typeof e === 'object' && 'code' in e ? String((e as { code?: string }).code ?? '') : '';
+  const message = e instanceof Error ? e.message : 'Could not start payment setup.';
+  if (
+    code.includes('failed-precondition') ||
+    /Stripe is not configured|STRIPE_SECRET_KEY/i.test(message)
+  ) {
+    return 'Stripe is not configured on the server. Add STRIPE_SECRET_KEY to functions/.env.grapejuice-pilot and redeploy functions.';
+  }
+  return message;
+}
+
 function readShippingConfirmed(): boolean {
   if (typeof window === 'undefined') return false;
   try {
@@ -128,7 +149,7 @@ function SetupCardStep({
         redirect: 'if_required',
       });
       if (error) {
-        Alert.alert('Could not save card', error.message ?? 'Please try again.');
+        notifyCheckout('Could not save card', error.message ?? 'Please try again.');
         return;
       }
       onSaved();
@@ -247,7 +268,7 @@ function CheckoutScreenBody() {
   const handleCommit = useCallback(async () => {
     if (!user || !household?.id) return;
     if (locked) {
-      Alert.alert('Box locked', 'The customization window has closed. Contact support for changes.');
+      notifyCheckout('Box locked', 'The customization window has closed. Contact support for changes.');
       return;
     }
     if (!ensureAddressValid()) return;
@@ -264,7 +285,7 @@ function CheckoutScreenBody() {
       writeShippingConfirmed(false);
       navigation.replace('OrderConfirmation', { orderId });
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not commit your box.');
+      notifyCheckout('Error', e instanceof Error ? e.message : 'Could not commit your box.');
     } finally {
       setCommitting(false);
     }
@@ -284,7 +305,7 @@ function CheckoutScreenBody() {
   const startSetup = async () => {
     if (!household?.id) return;
     if (!stripeKey) {
-      Alert.alert('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
+      notifyCheckout('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
       return;
     }
     if (!ensureAddressValid()) return;
@@ -293,7 +314,7 @@ function CheckoutScreenBody() {
     try {
       const result = await createPilotSetupIntent(household.id);
       if (!result.clientSecret) {
-        Alert.alert('Error', 'No setup secret returned.');
+        notifyCheckout('Error', 'No setup secret returned.');
         setShippingConfirmed(false);
         return;
       }
@@ -303,7 +324,7 @@ function CheckoutScreenBody() {
       pushBrowserPath(checkoutPath('payment'));
     } catch (e) {
       setShippingConfirmed(false);
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not start payment setup.');
+      notifyCheckout('Could not continue to payment', formatSetupIntentError(e));
     } finally {
       setPreparing(false);
     }
