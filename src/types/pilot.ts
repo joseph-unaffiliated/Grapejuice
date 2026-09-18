@@ -159,6 +159,11 @@ export type CatalogItem = {
   /** Airtable Context flags (Default, A la carte). */
   context?: string[];
   airtableRecordId?: string;
+  /**
+   * Warehouse / ShipStation SKU from Airtable (e.g. CDL-STR-001).
+   * When unset, fulfillment falls back to catalog `id` (slug).
+   */
+  sku?: string;
   buyLink?: string;
   interest?: string;
   /** PDP detail rows — omit when empty. */

@@ -62,6 +62,29 @@ async function writeShipStationIndex(params) {
         updatedAt: new Date().toISOString(),
     }, { merge: true });
 }
+async function resolveFulfillmentSkus(lineItems) {
+    const db = (0, firestore_1.getFirestore)();
+    const ids = [
+        ...new Set(lineItems
+            .map((li) => (typeof li.itemId === 'string' ? li.itemId.trim() : ''))
+            .filter(Boolean)),
+    ];
+    const out = new Map();
+    await Promise.all(ids.map(async (id) => {
+        var _a;
+        try {
+            const snap = await db.doc(`catalog/hanukkah/items/${id}`).get();
+            const raw = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.sku;
+            if (typeof raw === 'string' && raw.trim()) {
+                out.set(id, raw.trim());
+            }
+        }
+        catch (err) {
+            logger.warn('ShipStation SKU lookup failed', { itemId: id, err });
+        }
+    }));
+    return out;
+}
 /** ShipStation order export — no-op when keys missing. */
 async function exportOrderToShipStation(order) {
     var _a;
@@ -75,15 +98,18 @@ async function exportOrderToShipStation(order) {
         logger.warn('ShipStation export skipped (incomplete address)', { orderId: order.orderId });
         return { exported: false };
     }
+    const skuByItemId = await resolveFulfillmentSkus(order.lineItems);
     const items = order.lineItems.map((li, i) => {
-        var _a, _b, _c, _d, _e, _f;
-        return ({
-            lineItemKey: (_a = li.itemId) !== null && _a !== void 0 ? _a : `line-${i}`,
-            sku: (_b = li.itemId) !== null && _b !== void 0 ? _b : `pilot-${i}`,
-            name: (_d = (_c = li.label) !== null && _c !== void 0 ? _c : li.itemId) !== null && _d !== void 0 ? _d : 'Hanukkah box item',
-            quantity: (_e = li.quantity) !== null && _e !== void 0 ? _e : 1,
-            unitPrice: (((_f = li.unitCents) !== null && _f !== void 0 ? _f : 0) / 100).toFixed(2),
-        });
+        var _a, _b, _c, _d, _e;
+        const itemId = ((_a = li.itemId) === null || _a === void 0 ? void 0 : _a.trim()) || '';
+        const sku = (itemId && skuByItemId.get(itemId)) || itemId || `pilot-${i}`;
+        return {
+            lineItemKey: itemId || `line-${i}`,
+            sku,
+            name: (_c = (_b = li.label) !== null && _b !== void 0 ? _b : itemId) !== null && _c !== void 0 ? _c : 'Hanukkah box item',
+            quantity: (_d = li.quantity) !== null && _d !== void 0 ? _d : 1,
+            unitPrice: (((_e = li.unitCents) !== null && _e !== void 0 ? _e : 0) / 100).toFixed(2),
+        };
     });
     const orderNumber = `GJ-${order.householdId.slice(0, 6)}-${order.orderId.slice(0, 8)}`;
     const payload = {

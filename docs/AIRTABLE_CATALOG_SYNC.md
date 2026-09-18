@@ -2,10 +2,12 @@
 
 **Source of truth:** Airtable base **Grapejuice** (`appQscrPCQUIj4shh`)
 
-- **Full Catalog** (`tblCUCVfohWTQy8fP`) — SKUs with **In production? = Yes** and an **ID**
+- **Full Catalog** (`tblCUCVfohWTQy8fP`) — products with **In production? = Yes** and an **ID**
 - **Hanukkah Books** (`tbleo48j2H34DRAu1`) — non-cut books
 
 **Destination:** Firestore `catalog/hanukkah/items/{slugId}` (replace sync; orphans deleted)
+
+**Fulfillment SKU:** Full Catalog **SKU** (e.g. `CDL-STR-001`) → Firestore `sku`. ShipStation export uses `sku` when set, otherwise falls back to the slugified catalog `id`. Books have no SKU field yet → export as `book-…` slug.
 
 **Images:** **Primary Image** → `imageUrl`; **Other Images** → `imageUrls`. Sync converts attachments to **WebP** (max 1600px edge, q≈82) in Firebase Storage. Storefront lifestyle assets are also served as `.webp` (masters kept as PNG/JPG alongside). **Books** use Full Catalog Category=Book Primary Image renderings when matched.
 

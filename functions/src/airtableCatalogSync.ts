@@ -56,6 +56,8 @@ const F = {
   sellAfterLock: 'fldBsSszQ2lmutIX1',
   /** Multi-select box roles (base, swap, upsell, gift-eligible, store-only, …). */
   boxRoles: 'fldxFZn1AVEGMCjjD',
+  /** Warehouse / ShipStation SKU (e.g. CDL-STR-001). Empty → fall back to slugified ID. */
+  sku: 'fld1xjteLPXlU4VsW',
 } as const;
 
 const B = {
@@ -139,6 +141,11 @@ export type SyncedCatalogItem = {
   sellAfterLock: 'yes' | 'flag' | 'no' | null;
   /** Airtable "Box roles" multi-select. */
   boxRoles: string[];
+  /**
+   * Warehouse SKU from Airtable `SKU` (e.g. CDL-STR-001).
+   * ShipStation export prefers this; falls back to catalog `id` (slug) when null.
+   */
+  sku: string | null;
 };
 
 function requirePat(): string {
@@ -472,6 +479,7 @@ function listingToItem(
   const memberPriceCents = currencyToCents(f[F.memberPrice]);
   const nonMemberPriceCents = currencyToCents(f[F.nonMemberPrice]);
   const id = slugifyCatalogId(name);
+  const skuRaw = String(f[F.sku] ?? '').trim();
 
   return {
     id,
@@ -511,6 +519,7 @@ function listingToItem(
     directSaleCapBeforeLock: numberField(f[F.availableBeforeLock]),
     sellAfterLock: sellAfterLockFromAirtable(f[F.sellAfterLock]),
     boxRoles: selectNames(f[F.boxRoles]),
+    sku: skuRaw || null,
   };
 }
 
@@ -572,6 +581,7 @@ function bookToItem(
     directSaleCapBeforeLock: null,
     sellAfterLock: null,
     boxRoles: [],
+    sku: null,
   };
 }
 

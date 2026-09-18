@@ -89,6 +89,7 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
       : undefined,
     airtableRecordId:
       typeof data.airtableRecordId === 'string' ? data.airtableRecordId : undefined,
+    sku: typeof data.sku === 'string' && data.sku.trim() ? data.sku.trim() : undefined,
     buyLink: typeof data.buyLink === 'string' ? data.buyLink : undefined,
     interest: typeof data.interest === 'string' ? data.interest : undefined,
     dimensions: typeof data.dimensions === 'string' && data.dimensions.trim() ? data.dimensions : undefined,

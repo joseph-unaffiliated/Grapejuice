@@ -83,6 +83,34 @@ async function writeShipStationIndex(params: {
   );
 }
 
+async function resolveFulfillmentSkus(
+  lineItems: Array<{ itemId?: string }>
+): Promise<Map<string, string>> {
+  const db = getFirestore();
+  const ids = [
+    ...new Set(
+      lineItems
+        .map((li) => (typeof li.itemId === 'string' ? li.itemId.trim() : ''))
+        .filter(Boolean)
+    ),
+  ];
+  const out = new Map<string, string>();
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const snap = await db.doc(`catalog/hanukkah/items/${id}`).get();
+        const raw = snap.data()?.sku;
+        if (typeof raw === 'string' && raw.trim()) {
+          out.set(id, raw.trim());
+        }
+      } catch (err) {
+        logger.warn('ShipStation SKU lookup failed', { itemId: id, err });
+      }
+    })
+  );
+  return out;
+}
+
 /** ShipStation order export — no-op when keys missing. */
 export async function exportOrderToShipStation(order: {
   orderId: string;
@@ -104,13 +132,18 @@ export async function exportOrderToShipStation(order: {
     return { exported: false };
   }
 
-  const items = order.lineItems.map((li, i) => ({
-    lineItemKey: li.itemId ?? `line-${i}`,
-    sku: li.itemId ?? `pilot-${i}`,
-    name: li.label ?? li.itemId ?? 'Hanukkah box item',
-    quantity: li.quantity ?? 1,
-    unitPrice: ((li.unitCents ?? 0) / 100).toFixed(2),
-  }));
+  const skuByItemId = await resolveFulfillmentSkus(order.lineItems);
+  const items = order.lineItems.map((li, i) => {
+    const itemId = li.itemId?.trim() || '';
+    const sku = (itemId && skuByItemId.get(itemId)) || itemId || `pilot-${i}`;
+    return {
+      lineItemKey: itemId || `line-${i}`,
+      sku,
+      name: li.label ?? itemId ?? 'Hanukkah box item',
+      quantity: li.quantity ?? 1,
+      unitPrice: ((li.unitCents ?? 0) / 100).toFixed(2),
+    };
+  });
 
   const orderNumber = `GJ-${order.householdId.slice(0, 6)}-${order.orderId.slice(0, 8)}`;
   const payload = {

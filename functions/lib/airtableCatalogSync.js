@@ -72,6 +72,8 @@ const F = {
     sellAfterLock: 'fldBsSszQ2lmutIX1',
     /** Multi-select box roles (base, swap, upsell, gift-eligible, store-only, …). */
     boxRoles: 'fldxFZn1AVEGMCjjD',
+    /** Warehouse / ShipStation SKU (e.g. CDL-STR-001). Empty → fall back to slugified ID. */
+    sku: 'fld1xjteLPXlU4VsW',
 };
 const B = {
     title: 'fldCZVbxyEy7pFpl5',
@@ -413,7 +415,7 @@ async function resolveImages(itemId, primary, other) {
     return { imageUrl: (_a = urls[0]) !== null && _a !== void 0 ? _a : null, imageUrls: urls };
 }
 function listingToItem(rec, images) {
-    var _a, _b;
+    var _a, _b, _c;
     const f = rec.fields;
     const name = String((_a = f[F.id]) !== null && _a !== void 0 ? _a : '').trim();
     if (!name)
@@ -430,10 +432,11 @@ function listingToItem(rec, images) {
     const memberPriceCents = currencyToCents(f[F.memberPrice]);
     const nonMemberPriceCents = currencyToCents(f[F.nonMemberPrice]);
     const id = slugifyCatalogId(name);
+    const skuRaw = String((_b = f[F.sku]) !== null && _b !== void 0 ? _b : '').trim();
     return {
         id,
         name,
-        description: String((_b = f[F.description]) !== null && _b !== void 0 ? _b : '').trim() || name,
+        description: String((_c = f[F.description]) !== null && _c !== void 0 ? _c : '').trim() || name,
         slot: placement.slot,
         slotId: placement.slotId,
         ageGroups: ages.length ? ageYearsToGroups(ages) : ['0-2', '3-5', '6-8', '9-12'],
@@ -468,6 +471,7 @@ function listingToItem(rec, images) {
         directSaleCapBeforeLock: numberField(f[F.availableBeforeLock]),
         sellAfterLock: sellAfterLockFromAirtable(f[F.sellAfterLock]),
         boxRoles: selectNames(f[F.boxRoles]),
+        sku: skuRaw || null,
     };
 }
 function bookToItem(rec, images) {
@@ -526,6 +530,7 @@ function bookToItem(rec, images) {
         directSaleCapBeforeLock: null,
         sellAfterLock: null,
         boxRoles: [],
+        sku: null,
     };
 }
 function wireBookSwaps(items) {
