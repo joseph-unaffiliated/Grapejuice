@@ -14,7 +14,7 @@ import { MainStack } from './MainStack';
 import { ThemeProvider } from '../context/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
-import { useAuthFlowStore } from '../stores/authFlowStore';
+import { useAuthFlowStore, authReturnSkipsBoxOnboarding } from '../stores/authFlowStore';
 import type { AuthReturnRoute } from '../stores/authFlowStore';
 import { SessionProvider, useSession } from '../context/SessionContext';
 import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
@@ -277,11 +277,11 @@ function RootRoutes() {
     const resumeMainAfterAuth =
       giftResume ||
       pendingAuth === 'GiftClaim' ||
-      // Nav sign in/up — stay on the page they were on, never open the box builder.
-      pendingAuth === 'Stay' ||
+      // Checkout / account / nav — stay on the page they were on, never open the box builder.
+      authReturnSkipsBoxOnboarding(pendingAuth) ||
       (guestHasBox && pendingAuth != null);
     if (resumeMainAfterAuth) {
-      // Guest already revealed/customized a box (or mid gift customize) — don't restart onboarding.
+      // Guest already revealed/customized a box (or mid gift/checkout auth) — don't restart onboarding.
       gateKey = 'main';
     } else if (exploreStarted && !needsOnboarding) {
       // Signed-in “explore without building a box” — onboarding done, reveal skipped.

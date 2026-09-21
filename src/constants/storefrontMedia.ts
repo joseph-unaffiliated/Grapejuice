@@ -21,8 +21,13 @@ export type StorefrontMediaSlot = {
   ctaLabel?: string;
   /** Category slug, product slug, or special: 'box' | 'rav' | 'look'. */
   href?: string;
-  /** Remote URL, bundled image (`require(...)`), or null for placeholder. */
-  src: string | ImageSourcePropType | null;
+  /**
+   * Remote URL, bundled asset (`require(...)`), or null for placeholder.
+   * For `kind: 'video'`, this is the video file (web loops it; native uses poster).
+   */
+  src: string | number | ImageSourcePropType | null;
+  /** Still frame when video can’t play (native) or while loading. */
+  poster?: ImageSourcePropType | null;
 };
 
 /** Native aspect of `familysplash2.jpg` (family lifestyle dusk splash). */
@@ -30,15 +35,16 @@ export const STOREFRONT_HERO_ASPECT = 4082 / 1536;
 
 export const STOREFRONT_HERO: StorefrontMediaSlot = {
   id: 'hero-table',
-  kind: 'image',
+  kind: 'video',
   aspect: '4082/1536',
-  label: 'Lifestyle — Hanukkah table',
+  label: 'Lifestyle — Hanukkah table reel',
   headline: 'Hanukkah Made Easy',
   body: 'Everything you need, delivered straight to your home',
   bodySecondary: 'Hanukkah starts sundown Dec. 4th, 2026',
   ctaLabel: 'Browse the Collection',
   href: 'collection',
-  src: require('../../assets/storefront/familysplash2.webp'),
+  src: require('../../assets/storefront/banner-reel.mp4'),
+  poster: require('../../assets/storefront/familysplash2.webp'),
 };
 
 /** Post-Hanukkah seasonal hero — Passover interest (placeholder art). */

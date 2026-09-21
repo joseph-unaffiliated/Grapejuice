@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ordersService } from '../services/firestore/orders';
 import type { PilotOrder } from '../types/pilot';
 
-/** Pre-ship order — household already committed a box for this pilot. */
+/** Pre-ship **Hanukkah box** order — household already committed a box for this pilot.
+ * Marketplace / received-gift orders must not count (they were hijacking box checkout). */
 export function isOpenPilotOrder(order: PilotOrder): boolean {
+  if (order.orderType === 'marketplace' || order.orderType === 'received_gift') return false;
   return (
     order.status === 'committed' ||
     order.status === 'pending' ||

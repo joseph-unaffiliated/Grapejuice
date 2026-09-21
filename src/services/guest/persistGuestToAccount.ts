@@ -1,5 +1,5 @@
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { useAuthFlowStore, authReturnSkipsBoxOnboarding } from '../../stores/authFlowStore';
 import { childrenService } from '../firestore/children';
 import { usersService } from '../firestore/users';
 import { householdsService } from '../firestore/households';
@@ -96,8 +96,9 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   const giftGiveResume = pendingAtStart === 'GiftGive' && !!giftGiveAtStart;
   const giftClaimResume = pendingAtStart === 'GiftClaim';
   const giftResume = giftCustomizeResume || giftGiveResume || giftClaimResume;
-  /** Nav sign in/up — the user stays on their page, so never start a box for them. */
-  const inPlaceAuth = pendingAtStart === 'Stay';
+  /** Checkout / nav / gift — stay on surface; never start a box for them. */
+  const skipBoxOnboarding =
+    giftResume || authReturnSkipsBoxOnboarding(pendingAtStart);
 
   // Do this first — before any stub profile with onboardingComplete: false can win the race.
   if (giftCustomizeResume) {
@@ -120,6 +121,8 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
     if (token) {
       queuePendingMainNav({ screen: 'GiftClaim', params: { token } });
     }
+  } else if (skipBoxOnboarding) {
+    await ensureGiftResumeSkipsOnboarding(user);
   }
 
   const hasGuestData =
@@ -130,7 +133,7 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
       guest.childDrafts.length > 0 ||
       guest.wishlistItemIds.length > 0);
 
-  if (!hasGuestData && !giftResume && !inPlaceAuth) {
+  if (!hasGuestData && !skipBoxOnboarding) {
     return;
   }
 
@@ -147,15 +150,15 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
       email: user.email,
       displayName: user.displayName,
       role: 'parent',
-      onboardingComplete: guestHasOwnBox || giftResume || inPlaceAuth,
-      boxRevealComplete: guestHasOwnBox || inPlaceAuth,
+      onboardingComplete: guestHasOwnBox || skipBoxOnboarding,
+      boxRevealComplete: guestHasOwnBox || skipBoxOnboarding,
     });
   } else if (guestHasOwnBox && (!prof.onboardingComplete || !prof.boxRevealComplete)) {
     prof = await usersService.upsert(user.uid, {
       onboardingComplete: true,
       boxRevealComplete: true,
     });
-  } else if ((giftResume || inPlaceAuth) && !prof.onboardingComplete) {
+  } else if (skipBoxOnboarding && !prof.onboardingComplete) {
     prof = await usersService.upsert(user.uid, {
       onboardingComplete: true,
       boxRevealComplete: true,
@@ -222,12 +225,12 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
     ravNotes: guest.ravNotes?.trim() ? guest.ravNotes.trim() : undefined,
     onboardingComplete: guestHasOwnBox
       ? true
-      : giftResume
+      : skipBoxOnboarding
         ? true
         : guest.onboardingComplete || prof.onboardingComplete,
     boxRevealComplete: guestHasOwnBox
       ? true
-      : giftResume
+      : skipBoxOnboarding
         ? true
         : guest.boxRevealComplete || prof.boxRevealComplete,
     notificationsOptIn: guest.interests.includes('passover-2027-notify') ? true : undefined,

@@ -38,8 +38,32 @@ function OrderConfirmationBody() {
     order?.status === 'delivered';
   const pending = order?.status === 'pending';
   const committed = order?.status === 'committed';
+  const isMarketplace = order?.orderType === 'marketplace';
   const isReceivedGift =
     order?.orderType === 'received_gift' || Boolean(order?.giftInviteId);
+  const itemCount =
+    order?.lineItems?.reduce((sum, li) => sum + Math.max(1, li.quantity ?? 1), 0) ?? 0;
+
+  let title = 'Order confirmed';
+  let subtitle = "We'll email you with updates.";
+  let showBoxPreview = false;
+
+  if (pending) {
+    title = 'Confirming your order…';
+    subtitle = "This usually takes a few seconds. We'll email you when it's confirmed.";
+  } else if (isMarketplace && confirmed) {
+    title = 'Your purchase is confirmed.';
+    subtitle = "We'll send a tracking link when it ships.";
+  } else if (isReceivedGift && confirmed) {
+    title = 'Your gift order is confirmed.';
+    subtitle = "We'll send a tracking link when it ships.";
+  } else if (confirmed) {
+    title = committed ? 'Your box is committed.' : 'Your Hanukkah box is on its way.';
+    subtitle = committed
+      ? "You won't be charged until the customization lock date. Keep swapping until then."
+      : "We'll send a tracking link when it ships.";
+    showBoxPreview = !committed;
+  }
 
   return (
     <WebContentPanel flush centerDesktop style={styles.panel}>
@@ -49,38 +73,45 @@ function OrderConfirmationBody() {
             {pending ? (
               <>
                 <ActivityIndicator size="large" color={semanticColors.brand} style={styles.spinner} />
-                <Text style={styles.title}>Confirming your order…</Text>
-                <Text style={styles.subtitle}>
-                  This usually takes a few seconds. We&apos;ll email you when it&apos;s confirmed.
-                </Text>
+                <Text style={styles.title}>{title}</Text>
+                <Text style={styles.subtitle}>{subtitle}</Text>
               </>
             ) : confirmed ? (
               <>
                 <Text style={styles.emoji}>✓</Text>
-                <Text style={styles.title}>
-                  {committed ? 'Your box is committed.' : 'Your Hanukkah box is on its way.'}
-                </Text>
-                <Text style={styles.subtitle}>
-                  {committed
-                    ? "You won't be charged until the customization lock date. Keep swapping until then."
-                    : "We'll send a tracking link when it ships."}
-                </Text>
+                <Text style={styles.title}>{title}</Text>
+                <Text style={styles.subtitle}>{subtitle}</Text>
                 {order.estimatedDelivery ? (
                   <Text style={styles.delivery}>
                     Estimated delivery by {order.estimatedDelivery}
                   </Text>
                 ) : null}
-                <View style={styles.previewBox}>
-                  <Text style={styles.previewTitle}>When it arrives</Text>
-                  <Text style={styles.body}>
-                    Open candles, lyric sheet, and parent guide right away. Keep gelt and gifts in the
-                    small hold-back set for night-of surprises.
-                  </Text>
-                  <Text style={styles.body}>
-                    Keep hanukkiah, dreidels, and binders — use up candles, treats, and wrapping paper.
-                    We&apos;ll send more next year.
-                  </Text>
-                </View>
+                {isMarketplace && order.lineItems?.length ? (
+                  <View style={styles.previewBox}>
+                    <Text style={styles.previewTitle}>
+                      {itemCount === 1 ? 'Your item' : 'Your items'}
+                    </Text>
+                    {order.lineItems.map((li) => (
+                      <Text key={li.slotId ?? li.itemId} style={styles.body}>
+                        {(li.quantity ?? 1) > 1 ? `${li.quantity}× ` : ''}
+                        {li.label ?? li.itemId}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {showBoxPreview ? (
+                  <View style={styles.previewBox}>
+                    <Text style={styles.previewTitle}>When it arrives</Text>
+                    <Text style={styles.body}>
+                      Open candles, lyric sheet, and parent guide right away. Keep gelt and gifts in the
+                      small hold-back set for night-of surprises.
+                    </Text>
+                    <Text style={styles.body}>
+                      Keep hanukkiah, dreidels, and binders — use up candles, treats, and wrapping paper.
+                      We&apos;ll send more next year.
+                    </Text>
+                  </View>
+                ) : null}
               </>
             ) : (
               <Text style={styles.title}>Order status: {order.status}</Text>
@@ -145,6 +176,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     backgroundColor: semanticColors.accentCream,
     maxWidth: 360,
+    width: '100%',
   },
   previewTitle: { fontWeight: '700', fontSize: typography.lg, marginBottom: spacing.xs, textAlign: 'center' },
   body: {

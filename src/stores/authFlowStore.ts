@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import type { AuthStackParamList, MainStackParamList } from '../navigation/types';
 import type { GiftChildDraft, GiftGiveFormValues } from '../screens/gift/giftGiveTypes';
+import {
+  clearPersistedGiftClaimToken,
+  persistGiftClaimToken,
+} from '../navigation/giftClaimLink';
 
 export type AuthReturnRoute =
   /** Sign in/up from nav — stay on the current screen, just authenticated. */
@@ -17,6 +21,33 @@ export type AuthReturnRoute =
   | 'GiftGive'
   | 'GiftGiverCustomize'
   | 'History';
+
+/**
+ * Auth handoffs that must NOT dump the user into Build-a-Box / onboarding.
+ * Only `MyBox` is omitted — that path may continue into box builder when there
+ * is no guest box yet (e.g. explicit “build my box” → save account).
+ */
+const AUTH_RETURNS_SKIP_BOX_ONBOARDING: ReadonlySet<AuthReturnRoute> = new Set([
+  'Stay',
+  'Checkout',
+  'MarketplaceCheckout',
+  'Rav',
+  'Account',
+  'Orders',
+  'MyGifts',
+  'Profiles',
+  'History',
+  'GiftClaim',
+  'GiftGive',
+  'GiftGiverCustomize',
+]);
+
+/** True when post-auth should resume Main (or gift/checkout) instead of Onboarding. */
+export function authReturnSkipsBoxOnboarding(
+  pendingReturn: AuthReturnRoute | null | undefined
+): boolean {
+  return pendingReturn != null && AUTH_RETURNS_SKIP_BOX_ONBOARDING.has(pendingReturn);
+}
 
 export type PendingGiftCustomize = MainStackParamList['GiftGiverCustomize'];
 
@@ -128,7 +159,8 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
       authEntry: entry,
       authScreen: entry === 'signin' ? 'SignIn' : 'SignUp',
     }),
-  prepareAdminSignIn: (email) =>
+  prepareAdminSignIn: (email) => {
+    clearPersistedGiftClaimToken();
     set({
       pendingReturn: null,
       pendingGiftClaimToken: null,
@@ -137,9 +169,11 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
       authEntry: 'signin',
       authScreen: 'SignInEmail',
       restoreSignInEmail: email.trim(),
-    }),
+    });
+  },
   clearRestoreSignInEmail: () => set({ restoreSignInEmail: null }),
-  beginPasswordReset: (oobCode) =>
+  beginPasswordReset: (oobCode) => {
+    clearPersistedGiftClaimToken();
     set({
       passwordResetOobCode: oobCode,
       pendingReturn: null,
@@ -149,14 +183,21 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
       authEntry: 'signin',
       authScreen: 'ResetPasswordConfirm',
       restoreSignInEmail: null,
-    }),
+    });
+  },
   clearPasswordReset: () => set({ passwordResetOobCode: null, authScreen: null }),
-  setPendingGiftClaimToken: (token) => set({ pendingGiftClaimToken: token }),
+  setPendingGiftClaimToken: (token) => {
+    const trimmed = token?.trim() || null;
+    if (trimmed) persistGiftClaimToken(trimmed);
+    else clearPersistedGiftClaimToken();
+    set({ pendingGiftClaimToken: trimmed });
+  },
+  // Keep pendingGiftClaimToken — clearing it here races signup→GiftClaim remounts
+  // and flashes "invalid link" before claim/navigation can finish.
   clearPending: () =>
     set({
       pendingReturn: null,
       authScreen: null,
-      pendingGiftClaimToken: null,
       pendingGiftCustomize: null,
       pendingGiftGive: null,
       restoreSignInEmail: null,

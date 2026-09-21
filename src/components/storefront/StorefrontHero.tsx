@@ -7,7 +7,7 @@ import {
   Platform,
   type LayoutChangeEvent,
 } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Rect } from 'react-native-svg';
 import { StorefrontMediaPlaceholder } from './StorefrontMediaPlaceholder';
 import {
   StorefrontHeroJourneyTimeline,
@@ -29,35 +29,35 @@ import {
 } from '../../constants/theme';
 
 /**
- * Mobile hero vignette — center radial (same geometry as StorefrontBuildBoxStrip),
- * sized wider than the frame so copy sits in the dark core.
+ * Hero scrim — darkens from the top so bottom-aligned product footage stays bright.
  */
-const HERO_VIGNETTE_SOFT_WEB =
-  'radial-gradient(ellipse 165% 125% at 50% 50%, rgba(17, 2, 34, 0.92) 0%, rgba(17, 2, 34, 0.72) 42%, rgba(17, 2, 34, 0.4) 70%, transparent 100%)';
-const HERO_VIGNETTE_MULTIPLY_WEB =
-  'radial-gradient(ellipse 155% 115% at 50% 50%, rgba(17, 2, 34, 0.55) 0%, rgba(17, 2, 34, 0.32) 50%, transparent 80%)';
+const HERO_SCRIM_TOP_WEB =
+  'linear-gradient(to bottom, rgba(17, 2, 34, 0.78) 0%, rgba(17, 2, 34, 0.42) 42%, rgba(17, 2, 34, 0.12) 72%, transparent 100%)';
 
-const NATIVE_HERO_VIGNETTE_STOPS = [
-  { offset: '0', color: '#110222', opacity: '0.9' },
-  { offset: '0.42', color: '#110222', opacity: '0.68' },
-  { offset: '0.72', color: '#110222', opacity: '0.32' },
+const NATIVE_HERO_SCRIM_STOPS = [
+  { offset: '0', color: '#110222', opacity: '0.78' },
+  { offset: '0.42', color: '#110222', opacity: '0.42' },
+  { offset: '0.72', color: '#110222', opacity: '0.12' },
   { offset: '1', color: '#110222', opacity: '0' },
 ] as const;
 
-function NativeHeroVignette({ width, height }: { width: number; height: number }) {
+function NativeHeroScrim({ width, height }: { width: number; height: number }) {
   const rawId = useId().replace(/:/g, '');
-  const gradId = `storefrontHeroVignette-${rawId}`;
+  const gradId = `storefrontHeroScrim-${rawId}`;
   if (width <= 0 || height <= 0) return null;
 
-  const cx = width / 2;
-  const cy = height / 2;
-  const r = width * 0.85;
+  const scrimH = height * 0.62;
 
   return (
-    <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Svg
+      width={width}
+      height={scrimH}
+      style={{ position: 'absolute', top: 0, left: 0 }}
+      pointerEvents="none"
+    >
       <Defs>
-        <RadialGradient id={gradId} cx={cx} cy={cy} r={r} gradientUnits="userSpaceOnUse">
-          {NATIVE_HERO_VIGNETTE_STOPS.map((stop) => (
+        <SvgLinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          {NATIVE_HERO_SCRIM_STOPS.map((stop) => (
             <Stop
               key={stop.offset}
               offset={stop.offset}
@@ -65,9 +65,9 @@ function NativeHeroVignette({ width, height }: { width: number; height: number }
               stopOpacity={stop.opacity}
             />
           ))}
-        </RadialGradient>
+        </SvgLinearGradient>
       </Defs>
-      <Rect x={0} y={0} width={width} height={height} fill={`url(#${gradId})`} />
+      <Rect x={0} y={0} width={width} height={scrimH} fill={`url(#${gradId})`} />
     </Svg>
   );
 }
@@ -201,17 +201,11 @@ export function StorefrontHero({
         fill
         style={styles.media}
       />
-      {compact ? (
-        Platform.OS === 'web' ? (
-          <>
-            <View style={styles.scrimRadialSoft} pointerEvents="none" />
-            <View style={styles.scrimRadialMultiply} pointerEvents="none" />
-          </>
-        ) : (
-          <NativeHeroVignette width={size.w} height={size.h} />
-        )
+      {/* Top scrim — keeps bottom product footage bright */}
+      {Platform.OS === 'web' ? (
+        <View style={styles.scrimTop} pointerEvents="none" />
       ) : (
-        <View style={styles.scrim} pointerEvents="none" />
+        <NativeHeroScrim width={size.w} height={size.h} />
       )}
       <View
         style={[styles.overlay, compact && styles.overlayCompact]}
@@ -280,38 +274,16 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderWidth: 0,
   },
-  /** Desktop: bottom-up linear scrim for copy at the base. */
-  scrim: {
+  /** Top-down fade — dark near title zone, clear over products at bottom. */
+  scrimTop: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    height: '58%',
+    top: 0,
+    height: '62%',
     ...(Platform.OS === 'web'
-      ? ({
-          backgroundImage:
-            'linear-gradient(to top, rgba(17, 2, 34, 0.72) 0%, rgba(17, 2, 34, 0.28) 55%, transparent 100%)',
-        } as object)
+      ? ({ backgroundImage: HERO_SCRIM_TOP_WEB } as object)
       : { backgroundColor: 'rgba(17, 2, 34, 0.4)' }),
-  },
-  /** Mobile: center radial (matches Secure / build-box strip). */
-  scrimRadialSoft: {
-    ...StyleSheet.absoluteFillObject,
-    ...(Platform.OS === 'web'
-      ? ({
-          backgroundImage: HERO_VIGNETTE_SOFT_WEB,
-          mixBlendMode: 'soft-light',
-        } as object)
-      : null),
-  },
-  scrimRadialMultiply: {
-    ...StyleSheet.absoluteFillObject,
-    ...(Platform.OS === 'web'
-      ? ({
-          backgroundImage: HERO_VIGNETTE_MULTIPLY_WEB,
-          mixBlendMode: 'multiply',
-        } as object)
-      : null),
   },
   overlay: {
     position: 'absolute',
@@ -323,7 +295,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     paddingTop: spacing.xxl,
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
   },
   overlayCompact: {
     paddingBottom: spacing.lg,

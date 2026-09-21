@@ -1,5 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Platform,
+  type ImageSourcePropType,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import {
@@ -25,15 +34,34 @@ type Props = {
   fill?: boolean;
 };
 
+function resolveAssetUri(src: string | number | ImageSourcePropType | null | undefined): string | null {
+  if (src == null) return null;
+  if (typeof src === 'string') return src;
+  if (typeof src === 'number') {
+    const resolved = Image.resolveAssetSource(src);
+    return resolved?.uri ?? null;
+  }
+  if (typeof src === 'object' && 'uri' in src && typeof src.uri === 'string') {
+    return src.uri;
+  }
+  return null;
+}
+
+function toImageSource(
+  src: string | number | ImageSourcePropType | null | undefined
+): ImageSourcePropType | null {
+  if (src == null) return null;
+  if (typeof src === 'string') return { uri: src };
+  return src as ImageSourcePropType;
+}
+
 /** Cream/gold frame until lifestyle assets exist (`slot.src`). */
 export function StorefrontMediaPlaceholder({ slot, style, minHeight, quiet, fill }: Props) {
   const showPlay = slot.kind === 'video' && !quiet;
-  const imageSource =
-    slot.src == null
-      ? null
-      : typeof slot.src === 'string'
-        ? { uri: slot.src }
-        : slot.src;
+  const videoUri = slot.kind === 'video' ? resolveAssetUri(slot.src) : null;
+  const posterSource = toImageSource(slot.poster ?? (slot.kind === 'image' ? slot.src : null));
+  const imageSource = slot.kind === 'image' ? toImageSource(slot.src) : posterSource;
+  const playVideoOnWeb = Platform.OS === 'web' && slot.kind === 'video' && Boolean(videoUri);
 
   return (
     <View
@@ -44,12 +72,20 @@ export function StorefrontMediaPlaceholder({ slot, style, minHeight, quiet, fill
         style,
       ]}
     >
-      {imageSource ? (
-        <Image
-          source={imageSource}
-          style={styles.image}
-          resizeMode="cover"
-        />
+      {playVideoOnWeb ? (
+        React.createElement('video', {
+          src: videoUri!,
+          autoPlay: true,
+          muted: true,
+          loop: true,
+          playsInline: true,
+          preload: 'auto',
+          'aria-hidden': true,
+          poster: resolveAssetUri(slot.poster) ?? undefined,
+          style: styles.videoWeb,
+        })
+      ) : imageSource ? (
+        <Image source={imageSource} style={styles.image} resizeMode="cover" />
       ) : (
         <View style={[styles.placeholder, quiet && styles.placeholderQuiet]}>
           {!quiet ? (
@@ -62,7 +98,7 @@ export function StorefrontMediaPlaceholder({ slot, style, minHeight, quiet, fill
           ) : null}
         </View>
       )}
-      {showPlay ? (
+      {showPlay && !playVideoOnWeb ? (
         <View style={styles.playBadge} accessibilityElementsHidden>
           <Icon icon={icons.play} size={18} color={semanticColors.textInverse} />
         </View>
@@ -84,15 +120,24 @@ const styles = StyleSheet.create({
   },
   rootFill: {
     // Clear the default 16/9 so absolute-fill can match the parent frame.
-    ...( { aspectRatio: 'auto' } as object),
+    ...({ aspectRatio: 'auto' } as object),
   },
   image: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-    // Web: explicit cover + center (resizeMode alone can look like contain).
-    ...( { objectFit: 'cover', objectPosition: 'center' } as object),
+    // Web: cover; bottom-bias keeps product/table in frame over faces when cropped.
+    ...({ objectFit: 'cover', objectPosition: 'center bottom' } as object),
   },
+  videoWeb: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    objectPosition: 'center bottom',
+  } as object,
   placeholder: {
     flex: 1,
     alignItems: 'center',

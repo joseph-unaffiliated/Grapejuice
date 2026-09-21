@@ -90,6 +90,49 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   });
 }
 
+// Pre-lock: committed boxes shrink remaining via inventory ceiling
+{
+  const menorah = item({
+    id: 'branches-menorah',
+    name: 'Branches Menorah',
+    directSaleCapBeforeLock: 20,
+    inventory: 12,
+  });
+  const counters = { ...emptyInventoryCounters(menorah.id), boxAllocatedQty: 10 };
+  const a = resolveAvailability(menorah, counters, preLock, now);
+  assert.equal(a.status, 'limited');
+  if (a.status === 'limited') assert.equal(a.remaining, 2); // min(20, 12-10)
+}
+
+// Pre-lock: boxes exhaust inventory ceiling → cap_exhausted
+{
+  const menorah = item({
+    id: 'branches-menorah',
+    name: 'Branches Menorah',
+    directSaleCapBeforeLock: 20,
+    inventory: 12,
+  });
+  const counters = { ...emptyInventoryCounters(menorah.id), boxAllocatedQty: 12 };
+  assert.deepEqual(resolveAvailability(menorah, counters, preLock, now), {
+    status: 'box_only',
+    reason: 'cap_exhausted',
+  });
+}
+
+// Pre-lock: null inventory → ignore boxAllocated for ceiling (cap only)
+{
+  const menorah = item({
+    id: 'branches-menorah',
+    name: 'Branches Menorah',
+    directSaleCapBeforeLock: 6,
+    inventory: null,
+  });
+  const counters = { ...emptyInventoryCounters(menorah.id), boxAllocatedQty: 100 };
+  const a = resolveAvailability(menorah, counters, preLock, now);
+  assert.equal(a.status, 'limited');
+  if (a.status === 'limited') assert.equal(a.remaining, 6);
+}
+
 // Post-lock FBA yes → leftover
 {
   const menorah = item({

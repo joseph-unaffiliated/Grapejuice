@@ -26,6 +26,7 @@ import {
   runChargeEligiblePilotBoxOrders,
 } from './chargePilotBox';
 import {
+  assertBoxLinesWithinInventory,
   commitMarketplaceReservations,
   recomputeBoxAllocations,
   releaseMarketplaceReservations,
@@ -235,14 +236,35 @@ async function fulfillMarketplaceOrder(
   const userSnap = await db.doc(`users/${userId}`).get();
   const email = (userSnap.data()?.email as string) ?? '';
   if (email) {
+    const lineItems = (order.lineItems as MarketplaceLineItem[]) ?? [];
+    const itemSummary = lineItems
+      .map((li) => {
+        const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
+        const name = String(li.label ?? li.itemId ?? 'Item');
+        return qty > 1 ? `${qty}× ${name}` : name;
+      })
+      .filter(Boolean)
+      .join(', ');
     try {
+      // Prefer dedicated marketplace template; fall back to box template only if unset
+      // (still pass orderType so Liquid can branch once CIO is updated).
+      const marketplaceTemplateId = parseInt(
+        process.env.CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED ?? '0',
+        10
+      );
       await sendEmail({
         to: email,
-        template: 'order-confirmed',
+        template: marketplaceTemplateId > 0 ? 'marketplace-order-confirmed' : 'order-confirmed',
         data: {
           orderId,
+          orderType: 'marketplace',
           totalCents: order.totalCents,
           estimatedDelivery: order.estimatedDelivery,
+          itemSummary,
+          itemCount: lineItems.reduce(
+            (sum, li) => sum + Math.max(1, Math.floor(Number(li.quantity) || 1)),
+            0
+          ),
         },
       });
     } catch (emailErr) {
@@ -630,6 +652,11 @@ export const commitPilotBox = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Order total is invalid.');
   }
 
+  const isPlaythrough = data.skipShipStation === true;
+  if (!isPlaythrough) {
+    await assertBoxLinesWithinInventory(db, lineItems);
+  }
+
   const estimatedDelivery =
     (expeditedShipping ? (configData.expeditedDeliveryBy as string) : (configData.estimatedDeliveryBy as string)) ??
     '2026-11-24';
@@ -654,7 +681,7 @@ export const commitPilotBox = onCall(async (request) => {
     estimatedDelivery,
     committedAt: FieldValue.serverTimestamp(),
     createdAt: FieldValue.serverTimestamp(),
-    ...(data.skipShipStation === true ? { playthrough: true } : {}),
+    ...(isPlaythrough ? { playthrough: true } : {}),
   });
 
   if (giftCreditApplied > 0 || platformCreditApplied > 0) {
@@ -676,6 +703,18 @@ export const commitPilotBox = onCall(async (request) => {
     },
     { merge: true }
   );
+
+  if (!isPlaythrough) {
+    try {
+      const alloc = await recomputeBoxAllocations(db);
+      logger.info('commitPilotBox box allocations', { orderId: orderRef.id, ...alloc });
+    } catch (allocErr) {
+      logger.error('commitPilotBox recomputeBoxAllocations failed', {
+        orderId: orderRef.id,
+        allocErr,
+      });
+    }
+  }
 
   return {
     orderId: orderRef.id,
@@ -759,6 +798,11 @@ export const updatePilotBoxOrder = onCall(async (request) => {
   const previousTotal =
     typeof order.totalCents === 'number' ? order.totalCents : 0;
 
+  const priorLines = (order.lineItems as Array<{ itemId?: string; quantity?: number }>) ?? [];
+  if (order.playthrough !== true) {
+    await assertBoxLinesWithinInventory(db, lineItems, { creditLines: priorLines });
+  }
+
   await orderRef.update({
     lineItems,
     subtotalCents,
@@ -768,6 +812,15 @@ export const updatePilotBoxOrder = onCall(async (request) => {
     creditAppliedCents: creditApplied,
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  if (order.playthrough !== true) {
+    try {
+      const alloc = await recomputeBoxAllocations(db);
+      logger.info('updatePilotBoxOrder box allocations', { orderId, ...alloc });
+    } catch (allocErr) {
+      logger.error('updatePilotBoxOrder recomputeBoxAllocations failed', { orderId, allocErr });
+    }
+  }
 
   return {
     orderId,
@@ -866,6 +919,15 @@ export const cancelPilotBoxOrder = onCall(async (request) => {
     { merge: true }
   );
 
+  if (order.playthrough !== true) {
+    try {
+      const alloc = await recomputeBoxAllocations(db);
+      logger.info('cancelPilotBoxOrder box allocations', { orderId, ...alloc });
+    } catch (allocErr) {
+      logger.error('cancelPilotBoxOrder recomputeBoxAllocations failed', { orderId, allocErr });
+    }
+  }
+
   return { orderId, status: 'cancelled' as const };
 });
 
@@ -936,6 +998,32 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
         if (stripe && customerId) {
           await stripe.customers.update(customerId, {
             invoice_settings: { default_payment_method: paymentMethodId },
+          });
+        }
+        // Clear charge-failure copy on open box orders so Orders shows a clean retry state.
+        try {
+          const open = await db
+            .collection(`households/${householdId}/orders`)
+            .where('status', '==', 'committed')
+            .get();
+          const batch = db.batch();
+          let n = 0;
+          for (const doc of open.docs) {
+            const data = doc.data();
+            if (data?.holidayId && data.holidayId !== HOLIDAY_ID) continue;
+            if (data?.chargeFailureMessage) {
+              batch.update(doc.ref, {
+                chargeFailureMessage: FieldValue.delete(),
+                updatedAt: new Date().toISOString(),
+              });
+              n += 1;
+            }
+          }
+          if (n > 0) await batch.commit();
+        } catch (clearErr) {
+          logger.warn('Could not clear chargeFailureMessage after card update', {
+            householdId,
+            clearErr,
           });
         }
       }
@@ -2050,7 +2138,7 @@ export const scheduledReleaseStaleMarketplaceReservations = onSchedule(
   }
 );
 
-/** Admin / QA: recompute boxAllocatedQty from box orders (works before lock with force). */
+/** Admin / QA: recompute boxAllocatedQty from active box orders (any time). */
 export const recomputeCatalogBoxAllocations = onCall(async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Must be signed in.');
@@ -2059,8 +2147,7 @@ export const recomputeCatalogBoxAllocations = onCall(async (request) => {
   if (!/^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email)) {
     throw new HttpsError('permission-denied', 'Admin only.');
   }
-  const force = (request.data as { force?: boolean } | undefined)?.force === true;
-  return recomputeBoxAllocations(db, { force });
+  return recomputeBoxAllocations(db);
 });
 
 /**

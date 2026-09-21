@@ -90,27 +90,20 @@ function GiftClaimBody() {
     try {
       const result = await claimGiftInvite(token);
       await refresh();
-      useAuthFlowStore.getState().setPendingGiftClaimToken(null);
-      if (result.giftKind === 'credit') {
-        navigation.replace('GiftRecipientReveal', {
-          giftInviteId: result.giftInviteId,
-          giverName: result.giverName ?? 'Someone who loves you',
-          message: result.message,
-          giftCreditCents: result.giftCreditCents,
-          hasGiverDraft: false,
-        });
-        return;
-      }
+      // Clear token only after leave — clearing earlier re-renders this screen as
+      // "invalid link" when the token lived in the store but not route params.
       navigation.replace('GiftRecipientReveal', {
         giftInviteId: result.giftInviteId,
         giverName: result.giverName ?? 'Someone who loves you',
         message: result.message,
-        giftCreditCents: 0,
-        hasGiverDraft: result.hasGiverDraft,
+        giftCreditCents: result.giftKind === 'credit' ? result.giftCreditCents : 0,
+        hasGiverDraft: result.giftKind === 'box' ? result.hasGiverDraft : false,
       });
+      useAuthFlowStore.getState().setPendingGiftClaimToken(null);
     } catch (e) {
       if (isAlreadyClaimedError(e)) {
         setSurface('already_claimed');
+        useAuthFlowStore.getState().setPendingGiftClaimToken(null);
         return;
       }
       if (isNotFoundError(e)) {
@@ -160,6 +153,13 @@ function GiftClaimBody() {
     };
   }, [token, peekNonce]);
 
+  // After signup/sign-in return, claim immediately — avoids a second tap and the
+  // “invalid link” flash if auth cleared the token mid-handoff.
+  useEffect(() => {
+    if (!isAuthenticated || surface !== 'claimable' || !token) return;
+    void claim();
+  }, [isAuthenticated, surface, token, claim]);
+
   const claiming = surface === 'claiming';
   const fromName = giverName ?? 'Someone special';
 
@@ -176,6 +176,17 @@ function GiftClaimBody() {
       <>
         <ActivityIndicator color={colors.brand} />
         <Text style={[styles.body, styles.checkingBody]}>Checking your gift link…</Text>
+      </>
+    );
+  }
+
+  // While claiming, keep this screen up even if the store token was cleared —
+  // otherwise we flash "invalid link" before replace to GiftRecipientReveal.
+  if (surface === 'claiming') {
+    return shell(
+      <>
+        <ActivityIndicator color={colors.brand} />
+        <Text style={[styles.body, styles.checkingBody]}>Claiming your gift…</Text>
       </>
     );
   }

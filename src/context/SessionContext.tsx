@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { usersService } from '../services/firestore/users';
 import { householdsService } from '../services/firestore/households';
-import { useAuthFlowStore } from '../stores/authFlowStore';
+import { authReturnSkipsBoxOnboarding, useAuthFlowStore } from '../stores/authFlowStore';
 import { peekPendingAuthReturn } from '../services/auth/auth';
 import type { Household, UserProfile } from '../types/pilot';
 
@@ -63,10 +63,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         useAuthFlowStore.getState().pendingGiftClaimToken != null ||
         useAuthFlowStore.getState().pendingGiftCustomize != null ||
         useAuthFlowStore.getState().pendingGiftGive != null;
-      // Nav sign in/up — past the onboarding gates without starting a box. The
+      // Nav / checkout / gift handoffs — past onboarding gates without starting a box.
       // sessionStorage fallback covers a Google redirect, which clears the store.
-      const inPlaceAuthNow =
-        (useAuthFlowStore.getState().pendingReturn ?? peekPendingAuthReturn()) === 'Stay';
+      const pendingNow =
+        useAuthFlowStore.getState().pendingReturn ?? peekPendingAuthReturn();
+      const skipBoxOnboardingNow =
+        giftResumeNow || authReturnSkipsBoxOnboarding(pendingNow);
       if (!prof) {
         const guest = useGuestSessionStore.getState();
         const guestHasOwnBox =
@@ -78,12 +80,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           email: user.email,
           displayName: user.displayName,
           role: 'parent',
-          onboardingComplete: guestHasOwnBox || giftResumeNow || inPlaceAuthNow,
-          boxRevealComplete: guestHasOwnBox || inPlaceAuthNow,
+          onboardingComplete: guestHasOwnBox || skipBoxOnboardingNow,
+          boxRevealComplete: guestHasOwnBox || skipBoxOnboardingNow,
         });
-      } else if ((giftResumeNow || inPlaceAuthNow) && !prof.onboardingComplete) {
-        // Gift resume and nav sign-up skip onboarding — never mark a household box as
-        // started. boxRevealComplete stays true so RootNavigator doesn't dump into BoxReveal.
+      } else if (skipBoxOnboardingNow && !prof.onboardingComplete) {
+        // Never mark a household box as started — boxRevealComplete stays true so
+        // RootNavigator doesn't dump into BoxReveal.
         prof = await usersService.upsert(user.uid, {
           onboardingComplete: true,
           boxRevealComplete: true,
@@ -124,15 +126,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     isKid: profile?.role === 'child',
-    // While resuming gift give/customize, never report needsOnboarding — RootRoutes
+    // While resuming gift/checkout/nav auth, never report needsOnboarding — RootRoutes
     // would remount Onboarding the instant pendingReturn is cleared.
     needsOnboarding:
-      profile?.role === 'parent' && !profile?.onboardingComplete && !giftResume,
+      profile?.role === 'parent' &&
+      !profile?.onboardingComplete &&
+      !giftResume &&
+      !authReturnSkipsBoxOnboarding(pendingReturn),
     needsBoxReveal:
       profile?.role === 'parent' &&
       !!profile?.onboardingComplete &&
       !profile?.boxRevealComplete &&
-      !giftResume,
+      !giftResume &&
+      !authReturnSkipsBoxOnboarding(pendingReturn),
     refresh,
   };
 

@@ -154,19 +154,35 @@ async function resolveMarketplaceLineItems(raw) {
     return normalized;
 }
 async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStation) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     const userId = order.userId;
     const userSnap = await db.doc(`users/${userId}`).get();
     const email = (_b = (_a = userSnap.data()) === null || _a === void 0 ? void 0 : _a.email) !== null && _b !== void 0 ? _b : '';
     if (email) {
+        const lineItems = (_c = order.lineItems) !== null && _c !== void 0 ? _c : [];
+        const itemSummary = lineItems
+            .map((li) => {
+            var _a, _b;
+            const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
+            const name = String((_b = (_a = li.label) !== null && _a !== void 0 ? _a : li.itemId) !== null && _b !== void 0 ? _b : 'Item');
+            return qty > 1 ? `${qty}× ${name}` : name;
+        })
+            .filter(Boolean)
+            .join(', ');
         try {
+            // Prefer dedicated marketplace template; fall back to box template only if unset
+            // (still pass orderType so Liquid can branch once CIO is updated).
+            const marketplaceTemplateId = parseInt((_d = process.env.CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED) !== null && _d !== void 0 ? _d : '0', 10);
             await (0, email_1.sendEmail)({
                 to: email,
-                template: 'order-confirmed',
+                template: marketplaceTemplateId > 0 ? 'marketplace-order-confirmed' : 'order-confirmed',
                 data: {
                     orderId,
+                    orderType: 'marketplace',
                     totalCents: order.totalCents,
                     estimatedDelivery: order.estimatedDelivery,
+                    itemSummary,
+                    itemCount: lineItems.reduce((sum, li) => sum + Math.max(1, Math.floor(Number(li.quantity) || 1)), 0),
                 },
             });
         }
@@ -183,8 +199,8 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
             orderId,
             householdId,
             shippingAddress: order.shippingAddress,
-            lineItems: (_c = order.lineItems) !== null && _c !== void 0 ? _c : [],
-            totalCents: (_d = order.totalCents) !== null && _d !== void 0 ? _d : 0,
+            lineItems: (_e = order.lineItems) !== null && _e !== void 0 ? _e : [],
+            totalCents: (_f = order.totalCents) !== null && _f !== void 0 ? _f : 0,
         });
     }
     catch (shipErr) {
@@ -483,6 +499,10 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     if (totalCents < 0) {
         throw new https_1.HttpsError('invalid-argument', 'Order total is invalid.');
     }
+    const isPlaythrough = data.skipShipStation === true;
+    if (!isPlaythrough) {
+        await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
+    }
     const estimatedDelivery = (_f = (expeditedShipping ? configData.expeditedDeliveryBy : configData.estimatedDeliveryBy)) !== null && _f !== void 0 ? _f : '2026-11-24';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
@@ -491,11 +511,23 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         taxCents,
         totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, expeditedShipping,
         shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
-        estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (data.skipShipStation === true ? { playthrough: true } : {})));
+        estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})));
     if (giftCreditApplied > 0 || platformCreditApplied > 0) {
         await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
     }
     await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_g = data.contactPhone) === null || _g === void 0 ? void 0 : _g.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
+    if (!isPlaythrough) {
+        try {
+            const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);
+            logger.info('commitPilotBox box allocations', Object.assign({ orderId: orderRef.id }, alloc));
+        }
+        catch (allocErr) {
+            logger.error('commitPilotBox recomputeBoxAllocations failed', {
+                orderId: orderRef.id,
+                allocErr,
+            });
+        }
+    }
     return {
         orderId: orderRef.id,
         totalCents,
@@ -508,7 +540,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
  * expedited flag, and already-applied credits from the order.
  */
 exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
@@ -554,6 +586,10 @@ exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     const creditApplied = giftCreditApplied + platformCreditApplied;
     const totalCents = Math.max(0, subtotalCents + shippingCents + taxCents - creditApplied);
     const previousTotal = typeof order.totalCents === 'number' ? order.totalCents : 0;
+    const priorLines = (_j = order.lineItems) !== null && _j !== void 0 ? _j : [];
+    if (order.playthrough !== true) {
+        await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems, { creditLines: priorLines });
+    }
     await orderRef.update({
         lineItems,
         subtotalCents,
@@ -563,6 +599,15 @@ exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
         creditAppliedCents: creditApplied,
         updatedAt: firestore_1.FieldValue.serverTimestamp(),
     });
+    if (order.playthrough !== true) {
+        try {
+            const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);
+            logger.info('updatePilotBoxOrder box allocations', Object.assign({ orderId }, alloc));
+        }
+        catch (allocErr) {
+            logger.error('updatePilotBoxOrder recomputeBoxAllocations failed', { orderId, allocErr });
+        }
+    }
     return {
         orderId,
         totalCents,
@@ -639,6 +684,15 @@ exports.cancelPilotBoxOrder = (0, https_1.onCall)(async (request) => {
         lockReminderEligible: true,
         updatedAt: new Date().toISOString(),
     }, { merge: true });
+    if (order.playthrough !== true) {
+        try {
+            const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);
+            logger.info('cancelPilotBoxOrder box allocations', Object.assign({ orderId }, alloc));
+        }
+        catch (allocErr) {
+            logger.error('cancelPilotBoxOrder recomputeBoxAllocations failed', { orderId, allocErr });
+        }
+    }
     return { orderId, status: 'cancelled' };
 });
 /**
@@ -697,6 +751,35 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                 if (stripe_1.stripe && customerId) {
                     await stripe_1.stripe.customers.update(customerId, {
                         invoice_settings: { default_payment_method: paymentMethodId },
+                    });
+                }
+                // Clear charge-failure copy on open box orders so Orders shows a clean retry state.
+                try {
+                    const open = await db
+                        .collection(`households/${householdId}/orders`)
+                        .where('status', '==', 'committed')
+                        .get();
+                    const batch = db.batch();
+                    let n = 0;
+                    for (const doc of open.docs) {
+                        const data = doc.data();
+                        if ((data === null || data === void 0 ? void 0 : data.holidayId) && data.holidayId !== HOLIDAY_ID)
+                            continue;
+                        if (data === null || data === void 0 ? void 0 : data.chargeFailureMessage) {
+                            batch.update(doc.ref, {
+                                chargeFailureMessage: firestore_1.FieldValue.delete(),
+                                updatedAt: new Date().toISOString(),
+                            });
+                            n += 1;
+                        }
+                    }
+                    if (n > 0)
+                        await batch.commit();
+                }
+                catch (clearErr) {
+                    logger.warn('Could not clear chargeFailureMessage after card update', {
+                        householdId,
+                        clearErr,
                     });
                 }
             }
@@ -1695,9 +1778,9 @@ exports.scheduledReleaseStaleMarketplaceReservations = (0, scheduler_1.onSchedul
     const result = await (0, catalogInventory_1.releaseStaleMarketplaceReservations)(db);
     logger.info('scheduledReleaseStaleMarketplaceReservations', result);
 });
-/** Admin / QA: recompute boxAllocatedQty from box orders (works before lock with force). */
+/** Admin / QA: recompute boxAllocatedQty from active box orders (any time). */
 exports.recomputeCatalogBoxAllocations = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c;
+    var _a, _b;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
@@ -1705,8 +1788,7 @@ exports.recomputeCatalogBoxAllocations = (0, https_1.onCall)(async (request) => 
     if (!/^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email)) {
         throw new https_1.HttpsError('permission-denied', 'Admin only.');
     }
-    const force = ((_c = request.data) === null || _c === void 0 ? void 0 : _c.force) === true;
-    return (0, catalogInventory_1.recomputeBoxAllocations)(db, { force });
+    return (0, catalogInventory_1.recomputeBoxAllocations)(db);
 });
 /**
  * Replace-sync Grapejuice Airtable catalog → Firestore catalog/hanukkah/items.

@@ -52,6 +52,8 @@ export type MainStackParamList = {
   CatalogProduct: { slug: string };
   BoxDiscountEligibility: undefined;
   Checkout: undefined;
+  /** Replace card on file after a failed off-session charge. */
+  UpdatePayment: undefined;
   MarketplaceCheckout: undefined;
   OrderConfirmation: { orderId: string };
   Orders: undefined;

@@ -17,6 +17,7 @@ import { StorefrontPassoverScreen } from '../screens/storefront/StorefrontPassov
 import { StorefrontCartScreen } from '../screens/storefront/StorefrontCartScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
+import { UpdatePaymentScreen } from '../screens/main/UpdatePaymentScreen';
 import { MarketplaceCheckoutScreen } from '../screens/storefront/MarketplaceCheckoutScreen';
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
 import { OrdersScreen } from '../screens/main/OrdersScreen';
@@ -48,8 +49,10 @@ import { AdminLandingsScreen } from '../screens/admin/AdminLandingsScreen';
 import { AdminLandingEditorScreen } from '../screens/admin/AdminLandingEditorScreen';
 import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFeatures';
 import { useAuthStore } from '../stores/authStore';
-import { useAuthFlowStore } from '../stores/authFlowStore';
+import { authReturnSkipsBoxOnboarding, useAuthFlowStore } from '../stores/authFlowStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
+import { useSession } from '../context/SessionContext';
+import { usersService } from '../services/firestore/users';
 import { consumePendingMainNav, peekPendingMainNav, resetRootToMainScreen } from './pendingMainNav';
 import { navigationRef } from './navigationRef';
 import { AdminControlPanel } from '../components/storefront/AdminControlPanel';
@@ -175,9 +178,11 @@ function PendingMainNavHandler({ honoredInitial }: { honoredInitial: keyof MainS
 function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
   const pendingGiftClaimToken = useAuthFlowStore((s) => s.pendingGiftClaimToken);
   const clearPending = useAuthFlowStore((s) => s.clearPending);
+  const { profile, refresh, needsOnboarding, needsBoxReveal } = useSession();
 
   useEffect(() => {
     if (!isAuthenticated || !pendingReturn) return;
@@ -190,23 +195,55 @@ function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
     ) {
       return;
     }
-    // Nav sign in/up has no destination — the user keeps the screen they were on.
-    if (pendingReturn === 'Stay' || alreadyOnTarget) {
-      clearPending();
-      return;
-    }
 
+    let healInFlight = false;
     let attempts = 0;
     const id = setInterval(() => {
       attempts += 1;
       if (!navigationRef.isReady()) {
-        if (attempts > 40) clearInterval(id);
+        if (attempts > 80) clearInterval(id);
         return;
       }
-      clearInterval(id);
+
       const dest = useAuthFlowStore.getState().pendingReturn;
+      if (!dest) {
+        clearInterval(id);
+        return;
+      }
+
+      // Heal before clearing pending — otherwise RootRoutes can remount Onboarding
+      // the instant MarketplaceCheckout / Stay / etc. pendingReturn is gone.
+      if (
+        authReturnSkipsBoxOnboarding(dest) &&
+        (needsOnboarding || needsBoxReveal || !profile?.onboardingComplete)
+      ) {
+        if (!healInFlight && user) {
+          healInFlight = true;
+          void usersService
+            .upsert(user.uid, {
+              onboardingComplete: true,
+              boxRevealComplete: true,
+            })
+            .then(() => refresh({ silent: true }))
+            .finally(() => {
+              healInFlight = false;
+            });
+        }
+        if (attempts > 80) {
+          clearInterval(id);
+        }
+        return;
+      }
+
+      clearInterval(id);
+
+      // Nav sign in/up has no destination — the user keeps the screen they were on.
+      if (dest === 'Stay' || alreadyOnTarget) {
+        clearPending();
+        return;
+      }
+
       const giftToken = useAuthFlowStore.getState().pendingGiftClaimToken;
-      if (!dest) return;
       clearPending();
       if (dest === 'Checkout') {
         resetRootToMainScreen('Checkout');
@@ -249,7 +286,19 @@ function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
       }
     }, 50);
     return () => clearInterval(id);
-  }, [isAuthenticated, pendingReturn, pendingGiftClaimToken, clearPending, navigation, alreadyOnTarget]);
+  }, [
+    isAuthenticated,
+    pendingReturn,
+    pendingGiftClaimToken,
+    clearPending,
+    navigation,
+    alreadyOnTarget,
+    needsOnboarding,
+    needsBoxReveal,
+    profile?.onboardingComplete,
+    refresh,
+    user,
+  ]);
 
   return null;
 }
@@ -398,6 +447,11 @@ export function MainStack() {
           options={{ title: 'Box discount' }}
         />
         <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Checkout' }} />
+        <Stack.Screen
+          name="UpdatePayment"
+          component={UpdatePaymentScreen}
+          options={{ title: 'Update payment' }}
+        />
         <Stack.Screen
           name="MarketplaceCheckout"
           component={MarketplaceCheckoutScreen}

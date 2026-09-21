@@ -6,6 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
+  Modal,
+  Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -21,16 +25,25 @@ import { useUnifiedOrders, type UnifiedOrder } from '../../hooks/useUnifiedOrder
 import { useCatalog } from '../../hooks/useCatalog';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { chargePilotBoxOrder } from '../../services/checkout/chargePilotBoxOrder';
+import { cancelPilotBoxOrder } from '../../services/checkout/cancelPilotBoxOrder';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../services/box/pricing';
 import { formatThreadListDate } from '../../services/hanukkah/dates';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
-import { spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
 type Nav = StackNavigationProp<MainStackParamList>;
+
+function notify(title: string, body: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${body}`);
+    return;
+  }
+  Alert.alert(title, body);
+}
 
 function formatPurchaseDate(iso: string): string {
   const ms = Date.parse(iso);
@@ -58,29 +71,42 @@ function OrderCard({
   styles,
   onDevCharge,
   charging,
+  onUpdatePayment,
+  onCancel,
+  cancelling,
 }: {
   order: UnifiedOrder;
   catalog: CatalogItem[];
   styles: ReturnType<typeof createOrdersStyles>;
   onDevCharge?: () => void;
   charging?: boolean;
+  onUpdatePayment?: () => void;
+  onCancel?: () => void;
+  cancelling?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const pilot = order.pilotOrder;
   const gift = order.giftInvite;
+  const isPurchaseOrder = order.kind === 'ala_carte';
   const { box, alaCarte } = pilot
-    ? partitionLineItems(pilot.lineItems, catalog)
+    ? isPurchaseOrder
+      ? { box: [] as BoxLineItem[], alaCarte: pilot.lineItems }
+      : partitionLineItems(pilot.lineItems, catalog)
     : { box: [], alaCarte: [] };
   const giftItems = gift?.lineItems ?? [];
   const itemCount = box.length + alaCarte.length + giftItems.length;
   const hasItems = itemCount > 0;
+  const canCancelBox =
+    order.kind === 'box' &&
+    (pilot?.status === 'committed' || pilot?.status === 'pending') &&
+    Boolean(onCancel);
 
   return (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View style={styles.orderTitleBlock}>
           <Text style={styles.orderKind}>
-            {order.kind === 'gift' ? 'Gift' : order.kind === 'box' ? 'Box' : 'À la carte'}
+            {order.kind === 'gift' ? 'Gift' : order.kind === 'box' ? 'Box' : 'Purchase'}
           </Text>
           <Text style={styles.orderTitle}>{order.title}</Text>
         </View>
@@ -137,7 +163,7 @@ function OrderCard({
               lineItems={alaCarte}
               catalog={catalog}
               variant="flat"
-              sectionTitle="À la carte add-ons"
+              sectionTitle={isPurchaseOrder ? 'Items' : 'À la carte add-ons'}
               showPrice
             />
           ) : null}
@@ -157,11 +183,43 @@ function OrderCard({
           </Text>
         </TouchableOpacity>
       ) : pilot && (pilot.status === 'confirmed' || pilot.status === 'committed') ? (
-        <Text style={styles.hint}>Tracking will appear when your box ships.</Text>
+        <Text style={styles.hint}>
+          {isPurchaseOrder
+            ? 'Tracking will appear when your order ships.'
+            : 'Tracking will appear when your box ships.'}
+        </Text>
       ) : null}
 
       {pilot?.chargeFailureMessage ? (
-        <Text style={styles.chargeError}>Last charge attempt: {pilot.chargeFailureMessage}</Text>
+        <View style={styles.chargeFailBlock}>
+          <Text style={styles.chargeError}>
+            Last charge attempt: {pilot.chargeFailureMessage}
+          </Text>
+          {onUpdatePayment ? (
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={onUpdatePayment}
+              accessibilityRole="button"
+              accessibilityLabel="Update payment method"
+            >
+              <Text style={styles.secondaryBtnText}>Update payment method</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
+      {canCancelBox ? (
+        <TouchableOpacity
+          style={[styles.cancelBtn, cancelling && styles.devChargeBtnDisabled]}
+          disabled={cancelling}
+          onPress={onCancel}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel this box"
+        >
+          <Text style={styles.cancelBtnText}>
+            {cancelling ? 'Cancelling…' : 'Cancel this box'}
+          </Text>
+        </TouchableOpacity>
       ) : null}
 
       {__DEV__ && pilot?.status === 'committed' && order.kind === 'box' && onDevCharge ? (
@@ -190,12 +248,42 @@ function OrdersScreenBody() {
   const { items: catalog } = useCatalog();
   const { orders, loading, loadError, refresh } = useUnifiedOrders();
   const [chargingOrderId, setChargingOrderId] = useState<string | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [cancelConfirmOrderId, setCancelConfirmOrderId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       void refresh();
     }, [refresh])
   );
+
+  const requestCancel = useCallback(
+    (orderId: string) => {
+      if (!household?.id || cancellingOrderId) return;
+      setCancelConfirmOrderId(orderId);
+    },
+    [household?.id, cancellingOrderId]
+  );
+
+  const confirmCancel = useCallback(() => {
+    const orderId = cancelConfirmOrderId;
+    if (!household?.id || !orderId || cancellingOrderId) return;
+    setCancelConfirmOrderId(null);
+    void (async () => {
+      setCancellingOrderId(orderId);
+      try {
+        await cancelPilotBoxOrder(household.id, orderId);
+        await refresh();
+      } catch (e) {
+        notify(
+          'Could not cancel',
+          e instanceof Error ? e.message : 'Try again or contact support.'
+        );
+      } finally {
+        setCancellingOrderId(null);
+      }
+    })();
+  }, [cancelConfirmOrderId, household?.id, cancellingOrderId, refresh]);
 
   const performDevCharge = useCallback(
     async (orderId: string) => {
@@ -212,9 +300,9 @@ function OrdersScreenBody() {
               : result.outcome === 'skipped'
                 ? `Skipped: ${result.reason}`
                 : `Failed: ${result.message}`;
-        Alert.alert('Dev charge', detail);
+        notify('Dev charge', detail);
       } catch (e) {
-        Alert.alert('Dev charge failed', e instanceof Error ? e.message : 'Try again.');
+        notify('Dev charge failed', e instanceof Error ? e.message : 'Try again.');
       } finally {
         setChargingOrderId(null);
       }
@@ -278,10 +366,74 @@ function OrdersScreenBody() {
                   : undefined
               }
               charging={chargingOrderId === order.id}
+              onUpdatePayment={
+                order.kind === 'box' && order.pilotOrder?.chargeFailureMessage
+                  ? () => navigation.navigate('UpdatePayment')
+                  : undefined
+              }
+              onCancel={
+                order.kind === 'box' &&
+                (order.pilotOrder?.status === 'committed' ||
+                  order.pilotOrder?.status === 'pending')
+                  ? () => requestCancel(order.id)
+                  : undefined
+              }
+              cancelling={cancellingOrderId === order.id}
             />
           ))
         )}
       </ScrollView>
+
+      <Modal
+        visible={cancelConfirmOrderId != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!cancellingOrderId) setCancelConfirmOrderId(null);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (!cancellingOrderId) setCancelConfirmOrderId(null);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          />
+          <View style={styles.modalCard} accessibilityViewIsModal>
+            <Text style={styles.modalTitle}>Cancel this box?</Text>
+            <Text style={styles.modalBody}>
+              Your commitment will be cancelled. Gift or platform credits applied to this order will
+              be restored.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalKeepBtn}
+                onPress={() => setCancelConfirmOrderId(null)}
+                disabled={!!cancellingOrderId}
+                accessibilityRole="button"
+                accessibilityLabel="Keep box"
+              >
+                <Text style={styles.modalKeepText}>Keep box</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalCancelConfirmBtn, !!cancellingOrderId && styles.devChargeBtnDisabled]}
+                onPress={confirmCancel}
+                disabled={!!cancellingOrderId}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel box"
+              >
+                {cancellingOrderId ? (
+                  <ActivityIndicator color={colors.textInverse} />
+                ) : (
+                  <Text style={styles.modalCancelConfirmText}>Cancel box</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </WebContentPanel>
   );
 }
@@ -382,10 +534,96 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
     trackLink: { marginTop: spacing.sm, color: colors.brand, fontWeight: '600' },
     hint: { marginTop: spacing.sm, fontSize: typography.sm, color: colors.textTertiary },
     chargeError: {
-      marginTop: spacing.sm,
       fontSize: typography.sm,
       color: colors.textSecondary,
       fontStyle: 'italic',
+    },
+    chargeFailBlock: {
+      marginTop: spacing.sm,
+      gap: spacing.sm,
+    },
+    secondaryBtn: {
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.logoDark,
+    },
+    secondaryBtnText: {
+      fontSize: typography.sm,
+      fontWeight: '600',
+      color: colors.textInverse,
+    },
+    cancelBtn: {
+      marginTop: spacing.md,
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+    },
+    cancelBtnText: {
+      fontSize: typography.sm,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textDecorationLine: 'underline',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(47, 36, 18, 0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    modalCard: {
+      width: '100%',
+      maxWidth: 420,
+      backgroundColor: colors.bgPrimary,
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.xl,
+      zIndex: 1,
+    },
+    modalTitle: {
+      fontSize: 22,
+      ...typeface('bold'),
+      color: colors.textPrimary,
+      marginBottom: spacing.sm,
+    },
+    modalBody: {
+      fontSize: typography.md,
+      lineHeight: 22,
+      color: colors.textSecondary,
+      ...typeface('regular'),
+      marginBottom: spacing.lg,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: spacing.sm,
+      flexWrap: 'wrap',
+    },
+    modalKeepBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    modalKeepText: {
+      fontSize: typography.md,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    modalCancelConfirmBtn: {
+      minWidth: 120,
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.logoDark,
+    },
+    modalCancelConfirmText: {
+      fontSize: typography.md,
+      fontWeight: '700',
+      color: colors.textInverse,
     },
     devChargeBtn: {
       marginTop: spacing.md,

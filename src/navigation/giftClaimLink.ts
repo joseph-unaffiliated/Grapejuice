@@ -23,6 +23,12 @@ export function consumePersistedGiftClaimToken(): string | null {
   return token || null;
 }
 
+/** Drop persisted claim token without reading (after successful claim / abandon). */
+export function clearPersistedGiftClaimToken(): void {
+  if (Platform.OS !== 'web' || typeof sessionStorage === 'undefined') return;
+  sessionStorage.removeItem(STORAGE_KEY);
+}
+
 export function scrubGiftClaimUrl(): void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   window.history.replaceState({}, '', '/store');

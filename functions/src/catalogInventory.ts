@@ -8,6 +8,7 @@ import {
   availabilityAllowsDirectPurchase,
   availabilityRejectMessage,
   availabilityRemaining,
+  isCatalogBookItem,
   resolveAvailability,
   type CatalogAvailabilityItem,
   type CatalogInventoryCounters,
@@ -171,22 +172,84 @@ export function reservedLinesFromOrder(
     .filter((li) => li.itemId);
 }
 
+/** Aggregate quantities by itemId (skips empty ids). */
+export function aggregateLineQuantities(
+  lines: Array<{ itemId?: string; quantity?: number } | null | undefined>
+): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const li of lines) {
+    if (!li) continue;
+    const id = String(li.itemId ?? '').trim();
+    if (!id) continue;
+    const q = Math.max(1, Math.floor(Number(li.quantity) || 1));
+    totals.set(id, (totals.get(id) ?? 0) + q);
+  }
+  return totals;
+}
+
 /**
- * Recompute boxAllocatedQty from committed/confirmed/shipped Hanukkah box orders.
- * Idempotent full replace of allocation counts for items that appear in those orders.
+ * Reject when proposed box lines would exceed Airtable inventory ceiling.
+ * Items with null inventory (e.g. books) are skipped. `creditLines` are quantities
+ * already counted in boxAllocatedQty for this order (pass prior lines on update).
+ */
+export async function assertBoxLinesWithinInventory(
+  db: Firestore,
+  proposedLines: Array<{ itemId?: string; quantity?: number }>,
+  options?: {
+    creditLines?: Array<{ itemId?: string; quantity?: number }>;
+  }
+): Promise<void> {
+  const proposed = aggregateLineQuantities(proposedLines);
+  const credit = aggregateLineQuantities(options?.creditLines ?? []);
+  const itemIds = [...proposed.keys()].sort();
+  if (!itemIds.length) return;
+
+  for (const itemId of itemIds) {
+    const itemRef = db.doc(`catalog/${CATALOG_HOLIDAY}/items/${itemId}`);
+    const invRef = inventoryDocRef(db, itemId);
+    const [itemSnap, invSnap] = await Promise.all([itemRef.get(), invRef.get()]);
+    if (!itemSnap.exists) {
+      throw new HttpsError('invalid-argument', `Unknown product: ${itemId}`);
+    }
+    const item = itemFromSnap(itemId, itemSnap.data() ?? {});
+    if (isCatalogBookItem(item)) continue;
+    if (item.inventory == null || !Number.isFinite(item.inventory)) continue;
+
+    const inventory = Math.max(0, Math.floor(item.inventory));
+    const counters = parseCounters(invSnap.data());
+    const direct =
+      (counters.directReservedQty ?? 0) + (counters.directSoldQty ?? 0);
+    const boxAllocated = counters.boxAllocatedQty ?? 0;
+    const credited = credit.get(itemId) ?? 0;
+    const want = proposed.get(itemId) ?? 0;
+    const available = inventory - boxAllocated - direct + credited;
+    if (want > available) {
+      const name = item.name ?? itemId;
+      const left = Math.max(0, available);
+      throw new HttpsError(
+        'failed-precondition',
+        left <= 0
+          ? `${name} is out of stock for boxes.`
+          : `Only ${left} of ${name} left for boxes.`
+      );
+    }
+  }
+}
+
+/**
+ * Recompute boxAllocatedQty from pending/committed/confirmed/shipped/delivered
+ * Hanukkah box orders. Idempotent full replace. Visitor playthrough orders excluded.
+ * Runs before and after lock so unpaid committed boxes reserve stock immediately.
  */
 export async function recomputeBoxAllocations(
   db: Firestore,
-  options?: { force?: boolean }
+  _options?: { force?: boolean }
 ): Promise<{ itemsUpdated: number; locked: boolean }> {
   const configSnap = await db.doc(`config/${HOLIDAY_ID}`).get();
   const lockAt = (configSnap.data()?.lockAt as string | null | undefined) ?? null;
   const locked = Boolean(lockAt) && Date.now() >= new Date(lockAt!).getTime();
-  if (!locked && !options?.force) {
-    return { itemsUpdated: 0, locked: false };
-  }
 
-  const statuses = ['committed', 'confirmed', 'shipped', 'delivered'] as const;
+  const statuses = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'] as const;
   const totals = new Map<string, number>();
 
   for (const status of statuses) {
@@ -198,6 +261,7 @@ export async function recomputeBoxAllocations(
     for (const doc of snap.docs) {
       const order = doc.data();
       if (order.orderType === 'marketplace' || order.orderType === 'received_gift') continue;
+      if (order.playthrough === true) continue;
       const lines = (order.lineItems as Array<{ itemId?: string; quantity?: number }>) ?? [];
       for (const li of lines) {
         const id = String(li.itemId ?? '').trim();
@@ -234,7 +298,7 @@ export async function recomputeBoxAllocations(
     await batch.commit();
   }
 
-  return { itemsUpdated: updated, locked: true };
+  return { itemsUpdated: updated, locked };
 }
 
 /**

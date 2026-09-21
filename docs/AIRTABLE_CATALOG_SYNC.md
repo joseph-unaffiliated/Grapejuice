@@ -22,11 +22,14 @@
 **Marketplace availability (Full Catalog):**
 
 - **Available for Sale Before Box Close** → `directSaleCapBeforeLock` (null/0 = box-only until lock)
+- **Inventory** → `inventory` (true warehouse total). When set, this is a hard ceiling: remaining à la carte = `min(cap − direct, inventory − boxAllocated − direct)`.
 - **Sell After Lock via FBA** (`Yes` / `Flag` / `No`) → `sellAfterLock` (`yes` | `flag` | `no`) — leftover release after lock when `yes`
 - **Box roles** → `boxRoles`
 - **Hold inventory** is ignored by the app for availability
 - **Books** are always box-only (never sold à la carte), regardless of caps/prices
-- Live sale counters live separately at `catalog/hanukkah/inventory/{itemId}` (not overwritten by sync)
+- Live sale counters live separately at `catalog/hanukkah/inventory/{itemId}` (not overwritten by sync):
+  - `directReservedQty` / `directSoldQty` — à la carte checkout
+  - `boxAllocatedQty` — units in pending/committed/confirmed/shipped/delivered Hanukkah boxes (recomputed on commit, post-commit update, cancel, and hourly). Cancelled and visitor-playthrough orders are excluded so stock restores on cancel.
 
 ## Pipeline
 

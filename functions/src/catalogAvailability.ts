@@ -62,13 +62,18 @@ export function resolveAvailability(
   const reserved = nonNeg(counters?.directReservedQty);
   const sold = nonNeg(counters?.directSoldQty);
   const committed = reserved + sold;
+  const boxAllocated = nonNeg(counters?.boxAllocatedQty);
 
   if (!isLocked(lockAt, now)) {
     const cap = item.directSaleCapBeforeLock;
     if (cap == null || !Number.isFinite(cap) || cap <= 0) {
       return { status: 'box_only', reason: 'no_cap' };
     }
-    const remaining = Math.max(0, Math.floor(cap) - committed);
+    let remaining = Math.max(0, Math.floor(cap) - committed);
+    if (item.inventory != null && Number.isFinite(item.inventory)) {
+      const ceiling = Math.max(0, Math.floor(item.inventory) - boxAllocated - committed);
+      remaining = Math.min(remaining, ceiling);
+    }
     if (remaining <= 0) {
       return { status: 'box_only', reason: 'cap_exhausted' };
     }
@@ -87,7 +92,6 @@ export function resolveAvailability(
   }
 
   const inventory = nonNeg(item.inventory);
-  const boxAllocated = nonNeg(counters?.boxAllocatedQty);
   const remaining = Math.max(0, inventory - boxAllocated - committed);
   if (remaining <= 0) {
     return { status: 'sold_out' };

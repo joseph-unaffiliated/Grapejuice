@@ -37,11 +37,35 @@ function giftTitle(invite: GiftInvite): string {
   return giftInviteOrderTitle(invite);
 }
 
+function marketplaceTitle(order: PilotOrder): string {
+  const labels = (order.lineItems ?? [])
+    .map((li) => {
+      const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
+      const name = String(li.label ?? li.itemId ?? '').trim();
+      if (!name) return '';
+      return qty > 1 ? `${qty}× ${name}` : name;
+    })
+    .filter(Boolean);
+  if (labels.length === 0) return 'Purchase';
+  if (labels.length === 1) return labels[0]!;
+  if (labels.length === 2) return `${labels[0]} + ${labels[1]}`;
+  return `${labels[0]} + ${labels.length - 1} more`;
+}
+
 function toUnifiedFromPilot(order: PilotOrder): UnifiedOrder {
+  const isMarketplace = order.orderType === 'marketplace';
+  const isReceivedGift = order.orderType === 'received_gift' || Boolean(order.giftInviteId);
+  const kind: UnifiedOrderKind = isMarketplace || isReceivedGift ? 'ala_carte' : 'box';
+  const title = isMarketplace
+    ? marketplaceTitle(order)
+    : isReceivedGift
+      ? 'Gift you received'
+      : 'Hanukkah box';
+
   return {
     id: order.id,
-    kind: 'box',
-    title: 'Hanukkah box',
+    kind,
+    title,
     recipientLabel: order.shippingAddress?.name?.trim() || undefined,
     statusLabel: orderStatusLabel(order.status),
     totalCents: order.totalCents,
@@ -110,7 +134,7 @@ export function useUnifiedOrders() {
       try {
         orders = await ordersService.listForHousehold(household.id);
       } catch (e) {
-        errors.push(e instanceof Error ? e.message : 'Could not load box orders');
+        errors.push(e instanceof Error ? e.message : 'Could not load orders');
       }
     }
 

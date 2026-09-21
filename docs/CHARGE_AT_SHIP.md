@@ -123,3 +123,5 @@ ShipStation POSTs `{ resource_url, resource_type }`; we GET shipments and set `t
 - Customer.io email when charge fails
 - My Box payment-pending copy (Q9) — separate card
 - Optional: charge at **ship** instead of lock (product decision)
+
+**Update card (Sep 2026):** Orders shows **Update payment method** when `chargeFailureMessage` is set → `UpdatePayment` screen (new SetupIntent). Webhook clears failure copy on committed box orders and sets the new default PM. **Cancel this box** restored on committed/pending Orders cards.

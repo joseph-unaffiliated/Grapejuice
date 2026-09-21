@@ -10,6 +10,9 @@ const FROM_EMAIL =
 
 const TEMPLATE_IDS: Record<string, number> = {
   'order-confirmed': parseInt(process.env.CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED ?? '0', 10) || 10,
+  /** À la carte / marketplace — must not reuse Hanukkah-box copy. */
+  'marketplace-order-confirmed':
+    parseInt(process.env.CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED ?? '0', 10) || 13,
   'partner-invite': parseInt(process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE ?? '0', 10) || 0,
   'debrief-reminder': parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER ?? '0', 10) || 0,
   'lock-reminder': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER ?? '0', 10) || 0,
@@ -25,6 +28,7 @@ const TEMPLATE_IDS: Record<string, number> = {
  *  CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER, CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER_SMS, CUSTOMERIO_SMS_FROM
  *  CUSTOMERIO_TEMPLATE_LOCK_REMINDER, CUSTOMERIO_TEMPLATE_LOCK_REMINDER_SMS
  *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
+ *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot

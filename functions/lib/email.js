@@ -1,5 +1,5 @@
 "use strict";
-var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerioAppApiKey = void 0;
 exports.getCustomerioAppApiKey = getCustomerioAppApiKey;
@@ -16,13 +16,15 @@ const BASE_URL = 'https://api.customer.io/v1';
 const FROM_EMAIL = (_a = process.env.CUSTOMERIO_FROM_EMAIL) !== null && _a !== void 0 ? _a : 'Grapejuice <hello@grapejuice.co>';
 const TEMPLATE_IDS = {
     'order-confirmed': parseInt((_b = process.env.CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED) !== null && _b !== void 0 ? _b : '0', 10) || 10,
-    'partner-invite': parseInt((_c = process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE) !== null && _c !== void 0 ? _c : '0', 10) || 0,
-    'debrief-reminder': parseInt((_d = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER) !== null && _d !== void 0 ? _d : '0', 10) || 0,
-    'lock-reminder': parseInt((_e = process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER) !== null && _e !== void 0 ? _e : '0', 10) || 0,
-    'gift-claim': parseInt((_f = process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM) !== null && _f !== void 0 ? _f : '0', 10) || 0,
-    'debrief-amazon': parseInt((_g = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _g !== void 0 ? _g : '0', 10) || 0,
-    'box-discount': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _h !== void 0 ? _h : '0', 10) || 0,
-    welcome: parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _j !== void 0 ? _j : '0', 10) || 12,
+    /** À la carte / marketplace — must not reuse Hanukkah-box copy. */
+    'marketplace-order-confirmed': parseInt((_c = process.env.CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED) !== null && _c !== void 0 ? _c : '0', 10) || 13,
+    'partner-invite': parseInt((_d = process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE) !== null && _d !== void 0 ? _d : '0', 10) || 0,
+    'debrief-reminder': parseInt((_e = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER) !== null && _e !== void 0 ? _e : '0', 10) || 0,
+    'lock-reminder': parseInt((_f = process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER) !== null && _f !== void 0 ? _f : '0', 10) || 0,
+    'gift-claim': parseInt((_g = process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM) !== null && _g !== void 0 ? _g : '0', 10) || 0,
+    'debrief-amazon': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _h !== void 0 ? _h : '0', 10) || 0,
+    'box-discount': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _j !== void 0 ? _j : '0', 10) || 0,
+    welcome: parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _k !== void 0 ? _k : '0', 10) || 12,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
@@ -30,6 +32,7 @@ const TEMPLATE_IDS = {
  *  CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER, CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER_SMS, CUSTOMERIO_SMS_FROM
  *  CUSTOMERIO_TEMPLATE_LOCK_REMINDER, CUSTOMERIO_TEMPLATE_LOCK_REMINDER_SMS
  *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
+ *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
