@@ -283,6 +283,10 @@ function RootRoutes() {
     if (resumeMainAfterAuth) {
       // Guest already revealed/customized a box (or mid gift/checkout auth) — don't restart onboarding.
       gateKey = 'main';
+    } else if (buildBoxPath && !guestBoxRevealComplete) {
+      // “Build my box” — enter the questionnaire immediately (don't wait on
+      // silent session refresh, and don't fall through to reveal-only).
+      gateKey = 'onboarding';
     } else if (exploreStarted && !needsOnboarding) {
       // Signed-in “explore without building a box” — onboarding done, reveal skipped.
       gateKey = 'main';
@@ -317,7 +321,14 @@ function RootRoutes() {
                 <ThemeProvider mode="parent">
                   <OnboardingStack
                     isGuest={!isAuthenticated}
-                    revealOnly={isAuthenticated && needsBoxReveal && !needsOnboarding}
+                    // Explicit “build my box” must open the questionnaire, never
+                    // the reveal-only handoff (that stuck on BrandLoadingMark).
+                    revealOnly={
+                      isAuthenticated &&
+                      needsBoxReveal &&
+                      !needsOnboarding &&
+                      !buildBoxPath
+                    }
                     initialStep={useDevPreviewStore.getState().onboardingInitialStep ?? undefined}
                     onComplete={() => {
                       // Silent so finishing reveal/explore doesn't remount Main

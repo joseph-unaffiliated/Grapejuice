@@ -110,7 +110,7 @@ export function CatalogProductScreen() {
   const { byId: inventoryById } = useCatalogInventory();
   const previewNow = usePreviewNow();
   const preview = useUserStatePreview();
-  const { goHome, goCategory } = useStorefrontActions();
+  const { goHome, goCategory, startBox } = useStorefrontActions();
   const item = useMemo(
     () => catalog.find((c) => c.id === slug) ?? null,
     [catalog, slug]
@@ -530,7 +530,7 @@ export function CatalogProductScreen() {
                 boxLocked={locked}
                 lockLabel={lockLabel}
                 onWhatsInTheBox={
-                  hasStartedBox ? undefined : () => navigation.navigate('MyBox')
+                  hasStartedBox ? undefined : () => startBox()
                 }
               />
             </View>

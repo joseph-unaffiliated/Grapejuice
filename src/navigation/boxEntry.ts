@@ -10,6 +10,11 @@ export type StartOwnBoxBuildRefresh = (options?: { silent?: boolean }) => Promis
  * Put the visitor into the Hanukkah questionnaire / reveal flow.
  * Guests flip local session flags; signed-in parents clear onboarding/reveal
  * on their profile so the root gate remounts Onboarding after refresh.
+ *
+ * Important: do **not** call `resetBox()` here. That clears `exploreStarted`
+ * before Firestore/session flags flip, which remounts Onboarding in
+ * `revealOnly` mode (needsBoxReveal still true) and can stick on the loading
+ * spinner until a hard refresh.
  */
 export async function startOwnBoxBuild(
   refreshSession?: StartOwnBoxBuildRefresh
@@ -22,7 +27,19 @@ export async function startOwnBoxBuild(
     return;
   }
 
-  useGuestSessionStore.getState().resetBox();
+  // Soft-clear draft state and mark build-box intent *before* the profile write
+  // so RootRoutes never briefly remounts reveal-only onboarding.
+  useGuestSessionStore.setState({
+    lineItems: [],
+    wrapSelectedItemIds: [],
+    onboardingComplete: false,
+    boxRevealComplete: false,
+    openMyBoxAfterReveal: false,
+    onboardingStep: null,
+    ravNotes: '',
+    buildBoxPath: true,
+    exploreStarted: true,
+  });
   await usersService.upsert(user.uid, {
     onboardingComplete: false,
     boxRevealComplete: false,

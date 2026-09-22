@@ -20,7 +20,7 @@ import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { PILOT_HIDE_IN_APP_GUIDE } from '../../constants/pilotFeatures';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
+import { openBoxSurface } from '../../navigation/boxEntry';
 import { usersService } from '../../services/firestore/users';
 import { ordersService } from '../../services/firestore/orders';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -164,7 +164,7 @@ export function HomeScreen() {
     [colors, isDesktop, contentColumnOffset],
   );
   const contentWidth = isDesktop ? layoutWidth : screenWidth;
-  const { household, loading: sessionLoading } = useSession();
+  const { household, loading: sessionLoading, refresh } = useSession();
   const { lineItems, loading: draftLoading } = useBoxDraft();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
@@ -217,13 +217,12 @@ export function HomeScreen() {
   const [now, setNow] = useState(() => new Date());
 
   const interests = guestInterests;
-  const { beginBoxBuild } = useGuestBoxFlow();
-
   const openBox = useCallback(() => {
-    if (!beginBoxBuild()) {
-      navigation.navigate('MyBox');
-    }
-  }, [beginBoxBuild, navigation]);
+    openBoxSurface(isAuthenticated, {
+      hasOwnBox: lineItems.length > 0,
+      refreshSession: refresh,
+    });
+  }, [isAuthenticated, lineItems.length, refresh]);
 
   const cardWidth = MY_BOXES_ACTIVE_CARD_WIDTH;
   const gridCell = useMemo(() => gridCellForCard(cardWidth), [cardWidth]);

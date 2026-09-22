@@ -251,6 +251,9 @@ export function MyBoxScreen() {
   }, [load]);
 
   useEffect(() => {
+    // Guest landed on My Box without a reveal — kick into the questionnaire.
+    // RootRoutes flips to Onboarding when buildBoxPath is set; spinner is only
+    // the handoff frame (not a permanent gate).
     if (guestNeedsOnboarding) {
       startBuildBox();
     }
@@ -1372,7 +1375,18 @@ export function MyBoxScreen() {
     );
   };
 
-  if (sessionLoading || loading || draftLoading || guestNeedsOnboarding) {
+  if (sessionLoading || loading || draftLoading) {
+    return (
+      <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
+        <View style={styles.centered}>
+          <BrandLoadingMark color={colors.brand} />
+        </View>
+      </StorefrontChrome>
+    );
+  }
+
+  // Guest mid-handoff into onboarding — brief spinner while the root gate remounts.
+  if (guestNeedsOnboarding) {
     return (
       <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
         <View style={styles.centered}>

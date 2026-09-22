@@ -264,6 +264,12 @@ export async function chargeSinglePilotBoxOrder(
     await cancelLegacyPaymentIntent(stripe, legacyPiId);
   }
 
+  const priorAttempts =
+    typeof order.chargeAttemptCount === 'number' && Number.isFinite(order.chargeAttemptCount)
+      ? Math.max(0, Math.floor(order.chargeAttemptCount))
+      : 0;
+  const chargeAttempt = priorAttempts + 1;
+
   await orderRef.update({
     lineItems: totals.lineItems,
     subtotalCents: totals.subtotalCents,
@@ -272,6 +278,10 @@ export async function chargeSinglePilotBoxOrder(
     totalCents: totals.totalCents,
     creditAppliedCents: totals.creditAppliedCents,
     chargeAttemptedAt: new Date().toISOString(),
+    // Bump so each intentional retry (new card, Dev charge, schedule) gets a fresh
+    // Stripe idempotency key. A fixed `charge-pilot-box-${orderId}` key blocked
+    // retries after a decline when payment_method / amount differed.
+    chargeAttemptCount: chargeAttempt,
   });
 
   if (totals.totalCents === 0) {
@@ -316,9 +326,10 @@ export async function chargeSinglePilotBoxOrder(
           orderId,
           userId: String(order.userId ?? ''),
           type: 'hanukkah_box',
+          chargeAttempt: String(chargeAttempt),
         },
       },
-      { idempotencyKey: `charge-pilot-box-${orderId}` }
+      { idempotencyKey: `charge-pilot-box-${orderId}-attempt-${chargeAttempt}` }
     );
 
     await orderRef.update({ stripePaymentIntentId: paymentIntent.id });

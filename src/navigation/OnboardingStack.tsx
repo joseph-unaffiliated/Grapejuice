@@ -183,10 +183,11 @@ export function OnboardingStack({
   ]);
 
   useEffect(() => {
+    // Always clear the reveal loader when we are *not* in reveal-only mode.
+    // Previously, flipping revealOnly true→false (mid build-box race) left
+    // loadingReveal stuck true → infinite BrandLoadingMark until hard refresh.
     if (!revealOnly || guestMode) {
-      if (guestMode && guestLineItems.length) {
-        setLoadingReveal(false);
-      }
+      setLoadingReveal(false);
       return;
     }
     if (!user?.uid || !household?.id) return;
@@ -400,6 +401,8 @@ export function OnboardingStack({
         return;
       }
       await usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 });
+      // Clear guest build intent so RootRoutes doesn't keep the onboarding gate.
+      useGuestSessionStore.setState({ buildBoxPath: false });
       // Silent: a full refresh flips sessionLoading and remounts Main (boot
       // spinner), which consumes pending MyBox nav then lands on StorefrontHome.
       await refresh({ silent: true });
@@ -438,7 +441,8 @@ export function OnboardingStack({
       boxRevealComplete: false,
     });
     useGuestSessionStore.getState().exitOnboardingToExplore();
-    await refresh();
+    // Silent: non-silent refresh flips sessionLoading → full-screen boot spinner.
+    await refresh({ silent: true });
     onComplete?.();
   }, [exitGuestOnboarding, guestMode, onComplete, refresh, user?.uid]);
 

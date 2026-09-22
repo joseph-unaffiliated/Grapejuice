@@ -319,6 +319,8 @@ export type PilotOrder = {
   confirmedAt?: string;
   cancelledAt?: string;
   chargeAttemptedAt?: string;
+  /** Increments on each charge try — scopes Stripe idempotency keys for retries. */
+  chargeAttemptCount?: number;
   chargeFailedAt?: string;
   chargeFailureMessage?: string;
   orderConfirmedEmailSentAt?: string;
