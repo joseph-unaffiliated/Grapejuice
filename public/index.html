@@ -4,12 +4,56 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://*.google.com https://www.gstatic.com https://use.typekit.net https://js.stripe.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://accounts.google.com https://api.unsplash.com https://api.stripe.com https://*.stripe.com; frame-src 'self' https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://*.web.app https://js.stripe.com https://hooks.stripe.com; img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://*.stripe.com https://*.googleusercontent.com https://storage.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net; font-src 'self' https://fonts.gstatic.com https://use.typekit.net;" />
+    <!-- Keep CSP in sync with scripts/patch-expo-csp.js (header ∩ meta). -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://*.google.com https://www.gstatic.com https://use.typekit.net https://js.stripe.com https://cdn.cookielaw.org https://*.onetrust.com https://connect.facebook.net https://s3-us-west-2.amazonaws.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://accounts.google.com https://api.unsplash.com https://api.stripe.com https://*.stripe.com https://cdn.cookielaw.org https://*.onetrust.com https://connect.facebook.net https://www.facebook.com https://*.facebook.com https://s3-us-west-2.amazonaws.com; frame-src 'self' https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://*.web.app https://js.stripe.com https://hooks.stripe.com https://cdn.cookielaw.org https://*.onetrust.com; img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://*.stripe.com https://*.googleusercontent.com https://storage.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com https://www.facebook.com https://*.facebook.com https://cdn.cookielaw.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net https://cdn.cookielaw.org; font-src 'self' https://fonts.gstatic.com https://use.typekit.net;" />
     <title>Grapejuice</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <link rel="shortcut icon" href="/favicon.png" />
+    <!--
+      Compliance / marketing (brand-sites pattern):
+      - OneTrust domain script: 01a0cfd2-da9c-7e6a-a312-7f370c33ab6c (grapejuice.co)
+      - Retention.com site id: X2JHJ4WE (Untraditional network default)
+      - Meta Pixel id: 809409995127436 (Untraditional network default)
+    -->
+    <!-- OneTrust Cookies Consent Notice start for grapejuice.co -->
+    <script
+      src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js"
+      type="text/javascript"
+      charset="UTF-8"
+      data-domain-script="01a0cfd2-da9c-7e6a-a312-7f370c33ab6c"
+    ></script>
+    <script type="text/javascript">
+      function OptanonWrapper() {}
+    </script>
+    <!-- OneTrust Cookies Consent Notice end for grapejuice.co -->
+    <!-- Retention.com site snippet (network default X2JHJ4WE) -->
+    <script type="text/javascript">
+      !function(){var geq=window.geq=window.geq||[];if(geq.initialize)return;if(geq.invoked){if(window.console&&console.error){console.error("Retention snippet included twice.")}return}geq.invoked=!0;geq.methods=["page","suppress","track","doNotTrack","trackOrder","identify","addToCart","callBack","event"];geq.factory=function(method){return function(){var args=Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq}};for(var i=0;i<geq.methods.length;i++){var key=geq.methods[i];geq[key]=geq.factory(key)}geq.load=function(key){var script=document.createElement("script");script.type="text/javascript";script.async=!0;if(location.href.indexOf("vge=true")!==-1){script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js?v="+Math.random()}else{script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js"}var first=document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script,first)};geq.SNIPPET_VERSION="1.6.1";geq.load("X2JHJ4WE")}();
+    </script>
+    <!-- Meta Pixel Code (network default 809409995127436) -->
+    <script type="text/javascript">
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '809409995127436');
+      fbq('track', 'PageView');
+    </script>
+    <noscript
+      ><img
+        height="1"
+        width="1"
+        style="display:none"
+        src="https://www.facebook.com/tr?id=809409995127436&ev=PageView&noscript=1"
+        alt=""
+    /></noscript>
+    <!-- End Meta Pixel Code -->
     <style id="expo-reset">
       html, body { height: 100%; margin: 0; overscroll-behavior-y: contain; }
       body {
