@@ -11,20 +11,29 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { StorefrontHero } from '../../components/storefront/StorefrontHero';
-import { StorefrontBoxFeature } from '../../components/storefront/StorefrontBoxFeature';
-import { StorefrontEditorialBand } from '../../components/storefront/StorefrontEditorialBand';
+import {
+  StorefrontHeroJourneyTimeline,
+} from '../../components/storefront/StorefrontHeroJourneyTimeline';
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
 import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
 import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
-import { STOREFRONT_EDITORIAL } from '../../constants/storefrontMedia';
+import { StorefrontOurStoryStrip } from '../../components/storefront/StorefrontOurStoryStrip';
+import { StorefrontPassoverStrip } from '../../components/storefront/StorefrontPassoverStrip';
+import { StorefrontCategoryRail } from '../../components/storefront/StorefrontCategoryRail';
+import {
+  DREIDELS_LIFESTYLE_HOTSPOTS,
+  StorefrontMenorahsLifestyleCard,
+} from '../../components/storefront/StorefrontMenorahsLifestyleCard';
+import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import {
   excludeBooks,
   filterByStorefrontCategory,
   collectionMenorahs,
   kidsMenorahs,
   collectionDreidels,
-  kidsDreidels,
+  snuggleStuffies,
+  itemsForDreidelsKidsRail,
   itemsForStorefrontRail,
 } from '../../constants/storefrontCategories';
 import { filterCatalogByTag } from '../../constants/catalogCuration';
@@ -32,11 +41,14 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
   useStorefrontHomeMode,
-  type StorefrontHomeMode,
 } from '../../hooks/useStorefrontHomeMode';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahStatus } from '../../services/hanukkah/dates';
+import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
+import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   MOBILE_GUTTER,
@@ -46,76 +58,19 @@ import {
   typography,
 } from '../../constants/theme';
 
-const PASSOVER_STRIP_BG = require('../../../assets/storefront/setthetablev1.webp');
-
-function stripCopy(mode: StorefrontHomeMode): {
-  headline: string;
-  body: string;
-  ctaLabel: string;
-  backgroundSource?: number;
-} | null {
-  switch (mode) {
-    case 'guest_box':
-      return {
-        headline: 'Save your Personalized Hanukkah Box',
-        body: 'Your box is started. Create an account so we can hold your curation and lock date — pick up right where you left off on any device.',
-        ctaLabel: 'Create an account',
-      };
-    case 'customize':
-      return {
-        headline: 'Customize your Hanukkah Box',
-        body: 'Your box is secured. Swap pieces and add extras anytime before lock — then we ship a week or two before the first night.',
-        ctaLabel: 'Customize your box',
-      };
-    case 'needs_payment':
-      return {
-        headline: 'Secure your Hanukkah Box',
-        body: 'Add payment to lock in your picks. You can browse swaps now — you won’t be charged until your box ships.',
-        ctaLabel: 'Add payment to secure',
-      };
-    case 'gift_credit_incomplete':
-      return {
-        headline: 'Finish your gift credit',
-        body: 'Continue to payment to send gift credit. They can spend it in the store or toward a Hanukkah box after claiming.',
-        ctaLabel: 'Continue to payment',
-      };
-    case 'gift_customize_incomplete':
-      return {
-        headline: 'Finish your gift box',
-        body: 'Keep customizing, then pay — they’ll claim the gift by email.',
-        ctaLabel: 'Continue customizing',
-      };
-    case 'gift_sent':
-      return {
-        headline: 'Send another gift',
-        body: 'Or build a Hanukkah box for your own household whenever you’re ready.',
-        ctaLabel: 'Send another gift',
-      };
-    case 'locked':
-      return {
-        headline: 'Passover 2027 is coming',
-        body: 'Your Hanukkah box is locked and on its way. Explore early interest for Passover 2027 — dates and offers coming soon.',
-        ctaLabel: 'Explore Passover 2027',
-        backgroundSource: PASSOVER_STRIP_BG,
-      };
-    case 'passover':
-      return {
-        headline: 'Passover 2027 is coming',
-        body: 'Hanukkah 2026 is complete. Explore early interest for Passover 2027 — dates and offers coming soon.',
-        ctaLabel: 'Explore Passover 2027',
-        backgroundSource: PASSOVER_STRIP_BG,
-      };
-    default:
-      return null;
-  }
-}
+const DREIDELS_LIFESTYLE_IMG = require('../../../assets/storefront/dreidels-lifestyle-banner.png');
+/** Native aspect of dreidels-lifestyle-banner.png (2752×1536). */
+const DREIDELS_LIFESTYLE_ASPECT = 2752 / 1536;
 
 export function StorefrontHomeScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { items, loading } = useCatalog();
-  const { startBox, askRav, goCategory, goEligibility, goPassover } = useStorefrontActions();
+  const { startBox, askRav, goCategory, goPassover, goOurStory } = useStorefrontActions();
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
+  const { isCompact: compact } = useLayoutBreakpoint();
+  const now = usePreviewNow();
+  const collectionLimit = compact ? 4 : 3;
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
   const [lockAt, setLockAt] = useState<string | null>(null);
@@ -146,6 +101,9 @@ export function StorefrontHomeScreen() {
     mode === 'gift_sent'
       ? null
       : { startsOn, lockAt, estimatedDeliveryBy };
+
+  const showJourneyBanner =
+    journey != null && getHanukkahStatus(journey.startsOn, now).phase !== 'during';
 
   const goCreateAccount = () => startAuthFromGuest('MyBox', 'signup', 'SignUp');
   const goCheckout = () => navigation.navigate('Checkout');
@@ -235,33 +193,6 @@ export function StorefrontHomeScreen() {
     }
   };
 
-  const onFeaturePrimary = () => {
-    switch (mode) {
-      case 'guest_box':
-        goCreateAccount();
-        return;
-      case 'customize':
-        startBox();
-        return;
-      case 'needs_payment':
-        goCheckout();
-        return;
-      case 'locked':
-      case 'passover':
-        goPassover();
-        return;
-      case 'gift_credit_incomplete':
-      case 'gift_customize_incomplete':
-        resumeIncompleteGift();
-        return;
-      case 'gift_sent':
-        startFreshGift();
-        return;
-      default:
-        startBox();
-    }
-  };
-
   const onStripPress = () => {
     switch (mode) {
       case 'guest_box':
@@ -289,7 +220,7 @@ export function StorefrontHomeScreen() {
     }
   };
 
-  const strip = stripCopy(mode);
+  const strip = storefrontBuildBoxStripCopy(mode);
 
   usePublishRavSurface({ type: 'home', id: 'store', label: 'Store home' });
 
@@ -318,15 +249,8 @@ export function StorefrontHomeScreen() {
       ),
     [items]
   );
-  const dreidelsKids = useMemo(
-    () => itemsForStorefrontRail(items, 'dreidels-kids', kidsDreidels(items)),
-    [items]
-  );
-  const food = useMemo(
-    () =>
-      itemsForStorefrontRail(items, 'food', filterByStorefrontCategory(items, 'food'), 8),
-    [items]
-  );
+  const dreidelsKids = useMemo(() => itemsForDreidelsKidsRail(items), [items]);
+  const dreidelsSnuggle = useMemo(() => snuggleStuffies(items).slice(0, 6), [items]);
   const books = useMemo(
     () =>
       itemsForStorefrontRail(
@@ -352,24 +276,11 @@ export function StorefrontHomeScreen() {
     return itemsForStorefrontRail(items, 'most-loved', fallback);
   }, [items]);
 
+  /** Aisle rail covers: fixed lifestyle assets from STOREFRONT_HOME_AISLE_CARDS. */
+  const aisleCards = STOREFRONT_HOME_AISLE_CARDS;
+
   const scrollToLook = () => {
     scrollRef.current?.scrollTo({ y: Math.max(0, lookY.current - 24), animated: true });
-  };
-
-  const handleEditorialCta = (href?: string) => {
-    if (!href || href === 'look') {
-      scrollToLook();
-      return;
-    }
-    if (href === 'box') {
-      startBox();
-      return;
-    }
-    if (href === 'rav') {
-      askRav();
-      return;
-    }
-    goCategory(href);
   };
 
   return (
@@ -384,6 +295,11 @@ export function StorefrontHomeScreen() {
         onPrimary={onHeroPrimary}
         onSecondary={onHeroSecondary}
       />
+      {showJourneyBanner && journey ? (
+        <View style={styles.journeyBanner} accessibilityRole="region">
+          <StorefrontHeroJourneyTimeline journey={journey} variant="banner" />
+        </View>
+      ) : null}
 
         {/* Products first */}
         <View
@@ -394,6 +310,7 @@ export function StorefrontHomeScreen() {
           <SectionHeader
             title="Top picks"
             subtitle="The most favorited products from our collection"
+            onPress={() => goCategory('collection')}
           />
           {loading ? (
             <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
@@ -402,22 +319,20 @@ export function StorefrontHomeScreen() {
           )}
         </View>
 
-        <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
-
         <SectionHeader
-          title="Menorahs"
-          subtitle="Statement, keepsake, and play"
-          viewAllLabel="View all"
-          onViewAll={() => goCategory('menorahs')}
+          title="Browse by Aisle"
+          subtitle="Explore the whole Hanukkah collection"
         />
-        <SubSectionHeader title="The collection" />
-        <StorefrontProductGrid items={menorahsCollection} limit={3} />
-        {menorahsKids.length ? (
-          <>
-            <SubSectionHeader title="For kids" />
-            <StorefrontProductGrid items={menorahsKids} limit={3} />
-          </>
-        ) : null}
+        <StorefrontCategoryRail
+          heading={null}
+          cards={aisleCards}
+          onCategoryPress={(category) => goCategory(category)}
+        />
+
+        <StorefrontOurStoryStrip
+          onLearnMore={goOurStory}
+          onGiveGift={goGiftGive}
+        />
 
         <StorefrontBuildBoxStrip
           onPress={onStripPress}
@@ -427,64 +342,77 @@ export function StorefrontHomeScreen() {
           backgroundSource={strip?.backgroundSource}
         />
 
-        <SectionHeader
-          title="Dreidels"
-          subtitle="For the table and the kids"
-          viewAllLabel="View all"
-          onViewAll={() => goCategory('dreidels')}
+        <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
+
+        <StorefrontMenorahsLifestyleCard
+          onShopAll={() => goCategory('menorahs')}
+          onProduct={(productId) =>
+            navigation.navigate('CatalogProduct', { slug: productId })
+          }
         />
-        <SubSectionHeader title="The collection" />
-        <StorefrontProductGrid items={dreidelsCollection} limit={3} />
+        <SubSectionHeader
+          title="Instant heirlooms"
+          onPress={() => goCategory('menorahs', { style: 'collection' })}
+        />
+        <StorefrontProductGrid items={menorahsCollection} limit={collectionLimit} />
+        {menorahsKids.length ? (
+          <>
+            <SubSectionHeader
+              title="Fun for the whole family"
+              onPress={() => goCategory('menorahs', { style: 'kids' })}
+            />
+            <StorefrontProductGrid items={menorahsKids} limit={3} />
+          </>
+        ) : null}
+        <SubSectionHeader title="Don't forget the candles" onPress={() => goCategory('candles')} />
+        <StorefrontProductGrid items={candles} limit={3} />
+
+        <StorefrontMenorahsLifestyleCard
+          label="Let the games begin"
+          image={DREIDELS_LIFESTYLE_IMG}
+          aspectRatio={DREIDELS_LIFESTYLE_ASPECT}
+          hotspots={DREIDELS_LIFESTYLE_HOTSPOTS}
+          onShopAll={() => goCategory('dreidels')}
+          onProduct={(productId) =>
+            navigation.navigate('CatalogProduct', { slug: productId })
+          }
+        />
+        <SubSectionHeader
+          title="Spin spin spin"
+          onPress={() => goCategory('dreidels', { style: 'collection' })}
+        />
+        <StorefrontProductGrid items={dreidelsCollection} limit={collectionLimit} />
         {dreidelsKids.length ? (
           <>
-            <SubSectionHeader title="For kids" />
+            <SubSectionHeader
+              title="Make it yourself"
+              onPress={() => goCategory('dreidels', { style: 'kids' })}
+            />
             <StorefrontProductGrid items={dreidelsKids} limit={3} />
           </>
         ) : null}
-
-        {STOREFRONT_EDITORIAL[0] ? (
-          <StorefrontEditorialBand
-            slot={STOREFRONT_EDITORIAL[0]}
-            reverse
-            onCta={() => handleEditorialCta(STOREFRONT_EDITORIAL[0].href)}
-          />
+        {dreidelsSnuggle.length ? (
+          <>
+            <SubSectionHeader
+              title="Time to snuggle"
+              onPress={() => goCategory('stuffies')}
+            />
+            <StorefrontProductGrid items={dreidelsSnuggle} limit={3} />
+          </>
+        ) : null}
+        {books.length ? (
+          <>
+            <SubSectionHeader
+              title="Tell me a story"
+              onPress={() => goCategory('books')}
+            />
+            <StorefrontProductGrid items={books} limit={3} />
+          </>
         ) : null}
 
-        <SectionHeader
-          title="Candles"
-          subtitle="Wax and light for eight nights"
-          viewAllLabel="View all"
-          onViewAll={() => goCategory('candles')}
-        />
-        <StorefrontProductGrid items={candles} limit={3} />
-
-        {STOREFRONT_EDITORIAL[1] ? (
-          <StorefrontEditorialBand
-            slot={STOREFRONT_EDITORIAL[1]}
-            onCta={() => handleEditorialCta(STOREFRONT_EDITORIAL[1].href)}
-          />
-        ) : null}
-
-        <SectionHeader
-          title="Food"
-          subtitle="Gelt, latkes, sufganiyot, and soft treats"
-          viewAllLabel="View all"
-          onViewAll={() => goCategory('food')}
-        />
-        <StorefrontProductGrid items={food} limit={3} />
-
-        <SectionHeader
-          title="Books"
-          subtitle="Stories for the couch and the kids’ room"
-          viewAllLabel="View all"
-          onViewAll={() => goCategory('books')}
-        />
-        <StorefrontProductGrid items={books} limit={3} />
-
-        <StorefrontBoxFeature
-          mode={mode}
-          onPrimary={onFeaturePrimary}
-          onEligibility={goEligibility}
+        <StorefrontPassoverStrip
+          onPreRegister={goPassover}
+          onLearnMore={goPassover}
         />
     </StorefrontChrome>
   );
@@ -495,19 +423,39 @@ function SectionHeader({
   subtitle,
   viewAllLabel,
   onViewAll,
+  onPress,
 }: {
   title: string;
   subtitle?: string;
   viewAllLabel?: string;
   onViewAll?: () => void;
+  /** Navigate when tapping the title/subtitle block (or whole header if no View all). */
+  onPress?: () => void;
 }) {
+  const go = onPress ?? onViewAll;
+  const titleBlock = (
+    <View style={styles.sectionHeadText}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.sectionSub}>{subtitle}</Text> : null}
+    </View>
+  );
+
   return (
     <View style={styles.sectionHead}>
       <View style={styles.sectionHeadRow}>
-        <View style={styles.sectionHeadText}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {subtitle ? <Text style={styles.sectionSub}>{subtitle}</Text> : null}
-        </View>
+        {go ? (
+          <TouchableOpacity
+            style={styles.sectionHeadText}
+            onPress={go}
+            accessibilityRole="link"
+            accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
+          >
+            <Text style={styles.sectionTitle}>{title}</Text>
+            {subtitle ? <Text style={styles.sectionSub}>{subtitle}</Text> : null}
+          </TouchableOpacity>
+        ) : (
+          titleBlock
+        )}
         {viewAllLabel && onViewAll ? (
           <TouchableOpacity
             onPress={onViewAll}
@@ -523,17 +471,43 @@ function SectionHeader({
   );
 }
 
-function SubSectionHeader({ title }: { title: string }) {
-  return (
-    <View style={styles.subHead}>
-      <Text style={styles.subTitle}>{title}</Text>
-    </View>
+function SubSectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
+  const titleNode = (
+    <Text style={styles.subTitle}>
+      {title}
+      {onPress ? <Text style={styles.subViewAll}> (view all)</Text> : null}
+    </Text>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        style={styles.subHead}
+        onPress={onPress}
+        accessibilityRole="link"
+        accessibilityLabel={`${title}, view all`}
+      >
+        {titleNode}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={styles.subHead}>{titleNode}</View>;
 }
 
 const styles = StyleSheet.create({
+  journeyBanner: {
+    width: '100%',
+    backgroundColor: semanticColors.accentCream,
+    paddingVertical: spacing.md,
+    paddingHorizontal: MOBILE_GUTTER,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semanticColors.border,
+  },
   loader: { marginVertical: spacing.xl },
   sectionHead: {
+    width: '100%',
+    maxWidth: 1024,
+    alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.xl,
     paddingBottom: spacing.md,
@@ -560,6 +534,9 @@ const styles = StyleSheet.create({
     color: semanticColors.textSecondary,
   },
   subHead: {
+    width: '100%',
+    maxWidth: 1024,
+    alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
@@ -568,6 +545,12 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     fontSize: 16,
     color: semanticColors.logoDark,
+  },
+  /** Inline category cue — brand gold, adjacent to subsection title. */
+  subViewAll: {
+    ...typeface('medium'),
+    fontSize: 12,
+    color: semanticColors.brand,
   },
   viewAll: {
     ...typeface('medium'),

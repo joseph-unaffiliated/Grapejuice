@@ -35,6 +35,11 @@ import {
 } from '../../constants/storefrontCategoryFilters';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { useGiftIntentStore } from '../../stores/giftIntentStore';
+import { getHanukkahConfig } from '../../services/firestore/config';
+import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
 import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
 import {
@@ -137,6 +142,7 @@ export function StorefrontCategoryScreen() {
   const rawSlug = (route.params?.category || DEFAULT_STOREFRONT_CATEGORY).toLowerCase();
   const searchQuery = (route.params?.q ?? '').trim();
   const availParam = route.params?.avail;
+  const styleParam = route.params?.style;
   const slug = resolveStorefrontCategorySlug(rawSlug);
   const def = storefrontCategoryBySlug(slug);
   const {
@@ -144,10 +150,76 @@ export function StorefrontCategoryScreen() {
     byId: availabilityById,
     loading,
   } = useCatalogAvailabilityMap();
-  const { goHome, askRav, startBox, goCategory } = useStorefrontActions();
+  const { goHome, askRav, startBox, goCategory, goPassover } = useStorefrontActions();
+  const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
+  const [lockAt, setLockAt] = useState<string | null>(null);
+  const [startsOn, setStartsOn] = useState<string | null>(null);
+  const mode = useStorefrontHomeMode(lockAt, startsOn);
+  const giftDraft = useGiftIntentStore((s) => s.draft);
+  const clearGiftIntent = useGiftIntentStore((s) => s.clear);
+  const strip = storefrontBuildBoxStripCopy(mode);
+
+  useEffect(() => {
+    let cancelled = false;
+    getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onStripPress = () => {
+    switch (mode) {
+      case 'guest_box':
+        startAuthFromGuest('MyBox', 'signup', 'SignUp');
+        return;
+      case 'customize':
+        startBox();
+        return;
+      case 'needs_payment':
+        navigation.navigate('Checkout');
+        return;
+      case 'locked':
+      case 'passover':
+        goPassover();
+        return;
+      case 'gift_credit_incomplete':
+        if (giftDraft) {
+          navigation.navigate('GiftGive', {
+            form: giftDraft.form,
+            childDrafts: giftDraft.childDrafts,
+            initialGiftPath: 'credit_only',
+            autoStartPayment: true,
+          });
+        } else {
+          navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' });
+        }
+        return;
+      case 'gift_customize_incomplete':
+        if (giftDraft) {
+          navigation.navigate('GiftGiverCustomize', {
+            form: giftDraft.form,
+            childDrafts: giftDraft.childDrafts,
+            lineItems: giftDraft.lineItems,
+          });
+        } else {
+          navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' });
+        }
+        return;
+      case 'gift_sent':
+        clearGiftIntent();
+        navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' });
+        return;
+      default:
+        startBox();
+    }
+  };
 
   const categoryChipOptions = useMemo(() => {
     if (searchQuery) return storefrontCategoriesForSearch(items, searchQuery);
@@ -168,9 +240,10 @@ export function StorefrontCategoryScreen() {
         category: slug,
         ...(searchQuery ? { q: searchQuery } : null),
         ...(availParam ? { avail: availParam } : null),
+        ...(styleParam && styleParam !== 'all' ? { style: styleParam } : null),
       });
     }
-  }, [navigation, rawSlug, slug, searchQuery, availParam]);
+  }, [navigation, rawSlug, slug, searchQuery, availParam, styleParam]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -185,9 +258,12 @@ export function StorefrontCategoryScreen() {
     if (availParam && availParam !== 'all') {
       next.availability = availParam;
     }
+    if (styleParam && styleParam !== 'all') {
+      next.style = styleParam;
+    }
     setFacetFilters(next);
     setSort('relevant');
-  }, [slug, searchQuery, availParam]);
+  }, [slug, searchQuery, availParam, styleParam]);
 
   const categoryItems = useMemo(() => {
     const base = filterByStorefrontCategory(items, slug);
@@ -223,6 +299,11 @@ export function StorefrontCategoryScreen() {
         avail: key === 'all' ? undefined : (key as 'buy-now' | 'box-only'),
       });
     }
+    if (groupId === 'style') {
+      navigation.setParams({
+        style: key === 'all' ? undefined : (key as 'collection' | 'kids'),
+      });
+    }
   };
 
   return (
@@ -240,7 +321,7 @@ export function StorefrontCategoryScreen() {
           </View>
         ) : null}
 
-        <View style={styles.headingBlock}>
+        <View style={[styles.headingBlock, !isDesktop && styles.headingBlockMobile]}>
           <Text style={styles.title}>{title}</Text>
           {description ? <Text style={styles.description}>{description}</Text> : null}
         </View>
@@ -351,7 +432,14 @@ export function StorefrontCategoryScreen() {
         )}
 
         <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
-        <StorefrontBuildBoxStrip onPress={startBox} />
+        <StorefrontBuildBoxStrip
+          onPress={onStripPress}
+          headline={strip?.headline}
+          body={strip?.body}
+          ctaLabel={strip?.ctaLabel}
+          backgroundSource={strip?.backgroundSource}
+          variant="content"
+        />
       </View>
     </StorefrontChrome>
   );
@@ -387,6 +475,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.md,
     gap: 6,
+  },
+  /** Breadcrumbs are desktop-only — give the title room under chrome on mobile. */
+  headingBlockMobile: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.sm,
   },
   title: {
     ...typeface('medium'),

@@ -235,34 +235,66 @@ export function excludeBooks(items: CatalogItem[]): CatalogItem[] {
 }
 
 /**
- * Toy / play menorahs (Lego, plush, wood play, etc.) — keep out of “the collection”.
+ * Toy / play menorahs (Lego, plush, wood play, DIY clay, etc.) — keep out of “the collection”.
  */
 export function isKidsMenorah(item: CatalogItem): boolean {
   if (!filterByStorefrontCategory([item], 'menorahs').length) return false;
-  return /lego|play|plush|toy|stuff|craft/i.test(item.name);
+  const hay = `${item.name} ${item.slotId ?? ''} ${item.defaultSlot ?? ''}`.toLowerCase();
+  return /lego|play|plush|toy|stuff|craft|airdry|air.?dry|clay|diy/i.test(hay);
+}
+
+/**
+ * Homepage “Instant heirlooms” preference when Airtable curation is empty:
+ * Welcome → Slab → Stemless → others.
+ * (Arch / Branches / Welcome already appear in the lifestyle photo above.)
+ */
+function menorahCollectionSortKey(item: CatalogItem): number {
+  const hay = `${item.id} ${item.name}`.toLowerCase();
+  if (/welcome/.test(hay)) return 0;
+  if (/slab/.test(hay)) return 1;
+  if (/stemless/.test(hay)) return 2;
+  return 50;
 }
 
 export function collectionMenorahs(items: CatalogItem[]): CatalogItem[] {
-  return filterByStorefrontCategory(items, 'menorahs').filter((item) => !isKidsMenorah(item));
+  return filterByStorefrontCategory(items, 'menorahs')
+    .filter((item) => !isKidsMenorah(item))
+    .sort((a, b) => {
+      const d = menorahCollectionSortKey(a) - menorahCollectionSortKey(b);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
 }
 
 export function kidsMenorahs(items: CatalogItem[]): CatalogItem[] {
   return filterByStorefrontCategory(items, 'menorahs').filter(isKidsMenorah);
 }
 
+/** Soft companions — “Time to snuggle”, never DIY kids / keepsake dreidel rails. */
+export function isSoftStuffieItem(item: CatalogItem): boolean {
+  if (itemHasCategory(item, 'Stuffies')) return true;
+  const hay = `${item.name} ${item.slotId ?? ''} ${item.defaultSlot ?? ''}`.toLowerCase();
+  return /plush|stuff/.test(hay);
+}
+
 /**
- * Craft / soft / blank dreidels for kids — keep out of “the collection”.
- * Airdry, draw-your-own (blank), plush/stuffie land here; brass / slipcast / wood stay collection.
+ * Craft / DIY dreidels for “Make it yourself” — keep out of “the collection”.
+ * Airdry, draw-your-own (blank), clay/craft land here; plush/stuffies go to snuggle;
+ * brass / slipcast / wood stay collection.
  */
 export function isKidsDreidel(item: CatalogItem): boolean {
   if (!filterByStorefrontCategory([item], 'dreidels').length) return false;
+  if (isSoftStuffieItem(item)) return false;
   const hay = `${item.name} ${item.slotId ?? ''} ${item.defaultSlot ?? ''}`.toLowerCase();
-  return /airdry|air.?dry|blank|draw.?your.?own|diy|decorate|plush|clay|toy|stuff|craft|play/.test(
-    hay
-  );
+  return /airdry|air.?dry|blank|draw.?your.?own|diy|decorate|clay|toy|craft|play/.test(hay);
 }
 
-/** Homepage “The collection” preference: brass → slipcast → wood → others. */
+/** Dreidel-shaped cookie cutters — DIY rail, cataloged under Food/Activity not Dreidel. */
+export function isDreidelCookieCutter(item: CatalogItem): boolean {
+  if (isBookItem(item)) return false;
+  return /cookie.?cutter/i.test(item.name) && /dreidel/i.test(item.name);
+}
+
+/** Homepage “Spin spin spin” preference: brass → slipcast → wood → others. */
 function dreidelCollectionSortKey(item: CatalogItem): number {
   const hay = item.name.toLowerCase();
   if (/brass/.test(hay)) return 0;
@@ -271,18 +303,31 @@ function dreidelCollectionSortKey(item: CatalogItem): number {
   return 50;
 }
 
-/** Homepage “For kids” preference: airdry → draw your own → stuffie → others. */
+/** Homepage “Make it yourself” preference: airdry → draw your own → cookie cutter → others. */
 function dreidelKidsSortKey(item: CatalogItem): number {
   const hay = item.name.toLowerCase();
+  if (/cookie.?cutter/.test(hay)) return 2;
   if (/airdry|air.?dry|clay/.test(hay)) return 0;
   if (/draw.?your.?own|blank/.test(hay)) return 1;
-  if (/plush|stuff/.test(hay)) return 2;
+  return 50;
+}
+
+/** Homepage “Time to snuggle”: Shamash / Gimmel first, then other stuffies. */
+function snuggleStuffieSortKey(item: CatalogItem): number {
+  const hay = item.name.toLowerCase();
+  if (/shamash|menorah/.test(hay)) return 0;
+  if (/gimmel|dreidel/.test(hay)) return 1;
   return 50;
 }
 
 export function collectionDreidels(items: CatalogItem[]): CatalogItem[] {
   return filterByStorefrontCategory(items, 'dreidels')
-    .filter((item) => !isKidsDreidel(item))
+    .filter((item) => {
+      if (isKidsDreidel(item)) return false;
+      // Soft toys browse under Stuffies / snuggle, not the keepsake shelf.
+      if (isSoftStuffieItem(item)) return false;
+      return true;
+    })
     .sort((a, b) => {
       const d = dreidelCollectionSortKey(a) - dreidelCollectionSortKey(b);
       return d !== 0 ? d : a.name.localeCompare(b.name);
@@ -290,12 +335,50 @@ export function collectionDreidels(items: CatalogItem[]): CatalogItem[] {
 }
 
 export function kidsDreidels(items: CatalogItem[]): CatalogItem[] {
-  return filterByStorefrontCategory(items, 'dreidels')
-    .filter(isKidsDreidel)
+  const diy = filterByStorefrontCategory(items, 'dreidels').filter(isKidsDreidel);
+  const cutters = items.filter(isDreidelCookieCutter);
+  const seen = new Set(diy.map((i) => i.id));
+  const merged = [...diy, ...cutters.filter((i) => !seen.has(i.id))];
+  return merged.sort((a, b) => {
+    const d = dreidelKidsSortKey(a) - dreidelKidsSortKey(b);
+    return d !== 0 ? d : a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * Homepage “Make it yourself”.
+ * Prefer Airtable `dreidels-kids` ranks, but never trust soft stuffies on that rail
+ * (stale sync can still leave Gimmel tagged). Merge DIY fallback so cookie cutters
+ * appear even before the next catalog sync.
+ */
+export function itemsForDreidelsKidsRail(items: CatalogItem[], limit = 6): CatalogItem[] {
+  const fallback = kidsDreidels(items);
+  const curated = items
+    .filter((item) => item.storefrontRails?.includes('dreidels-kids'))
+    .filter((item) => !isSoftStuffieItem(item));
+  if (!curated.length) return fallback.slice(0, limit);
+
+  const byId = new Map<string, CatalogItem>();
+  for (const item of fallback) byId.set(item.id, item);
+  for (const item of curated) byId.set(item.id, item);
+
+  return [...byId.values()]
     .sort((a, b) => {
+      const ar = a.storefrontRank ?? Number.POSITIVE_INFINITY;
+      const br = b.storefrontRank ?? Number.POSITIVE_INFINITY;
+      if (ar !== br) return ar - br;
       const d = dreidelKidsSortKey(a) - dreidelKidsSortKey(b);
       return d !== 0 ? d : a.name.localeCompare(b.name);
-    });
+    })
+    .slice(0, limit);
+}
+
+/** Homepage “Time to snuggle” — Soft companions (Shamash, Gimmel, food friends). */
+export function snuggleStuffies(items: CatalogItem[]): CatalogItem[] {
+  return filterByStorefrontCategory(items, 'stuffies').sort((a, b) => {
+    const d = snuggleStuffieSortKey(a) - snuggleStuffieSortKey(b);
+    return d !== 0 ? d : a.name.localeCompare(b.name);
+  });
 }
 
 /**

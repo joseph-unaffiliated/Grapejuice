@@ -128,6 +128,50 @@ export const DEFAULT_LANDING_CATEGORY_CARDS: LandingCategoryCardDef[] = [
   },
 ];
 
+/** Store home “Shop by aisle” rail — fixed lifestyle covers (not catalog secondary). */
+export const STOREFRONT_HOME_AISLE_CARDS: LandingCategoryCardDef[] = [
+  {
+    label: 'Activities',
+    category: 'activity',
+    image: require('../../assets/storefront/aisle-activities-build.jpg'),
+  },
+  {
+    label: 'Stuffies',
+    category: 'stuffies',
+    image: require('../../assets/storefront/aisle-stuffies-lifestyle.jpg'),
+  },
+  {
+    label: 'Dreidels',
+    category: 'dreidels',
+    image: require('../../assets/storefront/aisle-dreidels-clay.jpg'),
+  },
+  {
+    label: 'Candles',
+    category: 'candles',
+    image: require('../../assets/storefront/aisle-candles-roll.jpg'),
+  },
+  {
+    label: 'Gelt',
+    category: 'gelt',
+    image: require('../../assets/storefront/aisle-gelt-spin.jpg'),
+  },
+  {
+    label: 'Menorahs',
+    category: 'menorahs',
+    image: require('../../assets/storefront/aisle-menorahs-light.jpg'),
+  },
+  {
+    label: 'Food',
+    category: 'food',
+    image: require('../../assets/storefront/aisle-food-cookie-cutter.jpg'),
+  },
+  {
+    label: 'Books',
+    category: 'books',
+    image: require('../../assets/catalog/picture-book-hanukkah.png'),
+  },
+];
+
 type BuildSectionsInput = {
   hero: StorefrontMediaSlot;
   heroCtas: LandingCta[];

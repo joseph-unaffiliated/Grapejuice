@@ -7,10 +7,14 @@ import {
   Platform,
   type LayoutChangeEvent,
 } from 'react-native';
-import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Rect } from 'react-native-svg';
+import Svg, {
+  Defs,
+  RadialGradient as SvgRadialGradient,
+  Stop,
+  Rect,
+} from 'react-native-svg';
 import { StorefrontMediaPlaceholder } from './StorefrontMediaPlaceholder';
 import {
-  StorefrontHeroJourneyTimeline,
   boxJourneyCopy,
   boxJourneyStatusLine,
   type BoxJourneyDates,
@@ -29,16 +33,17 @@ import {
 } from '../../constants/theme';
 
 /**
- * Hero scrim — darkens from the top so bottom-aligned product footage stays bright.
+ * Anti-vignette: darkest at center (copy/CTAs), super gradual fade to clear edges.
  */
-const HERO_SCRIM_TOP_WEB =
-  'linear-gradient(to bottom, rgba(17, 2, 34, 0.78) 0%, rgba(17, 2, 34, 0.42) 42%, rgba(17, 2, 34, 0.12) 72%, transparent 100%)';
+const HERO_SCRIM_RADIAL_WEB =
+  'radial-gradient(ellipse 72% 68% at center, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.22) 28%, rgba(0, 0, 0, 0.1) 52%, rgba(0, 0, 0, 0.03) 70%, transparent 82%)';
 
 const NATIVE_HERO_SCRIM_STOPS = [
-  { offset: '0', color: '#110222', opacity: '0.78' },
-  { offset: '0.42', color: '#110222', opacity: '0.42' },
-  { offset: '0.72', color: '#110222', opacity: '0.12' },
-  { offset: '1', color: '#110222', opacity: '0' },
+  { offset: '0', color: '#000000', opacity: '0.34' },
+  { offset: '0.28', color: '#000000', opacity: '0.22' },
+  { offset: '0.52', color: '#000000', opacity: '0.1' },
+  { offset: '0.7', color: '#000000', opacity: '0.03' },
+  { offset: '0.82', color: '#000000', opacity: '0' },
 ] as const;
 
 function NativeHeroScrim({ width, height }: { width: number; height: number }) {
@@ -46,17 +51,27 @@ function NativeHeroScrim({ width, height }: { width: number; height: number }) {
   const gradId = `storefrontHeroScrim-${rawId}`;
   if (width <= 0 || height <= 0) return null;
 
-  const scrimH = height * 0.62;
+  const cx = width / 2;
+  const cy = height / 2;
+  const rx = width * 0.72;
+  const ry = height * 0.68;
 
   return (
     <Svg
       width={width}
-      height={scrimH}
-      style={{ position: 'absolute', top: 0, left: 0 }}
+      height={height}
+      style={StyleSheet.absoluteFillObject}
       pointerEvents="none"
     >
       <Defs>
-        <SvgLinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+        <SvgRadialGradient
+          id={gradId}
+          cx={cx}
+          cy={cy}
+          rx={rx}
+          ry={ry}
+          gradientUnits="userSpaceOnUse"
+        >
           {NATIVE_HERO_SCRIM_STOPS.map((stop) => (
             <Stop
               key={stop.offset}
@@ -65,9 +80,9 @@ function NativeHeroScrim({ width, height }: { width: number; height: number }) {
               stopOpacity={stop.opacity}
             />
           ))}
-        </SvgLinearGradient>
+        </SvgRadialGradient>
       </Defs>
-      <Rect x={0} y={0} width={width} height={scrimH} fill={`url(#${gradId})`} />
+      <Rect x={0} y={0} width={width} height={height} fill={`url(#${gradId})`} />
     </Svg>
   );
 }
@@ -100,32 +115,31 @@ export function StorefrontHero({
   onPrimary,
   onSecondary,
 }: Props) {
-  const { height, width, isCompact: compact } = useLayoutBreakpoint();
+  const { height, isCompact: compact } = useLayoutBreakpoint();
   const [size, setSize] = useState({ w: 0, h: 0 });
   const hero = mode === 'passover' ? STOREFRONT_HERO_PASSOVER : STOREFRONT_HERO;
   const now = usePreviewNow();
   const duringHanukkah =
     journey != null && getHanukkahStatus(journey.startsOn, now).phase === 'during';
   const journeyMode = showJourney(mode) && Boolean(journey);
-  const showTimeline = journeyMode && !duringHanukkah;
+  /** Timeline lives above the hero; still skip gold subline when the rail would show. */
+  const journeyRailActive = journeyMode && !duringHanukkah;
   const withCtas = showCtas(mode);
+  /** Guest box: single “View your box” CTA (account prompt lives in the promo strip). */
+  const guestSingleCta = mode === 'guest_box' && journeyMode;
+  /** Acquisition: Browse left (ghost), Build right (primary white). */
+  const acquisitionCtas = mode === 'acquisition';
+  // Tall plate, but leave a peek of what’s below. When the journey banner sits
+  // under the hero, reserve space so the timeline is on-screen at first paint.
+  const chromeApprox = compact ? 168 : 200;
+  const journeyBannerReserve = journeyRailActive ? 88 : 0;
+  const belowPeek = 56;
   const heroHeight = Math.min(
     Math.max(
-      height *
-        (compact
-          ? showTimeline
-            ? withCtas
-              ? 0.58
-              : 0.52
-            : 0.48
-          : showTimeline
-            ? withCtas
-              ? 0.62
-              : 0.55
-            : 0.55),
-      compact ? (showTimeline ? 400 : 320) : showTimeline ? 440 : 360
+      height - chromeApprox - journeyBannerReserve - belowPeek,
+      compact ? 460 : 480
     ),
-    showTimeline ? 640 : 560
+    (compact ? 640 : 680) - journeyBannerReserve
   );
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -138,12 +152,14 @@ export function StorefrontHero({
     [journey, now]
   );
   const statusLine = useMemo(() => {
-    if (!journey || mode === 'acquisition' || mode === 'passover' || duringHanukkah) return null;
+    // Journey banner embeds lock timing; skip the hard-to-read gold subline.
+    if (journeyRailActive) return null;
+    if (!journey || mode === 'acquisition' || mode === 'passover') return null;
     if (mode === 'guest_box' || mode === 'customize' || mode === 'needs_payment' || mode === 'locked') {
       return boxJourneyStatusLine(journey, mode, now);
     }
     return null;
-  }, [journey, mode, now, duringHanukkah]);
+  }, [journey, mode, now, journeyRailActive]);
 
   let headline = hero.headline;
   let body: string | null | undefined = hero.body;
@@ -176,13 +192,13 @@ export function StorefrontHero({
     primaryLabel = 'Send another gift';
     secondaryLabel = 'Build your own box';
   } else if (mode === 'acquisition') {
-    // defaults above
+    bodySecondary = null;
   } else if (journeyMode) {
     headline = journeyHeadline ?? 'Your Hanukkah box is underway';
     body = statusLine;
     bodySecondary = null;
     if (mode === 'guest_box') {
-      primaryLabel = 'Create an account';
+      primaryLabel = 'View your box';
       secondaryLabel = 'View your box';
     } else if (mode === 'customize') {
       primaryLabel = STOREFRONT_HERO.ctaLabel ?? 'Browse the Collection';
@@ -193,6 +209,9 @@ export function StorefrontHero({
     }
   }
 
+  const hasBody = Boolean(body || bodySecondary);
+  const headlineGap = hasBody ? 4 : compact ? 14 : 20;
+
   return (
     <View style={[styles.root, { height: heroHeight }]} onLayout={onLayout}>
       <StorefrontMediaPlaceholder
@@ -201,9 +220,8 @@ export function StorefrontHero({
         fill
         style={styles.media}
       />
-      {/* Top scrim — keeps bottom product footage bright */}
       {Platform.OS === 'web' ? (
-        <View style={styles.scrimTop} pointerEvents="none" />
+        <View style={styles.scrim} pointerEvents="none" />
       ) : (
         <NativeHeroScrim width={size.w} height={size.h} />
       )}
@@ -211,8 +229,16 @@ export function StorefrontHero({
         style={[styles.overlay, compact && styles.overlayCompact]}
         pointerEvents="box-none"
       >
-        <Text style={[styles.headline, compact && styles.headlineCompact]}>{headline}</Text>
-        {body || bodySecondary ? (
+        <Text
+          style={[
+            styles.headline,
+            compact && styles.headlineCompact,
+            { marginBottom: headlineGap },
+          ]}
+        >
+          {headline}
+        </Text>
+        {hasBody ? (
           <View style={[styles.bodyBlock, compact && styles.bodyBlockCompact]}>
             {body ? (
               <Text
@@ -233,28 +259,56 @@ export function StorefrontHero({
           </View>
         ) : null}
 
-        {journey && showTimeline ? (
-          <StorefrontHeroJourneyTimeline journey={journey} compact={compact} />
-        ) : null}
-
         {withCtas ? (
           <View style={[styles.ctas, compact && styles.ctasCompact]}>
-            <TouchableOpacity
-              style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
-              onPress={onPrimary}
-              accessibilityRole="button"
-              accessibilityLabel={primaryLabel}
-            >
-              <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.cta, styles.ctaSecondary, compact && styles.ctaCompact]}
-              onPress={onSecondary}
-              accessibilityRole="button"
-              accessibilityLabel={secondaryLabel}
-            >
-              <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>
-            </TouchableOpacity>
+            {guestSingleCta ? (
+              <TouchableOpacity
+                style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
+                onPress={onSecondary}
+                accessibilityRole="button"
+                accessibilityLabel={secondaryLabel}
+              >
+                <Text style={styles.ctaPrimaryText}>{secondaryLabel}</Text>
+              </TouchableOpacity>
+            ) : acquisitionCtas ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
+                  onPress={onPrimary}
+                  accessibilityRole="button"
+                  accessibilityLabel={primaryLabel}
+                >
+                  <Text style={styles.ctaGhostText}>{primaryLabel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
+                  onPress={onSecondary}
+                  accessibilityRole="button"
+                  accessibilityLabel={secondaryLabel}
+                >
+                  <Text style={styles.ctaPrimaryText}>{secondaryLabel}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
+                  onPress={onPrimary}
+                  accessibilityRole="button"
+                  accessibilityLabel={primaryLabel}
+                >
+                  <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
+                  onPress={onSecondary}
+                  accessibilityRole="button"
+                  accessibilityLabel={secondaryLabel}
+                >
+                  <Text style={styles.ctaGhostText}>{secondaryLabel}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         ) : null}
       </View>
@@ -274,16 +328,12 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderWidth: 0,
   },
-  /** Top-down fade — dark near title zone, clear over products at bottom. */
-  scrimTop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: '62%',
+  /** Radial anti-vignette — dark at center, clear at edges. */
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
     ...(Platform.OS === 'web'
-      ? ({ backgroundImage: HERO_SCRIM_TOP_WEB } as object)
-      : { backgroundColor: 'rgba(17, 2, 34, 0.4)' }),
+      ? ({ backgroundImage: HERO_SCRIM_RADIAL_WEB } as object)
+      : { backgroundColor: 'rgba(0, 0, 0, 0.12)' }),
   },
   overlay: {
     position: 'absolute',
@@ -293,29 +343,29 @@ const styles = StyleSheet.create({
     top: 0,
     paddingHorizontal: MOBILE_GUTTER,
     paddingBottom: spacing.xxl,
-    paddingTop: spacing.xxl,
+    // Extra top padding so the headline-heavy stack sits slightly below true center.
+    paddingTop: spacing.xxl + 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   overlayCompact: {
     paddingBottom: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.lg + 20,
   },
   headline: {
-    ...typeface('light'),
-    fontSize: 44,
-    lineHeight: 54,
+    ...typeface('medium'),
+    fontSize: 52,
+    lineHeight: 62,
     letterSpacing: 0.6,
     color: semanticColors.textInverse,
     textAlign: 'center',
-    marginBottom: spacing.sm,
-    textShadowColor: 'rgba(17, 2, 34, 0.45)',
+    textShadowColor: 'rgba(0, 0, 0, 0.35)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 10,
   },
   headlineCompact: {
-    fontSize: 34,
-    lineHeight: 42,
+    fontSize: 40,
+    lineHeight: 48,
   },
   bodyBlock: {
     alignItems: 'center',
@@ -333,7 +383,7 @@ const styles = StyleSheet.create({
     color: semanticColors.textInverse,
     textAlign: 'center',
     lineHeight: 24,
-    opacity: 0.95,
+    opacity: 1,
     textShadowColor: 'rgba(17, 2, 34, 0.4)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 8,
@@ -368,6 +418,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: spacing.sm,
     marginBottom: spacing.sm,
     width: '100%',
   },
@@ -389,22 +440,26 @@ const styles = StyleSheet.create({
   ctaCompact: {
     width: '100%',
   },
+  /** Primary — solid white, dark text. */
   ctaPrimary: {
-    backgroundColor: semanticColors.logoDark,
+    backgroundColor: 'rgba(255,255,255,0.98)',
   },
   ctaPrimaryText: {
     ...typeface('medium'),
     fontSize: 12,
-    color: semanticColors.textInverse,
+    color: semanticColors.logoDark,
     textAlign: 'center',
   },
-  ctaSecondary: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
+  /** Dual-CTA secondary — ghost outline on video. */
+  ctaGhost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
-  ctaSecondaryText: {
+  ctaGhostText: {
     ...typeface('medium'),
     fontSize: 12,
-    color: semanticColors.logoDark,
+    color: '#FFFFFF',
     textAlign: 'center',
   },
 });

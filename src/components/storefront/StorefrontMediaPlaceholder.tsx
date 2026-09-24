@@ -19,6 +19,7 @@ import {
   typography,
 } from '../../constants/theme';
 import type { StorefrontMediaSlot } from '../../constants/storefrontMedia';
+import { StorefrontWebVideo } from './StorefrontWebVideo';
 
 type Props = {
   slot: StorefrontMediaSlot;
@@ -73,17 +74,7 @@ export function StorefrontMediaPlaceholder({ slot, style, minHeight, quiet, fill
       ]}
     >
       {playVideoOnWeb ? (
-        React.createElement('video', {
-          src: videoUri!,
-          autoPlay: true,
-          muted: true,
-          loop: true,
-          playsInline: true,
-          preload: 'auto',
-          'aria-hidden': true,
-          poster: resolveAssetUri(slot.poster) ?? undefined,
-          style: styles.videoWeb,
-        })
+        <StorefrontWebVideo src={videoUri!} poster={posterSource} />
       ) : imageSource ? (
         <Image source={imageSource} style={styles.image} resizeMode="cover" />
       ) : (
@@ -129,15 +120,6 @@ const styles = StyleSheet.create({
     // Web: cover; bottom-bias keeps product/table in frame over faces when cropped.
     ...({ objectFit: 'cover', objectPosition: 'center bottom' } as object),
   },
-  videoWeb: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    objectPosition: 'center bottom',
-  } as object,
   placeholder: {
     flex: 1,
     alignItems: 'center',

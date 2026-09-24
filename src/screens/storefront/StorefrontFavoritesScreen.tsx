@@ -168,7 +168,7 @@ export function StorefrontFavoritesScreen() {
         )}
 
         <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
-        <StorefrontBuildBoxStrip onPress={startBox} />
+        <StorefrontBuildBoxStrip onPress={startBox} variant="content" />
       </View>
     </StorefrontChrome>
   );

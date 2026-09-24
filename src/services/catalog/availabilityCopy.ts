@@ -11,6 +11,11 @@ export function boxOnlyAvailabilityLine(): string {
   return 'only available with a box';
 }
 
+/** When shopper already has a box started. */
+export function boxOnlyNotAvailableWithoutBoxLine(): string {
+  return 'not available without a box';
+}
+
 /**
  * Hero price for box-only tiles: member / box price, or "Included".
  */

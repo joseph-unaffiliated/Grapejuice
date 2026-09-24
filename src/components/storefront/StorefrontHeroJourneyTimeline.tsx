@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
-import { semanticColors, spacing, typeface } from '../../constants/theme';
+import { daysToBoxLock } from '../../constants/hanukkahBoxLock';
+import { semanticColors, spacing, typeface, typography } from '../../constants/theme';
 
 export type BoxJourneyDates = {
   startsOn: string | null;
@@ -46,7 +47,6 @@ function formatMilestoneDate(date: Date): string {
   return date.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
-    year: 'numeric',
   });
 }
 
@@ -120,7 +120,7 @@ export function boxJourneyCopy(journey: BoxJourneyDates, now = new Date()) {
   const lockDate = journey.lockAt ? parseIsoDate(journey.lockAt) : null;
   const lockDays =
     lockDate && startOfLocalDay(lockDate).getTime() > startOfLocalDay(now).getTime()
-      ? daysUntil(lockDate, now)
+      ? daysToBoxLock(now, journey.lockAt)
       : lockDate && sameLocalDay(lockDate, now)
         ? 0
         : null;
@@ -179,17 +179,26 @@ export function boxJourneyStatusLine(
   return boxJourneyCopy(journey, now).lockLine;
 }
 
+export type JourneyTimelineVariant = 'overlay' | 'banner';
+
 type Props = {
   journey: BoxJourneyDates;
   compact?: boolean;
+  /** `banner` = slim bar above hero (dark type on cream). Default `overlay` for dark scrim. */
+  variant?: JourneyTimelineVariant;
 };
 
 /**
- * Horizontal box-journey timeline for the storefront hero (customize state).
- * Styled for the dark hero scrim — gold rail, light labels, location pin.
+ * Horizontal box-journey timeline for the storefront.
+ * Overlay: gold/white on dark hero scrim. Banner: compact dark type on cream.
  */
-export function StorefrontHeroJourneyTimeline({ journey, compact }: Props) {
+export function StorefrontHeroJourneyTimeline({
+  journey,
+  compact,
+  variant = 'overlay',
+}: Props) {
   const now = usePreviewNow();
+  const isBanner = variant === 'banner';
   const milestones: Milestone[] = useMemo(() => {
     const starts =
       journey.startsOn?.trim() ||
@@ -203,10 +212,16 @@ export function StorefrontHeroJourneyTimeline({ journey, compact }: Props) {
 
     return [
       // Seeing this hero means the parent already completed the in-app reveal.
-      { id: 'reveal', label: 'My Box', date: null, completed: true },
+      { id: 'reveal', label: 'Customize Box', date: null, completed: true },
       {
         id: 'lock',
-        label: 'Box Locks',
+        label: (() => {
+          if (!lockDate) return 'Box Locks';
+          const days = daysToBoxLock(now, journey.lockAt);
+          if (startOfLocalDay(lockDate).getTime() < today.getTime()) return 'Box Locks';
+          if (days === 0) return 'Box Locks (today)';
+          return `Box Locks (${days} day${days === 1 ? '' : 's'} from now)`;
+        })(),
         date: lockDate,
         completed: !!lockDate && startOfLocalDay(lockDate).getTime() < today.getTime(),
       },
@@ -227,38 +242,88 @@ export function StorefrontHeroJourneyTimeline({ journey, compact }: Props) {
 
   const progress = pinProgress(milestones, now);
   const pinLeft = pinLeftPercent(progress, milestones.length);
+  /** Inset so the rail runs marker-center → marker-center (equal-width columns). */
   const trackInset = `${50 / milestones.length}%`;
+  /**
+   * Dense dot-dash between first and last markers. Count is high enough that
+   * space-between keeps ~8–12px gaps on banner (max ~720) and overlay widths.
+   */
+  const railDotCount = isBanner ? 40 : 32;
+  const pinColor = isBanner ? semanticColors.logoDark : '#FFFFFF';
+  const markerBg = isBanner ? semanticColors.logoDark : '#FFFFFF';
+  const trackDotBg = isBanner ? 'rgba(17, 2, 34, 0.35)' : 'rgba(255, 255, 255, 0.55)';
 
   return (
-    <View style={[styles.root, compact && styles.rootCompact]} accessibilityRole="summary">
-      <View style={styles.rail}>
-        <View style={[styles.trackLine, { left: trackInset, right: trackInset }]} />
-        <View style={[styles.pin, { left: `${pinLeft}%` }]} accessibilityLabel="You are here">
-          <Icon icon={icons.locationDot} size={compact ? 14 : 16} color="#FFFFFF" />
-        </View>
-        <View style={styles.dotsRow}>
-          {milestones.map((m) => (
-            <View key={m.id} style={styles.dotCol}>
-              <View style={styles.markerDot} />
-            </View>
-          ))}
-        </View>
-      </View>
-      <View style={styles.labelsRow}>
+    <View
+      style={[
+        styles.root,
+        compact && !isBanner && styles.rootCompact,
+        isBanner && styles.rootBanner,
+      ]}
+      accessibilityRole="summary"
+    >
+      {/* Dates above the rail */}
+      <View style={[styles.datesRow, isBanner && styles.datesRowBanner]}>
         {milestones.map((m) => (
-          <View key={m.id} style={styles.labelCol}>
-            <Text style={[styles.label, compact && styles.labelCompact]} numberOfLines={2}>
-              {m.label}
-            </Text>
+          <View key={`date-${m.id}`} style={styles.labelCol}>
             <Text
               style={[
                 styles.date,
-                compact && styles.dateCompact,
+                compact && !isBanner && styles.dateCompact,
+                isBanner && styles.dateBanner,
                 !m.date && styles.datePlaceholder,
               ]}
               numberOfLines={1}
             >
               {m.date ? formatMilestoneDate(m.date) : ' '}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={[styles.rail, isBanner && styles.railBanner]}>
+        <View style={[styles.trackDots, { left: trackInset, right: trackInset }]}>
+          {Array.from({ length: railDotCount }, (_, i) => (
+            <View
+              key={`rail-${i}`}
+              style={[styles.trackDot, isBanner && styles.trackDotBanner, { backgroundColor: trackDotBg }]}
+            />
+          ))}
+        </View>
+        <View
+          style={[styles.pin, isBanner && styles.pinBanner, { left: `${pinLeft}%` }]}
+          accessibilityLabel="You are here"
+        >
+          <Icon icon={icons.locationDot} size={isBanner ? 12 : compact ? 14 : 16} color={pinColor} />
+        </View>
+        <View style={styles.dotsRow}>
+          {milestones.map((m) => (
+            <View key={m.id} style={styles.dotCol}>
+              <View
+                style={[
+                  styles.markerDot,
+                  isBanner && styles.markerDotBanner,
+                  { backgroundColor: markerBg },
+                ]}
+              />
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Labels below the rail */}
+      <View style={styles.labelsRow}>
+        {milestones.map((m) => (
+          <View key={m.id} style={styles.labelCol}>
+            <Text
+              style={[
+                styles.label,
+                compact && !isBanner && styles.labelCompact,
+                isBanner ? styles.labelBanner : styles.labelOverlay,
+              ]}
+              numberOfLines={isBanner ? 2 : 3}
+            >
+              {m.label}
             </Text>
           </View>
         ))}
@@ -279,24 +344,50 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     maxWidth: 420,
   },
+  rootBanner: {
+    maxWidth: 720,
+    marginBottom: 0,
+    paddingHorizontal: spacing.sm,
+  },
+  datesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: spacing.xs,
+  },
+  datesRowBanner: {
+    marginBottom: 2,
+  },
   rail: {
     height: 28,
     justifyContent: 'center',
     marginBottom: spacing.sm,
     position: 'relative',
   },
-  trackLine: {
+  railBanner: {
+    height: 22,
+    marginBottom: spacing.xs,
+  },
+  trackDots: {
     position: 'absolute',
     top: '50%',
-    height: 0,
-    borderTopWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(216, 201, 144, 0.85)',
-    ...(Platform.OS === 'web'
-      ? ({
-          borderTopStyle: 'dashed',
-        } as object)
-      : null),
+    marginTop: -1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    // Span first → last marker; don’t cluster in the middle.
+    justifyContent: 'space-between',
+    flexWrap: 'nowrap',
+    overflow: 'hidden',
+  },
+  trackDot: {
+    width: 2.5,
+    height: 2.5,
+    borderRadius: 1.25,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+  },
+  trackDotBanner: {
+    width: 2,
+    height: 2,
+    borderRadius: 1,
   },
   dotsRow: {
     flexDirection: 'row',
@@ -310,15 +401,22 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: semanticColors.brand,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: '#FFFFFF',
+  },
+  markerDotBanner: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   pin: {
     position: 'absolute',
-    top: -2,
+    top: -14,
     marginLeft: -8,
     zIndex: 2,
+  },
+  pinBanner: {
+    top: -12,
+    marginLeft: -6,
   },
   labelsRow: {
     flexDirection: 'row',
@@ -331,31 +429,42 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typeface('medium'),
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 14,
+    lineHeight: 18,
     color: semanticColors.textInverse,
     textAlign: 'center',
-    textShadowColor: 'rgba(17, 2, 34, 0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
     width: '100%',
   },
   labelCompact: {
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  labelOverlay: {
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  labelBanner: {
+    fontSize: typography.sm,
+    lineHeight: 15,
+    color: semanticColors.logoDark,
   },
   date: {
     ...typeface('regular'),
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 14,
     color: 'rgba(255,255,255,0.72)',
     textAlign: 'center',
-    marginTop: 2,
     width: '100%',
   },
   dateCompact: {
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  dateBanner: {
     fontSize: 9,
-    lineHeight: 12,
+    lineHeight: 11,
+    color: semanticColors.textSecondary,
   },
   datePlaceholder: {
     opacity: 0,

@@ -219,3 +219,8 @@ export function formatSubscriberOfferLine(
     ? `${memberPriceLabel} (${off}% off) when in a box`
     : `${memberPriceLabel} when in a box`;
 }
+
+/** When a box is already started: retail as secondary gold line. */
+export function formatWithoutBoxOfferLine(nonMemberPriceLabel: string): string {
+  return `${nonMemberPriceLabel} if bought without a box`;
+}

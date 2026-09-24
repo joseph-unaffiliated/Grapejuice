@@ -16,6 +16,10 @@ function parseIsoDate(iso: string): Date {
   return new Date(iso);
 }
 
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 function lockTargetDate(lockAt?: string | null): Date {
   if (lockAt?.trim()) {
     const d = parseIsoDate(lockAt.trim());
@@ -24,10 +28,14 @@ function lockTargetDate(lockAt?: string | null): Date {
   return HANUKKAH_BOX_LOCK_DATE;
 }
 
-/** Whole days remaining until lock (0 once past). */
+/**
+ * Whole calendar days remaining until lock (0 once past / same day).
+ * Uses local start-of-day so promo + timeline stay in sync mid-day.
+ */
 export function daysToBoxLock(now: Date = new Date(), lockAt?: string | null): number {
-  const ms = lockTargetDate(lockAt).getTime() - now.getTime();
-  return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+  const ms =
+    startOfLocalDay(lockTargetDate(lockAt)).getTime() - startOfLocalDay(now).getTime();
+  return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
 export function boxLockChipLabel(now: Date = new Date(), lockAt?: string | null): string {
@@ -91,8 +99,48 @@ export function arrivesByPromoLabel(estimatedDeliveryBy?: string | null): string
   return `Arrives by ${day}`;
 }
 
-export function freeShippingPromoLine(estimatedDeliveryBy?: string | null): string {
-  return `Free shipping on Hanukkah box orders • ${arrivesByPromoLabel(estimatedDeliveryBy)}`;
+function dayOrdinal(day: number): string {
+  const j = day % 10;
+  const k = day % 100;
+  if (j === 1 && k !== 11) return `${day}st`;
+  if (j === 2 && k !== 12) return `${day}nd`;
+  if (j === 3 && k !== 13) return `${day}rd`;
+  return `${day}th`;
+}
+
+/** e.g. `Hanukkah starts sundown Dec. 4th, 2026` from Firestore `startsOn`. */
+export function hanukkahStartsSundownLabel(startsOn?: string | null): string | null {
+  if (!startsOn?.trim()) return null;
+  const d = parseIsoDate(startsOn.trim());
+  if (Number.isNaN(d.getTime())) return null;
+  return `Hanukkah starts sundown ${MONTH_SHORT[d.getMonth()]}. ${dayOrdinal(d.getDate())}, ${d.getFullYear()}`;
+}
+
+export function freeShippingPromoLine(
+  estimatedDeliveryBy?: string | null,
+  startsOn?: string | null
+): string {
+  const base = `Free shipping on Hanukkah box orders • ${arrivesByPromoLabel(estimatedDeliveryBy)}`;
+  const third = hanukkahStartsSundownLabel(startsOn);
+  return third ? `${base} • ${third}` : base;
+}
+
+/**
+ * Guest-with-started-box promo: account CTA + lock timing.
+ * e.g. `Create an account to secure the items in your box • Box locks on Nov 7 (45 days from today)`
+ */
+export function guestBoxSecurePromoLine(
+  lockAt?: string | null,
+  now: Date = new Date()
+): string {
+  const lock = lockTargetDate(lockAt);
+  const day = `${MONTH_SHORT[lock.getMonth()]} ${lock.getDate()}`;
+  const days = daysToBoxLock(now, lockAt);
+  const relative =
+    days === 0
+      ? 'today'
+      : `${days} day${days === 1 ? '' : 's'} from today`;
+  return `Create an account to secure the items in your box • Box locks on ${day} (${relative})`;
 }
 
 /**

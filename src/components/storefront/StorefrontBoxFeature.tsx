@@ -25,7 +25,7 @@ const BOX_MEDIA: StorefrontMediaSlot = {
   kind: 'image',
   aspect: '4/5',
   label: 'The Grapejuice Hanukkah Box',
-  src: require('../../../assets/storefront/box-feature-gift-stack.webp'),
+  src: require('../../../assets/storefront/box-feature-gift-stack-v2.webp'),
 };
 
 /** Placeholder Passover visual until seasonal art ships. */
@@ -163,7 +163,7 @@ function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
         checklistLabel: 'What might be inside',
         checklist: INCLUSIONS,
         primaryLabel: `Build your box (${boxPrice})`,
-        secondaryLabel: 'See if I’m eligible for a discounted rate',
+        secondaryLabel: null,
         showPrice: true,
         media: BOX_MEDIA,
       };
@@ -173,10 +173,9 @@ function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
 type Props = {
   mode: StorefrontHomeMode;
   onPrimary: () => void;
-  onEligibility: () => void;
 };
 
-export function StorefrontBoxFeature({ mode, onPrimary, onEligibility }: Props) {
+export function StorefrontBoxFeature({ mode, onPrimary }: Props) {
   const { isCompact: stacked } = useLayoutBreakpoint();
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
   const copy = copyForMode(mode, boxPrice);
@@ -225,16 +224,6 @@ export function StorefrontBoxFeature({ mode, onPrimary, onEligibility }: Props) 
             >
               <Text style={styles.ctaPrimaryText}>{copy.primaryLabel}</Text>
             </TouchableOpacity>
-            {copy.secondaryLabel ? (
-              <TouchableOpacity
-                style={styles.ctaSecondary}
-                onPress={onEligibility}
-                accessibilityRole="button"
-                accessibilityLabel={copy.secondaryLabel}
-              >
-                <Text style={styles.ctaSecondaryText}>{copy.secondaryLabel}</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
         </View>
       </View>
@@ -381,19 +370,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
   },
   ctaPrimaryText: {
-    ...typeface('medium'),
-    fontSize: typography.md,
-    color: semanticColors.logoDark,
-  },
-  ctaSecondary: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: semanticColors.border,
-  },
-  ctaSecondaryText: {
     ...typeface('medium'),
     fontSize: typography.md,
     color: semanticColors.logoDark,

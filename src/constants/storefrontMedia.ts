@@ -38,13 +38,40 @@ export const STOREFRONT_HERO: StorefrontMediaSlot = {
   kind: 'video',
   aspect: '4082/1536',
   label: 'Lifestyle — Hanukkah table reel',
-  headline: 'Hanukkah Made Easy',
+  headline: 'hanukkah made easy',
   body: 'Everything you need, delivered straight to your home',
-  bodySecondary: 'Hanukkah starts sundown Dec. 4th, 2026',
   ctaLabel: 'Browse the Collection',
   href: 'collection',
   src: require('../../assets/storefront/banner-reel.mp4'),
-  poster: require('../../assets/storefront/familysplash2.webp'),
+  poster: require('../../assets/storefront/banner-reel-poster.webp'),
+};
+
+/**
+ * Build-box / box-reveal lifestyle strip background (home).
+ * Web loops the reel; native falls back to `poster`.
+ */
+export const STOREFRONT_BOX_REVEAL_STRIP: StorefrontMediaSlot = {
+  id: 'box-reveal-strip',
+  kind: 'video',
+  aspect: '16/9',
+  label: 'Lifestyle — Box reveal reel',
+  href: 'box',
+  src: require('../../assets/storefront/box-reveal-reel.mp4'),
+  poster: require('../../assets/storefront/boxrevealv2.jpg'),
+};
+
+/**
+ * Build-box strip background for content pages (Passover, Our Story, articles,
+ * category/favorites footers). Same poster; alternate reel.
+ */
+export const STOREFRONT_BOX_BUILD_STRIP_ALT: StorefrontMediaSlot = {
+  id: 'box-build-strip-alt',
+  kind: 'video',
+  aspect: '16/9',
+  label: 'Lifestyle — Box build reel (content)',
+  href: 'box',
+  src: require('../../assets/storefront/box-build-reel-alt.mp4'),
+  poster: require('../../assets/storefront/boxrevealv2.jpg'),
 };
 
 /** Post-Hanukkah seasonal hero — Passover interest (placeholder art). */
@@ -60,6 +87,21 @@ export const STOREFRONT_HERO_PASSOVER: StorefrontMediaSlot = {
   href: 'passover',
   src: require('../../assets/storefront/setthetablev1.webp'),
 };
+
+/**
+ * Decorative square thumbs under “What comes in the Passover box?”
+ * (matzah, story art, crafts, costumes — early collection mood).
+ */
+export const STOREFRONT_PASSOVER_BOX_THUMBS: ImageSourcePropType[] = [
+  require('../../assets/storefront/passover-thumb-matzah-balls.png'),
+  require('../../assets/storefront/passover-thumb-moses-pharaoh.png'),
+  require('../../assets/storefront/passover-thumb-plague-puppets.png'),
+  require('../../assets/storefront/passover-thumb-moses-desert-book.png'),
+  require('../../assets/storefront/passover-thumb-kids-craft-matzah.png'),
+  require('../../assets/storefront/passover-thumb-pyramids-sunset.png'),
+  require('../../assets/storefront/passover-thumb-kids-costumes.png'),
+  require('../../assets/storefront/passover-thumb-felt-collage.png'),
+];
 
 export const STOREFRONT_EDITORIAL: StorefrontMediaSlot[] = [
   {

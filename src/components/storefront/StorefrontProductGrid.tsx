@@ -8,10 +8,17 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { StorefrontProductTile } from './StorefrontProductTile';
+import {
+  StorefrontProductTile,
+  type StorefrontTileBoxRelation,
+} from './StorefrontProductTile';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
-import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
+import { useCatalog } from '../../hooks/useCatalog';
+import { useBoxDraft } from '../../hooks/useBoxDraft';
+import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
+import type { BoxLineItem, CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   MOBILE_GUTTER,
@@ -43,6 +50,18 @@ function columnsForWidth(width: number): number {
   return width >= 768 ? 3 : 2;
 }
 
+function boxRelationForItem(
+  item: CatalogItem,
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[],
+  hasStartedBox: boolean
+): StorefrontTileBoxRelation | null {
+  if (!hasStartedBox || lineItems.length === 0) return null;
+  if (lineItems.some((li) => li.itemId === item.id)) return 'in_box';
+  if (findSwapSourceLine(item, lineItems, catalog)) return 'swap';
+  return 'add';
+}
+
 export function StorefrontProductGrid({
   items,
   limit,
@@ -54,6 +73,9 @@ export function StorefrontProductGrid({
   const { isWishlisted, toggleWishlist } = useWishlist();
   const availHook = useCatalogAvailabilityMap();
   const availabilityById = availabilityProp ?? availHook.byId;
+  const { items: catalog } = useCatalog();
+  const { lineItems, persist } = useBoxDraft();
+  const hasStartedBox = usePreviewedHasStartedBox();
   const [containerWidth, setContainerWidth] = useState(0);
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -73,24 +95,60 @@ export function StorefrontProductGrid({
     return list;
   }, [items, limit]);
 
+  const catalogForSwap = catalog.length ? catalog : items;
+
   const placeholders =
     visible.length === 0 && placeholderCount > 0
       ? Array.from({ length: placeholderCount }, (_, i) => i)
       : [];
 
+  const updateBoxQty = (itemId: string, delta: 1 | -1) => {
+    const idx = lineItems.findIndex((li) => li.itemId === itemId);
+    if (idx < 0) return;
+    const line = lineItems[idx]!;
+    const nextQty = Math.max(0, (line.quantity || 1) + delta);
+    const next =
+      nextQty <= 0
+        ? lineItems.filter((_, i) => i !== idx)
+        : lineItems.map((li, i) =>
+            i === idx ? { ...li, quantity: nextQty } : li
+          );
+    void persist(next);
+  };
+
   return (
     <View style={[styles.grid, { paddingHorizontal: pad, gap }]} onLayout={onLayout}>
-      {visible.map((item) => (
-        <StorefrontProductTile
-          key={item.id}
-          item={item}
-          width={tileWidth}
-          wishlisted={isWishlisted(item.id)}
-          availability={availabilityById[item.id]}
-          onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
-          onToggleWishlist={() => void toggleWishlist(item.id)}
-        />
-      ))}
+      {visible.map((item) => {
+        const relation = boxRelationForItem(
+          item,
+          lineItems,
+          catalogForSwap,
+          hasStartedBox
+        );
+        const qty =
+          relation === 'in_box'
+            ? Math.max(
+                1,
+                lineItems.find((li) => li.itemId === item.id)?.quantity ?? 1
+              )
+            : 1;
+        return (
+          <StorefrontProductTile
+            key={item.id}
+            item={item}
+            width={tileWidth}
+            wishlisted={isWishlisted(item.id)}
+            availability={availabilityById[item.id]}
+            boxRelation={relation}
+            boxQuantity={qty}
+            onBoxQtyChange={
+              relation === 'in_box' ? (delta) => updateBoxQty(item.id, delta) : undefined
+            }
+            onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
+            onToggleWishlist={() => void toggleWishlist(item.id)}
+          />
+        );
+      })}
       {placeholders.map((i) => (
         <View
           key={`ph-${i}`}
@@ -112,7 +170,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
-    marginBottom: spacing.xl,
+    // Match home: journey banner → Top picks (banner paddingBottom.md + sectionHead.paddingTop.xl).
+    marginBottom: spacing.md,
+    width: '100%',
+    maxWidth: 1024,
+    alignSelf: 'center',
   },
   placeholder: {
     gap: spacing.xs,

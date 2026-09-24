@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import {
   StorefrontChrome,
   useStorefrontActions,
@@ -8,7 +8,6 @@ import { StorefrontAskRavStrip } from './StorefrontAskRavStrip';
 import { StorefrontBuildBoxStrip } from './StorefrontBuildBoxStrip';
 import {
   borderRadius,
-  LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
@@ -27,7 +26,6 @@ type Cta = {
 };
 
 type Props = {
-  crumb: string;
   eyebrow?: string;
   title: string;
   lead: string;
@@ -38,10 +36,11 @@ type Props = {
 };
 
 /**
- * Marketplace content page shell — breadcrumb, type, CTAs matching aisle / box-feature UI.
+ * Marketplace content page shell — type + CTAs matching aisle / box-feature UI.
+ * Same header format as StorefrontArticlePage (no breadcrumbs, 80px top padding,
+ * balanced headline wrap on web).
  */
 export function StorefrontContentPage({
-  crumb,
   eyebrow,
   title,
   lead,
@@ -49,23 +48,11 @@ export function StorefrontContentPage({
   primaryCta,
   secondaryCta,
 }: Props) {
-  const { goHome, askRav, startBox } = useStorefrontActions();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
+  const { askRav, startBox } = useStorefrontActions();
 
   return (
     <StorefrontChrome>
       <View style={styles.page}>
-        {isDesktop ? (
-          <View style={styles.breadcrumb}>
-            <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-              Store
-            </Text>
-            <Text style={styles.crumbSep}> / </Text>
-            <Text style={styles.crumbCurrent}>{crumb}</Text>
-          </View>
-        ) : null}
-
         <View style={styles.hero}>
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
           <Text style={styles.title}>{title}</Text>
@@ -106,14 +93,14 @@ export function StorefrontContentPage({
               </View>
             ))}
           </View>
-        ) : null}
-
-        <View style={styles.placeholderNote}>
-          <Text style={styles.placeholderNoteText}>Content coming soon</Text>
-        </View>
+        ) : (
+          <View style={styles.placeholderNote}>
+            <Text style={styles.placeholderNoteText}>Content coming soon</Text>
+          </View>
+        )}
 
         <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
-        <StorefrontBuildBoxStrip onPress={startBox} />
+        <StorefrontBuildBoxStrip onPress={startBox} variant="content" />
       </View>
     </StorefrontChrome>
   );
@@ -121,31 +108,9 @@ export function StorefrontContentPage({
 
 const styles = StyleSheet.create({
   page: {},
-  breadcrumb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  crumbLink: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.textSecondary,
-    textDecorationLine: 'underline',
-  },
-  crumbSep: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.textTertiary,
-  },
-  crumbCurrent: {
-    ...typeface('medium'),
-    fontSize: typography.sm,
-    color: semanticColors.logoDark,
-  },
   hero: {
     paddingHorizontal: MOBILE_GUTTER,
+    paddingTop: 80,
     paddingBottom: spacing.xl,
     gap: spacing.sm,
     maxWidth: 720,
@@ -162,6 +127,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     lineHeight: 38,
     color: semanticColors.logoDark,
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   lead: {
     ...typeface('regular'),

@@ -60,6 +60,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.lg,
+    maxWidth: 1024,
+    width: '100%',
+    alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.xl,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -103,6 +106,7 @@ const styles = StyleSheet.create({
   headline: {
     ...typeface('medium'),
     fontSize: 28,
+    letterSpacing: -0.3,
     color: semanticColors.logoDark,
   },
   body: {

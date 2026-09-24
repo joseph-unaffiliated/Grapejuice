@@ -24,6 +24,7 @@ import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { similarCatalogItems } from '../../constants/catalogCuration';
 import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
+import { howToLinkForItem } from '../../constants/pdpHowToLink';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { boxAddOnUnitCents } from '../../services/box/pricing';
@@ -31,6 +32,7 @@ import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
+import { navigateMainStack } from '../../navigation/mainStackNavigation';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -159,6 +161,7 @@ export function BoxProductModal({
 
   const bodyCopy = item ? pdpBodyCopyForItem(item) : undefined;
   const details = item ? detailRowsFromItem(item) : [];
+  const howTo = item ? howToLinkForItem(item) : null;
   const similar = item ? similarCatalogItems(item, catalog, 12) : [];
   const wishlisted = item ? isWishlisted(item.id) : false;
 
@@ -269,6 +272,26 @@ export function BoxProductModal({
                 <View style={[styles.buy, desktop && styles.buyDesktop]}>
                   <Text style={[styles.name, !desktop && styles.nameMobile]}>{item.name}</Text>
                   {bodyCopy ? <Text style={styles.desc}>{bodyCopy}</Text> : null}
+
+                  {howTo ? (
+                    <TouchableOpacity
+                      style={styles.howToLink}
+                      onPress={() => {
+                        onClose();
+                        navigateMainStack(
+                          howTo.kind === 'play-dreidel'
+                            ? 'StorefrontHowToPlayDreidel'
+                            : 'StorefrontHowToLightCandles'
+                        );
+                      }}
+                      accessibilityRole="link"
+                      accessibilityLabel={howTo.label}
+                    >
+                      <Text style={styles.howToLinkText}>
+                        {howTo.label} {'>'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
 
                   {details.length > 0 ? (
                     <View style={styles.details}>
@@ -492,6 +515,18 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       fontSize: typography.md,
       lineHeight: 24,
       color: colors.textSecondary,
+    },
+    howToLink: {
+      alignSelf: 'flex-start',
+      marginTop: -spacing.sm,
+    },
+    howToLinkText: {
+      ...typeface('medium'),
+      fontSize: typography.md,
+      lineHeight: 22,
+      color: colors.logoDark,
+      textDecorationLine: 'underline',
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
     details: {
       width: '100%',

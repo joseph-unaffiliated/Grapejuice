@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   freeShippingPromoLine,
+  guestBoxSecurePromoLine,
 } from '../../constants/hanukkahBoxLock';
 import { getHanukkahConfig } from '../../services/firestore/config';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useAuthFlowStore } from '../../stores/authFlowStore';
 import {
   semanticColors,
   spacing,
@@ -15,7 +18,12 @@ import {
 /** Centered promo line; wraps as one unit if the viewport is too narrow. */
 export function StorefrontPromoStrip() {
   const insets = useSafeAreaInsets();
-  const [promo, setPromo] = useState(() => freeShippingPromoLine(null));
+  const [lockAt, setLockAt] = useState<string | null>(null);
+  const [startsOn, setStartsOn] = useState<string | null>(null);
+  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  const mode = useStorefrontHomeMode(lockAt, startsOn);
+  const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
+  const isGuestBox = mode === 'guest_box';
   const paddingTop =
     Platform.OS === 'web'
       ? // Prefer CSS env so iPhone Safari notch clearance works even if RN insets lag.
@@ -26,16 +34,35 @@ export function StorefrontPromoStrip() {
     let cancelled = false;
     getHanukkahConfig().then((config) => {
       if (cancelled) return;
-      setPromo(freeShippingPromoLine(config.estimatedDeliveryBy));
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+      setEstimatedDeliveryBy(config.estimatedDeliveryBy);
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const promo = isGuestBox
+    ? guestBoxSecurePromoLine(lockAt)
+    : freeShippingPromoLine(estimatedDeliveryBy, startsOn);
+
+  const content = <Text style={styles.line}>{promo}</Text>;
+
   return (
     <View style={[styles.root, { paddingTop }]}>
-      <Text style={styles.line}>{promo}</Text>
+      {isGuestBox ? (
+        <Pressable
+          onPress={() => startAuthFromGuest('MyBox', 'signup', 'SignUp')}
+          accessibilityRole="button"
+          accessibilityLabel="Create an account to secure the items in your box"
+          style={({ pressed }) => [pressed && styles.pressed]}
+        >
+          {content}
+        </Pressable>
+      ) : (
+        content
+      )}
     </View>
   );
 }
@@ -49,6 +76,9 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.accentCream,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: semanticColors.border,
+  },
+  pressed: {
+    opacity: 0.75,
   },
   line: {
     ...typeface('regular'),
