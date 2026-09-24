@@ -17,7 +17,7 @@
 
 **PDP physical details (Full Catalog):** **Dimensions**, **Weight**, **Materials** → Firestore `dimensions` / `weight` / `materials` (single-line text). Use **US units** for dimensions (inches) and weight (lb / oz). **Description** is product-level “what it’s for / how to use” body copy on the PDP (category educational blurbs are no longer preferred).
 
-**Homepage rails:** Full Catalog **Storefront rails** + **Storefront rank**, plus **Menorah homepage** / **Dreidel homepage** (`collection` | `kids`) which sync to `menorahs-*` / `dreidels-*`. Food section uses category Food (gelt, latkes, sufganiyot, stuffies, cookie cutters) or rail `food`. Kids dreidel fallback: airdry / blank / plush / clay.
+**Homepage rails:** Full Catalog **Storefront rails** + **Storefront rank**, plus **Menorah homepage** / **Dreidel homepage** (`collection` | `kids`) which sync to `menorahs-*` / `dreidels-*`. Food section uses category Food (gelt, latkes, sufganiyot, stuffies, cookie cutters) or rail `food`. Kids dreidel (“Make it yourself”) fallback: airdry / blank / clay + dreidel cookie cutters (not plush). Stuffies use the Stuffies category (“Time to snuggle”).
 
 **Marketplace availability (Full Catalog):**
 

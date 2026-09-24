@@ -102,18 +102,18 @@ export function StorefrontServicesNav({ onPress }: Props) {
           </TouchableOpacity>
         ) : null}
 
-        <View
+        <TouchableOpacity
           style={styles.lockGroup}
-          accessibilityRole="text"
-          accessibilityLabel="2027 Passover, Coming soon"
+          onPress={() => onPress('passover')}
+          accessibilityRole="button"
+          accessibilityLabel="2027 Passover"
         >
           <Text style={styles.lockYear}>2027 Passover</Text>
           <View style={styles.lockChip}>
             <Text style={styles.lockChipText}>Coming soon</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
-        {/* Temporarily hidden — Our story
         <TouchableOpacity
           style={styles.linkHit}
           onPress={() => onPress('story')}
@@ -122,7 +122,6 @@ export function StorefrontServicesNav({ onPress }: Props) {
         >
           <Text style={styles.link}>Our story</Text>
         </TouchableOpacity>
-        */}
       </ScrollView>
     </View>
   );

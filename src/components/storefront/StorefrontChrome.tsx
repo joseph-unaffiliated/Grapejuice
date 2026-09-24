@@ -1074,17 +1074,32 @@ export function useStorefrontActions() {
         },
       });
     },
-    goCategory: (slug: string, opts?: { q?: string; avail?: 'buy-now' | 'box-only' | 'all' }) => {
-      navigation.navigate('StorefrontCategory', {
-        category: slug,
-        ...(opts?.q ? { q: opts.q } : null),
-        ...(opts?.avail && opts.avail !== 'all' ? { avail: opts.avail } : null),
+    goCategory: (
+      slug: string,
+      opts?: {
+        q?: string;
+        avail?: 'buy-now' | 'box-only' | 'all';
+        style?: 'collection' | 'kids' | 'all';
+      }
+    ) => {
+      // Replace params so a prior style/avail chip doesn't stick on the next aisle.
+      navigation.navigate({
+        name: 'StorefrontCategory',
+        params: {
+          category: slug,
+          ...(opts?.q ? { q: opts.q } : null),
+          ...(opts?.avail && opts.avail !== 'all' ? { avail: opts.avail } : null),
+          ...(opts?.style && opts.style !== 'all' ? { style: opts.style } : null),
+        },
+        merge: false,
       });
     },
     goHome: () => navigation.navigate('StorefrontHome'),
     goEligibility: () => navigation.navigate('BoxDiscountEligibility'),
     goOurStory: () => navigation.navigate('StorefrontOurStory'),
     goPassover: () => navigation.navigate('StorefrontPassover'),
+    goHowToPlayDreidel: () => navigation.navigate('StorefrontHowToPlayDreidel'),
+    goHowToLightCandles: () => navigation.navigate('StorefrontHowToLightCandles'),
   };
 }
 

@@ -117,7 +117,7 @@ export const colors = {
   /** Figma Untraditional: gold mute (secondary text, chips). */
   goldMuted: '#B8AC7F',
   /** Figma: logo / dark accent. */
-  logoDark: '#110222',
+  logoDark: '#141414',
 };
 
 export const semanticColors = {

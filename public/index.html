@@ -17,11 +17,13 @@
       - Retention.com site id: X2JHJ4WE (Untraditional network default)
       - Meta Pixel id: 809409995127436 (Untraditional network default)
     -->
-    <!-- OneTrust Cookies Consent Notice start for grapejuice.co -->
+    <!-- OneTrust Cookies Consent Notice start for grapejuice.co
+         async: never block document parser / tab spinner if the CDN stalls. -->
     <script
       src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js"
       type="text/javascript"
       charset="UTF-8"
+      async
       data-domain-script="01a0cfd2-da9c-7e6a-a312-7f370c33ab6c"
     ></script>
     <script type="text/javascript">
@@ -59,8 +61,16 @@
       body {
         overflow: auto;
         overscroll-behavior-y: contain;
-        background: #ffffff;
+        /* Match storefront footer so any svh/viewport seam below #root isn’t a white flash. */
+        background: #000000;
         font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      #root {
+        display: flex;
+        min-height: 100%;
+        width: 100%;
+        flex: 1;
+        background: #ffffff;
       }
       /* RN Web TextInput renders native <input> — does not inherit body font without an explicit rule */
       input,
@@ -95,12 +105,6 @@
       }
       #root .gj-search-pill-input::-webkit-resizer {
         display: none;
-      }
-      #root {
-        display: flex;
-        min-height: 100%;
-        width: 100%;
-        flex: 1;
       }
       #root input:focus,
       #root textarea:focus {
