@@ -54,6 +54,14 @@ function inferFocusedFromRoute(
       return { type: 'content', id: 'our-story', label: 'Our Story' };
     case 'StorefrontPassover':
       return { type: 'content', id: 'passover-2027', label: 'Passover 2027' };
+    case 'StorefrontHowToPlayDreidel':
+      return { type: 'content', id: 'how-to-play-dreidel', label: 'How to play dreidel' };
+    case 'StorefrontHowToLightCandles':
+      return {
+        type: 'content',
+        id: 'how-to-light-candles',
+        label: 'How to light Hanukkah candles',
+      };
     case 'GiftLanding':
       return { type: 'content', id: 'landing-gift', label: 'Gift landing' };
     case 'CulturalLanding':

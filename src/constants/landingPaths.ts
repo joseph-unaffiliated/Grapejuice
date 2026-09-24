@@ -26,6 +26,11 @@ export const RESERVED_LANDING_PATHS: readonly string[] = [
   '/orders',
   '/my-gifts',
   '/rav',
+  '/story',
+  '/passover',
+  '/how-to',
+  '/how-to/play-dreidel',
+  '/how-to/light-candles',
 ];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -56,6 +61,7 @@ export function isReservedLandingPath(path: string): boolean {
   if (normalized === '/my-gifts' || normalized.startsWith('/my-gifts/')) return true;
   if (normalized.startsWith('/store/')) return true;
   if (normalized.startsWith('/product/')) return true;
+  if (normalized === '/how-to' || normalized.startsWith('/how-to/')) return true;
   if (normalized.startsWith('/admin')) return true;
   if (normalized.startsWith('/api/')) return true;
   if (normalized.startsWith('/assets/')) return true;

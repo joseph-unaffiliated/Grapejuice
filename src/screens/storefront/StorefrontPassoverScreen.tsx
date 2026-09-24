@@ -1,34 +1,84 @@
 import React from 'react';
-import { StorefrontContentPage } from '../../components/storefront/StorefrontContentPage';
+import { Linking } from 'react-native';
+import { StorefrontArticlePage } from '../../components/storefront/StorefrontArticlePage';
+import { StorefrontBMitzvahStrip } from '../../components/storefront/StorefrontBMitzvahStrip';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import { BMITZVAH_INTEREST_RAV_PROMPT } from '../../constants/storefrontBMitzvahCopy';
+import { STOREFRONT_PASSOVER_BOX_THUMBS } from '../../constants/storefrontMedia';
+import { PASSOVER_COPY } from '../../constants/storefrontPassoverCopy';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 
-/** Placeholder — marketplace “2027 Passover” page. Content TBD. */
 export function StorefrontPassoverScreen() {
-  const { startBox, goEligibility } = useStorefrontActions();
+  const { startBox, askRav } = useStorefrontActions();
   usePublishRavSurface({ type: 'content', id: 'passover-2027', label: 'Passover 2027' });
+  const c = PASSOVER_COPY;
+
+  const reserveInterest = () => {
+    askRav("I'd like to start thinking about Passover");
+  };
 
   return (
-    <StorefrontContentPage
-      crumb="2027 Passover"
-      eyebrow="Seasonal boxes"
-      title="Passover 2027"
-      lead="Pre-registration, timing, and how Hanukkah box members carry forward. Full details coming soon."
-      sections={[
+    <StorefrontArticlePage
+      eyebrow={c.eyebrow}
+      title={c.title}
+      lead={c.lead}
+      leadMaxWidth={520}
+      primaryCta={{ label: c.primaryCta, onPress: reserveInterest }}
+      primaryCtaSize="medium"
+      showHeroDivider
+      buildBoxHeadline="build your hanukkah box"
+      blocks={[
         {
-          heading: 'What’s coming',
-          body: 'Placeholder — Passover box plans, waitlist, and what early interest unlocks. We’ll replace this with real dates and offers.',
+          type: 'prose',
+          heading: c.whatsInTheBox.heading,
+          thumbs: STOREFRONT_PASSOVER_BOX_THUMBS,
+          body: c.whatsInTheBox.body,
+          showDividerAfter: true,
         },
         {
-          heading: 'From Hanukkah to Passover',
-          body: 'Placeholder — how box membership and eligibility connect across seasons.',
+          type: 'roadmap',
+          heading: c.roadmap.heading,
+          groups: c.roadmap.groups.map((group) => ({
+            items: group.items.map((item) => {
+              const ctaLabel = 'ctaLabel' in item ? item.ctaLabel : undefined;
+              const ctaAction = 'ctaAction' in item ? item.ctaAction : undefined;
+              const isStartBox = ctaAction === 'startBox';
+              const ctaVariant =
+                'ctaVariant' in item && item.ctaVariant ? item.ctaVariant : undefined;
+              return {
+                when: item.when,
+                what: item.what,
+                cta: ctaLabel
+                  ? {
+                      label: ctaLabel,
+                      onPress: isStartBox ? startBox : reserveInterest,
+                    }
+                  : undefined,
+                // Passover Pre-register = gold fill; Hanukkah + other holidays = outline
+                ctaVariant: ctaLabel
+                  ? ((ctaVariant ?? 'outline') as 'primary' | 'outline')
+                  : undefined,
+              };
+            }),
+          })),
+        },
+        {
+          type: 'cta',
+          heading: c.lunarCycle.heading,
+          cta: {
+            label: c.lunarCycle.ctaLabel,
+            onPress: () => {
+              void Linking.openURL(c.lunarCycle.url);
+            },
+          },
+          ctaVariant: 'outline',
         },
       ]}
-      primaryCta={{ label: 'Build a Hanukkah box', onPress: startBox }}
-      secondaryCta={{
-        label: 'See box discount eligibility',
-        onPress: goEligibility,
-      }}
+      beforeFooterStrips={
+        <StorefrontBMitzvahStrip
+          onInterested={() => askRav(BMITZVAH_INTEREST_RAV_PROMPT)}
+        />
+      }
     />
   );
 }

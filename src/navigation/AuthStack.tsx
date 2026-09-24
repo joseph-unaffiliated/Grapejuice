@@ -31,7 +31,7 @@ export function AuthStack({ checkoutAuth = false }: Props) {
         ? 'SignInEmail'
         : checkoutAuth
           ? authScreen ?? (authEntry === 'signin' ? 'SignIn' : 'SignUp')
-          : 'Welcome');
+          : 'SignIn');
 
   return (
     <Stack.Navigator

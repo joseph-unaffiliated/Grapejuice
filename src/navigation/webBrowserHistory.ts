@@ -14,6 +14,7 @@ import {
 import { readStorePathFromPathname } from './storeLink';
 import { GIFT_LANDING_PATH } from './giftLandingLink';
 import { GIFT_CUSTOMIZE_PATH, GIFT_GIVE_PATH } from './giftFlowLink';
+import { contentRouteFromPath } from './contentLink';
 import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
@@ -192,6 +193,12 @@ function restoreFromBrowserUrl(): void {
       navigateMainStack('CatalogProduct', { slug });
       return;
     }
+  }
+
+  const contentRoute = contentRouteFromPath(path);
+  if (contentRoute) {
+    navigateMainStack(contentRoute);
+    return;
   }
 
   const store = readStorePathFromPathname(path);

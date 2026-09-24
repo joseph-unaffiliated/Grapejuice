@@ -30,6 +30,7 @@ import {
   shouldPreserveInboundLandingUrl,
 } from './bootLocation';
 import { normalizeLandingPath } from '../constants/landingPaths';
+import { contentFromState, contentPathForRoute, contentRouteFromPath } from './contentLink';
 
 export const PRODUCT_PATH_PREFIX = '/product';
 
@@ -197,6 +198,15 @@ export function browserPathForNavigationState(
     return ACCOUNT_PATH;
   }
 
+  const contentRoute = contentFromState(state);
+  if (contentRoute) {
+    const path = contentPathForRoute(contentRoute);
+    if (search.includes('preview=')) {
+      return `${path}${search}`;
+    }
+    return path;
+  }
+
   const store = storefrontFromState(state);
   if (store) {
     // Default web route is StorefrontHome. Don't let that rewrite an inbound
@@ -214,6 +224,10 @@ export function browserPathForNavigationState(
     // Same race for /box: preserve until MyBox is the active route.
     if (shouldPreserveInboundBoxUrl() && !myBoxFromState(state)) {
       return BOX_PATH + (getBootLocation()?.search ?? search);
+    }
+    // Content pages (/story, /passover, /how-to/…) — keep URL until those screens mount.
+    if (contentRouteFromPath(currentPath) && !contentFromState(state)) {
+      return currentPath + search;
     }
     if (search.includes('preview=')) {
       return `${store.path}${search}`;
@@ -278,6 +292,9 @@ export function browserPathForNavigationState(
     return currentPath + search;
   }
   if (currentPath.startsWith(`${PRODUCT_PATH_PREFIX}/`)) {
+    return currentPath + search;
+  }
+  if (contentRouteFromPath(currentPath)) {
     return currentPath + search;
   }
 

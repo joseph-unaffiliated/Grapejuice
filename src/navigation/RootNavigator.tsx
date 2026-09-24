@@ -31,6 +31,7 @@ import { GiftFlowLinkEffect } from './GiftFlowLinkEffect';
 import { LandingLinkEffect } from './LandingLinkEffect';
 import './bootLocation';
 import { ProductLinkEffect } from './ProductLinkEffect';
+import { ContentLinkEffect } from './ContentLinkEffect';
 import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
 import { AccountLinkEffect } from './AccountLinkEffect';
@@ -417,6 +418,7 @@ export function RootNavigator() {
           <GiftLandingLinkEffect />
           <LandingLinkEffect />
           <ProductLinkEffect />
+          <ContentLinkEffect />
           <StorefrontLinkEffect />
           <HomeLinkEffect />
           <AccountLinkEffect />

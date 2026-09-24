@@ -78,7 +78,7 @@ type GuestSessionState = {
 };
 
 const initialState = {
-  exploreStarted: false,
+  exploreStarted: true,
   buildBoxPath: false,
   onboardingStep: null as GuestOnboardingStep | null,
   childDrafts: [] as ChildDraft[],
@@ -161,7 +161,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
           openMyBoxAfterReveal: false,
           onboardingStep: null,
           buildBoxPath: false,
-          exploreStarted: false,
+          exploreStarted: true,
           ravNotes: '',
         }),
       reset: () => set({ ...initialState, _hasHydrated: true }),
@@ -191,6 +191,10 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         guestRavPromptCount: state.guestRavPromptCount,
       }),
       onRehydrateStorage: () => (state) => {
+        // Storefront is the default surface — never re-open the Welcome gateway.
+        if (state && !state.exploreStarted) {
+          state.exploreStarted = true;
+        }
         state?.setHasHydrated(true);
       },
     }

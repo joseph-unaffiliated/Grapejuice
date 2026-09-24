@@ -48,6 +48,7 @@ import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections
 import { transferLiveIncludedBaselineOnSwap } from '../../components/box/boxLineDisplay';
 import { similarCatalogItems } from '../../constants/catalogCuration';
 import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
+import { howToLinkForItem } from '../../constants/pdpHowToLink';
 import { storefrontCategoryForItem } from '../../constants/storefrontCategories';
 import { ProductImageGallery } from '../../components/catalog/ProductImageGallery';
 import { ProductPricingBlock } from '../../components/catalog/ProductPricingBlock';
@@ -110,7 +111,8 @@ export function CatalogProductScreen() {
   const { byId: inventoryById } = useCatalogInventory();
   const previewNow = usePreviewNow();
   const preview = useUserStatePreview();
-  const { goHome, goCategory, startBox } = useStorefrontActions();
+  const { goHome, goCategory, startBox, goHowToPlayDreidel, goHowToLightCandles } =
+    useStorefrontActions();
   const item = useMemo(
     () => catalog.find((c) => c.id === slug) ?? null,
     [catalog, slug]
@@ -220,6 +222,7 @@ export function CatalogProductScreen() {
   const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
   const bodyCopy = useMemo(() => (item ? pdpBodyCopyForItem(item) : undefined), [item]);
   const details = useMemo(() => (item ? detailRowsFromItem(item) : []), [item]);
+  const howTo = useMemo(() => (item ? howToLinkForItem(item) : null), [item]);
   const similar = useMemo(
     () => (item ? similarCatalogItems(item, catalog, 12) : []),
     [item, catalog]
@@ -488,6 +491,20 @@ export function CatalogProductScreen() {
               </Text>
             ) : null}
 
+            {howTo ? (
+              <TouchableOpacity
+                style={styles.howToLink}
+                onPress={() => {
+                  if (howTo.kind === 'play-dreidel') goHowToPlayDreidel();
+                  else goHowToLightCandles();
+                }}
+                accessibilityRole="link"
+                accessibilityLabel={howTo.label}
+              >
+                <Text style={styles.howToLinkText}>{howTo.label} {'>'}</Text>
+              </TouchableOpacity>
+            ) : null}
+
             {details.length > 0 ? (
               <View style={styles.details}>
                 <TouchableOpacity
@@ -707,6 +724,18 @@ const styles = StyleSheet.create({
     ...typeface('bold'),
     fontSize: typography.md,
     lineHeight: 24,
+    color: semanticColors.logoDark,
+    textDecorationLine: 'underline',
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+  },
+  howToLink: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.xs,
+  },
+  howToLinkText: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    lineHeight: 22,
     color: semanticColors.logoDark,
     textDecorationLine: 'underline',
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),

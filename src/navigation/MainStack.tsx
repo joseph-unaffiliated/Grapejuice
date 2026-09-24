@@ -14,6 +14,8 @@ import { StorefrontCategoryScreen } from '../screens/storefront/StorefrontCatego
 import { StorefrontFavoritesScreen } from '../screens/storefront/StorefrontFavoritesScreen';
 import { StorefrontOurStoryScreen } from '../screens/storefront/StorefrontOurStoryScreen';
 import { StorefrontPassoverScreen } from '../screens/storefront/StorefrontPassoverScreen';
+import { StorefrontHowToPlayDreidelScreen } from '../screens/storefront/StorefrontHowToPlayDreidelScreen';
+import { StorefrontHowToLightCandlesScreen } from '../screens/storefront/StorefrontHowToLightCandlesScreen';
 import { StorefrontCartScreen } from '../screens/storefront/StorefrontCartScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
@@ -60,6 +62,7 @@ import { getBootLocation } from './bootLocation';
 import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
 import { isGiftCustomizePath, isGiftGivePath } from './giftFlowLink';
+import { contentRouteFromPath } from './contentLink';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 
@@ -92,6 +95,8 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
     const normalized = bootPath.replace(/\/$/, '') || '/';
     if (normalized === '/box' || normalized === '/my-box') return 'MyBox';
     if (normalized === '/checkout') return 'Checkout';
+    const contentRoute = contentRouteFromPath(normalized);
+    if (contentRoute) return contentRoute;
   }
   const bootAudience = bootLandingAudience();
   if (bootAudience?.id === 'gift') return 'GiftLanding';
@@ -435,6 +440,16 @@ export function MainStack() {
           name="StorefrontPassover"
           component={StorefrontPassoverScreen}
           options={{ title: 'Passover 2027' }}
+        />
+        <Stack.Screen
+          name="StorefrontHowToPlayDreidel"
+          component={StorefrontHowToPlayDreidelScreen}
+          options={{ title: 'How to play dreidel' }}
+        />
+        <Stack.Screen
+          name="StorefrontHowToLightCandles"
+          component={StorefrontHowToLightCandlesScreen}
+          options={{ title: 'How to light candles' }}
         />
         <Stack.Screen
           name="CatalogProduct"

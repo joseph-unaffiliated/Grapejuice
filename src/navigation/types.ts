@@ -46,9 +46,17 @@ export type MainStackParamList = {
   /** C&B-style retail experiment — no global sidebar. */
   StorefrontHome: undefined;
   StorefrontFavorites: undefined;
-  StorefrontCategory: { category: string; q?: string; avail?: 'buy-now' | 'box-only' | 'all' };
+  StorefrontCategory: {
+    category: string;
+    q?: string;
+    avail?: 'buy-now' | 'box-only' | 'all';
+    /** Style chip for menorahs/dreidels: Keepsake (`collection`) or For kids (`kids`). */
+    style?: 'collection' | 'kids' | 'all';
+  };
   StorefrontOurStory: undefined;
   StorefrontPassover: undefined;
+  StorefrontHowToPlayDreidel: undefined;
+  StorefrontHowToLightCandles: undefined;
   CatalogProduct: { slug: string };
   BoxDiscountEligibility: undefined;
   Checkout: undefined;
