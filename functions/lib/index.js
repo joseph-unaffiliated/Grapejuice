@@ -302,13 +302,8 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
             throw new https_1.HttpsError('invalid-argument', 'Cart total is too small.');
         }
         const shippingCents = SHIPPING_FLAT_CENTS;
-        const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
-        let preCreditTotal = subtotalCents + shippingCents + taxCents;
-        const giftCreditApplied = Math.min(giftCreditCents, preCreditTotal);
-        preCreditTotal -= giftCreditApplied;
-        const platformCreditApplied = Math.min(platformCreditCents, preCreditTotal);
-        const totalCents = preCreditTotal - platformCreditApplied;
-        const creditApplied = giftCreditApplied + platformCreditApplied;
+        const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents);
+        const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
         if (totalCents > 0 && totalCents < 50) {
             throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
         }
@@ -466,7 +461,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const cardOnFile = !!hhData.cardOnFileAt;
     const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
     const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
-    const lockAt = await getLockAt(data.expeditedShipping === true);
+    const lockAt = await getLockAt(false);
     if (isLocked(lockAt)) {
         throw new https_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
@@ -479,16 +474,10 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = (_e = configSnap.data()) !== null && _e !== void 0 ? _e : {};
     const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
-    const expeditedShipping = data.expeditedShipping === true && configData.expeditedShippingEnabled === true;
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
-    const shippingCents = SHIPPING_FLAT_CENTS + (expeditedShipping ? EXPEDITED_SHIPPING_CENTS : 0);
-    const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
-    let preCreditTotal = subtotalCents + shippingCents + taxCents;
-    const giftCreditApplied = Math.min(giftCreditCents, preCreditTotal);
-    preCreditTotal -= giftCreditApplied;
-    const platformCreditApplied = Math.min(platformCreditCents, preCreditTotal);
-    let totalCents = preCreditTotal - platformCreditApplied;
-    const creditApplied = giftCreditApplied + platformCreditApplied;
+    const shippingCents = SHIPPING_FLAT_CENTS;
+    const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents);
+    const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
     const totalAvailableCredit = giftCreditCents + platformCreditCents;
     if (!cardOnFile && totalAvailableCredit < boxPriceCents) {
         throw new https_1.HttpsError('failed-precondition', 'Save a payment method before committing your box.');
@@ -503,14 +492,13 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     if (!isPlaythrough) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
-    const estimatedDelivery = (_f = (expeditedShipping ? configData.expeditedDeliveryBy : configData.estimatedDeliveryBy)) !== null && _f !== void 0 ? _f : '2026-11-24';
+    const estimatedDelivery = (_f = configData.estimatedDeliveryBy) !== null && _f !== void 0 ? _f : '2026-11-24';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
         subtotalCents,
         shippingCents,
         taxCents,
-        totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, expeditedShipping,
-        shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
+        totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, expeditedShipping: false, shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
         estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})));
     if (giftCreditApplied > 0 || platformCreditApplied > 0) {
         await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
@@ -580,11 +568,10 @@ exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     const shippingCents = typeof order.shippingCents === 'number'
         ? order.shippingCents
         : SHIPPING_FLAT_CENTS + (expeditedShipping ? EXPEDITED_SHIPPING_CENTS : 0);
-    const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
     const giftCreditApplied = typeof order.giftCreditAppliedCents === 'number' ? order.giftCreditAppliedCents : 0;
     const platformCreditApplied = typeof order.platformCreditAppliedCents === 'number' ? order.platformCreditAppliedCents : 0;
-    const creditApplied = giftCreditApplied + platformCreditApplied;
-    const totalCents = Math.max(0, subtotalCents + shippingCents + taxCents - creditApplied);
+    const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditApplied, platformCreditApplied);
+    const { taxCents, totalCents, creditApplied } = priced;
     const previousTotal = typeof order.totalCents === 'number' ? order.totalCents : 0;
     const priorLines = (_j = order.lineItems) !== null && _j !== void 0 ? _j : [];
     if (order.playthrough !== true) {
@@ -713,7 +700,7 @@ exports.chargePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     return (0, chargePilotBox_1.chargePilotBoxOrderForUser)(db, stripe_1.stripe, request.auth.uid, householdId, orderId, force);
 });
 exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
         return;
@@ -753,33 +740,13 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                         invoice_settings: { default_payment_method: paymentMethodId },
                     });
                 }
-                // Clear charge-failure copy on open box orders so Orders shows a clean retry state.
                 try {
-                    const open = await db
-                        .collection(`households/${householdId}/orders`)
-                        .where('status', '==', 'committed')
-                        .get();
-                    const batch = db.batch();
-                    let n = 0;
-                    for (const doc of open.docs) {
-                        const data = doc.data();
-                        if ((data === null || data === void 0 ? void 0 : data.holidayId) && data.holidayId !== HOLIDAY_ID)
-                            continue;
-                        if (data === null || data === void 0 ? void 0 : data.chargeFailureMessage) {
-                            batch.update(doc.ref, {
-                                chargeFailureMessage: firestore_1.FieldValue.delete(),
-                                updatedAt: new Date().toISOString(),
-                            });
-                            n += 1;
-                        }
-                    }
-                    if (n > 0)
-                        await batch.commit();
+                    await (0, chargePilotBox_1.retryFailedHanukkahBoxCharges)(db, stripe_1.stripe, householdId);
                 }
-                catch (clearErr) {
-                    logger.warn('Could not clear chargeFailureMessage after card update', {
+                catch (retryErr) {
+                    logger.warn('Could not retry Hanukkah box charge after card update', {
                         householdId,
-                        clearErr,
+                        retryErr,
                     });
                 }
             }
@@ -888,14 +855,21 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
                     const message = (_w = (_v = pi.last_payment_error) === null || _v === void 0 ? void 0 : _v.message) !== null && _w !== void 0 ? _w : 'Payment failed';
-                    await db.doc(`households/${householdId}/orders/${orderId}`).update({
-                        chargeFailedAt: new Date().toISOString(),
-                        chargeFailureMessage: message,
-                    });
+                    const attempt = Number(pi.metadata.chargeAttempt);
+                    const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+                    const orderSnap = await orderRef.get();
+                    const status = (_x = orderSnap.data()) === null || _x === void 0 ? void 0 : _x.status;
+                    if (status === 'committed' || status === 'pending') {
+                        await orderRef.update({
+                            chargeFailedAt: new Date().toISOString(),
+                            chargeFailureMessage: message,
+                        });
+                        await (0, chargePilotBox_1.notifyHanukkahBoxChargeFailed)(db, householdId, orderId, Number.isFinite(attempt) ? attempt : 1, message);
+                    }
                     logger.warn('Hanukkah box charge failed', { householdId, orderId, message });
                 }
             }
-            if (((_x = pi.metadata) === null || _x === void 0 ? void 0 : _x.type) === 'marketplace') {
+            if (((_y = pi.metadata) === null || _y === void 0 ? void 0 : _y.type) === 'marketplace') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
@@ -909,7 +883,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                                 inventoryReserved: false,
                                 reservationReleasedAt: new Date().toISOString(),
                                 chargeFailedAt: new Date().toISOString(),
-                                chargeFailureMessage: (_z = (_y = pi.last_payment_error) === null || _y === void 0 ? void 0 : _y.message) !== null && _z !== void 0 ? _z : 'Payment failed',
+                                chargeFailureMessage: (_0 = (_z = pi.last_payment_error) === null || _z === void 0 ? void 0 : _z.message) !== null && _0 !== void 0 ? _0 : 'Payment failed',
                             });
                         }
                         catch (relErr) {
@@ -921,7 +895,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         if (event.type === 'payment_intent.canceled') {
             const pi = event.data.object;
-            if (((_0 = pi.metadata) === null || _0 === void 0 ? void 0 : _0.type) === 'marketplace') {
+            if (((_1 = pi.metadata) === null || _1 === void 0 ? void 0 : _1.type) === 'marketplace') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
@@ -1048,7 +1022,8 @@ exports.writeOrderTracking = (0, https_1.onCall)(async (request) => {
 });
 /**
  * ShipStation → Grapejuice tracking writeback.
- * Configure in ShipStation: Settings → Integrations → Webhooks → SHIP_NOTIFY
+ * Configure in ShipStation: Settings → Integrations → Webhooks
+ * SHIP_NOTIFY (label created) and FULFILLMENT_SHIPPED (Mark as Shipped).
  * URL: https://<region>-<project>.cloudfunctions.net/shipStationWebhook?key=<SHIPSTATION_WEBHOOK_SECRET>
  */
 exports.shipStationWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
@@ -1528,13 +1503,8 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         // Giver already paid prepaidAddOnCents — recipient only pays upgrades above that.
         const subtotalCents = recipientGiftUpgradeCents(lineItems, prepaidAddOnCents);
         const shippingCents = SHIPPING_FLAT_CENTS;
-        const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
-        let preCreditTotal = subtotalCents + shippingCents + taxCents;
-        const giftCreditApplied = Math.min(giftCreditCents, preCreditTotal);
-        preCreditTotal -= giftCreditApplied;
-        const platformCreditApplied = Math.min(platformCreditCents, preCreditTotal);
-        const totalCents = preCreditTotal - platformCreditApplied;
-        const creditApplied = giftCreditApplied + platformCreditApplied;
+        const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents);
+        const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
         if (totalCents > 0 && totalCents < 50) {
             throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
         }

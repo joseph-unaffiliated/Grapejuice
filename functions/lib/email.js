@@ -1,5 +1,5 @@
 "use strict";
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerioAppApiKey = void 0;
 exports.getCustomerioAppApiKey = getCustomerioAppApiKey;
@@ -25,6 +25,12 @@ const TEMPLATE_IDS = {
     'debrief-amazon': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _h !== void 0 ? _h : '0', 10) || 0,
     'box-discount': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _j !== void 0 ? _j : '0', 10) || 0,
     welcome: parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _k !== void 0 ? _k : '0', 10) || 12,
+    /** Hanukkah box — transactional message 15. */
+    'box-shipped': parseInt((_l = process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED) !== null && _l !== void 0 ? _l : '0', 10) || 15,
+    /** Marketplace / à la carte — transactional message 16. */
+    'order-shipped': parseInt((_m = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _m !== void 0 ? _m : '0', 10) || 16,
+    /** Hanukkah box off-session decline — transactional message 17. */
+    'box-charge-failed': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _o !== void 0 ? _o : '0', 10) || 17,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
@@ -34,6 +40,8 @@ const TEMPLATE_IDS = {
  *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
+ *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
+ *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
  */
@@ -54,14 +62,14 @@ async function sendEmail({ to, template, data, }) {
     const transactionalMessageId = TEMPLATE_IDS[template];
     if (!transactionalMessageId) {
         console.warn('sendEmail: unknown template', template);
-        return;
+        return 'skipped';
     }
     if (!(to === null || to === void 0 ? void 0 : to.includes('@')))
-        return;
+        return 'skipped';
     const apiKey = getCustomerioAppApiKey();
     if (!apiKey) {
         console.warn('sendEmail: CUSTOMERIO_APP_API_KEY not set, skipping', { to, template });
-        return;
+        return 'skipped';
     }
     const res = await fetch(`${BASE_URL}/send/email`, {
         method: 'POST',
@@ -81,6 +89,7 @@ async function sendEmail({ to, template, data, }) {
         const text = await res.text();
         throw new Error(`Customer.io ${res.status}: ${text}`);
     }
+    return 'sent';
 }
 /** Debrief outreach — up to 2 reminder attempts (Q5 panel). Stub when template/key missing. */
 async function sendDebriefReminderEmail({ to, attempt, claimUrl, }) {

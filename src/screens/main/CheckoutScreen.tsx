@@ -17,8 +17,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
-import { formatDollars } from '../../services/box/buildDefaultBox';
-import { EXPEDITED_SHIPPING_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -66,9 +64,6 @@ function CheckoutScreenBody() {
     taxCents,
     giftCreditApplied,
     platformCreditApplied,
-    expeditedAvailable,
-    expeditedShipping,
-    setExpeditedShipping,
   } = useCheckoutDraft(household?.id);
   const [submitting, setSubmitting] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
@@ -156,7 +151,6 @@ function CheckoutScreenBody() {
       }
 
       const { orderId } = await commitPilotBox(household.id, normalizedAddress(), {
-        expeditedShipping,
         contactPhone: contactPhone.trim() || undefined,
         smsOptIn: smsOptIn && contactPhone.trim().length > 0,
         skipShipStation,
@@ -221,26 +215,10 @@ function CheckoutScreenBody() {
           catalog={catalog}
           giftCreditApplied={giftCreditApplied}
           platformCreditApplied={platformCreditApplied}
-          expeditedShipping={expeditedShipping}
           compact
         />
       </View>
 
-      {expeditedAvailable ? (
-        <TouchableOpacity
-          style={styles.expeditedRow}
-          onPress={() => setExpeditedShipping((v) => !v)}
-          activeOpacity={0.85}
-        >
-          <View style={[styles.checkbox, expeditedShipping && styles.checkboxOn]} />
-          <View style={styles.expeditedCopy}>
-            <Text style={styles.expeditedTitle}>
-              Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
-            </Text>
-            <Text style={styles.expeditedBody}>Arrives sooner — for last-minute planners.</Text>
-          </View>
-        </TouchableOpacity>
-      ) : null}
       <CheckoutAddressFields
         address={address}
         onChange={onAddressChange}
@@ -362,37 +340,6 @@ function createStyles(colors: SemanticColors) {
       color: '#B42318',
       lineHeight: typography.md * 1.4,
       ...typeface('medium'),
-    },
-    expeditedRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: spacing.md,
-      marginTop: spacing.md,
-      padding: spacing.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
-    },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: 4,
-      borderWidth: 2,
-      borderColor: colors.border,
-      marginTop: 2,
-    },
-    checkboxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-    expeditedCopy: { flex: 1, gap: 4 },
-    expeditedTitle: {
-      fontSize: typography.md,
-      color: colors.textPrimary,
-      ...typeface('medium'),
-    },
-    expeditedBody: {
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      lineHeight: typography.sm * 1.35,
-      ...typeface('regular'),
     },
   });
 }

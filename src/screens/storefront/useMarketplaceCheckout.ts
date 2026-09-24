@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../hooks/useSession';
 import { catalogService } from '../../services/firestore/catalog';
 import { SHIPPING_FLAT_CENTS } from '../../services/box/buildDefaultBox';
+import { checkoutTotalsAfterCredit } from '../../services/box/pricing';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../types/pilot';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
@@ -47,14 +48,12 @@ export function useMarketplaceCheckout() {
     0
   );
   const shippingCents = SHIPPING_FLAT_CENTS;
-  const taxCents = Math.round((subtotal + shippingCents) * 0.075);
-  const preCreditTotal = subtotal + shippingCents + taxCents;
-  const giftCreditCents = household?.giftCreditCents ?? 0;
-  const platformCreditCents = household?.platformCreditCents ?? 0;
-  const giftCreditApplied = Math.min(giftCreditCents, preCreditTotal);
-  const remainingAfterGift = preCreditTotal - giftCreditApplied;
-  const platformCreditApplied = Math.min(platformCreditCents, remainingAfterGift);
-  const total = preCreditTotal - giftCreditApplied - platformCreditApplied;
+  const priced = checkoutTotalsAfterCredit({
+    merchandiseCents: subtotal + shippingCents,
+    giftCreditCents: household?.giftCreditCents ?? 0,
+    platformCreditCents: household?.platformCreditCents ?? 0,
+  });
+  const { taxCents, giftCreditApplied, platformCreditApplied, totalCents: total } = priced;
 
   const checkoutLineItems: BoxLineItem[] = cartItems;
 

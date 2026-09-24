@@ -1,6 +1,7 @@
 import * as logger from 'firebase-functions/logger';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getFirestore } from 'firebase-admin/firestore';
+import { sendEmail } from './email';
 
 type ShipStationAddress = {
   name: string;
@@ -22,6 +23,19 @@ type ShipStationShipment = {
   voided?: boolean;
   shipDate?: string;
 };
+
+/** Manual "Mark as Shipped" writes a fulfillment, not a shipment. */
+type ShipStationFulfillment = {
+  fulfillmentId?: number;
+  orderId?: number;
+  orderNumber?: string;
+  trackingNumber?: string;
+  carrierCode?: string;
+  voided?: boolean;
+  shipDate?: string;
+};
+
+const SHIP_NOTIFY_TYPES = new Set(['SHIP_NOTIFY', 'ITEM_SHIP_NOTIFY', 'FULFILLMENT_SHIPPED']);
 
 function shipStationAuthHeader(): string | null {
   const apiKey = process.env.SHIPSTATION_API_KEY ?? '';
@@ -201,7 +215,73 @@ export async function exportOrderToShipStation(order: {
   return { exported: true, externalId: externalId ?? order.orderId };
 }
 
-/** Write tracking from ShipStation webhook or manual ops update. */
+function trackingUrlFor(carrier: string, trackingNumber: string): string {
+  const encoded = encodeURIComponent(trackingNumber);
+  const c = carrier.toLowerCase();
+  if (c.includes('ups')) return `https://www.ups.com/track?tracknum=${encoded}`;
+  if (c.includes('fedex')) return `https://www.fedex.com/fedextrack/?trknbr=${encoded}`;
+  if (c.includes('dhl')) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${encoded}`;
+  if (c.includes('usps') || c.includes('postal')) {
+    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encoded}`;
+  }
+  return `https://www.google.com/search?q=${encodeURIComponent(`${trackingNumber} tracking`)}`;
+}
+
+function shippedEmailTemplate(order: Record<string, unknown>): 'box-shipped' | 'order-shipped' {
+  if (order.orderType === 'marketplace' || order.orderType === 'received_gift') return 'order-shipped';
+  return 'box-shipped';
+}
+
+/** One email per order. Safe to call again after a webhook retry. */
+async function sendShippedEmail(
+  db: Firestore,
+  householdId: string,
+  orderId: string
+): Promise<void> {
+  const ref = db.doc(`households/${householdId}/orders/${orderId}`);
+  const snap = await ref.get();
+  const order = snap.data();
+  if (!order || order.shippedEmailSentAt) return;
+
+  const trackingNumber = String(order.trackingNumber ?? '').trim();
+  if (!trackingNumber) return;
+
+  const userId = typeof order.userId === 'string' ? order.userId : '';
+  let to = '';
+  if (userId) {
+    const userSnap = await db.doc(`users/${userId}`).get();
+    to = String(userSnap.data()?.email ?? '').trim();
+  }
+  if (!to) {
+    const address = order.shippingAddress as { email?: string } | undefined;
+    to = String(address?.email ?? '').trim();
+  }
+  if (!to.includes('@')) {
+    logger.warn('Shipped email skipped (no recipient)', { orderId, householdId });
+    return;
+  }
+
+  const carrier = String(order.carrier ?? 'USPS');
+  const template = shippedEmailTemplate(order);
+  try {
+    await sendEmail({
+      to,
+      template,
+      data: {
+        orderId,
+        carrier,
+        trackingNumber,
+        trackingUrl: trackingUrlFor(carrier, trackingNumber),
+      },
+    });
+    await ref.update({ shippedEmailSentAt: new Date().toISOString() });
+    logger.info('Shipped email sent', { orderId, householdId, template });
+  } catch (err) {
+    logger.error('Shipped email failed', { orderId, householdId, template, err });
+  }
+}
+
+/** Write tracking from ShipStation webhook or manual ops update, then email once. */
 export async function applyShipStationTracking(
   db: Firestore,
   householdId: string,
@@ -214,18 +294,17 @@ export async function applyShipStationTracking(
     throw new Error(`Order not found: ${householdId}/${orderId}`);
   }
   const existing = snap.data() ?? {};
-  if (
-    existing.trackingNumber === tracking.trackingNumber &&
-    existing.status === 'shipped'
-  ) {
-    return;
+  const unchanged =
+    existing.trackingNumber === tracking.trackingNumber && existing.status === 'shipped';
+  if (!unchanged) {
+    await ref.update({
+      trackingNumber: tracking.trackingNumber,
+      carrier: tracking.carrier ?? 'USPS',
+      status: 'shipped',
+      shippedAt: tracking.shippedAt ?? new Date().toISOString(),
+    });
   }
-  await ref.update({
-    trackingNumber: tracking.trackingNumber,
-    carrier: tracking.carrier ?? 'USPS',
-    status: 'shipped',
-    shippedAt: tracking.shippedAt ?? new Date().toISOString(),
-  });
+  await sendShippedEmail(db, householdId, orderId);
 }
 
 async function fetchShipStationOrder(
@@ -281,9 +360,34 @@ async function resolveHouseholdForShipment(
   return null;
 }
 
+/** Mark as Shipped has no orderKey. orderKey and householdId live on the ShipStation order. */
+async function resolveHouseholdForFulfillment(
+  db: Firestore,
+  fulfillment: ShipStationFulfillment
+): Promise<{ householdId: string; orderId: string } | null> {
+  if (fulfillment.orderId == null) return null;
+  const ssOrder = await fetchShipStationOrder(fulfillment.orderId);
+  const orderId = String(ssOrder?.orderKey ?? '').trim();
+  const householdId = String(ssOrder?.customerUsername ?? '').trim();
+  if (!orderId || !householdId) return null;
+  try {
+    await writeShipStationIndex({
+      householdId,
+      orderId,
+      orderNumber: String(fulfillment.orderNumber ?? ''),
+      shipStationOrderId: String(fulfillment.orderId),
+    });
+  } catch {
+    /* non-fatal */
+  }
+  return { householdId, orderId };
+}
+
 /**
- * Process ShipStation SHIP_NOTIFY / ITEM_SHIP_NOTIFY webhook body.
- * Payload is only `{ resource_url, resource_type }` — we GET shipments next.
+ * Process ShipStation SHIP_NOTIFY / ITEM_SHIP_NOTIFY / FULFILLMENT_SHIPPED.
+ * Payload is only `{ resource_url, resource_type }` — we GET that URL next.
+ * A label is a shipment. Manual Mark as Shipped is a fulfillment (FULFILLMENT_SHIPPED).
+ *
  *
  * Dev/ops bypass (requires webhook secret on the URL):
  * `{ "simulate": true, "orderKey": "<firestoreOrderId>", "trackingNumber": "...", "carrierCode": "ups", "householdId": "..." }`
@@ -327,7 +431,7 @@ export async function processShipStationShipNotify(
   }
 
   const resourceType = String(body.resource_type ?? '');
-  if (resourceType !== 'SHIP_NOTIFY' && resourceType !== 'ITEM_SHIP_NOTIFY') {
+  if (!SHIP_NOTIFY_TYPES.has(resourceType)) {
     logger.info('ShipStation webhook ignored (unsupported type)', { resourceType });
     return { processed: 0, skipped: 0 };
   }
@@ -350,58 +454,82 @@ export async function processShipStationShipNotify(
     throw new Error(`ShipStation shipments fetch ${res.status}: ${text}`);
   }
 
-  const data = (await res.json()) as { shipments?: ShipStationShipment[] };
+  const data = (await res.json()) as {
+    shipments?: ShipStationShipment[];
+    fulfillments?: ShipStationFulfillment[];
+  };
   const shipments = Array.isArray(data.shipments) ? data.shipments : [];
+  const fulfillments = Array.isArray(data.fulfillments) ? data.fulfillments : [];
   let processed = 0;
   let skipped = 0;
 
   for (const shipment of shipments) {
-    if (shipment.voided) {
-      skipped += 1;
-      continue;
-    }
-    const trackingNumber = String(shipment.trackingNumber ?? '').trim();
-    if (!trackingNumber) {
-      skipped += 1;
-      continue;
-    }
+    const outcome = await applyTrackingEvent(db, shipment, 'shipment');
+    if (outcome === 'processed') processed += 1;
+    else skipped += 1;
+  }
+  for (const fulfillment of fulfillments) {
+    const outcome = await applyTrackingEvent(db, fulfillment, 'fulfillment');
+    if (outcome === 'processed') processed += 1;
+    else skipped += 1;
+  }
 
-    const resolved = await resolveHouseholdForShipment(db, shipment);
-    if (!resolved) {
-      logger.warn('ShipStation tracking: could not resolve Grapejuice order', {
-        orderKey: shipment.orderKey,
-        orderNumber: shipment.orderNumber,
-        shipStationOrderId: shipment.orderId,
-      });
-      skipped += 1;
-      continue;
-    }
-
-    try {
-      await applyShipStationTracking(db, resolved.householdId, resolved.orderId, {
-        trackingNumber,
-        carrier: carrierLabelFromShipStation(shipment.carrierCode),
-        shippedAt: shipment.shipDate
-          ? new Date(shipment.shipDate).toISOString()
-          : new Date().toISOString(),
-      });
-      processed += 1;
-      logger.info('ShipStation tracking applied', {
-        orderId: resolved.orderId,
-        householdId: resolved.householdId,
-        trackingNumber,
-      });
-    } catch (err) {
-      logger.error('ShipStation tracking apply failed', {
-        orderId: resolved.orderId,
-        householdId: resolved.householdId,
-        err,
-      });
-      skipped += 1;
-    }
+  if (shipments.length === 0 && fulfillments.length === 0) {
+    logger.info('ShipStation webhook had no shipments or fulfillments', {
+      resourceType,
+      resourceUrl: resourceUrl.toString(),
+    });
   }
 
   return { processed, skipped };
+}
+
+async function applyTrackingEvent(
+  db: Firestore,
+  event: ShipStationShipment | ShipStationFulfillment,
+  kind: 'shipment' | 'fulfillment'
+): Promise<'processed' | 'skipped'> {
+  if (event.voided) return 'skipped';
+  const trackingNumber = String(event.trackingNumber ?? '').trim();
+  if (!trackingNumber) return 'skipped';
+
+  const resolved =
+    kind === 'shipment' && 'orderKey' in event && String((event as ShipStationShipment).orderKey ?? '').trim()
+      ? await resolveHouseholdForShipment(db, event as ShipStationShipment)
+      : await resolveHouseholdForFulfillment(db, event);
+
+  if (!resolved) {
+    logger.warn('ShipStation tracking: could not resolve Grapejuice order', {
+      kind,
+      orderKey: 'orderKey' in event ? (event as ShipStationShipment).orderKey : undefined,
+      orderNumber: event.orderNumber,
+      shipStationOrderId: event.orderId,
+    });
+    return 'skipped';
+  }
+
+  try {
+    await applyShipStationTracking(db, resolved.householdId, resolved.orderId, {
+      trackingNumber,
+      carrier: carrierLabelFromShipStation(event.carrierCode),
+      shippedAt: event.shipDate ? new Date(event.shipDate).toISOString() : new Date().toISOString(),
+    });
+    logger.info('ShipStation tracking applied', {
+      kind,
+      orderId: resolved.orderId,
+      householdId: resolved.householdId,
+      trackingNumber,
+    });
+    return 'processed';
+  } catch (err) {
+    logger.error('ShipStation tracking apply failed', {
+      kind,
+      orderId: resolved.orderId,
+      householdId: resolved.householdId,
+      err,
+    });
+    return 'skipped';
+  }
 }
 
 /** True when request carries the shared webhook secret (if configured). */

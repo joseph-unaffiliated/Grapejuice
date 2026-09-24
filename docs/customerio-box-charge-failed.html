@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>We couldn’t charge your Grapejuice box</title>
+</head>
+<body style="margin:0;padding:0;background-color:#fafafa;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fafafa;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e4d7c1;border-radius:8px;">
+          <tr>
+            <td style="padding:32px 28px 8px;">
+              <a href="https://grapejuice.co" style="text-decoration:none;">
+                <img
+                  src="https://grapejuice.co/brand/grapejuice-wordmark.png"
+                  alt="Grapejuice"
+                  width="178"
+                  height="56"
+                  style="display:block;border:0;width:178px;height:auto;"
+                />
+              </a>
+              <h1 style="margin:20px 0 0;font-size:26px;line-height:1.25;color:#2f2412;font-weight:700;">
+                We couldn’t charge your box
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 28px 24px;">
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.5;color:#433c32;">
+                The card on file for your Hanukkah box was declined, so the box isn’t paid yet. Update the card and we’ll try the charge again right away.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4eee4;border-radius:6px;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;color:#433c32;">From the bank</p>
+                    <p style="margin:0;font-size:15px;font-weight:600;color:#2f2412;">
+                      {{ trigger.message }}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0;">
+                <a
+                  href="{{ trigger.ordersUrl }}"
+                  style="display:inline-block;background-color:#2f2412;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:12px 20px;border-radius:8px;"
+                >Update payment method</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 28px 28px;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#8a8175;">
+                Questions? Reply to this email or visit
+                <a href="https://grapejuice.co/support" style="color:#433c32;">grapejuice.co/support</a>.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:11px;color:#8a8175;">
+          Grapejuice · Hanukkah 2026 pilot
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

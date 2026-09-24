@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
@@ -13,25 +13,26 @@ import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
-import { householdsService } from '../../services/firestore/households';
+import {
+  chargeRetryCopy,
+  finishCardUpdate,
+  snapshotFailedBoxCharges,
+  type ChargeRetryResult,
+  type FailedBoxSnapshot,
+} from '../../services/checkout/chargeRetry';
 import type { MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 
-function notify(title: string, message: string) {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(`${title}\n\n${message}`);
-    return;
-  }
-}
-
 function SaveCardForm({
   onSaved,
+  onError,
   colors,
   styles,
 }: {
   onSaved: () => void;
+  onError: (message: string) => void;
   colors: SemanticColors;
   styles: ReturnType<typeof createStyles>;
 }) {
@@ -54,7 +55,7 @@ function SaveCardForm({
         redirect: 'if_required',
       });
       if (error) {
-        notify('Could not save card', error.message ?? 'Please try again.');
+        onError(error.message ?? 'Could not save card. Please try again.');
         return;
       }
       onSaved();
@@ -88,7 +89,7 @@ function SaveCardForm({
 
 /**
  * Replace the default payment method after a failed off-session charge.
- * Webhook updates stripeDefaultPaymentMethodId and clears chargeFailureMessage.
+ * The webhook saves the card and, once lock has passed, charges the box again.
  */
 export function UpdatePaymentScreen() {
   return (
@@ -107,8 +108,11 @@ function UpdatePaymentScreenBody() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [awaitingWebhook, setAwaitingWebhook] = useState(false);
+  const [phase, setPhase] = useState<'form' | 'retrying' | 'done'>('form');
+  const [result, setResult] = useState<ChargeRetryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [formKey, setFormKey] = useState(0);
+  const [failedBoxes, setFailedBoxes] = useState<FailedBoxSnapshot[]>([]);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -122,13 +126,15 @@ function UpdatePaymentScreenBody() {
     let cancelled = false;
     (async () => {
       try {
-        const result = await createPilotSetupIntent(household.id);
+        const setup = await createPilotSetupIntent(household.id);
         if (cancelled) return;
-        if (!result.clientSecret) {
+        if (!setup.clientSecret) {
           setError('No setup secret returned.');
           return;
         }
-        setClientSecret(result.clientSecret);
+        setClientSecret(setup.clientSecret);
+        const failed = await snapshotFailedBoxCharges(household.id);
+        if (!cancelled) setFailedBoxes(failed);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : 'Could not start card update.');
@@ -140,27 +146,30 @@ function UpdatePaymentScreenBody() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, household?.id]);
+  }, [isAuthenticated, household?.id, formKey]);
 
   const onSaved = async () => {
-    setAwaitingWebhook(true);
-    const householdId = household?.id;
-    if (householdId) {
-      for (let i = 0; i < 12; i += 1) {
-        await refreshSession({ silent: true });
-        const hh = await householdsService.get(householdId);
-        if (hh?.stripeDefaultPaymentMethodId) break;
-        await new Promise((r) => setTimeout(r, 400));
-      }
-    } else {
-      await refreshSession({ silent: true });
-    }
-    setAwaitingWebhook(false);
-    notify(
-      'Card updated',
-      'Your new card is on file. We’ll use it for the next charge attempt (or tap Dev: charge now in a dev build).'
-    );
-    navigation.navigate('Orders');
+    if (!household?.id) return;
+    setError(null);
+    setPhase('retrying');
+    const next = await finishCardUpdate({
+      householdId: household.id,
+      previousCardOnFileAt: household.cardOnFileAt,
+      previousPaymentMethodId: household.stripeDefaultPaymentMethodId,
+      refresh: () => refreshSession({ silent: true }),
+      snapshots: failedBoxes,
+    });
+    setResult(next);
+    setPhase('done');
+  };
+
+  const tryAnotherCard = () => {
+    setResult(null);
+    setError(null);
+    setPhase('form');
+    setClientSecret(null);
+    setLoading(true);
+    setFormKey((key) => key + 1);
   };
 
   if (!isAuthenticated) {
@@ -181,30 +190,59 @@ function UpdatePaymentScreenBody() {
         </TouchableOpacity>
         <Text style={styles.title}>Update payment method</Text>
         <Text style={styles.sub}>
-          Replace the card on file. You won&apos;t be charged until your box locks / ships.
+          {failedBoxes.some((box) => box.lockPassed)
+            ? 'Your last charge didn’t go through. Save a new card and we’ll try that charge again right away.'
+            : 'Replace the card on file. You won’t be charged until your box locks.'}
         </Text>
 
-        {loading || awaitingWebhook ? (
+        {phase === 'done' && result ? (
+          <View style={styles.statusBlock}>
+            <Text style={result.kind === 'declined' ? styles.error : styles.status}>
+              {chargeRetryCopy(result)}
+            </Text>
+            {result.kind === 'declined' ? (
+              <TouchableOpacity style={styles.cta} onPress={tryAnotherCard} accessibilityRole="button">
+                <Text style={styles.ctaText}>Try another card</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={result.kind === 'declined' ? styles.secondaryCta : styles.cta}
+              onPress={() => navigation.navigate('Orders')}
+              accessibilityRole="button"
+            >
+              <Text style={result.kind === 'declined' ? styles.secondaryCtaText : styles.ctaText}>
+                Back to orders
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : loading || phase === 'retrying' ? (
           <View style={styles.centered}>
             <BrandLoadingMark color={colors.brand} />
             <Text style={styles.hint}>
-              {awaitingWebhook ? 'Saving your card…' : 'Preparing secure form…'}
+              {phase === 'retrying' ? 'Card saved. Retrying the charge…' : 'Preparing secure form…'}
             </Text>
           </View>
-        ) : error ? (
-          <Text style={styles.error}>{error}</Text>
         ) : !stripeKey || !stripePromise || !clientSecret ? (
-          <Text style={styles.error}>Stripe is not configured.</Text>
+          <Text style={styles.error}>{error ?? 'Stripe is not configured.'}</Text>
         ) : (
-          <Elements
-            stripe={stripePromise}
-            options={{
-              clientSecret,
-              appearance: { theme: 'stripe' },
-            }}
-          >
-            <SaveCardForm onSaved={() => void onSaved()} colors={colors} styles={styles} />
-          </Elements>
+          <View style={styles.paymentBlock}>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <Elements
+              key={formKey}
+              stripe={stripePromise}
+              options={{
+                clientSecret,
+                appearance: { theme: 'stripe' },
+              }}
+            >
+              <SaveCardForm
+                onSaved={() => void onSaved()}
+                onError={setError}
+                colors={colors}
+                styles={styles}
+              />
+            </Elements>
+          </View>
         )}
       </View>
     </WebContentPanel>
@@ -233,7 +271,9 @@ function createStyles(colors: SemanticColors) {
     },
     hint: { fontSize: typography.sm, color: colors.textTertiary },
     emptyText: { fontSize: typography.md, color: colors.textSecondary },
-    error: { fontSize: typography.md, color: colors.textSecondary, marginTop: spacing.md },
+    error: { fontSize: typography.md, color: colors.textPrimary, marginTop: spacing.md, lineHeight: 22 },
+    statusBlock: { gap: spacing.md },
+    status: { fontSize: typography.md, color: colors.textPrimary, lineHeight: 22 },
     paymentBlock: { gap: spacing.md },
     paymentElementWrap: {
       borderWidth: 1,
@@ -251,5 +291,13 @@ function createStyles(colors: SemanticColors) {
     },
     ctaDisabled: { opacity: 0.6 },
     ctaText: { ...typeface('medium'), fontSize: typography.md, color: colors.textInverse },
+    secondaryCta: {
+      borderRadius: borderRadius.md,
+      paddingVertical: 14,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    secondaryCtaText: { ...typeface('medium'), fontSize: typography.md, color: colors.textPrimary },
   });
 }

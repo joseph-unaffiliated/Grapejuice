@@ -28,6 +28,42 @@ export const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;
 /** Flat expedited shipping add-on (Build 3). */
 export const EXPEDITED_SHIPPING_CENTS = 1500;
 
+/** Pilot checkout estimate. Not a jurisdiction-based sales tax. */
+export const CHECKOUT_TAX_RATE = 0.075;
+
+/**
+ * Credit pays for the box (and shipping) first. Tax is only on the leftover,
+ * so an $80 gift that covers an $80 box does not leave a tax balance.
+ */
+export function checkoutTotalsAfterCredit(params: {
+  merchandiseCents: number;
+  giftCreditCents: number;
+  platformCreditCents: number;
+  taxRate?: number;
+}): {
+  giftCreditApplied: number;
+  platformCreditApplied: number;
+  creditApplied: number;
+  taxCents: number;
+  totalCents: number;
+} {
+  const merchandise = Math.max(0, params.merchandiseCents);
+  const giftCreditApplied = Math.min(Math.max(0, params.giftCreditCents), merchandise);
+  const platformCreditApplied = Math.min(
+    Math.max(0, params.platformCreditCents),
+    merchandise - giftCreditApplied
+  );
+  const taxableCents = merchandise - giftCreditApplied - platformCreditApplied;
+  const taxCents = Math.round(taxableCents * (params.taxRate ?? CHECKOUT_TAX_RATE));
+  return {
+    giftCreditApplied,
+    platformCreditApplied,
+    creditApplied: giftCreditApplied + platformCreditApplied,
+    taxCents,
+    totalCents: taxableCents + taxCents,
+  };
+}
+
 /** À la carte items never ship in the default box. */
 export const ALA_CARTE_SLOT_IDS = new Set(['keepsake-dreidel', 'family-hanukkiah', 'ala-dreidel', 'ala-hanukkiah']);
 

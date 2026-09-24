@@ -17,7 +17,6 @@ export function CheckoutOrderSummary({
   catalog = [],
   giftCreditApplied = 0,
   platformCreditApplied = 0,
-  expeditedShipping = false,
   compact = false,
   marketplaceOnly = false,
 }: {
@@ -30,7 +29,6 @@ export function CheckoutOrderSummary({
   catalog?: CatalogItem[];
   giftCreditApplied?: number;
   platformCreditApplied?: number;
-  expeditedShipping?: boolean;
   /** When wrapped in a summary card — tighter heading spacing. */
   compact?: boolean;
   /** À la carte cart — hide Hanukkah box base line. */
@@ -67,7 +65,7 @@ export function CheckoutOrderSummary({
       {shippingCents ? (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryName}>
-            {expeditedShipping ? 'Expedited shipping (US)' : 'Shipping (US)'}
+            Shipping (US)
           </Text>
           <Text style={styles.summaryPrice}>{formatDollars(shippingCents)}</Text>
         </View>

@@ -30,6 +30,7 @@ import {
   resolveGiftPrepaidAddOnCents,
   recipientGiftUpgradeCents,
   SHIPPING_FLAT_CENTS,
+  checkoutTotalsAfterCredit,
 } from '../../services/box/pricing';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
 import { GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
@@ -145,14 +146,12 @@ function GiftBoxCheckoutBody() {
     resolveGiftPrepaidAddOnCents(gift ?? {})
   );
   const shippingCents = SHIPPING_FLAT_CENTS;
-  const taxCents = Math.round((subtotal + shippingCents) * 0.075);
-  const preCredit = subtotal + shippingCents + taxCents;
-  const giftCreditApplied = Math.min(household?.giftCreditCents ?? 0, preCredit);
-  const platformCreditApplied = Math.min(
-    household?.platformCreditCents ?? 0,
-    preCredit - giftCreditApplied
-  );
-  const total = preCredit - giftCreditApplied - platformCreditApplied;
+  const priced = checkoutTotalsAfterCredit({
+    merchandiseCents: subtotal + shippingCents,
+    giftCreditCents: household?.giftCreditCents ?? 0,
+    platformCreditCents: household?.platformCreditCents ?? 0,
+  });
+  const { taxCents, giftCreditApplied, platformCreditApplied, totalCents: total } = priced;
 
   const finish = useCallback(
     async (orderId: string) => {

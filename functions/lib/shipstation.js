@@ -7,6 +7,8 @@ exports.processShipStationShipNotify = processShipStationShipNotify;
 exports.verifyShipStationWebhookSecret = verifyShipStationWebhookSecret;
 const logger = require("firebase-functions/logger");
 const firestore_1 = require("firebase-admin/firestore");
+const email_1 = require("./email");
+const SHIP_NOTIFY_TYPES = new Set(['SHIP_NOTIFY', 'ITEM_SHIP_NOTIFY', 'FULFILLMENT_SHIPPED']);
 function shipStationAuthHeader() {
     var _a, _b;
     const apiKey = (_a = process.env.SHIPSTATION_API_KEY) !== null && _a !== void 0 ? _a : '';
@@ -163,7 +165,71 @@ async function exportOrderToShipStation(order) {
     });
     return { exported: true, externalId: externalId !== null && externalId !== void 0 ? externalId : order.orderId };
 }
-/** Write tracking from ShipStation webhook or manual ops update. */
+function trackingUrlFor(carrier, trackingNumber) {
+    const encoded = encodeURIComponent(trackingNumber);
+    const c = carrier.toLowerCase();
+    if (c.includes('ups'))
+        return `https://www.ups.com/track?tracknum=${encoded}`;
+    if (c.includes('fedex'))
+        return `https://www.fedex.com/fedextrack/?trknbr=${encoded}`;
+    if (c.includes('dhl'))
+        return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${encoded}`;
+    if (c.includes('usps') || c.includes('postal')) {
+        return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encoded}`;
+    }
+    return `https://www.google.com/search?q=${encodeURIComponent(`${trackingNumber} tracking`)}`;
+}
+function shippedEmailTemplate(order) {
+    if (order.orderType === 'marketplace' || order.orderType === 'received_gift')
+        return 'order-shipped';
+    return 'box-shipped';
+}
+/** One email per order. Safe to call again after a webhook retry. */
+async function sendShippedEmail(db, householdId, orderId) {
+    var _a, _b, _c, _d, _e;
+    const ref = db.doc(`households/${householdId}/orders/${orderId}`);
+    const snap = await ref.get();
+    const order = snap.data();
+    if (!order || order.shippedEmailSentAt)
+        return;
+    const trackingNumber = String((_a = order.trackingNumber) !== null && _a !== void 0 ? _a : '').trim();
+    if (!trackingNumber)
+        return;
+    const userId = typeof order.userId === 'string' ? order.userId : '';
+    let to = '';
+    if (userId) {
+        const userSnap = await db.doc(`users/${userId}`).get();
+        to = String((_c = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.email) !== null && _c !== void 0 ? _c : '').trim();
+    }
+    if (!to) {
+        const address = order.shippingAddress;
+        to = String((_d = address === null || address === void 0 ? void 0 : address.email) !== null && _d !== void 0 ? _d : '').trim();
+    }
+    if (!to.includes('@')) {
+        logger.warn('Shipped email skipped (no recipient)', { orderId, householdId });
+        return;
+    }
+    const carrier = String((_e = order.carrier) !== null && _e !== void 0 ? _e : 'USPS');
+    const template = shippedEmailTemplate(order);
+    try {
+        await (0, email_1.sendEmail)({
+            to,
+            template,
+            data: {
+                orderId,
+                carrier,
+                trackingNumber,
+                trackingUrl: trackingUrlFor(carrier, trackingNumber),
+            },
+        });
+        await ref.update({ shippedEmailSentAt: new Date().toISOString() });
+        logger.info('Shipped email sent', { orderId, householdId, template });
+    }
+    catch (err) {
+        logger.error('Shipped email failed', { orderId, householdId, template, err });
+    }
+}
+/** Write tracking from ShipStation webhook or manual ops update, then email once. */
 async function applyShipStationTracking(db, householdId, orderId, tracking) {
     var _a, _b, _c;
     const ref = db.doc(`households/${householdId}/orders/${orderId}`);
@@ -172,16 +238,16 @@ async function applyShipStationTracking(db, householdId, orderId, tracking) {
         throw new Error(`Order not found: ${householdId}/${orderId}`);
     }
     const existing = (_a = snap.data()) !== null && _a !== void 0 ? _a : {};
-    if (existing.trackingNumber === tracking.trackingNumber &&
-        existing.status === 'shipped') {
-        return;
+    const unchanged = existing.trackingNumber === tracking.trackingNumber && existing.status === 'shipped';
+    if (!unchanged) {
+        await ref.update({
+            trackingNumber: tracking.trackingNumber,
+            carrier: (_b = tracking.carrier) !== null && _b !== void 0 ? _b : 'USPS',
+            status: 'shipped',
+            shippedAt: (_c = tracking.shippedAt) !== null && _c !== void 0 ? _c : new Date().toISOString(),
+        });
     }
-    await ref.update({
-        trackingNumber: tracking.trackingNumber,
-        carrier: (_b = tracking.carrier) !== null && _b !== void 0 ? _b : 'USPS',
-        status: 'shipped',
-        shippedAt: (_c = tracking.shippedAt) !== null && _c !== void 0 ? _c : new Date().toISOString(),
-    });
+    await sendShippedEmail(db, householdId, orderId);
 }
 async function fetchShipStationOrder(shipStationOrderId) {
     const auth = shipStationAuthHeader();
@@ -231,16 +297,41 @@ async function resolveHouseholdForShipment(db, shipment) {
     }
     return null;
 }
+/** Mark as Shipped has no orderKey. orderKey and householdId live on the ShipStation order. */
+async function resolveHouseholdForFulfillment(db, fulfillment) {
+    var _a, _b, _c;
+    if (fulfillment.orderId == null)
+        return null;
+    const ssOrder = await fetchShipStationOrder(fulfillment.orderId);
+    const orderId = String((_a = ssOrder === null || ssOrder === void 0 ? void 0 : ssOrder.orderKey) !== null && _a !== void 0 ? _a : '').trim();
+    const householdId = String((_b = ssOrder === null || ssOrder === void 0 ? void 0 : ssOrder.customerUsername) !== null && _b !== void 0 ? _b : '').trim();
+    if (!orderId || !householdId)
+        return null;
+    try {
+        await writeShipStationIndex({
+            householdId,
+            orderId,
+            orderNumber: String((_c = fulfillment.orderNumber) !== null && _c !== void 0 ? _c : ''),
+            shipStationOrderId: String(fulfillment.orderId),
+        });
+    }
+    catch (_d) {
+        /* non-fatal */
+    }
+    return { householdId, orderId };
+}
 /**
- * Process ShipStation SHIP_NOTIFY / ITEM_SHIP_NOTIFY webhook body.
- * Payload is only `{ resource_url, resource_type }` — we GET shipments next.
+ * Process ShipStation SHIP_NOTIFY / ITEM_SHIP_NOTIFY / FULFILLMENT_SHIPPED.
+ * Payload is only `{ resource_url, resource_type }` — we GET that URL next.
+ * A label is a shipment. Manual Mark as Shipped is a fulfillment (FULFILLMENT_SHIPPED).
+ *
  *
  * Dev/ops bypass (requires webhook secret on the URL):
  * `{ "simulate": true, "orderKey": "<firestoreOrderId>", "trackingNumber": "...", "carrierCode": "ups", "householdId": "..." }`
  * `householdId` optional when `shipStationOrders/{orderKey}` index exists (or SS order lookup works).
  */
 async function processShipStationShipNotify(db, body) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (body.simulate === true) {
         const orderId = String((_b = (_a = body.orderKey) !== null && _a !== void 0 ? _a : body.orderId) !== null && _b !== void 0 ? _b : '').trim();
         const trackingNumber = String((_c = body.trackingNumber) !== null && _c !== void 0 ? _c : '').trim();
@@ -263,7 +354,7 @@ async function processShipStationShipNotify(db, body) {
         return { processed: 1, skipped: 0, simulated: true };
     }
     const resourceType = String((_g = body.resource_type) !== null && _g !== void 0 ? _g : '');
-    if (resourceType !== 'SHIP_NOTIFY' && resourceType !== 'ITEM_SHIP_NOTIFY') {
+    if (!SHIP_NOTIFY_TYPES.has(resourceType)) {
         logger.info('ShipStation webhook ignored (unsupported type)', { resourceType });
         return { processed: 0, skipped: 0 };
     }
@@ -285,53 +376,73 @@ async function processShipStationShipNotify(db, body) {
     }
     const data = (await res.json());
     const shipments = Array.isArray(data.shipments) ? data.shipments : [];
+    const fulfillments = Array.isArray(data.fulfillments) ? data.fulfillments : [];
     let processed = 0;
     let skipped = 0;
     for (const shipment of shipments) {
-        if (shipment.voided) {
-            skipped += 1;
-            continue;
-        }
-        const trackingNumber = String((_j = shipment.trackingNumber) !== null && _j !== void 0 ? _j : '').trim();
-        if (!trackingNumber) {
-            skipped += 1;
-            continue;
-        }
-        const resolved = await resolveHouseholdForShipment(db, shipment);
-        if (!resolved) {
-            logger.warn('ShipStation tracking: could not resolve Grapejuice order', {
-                orderKey: shipment.orderKey,
-                orderNumber: shipment.orderNumber,
-                shipStationOrderId: shipment.orderId,
-            });
-            skipped += 1;
-            continue;
-        }
-        try {
-            await applyShipStationTracking(db, resolved.householdId, resolved.orderId, {
-                trackingNumber,
-                carrier: carrierLabelFromShipStation(shipment.carrierCode),
-                shippedAt: shipment.shipDate
-                    ? new Date(shipment.shipDate).toISOString()
-                    : new Date().toISOString(),
-            });
+        const outcome = await applyTrackingEvent(db, shipment, 'shipment');
+        if (outcome === 'processed')
             processed += 1;
-            logger.info('ShipStation tracking applied', {
-                orderId: resolved.orderId,
-                householdId: resolved.householdId,
-                trackingNumber,
-            });
-        }
-        catch (err) {
-            logger.error('ShipStation tracking apply failed', {
-                orderId: resolved.orderId,
-                householdId: resolved.householdId,
-                err,
-            });
+        else
             skipped += 1;
-        }
+    }
+    for (const fulfillment of fulfillments) {
+        const outcome = await applyTrackingEvent(db, fulfillment, 'fulfillment');
+        if (outcome === 'processed')
+            processed += 1;
+        else
+            skipped += 1;
+    }
+    if (shipments.length === 0 && fulfillments.length === 0) {
+        logger.info('ShipStation webhook had no shipments or fulfillments', {
+            resourceType,
+            resourceUrl: resourceUrl.toString(),
+        });
     }
     return { processed, skipped };
+}
+async function applyTrackingEvent(db, event, kind) {
+    var _a, _b;
+    if (event.voided)
+        return 'skipped';
+    const trackingNumber = String((_a = event.trackingNumber) !== null && _a !== void 0 ? _a : '').trim();
+    if (!trackingNumber)
+        return 'skipped';
+    const resolved = kind === 'shipment' && 'orderKey' in event && String((_b = event.orderKey) !== null && _b !== void 0 ? _b : '').trim()
+        ? await resolveHouseholdForShipment(db, event)
+        : await resolveHouseholdForFulfillment(db, event);
+    if (!resolved) {
+        logger.warn('ShipStation tracking: could not resolve Grapejuice order', {
+            kind,
+            orderKey: 'orderKey' in event ? event.orderKey : undefined,
+            orderNumber: event.orderNumber,
+            shipStationOrderId: event.orderId,
+        });
+        return 'skipped';
+    }
+    try {
+        await applyShipStationTracking(db, resolved.householdId, resolved.orderId, {
+            trackingNumber,
+            carrier: carrierLabelFromShipStation(event.carrierCode),
+            shippedAt: event.shipDate ? new Date(event.shipDate).toISOString() : new Date().toISOString(),
+        });
+        logger.info('ShipStation tracking applied', {
+            kind,
+            orderId: resolved.orderId,
+            householdId: resolved.householdId,
+            trackingNumber,
+        });
+        return 'processed';
+    }
+    catch (err) {
+        logger.error('ShipStation tracking apply failed', {
+            kind,
+            orderId: resolved.orderId,
+            householdId: resolved.householdId,
+            err,
+        });
+        return 'skipped';
+    }
 }
 /** True when request carries the shared webhook secret (if configured). */
 function verifyShipStationWebhookSecret(req) {

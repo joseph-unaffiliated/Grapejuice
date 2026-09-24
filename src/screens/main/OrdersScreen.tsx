@@ -177,11 +177,19 @@ function OrderCard({
       ) : null}
 
       {order.trackingNumber && pilot ? (
-        <TouchableOpacity onPress={() => openOrderTracking(pilot)} accessibilityRole="link">
-          <Text style={styles.trackLink}>
-            Track package — {order.carrier ?? 'carrier'} {order.trackingNumber}
+        <View style={styles.trackingBlock}>
+          <Text style={styles.trackingDetail}>
+            {order.carrier ? `${order.carrier} · ${order.trackingNumber}` : order.trackingNumber}
           </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.trackBtn}
+            onPress={() => openOrderTracking(pilot)}
+            accessibilityRole="button"
+            accessibilityLabel="Track package"
+          >
+            <Text style={styles.trackBtnText}>Track package</Text>
+          </TouchableOpacity>
+        </View>
       ) : pilot && (pilot.status === 'confirmed' || pilot.status === 'committed') ? (
         <Text style={styles.hint}>
           {isPurchaseOrder
@@ -197,12 +205,12 @@ function OrderCard({
           </Text>
           {onUpdatePayment ? (
             <TouchableOpacity
-              style={styles.secondaryBtn}
+              style={styles.trackBtn}
               onPress={onUpdatePayment}
               accessibilityRole="button"
               accessibilityLabel="Update payment method"
             >
-              <Text style={styles.secondaryBtnText}>Update payment method</Text>
+              <Text style={styles.trackBtnText}>Update payment method</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -531,7 +539,20 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       fontWeight: '700',
       color: colors.textPrimary,
     },
-    trackLink: { marginTop: spacing.sm, color: colors.brand, fontWeight: '600' },
+    trackingBlock: { marginTop: spacing.sm, gap: spacing.sm },
+    trackingDetail: { fontSize: typography.sm, color: colors.textSecondary },
+    trackBtn: {
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.logoDark,
+    },
+    trackBtnText: {
+      fontSize: typography.sm,
+      fontWeight: '700',
+      color: colors.textInverse,
+    },
     hint: { marginTop: spacing.sm, fontSize: typography.sm, color: colors.textTertiary },
     chargeError: {
       fontSize: typography.sm,
@@ -541,18 +562,6 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
     chargeFailBlock: {
       marginTop: spacing.sm,
       gap: spacing.sm,
-    },
-    secondaryBtn: {
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.md,
-      backgroundColor: colors.logoDark,
-    },
-    secondaryBtnText: {
-      fontSize: typography.sm,
-      fontWeight: '600',
-      color: colors.textInverse,
     },
     cancelBtn: {
       marginTop: spacing.md,

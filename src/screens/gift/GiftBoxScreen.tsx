@@ -38,6 +38,7 @@ import {
   resolveGiftPrepaidAddOnCents,
   recipientGiftUpgradeCents,
   SHIPPING_FLAT_CENTS,
+  checkoutTotalsAfterCredit,
 } from '../../services/box/pricing';
 import { resolveSwapOptionsForItem, resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
@@ -121,12 +122,16 @@ function GiftBoxBody() {
   }, [lineItems, catalog, catalogById]);
 
   const addOnValueCents = chargeableLineTotal(lineItems);
-  const upgradeCents = recipientGiftUpgradeCents(lineItems, prepaidAddOnCents);
-  const taxCents = Math.round((upgradeCents + SHIPPING_FLAT_CENTS) * 0.075);
-  const preCredit = upgradeCents + SHIPPING_FLAT_CENTS + taxCents;
   const giftCredit = household?.giftCreditCents ?? 0;
-  const creditApplied = Math.min(giftCredit, preCredit);
-  const dueNow = Math.max(0, preCredit - creditApplied);
+  const upgradeCents = recipientGiftUpgradeCents(lineItems, prepaidAddOnCents);
+  const priced = checkoutTotalsAfterCredit({
+    merchandiseCents: upgradeCents + SHIPPING_FLAT_CENTS,
+    giftCreditCents: giftCredit,
+    platformCreditCents: 0,
+  });
+  const taxCents = priced.taxCents;
+  const creditApplied = priced.creditApplied;
+  const dueNow = priced.totalCents;
 
   const persist = useCallback(
     async (next: BoxLineItem[]) => {
@@ -248,7 +253,7 @@ function GiftBoxBody() {
     upgradeCents > 0
       ? dueNow > 0
         ? `Continue to payment · ${formatDollars(dueNow)}`
-        : `Confirm with credit · ${formatDollars(preCredit)}`
+        : `Confirm with credit · ${formatDollars(creditApplied)}`
       : 'Confirm gift box';
 
   return (

@@ -11,7 +11,7 @@ import {
   DEFAULT_BOX_PRICE_CENTS,
   SHIPPING_FLAT_CENTS,
 } from '../../../services/box/buildDefaultBox';
-import { EXPEDITED_SHIPPING_CENTS } from '../../../services/box/pricing';
+import { checkoutTotalsAfterCredit } from '../../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../../types/pilot';
 import { validateShippingAddress } from '../../../utils/formValidation';
 
@@ -71,8 +71,6 @@ export function useCheckoutDraft(householdId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [locked, setLocked] = useState(false);
   const [boxPriceCents, setBoxPriceCents] = useState(DEFAULT_BOX_PRICE_CENTS);
-  const [expeditedAvailable, setExpeditedAvailable] = useState(false);
-  const [expeditedShipping, setExpeditedShipping] = useState(false);
   const [hanukkahConfig, setHanukkahConfig] = useState<Awaited<
     ReturnType<typeof getHanukkahConfig>
   > | null>(null);
@@ -83,7 +81,6 @@ export function useCheckoutDraft(householdId: string | undefined) {
     setHanukkahConfig(config);
     setCatalog(items);
     setBoxPriceCents(config.boxPriceCents ?? DEFAULT_BOX_PRICE_CENTS);
-    setExpeditedAvailable(config.expeditedShippingEnabled === true);
     setLocked(isBoxLocked(effectiveLockAt(config, false)));
 
     if (!isAuthenticated) {
@@ -105,8 +102,8 @@ export function useCheckoutDraft(householdId: string | undefined) {
 
   useEffect(() => {
     if (!hanukkahConfig) return;
-    setLocked(isBoxLocked(effectiveLockAt(hanukkahConfig, expeditedShipping)));
-  }, [hanukkahConfig, expeditedShipping]);
+    setLocked(isBoxLocked(effectiveLockAt(hanukkahConfig, false)));
+  }, [hanukkahConfig]);
 
   useEffect(() => {
     load();
@@ -133,16 +130,13 @@ export function useCheckoutDraft(householdId: string | undefined) {
   const validateAddress = () => validateShippingAddress(address);
 
   const subtotal = totalCents(lineItems, boxPriceCents);
-  const shippingCents = SHIPPING_FLAT_CENTS + (expeditedShipping ? EXPEDITED_SHIPPING_CENTS : 0);
-  const taxCents = Math.round((subtotal + shippingCents) * 0.075);
-  const preCreditTotal = subtotal + shippingCents + taxCents;
-  const giftCreditCents = household?.giftCreditCents ?? 0;
-  const platformCreditCents = household?.platformCreditCents ?? 0;
-  const giftCreditApplied = Math.min(giftCreditCents, preCreditTotal);
-  const remainingAfterGift = preCreditTotal - giftCreditApplied;
-  const platformCreditApplied = Math.min(platformCreditCents, remainingAfterGift);
-  const creditApplied = giftCreditApplied + platformCreditApplied;
-  const total = preCreditTotal - creditApplied;
+  const shippingCents = SHIPPING_FLAT_CENTS;
+  const priced = checkoutTotalsAfterCredit({
+    merchandiseCents: subtotal + shippingCents,
+    giftCreditCents: household?.giftCreditCents ?? 0,
+    platformCreditCents: household?.platformCreditCents ?? 0,
+  });
+  const { taxCents, giftCreditApplied, platformCreditApplied, creditApplied, totalCents: total } = priced;
 
   return {
     lineItems,
@@ -153,14 +147,10 @@ export function useCheckoutDraft(householdId: string | undefined) {
     loading,
     locked,
     boxPriceCents,
-    expeditedAvailable,
-    expeditedShipping,
-    setExpeditedShipping,
     total,
     subtotal,
     shippingCents,
     taxCents,
-    preCreditTotal,
     giftCreditApplied,
     platformCreditApplied,
     creditApplied,

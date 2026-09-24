@@ -46,6 +46,8 @@ function toOrder(id: string, data: Record<string, unknown>): PilotOrder {
     chargeFailedAt: data.chargeFailedAt ? String(data.chargeFailedAt) : undefined,
     chargeFailureMessage:
       typeof data.chargeFailureMessage === 'string' ? data.chargeFailureMessage : undefined,
+    chargeAttemptCount:
+      typeof data.chargeAttemptCount === 'number' ? data.chargeAttemptCount : undefined,
   };
 }
 

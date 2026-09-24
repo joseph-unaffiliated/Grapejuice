@@ -19,8 +19,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
-import { formatDollars } from '../../services/box/buildDefaultBox';
-import { EXPEDITED_SHIPPING_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
@@ -200,9 +198,6 @@ function CheckoutScreenBody() {
     taxCents,
     giftCreditApplied,
     platformCreditApplied,
-    expeditedAvailable,
-    expeditedShipping,
-    setExpeditedShipping,
   } = useCheckoutDraft(household?.id);
 
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
@@ -276,7 +271,6 @@ function CheckoutScreenBody() {
     setCommitting(true);
     try {
       const { orderId } = await commitPilotBox(household.id, normalizedAddress(), {
-        expeditedShipping,
         contactPhone: contactPhone.trim() || undefined,
         smsOptIn: smsOptIn && contactPhone.trim().length > 0,
         skipShipStation,
@@ -296,7 +290,6 @@ function CheckoutScreenBody() {
     validateAddress,
     normalizedAddress,
     navigation,
-    expeditedShipping,
     contactPhone,
     smsOptIn,
     skipShipStation,
@@ -423,23 +416,6 @@ function CheckoutScreenBody() {
     })();
   }, [household?.id, refreshSession]);
 
-  const expeditedToggle =
-    expeditedAvailable ? (
-      <TouchableOpacity
-        style={styles.expeditedRow}
-        onPress={() => setExpeditedShipping((v) => !v)}
-        activeOpacity={0.85}
-      >
-        <View style={[styles.checkbox, expeditedShipping && styles.checkboxOn]} />
-        <View style={styles.expeditedCopy}>
-          <Text style={styles.expeditedTitle}>
-            Expedited shipping (+{formatDollars(EXPEDITED_SHIPPING_CENTS)})
-          </Text>
-          <Text style={styles.expeditedBody}>Arrives sooner — for last-minute planners.</Text>
-        </View>
-      </TouchableOpacity>
-    ) : null;
-
   const summaryCard = (
     <View
       style={[
@@ -457,10 +433,8 @@ function CheckoutScreenBody() {
         catalog={catalog}
         giftCreditApplied={giftCreditApplied}
         platformCreditApplied={platformCreditApplied}
-        expeditedShipping={expeditedShipping}
         compact
       />
-      {expeditedToggle}
     </View>
   );
 
@@ -801,38 +775,6 @@ function createCheckoutStyles(colors: SemanticColors, isDesktop: boolean) {
       color: colors.textSecondary,
       marginBottom: spacing.md,
       fontSize: typography.md,
-      ...typeface('regular'),
-    },
-    expeditedRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: spacing.md,
-      marginTop: spacing.md,
-      padding: spacing.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
-      backgroundColor: colors.bgPrimary,
-    },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: 4,
-      borderWidth: 2,
-      borderColor: colors.border,
-      marginTop: 2,
-    },
-    checkboxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-    expeditedCopy: { flex: 1, gap: 4 },
-    expeditedTitle: {
-      fontSize: typography.md,
-      color: colors.textPrimary,
-      ...typeface('medium'),
-    },
-    expeditedBody: {
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      lineHeight: typography.sm * 1.35,
       ...typeface('regular'),
     },
   });

@@ -314,6 +314,8 @@ export type PilotOrder = {
   lockAt?: string | null;
   trackingNumber?: string | null;
   carrier?: string | null;
+  shippedAt?: string;
+  shippedEmailSentAt?: string;
   estimatedDelivery?: string;
   createdAt?: string;
   confirmedAt?: string;

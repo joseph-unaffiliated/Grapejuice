@@ -20,6 +20,12 @@ const TEMPLATE_IDS: Record<string, number> = {
   'debrief-amazon': parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON ?? '0', 10) || 0,
   'box-discount': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT ?? '0', 10) || 0,
   welcome: parseInt(process.env.CUSTOMERIO_TEMPLATE_WELCOME ?? '0', 10) || 12,
+  /** Hanukkah box — transactional message 15. */
+  'box-shipped': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED ?? '0', 10) || 15,
+  /** Marketplace / à la carte — transactional message 16. */
+  'order-shipped': parseInt(process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED ?? '0', 10) || 16,
+  /** Hanukkah box off-session decline — transactional message 17. */
+  'box-charge-failed': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED ?? '0', 10) || 17,
 };
 
 /** Env vars for Customer.io transactional templates:
@@ -30,6 +36,8 @@ const TEMPLATE_IDS: Record<string, number> = {
  *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
+ *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
+ *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
  */
@@ -53,17 +61,17 @@ export async function sendEmail({
   to: string;
   template: string;
   data: Record<string, unknown>;
-}): Promise<void> {
+}): Promise<'sent' | 'skipped'> {
   const transactionalMessageId = TEMPLATE_IDS[template];
   if (!transactionalMessageId) {
     console.warn('sendEmail: unknown template', template);
-    return;
+    return 'skipped';
   }
-  if (!to?.includes('@')) return;
+  if (!to?.includes('@')) return 'skipped';
   const apiKey = getCustomerioAppApiKey();
   if (!apiKey) {
     console.warn('sendEmail: CUSTOMERIO_APP_API_KEY not set, skipping', { to, template });
-    return;
+    return 'skipped';
   }
   const res = await fetch(`${BASE_URL}/send/email`, {
     method: 'POST',
@@ -83,6 +91,7 @@ export async function sendEmail({
     const text = await res.text();
     throw new Error(`Customer.io ${res.status}: ${text}`);
   }
+  return 'sent';
 }
 
 /** Debrief outreach — up to 2 reminder attempts (Q5 panel). Stub when template/key missing. */

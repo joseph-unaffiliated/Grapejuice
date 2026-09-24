@@ -1,7 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_BOX_PRICE_CENTS = exports.HOLIDAY_ID = void 0;
+exports.checkoutTotalsAfterCredit = checkoutTotalsAfterCredit;
 exports.computeCommittedBoxTotals = computeCommittedBoxTotals;
+exports.notifyHanukkahBoxChargeFailed = notifyHanukkahBoxChargeFailed;
+exports.retryFailedHanukkahBoxCharges = retryFailedHanukkahBoxCharges;
 exports.fulfillHanukkahBoxOrder = fulfillHanukkahBoxOrder;
 exports.chargeSinglePilotBoxOrder = chargeSinglePilotBoxOrder;
 exports.runChargeEligiblePilotBoxOrders = runChargeEligiblePilotBoxOrders;
@@ -16,6 +19,21 @@ exports.DEFAULT_BOX_PRICE_CENTS = 8000;
 const SHIPPING_FLAT_CENTS = 0;
 const EXPEDITED_SHIPPING_CENTS = 1500;
 const CHECKOUT_TAX_RATE = 0.075;
+/** Credit covers merchandise first. Tax applies only to the unpaid remainder. */
+function checkoutTotalsAfterCredit(merchandiseCents, giftCreditCents, platformCreditCents) {
+    const merchandise = Math.max(0, merchandiseCents);
+    const giftCreditApplied = Math.min(Math.max(0, giftCreditCents), merchandise);
+    const platformCreditApplied = Math.min(Math.max(0, platformCreditCents), merchandise - giftCreditApplied);
+    const taxableCents = merchandise - giftCreditApplied - platformCreditApplied;
+    const taxCents = Math.round(taxableCents * CHECKOUT_TAX_RATE);
+    return {
+        giftCreditApplied,
+        platformCreditApplied,
+        creditApplied: giftCreditApplied + platformCreditApplied,
+        taxCents,
+        totalCents: taxableCents + taxCents,
+    };
+}
 function chargeableLineTotal(lineItems) {
     return lineItems.reduce((s, li) => { var _a, _b; return s + ((_a = li.unitCents) !== null && _a !== void 0 ? _a : 0) * ((_b = li.quantity) !== null && _b !== void 0 ? _b : 1); }, 0);
 }
@@ -28,18 +46,16 @@ function orderSubtotalCents(lineItems, boxPriceCents) {
 function computeCommittedBoxTotals(lineItems, boxPriceCents, expeditedShipping, giftCreditApplied, platformCreditApplied) {
     const subtotalCents = orderSubtotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS + (expeditedShipping ? EXPEDITED_SHIPPING_CENTS : 0);
-    const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
-    const preCredit = subtotalCents + shippingCents + taxCents;
-    const totalCents = Math.max(0, preCredit - giftCreditApplied - platformCreditApplied);
+    const priced = checkoutTotalsAfterCredit(subtotalCents + shippingCents, giftCreditApplied, platformCreditApplied);
     return {
         lineItems,
         subtotalCents,
         shippingCents,
-        taxCents,
-        totalCents,
-        creditAppliedCents: giftCreditApplied + platformCreditApplied,
-        giftCreditAppliedCents: giftCreditApplied,
-        platformCreditAppliedCents: platformCreditApplied,
+        taxCents: priced.taxCents,
+        totalCents: priced.totalCents,
+        creditAppliedCents: priced.creditApplied,
+        giftCreditAppliedCents: priced.giftCreditApplied,
+        platformCreditAppliedCents: priced.platformCreditApplied,
     };
 }
 function isLockPassed(lockAt) {
@@ -53,6 +69,88 @@ function isHanukkahBoxOrder(order) {
     if (order.orderType === 'hanukkah_box')
         return true;
     return order.holidayId === exports.HOLIDAY_ID || !order.orderType;
+}
+const ORDERS_URL = 'https://grapejuice-pilot.web.app/orders';
+function customerFacingChargeFailure(message) {
+    return !/stripe is not configured/i.test(message);
+}
+/** One decline email per charge attempt. Webhook and the charge function can both call this. */
+async function notifyHanukkahBoxChargeFailed(db, householdId, orderId, attempt, message) {
+    var _a, _b, _c, _d;
+    if (!customerFacingChargeFailure(message))
+        return;
+    const safeAttempt = Number.isFinite(attempt) && attempt > 0 ? Math.floor(attempt) : 1;
+    const ref = db.doc(`households/${householdId}/orders/${orderId}`);
+    const claimed = await db.runTransaction(async (tx) => {
+        var _a;
+        const snap = await tx.get(ref);
+        if (!snap.exists)
+            return false;
+        const sentFor = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.chargeFailureEmailForAttempt;
+        if (typeof sentFor === 'number' && sentFor >= safeAttempt)
+            return false;
+        tx.update(ref, { chargeFailureEmailForAttempt: safeAttempt });
+        return true;
+    });
+    if (!claimed)
+        return;
+    const snap = await ref.get();
+    const order = (_a = snap.data()) !== null && _a !== void 0 ? _a : {};
+    const userId = typeof order.userId === 'string' ? order.userId : '';
+    let to = '';
+    if (userId) {
+        const userSnap = await db.doc(`users/${userId}`).get();
+        to = String((_c = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.email) !== null && _c !== void 0 ? _c : '').trim();
+    }
+    if (!to.includes('@')) {
+        const address = order.shippingAddress;
+        to = String((_d = address === null || address === void 0 ? void 0 : address.email) !== null && _d !== void 0 ? _d : '').trim();
+    }
+    if (!to.includes('@')) {
+        await ref.update({ chargeFailureEmailForAttempt: firestore_1.FieldValue.delete() });
+        return;
+    }
+    try {
+        const result = await (0, email_1.sendEmail)({
+            to,
+            template: 'box-charge-failed',
+            data: { ordersUrl: ORDERS_URL, message },
+        });
+        if (result === 'skipped') {
+            await ref.update({ chargeFailureEmailForAttempt: firestore_1.FieldValue.delete() });
+        }
+    }
+    catch (err) {
+        logger.error('Hanukkah box charge-failure email failed', { orderId, err });
+        await ref.update({ chargeFailureEmailForAttempt: firestore_1.FieldValue.delete() });
+    }
+}
+/**
+ * After a new card is saved: charge any box whose lock has passed and whose last charge failed.
+ * Before lock, drop the stale failure so Orders stops asking them to update the card.
+ */
+async function retryFailedHanukkahBoxCharges(db, stripe, householdId) {
+    const open = await db.collection(`households/${householdId}/orders`).where('status', '==', 'committed').get();
+    for (const doc of open.docs) {
+        const data = doc.data();
+        if (data.holidayId && data.holidayId !== exports.HOLIDAY_ID)
+            continue;
+        if (!data.chargeFailureMessage)
+            continue;
+        if (!isHanukkahBoxOrder(data) || !isLockPassed(data.lockAt)) {
+            await doc.ref.update({
+                chargeFailureMessage: firestore_1.FieldValue.delete(),
+                updatedAt: new Date().toISOString(),
+            });
+            continue;
+        }
+        try {
+            await chargeSinglePilotBoxOrder(db, stripe, householdId, doc.id);
+        }
+        catch (err) {
+            logger.error('Retry after card update failed', { householdId, orderId: doc.id, err });
+        }
+    }
 }
 /** Email + ShipStation after a Hanukkah box order is paid (or $0 confirmed). Idempotent. */
 async function fulfillHanukkahBoxOrder(db, householdId, orderId, orderInput) {
@@ -209,20 +307,10 @@ async function chargeSinglePilotBoxOrder(db, stripe, householdId, orderId, optio
     const customerId = (_h = hhData.stripeCustomerId) !== null && _h !== void 0 ? _h : '';
     const paymentMethodId = hhData.stripeDefaultPaymentMethodId;
     if (!stripe) {
-        const message = 'Stripe is not configured';
-        await orderRef.update({
-            chargeFailedAt: new Date().toISOString(),
-            chargeFailureMessage: message,
-        });
-        return { outcome: 'failed', orderId, message };
+        return recordChargeFailure(db, orderRef, householdId, orderId, chargeAttempt, 'Stripe is not configured');
     }
     if (!customerId || !paymentMethodId) {
-        const message = 'No saved payment method on file';
-        await orderRef.update({
-            chargeFailedAt: new Date().toISOString(),
-            chargeFailureMessage: message,
-        });
-        return { outcome: 'failed', orderId, message };
+        return recordChargeFailure(db, orderRef, householdId, orderId, chargeAttempt, 'No saved payment method on file');
     }
     try {
         const paymentIntent = await stripe.paymentIntents.create({
@@ -261,21 +349,21 @@ async function chargeSinglePilotBoxOrder(db, stripe, householdId, orderId, optio
             };
         }
         const message = `PaymentIntent status: ${paymentIntent.status}`;
-        await orderRef.update({
-            chargeFailedAt: new Date().toISOString(),
-            chargeFailureMessage: message,
-        });
-        return { outcome: 'failed', orderId, message };
+        return recordChargeFailure(db, orderRef, householdId, orderId, chargeAttempt, message);
     }
     catch (err) {
         const message = err instanceof Error ? err.message : 'Charge failed';
         logger.error('chargeSinglePilotBoxOrder failed', { householdId, orderId, err });
-        await orderRef.update({
-            chargeFailedAt: new Date().toISOString(),
-            chargeFailureMessage: message,
-        });
-        return { outcome: 'failed', orderId, message };
+        return recordChargeFailure(db, orderRef, householdId, orderId, chargeAttempt, message);
     }
+}
+async function recordChargeFailure(db, orderRef, householdId, orderId, attempt, message) {
+    await orderRef.update({
+        chargeFailedAt: new Date().toISOString(),
+        chargeFailureMessage: message,
+    });
+    await notifyHanukkahBoxChargeFailed(db, householdId, orderId, attempt, message);
+    return { outcome: 'failed', orderId, message };
 }
 /** Charge all committed Hanukkah box orders past lock (or force-eligible in batch). */
 async function runChargeEligiblePilotBoxOrders(db, stripe, options) {
