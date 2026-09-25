@@ -129,17 +129,14 @@ export function StorefrontHero({
   const acquisitionCtas = mode === 'acquisition';
   /** Guest box: View your box (primary) + Browse the Collection (ghost). */
   const guestBoxCtas = mode === 'guest_box' && journeyMode;
-  // Tall plate, but leave a peek of what’s below. When the journey banner sits
-  // under the hero, reserve space so the timeline is on-screen at first paint.
+  // Tall plate, leave a peek of what’s below. Do NOT shrink this when the
+  // journey banner mounts — that post-config resize was a visible jump.
+  // The banner sits under the hero without changing the hero plate height.
   const chromeApprox = compact ? 168 : 200;
-  const journeyBannerReserve = journeyRailActive ? 88 : 0;
   const belowPeek = compact ? 72 : 56;
   const heroHeight = Math.min(
-    Math.max(
-      height - chromeApprox - journeyBannerReserve - belowPeek,
-      compact ? 400 : 480
-    ),
-    (compact ? 560 : 680) - journeyBannerReserve
+    Math.max(height - chromeApprox - belowPeek, compact ? 400 : 480),
+    compact ? 560 : 680
   );
 
   const onLayout = (e: LayoutChangeEvent) => {

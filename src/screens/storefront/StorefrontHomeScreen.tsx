@@ -65,8 +65,8 @@ import {
   typography,
 } from '../../constants/theme';
 
-const DREIDELS_LIFESTYLE_IMG = require('../../../assets/storefront/dreidels-lifestyle-banner.png');
-/** Native aspect of dreidels-lifestyle-banner.png (2752×1536). */
+const DREIDELS_LIFESTYLE_IMG = require('../../../assets/storefront/dreidels-lifestyle-banner.webp');
+/** Native aspect of dreidels lifestyle plate (2752×1536 source). */
 const DREIDELS_LIFESTYLE_ASPECT = 2752 / 1536;
 
 export function StorefrontHomeScreen() {
@@ -78,16 +78,18 @@ export function StorefrontHomeScreen() {
   const { isCompact: compact } = useLayoutBreakpoint();
   const now = usePreviewNow();
   const collectionLimit = compact ? 4 : 3;
-  const railLimit = compact ? 50 : 6;
+  /** Cap mobile rail length so we don’t hydrate dozens of catalog PNGs on first paint. */
+  const railLimit = compact ? 10 : 6;
   const gridLayout = compact ? 'rail' : 'grid';
-  const gridLimit = compact ? undefined : 3;
-  const collectionGridLimit = compact ? undefined : collectionLimit;
+  const gridLimit = compact ? 10 : 3;
+  const collectionGridLimit = compact ? 10 : collectionLimit;
   const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  const [hanukkahConfigReady, setHanukkahConfigReady] = useState(false);
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const giftDraft = useGiftIntentStore((s) => s.draft);
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);
@@ -99,6 +101,7 @@ export function StorefrontHomeScreen() {
       setLockAt(config.lockAt);
       setStartsOn(config.startsOn);
       setEstimatedDeliveryBy(config.estimatedDeliveryBy);
+      setHanukkahConfigReady(true);
     });
     return () => {
       cancelled = true;
@@ -115,7 +118,18 @@ export function StorefrontHomeScreen() {
       : { startsOn, lockAt, estimatedDeliveryBy };
 
   const showJourneyBanner =
-    journey != null && getHanukkahStatus(journey.startsOn, now).phase !== 'during';
+    journey != null &&
+    hanukkahConfigReady &&
+    getHanukkahStatus(journey.startsOn, now).phase !== 'during';
+
+  /** Hold banner height while config loads so member home doesn’t pop the page. */
+  const reserveJourneyBanner =
+    !hanukkahConfigReady &&
+    mode !== 'acquisition' &&
+    mode !== 'passover' &&
+    mode !== 'gift_credit_incomplete' &&
+    mode !== 'gift_customize_incomplete' &&
+    mode !== 'gift_sent';
 
   const goCreateAccount = () => startAuthFromGuest('MyBox', 'signup', 'SignUp');
   const goCheckout = () => navigation.navigate('Checkout');
@@ -320,6 +334,8 @@ export function StorefrontHomeScreen() {
         <View style={styles.journeyBanner} accessibilityRole="region">
           <StorefrontHeroJourneyTimeline journey={journey} variant="banner" />
         </View>
+      ) : reserveJourneyBanner ? (
+        <View style={styles.journeyBannerReserve} accessibilityElementsHidden />
       ) : null}
 
         {/* Products first */}
@@ -333,18 +349,20 @@ export function StorefrontHomeScreen() {
             subtitle="The most favorited products from our collection"
             onPress={() => goCategory('collection')}
           />
-          {loading ? (
-            <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
-          ) : (
-            <StorefrontProductGrid
-              items={loved}
-              limit={gridLimit}
-              layout={gridLayout}
-              flushBottom
-              browseMoreLabel="top picks"
-              onBrowseMore={() => goCategory('collection')}
-            />
-          )}
+          <View style={styles.topPicksBody}>
+            {loading ? (
+              <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
+            ) : (
+              <StorefrontProductGrid
+                items={loved}
+                limit={gridLimit}
+                layout={gridLayout}
+                flushBottom
+                browseMoreLabel="top picks"
+                onBrowseMore={() => goCategory('collection')}
+              />
+            )}
+          </View>
         </View>
 
         {!compact ? (
@@ -601,7 +619,19 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: semanticColors.border,
   },
+  /** Matches journey banner block height while Hanukkah config resolves. */
+  journeyBannerReserve: {
+    width: '100%',
+    height: 88,
+    backgroundColor: semanticColors.accentCream,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semanticColors.border,
+  },
   loader: { marginVertical: spacing.xl },
+  /** Keep Top picks from collapsing → expanding when catalog arrives. */
+  topPicksBody: {
+    minHeight: 280,
+  },
   /** Matches former Browse-by-Aisle sectionHead compactTop when the headline is hidden. */
   aisleRailCompact: {
     paddingTop: spacing.md,

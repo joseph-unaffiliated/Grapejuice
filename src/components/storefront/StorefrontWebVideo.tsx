@@ -33,6 +33,9 @@ type Props = {
  *  1. Paint the poster as a normal Image immediately (when this mounts)
  *  2. Attach video src only after idle (eager) or when near viewport (lazy)
  *  3. Use preload="none" so the element itself never opts into early fetch
+ *
+ * Hero (`load="eager"`) waits for a short idle window so JS/fonts settle
+ * before the reel competes for bandwidth — poster stays on screen until then.
  */
 export function StorefrontWebVideo({
   src,
@@ -59,18 +62,19 @@ export function StorefrontWebVideo({
 
     if (load === 'eager') {
       // Don’t wait for window.load — below-fold images would delay the hero reel.
+      // Give first paint ~1s of headroom so the reel doesn’t fight the JS bundle.
       const w = window as Window & {
         requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
         cancelIdleCallback?: (id: number) => void;
       };
       if (typeof w.requestIdleCallback === 'function') {
-        const id = w.requestIdleCallback(arm, { timeout: 450 });
+        const id = w.requestIdleCallback(arm, { timeout: 1200 });
         return () => {
           cancelled = true;
           w.cancelIdleCallback?.(id);
         };
       }
-      const timeoutId = window.setTimeout(arm, 180);
+      const timeoutId = window.setTimeout(arm, 900);
       return () => {
         cancelled = true;
         window.clearTimeout(timeoutId);
@@ -93,7 +97,8 @@ export function StorefrontWebVideo({
           io.disconnect();
         }
       },
-      { root: null, rootMargin: '200px 0px', threshold: 0.01 }
+      // Start the reel ~¾ viewport early so poster→video is ready on arrival.
+      { root: null, rootMargin: '600px 0px', threshold: 0.01 }
     );
     io.observe(node);
     return () => {

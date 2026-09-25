@@ -11,13 +11,15 @@ type Props = {
 };
 
 /**
- * Web: mount children only once they approach the viewport so below-fold
+ * Web: mount children once they approach the viewport so below-fold
  * images/videos don’t compete with the hero on first paint.
+ * Prefetch well ahead of the fold (default ~¾ viewport) so media is ready
+ * by the time the user scrolls to it — not only as it crosses the edge.
  * Native: mount immediately (no IntersectionObserver here).
  */
 export function LazyMount({
   children,
-  rootMargin = '280px 0px',
+  rootMargin = '600px 0px',
   minHeight = 1,
   style,
 }: Props) {

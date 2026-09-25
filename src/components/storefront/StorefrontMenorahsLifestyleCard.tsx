@@ -17,7 +17,7 @@ import {
   typography,
 } from '../../constants/theme';
 
-const LIFESTYLE_IMG = require('../../../assets/storefront/menorahs-lifestyle-trio.jpg');
+const LIFESTYLE_IMG = require('../../../assets/storefront/menorahs-lifestyle-trio.webp');
 /** Native aspect of the lifestyle plate. */
 const ASPECT = 2048 / 1142;
 
@@ -47,7 +47,7 @@ export const MENORAHS_LIFESTYLE_HOTSPOTS: LifestyleHotspot[] = [
 ];
 
 /**
- * Positions calibrated to dreidels-lifestyle-banner.png
+ * Positions calibrated to dreidels-lifestyle-banner (webp)
  * (Jelly · wrapping · wood dreidel · gelt, left→right).
  */
 export const DREIDELS_LIFESTYLE_HOTSPOTS: LifestyleHotspot[] = [

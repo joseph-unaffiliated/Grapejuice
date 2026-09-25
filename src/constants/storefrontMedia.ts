@@ -57,7 +57,7 @@ export const STOREFRONT_BOX_REVEAL_STRIP: StorefrontMediaSlot = {
   label: 'Lifestyle — Box reveal reel',
   href: 'box',
   src: require('../../assets/storefront/box-reveal-reel.mp4'),
-  poster: require('../../assets/storefront/boxrevealv2.jpg'),
+  poster: require('../../assets/storefront/boxrevealv2.webp'),
 };
 
 /**
@@ -71,7 +71,7 @@ export const STOREFRONT_BOX_BUILD_STRIP_ALT: StorefrontMediaSlot = {
   label: 'Lifestyle — Box build reel (content)',
   href: 'box',
   src: require('../../assets/storefront/box-build-reel-alt.mp4'),
-  poster: require('../../assets/storefront/boxrevealv2.jpg'),
+  poster: require('../../assets/storefront/boxrevealv2.webp'),
 };
 
 /** Post-Hanukkah seasonal hero — Passover interest (placeholder art). */
