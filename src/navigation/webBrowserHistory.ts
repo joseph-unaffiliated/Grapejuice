@@ -21,6 +21,7 @@ import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../c
 import { navigateMainStack, navigateMainTab, navigateToLanding } from './mainStackNavigation';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
+import { retentionPage } from '../services/analytics/retention';
 
 type GjHistoryState = { gjNav: true; idx: number };
 
@@ -252,7 +253,10 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
   if (previousIndex === -1) {
     navHistory.push(fingerprint);
     // Always advance the address bar when the path changed (category / filters).
-    syncBrowserUrl(state, current === nextPath ? 'replace' : 'push');
+    const mode = current === nextPath ? 'replace' : 'push';
+    syncBrowserUrl(state, mode);
+    // SPA pageview for Retention (initial load already called geq.page() in index.html).
+    if (mode === 'push') retentionPage();
     return;
   }
 

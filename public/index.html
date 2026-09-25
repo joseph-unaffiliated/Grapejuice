@@ -20,11 +20,13 @@
     -->
     <script type="text/javascript">
       function OptanonWrapper() {}
-      /** Retention.com collection loader (site id X2JHJ4WE). Honors ?vge=true cache-bust for their installer test. */
+      /** Retention.com collection loader (site id X2JHJ4WE).
+       *  Base stub + geq.load + geq.page() — Retention's verifier Ctrl+F's for "geq.page".
+       *  Honors ?vge=true cache-bust for their installer test. */
       window.__gjLoadRetention = function () {
         if (window.__gjRetentionLoaded) return;
         window.__gjRetentionLoaded = true;
-        !function(){var geq=window.geq=window.geq||[];if(geq.initialize)return;if(geq.invoked){return}geq.invoked=!0;geq.methods=["page","suppress","track","doNotTrack","trackOrder","identify","addToCart","callBack","event"];geq.factory=function(method){return function(){var args=Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq}};for(var i=0;i<geq.methods.length;i++){var key=geq.methods[i];geq[key]=geq.factory(key)}geq.load=function(key){var script=document.createElement("script");script.type="text/javascript";script.async=!0;if(location.href.indexOf("vge=true")!==-1){script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js?v="+Math.random()}else{script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js"}var first=document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script,first)};geq.SNIPPET_VERSION="1.6.1";geq.load("X2JHJ4WE")}();
+        !function(){var geq=window.geq=window.geq||[];if(geq.initialize)return;if(geq.invoked){if(window.console&&console.error){console.error("GE snippet included twice.");}return;}geq.invoked=!0;geq.methods=["page","suppress","track","doNotTrack","trackOrder","identify","addToCart","callBack","event"];geq.factory=function(method){return function(){var args=Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq}};for(var i=0;i<geq.methods.length;i++){var key=geq.methods[i];geq[key]=geq.factory(key)}geq.load=function(key){var script=document.createElement("script");script.type="text/javascript";script.async=!0;if(location.href.indexOf("vge=true")!==-1){script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js?v="+Math.random()}else{script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js"}var first=document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script,first)};geq.SNIPPET_VERSION="1.6.1";geq.load("X2JHJ4WE");geq.page();}();
       };
       window.__gjDeferMarketing = function () {
         if (window.__gjMarketingLoaded) return;
@@ -50,10 +52,9 @@
         fbq('init', '809409995127436');
         fbq('track', 'PageView');
       };
-      // Retention's installer test (?vge=true) must find ge.js immediately — don't wait on defer.
-      if (location.search.indexOf('vge=true') !== -1) {
-        window.__gjLoadRetention();
-      }
+      // Retention collection: load immediately (verifier + SPA need geq.page in-source).
+      // OneTrust / Meta stay deferred so they don't contend with first paint.
+      if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
     </script>
     <noscript
       ><img

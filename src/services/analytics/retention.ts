@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
 type Geq = {
+  page?: (...args: unknown[]) => void;
   suppress?: (email: string) => void;
   trackOrder?: (payload: {
     order_number: string;
@@ -21,6 +22,21 @@ declare global {
 function geq(): Geq | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   return window.geq ?? null;
+}
+
+/**
+ * Collection ping for SPA navigations (React Navigation / history sync).
+ * Initial load already calls geq.page() from public/index.html.
+ */
+export function retentionPage(): void {
+  const g = geq();
+  if (!g) return;
+  try {
+    if (typeof g.page === 'function') g.page();
+    else g.push?.('page');
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Tell Retention not to prospect this email (organic capture / signup). */
