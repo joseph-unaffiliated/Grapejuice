@@ -101,7 +101,10 @@ const initialState = {
 export const useGuestSessionStore = create<GuestSessionState>()(
   persist(
     (set, get) => ({
-      _hasHydrated: false,
+      // Web: don't block RootNavigator on AsyncStorage rehydration — storefront
+      // defaults (exploreStarted: true) are safe for first paint; persist still
+      // merges afterward. Native keeps the gate until rehydrate completes.
+      _hasHydrated: typeof window !== 'undefined',
       ...initialState,
       startExplore: () => set({ exploreStarted: true, buildBoxPath: false, onboardingStep: null }),
       startBuildBox: () => set({ exploreStarted: true, buildBoxPath: true }),

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import {
   NavigationContainer,
   NavigationIndependentTree,
@@ -240,12 +240,28 @@ function RootRoutes() {
   /** Keep Main mounted through overlay sign-in so My Box isn't replaced by /store. */
   const stayOnMainForAuthReturn = pendingAuth != null || giftResume;
 
+  /**
+   * Web storefront: don't hold BrandLoadingMark while Firebase auth initializes.
+   * Guests default to Main (exploreStarted); waiting on auth was ~seconds of
+   * logomark after the JS bundle already parsed. Signed-in users still wait
+   * for session once auth resolves so we don’t flash the wrong gate.
+   */
+  const skipAuthBootSpinner =
+    Platform.OS === 'web' &&
+    authLoading &&
+    !isAuthenticated &&
+    !passwordResetOobCode &&
+    !pendingAuth &&
+    !giftResume;
+
   // Wait for auth + (when signed in) session so we don’t paint the wrong
   // onboarding/main gate. Box draft can finish after first paint — waiting on
   // it kept the logomark up while Firestore hydrated line items.
   const booting =
     !guestHydrated ||
-    ((authLoading || (isAuthenticated && sessionLoading)) && !stayOnMainForAuthReturn);
+    (!skipAuthBootSpinner &&
+      (authLoading || (isAuthenticated && sessionLoading)) &&
+      !stayOnMainForAuthReturn);
 
   if (booting) {
     return (
