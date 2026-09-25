@@ -318,26 +318,19 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
     backgroundColor: FOOTER_BG,
     paddingTop: MOBILE_GUTTER,
-    paddingBottom: spacing.lg,
+    paddingBottom: 12,
     paddingHorizontal: MOBILE_GUTTER,
     // Cover RN-web / svh subpixel seam that flashes the light page bg under the footer.
-    // Bleed stays inside the scrollport (overflow:hidden clips negative margin).
+    // Keep layout padding tight so copyright sits near the bottom; shadow fills the seam.
     ...(Platform.OS === 'web'
       ? ({
-          paddingBottom: spacing.lg + 48,
           boxShadow: `0 48px 0 0 ${FOOTER_BG}`,
         } as object)
       : null),
   },
-  /** Mobile: copyright near the bottom; seam cover stays via boxShadow. */
   rootCompact: {
+    // Same tight bottom inset as desktop (kept for breakpoint clarity).
     paddingBottom: 12,
-    ...(Platform.OS === 'web'
-      ? ({
-          paddingBottom: 12,
-          boxShadow: `0 48px 0 0 ${FOOTER_BG}`,
-        } as object)
-      : null),
   },
   /** Same width as the menu row so wordmark right edge = contact column right edge. */
   shell: {
@@ -365,12 +358,13 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     color: 'rgba(216, 201, 144, 0.72)',
     letterSpacing: -0.1,
-    marginTop: spacing.md,
+    // Air under the wordmark watermark before the legal line.
+    marginTop: spacing.xl,
     alignSelf: 'stretch',
     textAlign: 'center',
   },
   copyrightCompact: {
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
   },
   inner: {
     width: '100%',
