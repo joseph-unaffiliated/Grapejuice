@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Platform,
   TouchableOpacity,
   type StyleProp,
   type ViewStyle,
@@ -21,6 +20,7 @@ import {
 export type PaperCardCta = {
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 };
 
 type Props = {
@@ -57,19 +57,31 @@ export function StorefrontPaperCardStrip({
       {body ? <Text style={styles.body}>{body}</Text> : null}
       <View style={styles.ctas}>
         <TouchableOpacity
-          style={[styles.cta, styles.ctaPrimary]}
+          style={[
+            styles.cta,
+            styles.ctaPrimary,
+            primaryCta.disabled && styles.ctaDisabled,
+          ]}
           onPress={primaryCta.onPress}
+          disabled={primaryCta.disabled}
           accessibilityRole="button"
           accessibilityLabel={primaryCta.label}
+          accessibilityState={{ disabled: Boolean(primaryCta.disabled) }}
         >
           <Text style={styles.ctaPrimaryText}>{primaryCta.label}</Text>
         </TouchableOpacity>
         {secondaryCta ? (
           <TouchableOpacity
-            style={[styles.cta, styles.ctaSecondary]}
+            style={[
+              styles.cta,
+              styles.ctaSecondary,
+              secondaryCta.disabled && styles.ctaDisabled,
+            ]}
             onPress={secondaryCta.onPress}
+            disabled={secondaryCta.disabled}
             accessibilityRole="button"
             accessibilityLabel={secondaryCta.label}
+            accessibilityState={{ disabled: Boolean(secondaryCta.disabled) }}
           >
             <Text style={styles.ctaSecondaryText}>{secondaryCta.label}</Text>
           </TouchableOpacity>
@@ -94,7 +106,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 400,
     alignSelf: 'center',
-    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   body: {
     ...typeface('regular'),
@@ -103,7 +114,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: spacing.sm,
-    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   ctas: {
     flexDirection: 'row',
@@ -142,5 +152,8 @@ const styles = StyleSheet.create({
     fontSize: typography.md,
     color: semanticColors.logoDark,
     textAlign: 'center',
+  },
+  ctaDisabled: {
+    opacity: 0.72,
   },
 });

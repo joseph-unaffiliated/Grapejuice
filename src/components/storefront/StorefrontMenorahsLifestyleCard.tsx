@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
 } from 'react-native';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import {
   MOBILE_GUTTER,
   borderRadius,
@@ -102,8 +103,20 @@ export function StorefrontMenorahsLifestyleCard({
   hotspots = MENORAHS_LIFESTYLE_HOTSPOTS,
   aspectRatio = ASPECT,
 }: Props) {
+  const { isCompact: compact } = useLayoutBreakpoint();
+
   return (
     <View style={styles.outer}>
+      {compact ? (
+        <Pressable
+          onPress={onShopAll}
+          style={styles.titleAbove}
+          accessibilityRole="link"
+          accessibilityLabel={label}
+        >
+          <Text style={styles.shopLabelMobile}>{label}</Text>
+        </Pressable>
+      ) : null}
       <View style={[styles.card, { aspectRatio }]}>
         <Image
           source={image}
@@ -112,15 +125,24 @@ export function StorefrontMenorahsLifestyleCard({
           accessibilityIgnoresInvertColors
           pointerEvents="none"
         />
-        <Pressable
-          onPress={onShopAll}
-          style={styles.shopLabelHit}
-          accessibilityRole="link"
-          accessibilityLabel={label}
-        >
-          <View style={styles.shopLabelScrim} pointerEvents="none" />
-          <Text style={styles.shopLabel}>{label}</Text>
-        </Pressable>
+        {!compact ? (
+          <Pressable
+            onPress={onShopAll}
+            style={styles.shopLabelHit}
+            accessibilityRole="link"
+            accessibilityLabel={label}
+          >
+            <View style={styles.shopLabelScrim} pointerEvents="none" />
+            <Text style={styles.shopLabel}>{label}</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={onShopAll}
+            style={StyleSheet.absoluteFillObject}
+            accessibilityRole="link"
+            accessibilityLabel={label}
+          />
+        )}
         {hotspots.map((h, i) => (
           <TouchableOpacity
             key={`${h.productId}-${i}`}
@@ -154,6 +176,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.xl,
     paddingBottom: spacing.md,
+  },
+  titleAbove: {
+    alignSelf: 'stretch',
+    marginBottom: spacing.sm,
+  },
+  shopLabelMobile: {
+    ...typeface('medium'),
+    fontSize: 28,
+    lineHeight: 34,
+    color: semanticColors.logoDark,
+    letterSpacing: -0.4,
+    textAlign: 'left',
   },
   card: {
     width: '100%',

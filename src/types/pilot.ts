@@ -54,6 +54,8 @@ export type UserProfile = {
   onboardingComplete: boolean;
   boxRevealComplete?: boolean;
   notificationsOptIn?: boolean;
+  /** Storefront interest keys (e.g. passover-2027-notify, bmitzvah-pilot-interest). */
+  storefrontInterests?: string[];
   phone?: string;
   smsOptIn?: boolean;
   lockReminderEligible?: boolean;

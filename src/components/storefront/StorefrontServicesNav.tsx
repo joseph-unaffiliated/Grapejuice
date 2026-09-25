@@ -118,9 +118,9 @@ export function StorefrontServicesNav({ onPress }: Props) {
           style={styles.linkHit}
           onPress={() => onPress('story')}
           accessibilityRole="button"
-          accessibilityLabel="Our story"
+          accessibilityLabel="Our Story"
         >
-          <Text style={styles.link}>Our story</Text>
+          <Text style={styles.link}>Our Story</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   link: {
-    ...typeface('regular'),
+    ...typeface('medium'),
     fontSize: typography.sm,
     color: semanticColors.textSecondary,
   },

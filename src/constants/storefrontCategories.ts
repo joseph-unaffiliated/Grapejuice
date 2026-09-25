@@ -405,3 +405,25 @@ export function itemsForStorefrontRail(
   const source = curated.length ? curated : fallback;
   return source.slice(0, limit);
 }
+
+function minDefaultBookAge(item: CatalogItem): number {
+  const ages = item.defaultBookAges ?? [];
+  if (!ages.length) return Number.POSITIVE_INFINITY;
+  const nums = ages
+    .map((a) => (typeof a === 'number' ? a : parseInt(String(a), 10)))
+    .filter((n) => !Number.isNaN(n));
+  return nums.length ? Math.min(...nums) : Number.POSITIVE_INFINITY;
+}
+
+/** Younger defaultBookAges first; untagged books after; then rank/name. */
+export function sortBooksByYoungerDefaultAges(items: CatalogItem[]): CatalogItem[] {
+  return [...items].sort((a, b) => {
+    const amin = minDefaultBookAge(a);
+    const bmin = minDefaultBookAge(b);
+    if (amin !== bmin) return amin - bmin;
+    const ar = a.storefrontRank ?? Number.POSITIVE_INFINITY;
+    const br = b.storefrontRank ?? Number.POSITIVE_INFINITY;
+    if (ar !== br) return ar - br;
+    return a.name.localeCompare(b.name);
+  });
+}

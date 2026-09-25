@@ -7,7 +7,7 @@ export const PASSOVER_STRIP_HEADLINE =
   'Passover will be here before you know it';
 
 export const PASSOVER_STRIP_BODY =
-  'We’re just in the early stages of planning our Passover collection. Pre-register now for access to discounts when the Passover boxes are released.';
+  'We’re just in the early stages of planning our Passover collection.\nPre-register now for access to discounts when the Passover boxes are released.';
 
 export const PASSOVER_STRIP_PRIMARY_LABEL = 'Pre-register for Passover 2027';
 
@@ -20,6 +20,7 @@ type Props = {
   body?: string;
   primaryLabel?: string;
   secondaryLabel?: string;
+  primaryDisabled?: boolean;
 };
 
 /**
@@ -33,12 +34,17 @@ export function StorefrontPassoverStrip({
   body = PASSOVER_STRIP_BODY,
   primaryLabel = PASSOVER_STRIP_PRIMARY_LABEL,
   secondaryLabel = PASSOVER_STRIP_SECONDARY_LABEL,
+  primaryDisabled = false,
 }: Props) {
   return (
     <StorefrontPaperCardStrip
       headline={headline}
       body={body}
-      primaryCta={{ label: primaryLabel, onPress: onPreRegister }}
+      primaryCta={{
+        label: primaryLabel,
+        onPress: onPreRegister,
+        disabled: primaryDisabled,
+      }}
       secondaryCta={{ label: secondaryLabel, onPress: onLearnMore }}
       style={styles.outer}
     />

@@ -42,6 +42,8 @@ export type RavUserMemoryContext = {
   browseRecent: RavBrowseMemoryEntry[];
   wishlist: RavWishlistMemoryEntry[];
   ordersSummary: RavOrderMemorySummary[];
+  /** Non-PII storefront interest keys (e.g. passover-2027-notify). */
+  storefrontInterests?: string[];
 };
 
 export type RavCopilotClientContext = {

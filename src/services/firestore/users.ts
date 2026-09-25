@@ -30,6 +30,9 @@ function toProfile(uid: string, data: Record<string, unknown>): UserProfile {
     onboardingComplete: Boolean(data.onboardingComplete),
     boxRevealComplete: Boolean(data.boxRevealComplete),
     notificationsOptIn: data.notificationsOptIn as boolean | undefined,
+    storefrontInterests: Array.isArray(data.storefrontInterests)
+      ? (data.storefrontInterests as string[])
+      : undefined,
     hiddenHolidays: Array.isArray(data.hiddenHolidays) ? (data.hiddenHolidays as string[]) : [],
     collaborationName: (data.collaborationName as string | undefined) ?? undefined,
     upcomingBeamMilestone: parseUpcomingBeamMilestone(data.upcomingBeamMilestone),

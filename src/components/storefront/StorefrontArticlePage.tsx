@@ -36,6 +36,7 @@ const COLUMN_MAX = 720;
 export type StorefrontArticleCta = {
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 };
 
 export type StorefrontArticleStepItem = {
@@ -696,10 +697,15 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                                 style={[
                                   styles.roadCta,
                                   ctaPrimary ? styles.roadCtaPrimary : styles.roadCtaOutline,
+                                  item.cta.disabled ? styles.ctaDisabled : null,
                                 ]}
                                 onPress={item.cta.onPress}
+                                disabled={item.cta.disabled}
                                 accessibilityRole="button"
                                 accessibilityLabel={item.cta.label}
+                                accessibilityState={{
+                                  disabled: Boolean(item.cta.disabled),
+                                }}
                               >
                                 <Text
                                   style={[
@@ -828,10 +834,13 @@ export function StorefrontArticlePage({
                     styles.ctaPrimary,
                     mediumPrimary ? styles.ctaPrimaryMedium : null,
                     largePrimary ? styles.ctaPrimaryLarge : null,
+                    primaryCta.disabled ? styles.ctaDisabled : null,
                   ]}
                   onPress={primaryCta.onPress}
+                  disabled={primaryCta.disabled}
                   accessibilityRole="button"
                   accessibilityLabel={primaryCta.label}
+                  accessibilityState={{ disabled: Boolean(primaryCta.disabled) }}
                 >
                   <Text
                     style={[
@@ -846,10 +855,15 @@ export function StorefrontArticlePage({
               ) : null}
               {secondaryCta ? (
                 <TouchableOpacity
-                  style={styles.ctaSecondary}
+                  style={[
+                    styles.ctaSecondary,
+                    secondaryCta.disabled ? styles.ctaDisabled : null,
+                  ]}
                   onPress={secondaryCta.onPress}
+                  disabled={secondaryCta.disabled}
                   accessibilityRole="button"
                   accessibilityLabel={secondaryCta.label}
+                  accessibilityState={{ disabled: Boolean(secondaryCta.disabled) }}
                 >
                   <Text style={styles.ctaSecondaryText}>{secondaryCta.label}</Text>
                 </TouchableOpacity>
@@ -1041,6 +1055,9 @@ const styles = StyleSheet.create({
     fontSize: typography.md,
     color: semanticColors.logoDark,
     textAlign: 'center',
+  },
+  ctaDisabled: {
+    opacity: 0.72,
   },
   blocks: {
     width: '100%',

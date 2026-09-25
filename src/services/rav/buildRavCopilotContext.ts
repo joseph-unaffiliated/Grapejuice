@@ -108,6 +108,7 @@ export async function buildRavCopilotClientContext(opts: {
   wishlistIds: string[];
   catalog: CatalogItem[];
   householdId?: string | null;
+  storefrontInterests?: string[];
 }): Promise<RavCopilotClientContext> {
   const route = leafRouteName(opts.navigationState) ?? 'unknown';
   const routeParams = (() => {
@@ -159,6 +160,9 @@ export async function buildRavCopilotClientContext(opts: {
     browseRecent,
     wishlist,
     ordersSummary,
+    storefrontInterests: opts.storefrontInterests?.length
+      ? opts.storefrontInterests
+      : undefined,
   };
 
   return { surface, userMemory };

@@ -35,6 +35,7 @@ import {
   snuggleStuffies,
   itemsForDreidelsKidsRail,
   itemsForStorefrontRail,
+  sortBooksByYoungerDefaultAges,
 } from '../../constants/storefrontCategories';
 import { filterCatalogByTag } from '../../constants/catalogCuration';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -42,6 +43,8 @@ import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
   useStorefrontHomeMode,
 } from '../../hooks/useStorefrontHomeMode';
+import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
+import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
@@ -71,6 +74,11 @@ export function StorefrontHomeScreen() {
   const { isCompact: compact } = useLayoutBreakpoint();
   const now = usePreviewNow();
   const collectionLimit = compact ? 4 : 3;
+  const railLimit = compact ? 50 : 6;
+  const gridLayout = compact ? 'rail' : 'grid';
+  const gridLimit = compact ? undefined : 3;
+  const collectionGridLimit = compact ? undefined : collectionLimit;
+  const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
   const [lockAt, setLockAt] = useState<string | null>(null);
@@ -144,7 +152,7 @@ export function StorefrontHomeScreen() {
   const onHeroPrimary = () => {
     switch (mode) {
       case 'guest_box':
-        goCreateAccount();
+        startBox();
         return;
       case 'needs_payment':
         goCheckout();
@@ -170,7 +178,7 @@ export function StorefrontHomeScreen() {
   const onHeroSecondary = () => {
     switch (mode) {
       case 'guest_box':
-        startBox();
+        goCategory('collection');
         return;
       case 'customize':
         startBox();
@@ -230,14 +238,14 @@ export function StorefrontHomeScreen() {
         items,
         'menorahs-collection',
         collectionMenorahs(items),
-        6,
+        railLimit,
         ['menorahs']
       ),
-    [items]
+    [items, railLimit]
   );
   const menorahsKids = useMemo(
-    () => itemsForStorefrontRail(items, 'menorahs-kids', kidsMenorahs(items)),
-    [items]
+    () => itemsForStorefrontRail(items, 'menorahs-kids', kidsMenorahs(items), railLimit),
+    [items, railLimit]
   );
   const dreidelsCollection = useMemo(
     () =>
@@ -245,36 +253,43 @@ export function StorefrontHomeScreen() {
         items,
         'dreidels-collection',
         collectionDreidels(items),
-        6
+        railLimit
       ),
-    [items]
+    [items, railLimit]
   );
-  const dreidelsKids = useMemo(() => itemsForDreidelsKidsRail(items), [items]);
-  const dreidelsSnuggle = useMemo(() => snuggleStuffies(items).slice(0, 6), [items]);
-  const books = useMemo(
-    () =>
-      itemsForStorefrontRail(
-        items,
-        'books',
-        filterByStorefrontCategory(items, 'books')
-      ),
-    [items]
+  const dreidelsKids = useMemo(
+    () => itemsForDreidelsKidsRail(items, railLimit),
+    [items, railLimit]
   );
+  const dreidelsSnuggle = useMemo(
+    () => snuggleStuffies(items).slice(0, railLimit),
+    [items, railLimit]
+  );
+  const books = useMemo(() => {
+    const rail = itemsForStorefrontRail(
+      items,
+      'books',
+      filterByStorefrontCategory(items, 'books'),
+      railLimit
+    );
+    return sortBooksByYoungerDefaultAges(rail);
+  }, [items, railLimit]);
   const candles = useMemo(
     () =>
       itemsForStorefrontRail(
         items,
         'candles',
-        filterByStorefrontCategory(items, 'candles')
+        filterByStorefrontCategory(items, 'candles'),
+        railLimit
       ),
-    [items]
+    [items, railLimit]
   );
   const loved = useMemo(() => {
     const nonBooks = excludeBooks(items);
     const tagged = filterCatalogByTag(nonBooks, 'collection');
     const fallback = tagged.length ? tagged : nonBooks;
-    return itemsForStorefrontRail(items, 'most-loved', fallback);
-  }, [items]);
+    return itemsForStorefrontRail(items, 'most-loved', fallback, railLimit);
+  }, [items, railLimit]);
 
   /** Aisle rail covers: fixed lifestyle assets from STOREFRONT_HOME_AISLE_CARDS. */
   const aisleCards = STOREFRONT_HOME_AISLE_CARDS;
@@ -315,7 +330,11 @@ export function StorefrontHomeScreen() {
           {loading ? (
             <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
           ) : (
-            <StorefrontProductGrid items={loved} limit={3} />
+            <StorefrontProductGrid
+              items={loved}
+              limit={gridLimit}
+              layout={gridLayout}
+            />
           )}
         </View>
 
@@ -354,18 +373,30 @@ export function StorefrontHomeScreen() {
           title="Instant heirlooms"
           onPress={() => goCategory('menorahs', { style: 'collection' })}
         />
-        <StorefrontProductGrid items={menorahsCollection} limit={collectionLimit} />
+        <StorefrontProductGrid
+          items={menorahsCollection}
+          limit={collectionGridLimit}
+          layout={gridLayout}
+        />
         {menorahsKids.length ? (
           <>
             <SubSectionHeader
               title="Fun for the whole family"
               onPress={() => goCategory('menorahs', { style: 'kids' })}
             />
-            <StorefrontProductGrid items={menorahsKids} limit={3} />
+            <StorefrontProductGrid
+              items={menorahsKids}
+              limit={gridLimit}
+              layout={gridLayout}
+            />
           </>
         ) : null}
         <SubSectionHeader title="Don't forget the candles" onPress={() => goCategory('candles')} />
-        <StorefrontProductGrid items={candles} limit={3} />
+        <StorefrontProductGrid
+          items={candles}
+          limit={gridLimit}
+          layout={gridLayout}
+        />
 
         <StorefrontMenorahsLifestyleCard
           label="Let the games begin"
@@ -381,14 +412,22 @@ export function StorefrontHomeScreen() {
           title="Spin spin spin"
           onPress={() => goCategory('dreidels', { style: 'collection' })}
         />
-        <StorefrontProductGrid items={dreidelsCollection} limit={collectionLimit} />
+        <StorefrontProductGrid
+          items={dreidelsCollection}
+          limit={collectionGridLimit}
+          layout={gridLayout}
+        />
         {dreidelsKids.length ? (
           <>
             <SubSectionHeader
               title="Make it yourself"
               onPress={() => goCategory('dreidels', { style: 'kids' })}
             />
-            <StorefrontProductGrid items={dreidelsKids} limit={3} />
+            <StorefrontProductGrid
+              items={dreidelsKids}
+              limit={gridLimit}
+              layout={gridLayout}
+            />
           </>
         ) : null}
         {dreidelsSnuggle.length ? (
@@ -397,7 +436,11 @@ export function StorefrontHomeScreen() {
               title="Time to snuggle"
               onPress={() => goCategory('stuffies')}
             />
-            <StorefrontProductGrid items={dreidelsSnuggle} limit={3} />
+            <StorefrontProductGrid
+              items={dreidelsSnuggle}
+              limit={gridLimit}
+              layout={gridLayout}
+            />
           </>
         ) : null}
         {books.length ? (
@@ -406,13 +449,21 @@ export function StorefrontHomeScreen() {
               title="Tell me a story"
               onPress={() => goCategory('books')}
             />
-            <StorefrontProductGrid items={books} limit={3} />
+            <StorefrontProductGrid
+              items={books}
+              limit={gridLimit}
+              layout={gridLayout}
+            />
           </>
         ) : null}
 
         <StorefrontPassoverStrip
-          onPreRegister={goPassover}
+          onPreRegister={() => passoverInterest.mark()}
           onLearnMore={goPassover}
+          primaryLabel={
+            passoverInterest.marked ? 'Done!' : undefined
+          }
+          primaryDisabled={passoverInterest.marked}
         />
     </StorefrontChrome>
   );

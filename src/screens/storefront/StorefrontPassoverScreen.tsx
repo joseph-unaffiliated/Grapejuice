@@ -3,19 +3,25 @@ import { Linking } from 'react-native';
 import { StorefrontArticlePage } from '../../components/storefront/StorefrontArticlePage';
 import { StorefrontBMitzvahStrip } from '../../components/storefront/StorefrontBMitzvahStrip';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
-import { BMITZVAH_INTEREST_RAV_PROMPT } from '../../constants/storefrontBMitzvahCopy';
+import { BMITZVAH_PILOT_INTEREST } from '../../constants/storefrontBMitzvahCopy';
+import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
 import { STOREFRONT_PASSOVER_BOX_THUMBS } from '../../constants/storefrontMedia';
 import { PASSOVER_COPY } from '../../constants/storefrontPassoverCopy';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
+import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
 
 export function StorefrontPassoverScreen() {
-  const { startBox, askRav } = useStorefrontActions();
+  const { startBox } = useStorefrontActions();
   usePublishRavSurface({ type: 'content', id: 'passover-2027', label: 'Passover 2027' });
   const c = PASSOVER_COPY;
+  const passover = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
+  const bmitzvah = useStorefrontInterest(BMITZVAH_PILOT_INTEREST);
 
   const reserveInterest = () => {
-    askRav("I'd like to start thinking about Passover");
+    passover.mark();
   };
+
+  const primaryLabel = passover.marked ? 'Done!' : c.primaryCta;
 
   return (
     <StorefrontArticlePage
@@ -23,7 +29,11 @@ export function StorefrontPassoverScreen() {
       title={c.title}
       lead={c.lead}
       leadMaxWidth={520}
-      primaryCta={{ label: c.primaryCta, onPress: reserveInterest }}
+      primaryCta={{
+        label: primaryLabel,
+        onPress: reserveInterest,
+        disabled: passover.marked,
+      }}
       primaryCtaSize="medium"
       showHeroDivider
       buildBoxHeadline="build your hanukkah box"
@@ -45,13 +55,17 @@ export function StorefrontPassoverScreen() {
               const isStartBox = ctaAction === 'startBox';
               const ctaVariant =
                 'ctaVariant' in item && item.ctaVariant ? item.ctaVariant : undefined;
+              const isPreRegister = Boolean(ctaLabel) && !isStartBox;
+              const label =
+                isPreRegister && passover.marked ? 'Done!' : ctaLabel;
               return {
                 when: item.when,
                 what: item.what,
-                cta: ctaLabel
+                cta: label
                   ? {
-                      label: ctaLabel,
+                      label,
                       onPress: isStartBox ? startBox : reserveInterest,
+                      disabled: isPreRegister && passover.marked,
                     }
                   : undefined,
                 // Passover Pre-register = gold fill; Hanukkah + other holidays = outline
@@ -76,7 +90,9 @@ export function StorefrontPassoverScreen() {
       ]}
       beforeFooterStrips={
         <StorefrontBMitzvahStrip
-          onInterested={() => askRav(BMITZVAH_INTEREST_RAV_PROMPT)}
+          onInterested={() => bmitzvah.mark()}
+          primaryLabel={bmitzvah.marked ? 'Done!' : undefined}
+          disabled={bmitzvah.marked}
         />
       }
     />

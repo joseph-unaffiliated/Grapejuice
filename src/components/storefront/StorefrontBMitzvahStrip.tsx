@@ -11,6 +11,7 @@ type Props = {
   headline?: string;
   body?: string;
   primaryLabel?: string;
+  disabled?: boolean;
 };
 
 /**
@@ -22,12 +23,13 @@ export function StorefrontBMitzvahStrip({
   headline = BMITZVAH_STRIP_HEADLINE,
   body = BMITZVAH_STRIP_BODY,
   primaryLabel = BMITZVAH_STRIP_PRIMARY_LABEL,
+  disabled = false,
 }: Props) {
   return (
     <StorefrontPaperCardStrip
       headline={headline}
       body={body}
-      primaryCta={{ label: primaryLabel, onPress: onInterested }}
+      primaryCta={{ label: primaryLabel, onPress: onInterested, disabled }}
     />
   );
 }

@@ -125,10 +125,10 @@ export function StorefrontHero({
   /** Timeline lives above the hero; still skip gold subline when the rail would show. */
   const journeyRailActive = journeyMode && !duringHanukkah;
   const withCtas = showCtas(mode);
-  /** Guest box: single “View your box” CTA (account prompt lives in the promo strip). */
-  const guestSingleCta = mode === 'guest_box' && journeyMode;
   /** Acquisition: Browse left (ghost), Build right (primary white). */
   const acquisitionCtas = mode === 'acquisition';
+  /** Guest box: View your box (primary) + Browse the Collection (ghost). */
+  const guestBoxCtas = mode === 'guest_box' && journeyMode;
   // Tall plate, but leave a peek of what’s below. When the journey banner sits
   // under the hero, reserve space so the timeline is on-screen at first paint.
   const chromeApprox = compact ? 168 : 200;
@@ -199,7 +199,7 @@ export function StorefrontHero({
     bodySecondary = null;
     if (mode === 'guest_box') {
       primaryLabel = 'View your box';
-      secondaryLabel = 'View your box';
+      secondaryLabel = 'Browse the Collection';
     } else if (mode === 'customize') {
       primaryLabel = STOREFRONT_HERO.ctaLabel ?? 'Browse the Collection';
       secondaryLabel = 'Customize your Box';
@@ -211,6 +211,21 @@ export function StorefrontHero({
 
   const hasBody = Boolean(body || bodySecondary);
   const headlineGap = hasBody ? 4 : compact ? 14 : 20;
+  const acquisitionHeadline = mode === 'acquisition';
+  const headlineWebFluid =
+    acquisitionHeadline && Platform.OS === 'web'
+      ? ({
+          fontSize: 'clamp(1.75rem, 6.2vw, 3.25rem)',
+          lineHeight: 'clamp(1.75rem, 6.2vw, 3.25rem)',
+          whiteSpace: 'nowrap',
+        } as object)
+      : null;
+  const headlineNativeFluid = acquisitionHeadline
+    ? {
+        fontSize: compact ? 28 : 52,
+        lineHeight: compact ? 30 : 54,
+      }
+    : null;
 
   return (
     <View style={[styles.root, { height: heroHeight }]} onLayout={onLayout}>
@@ -232,9 +247,12 @@ export function StorefrontHero({
         <Text
           style={[
             styles.headline,
-            compact && styles.headlineCompact,
+            compact && !acquisitionHeadline && styles.headlineCompact,
+            headlineNativeFluid,
+            headlineWebFluid,
             { marginBottom: headlineGap },
           ]}
+          numberOfLines={acquisitionHeadline ? 1 : undefined}
         >
           {headline}
         </Text>
@@ -261,16 +279,7 @@ export function StorefrontHero({
 
         {withCtas ? (
           <View style={[styles.ctas, compact && styles.ctasCompact]}>
-            {guestSingleCta ? (
-              <TouchableOpacity
-                style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
-                onPress={onSecondary}
-                accessibilityRole="button"
-                accessibilityLabel={secondaryLabel}
-              >
-                <Text style={styles.ctaPrimaryText}>{secondaryLabel}</Text>
-              </TouchableOpacity>
-            ) : acquisitionCtas ? (
+            {acquisitionCtas ? (
               <>
                 <TouchableOpacity
                   style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
@@ -287,6 +296,25 @@ export function StorefrontHero({
                   accessibilityLabel={secondaryLabel}
                 >
                   <Text style={styles.ctaPrimaryText}>{secondaryLabel}</Text>
+                </TouchableOpacity>
+              </>
+            ) : guestBoxCtas ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
+                  onPress={onPrimary}
+                  accessibilityRole="button"
+                  accessibilityLabel={primaryLabel}
+                >
+                  <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
+                  onPress={onSecondary}
+                  accessibilityRole="button"
+                  accessibilityLabel={secondaryLabel}
+                >
+                  <Text style={styles.ctaGhostText}>{secondaryLabel}</Text>
                 </TouchableOpacity>
               </>
             ) : (

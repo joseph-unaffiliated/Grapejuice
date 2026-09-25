@@ -164,7 +164,7 @@ export function HomeScreen() {
     [colors, isDesktop, contentColumnOffset],
   );
   const contentWidth = isDesktop ? layoutWidth : screenWidth;
-  const { household, loading: sessionLoading, refresh } = useSession();
+  const { household, loading: sessionLoading, refresh, profile } = useSession();
   const { lineItems, loading: draftLoading } = useBoxDraft();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
@@ -217,6 +217,9 @@ export function HomeScreen() {
   const [now, setNow] = useState(() => new Date());
 
   const interests = guestInterests;
+  const passoverNotified =
+    interests.includes(PASSOVER_NOTIFY_INTEREST) ||
+    (profile?.storefrontInterests ?? []).includes(PASSOVER_NOTIFY_INTEREST);
   const openBox = useCallback(() => {
     openBoxSurface(isAuthenticated, {
       hasOwnBox: lineItems.length > 0,
@@ -284,7 +287,6 @@ export function HomeScreen() {
   const { phase, hanukkah, primaryOrder } = useHolidayPhase(startsOn, hasOrder, orders, now);
   const locked = useEffectiveBoxLocked(lockAt);
   const lockCountdown = !locked ? formatCountdown(lockAt, now) : null;
-  const passoverNotified = interests.includes(PASSOVER_NOTIFY_INTEREST);
 
   const boxLifecycle = deriveBoxLifecycle({ itemCount, hasOrder, primaryOrder });
   const heroTitle = heroTitleForLifecycle(boxLifecycle);
@@ -313,7 +315,20 @@ export function HomeScreen() {
   const handleToggleInterest = async (holidayId: string) => {
     toggleGuestInterest(holidayId);
     if (isAuthenticated && user?.uid) {
-      await usersService.upsert(user.uid, { notificationsOptIn: true });
+      const guestNow = useGuestSessionStore.getState().interests;
+      const others = (profile?.storefrontInterests ?? []).filter(
+        (i) => i !== holidayId
+      );
+      const next = guestNow.includes(holidayId)
+        ? [...others, holidayId]
+        : others;
+      await usersService.upsert(user.uid, {
+        notificationsOptIn: guestNow.includes(PASSOVER_NOTIFY_INTEREST)
+          ? true
+          : undefined,
+        storefrontInterests: next,
+      });
+      void refresh({ silent: true });
     }
   };
 

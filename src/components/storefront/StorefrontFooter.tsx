@@ -11,6 +11,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
+import { Icon } from '../ui/Icon';
+import { icons } from '../../constants/icons';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
@@ -164,7 +166,7 @@ export function StorefrontFooter() {
         heading: 'Company',
         links: [
           {
-            label: 'Our story',
+            label: 'Our Story',
             onPress: () => navigation.navigate('StorefrontOurStory'),
           },
           {
@@ -254,6 +256,25 @@ export function StorefrontFooter() {
                       {col.links.map((link) => (
                         <FooterLinkRow key={link.label} link={link} />
                       ))}
+                      {col.heading === 'Contact' ? (
+                        <TouchableOpacity
+                          onPress={() => {
+                            void Linking.openURL(
+                              'https://www.instagram.com/grapejuice_co'
+                            );
+                          }}
+                          accessibilityRole="link"
+                          accessibilityLabel="Grapejuice on Instagram"
+                          hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
+                          style={styles.linkRow}
+                        >
+                          <Icon
+                            icon={icons.instagram}
+                            size={16}
+                            color={FOOTER_LINK}
+                          />
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   )}
                 </View>
@@ -261,6 +282,9 @@ export function StorefrontFooter() {
             })}
           </View>
         </View>
+        <Text style={styles.copyright} accessibilityRole="text">
+          © 2026 Unaffiliated Inc. All Rights Reserved
+        </Text>
         <Text
           style={[
             styles.wordmarkWatermark,
@@ -319,6 +343,14 @@ const styles = StyleSheet.create({
           pointerEvents: 'none',
         } as object)
       : null),
+  },
+  copyright: {
+    ...typeface('regular'),
+    fontSize: typography.xs,
+    color: 'rgba(216, 201, 144, 0.72)',
+    letterSpacing: -0.1,
+    marginTop: spacing.lg,
+    alignSelf: 'stretch',
   },
   inner: {
     width: '100%',

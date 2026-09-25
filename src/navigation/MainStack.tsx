@@ -434,7 +434,7 @@ export function MainStack() {
         <Stack.Screen
           name="StorefrontOurStory"
           component={StorefrontOurStoryScreen}
-          options={{ title: 'Our story' }}
+          options={{ title: 'Our Story' }}
         />
         <Stack.Screen
           name="StorefrontPassover"

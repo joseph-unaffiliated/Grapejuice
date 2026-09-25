@@ -126,7 +126,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const recordGuestRavPrompt = useGuestSessionStore((s) => s.recordGuestRavPrompt);
   const guestFamiliarityLevel = useGuestSessionStore((s) => s.familiarityLevel);
   const { lineItems, persist } = useBoxDraft();
-  const { household } = useSession();
+  const { household, profile } = useSession();
+  const guestInterests = useGuestSessionStore((s) => s.interests);
   const { ids: wishlistIds } = useWishlist();
   const publishedFocus = useRavSurfaceStore((s) => s.focusedEntity);
   const navigationState = useNavigationState((state) => state);
@@ -447,6 +448,12 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               wishlistIds,
               catalog,
               householdId: household?.id,
+              storefrontInterests: Array.from(
+                new Set([
+                  ...guestInterests,
+                  ...(profile?.storefrontInterests ?? []),
+                ])
+              ),
             });
 
         const { reply, blocks = [], actions = [], pane: ravPane } = await askRav({
@@ -577,7 +584,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, guestFamiliarityLevel, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, guestFamiliarityLevel, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id, guestInterests, profile?.storefrontInterests]
   );
 
   /** Web: Enter sends, Shift+Enter inserts a newline.

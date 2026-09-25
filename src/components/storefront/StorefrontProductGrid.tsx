@@ -3,6 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
+  Platform,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -42,6 +44,10 @@ type Props = {
   placeholderCount?: number;
   /** Optional precomputed availability (avoids a second subscription). */
   availabilityById?: Record<string, CatalogAvailability>;
+  /** When false, omit maxWidth so PLPs can use the full content column. */
+  constrainWidth?: boolean;
+  /** `rail` = single-row horizontal scroll (~1.5 tiles visible). */
+  layout?: 'grid' | 'rail';
 };
 
 /** Prefer 3-up when the grid’s own width is tablet+; else 2. Uses container, not window,
@@ -67,6 +73,8 @@ export function StorefrontProductGrid({
   limit,
   placeholderCount = 0,
   availabilityById: availabilityProp,
+  constrainWidth = true,
+  layout = 'grid',
 }: Props) {
   const navigation = useNavigation<Nav>();
   const { width: windowWidth } = useWindowDimensions();
@@ -77,6 +85,7 @@ export function StorefrontProductGrid({
   const { lineItems, persist } = useBoxDraft();
   const hasStartedBox = usePreviewedHasStartedBox();
   const [containerWidth, setContainerWidth] = useState(0);
+  const isRail = layout === 'rail';
 
   const onLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
@@ -88,7 +97,9 @@ export function StorefrontProductGrid({
   const pad = MOBILE_GUTTER;
   const layoutW = containerWidth > 0 ? containerWidth : windowWidth;
   const cols = columnsForWidth(layoutW);
-  const tileWidth = Math.floor((layoutW - pad * 2 - gap * (cols - 1)) / cols);
+  const tileWidth = isRail
+    ? Math.floor((layoutW - pad * 2 - gap / 2) / 1.5)
+    : Math.floor((layoutW - pad * 2 - gap * (cols - 1)) / cols);
 
   const visible = useMemo(() => {
     const list = limit != null ? items.slice(0, limit) : items;
@@ -116,8 +127,8 @@ export function StorefrontProductGrid({
     void persist(next);
   };
 
-  return (
-    <View style={[styles.grid, { paddingHorizontal: pad, gap }]} onLayout={onLayout}>
+  const tiles = (
+    <>
       {visible.map((item) => {
         const relation = boxRelationForItem(
           item,
@@ -161,6 +172,45 @@ export function StorefrontProductGrid({
           <Text style={styles.placeholderMeta}>Coming soon</Text>
         </View>
       ))}
+    </>
+  );
+
+  if (isRail) {
+    return (
+      <View
+        style={[
+          styles.railOuter,
+          constrainWidth && styles.constrained,
+          { paddingLeft: pad },
+        ]}
+        onLayout={onLayout}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.railContent, { gap, paddingRight: pad }]}
+          style={
+            Platform.OS === 'web'
+              ? ({ scrollbarWidth: 'none' } as object)
+              : undefined
+          }
+        >
+          {tiles}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.grid,
+        constrainWidth && styles.constrained,
+        { paddingHorizontal: pad, gap },
+      ]}
+      onLayout={onLayout}
+    >
+      {tiles}
     </View>
   );
 }
@@ -173,8 +223,19 @@ const styles = StyleSheet.create({
     // Match home: journey banner → Top picks (banner paddingBottom.md + sectionHead.paddingTop.xl).
     marginBottom: spacing.md,
     width: '100%',
-    maxWidth: 1024,
     alignSelf: 'center',
+  },
+  constrained: {
+    maxWidth: 1024,
+  },
+  railOuter: {
+    width: '100%',
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  railContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   placeholder: {
     gap: spacing.xs,

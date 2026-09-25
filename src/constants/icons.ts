@@ -48,6 +48,7 @@ import {
   faPen,
 } from '@fortawesome/free-solid-svg-icons';
 import { faHeart as faHeartOutline } from '@fortawesome/free-regular-svg-icons';
+import { faInstagram } from '@fortawesome/free-brands-svg-icons';
 
 export const icons = {
   home: faHouse,
@@ -95,6 +96,7 @@ export const icons = {
   locationDot: faLocationDot,
   grip: faGripVertical,
   pen: faPen,
+  instagram: faInstagram,
 } as const;
 
 export type IconName = keyof typeof icons;

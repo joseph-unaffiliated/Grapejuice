@@ -147,7 +147,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         heading: 'Company',
         links: [
           {
-            label: 'Our story',
+            label: 'Our Story',
             onPress: () =>
               go(() => {
                 if (leave) {

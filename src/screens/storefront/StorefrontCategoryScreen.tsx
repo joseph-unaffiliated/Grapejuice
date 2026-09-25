@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
@@ -106,6 +108,31 @@ function FilterChipButton({
         </Text>
       </View>
     </TouchableOpacity>
+  );
+}
+
+function FilterChipRow({
+  children,
+  scrollable,
+}: {
+  children: React.ReactNode;
+  scrollable: boolean;
+}) {
+  if (!scrollable) {
+    return <View style={styles.chipRow}>{children}</View>;
+  }
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chipRowScrollContent}
+      style={[
+        styles.chipRowScroll,
+        Platform.OS === 'web' ? ({ scrollbarWidth: 'none' } as object) : null,
+      ]}
+    >
+      {children}
+    </ScrollView>
   );
 }
 
@@ -330,7 +357,7 @@ export function StorefrontCategoryScreen() {
           {showCategoryChips && categoryChipOptions ? (
             <View style={styles.facetBlock}>
               <Text style={styles.filterLabel}>Category</Text>
-              <View style={styles.chipRow}>
+              <FilterChipRow scrollable={!isDesktop}>
                 {categoryChipOptions.map((c, index) => (
                   <React.Fragment key={c.slug}>
                     {c.separatorBefore && index > 0 ? (
@@ -362,7 +389,7 @@ export function StorefrontCategoryScreen() {
                     />
                   </React.Fragment>
                 ))}
-              </View>
+              </FilterChipRow>
             </View>
           ) : null}
 
@@ -371,7 +398,7 @@ export function StorefrontCategoryScreen() {
             return (
               <View key={group.id} style={styles.facetBlock}>
                 <Text style={styles.filterLabel}>{group.label}</Text>
-                <View style={styles.chipRow}>
+                <FilterChipRow scrollable={!isDesktop}>
                   {group.options.map((opt) => (
                     <FilterChipButton
                       key={opt.key}
@@ -380,14 +407,14 @@ export function StorefrontCategoryScreen() {
                       onPress={() => setFacet(group.id, opt.key)}
                     />
                   ))}
-                </View>
+                </FilterChipRow>
               </View>
             );
           })}
 
           <View style={styles.facetBlock}>
             <Text style={styles.filterLabel}>Sort</Text>
-            <View style={styles.chipRow}>
+            <FilterChipRow scrollable={!isDesktop}>
               {SORT_OPTIONS.map((opt) => (
                 <FilterChipButton
                   key={opt.key}
@@ -396,7 +423,7 @@ export function StorefrontCategoryScreen() {
                   onPress={() => setSort(opt.key)}
                 />
               ))}
-            </View>
+            </FilterChipRow>
           </View>
         </View>
 
@@ -428,6 +455,7 @@ export function StorefrontCategoryScreen() {
           <StorefrontProductGrid
             items={filtered}
             availabilityById={availabilityById}
+            constrainWidth={false}
           />
         )}
 
@@ -510,6 +538,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
+  },
+  chipRowScroll: {
+    marginHorizontal: -2,
+  },
+  chipRowScrollContent: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
   },
   filterChip: {
     paddingHorizontal: spacing.sm,

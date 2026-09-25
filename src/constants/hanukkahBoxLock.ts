@@ -99,28 +99,19 @@ export function arrivesByPromoLabel(estimatedDeliveryBy?: string | null): string
   return `Arrives by ${day}`;
 }
 
-function dayOrdinal(day: number): string {
-  const j = day % 10;
-  const k = day % 100;
-  if (j === 1 && k !== 11) return `${day}st`;
-  if (j === 2 && k !== 12) return `${day}nd`;
-  if (j === 3 && k !== 13) return `${day}rd`;
-  return `${day}th`;
-}
-
-/** e.g. `Hanukkah starts sundown Dec. 4th, 2026` from Firestore `startsOn`. */
+/** e.g. `Hanukkah starts sundown Dec 4` from Firestore `startsOn`. */
 export function hanukkahStartsSundownLabel(startsOn?: string | null): string | null {
   if (!startsOn?.trim()) return null;
   const d = parseIsoDate(startsOn.trim());
   if (Number.isNaN(d.getTime())) return null;
-  return `Hanukkah starts sundown ${MONTH_SHORT[d.getMonth()]}. ${dayOrdinal(d.getDate())}, ${d.getFullYear()}`;
+  return `Hanukkah starts sundown ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 }
 
 export function freeShippingPromoLine(
   estimatedDeliveryBy?: string | null,
   startsOn?: string | null
 ): string {
-  const base = `Free shipping on Hanukkah box orders • ${arrivesByPromoLabel(estimatedDeliveryBy)}`;
+  const base = `Free shipping on boxes • ${arrivesByPromoLabel(estimatedDeliveryBy)}`;
   const third = hanukkahStartsSundownLabel(startsOn);
   return third ? `${base} • ${third}` : base;
 }

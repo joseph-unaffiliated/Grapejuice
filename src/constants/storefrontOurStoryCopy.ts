@@ -4,7 +4,7 @@
  */
 
 export const OUR_STORY_COPY = {
-  crumb: 'Our story',
+  crumb: 'Our Story',
   eyebrow: 'About Grapejuice',
   title: 'Anyone who wants to do Jewish should be able to.',
   lead:
@@ -83,7 +83,7 @@ export const OUR_STORY_COPY = {
     ],
   },
   give: {
-    heading: 'Making it your own doesn’t mean doing it alone',
+    heading: "Making it your own\ndoesn’t mean doing it alone",
     body:
       'You can donate boxes — we distribute them for free to families. We subsidize programs for people for whom this would be their first Hanukkah, and for people who lack the means to do Hanukkah for themselves. Make a donation if you can; we do not issue tax receipts.',
   },

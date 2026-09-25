@@ -131,7 +131,8 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
       guest.buildBoxPath ||
       guest.lineItems.length > 0 ||
       guest.childDrafts.length > 0 ||
-      guest.wishlistItemIds.length > 0);
+      guest.wishlistItemIds.length > 0 ||
+      guest.interests.length > 0);
 
   if (!hasGuestData && !skipBoxOnboarding) {
     return;
@@ -234,6 +235,11 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
         ? true
         : guest.boxRevealComplete || prof.boxRevealComplete,
     notificationsOptIn: guest.interests.includes('passover-2027-notify') ? true : undefined,
+    storefrontInterests: guest.interests.length
+      ? Array.from(
+          new Set([...(prof.storefrontInterests ?? []), ...guest.interests])
+        )
+      : undefined,
     hiddenHolidays: guest.hiddenHolidays.length ? guest.hiddenHolidays : undefined,
   });
 
