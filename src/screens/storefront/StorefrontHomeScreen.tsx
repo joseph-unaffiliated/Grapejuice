@@ -27,6 +27,7 @@ import {
   DREIDELS_LIFESTYLE_HOTSPOTS,
   StorefrontMenorahsLifestyleCard,
 } from '../../components/storefront/StorefrontMenorahsLifestyleCard';
+import { LazyMount } from '../../components/storefront/LazyMount';
 import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import {
   excludeBooks,
@@ -361,136 +362,146 @@ export function StorefrontHomeScreen() {
           />
         </View>
 
-        <StorefrontOurStoryStrip
-          onLearnMore={goOurStory}
-          onGiveGift={goGiftGive}
-        />
+        <LazyMount minHeight={320}>
+          <StorefrontOurStoryStrip
+            onLearnMore={goOurStory}
+            onGiveGift={goGiftGive}
+          />
+        </LazyMount>
 
-        <StorefrontBuildBoxStrip
-          onPress={onStripPress}
-          headline={strip?.headline}
-          body={strip?.body}
-          ctaLabel={strip?.ctaLabel}
-          backgroundSource={strip?.backgroundSource}
-        />
+        <LazyMount minHeight={420}>
+          <StorefrontBuildBoxStrip
+            onPress={onStripPress}
+            headline={strip?.headline}
+            body={strip?.body}
+            ctaLabel={strip?.ctaLabel}
+            backgroundSource={strip?.backgroundSource}
+          />
+        </LazyMount>
 
-        <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
+        <LazyMount minHeight={280}>
+          <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
+        </LazyMount>
 
-        <StorefrontMenorahsLifestyleCard
-          onShopAll={() => goCategory('menorahs')}
-          onProduct={(productId) =>
-            navigation.navigate('CatalogProduct', { slug: productId })
-          }
-        />
-        <SubSectionHeader
-          title="Instant heirlooms"
-          onPress={() => goCategory('menorahs', { style: 'collection' })}
-        />
-        <StorefrontProductGrid
-          items={menorahsCollection}
-          limit={collectionGridLimit}
-          layout={gridLayout}
-          browseMoreLabel="menorahs"
-          onBrowseMore={() => goCategory('menorahs', { style: 'collection' })}
-        />
-        {menorahsKids.length ? (
-          <>
-            <SubSectionHeader
-              title="Something for everyone"
-              onPress={() => goCategory('menorahs', { style: 'kids' })}
-            />
-            <StorefrontProductGrid
-              items={menorahsKids}
-              limit={gridLimit}
-              layout={gridLayout}
-              browseMoreLabel="kids menorahs"
-              onBrowseMore={() => goCategory('menorahs', { style: 'kids' })}
-            />
-          </>
-        ) : null}
-        <SubSectionHeader title="Don't forget the candles" onPress={() => goCategory('candles')} />
-        <StorefrontProductGrid
-          items={candles}
-          limit={gridLimit}
-          layout={gridLayout}
-          browseMoreLabel="candles"
-          onBrowseMore={() => goCategory('candles')}
-        />
+        <LazyMount minHeight={900}>
+          <StorefrontMenorahsLifestyleCard
+            onShopAll={() => goCategory('menorahs')}
+            onProduct={(productId) =>
+              navigation.navigate('CatalogProduct', { slug: productId })
+            }
+          />
+          <SubSectionHeader
+            title="Instant heirlooms"
+            onPress={() => goCategory('menorahs', { style: 'collection' })}
+          />
+          <StorefrontProductGrid
+            items={menorahsCollection}
+            limit={collectionGridLimit}
+            layout={gridLayout}
+            browseMoreLabel="menorahs"
+            onBrowseMore={() => goCategory('menorahs', { style: 'collection' })}
+          />
+          {menorahsKids.length ? (
+            <>
+              <SubSectionHeader
+                title="Something for everyone"
+                onPress={() => goCategory('menorahs', { style: 'kids' })}
+              />
+              <StorefrontProductGrid
+                items={menorahsKids}
+                limit={gridLimit}
+                layout={gridLayout}
+                browseMoreLabel="kids menorahs"
+                onBrowseMore={() => goCategory('menorahs', { style: 'kids' })}
+              />
+            </>
+          ) : null}
+          <SubSectionHeader title="Don't forget the candles" onPress={() => goCategory('candles')} />
+          <StorefrontProductGrid
+            items={candles}
+            limit={gridLimit}
+            layout={gridLayout}
+            browseMoreLabel="candles"
+            onBrowseMore={() => goCategory('candles')}
+          />
+        </LazyMount>
 
-        <StorefrontMenorahsLifestyleCard
-          label="Let the fun begin"
-          image={DREIDELS_LIFESTYLE_IMG}
-          aspectRatio={DREIDELS_LIFESTYLE_ASPECT}
-          hotspots={DREIDELS_LIFESTYLE_HOTSPOTS}
-          onShopAll={() => goCategory('dreidels')}
-          onProduct={(productId) =>
-            navigation.navigate('CatalogProduct', { slug: productId })
-          }
-        />
-        <SubSectionHeader
-          title="Spin spin spin"
-          onPress={() => goCategory('dreidels', { style: 'collection' })}
-        />
-        <StorefrontProductGrid
-          items={dreidelsCollection}
-          limit={collectionGridLimit}
-          layout={gridLayout}
-          browseMoreLabel="dreidels"
-          onBrowseMore={() => goCategory('dreidels', { style: 'collection' })}
-        />
-        {dreidelsKids.length ? (
-          <>
-            <SubSectionHeader
-              title="Make it yourself"
-              onPress={() => goCategory('dreidels', { style: 'kids' })}
-            />
-            <StorefrontProductGrid
-              items={dreidelsKids}
-              limit={gridLimit}
-              layout={gridLayout}
-              browseMoreLabel="kids dreidels"
-              onBrowseMore={() => goCategory('dreidels', { style: 'kids' })}
-            />
-          </>
-        ) : null}
-        {dreidelsSnuggle.length ? (
-          <>
-            <SubSectionHeader
-              title="Time to snuggle"
-              onPress={() => goCategory('stuffies')}
-            />
-            <StorefrontProductGrid
-              items={dreidelsSnuggle}
-              limit={gridLimit}
-              layout={gridLayout}
-              browseMoreLabel="stuffies"
-              onBrowseMore={() => goCategory('stuffies')}
-            />
-          </>
-        ) : null}
-        {books.length ? (
-          <>
-            <SubSectionHeader
-              title="Tell me a story"
-              onPress={() => goCategory('books')}
-            />
-            <StorefrontProductGrid
-              items={books}
-              limit={gridLimit}
-              layout={gridLayout}
-              browseMoreLabel="books"
-              onBrowseMore={() => goCategory('books')}
-            />
-          </>
-        ) : null}
+        <LazyMount minHeight={900}>
+          <StorefrontMenorahsLifestyleCard
+            label="Let the fun begin"
+            image={DREIDELS_LIFESTYLE_IMG}
+            aspectRatio={DREIDELS_LIFESTYLE_ASPECT}
+            hotspots={DREIDELS_LIFESTYLE_HOTSPOTS}
+            onShopAll={() => goCategory('dreidels')}
+            onProduct={(productId) =>
+              navigation.navigate('CatalogProduct', { slug: productId })
+            }
+          />
+          <SubSectionHeader
+            title="Spin spin spin"
+            onPress={() => goCategory('dreidels', { style: 'collection' })}
+          />
+          <StorefrontProductGrid
+            items={dreidelsCollection}
+            limit={collectionGridLimit}
+            layout={gridLayout}
+            browseMoreLabel="dreidels"
+            onBrowseMore={() => goCategory('dreidels', { style: 'collection' })}
+          />
+          {dreidelsKids.length ? (
+            <>
+              <SubSectionHeader
+                title="Make it yourself"
+                onPress={() => goCategory('dreidels', { style: 'kids' })}
+              />
+              <StorefrontProductGrid
+                items={dreidelsKids}
+                limit={gridLimit}
+                layout={gridLayout}
+                browseMoreLabel="kids dreidels"
+                onBrowseMore={() => goCategory('dreidels', { style: 'kids' })}
+              />
+            </>
+          ) : null}
+          {dreidelsSnuggle.length ? (
+            <>
+              <SubSectionHeader
+                title="Time to snuggle"
+                onPress={() => goCategory('stuffies')}
+              />
+              <StorefrontProductGrid
+                items={dreidelsSnuggle}
+                limit={gridLimit}
+                layout={gridLayout}
+                browseMoreLabel="stuffies"
+                onBrowseMore={() => goCategory('stuffies')}
+              />
+            </>
+          ) : null}
+          {books.length ? (
+            <>
+              <SubSectionHeader
+                title="Tell me a story"
+                onPress={() => goCategory('books')}
+              />
+              <StorefrontProductGrid
+                items={books}
+                limit={gridLimit}
+                layout={gridLayout}
+                browseMoreLabel="books"
+                onBrowseMore={() => goCategory('books')}
+              />
+            </>
+          ) : null}
 
-        <StorefrontPassoverStrip
-          onPreRegister={passoverInterest.toggle}
-          onLearnMore={goPassover}
-          primaryLabel={
-            passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
-          }
-        />
+          <StorefrontPassoverStrip
+            onPreRegister={passoverInterest.toggle}
+            onLearnMore={goPassover}
+            primaryLabel={
+              passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
+            }
+          />
+        </LazyMount>
     </StorefrontChrome>
   );
 }

@@ -41,8 +41,16 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
       parts.push(params?.slug ?? params?.itemId ?? '');
     }
     if (route.name === 'StorefrontCategory') {
-      const params = route.params as { category?: string } | undefined;
+      const params = route.params as {
+        category?: string;
+        q?: string;
+        avail?: string;
+        style?: string;
+      } | undefined;
       parts.push(params?.category ?? '');
+      parts.push(params?.q ?? '');
+      parts.push(params?.avail ?? '');
+      parts.push(params?.style ?? '');
     }
     if (route.name === 'StorefrontFavorites') {
       parts.push('favorites');
@@ -201,7 +209,7 @@ function restoreFromBrowserUrl(): void {
     return;
   }
 
-  const store = readStorePathFromPathname(path);
+  const store = readStorePathFromPathname(path, window.location.search);
   if (store) {
     if (store.kind === 'home') {
       navigateMainStack('StorefrontHome');
@@ -213,6 +221,9 @@ function restoreFromBrowserUrl(): void {
     }
     navigateMainStack('StorefrontCategory', {
       category: resolveStorefrontCategorySlug(store.category || DEFAULT_STOREFRONT_CATEGORY),
+      ...(store.q ? { q: store.q } : null),
+      ...(store.avail ? { avail: store.avail } : null),
+      ...(store.style ? { style: store.style } : null),
     });
     return;
   }
@@ -228,6 +239,8 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
   if (Platform.OS !== 'web' || !state || suppressHistoryPush) return;
 
   const fingerprint = stateFingerprint(state);
+  const nextPath = browserPathForNavigationState(state);
+  const current = window.location.pathname + window.location.search;
   const previousIndex = navHistory.indexOf(fingerprint);
 
   if (navHistory.length === 0) {
@@ -238,13 +251,15 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
 
   if (previousIndex === -1) {
     navHistory.push(fingerprint);
-    syncBrowserUrl(state, 'push');
+    // Always advance the address bar when the path changed (category / filters).
+    syncBrowserUrl(state, current === nextPath ? 'replace' : 'push');
     return;
   }
 
   if (previousIndex < navHistory.length - 1) {
     navHistory.splice(previousIndex + 1);
   }
+  // Same stack entry revisited (or filter tweak) — keep the URL honest.
   syncBrowserUrl(state, 'replace');
 }
 

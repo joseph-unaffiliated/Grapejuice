@@ -31,5 +31,5 @@ export function clearPersistedGiftClaimToken(): void {
 
 export function scrubGiftClaimUrl(): void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-  window.history.replaceState({}, '', '/store');
+  window.history.replaceState({}, '', '/');
 }

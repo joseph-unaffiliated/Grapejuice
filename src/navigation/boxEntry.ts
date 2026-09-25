@@ -2,6 +2,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { usersService } from '../services/firestore/users';
+import { boxDraftService } from '../services/firestore/boxDraft';
+import { clearBoxDraftCache } from '../hooks/useBoxDraft';
 import { navigateMainStack } from './mainStackNavigation';
 
 export type StartOwnBoxBuildRefresh = (options?: { silent?: boolean }) => Promise<void>;
@@ -17,18 +19,13 @@ export type StartOwnBoxBuildRefresh = (options?: { silent?: boolean }) => Promis
  * spinner until a hard refresh.
  */
 export async function startOwnBoxBuild(
-  refreshSession?: StartOwnBoxBuildRefresh
+  refreshSession?: StartOwnBoxBuildRefresh,
+  householdId?: string | null
 ): Promise<void> {
   useGiftIntentStore.getState().clear();
   const { isAuthenticated, user } = useAuthStore.getState();
 
-  if (!isAuthenticated || !user?.uid) {
-    useGuestSessionStore.getState().startBuildBox();
-    return;
-  }
-
-  // Soft-clear draft state and mark build-box intent *before* the profile write
-  // so RootRoutes never briefly remounts reveal-only onboarding.
+  // Clear draft + enter the questionnaire (guest or signed-in).
   useGuestSessionStore.setState({
     lineItems: [],
     wrapSelectedItemIds: [],
@@ -40,9 +37,65 @@ export async function startOwnBoxBuild(
     buildBoxPath: true,
     exploreStarted: true,
   });
+  clearBoxDraftCache();
+
+  if (!isAuthenticated || !user?.uid) {
+    return;
+  }
+
+  if (householdId) {
+    try {
+      await boxDraftService.clear(householdId, user.uid);
+    } catch {
+      // Missing draft is fine.
+    }
+  }
+
   await usersService.upsert(user.uid, {
     onboardingComplete: false,
     boxRevealComplete: false,
+  });
+  await refreshSession?.({ silent: true });
+}
+
+/**
+ * Wipe the current Hanukkah box and return to browsing with no box started.
+ * Keeps kids/account; clears draft so chrome treats them as no-box.
+ */
+export async function abandonOwnBox(
+  householdId: string | null | undefined,
+  refreshSession?: StartOwnBoxBuildRefresh
+): Promise<void> {
+  useGiftIntentStore.getState().clear();
+  const { isAuthenticated, user } = useAuthStore.getState();
+
+  if (!isAuthenticated || !user?.uid) {
+    useGuestSessionStore.getState().resetBox();
+    return;
+  }
+
+  if (householdId) {
+    try {
+      await boxDraftService.clear(householdId, user.uid);
+    } catch {
+      // Missing draft is fine.
+    }
+  }
+  clearBoxDraftCache();
+  useGuestSessionStore.setState({
+    lineItems: [],
+    wrapSelectedItemIds: [],
+    onboardingComplete: true,
+    boxRevealComplete: true,
+    openMyBoxAfterReveal: false,
+    onboardingStep: null,
+    ravNotes: '',
+    buildBoxPath: false,
+    exploreStarted: true,
+  });
+  await usersService.upsert(user.uid, {
+    onboardingComplete: true,
+    boxRevealComplete: true,
   });
   await refreshSession?.({ silent: true });
 }

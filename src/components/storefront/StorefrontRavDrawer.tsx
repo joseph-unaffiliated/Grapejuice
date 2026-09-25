@@ -38,8 +38,9 @@ type RavView = 'welcome' | 'recent' | 'thread';
 const DRAWER_MS = 280;
 
 /**
- * Rav chat pane — docked side panel on desktop; absolute sheet under the nav on mobile.
- * Not a Modal: the storefront page stays interactive and scrollable underneath.
+ * Rav chat pane — docked side panel on desktop; fixed sheet under the nav on mobile.
+ * Mobile web pins to the visual viewport and locks background scroll so the soft
+ * keyboard can’t shove the storefront out from under the sheet.
  *
  * When opening with an Ask Rav question, the pane stays hidden until the chat
  * reports thread view (seeded user bubble + thinking) so welcome/history never flash.
@@ -58,10 +59,14 @@ export function StorefrontRavDrawer({
   const [mounted, setMounted] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [ravView, setRavView] = useState<RavView>('welcome');
-  /** Web keyboard overlap — keep the sheet above the soft keyboard. */
-  const [keyboardInset, setKeyboardInset] = useState(0);
+  /** Web visual viewport — keep a fixed sheet above the soft keyboard. */
+  const [vv, setVv] = useState(() => ({
+    offsetTop: 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
   const bootstrapMessage = initialMessage?.trim() || undefined;
   const bootstrapping = Boolean(bootstrapMessage) && visible;
+  const insetPx = typeof topInset === 'number' ? topInset : 0;
 
   const onViewChange = useCallback((view: RavView) => {
     setRavView(view);
@@ -118,25 +123,44 @@ export function StorefrontRavDrawer({
     return () => clearTimeout(t);
   }, [visible, bootstrapping, uiRevealed]);
 
-  // Mobile web: shrink the sheet with the visual viewport so the composer
-  // stays above the keyboard (100svh does not track soft keyboards).
+  // Mobile web: pin to the visual viewport (not 100svh / document scroll).
+  // Outer shell stays `position: fixed` without a transform so iOS doesn’t
+  // scroll the page out from under the sheet when the keyboard opens.
   useEffect(() => {
-    if (docked || Platform.OS !== 'web' || typeof window === 'undefined') {
-      setKeyboardInset(0);
-      return;
-    }
-    const vv = window.visualViewport;
-    if (!vv) return;
+    if (docked || Platform.OS !== 'web' || typeof window === 'undefined') return;
     const sync = () => {
-      const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKeyboardInset(overlap);
+      const v = window.visualViewport;
+      setVv({
+        offsetTop: v?.offsetTop ?? 0,
+        height: v?.height ?? window.innerHeight,
+      });
     };
     sync();
-    vv.addEventListener('resize', sync);
-    vv.addEventListener('scroll', sync);
+    const v = window.visualViewport;
+    v?.addEventListener('resize', sync);
+    v?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
     return () => {
-      vv.removeEventListener('resize', sync);
-      vv.removeEventListener('scroll', sync);
+      v?.removeEventListener('resize', sync);
+      v?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, [docked, visible]);
+
+  // Lock background document scroll while the mobile sheet is open.
+  useEffect(() => {
+    if (docked || Platform.OS !== 'web' || !visible || typeof document === 'undefined') {
+      return;
+    }
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
     };
   }, [docked, visible]);
 
@@ -225,25 +249,38 @@ export function StorefrontRavDrawer({
     );
   }
 
-  // Mobile: sheet under the storefront nav — no Modal, so body scroll is never locked.
+  // Mobile: fixed to the visual viewport under the storefront nav.
+  // Slide transform lives on an inner wrapper so `position: fixed` stays viewport-relative.
+  // Mount as a direct child of StorefrontChrome root (not bodyRow) so fixed + z-index
+  // stack correctly under the sticky chrome.
+  const sheetTop = Platform.OS === 'web' ? vv.offsetTop + insetPx : topInset;
+  const sheetHeight =
+    Platform.OS === 'web' ? Math.max(160, vv.height - insetPx) : undefined;
+
   return (
-    <Animated.View
+    <View
       style={[
         styles.overlaySheet,
+        Platform.OS === 'web' ? styles.overlaySheetFixed : null,
         {
           width: drawerWidth,
-          top: topInset,
-          bottom: keyboardInset,
-          transform: [{ translateX }],
+          top: sheetTop,
+          ...(sheetHeight != null
+            ? { height: sheetHeight, bottom: undefined }
+            : { bottom: 0 }),
           opacity: bootstrapping && !uiRevealed ? 0 : 1,
         },
       ]}
       pointerEvents={uiRevealed ? 'auto' : 'none'}
       accessibilityLabel="Rav chat"
     >
-      {chrome}
-      {chat}
-    </Animated.View>
+      <Animated.View
+        style={[styles.overlayInner, { transform: [{ translateX }] }]}
+      >
+        {chrome}
+        {chat}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -277,8 +314,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     // Below sticky chrome (zIndex 30) so nav stays on top of the sheet.
     zIndex: 20,
-    flexDirection: 'column',
     backgroundColor: semanticColors.bgPrimary,
+    overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)' } as object)
       : {
@@ -288,6 +325,18 @@ const styles = StyleSheet.create({
           shadowRadius: 24,
           elevation: 16,
         }),
+  },
+  /** Web: escape document scroll / keyboard jank by pinning to the viewport. */
+  overlaySheetFixed: {
+    position: 'fixed' as unknown as 'absolute',
+    left: 'auto',
+    right: 0,
+  },
+  overlayInner: {
+    flex: 1,
+    minHeight: 0,
+    flexDirection: 'column',
+    height: '100%',
   },
   chrome: {
     flexDirection: 'row',

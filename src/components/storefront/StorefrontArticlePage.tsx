@@ -360,6 +360,23 @@ function BeliefsDeck({ sections }: { sections: StorefrontArticleBeliefSection[] 
   const [scrollX, setScrollX] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const syncingRef = useRef(false);
+  /** Bumps to abort an in-flight web drift when the user grabs the rail again. */
+  const driftTokenRef = useRef(0);
+  const driftRafRef = useRef(0);
+  const driftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelDrift = useCallback(() => {
+    driftTokenRef.current += 1;
+    if (driftRafRef.current) {
+      cancelAnimationFrame(driftRafRef.current);
+      driftRafRef.current = 0;
+    }
+    if (driftTimeoutRef.current != null) {
+      clearTimeout(driftTimeoutRef.current);
+      driftTimeoutRef.current = null;
+    }
+    syncingRef.current = false;
+  }, []);
 
   // Paper shell: outer MOBILE_GUTTER + root pad (xl on mobile, gutter on tablet+).
   // Mobile bleeds past the watercolor to the screen edge; tablet+ stops at the paper.
@@ -404,11 +421,16 @@ function BeliefsDeck({ sections }: { sections: StorefrontArticleBeliefSection[] 
       const clamped = Math.max(0, Math.min(cards.length - 1, index));
       const targetX = clamped * snapInterval;
       setActiveIndex(clamped);
+      cancelDrift();
+      const token = driftTokenRef.current;
       syncingRef.current = true;
 
       const finish = () => {
+        if (token !== driftTokenRef.current) return;
         setScrollX(targetX);
         syncingRef.current = false;
+        driftRafRef.current = 0;
+        driftTimeoutRef.current = null;
       };
 
       if (!animated) {
@@ -438,25 +460,26 @@ function BeliefsDeck({ sections }: { sections: StorefrontArticleBeliefSection[] 
           // Slow drift — soft at both ends, no rush.
           const easeInOutSine = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
           const step = (now: number) => {
+            if (token !== driftTokenRef.current) return;
             const t = Math.min(1, (now - startTime) / duration);
             el.scrollLeft = startX + delta * easeInOutSine(t);
             setScrollX(el.scrollLeft);
             if (t < 1) {
-              requestAnimationFrame(step);
+              driftRafRef.current = requestAnimationFrame(step);
             } else {
               el.scrollLeft = targetX;
               finish();
             }
           };
-          requestAnimationFrame(step);
+          driftRafRef.current = requestAnimationFrame(step);
           return;
         }
       }
 
       scrollRef.current?.scrollTo({ x: targetX, animated: true });
-      setTimeout(finish, 1600);
+      driftTimeoutRef.current = setTimeout(finish, 1600);
     },
-    [cards.length, snapInterval],
+    [cancelDrift, cards.length, snapInterval],
   );
 
   const settleToNearest = useCallback(
@@ -485,6 +508,7 @@ function BeliefsDeck({ sections }: { sections: StorefrontArticleBeliefSection[] 
   );
 
   // Snap after the user lets go — never interrupt an active drag/scroll.
+  // Pressing again cancels any in-flight drift so it can’t fight the new gesture.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const node = scrollRef.current as ScrollView & {
@@ -525,17 +549,30 @@ function BeliefsDeck({ sections }: { sections: StorefrontArticleBeliefSection[] 
       scheduleSettle(0);
     };
 
+    const onPointerEngaged = () => {
+      window.clearTimeout(timer);
+      cancelDrift();
+    };
+
+    const onWheel = () => {
+      window.clearTimeout(timer);
+      cancelDrift();
+    };
+
     el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('pointerdown', onPointerEngaged, { capture: true });
+    el.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('mouseup', onPointerReleased);
     el.addEventListener('touchend', onPointerReleased, { passive: true });
     return () => {
       window.clearTimeout(timer);
       el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('pointerdown', onPointerEngaged, true);
+      el.removeEventListener('wheel', onWheel);
       window.removeEventListener('mouseup', onPointerReleased);
       el.removeEventListener('touchend', onPointerReleased);
     };
-  }, [settleToNearest, deckWidth, snapInterval]);
-
+  }, [cancelDrift, settleToNearest, deckWidth, snapInterval]);
   return (
     <View style={styles.beliefsDeck}>
       <View

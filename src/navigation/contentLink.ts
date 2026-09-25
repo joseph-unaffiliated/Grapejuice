@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
+import { HOW_TO_PAGES_PUBLISHED } from '../constants/pdpHowToLink';
 
 export const STORY_PATH = '/story';
 export const PASSOVER_PATH = '/passover';
@@ -26,13 +27,21 @@ const ROUTE_BY_PATH: Record<string, StorefrontContentRoute> = {
   [HOW_TO_LIGHT_CANDLES_PATH]: 'StorefrontHowToLightCandles',
 };
 
+const UNPUBLISHED_HOW_TO_ROUTES = new Set<StorefrontContentRoute>([
+  'StorefrontHowToPlayDreidel',
+  'StorefrontHowToLightCandles',
+]);
+
 export function contentPathForRoute(route: StorefrontContentRoute): string {
   return PATH_BY_ROUTE[route];
 }
 
 export function contentRouteFromPath(pathname: string): StorefrontContentRoute | null {
   const path = pathname.replace(/\/$/, '') || '/';
-  return ROUTE_BY_PATH[path] ?? null;
+  const route = ROUTE_BY_PATH[path] ?? null;
+  if (!route) return null;
+  if (!HOW_TO_PAGES_PUBLISHED && UNPUBLISHED_HOW_TO_ROUTES.has(route)) return null;
+  return route;
 }
 
 export function readContentRouteFromWindow(): StorefrontContentRoute | null {

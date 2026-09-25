@@ -153,6 +153,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
   const [lastActivityAt, setLastActivityAt] = useState(() => new Date());
   const [welcomeFocused, setWelcomeFocused] = useState(false);
+  const welcomeSearchAnchorRef = useRef<View>(null);
   const pendingInitialMessage = useRef<string | null>(bootstrap || null);
   const [pendingSendNonce, setPendingSendNonce] = useState(() => (bootstrap ? 1 : 0));
   /** Local-only opening assistant bubble not yet written to Firestore. */
@@ -783,12 +784,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               styles.welcome,
               isDesktop && styles.welcomeDesktop,
               overlay === 'drawer' ? styles.welcomeDrawer : null,
+              overlay === 'drawer' && welcomeFocused ? styles.welcomeDrawerKeyboard : null,
               {
                 paddingBottom:
                   overlay === 'drawer' ? spacing.lg + bottomPad : bottomPad + 80,
               },
             ]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           >
             <View style={[styles.welcomeColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
             <View style={styles.welcomePadded}>
@@ -798,12 +801,27 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               {overlay === 'drawer' ? null : <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>}
             </View>
 
-            <View style={styles.welcomeSearchWrap}>
+            <View
+              ref={welcomeSearchAnchorRef}
+              style={styles.welcomeSearchWrap}
+              collapsable={false}
+            >
               <SearchPill
                 value={input}
                 onChangeText={setInput}
                 onSubmitEditing={() => sendMessage(input)}
-                onFocus={() => setWelcomeFocused(true)}
+                onFocus={() => {
+                  setWelcomeFocused(true);
+                  // Keep the composer in the shrunk visual viewport (mobile web keyboard).
+                  if (Platform.OS === 'web') {
+                    requestAnimationFrame(() => {
+                      const node = welcomeSearchAnchorRef.current as unknown as
+                        | HTMLElement
+                        | null;
+                      node?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+                    });
+                  }
+                }}
                 onBlur={() => setWelcomeFocused(false)}
                 onKeyPress={handleComposerKeyPress}
                 animatePlaceholder={false}
@@ -979,6 +997,11 @@ function createPilotStyles(colors: SemanticColors) {
     flexGrow: 1,
     justifyContent: 'center',
     paddingTop: spacing.lg,
+  },
+  /** Keyboard open: pin content to the top so the composer isn’t clipped. */
+  welcomeDrawerKeyboard: {
+    justifyContent: 'flex-start',
+    paddingTop: spacing.sm,
   },
   welcomeColumn: {
     width: '100%',

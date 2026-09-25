@@ -43,6 +43,7 @@ import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { semanticColors, spacing } from '../../constants/theme';
+import { HOW_TO_PAGES_PUBLISHED } from '../../constants/pdpHowToLink';
 import {
   STOREFRONT_SCROLL_CLASS,
   STOREFRONT_H_SCROLL_CLASS,
@@ -345,7 +346,12 @@ function StorefrontChromeInner({
       onLeave({ type: 'category', slug });
       return;
     }
-    navigation.navigate('StorefrontCategory', { category: slug });
+    // merge:false clears prior aisle filters (style/avail/q) on the next category.
+    navigation.navigate({
+      name: 'StorefrontCategory',
+      params: { category: slug },
+      merge: false,
+    });
   };
 
   const startBox = () =>
@@ -934,8 +940,11 @@ function StorefrontChromeInner({
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      bounces
-      alwaysBounceVertical
+      // Mobile Rav: freeze the page so Safari can’t scroll the storefront
+      // out from under the sheet when the keyboard opens.
+      scrollEnabled={!(compact && ravVisible)}
+      bounces={!(compact && ravVisible)}
+      alwaysBounceVertical={!(compact && ravVisible)}
       overScrollMode="auto"
       refreshControl={
         fillBody ? undefined : (
@@ -1024,7 +1033,7 @@ function StorefrontChromeInner({
           </View>
           <View style={styles.bodyRow}>
             <View style={styles.fillBody}>{children}</View>
-            {ravDrawer}
+            {!compact ? ravDrawer : null}
           </View>
         </>
       ) : (
@@ -1035,9 +1044,13 @@ function StorefrontChromeInner({
           ]}
         >
           {pageScroll}
-          {ravDrawer}
+          {!compact ? ravDrawer : null}
         </View>
       )}
+
+      {/* Mobile sheet: sibling of sticky chrome (not inside bodyRow) so `position:fixed`
+          tracks the visual viewport and stacks under the nav (zIndex 30). */}
+      {compact ? ravDrawer : null}
 
       {floatingFooter ? (
         <View style={styles.floatingFooter} pointerEvents="box-none">
@@ -1100,8 +1113,14 @@ export function useStorefrontActions() {
     goEligibility: () => navigation.navigate('BoxDiscountEligibility'),
     goOurStory: () => navigation.navigate('StorefrontOurStory'),
     goPassover: () => navigation.navigate('StorefrontPassover'),
-    goHowToPlayDreidel: () => navigation.navigate('StorefrontHowToPlayDreidel'),
-    goHowToLightCandles: () => navigation.navigate('StorefrontHowToLightCandles'),
+    goHowToPlayDreidel: () => {
+      if (!HOW_TO_PAGES_PUBLISHED) return;
+      navigation.navigate('StorefrontHowToPlayDreidel');
+    },
+    goHowToLightCandles: () => {
+      if (!HOW_TO_PAGES_PUBLISHED) return;
+      navigation.navigate('StorefrontHowToLightCandles');
+    },
   };
 }
 

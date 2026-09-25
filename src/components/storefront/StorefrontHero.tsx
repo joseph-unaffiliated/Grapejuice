@@ -244,6 +244,7 @@ export function StorefrontHero({
         slot={hero}
         quiet
         fill
+        videoLoad="eager"
         style={styles.media}
       />
       {Platform.OS === 'web' ? (

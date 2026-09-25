@@ -97,7 +97,7 @@ export type ChildProfile = {
   /**
    * Exact age for gift/book/dreidel planners when the intake band alone is too coarse
    * (e.g. preview smoke tests: band `3-5` with plannerAge 4 → airdry, not age-5 stuffie).
-   * Not persisted to Firestore; client/preview only.
+   * Persisted when set from Account / onboarding family form.
    */
   plannerAge?: number;
   /** ISO date YYYY-MM-DD — canonical; `birthday` is legacy alias. */

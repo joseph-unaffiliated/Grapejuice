@@ -1,10 +1,10 @@
 /**
  * The browser location as the JS bundle first evaluated it — before React
- * Navigation's default web route (`StorefrontHome` → `/store`) can rewrite it.
+ * Navigation's default web route (`StorefrontHome` → `/`) can rewrite it.
  *
  * Link effects that read `window.location` at mount time lose inbound landings:
  * the first state sync changes the address bar, and a remount (Fast Refresh,
- * a gate flip) then looks like a `/store` deep link.
+ * a gate flip) then looks like a storefront deep link.
  */
 export type BootLocation = {
   pathname: string;
@@ -32,8 +32,8 @@ getBootLocation();
 /**
  * Keep the inbound landing path in the address bar until the landing screen
  * mounts (or we decide there isn't one). Without this, the default
- * StorefrontHome state rewrites `/interfaith` → `/store` and a refresh of
- * that rewritten URL is a store deep link.
+ * StorefrontHome state rewrites `/interfaith` → `/` and a refresh of
+ * that rewritten URL is a storefront deep link.
  */
 let preserveInboundLandingUrl = true;
 

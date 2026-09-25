@@ -60,6 +60,11 @@ function clearAuthBoxDraftCache() {
   authBoxDraftCache = null;
 }
 
+/** Wipe the in-memory signed-in draft snapshot (e.g. after abandoning a box). */
+export function clearBoxDraftCache() {
+  clearAuthBoxDraftCache();
+}
+
 export function useBoxDraft() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);

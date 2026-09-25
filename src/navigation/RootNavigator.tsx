@@ -18,7 +18,6 @@ import { useAuthFlowStore, authReturnSkipsBoxOnboarding } from '../stores/authFl
 import type { AuthReturnRoute } from '../stores/authFlowStore';
 import { SessionProvider, useSession } from '../context/SessionContext';
 import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
-import { useBoxDraft } from '../hooks/useBoxDraft';
 import { PILOT_PARENT_ONLY } from '../constants/pilotFeatures';
 import { semanticColors } from '../constants/theme';
 import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
@@ -213,7 +212,6 @@ function RootRoutes() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
   const { loading: sessionLoading, needsOnboarding, needsBoxReveal, refresh } = useSession();
-  const { loading: boxDraftLoading } = useBoxDraft();
   const guestHydrated = useGuestSessionStore((s) => s._hasHydrated);
   const exploreStarted = useGuestSessionStore((s) => s.exploreStarted);
   const buildBoxPath = useGuestSessionStore((s) => s.buildBoxPath);
@@ -242,13 +240,12 @@ function RootRoutes() {
   /** Keep Main mounted through overlay sign-in so My Box isn't replaced by /store. */
   const stayOnMainForAuthReturn = pendingAuth != null || giftResume;
 
-  // Wait for auth + (when signed in) session + box draft so storefront never
-  // paints acquisition/guest chrome before we know who you are / whether you have a box.
+  // Wait for auth + (when signed in) session so we don’t paint the wrong
+  // onboarding/main gate. Box draft can finish after first paint — waiting on
+  // it kept the logomark up while Firestore hydrated line items.
   const booting =
     !guestHydrated ||
-    ((authLoading ||
-      (isAuthenticated && (sessionLoading || boxDraftLoading))) &&
-      !stayOnMainForAuthReturn);
+    ((authLoading || (isAuthenticated && sessionLoading)) && !stayOnMainForAuthReturn);
 
   if (booting) {
     return (

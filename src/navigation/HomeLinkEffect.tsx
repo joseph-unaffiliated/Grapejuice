@@ -3,19 +3,19 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { readHomePathFromWindow } from './homeLink';
-import { STORE_PATH_PREFIX } from './storeLink';
+import { storePathHome } from './storeLink';
 
 function navigateToStorefront(): void {
   if (!navigationRef.isReady()) return;
   navigationRef.navigate('Main', { screen: 'StorefrontHome' });
   if (typeof window !== 'undefined' && window.history.replaceState) {
     const search = window.location.search;
-    window.history.replaceState({}, '', `${STORE_PATH_PREFIX}${search}`);
+    window.history.replaceState({}, '', `${storePathHome()}${search === '?' ? '' : search}`);
   }
 }
 
 /**
- * Web: legacy `/home` deep link → redirect to storefront (`/store`).
+ * Web: legacy `/home` deep link → redirect to storefront home (`/`).
  */
 export function HomeLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);

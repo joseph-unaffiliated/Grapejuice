@@ -18,13 +18,6 @@
     "site": "grapejuice-pilot",
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "redirects": [
-      {
-        "source": "/",
-        "destination": "/store",
-        "type": 302
-      }
-    ],
     "rewrites": [{ "source": "**", "destination": "/index.html" }]
   }
 }

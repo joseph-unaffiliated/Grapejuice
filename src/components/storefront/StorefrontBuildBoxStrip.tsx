@@ -222,7 +222,7 @@ export function StorefrontBuildBoxStrip({
           onLayout={onLayout}
         >
           {playVideoOnWeb ? (
-            <StorefrontWebVideo src={videoUri!} poster={stillSource} />
+            <StorefrontWebVideo src={videoUri!} poster={stillSource} load="lazy" />
           ) : (
             <Image source={stillSource} style={styles.bgImage} resizeMode="cover" />
           )}

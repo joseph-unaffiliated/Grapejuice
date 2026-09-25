@@ -51,10 +51,14 @@ export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const rows = useMemo(() => splitIntoRows(chips, ROW_COUNT), [chips]);
 
-  const rootRef = useRef<View | null>(null);
   const offsetRef = useRef(0);
   const [offset, setOffset] = useState(0);
   const [cycleWidths, setCycleWidths] = useState<number[]>([]);
+  /** Callback ref so pointer listeners attach after mount (ref.current is null on first effect). */
+  const [rootEl, setRootEl] = useState<HTMLElement | null>(null);
+  const setRootRef = useCallback((node: View | null) => {
+    setRootEl(node as unknown as HTMLElement | null);
+  }, []);
 
   const dragRef = useRef({
     active: false,
@@ -88,9 +92,7 @@ export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
 
   // Web pointer drag on the mosaic root — one gesture, all rows follow together.
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const root = rootRef.current as unknown as HTMLElement | null;
-    if (!root) return;
+    if (Platform.OS !== 'web' || !rootEl) return;
 
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -102,7 +104,7 @@ export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
         startOffset: offsetRef.current,
       };
       try {
-        root.setPointerCapture(e.pointerId);
+        rootEl.setPointerCapture(e.pointerId);
       } catch {
         /* ignore */
       }
@@ -129,23 +131,23 @@ export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
       const suppress = (ev: MouseEvent) => {
         ev.preventDefault();
         ev.stopPropagation();
-        root.removeEventListener('click', suppress, true);
+        rootEl.removeEventListener('click', suppress, true);
       };
-      root.addEventListener('click', suppress, true);
-      window.setTimeout(() => root.removeEventListener('click', suppress, true), 80);
+      rootEl.addEventListener('click', suppress, true);
+      window.setTimeout(() => rootEl.removeEventListener('click', suppress, true), 80);
     };
 
-    root.addEventListener('pointerdown', onDown, true);
-    root.addEventListener('pointermove', onMove);
-    root.addEventListener('pointerup', onUp);
-    root.addEventListener('pointercancel', onUp);
+    rootEl.addEventListener('pointerdown', onDown, true);
+    rootEl.addEventListener('pointermove', onMove);
+    rootEl.addEventListener('pointerup', onUp);
+    rootEl.addEventListener('pointercancel', onUp);
     return () => {
-      root.removeEventListener('pointerdown', onDown, true);
-      root.removeEventListener('pointermove', onMove);
-      root.removeEventListener('pointerup', onUp);
-      root.removeEventListener('pointercancel', onUp);
+      rootEl.removeEventListener('pointerdown', onDown, true);
+      rootEl.removeEventListener('pointermove', onMove);
+      rootEl.removeEventListener('pointerup', onUp);
+      rootEl.removeEventListener('pointercancel', onUp);
     };
-  }, [commitOffset, chips]);
+  }, [commitOffset, chips, rootEl]);
 
   // Native touch drag (non-web).
   const onTouchStart = useCallback((pageX: number) => {
@@ -189,7 +191,7 @@ export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
 
   return (
     <View
-      ref={rootRef}
+      ref={setRootRef}
       style={[styles.root, bleedStyle]}
       onStartShouldSetResponder={() => Platform.OS !== 'web'}
       onMoveShouldSetResponder={() => Platform.OS !== 'web'}
@@ -304,7 +306,7 @@ function createStyles(colors: SemanticColors) {
       position: 'relative',
       overflow: 'hidden',
       ...(Platform.OS === 'web'
-        ? ({ touchAction: 'pan-y', userSelect: 'none', cursor: 'grab' } as object)
+        ? ({ touchAction: 'none', userSelect: 'none', cursor: 'grab' } as object)
         : null),
     },
     rows: {
