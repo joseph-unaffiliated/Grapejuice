@@ -10,6 +10,8 @@ import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { useAuthStore } from '../../stores/authStore';
+import { retentionTrackOrder } from '../../services/analytics/retention';
 
 export function OrderConfirmationScreen() {
   return (
@@ -22,14 +24,38 @@ export function OrderConfirmationScreen() {
 function OrderConfirmationBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'OrderConfirmation'>>();
-  const { household } = useSession();
+  const { household, profile } = useSession();
+  const authEmail = useAuthStore((s) => s.user?.email ?? null);
   const [order, setOrder] = useState<PilotOrder | null>(null);
+  const trackedOrderId = React.useRef<string | null>(null);
 
   useEffect(() => {
     if (!household?.id) return;
     const { orderId } = route.params;
     return ordersService.subscribe(household.id, orderId, setOrder);
   }, [household?.id, route.params.orderId]);
+
+  useEffect(() => {
+    if (!order) return;
+    const confirmed =
+      order.status === 'committed' ||
+      order.status === 'confirmed' ||
+      order.status === 'shipped' ||
+      order.status === 'delivered';
+    if (!confirmed) return;
+    if (trackedOrderId.current === order.id) return;
+    const email =
+      profile?.email?.trim() ||
+      authEmail?.trim() ||
+      '';
+    if (!email) return;
+    trackedOrderId.current = order.id;
+    retentionTrackOrder({
+      orderNumber: order.id,
+      orderAmountDollars: Math.max(0, (order.totalCents ?? 0) / 100),
+      orderEmail: email,
+    });
+  }, [order, profile?.email, authEmail]);
 
   const confirmed =
     order?.status === 'committed' ||

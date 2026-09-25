@@ -59,8 +59,15 @@ export function HolidayCalendarSection({
     onToggleInterest(key);
     if (isAuthenticated && user?.uid) {
       await usersService.upsert(user.uid, { notificationsOptIn: true });
+      if (user.email) {
+        const { retentionSuppress } = await import('../../services/analytics/retention');
+        retentionSuppress(user.email);
+      }
     } else if (email.trim()) {
-      setGuestEmail(email.trim());
+      const trimmed = email.trim();
+      setGuestEmail(trimmed);
+      const { retentionSuppress } = await import('../../services/analytics/retention');
+      retentionSuppress(trimmed);
     }
     setExplainerId(null);
   };
