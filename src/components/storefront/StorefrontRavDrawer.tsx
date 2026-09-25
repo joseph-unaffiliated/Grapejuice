@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   TouchableOpacity,
   Animated,
   Platform,
   Easing,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../chat/PilotAIChatSheet';
-import { semanticColors, spacing } from '../../constants/theme';
+import { semanticColors, spacing, typography, typeface } from '../../constants/theme';
 
 type Props = {
   visible: boolean;
@@ -21,9 +23,8 @@ type Props = {
   /** Panel width (desktop docked or mobile overlay). */
   width: number;
   /**
-   * Offset from the top of the storefront shell so Rav sits below the visible
-   * header (in-flow, overlay, or 1:1 scroll-tracked). Animated while the overlay
-   * header moves.
+   * Offset from the top of the storefront shell. Desktop: sits below the header.
+   * Mobile: full-bleed (0) so Rav covers the nav.
    */
   topInset?: number | Animated.AnimatedInterpolation<number> | Animated.Value;
   /**
@@ -38,8 +39,8 @@ type RavView = 'welcome' | 'recent' | 'thread';
 const DRAWER_MS = 280;
 
 /**
- * Rav chat pane — docked side panel on desktop; absolute sheet on mobile.
- * Not a Modal: the storefront page stays interactive and scrollable.
+ * Rav chat pane — docked side panel on desktop; full-screen absolute sheet on mobile.
+ * Not a Modal: the storefront page stays interactive and scrollable underneath.
  *
  * When opening with an Ask Rav question, the pane stays hidden until the chat
  * reports thread view (seeded user bubble + thinking) so welcome/history never flash.
@@ -55,6 +56,7 @@ export function StorefrontRavDrawer({
 }: Props) {
   const slide = useRef(new Animated.Value(0)).current;
   const chatRef = useRef<PilotAIChatSheetRef>(null);
+  const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [ravView, setRavView] = useState<RavView>('welcome');
@@ -129,26 +131,42 @@ export function StorefrontRavDrawer({
   });
 
   const chrome = (
-    <View style={styles.chrome}>
+    <View
+      style={[
+        styles.chrome,
+        // Mobile full-bleed: keep safe-area, then match side gutter optically.
+        !docked ? { paddingTop: insets.top + spacing.sm } : null,
+      ]}
+    >
       <TouchableOpacity
-        style={styles.chromeHit}
+        style={styles.chromeAction}
         onPress={onHistoryToggle}
         accessibilityRole="button"
         accessibilityLabel={historyOpen ? 'Back to Rav' : 'Chat history'}
       >
-        <Icon
-          icon={historyOpen ? icons.arrowLeft : icons.clockHistory}
-          size={14}
-          color={semanticColors.logoDark}
-        />
+        <View style={styles.chromeHit}>
+          <Icon
+            icon={historyOpen ? icons.arrowLeft : icons.clockHistory}
+            size={14}
+            color={semanticColors.logoDark}
+          />
+        </View>
+        {docked ? (
+          <Text style={styles.chromeLabel}>
+            {historyOpen ? 'back' : 'chat history'}
+          </Text>
+        ) : null}
       </TouchableOpacity>
       <TouchableOpacity
-        style={styles.chromeHit}
+        style={styles.chromeAction}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close Rav"
       >
-        <Icon icon={icons.chevronsRight} size={14} color={semanticColors.logoDark} />
+        {docked ? <Text style={styles.chromeLabel}>collapse</Text> : null}
+        <View style={styles.chromeHit}>
+          <Icon icon={icons.chevronsRight} size={14} color={semanticColors.logoDark} />
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -191,7 +209,7 @@ export function StorefrontRavDrawer({
     );
   }
 
-  // Mobile: absolute sheet — no Modal, so body scroll is never locked.
+  // Mobile: full-screen sheet over the storefront nav — no Modal, so body scroll is never locked.
   return (
     <Animated.View
       style={[
@@ -240,7 +258,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     bottom: 0,
-    zIndex: 20,
+    /** Above storefront sticky chrome (zIndex 30) so Rav covers the nav. */
+    zIndex: 40,
     backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)' } as object)
@@ -256,15 +275,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    // Match top padding optically on left/right.
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
   },
+  chromeAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
   chromeHit: {
-    width: 36,
+    width: 28,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /** Match storefront services nav year/link labels (e.g. “2026 Hanukkah Box”). */
+  chromeLabel: {
+    ...typeface('medium'),
+    fontSize: typography.sm,
+    color: semanticColors.logoDark,
+    flexShrink: 0,
   },
   chat: {
     flex: 1,

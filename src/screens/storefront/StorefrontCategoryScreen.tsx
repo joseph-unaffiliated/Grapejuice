@@ -26,6 +26,7 @@ import {
   resolveStorefrontCategorySlug,
   STOREFRONT_CATEGORIES,
   storefrontCategoryBySlug,
+  orderCandlesRollYourOwnBeforeElectric,
 } from '../../constants/storefrontCategories';
 import {
   matchesStorefrontSearchQuery,
@@ -311,7 +312,11 @@ export function StorefrontCategoryScreen() {
       availabilityById
     );
     const booksLast = facetFilters.availability === 'box-only';
-    return sortItems(faceted, sort, booksLast);
+    const sorted = sortItems(faceted, sort, booksLast);
+    if (slug === 'candles' && sort === 'relevant') {
+      return orderCandlesRollYourOwnBeforeElectric(sorted);
+    }
+    return sorted;
   }, [categoryItems, slug, facetFilters, sort, availabilityById]);
 
   const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';

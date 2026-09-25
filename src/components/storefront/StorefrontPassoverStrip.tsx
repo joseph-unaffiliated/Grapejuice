@@ -7,7 +7,7 @@ export const PASSOVER_STRIP_HEADLINE =
   'Passover will be here before you know it';
 
 export const PASSOVER_STRIP_BODY =
-  'We’re just in the early stages of planning our Passover collection.\nPre-register now for access to discounts when the Passover boxes are released.';
+  'We’re just in the early stages of planning our Passover collection. Pre\u2011register now for access to discounts when the Passover boxes are released.';
 
 export const PASSOVER_STRIP_PRIMARY_LABEL = 'Pre-register for Passover 2027';
 

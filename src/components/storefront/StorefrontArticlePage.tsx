@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   useWindowDimensions,
   type ImageSourcePropType,
   type LayoutChangeEvent,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+  type ScrollView,
 } from 'react-native';
 import {
   StorefrontChrome,
@@ -20,6 +23,8 @@ import { StorefrontBuildBoxStrip } from './StorefrontBuildBoxStrip';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { StorefrontCategoryRail } from './StorefrontCategoryRail';
 import { StorefrontPaperCardShell } from './StorefrontPaperCardShell';
+import { HorizontalDragScrollView } from '../home/HorizontalDragScrollView';
+import { HORIZONTAL_RAIL_DRAGGING_CLASS } from '../../hooks/useDragToScrollWeb';
 import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import {
   borderRadius,
@@ -30,6 +35,7 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+import { preventWidow } from '../../utils/typography';
 
 const COLUMN_MAX = 720;
 
@@ -52,6 +58,14 @@ export type StorefrontArticleProseLine =
   | string
   | { body: string; weight?: StorefrontArticleProseWeight };
 
+/**
+ * One paragraph: a plain/weighted line, or inline runs (weighted spans stay
+ * in the same paragraph). Top-level body arrays stack as separate paragraphs.
+ */
+export type StorefrontArticleProseParagraph =
+  | StorefrontArticleProseLine
+  | readonly StorefrontArticleProseLine[];
+
 /** Title may include ˘italicˇ markers (rendered as italic spans). */
 export type StorefrontArticleBeliefItem = {
   title: string;
@@ -72,10 +86,10 @@ export type StorefrontArticleBlock =
       type: 'prose';
       heading?: string;
       /**
-       * Single string, or ordered runs joined into one continuous prose block
-       * (weighted spans sit inline — no stacked paragraph gaps).
+       * Single string = one paragraph. Array = stacked paragraphs. Nested
+       * arrays are inline weighted runs within one paragraph.
        */
-      body: string | readonly StorefrontArticleProseLine[];
+      body: string | readonly StorefrontArticleProseParagraph[];
       /** Decorative square thumbs rendered under the heading (before body). */
       thumbs?: readonly ImageSourcePropType[];
       /**
@@ -83,6 +97,14 @@ export type StorefrontArticleBlock =
        * vertical padding as `showHeroDivider`.
        */
       showDividerAfter?: boolean;
+      /** Override default article column max width (e.g. 480 for Our Story prose). */
+      maxWidth?: number;
+      /** Match hero `title` type (32 / medium) instead of blockHeading 22. */
+      headingVariant?: 'title';
+      /** Extra space above this block (e.g. after a denser section). */
+      paddingTop?: number;
+      /** Extra space below this block. */
+      paddingBottom?: number;
     }
   | {
       type: 'steps';
@@ -106,8 +128,12 @@ export type StorefrontArticleBlock =
   | {
       type: 'band';
       heading: string;
+      /** When set, used instead of `heading` on compact viewports (forced line breaks). */
+      headingMobile?: string;
       body: string;
       cta?: StorefrontArticleCta;
+      /** Outline button under the primary `cta` (e.g. Our Story give band). */
+      secondaryCta?: StorefrontArticleCta;
       /** Cold-press paper shell (same as What we believe). */
       paper?: boolean;
     }
@@ -214,21 +240,33 @@ function ArticleHairlineDivider() {
   );
 }
 
-function normalizeProseBody(
-  body: string | readonly StorefrontArticleProseLine[],
-): { body: string; weight: StorefrontArticleProseWeight }[] {
-  const lines = typeof body === 'string' ? [body] : body;
-  return lines
-    .map((line) => {
-      if (typeof line === 'string') {
-        const text = line.trim();
-        return text ? { body: text, weight: 'regular' as const } : null;
-      }
-      const text = line.body.trim();
-      if (!text) return null;
-      return { body: text, weight: line.weight ?? 'regular' };
+function normalizeProseLine(
+  line: StorefrontArticleProseLine,
+): { body: string; weight: StorefrontArticleProseWeight } | null {
+  if (typeof line === 'string') {
+    const text = line.trim();
+    return text ? { body: text, weight: 'regular' } : null;
+  }
+  const text = line.body.trim();
+  if (!text) return null;
+  return { body: text, weight: line.weight ?? 'regular' };
+}
+
+/** Top-level items become paragraphs; nested arrays stay as inline runs. */
+function normalizeProseParagraphs(
+  body: string | readonly StorefrontArticleProseParagraph[],
+): { body: string; weight: StorefrontArticleProseWeight }[][] {
+  const paragraphs = typeof body === 'string' ? [body] : body;
+  return paragraphs
+    .map((paragraph) => {
+      const lines = Array.isArray(paragraph) ? paragraph : [paragraph];
+      return lines
+        .map((line) => normalizeProseLine(line as StorefrontArticleProseLine))
+        .filter(
+          (line): line is { body: string; weight: StorefrontArticleProseWeight } => line != null,
+        );
     })
-    .filter((line): line is { body: string; weight: StorefrontArticleProseWeight } => line != null);
+    .filter((lines) => lines.length > 0);
 }
 
 function proseWeightStyle(weight: StorefrontArticleProseWeight) {
@@ -258,19 +296,375 @@ function parseBeliefTitleRuns(title: string): { text: string; italic: boolean }[
   return runs.length > 0 ? runs : [{ text: title, italic: false }];
 }
 
-function BeliefTitle({ title }: { title: string }) {
+function BeliefTitle({
+  title,
+  style,
+}: {
+  title: string;
+  style?: object | object[] | null;
+}) {
   const runs = parseBeliefTitleRuns(title);
   if (runs.length === 1 && !runs[0].italic) {
-    return <Text style={styles.beliefTitle}>{runs[0].text}</Text>;
+    return <Text style={[styles.beliefTitle, style]}>{runs[0].text}</Text>;
   }
   return (
-    <Text style={styles.beliefTitle}>
+    <Text style={[styles.beliefTitle, style]}>
       {runs.map((run, index) => (
         <Text key={index} style={run.italic ? styles.beliefTitleItalic : undefined}>
           {run.text}
         </Text>
       ))}
     </Text>
+  );
+}
+
+type BeliefDeckCard = {
+  sectionHeading: string;
+  title: string;
+  body: string;
+};
+
+function flattenBeliefCards(sections: StorefrontArticleBeliefSection[]): BeliefDeckCard[] {
+  const out: BeliefDeckCard[] = [];
+  for (const section of sections) {
+    for (const item of section.items ?? []) {
+      out.push({
+        sectionHeading: section.heading,
+        title: item.title,
+        body: item.body,
+      });
+    }
+    for (const group of section.groups ?? []) {
+      for (const item of group.items) {
+        out.push({
+          sectionHeading: group.heading,
+          title: item.title,
+          body: item.body,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Our Story “What we believe”: TOC + horizontal card rail.
+ * Cards fade toward the edges so the rail softens instead of hard-clipping.
+ */
+function BeliefsDeck({ sections }: { sections: StorefrontArticleBeliefSection[] }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const columns = windowWidth >= LAYOUT.BREAKPOINT_TABLET;
+  const cards = useMemo(() => flattenBeliefCards(sections), [sections]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [deckWidth, setDeckWidth] = useState(0);
+  const [scrollX, setScrollX] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const syncingRef = useRef(false);
+
+  // Paper shell: outer MOBILE_GUTTER + root pad (xl on mobile, gutter on tablet+).
+  // Mobile bleeds past the watercolor to the screen edge; tablet+ stops at the paper.
+  const paperRootPad = columns ? MOBILE_GUTTER : spacing.xl;
+  const carouselBleed = columns ? paperRootPad : MOBILE_GUTTER + paperRootPad;
+
+  // Mobile: wider cards (~82% of the full-bleed rail). Tablet+: keep the mid-band measure.
+  const cardWidth = columns
+    ? Math.max(240, Math.min(deckWidth > 0 ? deckWidth * 0.62 : 280, 320))
+    : Math.max(260, Math.min((deckWidth > 0 ? deckWidth : windowWidth) * 0.82, 340));
+  const cardHeight = Math.round(cardWidth * 1.35);
+  const cardGap = spacing.md;
+  const snapInterval = cardWidth + cardGap;
+  const sidePad = Math.max(0, (deckWidth - cardWidth) / 2);
+
+  const opacityForIndex = useCallback(
+    (index: number) => {
+      // Mobile full-bleed rail: every card stays fully opaque.
+      if (!columns) return 1;
+      if (deckWidth <= 0 || snapInterval <= 0) return index === 0 ? 1 : 0.55;
+      const cardCenter = sidePad + index * snapInterval + cardWidth / 2;
+      const viewCenter = scrollX + deckWidth / 2;
+      const dist = Math.abs(cardCenter - viewCenter);
+      // Solid at center; neighbors ~halfway between full and the old near-invisible fade.
+      const fadeStart = cardWidth * 0.4;
+      const neighborDist = snapInterval;
+      if (dist <= fadeStart) return 1;
+      if (dist <= neighborDist) {
+        const t = (dist - fadeStart) / (neighborDist - fadeStart);
+        return 1 - t * 0.45; // → ~0.55 at the neighbor
+      }
+      const fadeEnd = snapInterval * 2.1;
+      if (dist >= fadeEnd) return 0.22;
+      const t = (dist - neighborDist) / (fadeEnd - neighborDist);
+      return 0.55 - t * 0.33;
+    },
+    [cardWidth, columns, deckWidth, scrollX, sidePad, snapInterval],
+  );
+
+  const scrollToIndex = useCallback(
+    (index: number, animated = true) => {
+      const clamped = Math.max(0, Math.min(cards.length - 1, index));
+      const targetX = clamped * snapInterval;
+      setActiveIndex(clamped);
+      syncingRef.current = true;
+
+      const finish = () => {
+        setScrollX(targetX);
+        syncingRef.current = false;
+      };
+
+      if (!animated) {
+        scrollRef.current?.scrollTo({ x: targetX, animated: false });
+        finish();
+        return;
+      }
+
+      // Web: ease the snap ourselves — RN scrollTo({ animated }) feels abrupt.
+      if (Platform.OS === 'web') {
+        const node = scrollRef.current as ScrollView & {
+          getScrollableNode?: () => HTMLElement;
+        } | null;
+        const el =
+          node && typeof node.getScrollableNode === 'function'
+            ? node.getScrollableNode()
+            : (node as unknown as HTMLElement | null);
+        if (el && typeof el.scrollLeft === 'number') {
+          const startX = el.scrollLeft;
+          const delta = targetX - startX;
+          if (Math.abs(delta) < 1.5) {
+            finish();
+            return;
+          }
+          const duration = Math.min(2000, Math.max(1200, Math.abs(delta) * 2.1));
+          const startTime = performance.now();
+          // Slow drift — soft at both ends, no rush.
+          const easeInOutSine = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
+          const step = (now: number) => {
+            const t = Math.min(1, (now - startTime) / duration);
+            el.scrollLeft = startX + delta * easeInOutSine(t);
+            setScrollX(el.scrollLeft);
+            if (t < 1) {
+              requestAnimationFrame(step);
+            } else {
+              el.scrollLeft = targetX;
+              finish();
+            }
+          };
+          requestAnimationFrame(step);
+          return;
+        }
+      }
+
+      scrollRef.current?.scrollTo({ x: targetX, animated: true });
+      setTimeout(finish, 1600);
+    },
+    [cards.length, snapInterval],
+  );
+
+  const settleToNearest = useCallback(
+    (x: number) => {
+      if (syncingRef.current || snapInterval <= 0 || cards.length === 0) return;
+      const next = Math.round(x / snapInterval);
+      const clamped = Math.max(0, Math.min(cards.length - 1, next));
+      const targetX = clamped * snapInterval;
+      if (Math.abs(x - targetX) > 1.5 || clamped !== activeIndex) {
+        scrollToIndex(clamped, true);
+      }
+    },
+    [activeIndex, cards.length, scrollToIndex, snapInterval],
+  );
+
+  const onDeckScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const x = e.nativeEvent.contentOffset.x;
+      setScrollX(x);
+      if (syncingRef.current || snapInterval <= 0) return;
+      const next = Math.round(x / snapInterval);
+      const clamped = Math.max(0, Math.min(cards.length - 1, next));
+      if (clamped !== activeIndex) setActiveIndex(clamped);
+    },
+    [activeIndex, cards.length, snapInterval],
+  );
+
+  // Snap after the user lets go — never interrupt an active drag/scroll.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = scrollRef.current as ScrollView & {
+      getScrollableNode?: () => HTMLElement;
+    } | null;
+    const el =
+      node && typeof node.getScrollableNode === 'function'
+        ? node.getScrollableNode()
+        : (node as unknown as HTMLElement | null);
+    if (!el || typeof el.addEventListener !== 'function') return;
+
+    let timer = 0;
+
+    const scheduleSettle = (delay: number) => {
+      if (syncingRef.current) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (syncingRef.current) return;
+        if (el.classList.contains(HORIZONTAL_RAIL_DRAGGING_CLASS)) return;
+        settleToNearest(el.scrollLeft);
+      }, delay);
+    };
+
+    const onScroll = () => {
+      if (syncingRef.current) return;
+      // Still dragging with the mouse — wait for release.
+      if (el.classList.contains(HORIZONTAL_RAIL_DRAGGING_CLASS)) {
+        window.clearTimeout(timer);
+        return;
+      }
+      // Trackpad/wheel coast: start the drift shortly after motion eases,
+      // without stealing the gesture mid-flick.
+      scheduleSettle(55);
+    };
+
+    const onPointerReleased = () => {
+      // Begin the soft drift as soon as the gesture ends.
+      scheduleSettle(0);
+    };
+
+    el.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('mouseup', onPointerReleased);
+    el.addEventListener('touchend', onPointerReleased, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      el.removeEventListener('scroll', onScroll);
+      window.removeEventListener('mouseup', onPointerReleased);
+      el.removeEventListener('touchend', onPointerReleased);
+    };
+  }, [settleToNearest, deckWidth, snapInterval]);
+
+  return (
+    <View style={styles.beliefsDeck}>
+      <View
+        style={[styles.beliefsTocFlat, columns ? styles.beliefsTocFlatColumns : null]}
+        accessibilityRole="summary"
+        accessibilityLabel="Table of contents for nine belief cards"
+      >
+        {(columns
+          ? [cards.slice(0, 3), cards.slice(3, 6), cards.slice(6, 9)]
+          : [cards]
+        ).map((col, colIndex) => (
+          <View
+            key={`toc-col-${colIndex}`}
+            style={
+              columns
+                ? [
+                    styles.beliefsTocFlatCol,
+                    colIndex === 0
+                      ? styles.beliefsTocFlatColLeft
+                      : colIndex === 1
+                        ? styles.beliefsTocFlatColCenter
+                        : styles.beliefsTocFlatColRight,
+                  ]
+                : styles.beliefsTocFlat
+            }
+          >
+            <View style={columns ? styles.beliefsTocFlatColInner : undefined}>
+              {col.map((card, rowIndex) => {
+                const index = columns ? colIndex * 3 + rowIndex : rowIndex;
+                const active = index === activeIndex;
+                return (
+                  <Pressable
+                    key={`${card.sectionHeading}-${card.title}`}
+                    onPress={() => scrollToIndex(index)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${card.title}, card ${index + 1} of ${cards.length}`}
+                    accessibilityState={{ selected: active }}
+                    style={[
+                      styles.beliefsTocRow,
+                      columns ? styles.beliefsTocRowInColumn : null,
+                    ]}
+                  >
+                    <BeliefTitle
+                      title={card.title}
+                      style={[
+                        styles.beliefsTocTitle,
+                        columns ? styles.beliefsTocTitleInColumn : null,
+                        active ? styles.beliefsTocTitleActive : null,
+                      ]}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ))}
+      </View>
+
+      <View
+        style={[
+          styles.beliefsCarouselWrap,
+          columns ? styles.beliefsCarouselWrapMasked : styles.beliefsCarouselWrapOpen,
+          columns
+            ? { marginHorizontal: -carouselBleed }
+            : { width: windowWidth, marginLeft: -carouselBleed },
+        ]}
+        onLayout={(e: LayoutChangeEvent) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0) setDeckWidth((prev) => (Math.abs(prev - w) > 1 ? w : prev));
+        }}
+      >
+        <HorizontalDragScrollView
+          ref={scrollRef}
+          horizontal
+          decelerationRate="fast"
+          snapToInterval={snapInterval}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onDeckScroll}
+          onScrollEndDrag={(e) => settleToNearest(e.nativeEvent.contentOffset.x)}
+          onMomentumScrollEnd={(e) => settleToNearest(e.nativeEvent.contentOffset.x)}
+          style={styles.beliefsCarouselScroll}
+          contentContainerStyle={[
+            styles.beliefsCarouselContent,
+            { paddingHorizontal: sidePad, paddingVertical: 16, gap: cardGap },
+          ]}
+          accessibilityLabel="Belief cards, swipe to browse"
+        >
+          {cards.map((card, index) => (
+            <Pressable
+              key={`${card.sectionHeading}-${card.title}`}
+              onPress={() => {
+                if (index !== activeIndex) scrollToIndex(index);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${card.title}. ${card.body}`}
+              accessibilityState={{ selected: index === activeIndex }}
+              style={[
+                styles.beliefCard,
+                {
+                  width: cardWidth,
+                  height: cardHeight,
+                  opacity: opacityForIndex(index),
+                },
+                Platform.OS === 'web' && index !== activeIndex
+                  ? ({ cursor: 'pointer' } as object)
+                  : null,
+              ]}
+            >
+              <BeliefTitle title={card.title} style={styles.beliefCardTitle} />
+              <Text style={styles.beliefCardBody}>{preventWidow(card.body)}</Text>
+            </Pressable>
+          ))}
+        </HorizontalDragScrollView>
+      </View>
+
+      <View style={styles.beliefsDots} accessibilityElementsHidden>
+        {cards.map((card, index) => (
+          <Pressable
+            key={`dot-${card.title}`}
+            onPress={() => scrollToIndex(index)}
+            hitSlop={8}
+            style={[styles.beliefsDot, index === activeIndex ? styles.beliefsDotActive : null]}
+          />
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -348,7 +742,7 @@ function BeliefItemsList({
             ]}
           >
             <BeliefTitle title={item.title} />
-            <Text style={styles.blockBody}>{item.body}</Text>
+            <Text style={styles.blockBody}>{preventWidow(item.body)}</Text>
           </View>
         );
       })}
@@ -366,14 +760,20 @@ function BeliefsContent({
   onPaper?: boolean;
 }) {
   const { width: windowWidth } = useWindowDimensions();
+
+  // Our Story paper band: TOC + swipeable 9-card deck.
+  if (onPaper && sections && sections.length > 0) {
+    return <BeliefsDeck sections={sections} />;
+  }
+
   const columns = Boolean(
     sections &&
       sections.length >= 2 &&
       sections.length <= 3 &&
-      windowWidth >= LAYOUT.BREAKPOINT_TABLET,
+      windowWidth >= LAYOUT.BREAKPOINT_TABLET
   );
-  /** Hover tooltips for hierarchical / paper beliefs (Our Story); flat lists stay open. */
-  const tooltips = Boolean(sections && sections.length > 0) || Boolean(onPaper);
+  /** Hover tooltips for hierarchical beliefs (non-paper); flat lists stay open. */
+  const tooltips = Boolean(sections && sections.length > 0);
 
   if (sections && sections.length > 0) {
     return (
@@ -424,34 +824,90 @@ function BeliefsContent({
     );
   }
   if (items && items.length > 0) {
-    return <BeliefItemsList items={items} onPaper={onPaper} tooltips={tooltips} />;
+    return <BeliefItemsList items={items} onPaper={onPaper} tooltips={false} />;
   }
   return null;
 }
 
-function ArticleProseBody({ body }: { body: string | readonly StorefrontArticleProseLine[] }) {
-  const lines = normalizeProseBody(body);
-  if (lines.length === 0) return null;
+function ArticleProseParagraph({
+  lines,
+}: {
+  lines: { body: string; weight: StorefrontArticleProseWeight }[];
+}) {
   if (lines.length === 1) {
     const line = lines[0];
     return (
-      <Text style={[styles.blockBody, proseWeightStyle(line.weight)]}>{line.body}</Text>
+      <Text style={[styles.blockBody, proseWeightStyle(line.weight)]}>
+        {preventWidow(line.body)}
+      </Text>
     );
   }
-  // One Text parent + nested spans so weighted runs stay inline (no paragraph gaps).
   return (
     <Text style={styles.blockBody}>
       {lines.map((line, index) => (
         <Text key={index} style={proseWeightStyle(line.weight)}>
           {index > 0 ? ' ' : ''}
-          {line.body}
+          {index === lines.length - 1 ? preventWidow(line.body) : line.body}
         </Text>
       ))}
     </Text>
   );
 }
 
+function ArticleProseBody({
+  body,
+}: {
+  body: string | readonly StorefrontArticleProseParagraph[];
+}) {
+  const paragraphs = normalizeProseParagraphs(body);
+  if (paragraphs.length === 0) return null;
+  if (paragraphs.length === 1) {
+    return <ArticleProseParagraph lines={paragraphs[0]} />;
+  }
+  return (
+    <View style={styles.proseParagraphs}>
+      {paragraphs.map((lines, index) => (
+        <ArticleProseParagraph key={index} lines={lines} />
+      ))}
+    </View>
+  );
+}
+
 /** Prefer 3-up when the list’s own width fits it; else 2. Gaps instead of hairlines. */
+function ArticleLinkCell({
+  item,
+  width,
+}: {
+  item: { label: string; detail?: string; onPress: () => void };
+  width: number;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable
+      onPress={item.onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      accessibilityRole="link"
+      accessibilityLabel={item.label}
+      style={[
+        styles.linkCell,
+        width > 0 ? { width } : styles.linkCellFallback,
+        { borderColor: hovered ? semanticColors.logoDark : semanticColors.goldMuted },
+        Platform.OS === 'web'
+          ? ({
+              transitionProperty: 'border-color',
+              transitionDuration: '120ms',
+              cursor: 'pointer',
+            } as object)
+          : null,
+      ]}
+    >
+      <Text style={styles.linkLabel}>{item.label}</Text>
+      {item.detail ? <Text style={styles.linkDetail}>{item.detail}</Text> : null}
+    </Pressable>
+  );
+}
+
 function ArticleLinkList({
   heading,
   items,
@@ -477,22 +933,80 @@ function ArticleLinkList({
   const cellWidth = Math.max(0, Math.floor((layoutW - gap * (cols - 1)) / cols));
 
   return (
-    <View style={styles.block}>
+    <View style={[styles.block, styles.linkListBlock]}>
       {heading ? <Text style={styles.blockHeading}>{heading}</Text> : null}
       <View style={[styles.linkGrid, { gap }]} onLayout={onLayout}>
         {items.map((item) => (
-          <TouchableOpacity
-            key={item.label}
-            style={[styles.linkCell, cellWidth > 0 ? { width: cellWidth } : styles.linkCellFallback]}
-            onPress={item.onPress}
-            accessibilityRole="link"
-            accessibilityLabel={item.label}
-          >
-            <Text style={styles.linkLabel}>{item.label}</Text>
-            {item.detail ? <Text style={styles.linkDetail}>{item.detail}</Text> : null}
-          </TouchableOpacity>
+          <ArticleLinkCell key={item.label} item={item} width={cellWidth} />
         ))}
       </View>
+    </View>
+  );
+}
+
+function ArticleBandBlock({
+  block,
+}: {
+  block: Extract<StorefrontArticleBlock, { type: 'band' }>;
+}) {
+  const { width: windowWidth } = useWindowDimensions();
+  const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
+  const heading =
+    compact && block.headingMobile ? block.headingMobile : block.heading;
+
+  const bandInner = (
+    <>
+      <Text style={block.paper ? styles.bandPaperHeading : styles.blockHeading}>{heading}</Text>
+      <Text style={styles.blockBody}>{preventWidow(block.body)}</Text>
+      {block.cta || block.secondaryCta ? (
+        <View style={[styles.bandCtas, !compact ? styles.bandCtasRow : null]}>
+          {block.cta ? (
+            <TouchableOpacity
+              style={[styles.bandCta, !compact ? styles.bandCtaRowItem : null]}
+              onPress={block.cta.onPress}
+              disabled={block.cta.disabled}
+              accessibilityRole="button"
+              accessibilityLabel={block.cta.label}
+              accessibilityState={{ disabled: Boolean(block.cta.disabled) }}
+            >
+              <Text style={styles.bandCtaText}>{block.cta.label}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {block.secondaryCta ? (
+            <TouchableOpacity
+              style={[
+                styles.bandCtaSecondary,
+                !compact ? styles.bandCtaRowItem : null,
+                block.secondaryCta.disabled ? styles.ctaDisabled : null,
+              ]}
+              onPress={block.secondaryCta.onPress}
+              disabled={block.secondaryCta.disabled}
+              accessibilityRole="button"
+              accessibilityLabel={block.secondaryCta.label}
+              accessibilityState={{
+                disabled: Boolean(block.secondaryCta.disabled),
+              }}
+            >
+              <Text style={styles.bandCtaSecondaryText}>{block.secondaryCta.label}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+    </>
+  );
+
+  if (block.paper) {
+    return (
+      <View style={styles.bandPaperBlock}>
+        <StorefrontPaperCardShell style={styles.bandPaperShell} contentStyle={styles.bandOnPaper}>
+          {bandInner}
+        </StorefrontPaperCardShell>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.block}>
+      <View style={styles.band}>{bandInner}</View>
     </View>
   );
 }
@@ -509,8 +1023,25 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                 key={key}
                 style={block.showDividerAfter ? styles.blockWithAfterDivider : undefined}
               >
-                <View style={styles.block}>
-                  {block.heading ? <Text style={styles.blockHeading}>{block.heading}</Text> : null}
+                <View
+                  style={[
+                    styles.block,
+                    block.maxWidth != null ? { maxWidth: block.maxWidth } : null,
+                    block.paddingTop != null ? { paddingTop: block.paddingTop } : null,
+                    block.paddingBottom != null ? { paddingBottom: block.paddingBottom } : null,
+                  ]}
+                >
+                  {block.heading ? (
+                    <Text
+                      style={
+                        block.headingVariant === 'title'
+                          ? styles.blockHeadingTitle
+                          : styles.blockHeading
+                      }
+                    >
+                      {block.heading}
+                    </Text>
+                  ) : null}
                   {block.thumbs && block.thumbs.length > 0 ? (
                     <View style={styles.thumbRow} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                       {block.thumbs.map((src, thumbIndex) => (
@@ -632,43 +1163,8 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                 </View>
               </View>
             );
-          case 'band': {
-            const bandInner = (
-              <>
-                <Text style={block.paper ? styles.bandPaperHeading : styles.blockHeading}>
-                  {block.heading}
-                </Text>
-                <Text style={styles.blockBody}>{block.body}</Text>
-                {block.cta ? (
-                  <TouchableOpacity
-                    style={styles.bandCta}
-                    onPress={block.cta.onPress}
-                    accessibilityRole="button"
-                    accessibilityLabel={block.cta.label}
-                  >
-                    <Text style={styles.bandCtaText}>{block.cta.label}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </>
-            );
-            if (block.paper) {
-              return (
-                <View key={key} style={styles.bandPaperBlock}>
-                  <StorefrontPaperCardShell
-                    style={styles.bandPaperShell}
-                    contentStyle={styles.bandOnPaper}
-                  >
-                    {bandInner}
-                  </StorefrontPaperCardShell>
-                </View>
-              );
-            }
-            return (
-              <View key={key} style={styles.block}>
-                <View style={styles.band}>{bandInner}</View>
-              </View>
-            );
-          }
+          case 'band':
+            return <ArticleBandBlock key={key} block={block} />;
           case 'linkList':
             return <ArticleLinkList key={key} heading={block.heading} items={block.items} />;
           case 'roadmap':
@@ -815,7 +1311,7 @@ export function StorefrontArticlePage({
                 {segment.heading ? (
                   <Text style={styles.blockHeading}>{segment.heading}</Text>
                 ) : null}
-                <Text style={styles.lead}>{segment.body}</Text>
+                <Text style={styles.lead}>{preventWidow(segment.body)}</Text>
               </View>
             ))}
           </View>
@@ -970,7 +1466,8 @@ const styles = StyleSheet.create({
   title: {
     ...typeface('medium'),
     fontSize: 32,
-    lineHeight: 38,
+    // RN lineHeight is px only — 115% of fontSize (unitless % is not supported).
+    lineHeight: 32 * 1.15,
     color: semanticColors.logoDark,
     textAlign: 'center',
     marginTop: spacing.md,
@@ -995,6 +1492,7 @@ const styles = StyleSheet.create({
     color: semanticColors.textSecondary,
     textAlign: 'center',
     width: '100%',
+    ...(Platform.OS === 'web' ? ({ textWrap: 'pretty' } as object) : null),
   },
   ctas: {
     gap: spacing.sm,
@@ -1124,6 +1622,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: '100%',
   },
+  /** Same type as hero `title`, with extra space before body. */
+  blockHeadingTitle: {
+    ...typeface('medium'),
+    fontSize: 32,
+    lineHeight: 32 * 1.15,
+    color: semanticColors.logoDark,
+    textAlign: 'center',
+    width: '100%',
+    marginBottom: spacing.lg,
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+  },
   thumbRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1144,6 +1653,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  proseParagraphs: {
+    width: '100%',
+    gap: spacing.md,
+    alignItems: 'center',
+  },
   blockBody: {
     ...typeface('regular'),
     fontSize: 15,
@@ -1151,6 +1665,7 @@ const styles = StyleSheet.create({
     color: semanticColors.textSecondary,
     textAlign: 'center',
     width: '100%',
+    ...(Platform.OS === 'web' ? ({ textWrap: 'pretty' } as object) : null),
   },
   /** Medium / semibold (~500–600) — not bold 700. */
   blockBodySemibold: {
@@ -1213,7 +1728,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   beliefsOnPaper: {
-    gap: spacing.sm,
+    gap: spacing.md,
     width: '100%',
     alignItems: 'center',
     overflow: 'visible',
@@ -1225,13 +1740,174 @@ const styles = StyleSheet.create({
   beliefsPaperHeading: {
     ...typeface('medium'),
     fontSize: 28,
-    lineHeight: 34,
+    lineHeight: 28,
     color: semanticColors.logoDark,
     textAlign: 'center',
     maxWidth: 400,
     alignSelf: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
     ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+  },
+  beliefsDeck: {
+    width: '100%',
+    gap: spacing.xl,
+    alignItems: 'center',
+  },
+  beliefsTocList: {
+    width: '100%',
+    gap: 2,
+    alignItems: 'center',
+  },
+  /** Flat 9-item TOC (no Practice / Personal / Practical section heads). */
+  beliefsTocFlat: {
+    width: '100%',
+    gap: 2,
+    alignItems: 'center',
+  },
+  beliefsTocFlatColumns: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
+    width: '100%',
+    // Side columns flex to the edges; middle hugs. 24px between columns.
+    gap: MOBILE_GUTTER,
+  },
+  beliefsTocFlatCol: {
+    gap: 2,
+  },
+  /** Fills to the left edge; copy block sits toward center. */
+  beliefsTocFlatColLeft: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    alignItems: 'flex-end',
+  },
+  /** Hugs longest title; stays centered between the flanking columns. */
+  beliefsTocFlatColCenter: {
+    flexGrow: 0,
+    flexShrink: 0,
+    alignItems: 'center',
+  },
+  /** Fills to the right edge; copy block sits toward center. */
+  beliefsTocFlatColRight: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    alignItems: 'flex-start',
+  },
+  /** Hug-width stack; titles center on a shared axis. */
+  beliefsTocFlatColInner: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  beliefsTocRow: {
+    alignSelf: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+  },
+  beliefsTocRowInColumn: {
+    alignSelf: 'stretch',
+    paddingHorizontal: 0,
+    alignItems: 'center',
+  },
+  beliefsTocTitle: {
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: -0.1,
+    textAlign: 'center',
+  },
+  beliefsTocTitleInColumn: {
+    textAlign: 'center',
+  },
+  beliefsTocTitleActive: {
+    color: semanticColors.logoDark,
+    textDecorationLine: 'underline',
+    textDecorationColor: semanticColors.logoDark,
+  },
+  beliefsCarouselWrap: {
+    alignSelf: 'stretch',
+    marginTop: spacing.sm,
+  },
+  /** Tablet+: soft edge dissolve via mask. */
+  beliefsCarouselWrapMasked: {
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? ({
+          WebkitMaskImage:
+            'linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%)',
+          maskImage:
+            'linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%)',
+        } as object)
+      : null),
+  },
+  /** Mobile: no mask / blur — cards stay sharp edge to edge. */
+  beliefsCarouselWrapOpen: {
+    overflow: 'visible',
+    ...(Platform.OS === 'web' ? ({ overflowY: 'visible' } as object) : null),
+  },
+  beliefsCarouselScroll: {
+    overflow: 'visible',
+    ...(Platform.OS === 'web' ? ({ overflowY: 'visible' } as object) : null),
+  },
+  beliefsCarouselContent: {
+    alignItems: 'stretch',
+  },
+  beliefCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: borderRadius.md,
+    borderWidth: 0,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? ({ boxShadow: '0 6px 18px rgba(20, 20, 20, 0.08)' } as object)
+      : null),
+  },
+  beliefCardEyebrow: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.textSecondary,
+    textAlign: 'center',
+    letterSpacing: -0.1,
+  },
+  beliefCardTitle: {
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.25,
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+  },
+  beliefCardBody: {
+    ...typeface('regular'),
+    fontSize: 14,
+    lineHeight: 20,
+    color: semanticColors.textSecondary,
+    textAlign: 'center',
+    ...(Platform.OS === 'web' ? ({ textWrap: 'pretty' } as object) : null),
+  },
+  beliefsDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  beliefsDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(20, 20, 20, 0.2)',
+  },
+  beliefsDotActive: {
+    backgroundColor: semanticColors.logoDark,
+    width: 16,
+  },
+  beliefsDeckHint: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.textTertiary,
+    textAlign: 'center',
   },
   beliefsOnPaperList: {
     width: '100%',
@@ -1249,19 +1925,19 @@ const styles = StyleSheet.create({
   beliefsSectionsColumns: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.lg,
+    gap: spacing.sm,
     overflow: 'visible',
   },
   beliefSection: {
     width: '100%',
-    gap: spacing.sm,
+    gap: spacing.xs,
     alignItems: 'center',
     overflow: 'visible',
   },
   beliefSectionColumn: {
     flex: 1,
     minWidth: 0,
-    gap: spacing.md,
+    gap: 4,
     overflow: 'visible',
   },
   beliefSectionLast: {},
@@ -1280,9 +1956,10 @@ const styles = StyleSheet.create({
   },
   beliefSectionHeadingColumn: {
     marginTop: 0,
-    fontSize: 20,
-    lineHeight: 26,
-    marginBottom: spacing.xs,
+    fontSize: 13,
+    lineHeight: 16,
+    letterSpacing: -0.15,
+    marginBottom: 2,
   },
   beliefSectionIntro: {
     marginBottom: spacing.xs,
@@ -1397,29 +2074,66 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   bandOnPaper: {
-    gap: spacing.sm,
+    gap: spacing.lg,
     width: '100%',
     alignItems: 'center',
   },
   bandPaperHeading: {
     ...typeface('medium'),
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 32,
+    lineHeight: 36,
     color: semanticColors.logoDark,
     letterSpacing: -0.3,
     textAlign: 'center',
     width: '100%',
     ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
-  bandCta: {
-    alignSelf: 'center',
+  bandCtas: {
+    width: '100%',
+    alignItems: 'center',
+    gap: spacing.sm,
     marginTop: spacing.sm,
+  },
+  bandCtasRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
+  bandCta: {
+    alignSelf: 'stretch',
+    maxWidth: 360,
+    width: '100%',
     backgroundColor: semanticColors.brand,
     borderRadius: borderRadius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
+  bandCtaRowItem: {
+    flex: 1,
+    maxWidth: undefined,
+    width: undefined,
+    alignSelf: 'stretch',
+  },
   bandCtaText: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: semanticColors.logoDark,
+    textAlign: 'center',
+  },
+  bandCtaSecondary: {
+    alignSelf: 'stretch',
+    maxWidth: 360,
+    width: '100%',
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: semanticColors.logoDark,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  bandCtaSecondaryText: {
     ...typeface('medium'),
     fontSize: typography.md,
     color: semanticColors.logoDark,
@@ -1431,11 +2145,21 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'flex-start',
   },
+  /** Roomier gap under “Get involved” (and other link-list headings). */
+  linkListBlock: {
+    gap: spacing.xl,
+    marginBottom: spacing.xl,
+  },
   linkCell: {
     flexDirection: 'column',
     alignItems: 'center',
     gap: spacing.xs,
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: semanticColors.goldMuted,
+    borderRadius: borderRadius.md,
+    backgroundColor: semanticColors.bgPrimary,
   },
   /** Before onLayout: ~2-up so the first paint isn’t a single tall column. */
   linkCellFallback: {

@@ -5,7 +5,7 @@ import {
   freeShippingPromoLine,
   guestBoxSecurePromoLine,
 } from '../../constants/hanukkahBoxLock';
-import { getHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import {
@@ -18,9 +18,13 @@ import {
 /** Centered promo line; wraps as one unit if the viewport is too narrow. */
 export function StorefrontPromoStrip() {
   const insets = useSafeAreaInsets();
-  const [lockAt, setLockAt] = useState<string | null>(null);
-  const [startsOn, setStartsOn] = useState<string | null>(null);
-  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  // Seed from cache so remounts (tablet Rav dock swaps chrome trees) don't flash fallback copy.
+  const cached = peekHanukkahConfig();
+  const [lockAt, setLockAt] = useState<string | null>(cached?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(cached?.startsOn ?? null);
+  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(
+    cached?.estimatedDeliveryBy ?? null
+  );
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const isGuestBox = mode === 'guest_box';

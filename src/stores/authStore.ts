@@ -205,9 +205,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } else {
           set({ user: null, isAuthenticated: false });
         }
-      } else {
-        authStateSettled = true;
       }
+      // Premature null before redirect settles: do not mark auth settled — that used to
+      // clear isLoading as a guest, then flash into the restored signed-in session.
       finishLoadingIfReady();
     });
 

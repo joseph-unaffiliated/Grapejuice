@@ -34,6 +34,32 @@ function adultCountFromDrafts(drafts: ChildDraft[]): number | undefined {
   return n > 0 ? n : undefined;
 }
 
+/** Shared across hook instances so Home doesn't reflash empty draft after RootRoutes boot. */
+type AuthBoxDraftSnapshot = {
+  householdId: string;
+  lineItems: BoxLineItem[];
+  slotVotes: SlotVotes;
+  sealedSectionIds: BoxDraft['sealedSectionIds'];
+  wrapSelectedItemIds: string[];
+  children: ChildProfile[];
+  familiarity: FamiliarityLevel;
+};
+
+let authBoxDraftCache: AuthBoxDraftSnapshot | null = null;
+
+function peekAuthBoxDraft(householdId: string | null | undefined): AuthBoxDraftSnapshot | null {
+  if (!householdId || authBoxDraftCache?.householdId !== householdId) return null;
+  return authBoxDraftCache;
+}
+
+function writeAuthBoxDraftCache(snapshot: AuthBoxDraftSnapshot) {
+  authBoxDraftCache = snapshot;
+}
+
+function clearAuthBoxDraftCache() {
+  authBoxDraftCache = null;
+}
+
 export function useBoxDraft() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
@@ -47,16 +73,24 @@ export function useBoxDraft() {
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
   const setGuestWrapSelectedItemIds = useGuestSessionStore((s) => s.setWrapSelectedItemIds);
 
-  const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
-  const [slotVotes, setSlotVotes] = useState<SlotVotes>(emptySlotVotes());
-  const [sealedSectionIds, setSealedSectionIds] = useState<BoxDraft['sealedSectionIds']>();
-  const [wrapSelectedItemIds, setWrapSelectedItemIds] = useState<string[]>([]);
-  const [children, setChildren] = useState<ChildProfile[]>([]);
-  const [familiarity, setFamiliarity] = useState<FamiliarityLevel>('moderate');
-  const [loading, setLoading] = useState(true);
+  const cached = peekAuthBoxDraft(household?.id);
+  const [lineItems, setLineItems] = useState<BoxLineItem[]>(() => cached?.lineItems ?? []);
+  const [slotVotes, setSlotVotes] = useState<SlotVotes>(() => cached?.slotVotes ?? emptySlotVotes());
+  const [sealedSectionIds, setSealedSectionIds] = useState<BoxDraft['sealedSectionIds']>(
+    () => cached?.sealedSectionIds
+  );
+  const [wrapSelectedItemIds, setWrapSelectedItemIds] = useState<string[]>(
+    () => cached?.wrapSelectedItemIds ?? []
+  );
+  const [children, setChildren] = useState<ChildProfile[]>(() => cached?.children ?? []);
+  const [familiarity, setFamiliarity] = useState<FamiliarityLevel>(
+    () => cached?.familiarity ?? 'moderate'
+  );
+  const [loading, setLoading] = useState(() => !cached);
 
   const load = useCallback(async () => {
     if (!isAuthenticated) {
+      clearAuthBoxDraftCache();
       const kids = draftsToProfiles(guestDrafts);
       setChildren(kids);
       setFamiliarity(guestFamiliarity);
@@ -104,7 +138,19 @@ export function useBoxDraft() {
       return;
     }
 
-    setLoading(true);
+    const seeded = peekAuthBoxDraft(household.id);
+    if (seeded) {
+      setLineItems(seeded.lineItems);
+      setSlotVotes(seeded.slotVotes);
+      setSealedSectionIds(seeded.sealedSectionIds);
+      setWrapSelectedItemIds(seeded.wrapSelectedItemIds);
+      setChildren(seeded.children);
+      setFamiliarity(seeded.familiarity);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     const [draft, catalog, kids] = await Promise.all([
       boxDraftService.get(household.id),
       catalogService.getAll(),
@@ -212,6 +258,15 @@ export function useBoxDraft() {
     setSealedSectionIds(draft?.sealedSectionIds);
     setWrapSelectedItemIds(wrapIds);
     setLineItems(nextLines);
+    writeAuthBoxDraftCache({
+      householdId: household.id,
+      lineItems: nextLines,
+      slotVotes: draft?.slotVotes ?? emptySlotVotes(),
+      sealedSectionIds: draft?.sealedSectionIds,
+      wrapSelectedItemIds: wrapIds,
+      children: nextKids,
+      familiarity: profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate',
+    });
     setLoading(false);
   }, [
     isAuthenticated,
@@ -244,6 +299,16 @@ export function useBoxDraft() {
         return;
       }
       if (!household?.id || !user?.uid) return;
+      const prev = peekAuthBoxDraft(household.id);
+      writeAuthBoxDraftCache({
+        householdId: household.id,
+        lineItems: next,
+        slotVotes: prev?.slotVotes ?? slotVotes,
+        sealedSectionIds: prev?.sealedSectionIds ?? sealedSectionIds,
+        wrapSelectedItemIds: prev?.wrapSelectedItemIds ?? wrapSelectedItemIds,
+        children: prev?.children ?? children,
+        familiarity: prev?.familiarity ?? familiarity,
+      });
       await boxDraftService.save(household.id, user.uid, next, {
         familiarityLevel: profile?.familiarityLevel ?? familiarity,
         slotVotes,
@@ -257,7 +322,9 @@ export function useBoxDraft() {
       profile?.familiarityLevel,
       familiarity,
       slotVotes,
+      sealedSectionIds,
       wrapSelectedItemIds,
+      children,
       setGuestLineItems,
     ]
   );

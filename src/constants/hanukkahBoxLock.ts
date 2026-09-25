@@ -107,13 +107,28 @@ export function hanukkahStartsSundownLabel(startsOn?: string | null): string | n
   return `Hanukkah starts sundown ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 }
 
+/** Promo delivery clause: `Boxes arrive by Nov 24`. */
+export function boxesArriveByPromoLabel(estimatedDeliveryBy?: string | null): string {
+  const day =
+    formatShortMonthDay(estimatedDeliveryBy) ??
+    formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
+    'Nov 24';
+  return `Boxes arrive by ${day}`;
+}
+
+/**
+ * Mobile-safe acquisition promo (short + reorder so it fits one line):
+ * `Hanukkah starts sundown Dec 5 • Boxes arrive by Nov 21 • Free shipping`
+ */
 export function freeShippingPromoLine(
   estimatedDeliveryBy?: string | null,
   startsOn?: string | null
 ): string {
-  const base = `Free shipping on boxes • ${arrivesByPromoLabel(estimatedDeliveryBy)}`;
-  const third = hanukkahStartsSundownLabel(startsOn);
-  return third ? `${base} • ${third}` : base;
+  const starts = hanukkahStartsSundownLabel(startsOn);
+  const arrives = boxesArriveByPromoLabel(estimatedDeliveryBy);
+  return starts
+    ? `${starts} • ${arrives} • Free shipping`
+    : `${arrives} • Free shipping`;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
 import {
   PILOT_HOLIDAYS,
   PASSOVER_NOTIFY_INTEREST,
+  HANUKKAH_2027_NOTIFY_INTEREST,
 } from '../../constants/pilotHolidays';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
@@ -23,6 +24,12 @@ type Props = {
   onToggleInterest: (holidayId: string) => void;
   onHideHoliday: (holidayId: string) => void;
 };
+
+function interestKeyForHoliday(holidayId: string): string {
+  if (holidayId === 'passover-2027') return PASSOVER_NOTIFY_INTEREST;
+  if (holidayId === 'hanukkah-2027') return HANUKKAH_2027_NOTIFY_INTEREST;
+  return holidayId;
+}
 
 export function HolidayCalendarSection({
   hiddenHolidays,
@@ -42,11 +49,13 @@ export function HolidayCalendarSection({
   );
 
   const selected = notifyCards.find((h) => h.id === explainerId);
-  const interested = (id: string) =>
-    interests.includes(id) || (id === 'passover-2027' && interests.includes(PASSOVER_NOTIFY_INTEREST));
+  const interested = (id: string) => {
+    const key = interestKeyForHoliday(id);
+    return interests.includes(key) || interests.includes(id);
+  };
 
   const confirmInterest = async (holidayId: string) => {
-    const key = holidayId === 'passover-2027' ? PASSOVER_NOTIFY_INTEREST : holidayId;
+    const key = interestKeyForHoliday(holidayId);
     onToggleInterest(key);
     if (isAuthenticated && user?.uid) {
       await usersService.upsert(user.uid, { notificationsOptIn: true });

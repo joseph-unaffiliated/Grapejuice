@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  Pressable,
   Platform,
   useWindowDimensions,
   type LayoutChangeEvent,
@@ -48,6 +49,17 @@ type Props = {
   constrainWidth?: boolean;
   /** `rail` = single-row horizontal scroll (~1.5 tiles visible). */
   layout?: 'grid' | 'rail';
+  /**
+   * Drop the rail’s bottom margin when the next section header owns spacing
+   * (avoids stacking with variable-height tiles).
+   */
+  flushBottom?: boolean;
+  /**
+   * End-of-rail CTA on mobile rails — white card, brand gold stroke at lower opacity,
+   * “browse more {label}”. Sized to the product photo (square), not the full tile + text.
+   */
+  browseMoreLabel?: string;
+  onBrowseMore?: () => void;
 };
 
 /** Prefer 3-up when the grid’s own width is tablet+; else 2. Uses container, not window,
@@ -75,6 +87,9 @@ export function StorefrontProductGrid({
   availabilityById: availabilityProp,
   constrainWidth = true,
   layout = 'grid',
+  flushBottom = false,
+  browseMoreLabel,
+  onBrowseMore,
 }: Props) {
   const navigation = useNavigation<Nav>();
   const { width: windowWidth } = useWindowDimensions();
@@ -86,6 +101,7 @@ export function StorefrontProductGrid({
   const hasStartedBox = usePreviewedHasStartedBox();
   const [containerWidth, setContainerWidth] = useState(0);
   const isRail = layout === 'rail';
+  const showBrowseMore = isRail && Boolean(browseMoreLabel && onBrowseMore);
 
   const onLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
@@ -98,7 +114,7 @@ export function StorefrontProductGrid({
   const layoutW = containerWidth > 0 ? containerWidth : windowWidth;
   const cols = columnsForWidth(layoutW);
   const tileWidth = isRail
-    ? Math.floor((layoutW - pad * 2 - gap / 2) / 1.5)
+    ? Math.floor((layoutW - pad * 2 - gap / 2) / 1.8)
     : Math.floor((layoutW - pad * 2 - gap * (cols - 1)) / cols);
 
   const visible = useMemo(() => {
@@ -126,6 +142,10 @@ export function StorefrontProductGrid({
           );
     void persist(next);
   };
+
+  const browseMoreLabelText = browseMoreLabel
+    ? `browse more ${browseMoreLabel}`
+    : '';
 
   const tiles = (
     <>
@@ -157,6 +177,7 @@ export function StorefrontProductGrid({
             }
             onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
             onToggleWishlist={() => void toggleWishlist(item.id)}
+            flushBottom={isRail}
           />
         );
       })}
@@ -172,6 +193,20 @@ export function StorefrontProductGrid({
           <Text style={styles.placeholderMeta}>Coming soon</Text>
         </View>
       ))}
+      {showBrowseMore ? (
+        <Pressable
+          onPress={onBrowseMore}
+          accessibilityRole="link"
+          accessibilityLabel={browseMoreLabelText}
+          style={({ pressed }) => [
+            styles.browseMore,
+            { width: tileWidth, height: tileWidth },
+            pressed && styles.browseMorePressed,
+          ]}
+        >
+          <Text style={styles.browseMoreText}>{browseMoreLabelText}</Text>
+        </Pressable>
+      ) : null}
     </>
   );
 
@@ -181,14 +216,17 @@ export function StorefrontProductGrid({
         style={[
           styles.railOuter,
           constrainWidth && styles.constrained,
-          { paddingLeft: pad },
+          flushBottom && styles.railOuterFlush,
         ]}
         onLayout={onLayout}
       >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.railContent, { gap, paddingRight: pad }]}
+          contentContainerStyle={[
+            styles.railContent,
+            { gap, paddingLeft: pad, paddingRight: pad },
+          ]}
           style={
             Platform.OS === 'web'
               ? ({ scrollbarWidth: 'none' } as object)
@@ -231,11 +269,35 @@ const styles = StyleSheet.create({
   railOuter: {
     width: '100%',
     alignSelf: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  railOuterFlush: {
+    marginBottom: 0,
   },
   railContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  /** Square — matches product photo only (not title/price block). */
+  browseMore: {
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: 'rgba(216, 201, 144, 0.55)',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+  },
+  browseMorePressed: {
+    opacity: 0.88,
+  },
+  browseMoreText: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: semanticColors.logoDark,
+    textAlign: 'center',
+    letterSpacing: -0.2,
   },
   placeholder: {
     gap: spacing.xs,

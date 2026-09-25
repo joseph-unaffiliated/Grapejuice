@@ -38,7 +38,7 @@ export const STOREFRONT_HERO: StorefrontMediaSlot = {
   kind: 'video',
   aspect: '4082/1536',
   label: 'Lifestyle — Hanukkah table reel',
-  headline: 'hanukkah made easy',
+  headline: 'hanukkah\nmade easy',
   body: 'Everything you need, delivered straight to your home',
   ctaLabel: 'Browse the Collection',
   href: 'collection',

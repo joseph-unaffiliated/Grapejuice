@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   type ImageSourcePropType,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+  type ScrollView,
 } from 'react-native';
 import {
   MOBILE_GUTTER,
@@ -69,10 +72,14 @@ export function aisleCoverImage(
 
 /** Mid-band content max width (Ask Rav / aisle head / product grid). */
 const STOREFRONT_BAND_MAX_WIDTH = 1024;
+const RAIL_GAP = spacing.md;
+/** Triple the set so we can jump between identical cycles without a visible seam. */
+const LOOP_COPIES = 3;
 
 /**
  * Tall photo category cards in a horizontal rail → storefront aisle PLP.
  * Shared by campaign landings (“Shop by aisle”) and store home.
+ * Scrolls infinitely (end wraps to start).
  */
 export function StorefrontCategoryRail({
   heading = 'Shop by aisle',
@@ -81,6 +88,8 @@ export function StorefrontCategoryRail({
   onCategoryPress,
 }: Props) {
   const { width: windowWidth } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const jumpingRef = useRef(false);
 
   /** Big cards with a peek of the next — ~72% viewport on phone, capped on desktop. */
   const cardWidth = useMemo(() => {
@@ -93,6 +102,68 @@ export function StorefrontCategoryRail({
   const centerOffset = useMemo(
     () => Math.max(0, (windowWidth - STOREFRONT_BAND_MAX_WIDTH) / 2),
     [windowWidth],
+  );
+
+  const loop = cards.length >= 2;
+  /** One full set including the gap before the next set’s first card. */
+  const cycleWidth = cards.length * (cardWidth + RAIL_GAP);
+
+  const loopCards = useMemo(() => {
+    if (!loop) {
+      return cards.map((card) => ({ card, key: card.category }));
+    }
+    const out: { card: StorefrontCategoryRailCard; key: string }[] = [];
+    for (let copy = 0; copy < LOOP_COPIES; copy++) {
+      for (const card of cards) {
+        out.push({ card, key: `${copy}-${card.category}` });
+      }
+    }
+    return out;
+  }, [cards, loop]);
+
+  const gutterPad = horizontalRailGutterPadding(MOBILE_GUTTER, { centerOffset });
+
+  /** Land on the middle copy so both directions can wrap. */
+  const scrollToMiddle = useCallback(() => {
+    if (!loop || cycleWidth <= 0) return;
+    jumpingRef.current = true;
+    scrollRef.current?.scrollTo({ x: cycleWidth, animated: false });
+    requestAnimationFrame(() => {
+      jumpingRef.current = false;
+    });
+  }, [loop, cycleWidth]);
+
+  useEffect(() => {
+    if (!loop) return;
+    const id = requestAnimationFrame(() => scrollToMiddle());
+    return () => cancelAnimationFrame(id);
+  }, [loop, scrollToMiddle, cardWidth, cards.length]);
+
+  const wrapScrollIfNeeded = useCallback(
+    (x: number) => {
+      if (!loop || cycleWidth <= 0 || jumpingRef.current) return;
+      if (x < cycleWidth * 0.5) {
+        jumpingRef.current = true;
+        scrollRef.current?.scrollTo({ x: x + cycleWidth, animated: false });
+        requestAnimationFrame(() => {
+          jumpingRef.current = false;
+        });
+      } else if (x >= cycleWidth * 1.5) {
+        jumpingRef.current = true;
+        scrollRef.current?.scrollTo({ x: x - cycleWidth, animated: false });
+        requestAnimationFrame(() => {
+          jumpingRef.current = false;
+        });
+      }
+    },
+    [loop, cycleWidth]
+  );
+
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      wrapScrollIfNeeded(e.nativeEvent.contentOffset.x);
+    },
+    [wrapScrollIfNeeded]
   );
 
   if (!cards.length) return null;
@@ -109,20 +180,33 @@ export function StorefrontCategoryRail({
       ) : null}
       <View style={horizontalRailOuterStyle()}>
         <HorizontalDragScrollView
+          ref={scrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           directionalLockEnabled
           nestedScrollEnabled
+          scrollEventThrottle={16}
+          onScroll={loop ? onScroll : undefined}
+          onMomentumScrollEnd={
+            loop
+              ? (e) => wrapScrollIfNeeded(e.nativeEvent.contentOffset.x)
+              : undefined
+          }
+          onScrollEndDrag={
+            loop
+              ? (e) => wrapScrollIfNeeded(e.nativeEvent.contentOffset.x)
+              : undefined
+          }
           style={horizontalRailScrollStyle()}
           contentContainerStyle={horizontalRailContentStyle({
-            gap: spacing.md,
+            gap: RAIL_GAP,
             alignItems: 'stretch',
-            ...horizontalRailGutterPadding(MOBILE_GUTTER, { centerOffset }),
+            ...gutterPad,
           })}
         >
-          {cards.map((card) => (
+          {loopCards.map(({ card, key }) => (
             <TouchableOpacity
-              key={card.category}
+              key={key}
               style={[styles.card, { width: cardWidth }]}
               onPress={() => onCategoryPress(card.category)}
               accessibilityRole="link"

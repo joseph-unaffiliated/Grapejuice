@@ -1,10 +1,11 @@
 import React from 'react';
 import { StorefrontPaperCardStrip } from './StorefrontPaperCardStrip';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 
 export const OUR_STORY_STRIP_HEADLINE =
-  "Making it your own\ndoesn’t mean doing it alone";
+  "Making it your own\ndoesn’t mean\ndoing it alone";
 export const OUR_STORY_STRIP_BODY =
-  'We started Grapejuice to remove all friction that stands between people and the Jewish practices they want to bring into their homes, as defined by them.';
+  'We started Grapejuice to remove all friction that stands between people and the Jewish practices they want to bring into their homes.';
 export const OUR_STORY_STRIP_PRIMARY_LABEL = 'Learn more about us';
 export const OUR_STORY_STRIP_SECONDARY_LABEL = 'Give the gift of Hanukkah';
 
@@ -30,9 +31,13 @@ export function StorefrontOurStoryStrip({
   primaryLabel = OUR_STORY_STRIP_PRIMARY_LABEL,
   secondaryLabel = OUR_STORY_STRIP_SECONDARY_LABEL,
 }: Props) {
+  const { isCompact } = useLayoutBreakpoint();
+  /** Soft breaks are mobile-only; desktop reads as one line. */
+  const displayHeadline = isCompact ? headline : headline.replace(/\n+/g, ' ');
+
   return (
     <StorefrontPaperCardStrip
-      headline={headline}
+      headline={displayHeadline}
       body={body}
       primaryCta={{ label: primaryLabel, onPress: onLearnMore }}
       secondaryCta={{ label: secondaryLabel, onPress: onGiveGift }}

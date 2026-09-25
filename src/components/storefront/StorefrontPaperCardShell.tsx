@@ -7,6 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { borderRadius, MOBILE_GUTTER, spacing } from '../../constants/theme';
 
 /** Same cold-press paper as Ask Rav / Our Story / PaperCardStrip. */
@@ -21,8 +22,8 @@ type Props = {
   /** Inner content max width (default 640, matching Ask Rav / PaperCard). */
   contentMaxWidth?: number;
   /**
-   * Tighter top/bottom padding on the paper ImageBackground (spacing.md / 20).
-   * Default keeps spacing.xxxl / 72 for Ask Rav / Our Story / Passover home strip.
+   * Force tighter top/bottom padding (spacing.md).
+   * When omitted, mobile/compact automatically uses spacing.xl; desktop keeps xxxl.
    */
   compactVerticalPadding?: boolean;
   /** Allow absolute children (e.g. belief hover tooltips) to paint outside the paper. */
@@ -38,16 +39,25 @@ export function StorefrontPaperCardShell({
   style,
   contentStyle,
   contentMaxWidth = 640,
-  compactVerticalPadding = false,
+  compactVerticalPadding,
   overflowVisible = false,
 }: Props) {
+  const { isCompact: compact } = useLayoutBreakpoint();
+  const mobileVertical =
+    compactVerticalPadding !== true &&
+    compactVerticalPadding !== false &&
+    compact;
+  const forceTight = compactVerticalPadding === true;
+
   return (
     <View style={[styles.outer, style]}>
       <ImageBackground
         source={PAPER_BG}
         style={[
           styles.root,
-          compactVerticalPadding ? styles.rootCompactVertical : null,
+          compact ? styles.rootMobileHorizontal : null,
+          mobileVertical ? styles.rootMobileVertical : null,
+          forceTight ? styles.rootCompactVertical : null,
           overflowVisible ? styles.rootOverflowVisible : null,
         ]}
         imageStyle={styles.bgImage}
@@ -80,6 +90,15 @@ const styles = StyleSheet.create({
   },
   rootOverflowVisible: {
     overflow: 'visible',
+  },
+  /** Mobile: more side inset so body copy stays near the headline measure. */
+  rootMobileHorizontal: {
+    paddingHorizontal: spacing.xl,
+  },
+  /** Mobile default — less than desktop xxxl (72), more than the earlier xl (40) overshoot. */
+  rootMobileVertical: {
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xxl,
   },
   rootCompactVertical: {
     paddingTop: spacing.md,

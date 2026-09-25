@@ -133,13 +133,13 @@ export function StorefrontHero({
   // under the hero, reserve space so the timeline is on-screen at first paint.
   const chromeApprox = compact ? 168 : 200;
   const journeyBannerReserve = journeyRailActive ? 88 : 0;
-  const belowPeek = 56;
+  const belowPeek = compact ? 72 : 56;
   const heroHeight = Math.min(
     Math.max(
       height - chromeApprox - journeyBannerReserve - belowPeek,
-      compact ? 460 : 480
+      compact ? 400 : 480
     ),
-    (compact ? 640 : 680) - journeyBannerReserve
+    (compact ? 560 : 680) - journeyBannerReserve
   );
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -210,20 +210,31 @@ export function StorefrontHero({
   }
 
   const hasBody = Boolean(body || bodySecondary);
-  const headlineGap = hasBody ? 4 : compact ? 14 : 20;
   const acquisitionHeadline = mode === 'acquisition';
+  const headlineGap = acquisitionHeadline
+    ? compact
+      ? 18
+      : 22
+    : hasBody
+      ? 4
+      : compact
+        ? 14
+        : 20;
   const headlineWebFluid =
     acquisitionHeadline && Platform.OS === 'web'
       ? ({
-          fontSize: 'clamp(1.75rem, 6.2vw, 3.25rem)',
-          lineHeight: 'clamp(1.75rem, 6.2vw, 3.25rem)',
-          whiteSpace: 'nowrap',
+          // Two-line break ("hanukkah / made easy") — tight pixel stack, roomy below.
+          fontSize: 'clamp(2.75rem, 13vw, 3.75rem)',
+          // Rem line-height ≈ 0.95× size (never unitless 0.95 — RN-web can treat that as px).
+          lineHeight: 'clamp(2.6rem, 12.3vw, 3.55rem)',
+          letterSpacing: '0.02em',
         } as object)
       : null;
   const headlineNativeFluid = acquisitionHeadline
     ? {
-        fontSize: compact ? 28 : 52,
-        lineHeight: compact ? 30 : 54,
+        fontSize: compact ? 44 : 60,
+        lineHeight: compact ? 42 : 56,
+        letterSpacing: 0.2,
       }
     : null;
 
@@ -252,7 +263,6 @@ export function StorefrontHero({
             headlineWebFluid,
             { marginBottom: headlineGap },
           ]}
-          numberOfLines={acquisitionHeadline ? 1 : undefined}
         >
           {headline}
         </Text>
@@ -384,7 +394,7 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     fontSize: 52,
     lineHeight: 62,
-    letterSpacing: 0.6,
+    letterSpacing: 0.2,
     color: semanticColors.textInverse,
     textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.35)',
@@ -393,7 +403,8 @@ const styles = StyleSheet.create({
   },
   headlineCompact: {
     fontSize: 40,
-    lineHeight: 48,
+    lineHeight: 44,
+    letterSpacing: -0.15,
   },
   bodyBlock: {
     alignItems: 'center',

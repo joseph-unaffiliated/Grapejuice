@@ -160,7 +160,7 @@ type Props = {
   variant?: 'home' | 'content';
 };
 
-const DEFAULT_HEADLINE = 'start customizing your box';
+const DEFAULT_HEADLINE = 'start building your box today';
 const DEFAULT_BODY =
   'Bring the holidays to life with age-appropriate activities and books tailored uniquely for your family';
 const DEFAULT_INCLUDES_LABEL = 'Each box includes:';
@@ -172,7 +172,7 @@ const DEFAULT_INCLUSIONS: BuildBoxInclusion[] = [
   { practiceId: 'story', lead: 'A book', rest: 'for each kid' },
   { practiceId: 'presents', lead: 'A wrapped present', rest: 'one per kid' },
 ];
-const DEFAULT_CTA = 'Show me my box';
+const DEFAULT_CTA = 'Start my box';
 const DEFAULT_SECONDARY_CTA = 'Start customizing my box';
 
 export function StorefrontBuildBoxStrip({
@@ -214,9 +214,9 @@ export function StorefrontBuildBoxStrip({
   };
 
   return (
-    <View style={styles.outer}>
-      {/* Radius on the media card (inside gutter) so the reel corners clip cleanly. */}
-      <View style={styles.card}>
+    <View style={[styles.outer, isCompact && styles.outerCompact]}>
+      {/* Desktop: radius clips the reel. Mobile: full-bleed, square. */}
+      <View style={[styles.card, isCompact && styles.cardCompact]}>
         <View
           style={[styles.root, isCompact ? styles.rootCompact : styles.rootWide]}
           onLayout={onLayout}
@@ -250,8 +250,14 @@ export function StorefrontBuildBoxStrip({
       </View>
 
       {showIncludesSection ? (
-        <View style={styles.includesSection}>
-          <Text style={styles.includesLabel}>{includesHeading}</Text>
+        <View
+          style={[styles.includesSection, isCompact && styles.includesSectionCompact]}
+        >
+          <Text
+            style={[styles.includesLabel, isCompact && styles.includesLabelCompact]}
+          >
+            {includesHeading}
+          </Text>
           <View style={styles.inclusions}>
             {inclusionItems.map((item) => (
               <View key={item.practiceId} style={styles.inclusionItem}>
@@ -288,10 +294,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
   },
+  /** Full-bleed media + more space after the paper card above. */
+  outerCompact: {
+    maxWidth: '100%',
+    paddingHorizontal: 0,
+    marginTop: spacing.lg,
+  },
   /** Same radius as Ask Rav outer — clips the video/still. */
   card: {
     borderRadius: borderRadius.md,
     overflow: 'hidden',
+  },
+  cardCompact: {
+    borderRadius: 0,
   },
   root: {
     paddingHorizontal: MOBILE_GUTTER,
@@ -301,9 +316,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: '#2a1c12',
   },
-  /** Narrow layouts keep a compact plate; desktop ~1.4× the old 340. */
+  /** Narrow layouts: taller full-bleed plate. */
   rootCompact: {
-    minHeight: 340,
+    minHeight: 420,
+    paddingVertical: spacing.xxxl,
   },
   rootWide: {
     minHeight: 480,
@@ -329,12 +345,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     zIndex: 1,
   },
-  /** Hero type treatment at Hero compact headline size (~40 / 48). */
+  /** Match acquisition hero: tight stack when the headline wraps. */
   headline: {
     ...typeface('medium'),
     fontSize: 40,
-    lineHeight: 48,
-    letterSpacing: 0.6,
+    // Pixel lineHeight (RN treats unitless fractions as px — never use 0.95).
+    lineHeight: 38,
+    letterSpacing: -0.2,
     color: semanticColors.textInverse,
     textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.35)',
@@ -383,11 +400,20 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: semanticColors.bgPrimary,
   },
+  /** Outer is full-bleed on compact — keep inclusions inset. */
+  includesSectionCompact: {
+    paddingHorizontal: MOBILE_GUTTER,
+  },
   includesLabel: {
     ...typeface('medium'),
     fontSize: 15,
     color: semanticColors.logoDark,
     textAlign: 'center',
+    // Extra space before the inclusions row (on top of section gap).
+    marginBottom: spacing.md,
+  },
+  includesLabelCompact: {
+    marginBottom: spacing.lg,
   },
   inclusions: {
     flexDirection: 'row',

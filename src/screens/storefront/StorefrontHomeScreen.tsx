@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { Icon } from '../../components/ui/Icon';
+import { icons } from '../../constants/icons';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { StorefrontHero } from '../../components/storefront/StorefrontHero';
 import {
@@ -36,6 +38,7 @@ import {
   itemsForDreidelsKidsRail,
   itemsForStorefrontRail,
   sortBooksByYoungerDefaultAges,
+  orderCandlesRollYourOwnBeforeElectric,
 } from '../../constants/storefrontCategories';
 import { filterCatalogByTag } from '../../constants/catalogCuration';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -44,7 +47,7 @@ import {
   useStorefrontHomeMode,
 } from '../../hooks/useStorefrontHomeMode';
 import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
-import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
+import { PASSOVER_NOTIFY_INTEREST, PRE_REGISTERED_CTA_LABEL } from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
@@ -276,11 +279,13 @@ export function StorefrontHomeScreen() {
   }, [items, railLimit]);
   const candles = useMemo(
     () =>
-      itemsForStorefrontRail(
-        items,
-        'candles',
-        filterByStorefrontCategory(items, 'candles'),
-        railLimit
+      orderCandlesRollYourOwnBeforeElectric(
+        itemsForStorefrontRail(
+          items,
+          'candles',
+          filterByStorefrontCategory(items, 'candles'),
+          railLimit
+        )
       ),
     [items, railLimit]
   );
@@ -334,19 +339,27 @@ export function StorefrontHomeScreen() {
               items={loved}
               limit={gridLimit}
               layout={gridLayout}
+              flushBottom
+              browseMoreLabel="top picks"
+              onBrowseMore={() => goCategory('collection')}
             />
           )}
         </View>
 
-        <SectionHeader
-          title="Browse by Aisle"
-          subtitle="Explore the whole Hanukkah collection"
-        />
-        <StorefrontCategoryRail
-          heading={null}
-          cards={aisleCards}
-          onCategoryPress={(category) => goCategory(category)}
-        />
+        {!compact ? (
+          <SectionHeader
+            title="Browse by Aisle"
+            subtitle="Explore the whole Hanukkah collection"
+            compactTop
+          />
+        ) : null}
+        <View style={compact ? styles.aisleRailCompact : null}>
+          <StorefrontCategoryRail
+            heading={null}
+            cards={aisleCards}
+            onCategoryPress={(category) => goCategory(category)}
+          />
+        </View>
 
         <StorefrontOurStoryStrip
           onLearnMore={goOurStory}
@@ -377,17 +390,21 @@ export function StorefrontHomeScreen() {
           items={menorahsCollection}
           limit={collectionGridLimit}
           layout={gridLayout}
+          browseMoreLabel="menorahs"
+          onBrowseMore={() => goCategory('menorahs', { style: 'collection' })}
         />
         {menorahsKids.length ? (
           <>
             <SubSectionHeader
-              title="Fun for the whole family"
+              title="Something for everyone"
               onPress={() => goCategory('menorahs', { style: 'kids' })}
             />
             <StorefrontProductGrid
               items={menorahsKids}
               limit={gridLimit}
               layout={gridLayout}
+              browseMoreLabel="kids menorahs"
+              onBrowseMore={() => goCategory('menorahs', { style: 'kids' })}
             />
           </>
         ) : null}
@@ -396,10 +413,12 @@ export function StorefrontHomeScreen() {
           items={candles}
           limit={gridLimit}
           layout={gridLayout}
+          browseMoreLabel="candles"
+          onBrowseMore={() => goCategory('candles')}
         />
 
         <StorefrontMenorahsLifestyleCard
-          label="Let the games begin"
+          label="Let the fun begin"
           image={DREIDELS_LIFESTYLE_IMG}
           aspectRatio={DREIDELS_LIFESTYLE_ASPECT}
           hotspots={DREIDELS_LIFESTYLE_HOTSPOTS}
@@ -416,6 +435,8 @@ export function StorefrontHomeScreen() {
           items={dreidelsCollection}
           limit={collectionGridLimit}
           layout={gridLayout}
+          browseMoreLabel="dreidels"
+          onBrowseMore={() => goCategory('dreidels', { style: 'collection' })}
         />
         {dreidelsKids.length ? (
           <>
@@ -427,6 +448,8 @@ export function StorefrontHomeScreen() {
               items={dreidelsKids}
               limit={gridLimit}
               layout={gridLayout}
+              browseMoreLabel="kids dreidels"
+              onBrowseMore={() => goCategory('dreidels', { style: 'kids' })}
             />
           </>
         ) : null}
@@ -440,6 +463,8 @@ export function StorefrontHomeScreen() {
               items={dreidelsSnuggle}
               limit={gridLimit}
               layout={gridLayout}
+              browseMoreLabel="stuffies"
+              onBrowseMore={() => goCategory('stuffies')}
             />
           </>
         ) : null}
@@ -453,17 +478,18 @@ export function StorefrontHomeScreen() {
               items={books}
               limit={gridLimit}
               layout={gridLayout}
+              browseMoreLabel="books"
+              onBrowseMore={() => goCategory('books')}
             />
           </>
         ) : null}
 
         <StorefrontPassoverStrip
-          onPreRegister={() => passoverInterest.mark()}
+          onPreRegister={passoverInterest.toggle}
           onLearnMore={goPassover}
           primaryLabel={
-            passoverInterest.marked ? 'Done!' : undefined
+            passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
           }
-          primaryDisabled={passoverInterest.marked}
         />
     </StorefrontChrome>
   );
@@ -475,6 +501,8 @@ function SectionHeader({
   viewAllLabel,
   onViewAll,
   onPress,
+  /** After a product rail: less paddingTop so gap matches hero → Top picks (rail already has marginBottom). */
+  compactTop,
 }: {
   title: string;
   subtitle?: string;
@@ -482,6 +510,7 @@ function SectionHeader({
   onViewAll?: () => void;
   /** Navigate when tapping the title/subtitle block (or whole header if no View all). */
   onPress?: () => void;
+  compactTop?: boolean;
 }) {
   const go = onPress ?? onViewAll;
   const titleBlock = (
@@ -492,7 +521,7 @@ function SectionHeader({
   );
 
   return (
-    <View style={styles.sectionHead}>
+    <View style={[styles.sectionHead, compactTop ? styles.sectionHeadCompactTop : null]}>
       <View style={styles.sectionHeadRow}>
         {go ? (
           <TouchableOpacity
@@ -509,12 +538,14 @@ function SectionHeader({
         )}
         {viewAllLabel && onViewAll ? (
           <TouchableOpacity
+            style={styles.viewAllRow}
             onPress={onViewAll}
             accessibilityRole="link"
             accessibilityLabel={`${viewAllLabel} ${title}`}
             hitSlop={8}
           >
-            <Text style={styles.viewAll}>{viewAllLabel} →</Text>
+            <Text style={styles.viewAll}>{viewAllLabel}</Text>
+            <Icon icon={icons.chevronRight} size={11} color={semanticColors.logoDark} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -523,11 +554,16 @@ function SectionHeader({
 }
 
 function SubSectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
-  const titleNode = (
-    <Text style={styles.subTitle}>
-      {title}
-      {onPress ? <Text style={styles.subViewAll}> (view all)</Text> : null}
-    </Text>
+  const content = (
+    <View style={styles.subHeadRow}>
+      <Text style={styles.subTitle}>{title}</Text>
+      {onPress ? (
+        <View style={styles.subViewAllRow}>
+          <Text style={styles.subViewAll}>view all</Text>
+          <Icon icon={icons.chevronRight} size={10} color={semanticColors.brand} />
+        </View>
+      ) : null}
+    </View>
   );
 
   if (onPress) {
@@ -538,11 +574,11 @@ function SubSectionHeader({ title, onPress }: { title: string; onPress?: () => v
         accessibilityRole="link"
         accessibilityLabel={`${title}, view all`}
       >
-        {titleNode}
+        {content}
       </TouchableOpacity>
     );
   }
-  return <View style={styles.subHead}>{titleNode}</View>;
+  return <View style={styles.subHead}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -555,6 +591,10 @@ const styles = StyleSheet.create({
     borderTopColor: semanticColors.border,
   },
   loader: { marginVertical: spacing.xl },
+  /** Matches former Browse-by-Aisle sectionHead compactTop when the headline is hidden. */
+  aisleRailCompact: {
+    paddingTop: spacing.md,
+  },
   sectionHead: {
     width: '100%',
     maxWidth: 1024,
@@ -562,6 +602,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.xl,
     paddingBottom: spacing.md,
+  },
+  /**
+   * Flush rail + xl would match tallest tile → title; visible cards are often shorter,
+   * so use md so the optical gap from on-screen tiles ≈ hero → Top picks (xl).
+   */
+  sectionHeadCompactTop: {
+    paddingTop: spacing.md,
   },
   sectionHeadRow: {
     flexDirection: 'row',
@@ -576,6 +623,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typeface('medium'),
     fontSize: 28,
+    lineHeight: 28,
     letterSpacing: -0.3,
     color: semanticColors.logoDark,
   },
@@ -589,25 +637,44 @@ const styles = StyleSheet.create({
     maxWidth: 1024,
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  subHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   subTitle: {
     ...typeface('medium'),
     fontSize: 16,
+    letterSpacing: -0.2,
     color: semanticColors.logoDark,
+    flexShrink: 1,
   },
-  /** Inline category cue — brand gold, adjacent to subsection title. */
+  subViewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  /** Category cue — brand gold, right-aligned with caret. */
   subViewAll: {
     ...typeface('medium'),
     fontSize: 12,
     color: semanticColors.brand,
   },
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+    marginBottom: 2,
+  },
   viewAll: {
     ...typeface('medium'),
     fontSize: 14,
     color: semanticColors.logoDark,
-    textDecorationLine: 'underline',
-    marginBottom: 2,
   },
 });

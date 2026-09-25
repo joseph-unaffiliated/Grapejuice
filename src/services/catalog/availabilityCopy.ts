@@ -28,8 +28,8 @@ export function boxOnlyHeroPrice(item: CatalogItem): string {
 /** PDP secondary line for box-only items. */
 export function boxOnlyMemberLine(item: CatalogItem): string {
   const { memberCents } = resolveCatalogDisplayPrices(item);
-  if (memberCents <= 0) return 'Included when in a box';
-  return `${formatCatalogDollars(memberCents)} when in a box`;
+  if (memberCents <= 0) return 'Included with a box';
+  return `${formatCatalogDollars(memberCents)} with a box`;
 }
 
 export function limitedRemainingLabel(remaining: number, locked: boolean): string {

@@ -104,7 +104,7 @@ export function ProductPricingBlock({
 
   let offerLine: string | null = null;
   if (includedOrMemberZero && nonMemberCents > 0) {
-    offerLine = off ? `Free (${off}% off) when in a box` : 'Free when in a box';
+    offerLine = off ? `Free (${off}% off) with a box` : 'Free with a box';
   } else if (memberCents > 0 && nonMemberCents > memberCents) {
     offerLine = formatSubscriberOfferLine(
       formatCatalogDollars(memberCents),

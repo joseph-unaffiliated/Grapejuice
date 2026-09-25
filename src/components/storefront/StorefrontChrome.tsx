@@ -111,9 +111,6 @@ type ChromeProps = {
   chromeVariant?: 'full' | 'sticky';
 };
 
-/** Fallback when header stack hasn’t measured — ~promo-or-not + header row. */
-const RAV_HEADER_FALLBACK_H = 96;
-
 function StorefrontChromeBlocks({
   activeCategory,
   onLogoPress,
@@ -233,7 +230,7 @@ function StorefrontChromeInner({
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
-  const { width: windowWidth, isCompact: compact } = useLayoutBreakpoint();
+  const { width: windowWidth, isCompact: compact, isDesktop } = useLayoutBreakpoint();
   const fillBody = bodyMode === 'fill';
   /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
   const showPromoStrip =
@@ -241,8 +238,6 @@ function StorefrontChromeInner({
   const [refreshing, setRefreshing] = useState(false);
   const [pullPx, setPullPx] = useState(0);
   const pullStartY = useRef<number | null>(null);
-  /** Promo + header only — Rav sits under this on mobile (not under services/category). */
-  const [ravHeaderStackH, setRavHeaderStackH] = useState(0);
   const {
     visible: ravVisible,
     closeRav,
@@ -325,9 +320,12 @@ function StorefrontChromeInner({
       ? stickyChromeHeight.current
       : Math.min(chromeHeight.current || STICKY_FALLBACK_CHROME_H, 96);
 
+  /** Mobile: full bleed. Tablet: half viewport (docked was too tight). Desktop: capped side panel. */
   const ravWidth = compact
     ? windowWidth
-    : Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.36));
+    : isDesktop
+      ? Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.36))
+      : Math.round(windowWidth * 0.5);
 
   const goHome = () => {
     if (onLeave) {
@@ -384,7 +382,6 @@ function StorefrontChromeInner({
     hideSearchAndRav,
     servicesSlot,
     showPromoStrip,
-    onHeaderStackLayout: setRavHeaderStackH,
   };
 
   const onChromeLayout = (e: LayoutChangeEvent) => {
@@ -747,7 +744,7 @@ function StorefrontChromeInner({
       return;
     }
     // Deep mid-page: pin under the short sticky nav (desktop logo·search / mobile menu).
-    // Keep scroll position — do not jump to top or open Rav full-bleed.
+    // Keep scroll position — do not jump to top.
     const compensated = Math.max(0, y - h);
     suppressOverlayDismissRef.current = true;
     lastY.current = compensated;
@@ -767,10 +764,9 @@ function StorefrontChromeInner({
   ]);
 
   /**
-   * Mobile: Rav height under the visible chrome —
-   * full promo+header at the top, mini sticky bar mid-page.
-   * Pin mode is held through the close animation so the taller sheet
-   * doesn’t collapse under the full header while sliding out.
+   * Mobile: while Rav is open mid-page, keep the sticky mini-bar pinned underneath
+   * (Rav itself is full-bleed above it). Pin mode is held through the close
+   * animation so sticky doesn’t thrash while the sheet slides out.
    */
   useLayoutEffect(() => {
     if (!compact || fillBody || !useOverlaySticky) {
@@ -842,21 +838,10 @@ function StorefrontChromeInner({
     outputRange: [-overlayHideOffset, 0],
   });
 
-  // Mobile: under full promo+header at top, or under mini sticky mid-page.
-  // Desktop dock: clearance is on bodyRow; undocked uses scroll-synced headerClearance.
-  const stickyInsetFallback =
-    stickyChromeH > 0
-      ? stickyChromeH
-      : Math.min(chromeH || STICKY_FALLBACK_CHROME_H, 96);
-  const fullHeaderInset =
-    ravHeaderStackH > 0 ? ravHeaderStackH : RAV_HEADER_FALLBACK_H;
-  const ravTopInset = compact
-    ? ravMobilePinSticky
-      ? stickyInsetFallback
-      : fullHeaderInset
-    : ravDockedLayout
-      ? 0
-      : headerClearance;
+  // Mobile: full-bleed over the storefront nav. Desktop dock clears the header;
+  // undocked desktop uses scroll-synced headerClearance.
+  const ravTopInset =
+    !compact && !ravDockedLayout ? headerClearance : 0;
 
   const ravDrawer = (
     <StorefrontRavDrawer

@@ -1,6 +1,11 @@
 import type { HolidayCard } from '../types/pilot';
 
+/** Persist keys in guest.interests / users.storefrontInterests — one per offer. */
 export const PASSOVER_NOTIFY_INTEREST = 'passover-2027-notify';
+export const HIGH_HOLIDAYS_SUKKOT_2027_INTEREST = 'high-holidays-sukkot-2027';
+export const HANUKKAH_2027_NOTIFY_INTEREST = 'hanukkah-2027-notify';
+
+export const PRE_REGISTERED_CTA_LABEL = "You're pre-registered!";
 
 export const PILOT_HOLIDAYS: HolidayCard[] = [
   {

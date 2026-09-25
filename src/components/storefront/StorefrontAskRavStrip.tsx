@@ -12,6 +12,7 @@ import { SearchPill } from '../ui/SearchPill';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { RAV_TYPEWRITER_PROMPTS } from '../../constants/ravStarterPrompts';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -57,6 +58,7 @@ export function StorefrontAskRavStrip({
   placeholder = ASK_RAV_DEFAULT_PLACEHOLDER,
   prompts,
 }: Props) {
+  const { isCompact: compact } = useLayoutBreakpoint();
   const [query, setQuery] = useState('');
   const hasText = query.trim().length > 0;
   const cleanedPrompts =
@@ -106,7 +108,7 @@ export function StorefrontAskRavStrip({
       >
         <ImageBackground
           source={PAPER_BG}
-          style={styles.root}
+          style={[styles.root, compact && styles.rootMobile]}
           imageStyle={styles.bgImage}
           resizeMode="cover"
         >
@@ -169,6 +171,10 @@ const styles = StyleSheet.create({
     // Fallback while the texture loads / if image fails.
     backgroundColor: '#F7F6F2',
   },
+  rootMobile: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
   bgImage: {
     width: '100%',
     height: '100%',
@@ -211,6 +217,8 @@ const styles = StyleSheet.create({
   headline: {
     ...typeface('medium'),
     fontSize: 28,
+    // RN lineHeight is px only — 115% of fontSize (unitless % is not supported).
+    lineHeight: 28 * 1.15,
     color: semanticColors.logoDark,
     textAlign: 'center',
   },

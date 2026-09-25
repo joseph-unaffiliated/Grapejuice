@@ -16,7 +16,7 @@ import {
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
-import { getHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   borderRadius,
@@ -36,9 +36,12 @@ type Props = {
 /** Desktop/tablet only — mobile uses the hamburger side menu instead. */
 export function StorefrontServicesNav({ onPress }: Props) {
   const { isCompact: compact } = useLayoutBreakpoint();
-  const [lockAt, setLockAt] = useState<string | null>(null);
-  const [startsOn, setStartsOn] = useState<string | null>(null);
-  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  const cached = peekHanukkahConfig();
+  const [lockAt, setLockAt] = useState<string | null>(cached?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(cached?.startsOn ?? null);
+  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(
+    cached?.estimatedDeliveryBy ?? null
+  );
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const now = usePreviewNow();
 
@@ -174,6 +177,6 @@ const styles = StyleSheet.create({
   link: {
     ...typeface('medium'),
     fontSize: typography.sm,
-    color: semanticColors.textSecondary,
+    color: semanticColors.logoDark,
   },
 });

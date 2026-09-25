@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   Image,
   StyleSheet,
-  TouchableOpacity,
   Platform,
   Pressable,
 } from 'react-native';
@@ -15,6 +14,7 @@ import {
   semanticColors,
   spacing,
   typeface,
+  typography,
 } from '../../constants/theme';
 
 const LIFESTYLE_IMG = require('../../../assets/storefront/menorahs-lifestyle-trio.jpg');
@@ -91,6 +91,52 @@ type Props = {
 const HOTSPOT_SIZE = 28;
 const DEFAULT_LABEL = 'Light the Candles';
 
+function LifestyleHotspotMarker({
+  hotspot,
+  onPress,
+}: {
+  hotspot: LifestyleHotspot;
+  onPress: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const nearTop = hotspot.y < 0.22;
+
+  return (
+    <Pressable
+      style={[
+        styles.hotspot,
+        {
+          left: `${hotspot.x * 100}%`,
+          top: `${hotspot.y * 100}%`,
+        },
+      ]}
+      onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${hotspot.label}`}
+      hitSlop={10}
+    >
+      {hovered ? (
+        <View
+          style={[
+            styles.hotspotTooltip,
+            nearTop ? styles.hotspotTooltipBelow : styles.hotspotTooltipAbove,
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.hotspotTooltipText}>{hotspot.label}</Text>
+        </View>
+      ) : null}
+      <View style={styles.hotspotRing}>
+        <Text style={styles.hotspotPlus}>+</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 /**
  * Full-width (content column) lifestyle plate with product hotspots.
  * Replaces the Menorahs (and Dreidels) section header on the store home.
@@ -104,9 +150,11 @@ export function StorefrontMenorahsLifestyleCard({
   aspectRatio = ASPECT,
 }: Props) {
   const { isCompact: compact } = useLayoutBreakpoint();
+  /** Taller plate on mobile — cover crops the left/right edges. */
+  const displayAspect = compact ? aspectRatio * 0.82 : aspectRatio;
 
   return (
-    <View style={styles.outer}>
+    <View style={[styles.outer, compact && styles.outerCompact]}>
       {compact ? (
         <Pressable
           onPress={onShopAll}
@@ -117,14 +165,24 @@ export function StorefrontMenorahsLifestyleCard({
           <Text style={styles.shopLabelMobile}>{label}</Text>
         </Pressable>
       ) : null}
-      <View style={[styles.card, { aspectRatio }]}>
-        <Image
-          source={image}
-          style={styles.image}
-          resizeMode="cover"
-          accessibilityIgnoresInvertColors
+      <View
+        style={[
+          styles.card,
+          compact && styles.cardCompact,
+          { aspectRatio: displayAspect },
+        ]}
+      >
+        <View
+          style={[styles.cardClip, compact && styles.cardClipCompact]}
           pointerEvents="none"
-        />
+        >
+          <Image
+            source={image}
+            style={styles.image}
+            resizeMode="cover"
+            accessibilityIgnoresInvertColors
+          />
+        </View>
         {!compact ? (
           <Pressable
             onPress={onShopAll}
@@ -144,24 +202,11 @@ export function StorefrontMenorahsLifestyleCard({
           />
         )}
         {hotspots.map((h, i) => (
-          <TouchableOpacity
+          <LifestyleHotspotMarker
             key={`${h.productId}-${i}`}
-            style={[
-              styles.hotspot,
-              {
-                left: `${h.x * 100}%`,
-                top: `${h.y * 100}%`,
-              },
-            ]}
+            hotspot={h}
             onPress={() => onProduct(h.productId)}
-            accessibilityRole="button"
-            accessibilityLabel={`View ${h.label}`}
-            hitSlop={10}
-          >
-            <View style={styles.hotspotRing}>
-              <Text style={styles.hotspotPlus}>+</Text>
-            </View>
-          </TouchableOpacity>
+          />
         ))}
       </View>
     </View>
@@ -177,24 +222,42 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     paddingBottom: spacing.md,
   },
+  outerCompact: {
+    maxWidth: '100%',
+    paddingHorizontal: 0,
+    paddingBottom: spacing.xl,
+  },
   titleAbove: {
     alignSelf: 'stretch',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
+    paddingHorizontal: MOBILE_GUTTER,
   },
   shopLabelMobile: {
     ...typeface('medium'),
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 34,
+    lineHeight: 34 * 1.05,
     color: semanticColors.logoDark,
     letterSpacing: -0.4,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   card: {
     width: '100%',
     borderRadius: borderRadius.md,
-    overflow: 'hidden',
     backgroundColor: semanticColors.accentCream,
     position: 'relative',
+    // Allow hotspot tooltips to escape the plate; image is clipped separately.
+    overflow: 'visible',
+  },
+  cardCompact: {
+    borderRadius: 0,
+  },
+  cardClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+  },
+  cardClipCompact: {
+    borderRadius: 0,
   },
   image: {
     ...StyleSheet.absoluteFillObject,
@@ -230,7 +293,7 @@ const styles = StyleSheet.create({
   shopLabel: {
     ...typeface('medium'),
     fontSize: 36,
-    lineHeight: 42,
+    lineHeight: 36,
     color: '#FFFFFF',
     letterSpacing: -0.4,
     zIndex: 1,
@@ -245,6 +308,9 @@ const styles = StyleSheet.create({
     marginLeft: -HOTSPOT_SIZE / 2,
     marginTop: -HOTSPOT_SIZE / 2,
     zIndex: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
   },
   hotspotRing: {
     width: HOTSPOT_SIZE,
@@ -252,15 +318,9 @@ const styles = StyleSheet.create({
     borderRadius: HOTSPOT_SIZE / 2,
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.95)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    ...(Platform.OS === 'web'
-      ? ({
-          backdropFilter: 'blur(4px)',
-          cursor: 'pointer',
-        } as object)
-      : null),
   },
   hotspotPlus: {
     ...typeface('medium'),
@@ -268,5 +328,38 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#FFFFFF',
     marginTop: -1,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  hotspotTooltip: {
+    position: 'absolute',
+    left: '50%',
+    maxWidth: 280,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.sm,
+    backgroundColor: 'rgba(20, 20, 20, 0.92)',
+    zIndex: 4,
+    ...(Platform.OS === 'web'
+      ? ({
+          width: 'max-content',
+          transform: [{ translateX: '-50%' }],
+        } as object)
+      : { marginLeft: -140 }),
+  },
+  hotspotTooltipAbove: {
+    bottom: HOTSPOT_SIZE + 6,
+  },
+  hotspotTooltipBelow: {
+    top: HOTSPOT_SIZE + 6,
+  },
+  hotspotTooltipText: {
+    ...typeface('medium'),
+    fontSize: typography.xs,
+    lineHeight: 14,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    letterSpacing: -0.2,
   },
 });
