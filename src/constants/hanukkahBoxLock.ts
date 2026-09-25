@@ -98,7 +98,7 @@ export function arrivesByPromoLabel(estimatedDeliveryBy?: string | null): string
   const day =
     formatShortMonthDay(estimatedDeliveryBy) ??
     formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
-    'Nov 24';
+    'Nov 21';
   return `Arrives by ${day}`;
 }
 
@@ -168,6 +168,6 @@ export function shipWindowLabel(estimatedDeliveryBy?: string | null): string {
   return (
     formatShortMonthDay(estimatedDeliveryBy) ??
     formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
-    'Nov 24'
+    'Nov 21'
   );
 }
