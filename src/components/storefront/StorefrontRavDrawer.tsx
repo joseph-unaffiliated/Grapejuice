@@ -8,7 +8,6 @@ import {
   Platform,
   Easing,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../chat/PilotAIChatSheet';
@@ -23,8 +22,8 @@ type Props = {
   /** Panel width (desktop docked or mobile overlay). */
   width: number;
   /**
-   * Offset from the top of the storefront shell. Desktop: sits below the header.
-   * Mobile: full-bleed (0) so Rav covers the nav.
+   * Offset from the top of the storefront shell so Rav sits under the visible nav
+   * (promo+header at top, or sticky mini-bar mid-page).
    */
   topInset?: number | Animated.AnimatedInterpolation<number> | Animated.Value;
   /**
@@ -39,7 +38,7 @@ type RavView = 'welcome' | 'recent' | 'thread';
 const DRAWER_MS = 280;
 
 /**
- * Rav chat pane — docked side panel on desktop; full-screen absolute sheet on mobile.
+ * Rav chat pane — docked side panel on desktop; absolute sheet under the nav on mobile.
  * Not a Modal: the storefront page stays interactive and scrollable underneath.
  *
  * When opening with an Ask Rav question, the pane stays hidden until the chat
@@ -56,10 +55,11 @@ export function StorefrontRavDrawer({
 }: Props) {
   const slide = useRef(new Animated.Value(0)).current;
   const chatRef = useRef<PilotAIChatSheetRef>(null);
-  const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [ravView, setRavView] = useState<RavView>('welcome');
+  /** Web keyboard overlap — keep the sheet above the soft keyboard. */
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const bootstrapMessage = initialMessage?.trim() || undefined;
   const bootstrapping = Boolean(bootstrapMessage) && visible;
 
@@ -118,6 +118,28 @@ export function StorefrontRavDrawer({
     return () => clearTimeout(t);
   }, [visible, bootstrapping, uiRevealed]);
 
+  // Mobile web: shrink the sheet with the visual viewport so the composer
+  // stays above the keyboard (100svh does not track soft keyboards).
+  useEffect(() => {
+    if (docked || Platform.OS !== 'web' || typeof window === 'undefined') {
+      setKeyboardInset(0);
+      return;
+    }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardInset(overlap);
+    };
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+    };
+  }, [docked, visible]);
+
   if (!mounted) return null;
 
   const historyOpen = ravView === 'recent';
@@ -131,13 +153,7 @@ export function StorefrontRavDrawer({
   });
 
   const chrome = (
-    <View
-      style={[
-        styles.chrome,
-        // Mobile full-bleed: keep safe-area, then match side gutter optically.
-        !docked ? { paddingTop: insets.top + spacing.sm } : null,
-      ]}
-    >
+    <View style={styles.chrome}>
       <TouchableOpacity
         style={styles.chromeAction}
         onPress={onHistoryToggle}
@@ -209,7 +225,7 @@ export function StorefrontRavDrawer({
     );
   }
 
-  // Mobile: full-screen sheet over the storefront nav — no Modal, so body scroll is never locked.
+  // Mobile: sheet under the storefront nav — no Modal, so body scroll is never locked.
   return (
     <Animated.View
       style={[
@@ -217,6 +233,7 @@ export function StorefrontRavDrawer({
         {
           width: drawerWidth,
           top: topInset,
+          bottom: keyboardInset,
           transform: [{ translateX }],
           opacity: bootstrapping && !uiRevealed ? 0 : 1,
         },
@@ -258,8 +275,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     bottom: 0,
-    /** Above storefront sticky chrome (zIndex 30) so Rav covers the nav. */
-    zIndex: 40,
+    // Below sticky chrome (zIndex 30) so nav stays on top of the sheet.
+    zIndex: 20,
+    flexDirection: 'column',
     backgroundColor: semanticColors.bgPrimary,
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)' } as object)
@@ -283,21 +301,18 @@ const styles = StyleSheet.create({
   chromeAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    flexShrink: 0,
+    gap: spacing.xs,
   },
   chromeHit: {
-    width: 28,
+    width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** Match storefront services nav year/link labels (e.g. “2026 Hanukkah Box”). */
   chromeLabel: {
     ...typeface('medium'),
     fontSize: typography.sm,
     color: semanticColors.logoDark,
-    flexShrink: 0,
   },
   chat: {
     flex: 1,

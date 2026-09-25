@@ -111,6 +111,9 @@ type ChromeProps = {
   chromeVariant?: 'full' | 'sticky';
 };
 
+/** Fallback when header stack hasn’t measured — ~promo-or-not + header row. */
+const RAV_HEADER_FALLBACK_H = 96;
+
 function StorefrontChromeBlocks({
   activeCategory,
   onLogoPress,
@@ -238,6 +241,8 @@ function StorefrontChromeInner({
   const [refreshing, setRefreshing] = useState(false);
   const [pullPx, setPullPx] = useState(0);
   const pullStartY = useRef<number | null>(null);
+  /** Promo + header only — Rav sits under this on mobile (not under services/category). */
+  const [ravHeaderStackH, setRavHeaderStackH] = useState(0);
   const {
     visible: ravVisible,
     closeRav,
@@ -382,6 +387,7 @@ function StorefrontChromeInner({
     hideSearchAndRav,
     servicesSlot,
     showPromoStrip,
+    onHeaderStackLayout: setRavHeaderStackH,
   };
 
   const onChromeLayout = (e: LayoutChangeEvent) => {
@@ -764,9 +770,9 @@ function StorefrontChromeInner({
   ]);
 
   /**
-   * Mobile: while Rav is open mid-page, keep the sticky mini-bar pinned underneath
-   * (Rav itself is full-bleed above it). Pin mode is held through the close
-   * animation so sticky doesn’t thrash while the sheet slides out.
+   * Mobile: while Rav is open mid-page, keep the sticky mini-bar pinned so Rav
+   * sits under it (not full-bleed over the collapse control). Pin mode is held
+   * through the close animation so sticky doesn’t thrash while the sheet slides out.
    */
   useLayoutEffect(() => {
     if (!compact || fillBody || !useOverlaySticky) {
@@ -838,10 +844,21 @@ function StorefrontChromeInner({
     outputRange: [-overlayHideOffset, 0],
   });
 
-  // Mobile: full-bleed over the storefront nav. Desktop dock clears the header;
-  // undocked desktop uses scroll-synced headerClearance.
-  const ravTopInset =
-    !compact && !ravDockedLayout ? headerClearance : 0;
+  // Mobile: under full promo+header at top, or under mini sticky mid-page.
+  // Desktop dock: clearance is on bodyRow; undocked uses scroll-synced headerClearance.
+  const stickyInsetFallback =
+    stickyChromeH > 0
+      ? stickyChromeH
+      : Math.min(chromeH || STICKY_FALLBACK_CHROME_H, 96);
+  const fullHeaderInset =
+    ravHeaderStackH > 0 ? ravHeaderStackH : RAV_HEADER_FALLBACK_H;
+  const ravTopInset = compact
+    ? ravMobilePinSticky
+      ? stickyInsetFallback
+      : fullHeaderInset
+    : ravDockedLayout
+      ? 0
+      : headerClearance;
 
   const ravDrawer = (
     <StorefrontRavDrawer
