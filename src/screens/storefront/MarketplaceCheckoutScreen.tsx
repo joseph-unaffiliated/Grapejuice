@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -12,7 +13,6 @@ import Constants from 'expo-constants';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
-import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { createMarketplaceCheckout } from '../../services/checkout/createMarketplaceCheckout';
@@ -26,46 +26,14 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { CheckoutSmsOptIn } from '../main/checkout/CheckoutSmsOptIn';
-import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useMarketplaceCheckout } from './useMarketplaceCheckout';
-import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
+import { isValidEmail, type ShippingAddressFieldErrors } from '../../utils/formValidation';
 import type { ShippingAddress } from '../../types/pilot';
 import {
   marketplaceCheckoutErrorMessage,
   marketplaceCheckoutNotify,
 } from './marketplaceCheckoutNotify';
-
-function MarketplaceCheckoutAuthGate() {
-  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const startAuth = useAuthFlowStore((s) => s.startAuthForMarketplaceCheckout);
-  const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
-  return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.authContent}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-        <Text style={styles.backLink}>← Back to cart</Text>
-      </TouchableOpacity>
-      <Text style={styles.title}>Log in to checkout</Text>
-      <Text style={styles.authBody}>
-        Create a free account or log in to complete your order. Your cart will stay saved.
-      </Text>
-      <GrapejuiceButton
-        label="Create account"
-        variant="filled"
-        onPress={() => startAuth('signup')}
-        style={styles.authBtn}
-      />
-      <GrapejuiceButton
-        label="Log in"
-        variant="pillOutline"
-        onPress={() => startAuth('signin')}
-        style={styles.authBtn}
-      />
-    </ScrollView>
-  );
-}
 
 export function MarketplaceCheckoutScreen() {
   return (
@@ -77,7 +45,6 @@ export function MarketplaceCheckoutScreen() {
 
 function MarketplaceCheckoutBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, loading: sessionLoading } = useSession();
   const clearCart = useMarketplaceCartStore((s) => s.clear);
@@ -107,6 +74,7 @@ function MarketplaceCheckoutBody() {
   const [contactPhone, setContactPhone] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
+  const [guestEmail, setGuestEmail] = useState('');
 
   const onAddressChange = (patch: Partial<ShippingAddress>) => {
     setAddressFieldErrors((prev) => {
@@ -134,16 +102,17 @@ function MarketplaceCheckoutBody() {
   const placeOrder = async () => {
     setFormError(null);
 
-    if (!user) {
-      setFormError('Log in to continue.');
-      return;
-    }
-    if (sessionLoading) {
-      setFormError('Loading your account — try again in a moment.');
-      return;
-    }
-    if (!household?.id) {
-      setFormError('We could not load your household. Refresh and try again.');
+    if (isAuthenticated) {
+      if (sessionLoading) {
+        setFormError('Loading your account — try again in a moment.');
+        return;
+      }
+      if (!household?.id) {
+        setFormError('We could not load your household. Refresh and try again.');
+        return;
+      }
+    } else if (!isValidEmail(guestEmail)) {
+      setFormError('Enter a valid email so we can send your receipt.');
       return;
     }
 
@@ -170,13 +139,17 @@ function MarketplaceCheckoutBody() {
     setSubmitting(true);
     try {
       const result = await createMarketplaceCheckout(
-        household.id,
+        isAuthenticated ? household?.id ?? null : null,
         normalizedAddress(),
         lineItems.map((li) => ({ itemId: li.itemId, quantity: li.quantity ?? 1 })),
-        { skipShipStation }
+        { skipShipStation, email: isAuthenticated ? undefined : guestEmail.trim() }
       );
 
-      if (result.status === 'confirmed' || result.totalCents === 0) {
+      if (
+        result.status === 'committed' ||
+        result.status === 'confirmed' ||
+        result.totalCents === 0
+      ) {
         finishOrder(result.orderId);
         return;
       }
@@ -187,7 +160,7 @@ function MarketplaceCheckoutBody() {
       }
 
       const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: result.clientSecret,
+        setupIntentClientSecret: result.clientSecret,
         merchantDisplayName: 'Grapejuice',
       });
       if (initError) {
@@ -212,11 +185,7 @@ function MarketplaceCheckoutBody() {
     }
   };
 
-  if (!isAuthenticated) {
-    return <MarketplaceCheckoutAuthGate />;
-  }
-
-  if (catalogLoading || sessionLoading) {
+  if (catalogLoading || (isAuthenticated && sessionLoading)) {
     return (
       <View style={styles.centered}>
         <BrandLoadingMark color={colors.brand} />
@@ -244,8 +213,8 @@ function MarketplaceCheckoutBody() {
       <Text style={styles.title}>Checkout</Text>
       <Text style={styles.chargeBanner}>
         {total > 0
-          ? 'You will be charged when you place your order.'
-          : 'Your credits cover this order — no payment needed.'}
+          ? "We'll save your card and charge it when Hanukkah boxes lock. These items ship with that wave."
+          : "Your credits cover this order. We'll hold it until boxes lock, then ship it with them."}
       </Text>
 
       <CheckoutOrderSummary
@@ -261,6 +230,28 @@ function MarketplaceCheckoutBody() {
         marketplaceOnly
       />
 
+      {!isAuthenticated ? (
+        <>
+          <Text style={styles.emailLabel}>Email</Text>
+          <TextInput
+            style={styles.emailInput}
+            value={guestEmail}
+            onChangeText={(value) => {
+              setGuestEmail(value);
+              setFormError(null);
+            }}
+            placeholder="you@email.com"
+            placeholderTextColor={colors.textTertiary}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            accessibilityLabel="Email, required"
+          />
+          <Text style={styles.emailHint}>
+            No account needed for this order. A Hanukkah box still needs an account.
+          </Text>
+        </>
+      ) : null}
       <CheckoutAddressFields
         address={address}
         onChange={onAddressChange}
@@ -336,14 +327,31 @@ function createStyles(colors: SemanticColors) {
       lineHeight: typography.md * 1.4,
       ...typeface('regular'),
     },
-    authBody: {
-      fontSize: typography.lg,
+    emailLabel: {
+      fontSize: typography.sm,
       color: colors.textSecondary,
-      lineHeight: typography.lg * 1.4,
-      marginBottom: spacing.xl,
+      marginTop: spacing.lg,
+      marginBottom: spacing.xs,
+      ...typeface('medium'),
+    },
+    emailInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      fontSize: typography.md,
+      color: colors.textPrimary,
+      backgroundColor: colors.bgElevated,
+      marginBottom: spacing.xs,
       ...typeface('regular'),
     },
-    authBtn: { alignSelf: 'stretch', marginBottom: spacing.md },
+    emailHint: {
+      fontSize: typography.sm,
+      color: colors.textTertiary,
+      marginBottom: spacing.md,
+      lineHeight: typography.sm * 1.4,
+      ...typeface('regular'),
+    },
     formError: {
       marginTop: spacing.md,
       fontSize: typography.md,

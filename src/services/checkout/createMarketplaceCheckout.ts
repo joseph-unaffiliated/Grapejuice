@@ -6,14 +6,15 @@ export type CreateMarketplaceCheckoutResult = {
   clientSecret: string | null;
   orderId: string;
   totalCents: number;
-  status: 'pending' | 'confirmed';
+  intent?: 'setup' | null;
+  status: 'pending' | 'committed' | 'confirmed';
 };
 
 export async function createMarketplaceCheckout(
-  householdId: string,
+  householdId: string | null,
   shippingAddress: ShippingAddress,
   lineItems: Pick<BoxLineItem, 'itemId' | 'quantity'>[],
-  options?: { skipShipStation?: boolean }
+  options?: { skipShipStation?: boolean; email?: string }
 ): Promise<CreateMarketplaceCheckoutResult> {
   if (!functions) {
     throw new Error('Firebase Functions is not configured.');
@@ -32,7 +33,8 @@ export async function createMarketplaceCheckout(
 
   const callable = httpsCallable<
     {
-      householdId: string;
+      householdId?: string;
+      email?: string;
       shippingAddress: ShippingAddress;
       lineItems: Pick<BoxLineItem, 'itemId' | 'quantity'>[];
       skipShipStation?: boolean;
@@ -40,7 +42,8 @@ export async function createMarketplaceCheckout(
     CreateMarketplaceCheckoutResult
   >(functions, 'createMarketplaceCheckout');
   const { data } = await callable({
-    householdId,
+    ...(householdId ? { householdId } : {}),
+    ...(options?.email ? { email: options.email } : {}),
     shippingAddress: address,
     lineItems,
     skipShipStation: options?.skipShipStation,

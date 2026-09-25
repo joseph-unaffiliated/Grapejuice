@@ -39,7 +39,7 @@ export function MarketplacePaymentPanel({
     }
     setPaying(true);
     try {
-      const { error } = await stripe.confirmPayment({
+      const { error } = await stripe.confirmSetup({
         elements,
         confirmParams: {
           return_url: typeof window !== 'undefined' ? window.location.href : undefined,
@@ -47,7 +47,7 @@ export function MarketplacePaymentPanel({
         redirect: 'if_required',
       });
       if (error) {
-        onError('Payment failed', error.message ?? 'Please try again.');
+        onError('Could not save card', error.message ?? 'Please try again.');
         return;
       }
       onPaid();
@@ -63,7 +63,9 @@ export function MarketplacePaymentPanel({
       </TouchableOpacity>
 
       <Text style={styles.title}>Payment</Text>
-      <Text style={styles.lead}>Pay now to place your order. We&apos;ll ship to the address you entered.</Text>
+      <Text style={styles.lead}>
+        We&apos;ll save this card and charge it when Hanukkah boxes lock. Your items ship with that wave.
+      </Text>
 
       <View
         style={[
@@ -84,7 +86,7 @@ export function MarketplacePaymentPanel({
           </View>
         ))}
         <View style={styles.summaryTotalRow}>
-          <Text style={styles.totalLabel}>Total due now</Text>
+          <Text style={styles.totalLabel}>Due when boxes lock</Text>
           <Text style={styles.totalValue}>{formatDollars(totalCents)}</Text>
         </View>
       </View>
@@ -100,10 +102,10 @@ export function MarketplacePaymentPanel({
         disabled={paying}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={`Pay ${formatDollars(totalCents)} and place order`}
+        accessibilityLabel={`Save card for ${formatDollars(totalCents)}`}
       >
         <ButtonLoadingLabel
-          label={`Pay ${formatDollars(totalCents)} & place order`}
+          label="Save card & place order"
           loading={paying}
           loaderColor={colors.goldMuted}
           labelStyle={styles.ctaText}

@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSession } from '../../hooks/useSession';
+import { useAuthStore } from '../../stores/authStore';
 import { ordersService } from '../../services/firestore/orders';
 import type { PilotOrder } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
@@ -23,6 +24,7 @@ function OrderConfirmationBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'OrderConfirmation'>>();
   const { household } = useSession();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [order, setOrder] = useState<PilotOrder | null>(null);
 
   useEffect(() => {
@@ -51,6 +53,10 @@ function OrderConfirmationBody() {
   if (pending) {
     title = 'Confirming your order…';
     subtitle = "This usually takes a few seconds. We'll email you when it's confirmed.";
+  } else if (isMarketplace && committed) {
+    title = 'Your order is saved.';
+    subtitle =
+      "We'll charge your card when Hanukkah boxes lock, and ship these items with that wave.";
   } else if (isMarketplace && confirmed) {
     title = 'Your purchase is confirmed.';
     subtitle = "We'll send a tracking link when it ships.";
@@ -117,18 +123,29 @@ function OrderConfirmationBody() {
               <Text style={styles.title}>Order status: {order.status}</Text>
             )}
           </>
-        ) : (
+        ) : isAuthenticated ? (
           <ActivityIndicator size="large" color={semanticColors.brand} />
+        ) : (
+          <>
+            <Text style={styles.emoji}>✓</Text>
+            <Text style={styles.title}>Your order is saved.</Text>
+            <Text style={styles.subtitle}>
+              We&apos;ll charge the card you saved when Hanukkah boxes lock, and email you at the
+              address you entered.
+            </Text>
+          </>
         )}
 
-        <TouchableOpacity
-          style={styles.cta}
-          onPress={() => navigation.navigate(isReceivedGift ? 'MyGifts' : 'Orders')}
-        >
-          <Text style={styles.ctaText}>
-            {isReceivedGift ? 'View in Gifts' : 'View in Orders'}
-          </Text>
-        </TouchableOpacity>
+        {isAuthenticated ? (
+          <TouchableOpacity
+            style={styles.cta}
+            onPress={() => navigation.navigate(isReceivedGift ? 'MyGifts' : 'Orders')}
+          >
+            <Text style={styles.ctaText}>
+              {isReceivedGift ? 'View in Gifts' : 'View in Orders'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity onPress={() => navigation.navigate('StorefrontHome')}>
           <Text style={styles.link}>Back to Home</Text>
         </TouchableOpacity>

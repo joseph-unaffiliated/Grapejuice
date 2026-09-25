@@ -342,6 +342,20 @@ export async function releaseStaleMarketplaceReservations(
       status: 'cancelled',
       cancelReason: 'stale_inventory_reservation',
     });
+    const giftRestore =
+      typeof order.giftCreditAppliedCents === 'number' ? order.giftCreditAppliedCents : 0;
+    const platformRestore =
+      typeof order.platformCreditAppliedCents === 'number' ? order.platformCreditAppliedCents : 0;
+    const householdId = doc.ref.parent.parent?.id;
+    if (householdId && (giftRestore > 0 || platformRestore > 0)) {
+      await db.doc(`households/${householdId}`).update({
+        ...(giftRestore > 0 ? { giftCreditCents: FieldValue.increment(giftRestore) } : {}),
+        ...(platformRestore > 0
+          ? { platformCreditCents: FieldValue.increment(platformRestore) }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      });
+    }
     released += 1;
   }
   return { released };

@@ -375,7 +375,8 @@ function OrdersScreenBody() {
               }
               charging={chargingOrderId === order.id}
               onUpdatePayment={
-                order.kind === 'box' && order.pilotOrder?.chargeFailureMessage
+                order.pilotOrder?.chargeFailureMessage &&
+                (order.kind === 'box' || order.kind === 'ala_carte')
                   ? () => navigation.navigate('UpdatePayment')
                   : undefined
               }
