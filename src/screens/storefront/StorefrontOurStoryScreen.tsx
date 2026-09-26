@@ -1,17 +1,29 @@
 import React from 'react';
 import { Linking } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import {
   StorefrontArticlePage,
   type StorefrontArticleBeliefSection,
 } from '../../components/storefront/StorefrontArticlePage';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { OUR_STORY_COPY } from '../../constants/storefrontOurStoryCopy';
+import { spacing } from '../../constants/theme';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
+import type { MainStackParamList } from '../../navigation/types';
 
 export function StorefrontOurStoryScreen() {
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { startBox, goHome } = useStorefrontActions();
   usePublishRavSurface({ type: 'content', id: 'our-story', label: 'Our Story' });
   const c = OUR_STORY_COPY;
+
+  const goDonate = () => {
+    void Linking.openURL('mailto:hello@grapejuice.co?subject=Make%20a%20donation');
+  };
+  const goGiftHanukkahBox = () => {
+    navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' });
+  };
 
   return (
     <StorefrontArticlePage
@@ -26,13 +38,28 @@ export function StorefrontOurStoryScreen() {
           sections: c.beliefs.sections as unknown as StorefrontArticleBeliefSection[],
           paper: true,
         },
-        { type: 'prose', heading: c.team.heading, body: c.team.body },
-        { type: 'prose', heading: c.listening.heading, body: c.listening.body },
+        {
+          type: 'prose',
+          heading: c.listening.heading,
+          body: c.listening.body,
+          maxWidth: 480,
+          headingVariant: 'title',
+          paddingTop: spacing.xl,
+        },
+        {
+          type: 'prose',
+          heading: c.team.heading,
+          body: c.team.body,
+          maxWidth: 480,
+          paddingBottom: spacing.xl,
+        },
         {
           type: 'band',
           heading: c.give.heading,
+          headingMobile: c.give.headingMobile,
           body: c.give.body,
-          cta: { label: 'Shop the collection', onPress: goHome },
+          cta: { label: c.give.primaryCta, onPress: goDonate },
+          secondaryCta: { label: c.give.secondaryCta, onPress: goGiftHanukkahBox },
           paper: true,
         },
         {

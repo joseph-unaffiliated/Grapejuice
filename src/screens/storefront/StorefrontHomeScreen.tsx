@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { Icon } from '../../components/ui/Icon';
+import { icons } from '../../constants/icons';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { StorefrontHero } from '../../components/storefront/StorefrontHero';
 import {
@@ -25,6 +27,8 @@ import {
   DREIDELS_LIFESTYLE_HOTSPOTS,
   StorefrontMenorahsLifestyleCard,
 } from '../../components/storefront/StorefrontMenorahsLifestyleCard';
+import { LazyMount } from '../../components/storefront/LazyMount';
+import { Crossfade } from '../../components/ui/Crossfade';
 import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import {
   excludeBooks,
@@ -36,6 +40,7 @@ import {
   itemsForDreidelsKidsRail,
   itemsForStorefrontRail,
   sortBooksByYoungerDefaultAges,
+  orderCandlesRollYourOwnBeforeElectric,
 } from '../../constants/storefrontCategories';
 import { filterCatalogByTag } from '../../constants/catalogCuration';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -44,7 +49,7 @@ import {
   useStorefrontHomeMode,
 } from '../../hooks/useStorefrontHomeMode';
 import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
-import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
+import { PASSOVER_NOTIFY_INTEREST, PRE_REGISTERED_CTA_LABEL } from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
@@ -61,8 +66,8 @@ import {
   typography,
 } from '../../constants/theme';
 
-const DREIDELS_LIFESTYLE_IMG = require('../../../assets/storefront/dreidels-lifestyle-banner.png');
-/** Native aspect of dreidels-lifestyle-banner.png (2752×1536). */
+const DREIDELS_LIFESTYLE_IMG = require('../../../assets/storefront/dreidels-lifestyle-banner.webp');
+/** Native aspect of dreidels lifestyle plate (2752×1536 source). */
 const DREIDELS_LIFESTYLE_ASPECT = 2752 / 1536;
 
 export function StorefrontHomeScreen() {
@@ -74,16 +79,18 @@ export function StorefrontHomeScreen() {
   const { isCompact: compact } = useLayoutBreakpoint();
   const now = usePreviewNow();
   const collectionLimit = compact ? 4 : 3;
-  const railLimit = compact ? 50 : 6;
+  /** Cap mobile rail length so we don’t hydrate dozens of catalog PNGs on first paint. */
+  const railLimit = compact ? 10 : 6;
   const gridLayout = compact ? 'rail' : 'grid';
-  const gridLimit = compact ? undefined : 3;
-  const collectionGridLimit = compact ? undefined : collectionLimit;
+  const gridLimit = compact ? 10 : 3;
+  const collectionGridLimit = compact ? 10 : collectionLimit;
   const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
+  const [hanukkahConfigReady, setHanukkahConfigReady] = useState(false);
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const giftDraft = useGiftIntentStore((s) => s.draft);
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);
@@ -95,6 +102,7 @@ export function StorefrontHomeScreen() {
       setLockAt(config.lockAt);
       setStartsOn(config.startsOn);
       setEstimatedDeliveryBy(config.estimatedDeliveryBy);
+      setHanukkahConfigReady(true);
     });
     return () => {
       cancelled = true;
@@ -111,7 +119,18 @@ export function StorefrontHomeScreen() {
       : { startsOn, lockAt, estimatedDeliveryBy };
 
   const showJourneyBanner =
-    journey != null && getHanukkahStatus(journey.startsOn, now).phase !== 'during';
+    journey != null &&
+    hanukkahConfigReady &&
+    getHanukkahStatus(journey.startsOn, now).phase !== 'during';
+
+  /** Hold banner height while config loads so member home doesn’t pop the page. */
+  const reserveJourneyBanner =
+    !hanukkahConfigReady &&
+    mode !== 'acquisition' &&
+    mode !== 'passover' &&
+    mode !== 'gift_credit_incomplete' &&
+    mode !== 'gift_customize_incomplete' &&
+    mode !== 'gift_sent';
 
   const goCreateAccount = () => startAuthFromGuest('MyBox', 'signup', 'SignUp');
   const goCheckout = () => navigation.navigate('Checkout');
@@ -276,11 +295,13 @@ export function StorefrontHomeScreen() {
   }, [items, railLimit]);
   const candles = useMemo(
     () =>
-      itemsForStorefrontRail(
-        items,
-        'candles',
-        filterByStorefrontCategory(items, 'candles'),
-        railLimit
+      orderCandlesRollYourOwnBeforeElectric(
+        itemsForStorefrontRail(
+          items,
+          'candles',
+          filterByStorefrontCategory(items, 'candles'),
+          railLimit
+        )
       ),
     [items, railLimit]
   );
@@ -310,11 +331,23 @@ export function StorefrontHomeScreen() {
         onPrimary={onHeroPrimary}
         onSecondary={onHeroSecondary}
       />
-      {showJourneyBanner && journey ? (
-        <View style={styles.journeyBanner} accessibilityRole="region">
-          <StorefrontHeroJourneyTimeline journey={journey} variant="banner" />
-        </View>
-      ) : null}
+      <Crossfade
+        contentKey={
+          showJourneyBanner && journey
+            ? `banner|${journey.startsOn ?? ''}|${journey.lockAt ?? ''}`
+            : reserveJourneyBanner
+              ? 'reserve'
+              : 'none'
+        }
+      >
+        {showJourneyBanner && journey ? (
+          <View style={styles.journeyBanner} accessibilityRole="region">
+            <StorefrontHeroJourneyTimeline journey={journey} variant="banner" />
+          </View>
+        ) : reserveJourneyBanner ? (
+          <View style={styles.journeyBannerReserve} accessibilityElementsHidden />
+        ) : null}
+      </Crossfade>
 
         {/* Products first */}
         <View
@@ -323,148 +356,196 @@ export function StorefrontHomeScreen() {
           }}
         >
           <SectionHeader
-            title="Top picks"
+            title="Top Picks"
             subtitle="The most favorited products from our collection"
             onPress={() => goCategory('collection')}
           />
-          {loading ? (
-            <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
-          ) : (
-            <StorefrontProductGrid
-              items={loved}
-              limit={gridLimit}
-              layout={gridLayout}
-            />
-          )}
+          <View style={styles.topPicksBody}>
+            {loading ? (
+              <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
+            ) : (
+              <StorefrontProductGrid
+                items={loved}
+                limit={gridLimit}
+                layout={gridLayout}
+                flushBottom
+                browseMoreLabel="top picks"
+                onBrowseMore={() => goCategory('collection')}
+              />
+            )}
+          </View>
         </View>
 
-        <SectionHeader
-          title="Browse by Aisle"
-          subtitle="Explore the whole Hanukkah collection"
-        />
-        <StorefrontCategoryRail
-          heading={null}
-          cards={aisleCards}
-          onCategoryPress={(category) => goCategory(category)}
-        />
-
-        <StorefrontOurStoryStrip
-          onLearnMore={goOurStory}
-          onGiveGift={goGiftGive}
-        />
-
-        <StorefrontBuildBoxStrip
-          onPress={onStripPress}
-          headline={strip?.headline}
-          body={strip?.body}
-          ctaLabel={strip?.ctaLabel}
-          backgroundSource={strip?.backgroundSource}
-        />
-
-        <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
-
-        <StorefrontMenorahsLifestyleCard
-          onShopAll={() => goCategory('menorahs')}
-          onProduct={(productId) =>
-            navigation.navigate('CatalogProduct', { slug: productId })
-          }
-        />
-        <SubSectionHeader
-          title="Instant heirlooms"
-          onPress={() => goCategory('menorahs', { style: 'collection' })}
-        />
-        <StorefrontProductGrid
-          items={menorahsCollection}
-          limit={collectionGridLimit}
-          layout={gridLayout}
-        />
-        {menorahsKids.length ? (
-          <>
-            <SubSectionHeader
-              title="Fun for the whole family"
-              onPress={() => goCategory('menorahs', { style: 'kids' })}
-            />
-            <StorefrontProductGrid
-              items={menorahsKids}
-              limit={gridLimit}
-              layout={gridLayout}
-            />
-          </>
+        {!compact ? (
+          <SectionHeader
+            title="Browse by Aisle"
+            subtitle="Explore the whole Hanukkah collection"
+            compactTop
+          />
         ) : null}
-        <SubSectionHeader title="Don't forget the candles" onPress={() => goCategory('candles')} />
-        <StorefrontProductGrid
-          items={candles}
-          limit={gridLimit}
-          layout={gridLayout}
-        />
+        <View style={compact ? styles.aisleRailCompact : null}>
+          <StorefrontCategoryRail
+            heading={null}
+            cards={aisleCards}
+            onCategoryPress={(category) => goCategory(category)}
+          />
+        </View>
 
-        <StorefrontMenorahsLifestyleCard
-          label="Let the games begin"
-          image={DREIDELS_LIFESTYLE_IMG}
-          aspectRatio={DREIDELS_LIFESTYLE_ASPECT}
-          hotspots={DREIDELS_LIFESTYLE_HOTSPOTS}
-          onShopAll={() => goCategory('dreidels')}
-          onProduct={(productId) =>
-            navigation.navigate('CatalogProduct', { slug: productId })
-          }
-        />
-        <SubSectionHeader
-          title="Spin spin spin"
-          onPress={() => goCategory('dreidels', { style: 'collection' })}
-        />
-        <StorefrontProductGrid
-          items={dreidelsCollection}
-          limit={collectionGridLimit}
-          layout={gridLayout}
-        />
-        {dreidelsKids.length ? (
-          <>
-            <SubSectionHeader
-              title="Make it yourself"
-              onPress={() => goCategory('dreidels', { style: 'kids' })}
-            />
-            <StorefrontProductGrid
-              items={dreidelsKids}
-              limit={gridLimit}
-              layout={gridLayout}
-            />
-          </>
-        ) : null}
-        {dreidelsSnuggle.length ? (
-          <>
-            <SubSectionHeader
-              title="Time to snuggle"
-              onPress={() => goCategory('stuffies')}
-            />
-            <StorefrontProductGrid
-              items={dreidelsSnuggle}
-              limit={gridLimit}
-              layout={gridLayout}
-            />
-          </>
-        ) : null}
-        {books.length ? (
-          <>
-            <SubSectionHeader
-              title="Tell me a story"
-              onPress={() => goCategory('books')}
-            />
-            <StorefrontProductGrid
-              items={books}
-              limit={gridLimit}
-              layout={gridLayout}
-            />
-          </>
-        ) : null}
+        <LazyMount minHeight={320}>
+          <StorefrontOurStoryStrip
+            onLearnMore={goOurStory}
+            onGiveGift={goGiftGive}
+          />
+        </LazyMount>
 
-        <StorefrontPassoverStrip
-          onPreRegister={() => passoverInterest.mark()}
-          onLearnMore={goPassover}
-          primaryLabel={
-            passoverInterest.marked ? 'Done!' : undefined
-          }
-          primaryDisabled={passoverInterest.marked}
-        />
+        <LazyMount minHeight={420}>
+          <StorefrontBuildBoxStrip
+            onPress={onStripPress}
+            headline={strip?.headline}
+            body={strip?.body}
+            ctaLabel={strip?.ctaLabel}
+            backgroundSource={strip?.backgroundSource}
+          />
+        </LazyMount>
+
+        <LazyMount minHeight={280}>
+          <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
+        </LazyMount>
+
+        <LazyMount minHeight={900}>
+          <StorefrontMenorahsLifestyleCard
+            onShopAll={() => goCategory('menorahs')}
+            onProduct={(productId) =>
+              navigation.navigate('CatalogProduct', { slug: productId })
+            }
+          />
+          <SubSectionHeader
+            title="Instant heirlooms"
+            onPress={() => goCategory('menorahs', { style: 'collection' })}
+          />
+          <StorefrontProductGrid
+            items={menorahsCollection}
+            limit={collectionGridLimit}
+            layout={gridLayout}
+            flushBottom
+            browseMoreLabel="menorahs"
+            onBrowseMore={() => goCategory('menorahs', { style: 'collection' })}
+          />
+          {menorahsKids.length ? (
+            <>
+              <SubSectionHeader
+                title="Something for everyone"
+                compactTop
+                onPress={() => goCategory('menorahs', { style: 'kids' })}
+              />
+              <StorefrontProductGrid
+                items={menorahsKids}
+                limit={gridLimit}
+                layout={gridLayout}
+                flushBottom
+                browseMoreLabel="kids menorahs"
+                onBrowseMore={() => goCategory('menorahs', { style: 'kids' })}
+              />
+            </>
+          ) : null}
+          <SubSectionHeader
+            title="Don't forget the candles"
+            compactTop
+            onPress={() => goCategory('candles')}
+          />
+          <StorefrontProductGrid
+            items={candles}
+            limit={gridLimit}
+            layout={gridLayout}
+            browseMoreLabel="candles"
+            onBrowseMore={() => goCategory('candles')}
+          />
+        </LazyMount>
+
+        <LazyMount minHeight={900}>
+          <StorefrontMenorahsLifestyleCard
+            label={'Let the\nfun begin'}
+            image={DREIDELS_LIFESTYLE_IMG}
+            aspectRatio={DREIDELS_LIFESTYLE_ASPECT}
+            hotspots={DREIDELS_LIFESTYLE_HOTSPOTS}
+            onShopAll={() => goCategory('dreidels')}
+            onProduct={(productId) =>
+              navigation.navigate('CatalogProduct', { slug: productId })
+            }
+          />
+          <SubSectionHeader
+            title="Spin spin spin"
+            onPress={() => goCategory('dreidels', { style: 'collection' })}
+          />
+          <StorefrontProductGrid
+            items={dreidelsCollection}
+            limit={collectionGridLimit}
+            layout={gridLayout}
+            flushBottom={Boolean(
+              dreidelsKids.length || dreidelsSnuggle.length || books.length
+            )}
+            browseMoreLabel="dreidels"
+            onBrowseMore={() => goCategory('dreidels', { style: 'collection' })}
+          />
+          {dreidelsKids.length ? (
+            <>
+              <SubSectionHeader
+                title="Make it yourself"
+                compactTop
+                onPress={() => goCategory('dreidels', { style: 'kids' })}
+              />
+              <StorefrontProductGrid
+                items={dreidelsKids}
+                limit={gridLimit}
+                layout={gridLayout}
+                flushBottom={Boolean(dreidelsSnuggle.length || books.length)}
+                browseMoreLabel="kids dreidels"
+                onBrowseMore={() => goCategory('dreidels', { style: 'kids' })}
+              />
+            </>
+          ) : null}
+          {dreidelsSnuggle.length ? (
+            <>
+              <SubSectionHeader
+                title="Time to snuggle"
+                compactTop
+                onPress={() => goCategory('stuffies')}
+              />
+              <StorefrontProductGrid
+                items={dreidelsSnuggle}
+                limit={gridLimit}
+                layout={gridLayout}
+                flushBottom={Boolean(books.length)}
+                browseMoreLabel="stuffies"
+                onBrowseMore={() => goCategory('stuffies')}
+              />
+            </>
+          ) : null}
+          {books.length ? (
+            <>
+              <SubSectionHeader
+                title="Tell me a story"
+                compactTop
+                onPress={() => goCategory('books')}
+              />
+              <StorefrontProductGrid
+                items={books}
+                limit={gridLimit}
+                layout={gridLayout}
+                browseMoreLabel="books"
+                onBrowseMore={() => goCategory('books')}
+              />
+            </>
+          ) : null}
+
+          <StorefrontPassoverStrip
+            onPreRegister={passoverInterest.toggle}
+            onLearnMore={goPassover}
+            primaryLabel={
+              passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
+            }
+          />
+        </LazyMount>
     </StorefrontChrome>
   );
 }
@@ -475,6 +556,8 @@ function SectionHeader({
   viewAllLabel,
   onViewAll,
   onPress,
+  /** After a product rail: less paddingTop so gap matches hero → Top picks (rail already has marginBottom). */
+  compactTop,
 }: {
   title: string;
   subtitle?: string;
@@ -482,6 +565,7 @@ function SectionHeader({
   onViewAll?: () => void;
   /** Navigate when tapping the title/subtitle block (or whole header if no View all). */
   onPress?: () => void;
+  compactTop?: boolean;
 }) {
   const go = onPress ?? onViewAll;
   const titleBlock = (
@@ -492,7 +576,7 @@ function SectionHeader({
   );
 
   return (
-    <View style={styles.sectionHead}>
+    <View style={[styles.sectionHead, compactTop ? styles.sectionHeadCompactTop : null]}>
       <View style={styles.sectionHeadRow}>
         {go ? (
           <TouchableOpacity
@@ -509,12 +593,14 @@ function SectionHeader({
         )}
         {viewAllLabel && onViewAll ? (
           <TouchableOpacity
+            style={styles.viewAllRow}
             onPress={onViewAll}
             accessibilityRole="link"
             accessibilityLabel={`${viewAllLabel} ${title}`}
             hitSlop={8}
           >
-            <Text style={styles.viewAll}>{viewAllLabel} →</Text>
+            <Text style={styles.viewAll}>{viewAllLabel}</Text>
+            <Icon icon={icons.chevronRight} size={11} color={semanticColors.logoDark} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -522,92 +608,160 @@ function SectionHeader({
   );
 }
 
-function SubSectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
-  const titleNode = (
-    <Text style={styles.subTitle}>
-      {title}
-      {onPress ? <Text style={styles.subViewAll}> (view all)</Text> : null}
-    </Text>
+function SubSectionHeader({
+  title,
+  onPress,
+  /** After a product row: extra top padding so stacked rails breathe. */
+  compactTop,
+}: {
+  title: string;
+  onPress?: () => void;
+  compactTop?: boolean;
+}) {
+  const content = (
+    <View style={styles.subHeadRow}>
+      <Text style={styles.subTitle}>{title}</Text>
+      {onPress ? (
+        <View style={styles.subViewAllRow}>
+          <Text style={styles.subViewAll}>view all</Text>
+          <Icon icon={icons.chevronRight} size={10} color={semanticColors.brand} />
+        </View>
+      ) : null}
+    </View>
   );
+
+  const headStyle = [styles.subHead, compactTop ? styles.subHeadCompactTop : null];
 
   if (onPress) {
     return (
       <TouchableOpacity
-        style={styles.subHead}
+        style={headStyle}
         onPress={onPress}
         accessibilityRole="link"
         accessibilityLabel={`${title}, view all`}
       >
-        {titleNode}
+        {content}
       </TouchableOpacity>
     );
   }
-  return <View style={styles.subHead}>{titleNode}</View>;
+  return <View style={headStyle}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
   journeyBanner: {
     width: '100%',
-    backgroundColor: semanticColors.accentCream,
-    paddingVertical: spacing.md,
+    backgroundColor: '#000000',
+    paddingTop: spacing.md - 2,
+    paddingBottom: spacing.md,
     paddingHorizontal: MOBILE_GUTTER,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: semanticColors.border,
+    borderTopColor: 'rgba(216, 201, 144, 0.35)',
+  },
+  /** Matches journey banner block height while Hanukkah config resolves. */
+  journeyBannerReserve: {
+    width: '100%',
+    height: 88,
+    backgroundColor: '#000000',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(216, 201, 144, 0.35)',
   },
   loader: { marginVertical: spacing.xl },
+  /** Keep Top picks from collapsing → expanding when catalog arrives. */
+  topPicksBody: {
+    minHeight: 280,
+  },
+  /** Matches former Browse-by-Aisle sectionHead compactTop when the headline is hidden. */
+  aisleRailCompact: {
+    paddingTop: spacing.md,
+  },
   sectionHead: {
     width: '100%',
     maxWidth: 1024,
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.xxl,
+    paddingBottom: 32,
+  },
+  /**
+   * Flush rail + xl would match tallest tile → title; visible cards are often shorter,
+   * so use md so the optical gap from on-screen tiles ≈ hero → Top picks (xl).
+   */
+  sectionHeadCompactTop: {
+    paddingTop: spacing.md,
   },
   sectionHeadRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: spacing.md,
   },
   sectionHeadText: {
     flex: 1,
     gap: 4,
+    alignItems: 'center',
   },
   sectionTitle: {
     ...typeface('medium'),
-    fontSize: 28,
-    letterSpacing: -0.3,
+    // Match Build Box strip headline (“Secure your Hanukkah Box”).
+    fontSize: 40,
+    lineHeight: 38,
+    letterSpacing: -0.2,
     color: semanticColors.logoDark,
+    textAlign: 'center',
   },
   sectionSub: {
     ...typeface('regular'),
     fontSize: typography.md,
     color: semanticColors.textSecondary,
+    textAlign: 'center',
   },
   subHead: {
     width: '100%',
     maxWidth: 1024,
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  /** Space after a flush product rail before the next row title. */
+  subHeadCompactTop: {
+    paddingTop: spacing.xl,
+  },
+  subHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   subTitle: {
     ...typeface('medium'),
     fontSize: 16,
+    letterSpacing: -0.2,
     color: semanticColors.logoDark,
+    flexShrink: 1,
   },
-  /** Inline category cue — brand gold, adjacent to subsection title. */
+  subViewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  /** Category cue — brand gold, right-aligned with caret. */
   subViewAll: {
     ...typeface('medium'),
     fontSize: 12,
     color: semanticColors.brand,
   },
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+    marginBottom: 2,
+  },
   viewAll: {
     ...typeface('medium'),
     fontSize: 14,
     color: semanticColors.logoDark,
-    textDecorationLine: 'underline',
-    marginBottom: 2,
   },
 });

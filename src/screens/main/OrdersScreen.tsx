@@ -34,6 +34,7 @@ import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
+import { AccountHubHeader } from '../../components/account/AccountHubHeader';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -337,14 +338,8 @@ function OrdersScreenBody() {
   return (
     <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-          <Text style={styles.backLink}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Orders</Text>
-        <Text style={styles.subtitle}>
-          Status and summaries for gift boxes you&apos;ve sent, your household box, and à la carte
-          add-ons. Tracking appears when a package ships.
-        </Text>
+        <AccountHubHeader page="orders" />
+        <View style={styles.sectionDivider} />
 
         {loadError ? (
           <View style={styles.errorBanner}>
@@ -356,11 +351,29 @@ function OrdersScreenBody() {
         ) : null}
 
         {orders.length === 0 ? (
-          <Text style={styles.empty}>
-            {loading
-              ? 'Loading orders…'
-              : 'No orders yet. Send a gift from Account, or commit your Hanukkah box from My Box.'}
-          </Text>
+          loading ? (
+            <Text style={styles.empty}>Loading orders…</Text>
+          ) : (
+            <Text style={styles.empty}>
+              No orders yet. Send a gift from the{' '}
+              <Text
+                style={styles.emptyLink}
+                onPress={() => navigation.navigate('MyGifts')}
+                accessibilityRole="link"
+              >
+                Gifts
+              </Text>{' '}
+              tab, or commit your Hanukkah box from{' '}
+              <Text
+                style={styles.emptyLink}
+                onPress={() => navigation.navigate('MyBox')}
+                accessibilityRole="link"
+              >
+                My Box
+              </Text>
+              .
+            </Text>
+          )
         ) : (
           orders.map((order) => (
             <OrderCard
@@ -460,22 +473,32 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
       padding: spacing.lg,
+      paddingTop: spacing.xxl + spacing.md,
       paddingBottom: 120,
-      maxWidth: isDesktop ? 640 : undefined,
+      maxWidth: isDesktop ? 560 : undefined,
       width: '100%',
       alignSelf: isDesktop ? 'center' : undefined,
     },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 240 },
-    backRow: { marginBottom: spacing.sm },
-    backLink: { color: colors.brand, fontWeight: '600', fontSize: typography.md },
-    title: { fontSize: 28, fontWeight: '700', color: colors.textPrimary },
-    subtitle: {
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      marginTop: spacing.xs,
-      marginBottom: spacing.lg,
+    sectionDivider: {
+      alignSelf: 'stretch',
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginTop: spacing.xl,
+      marginBottom: spacing.sm,
     },
-    empty: { fontSize: typography.md, color: colors.textTertiary, marginTop: spacing.md },
+    empty: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      color: colors.textTertiary,
+      marginTop: spacing.md,
+      textAlign: 'center',
+    },
+    emptyLink: {
+      ...typeface('regular'),
+      color: colors.textTertiary,
+      textDecorationLine: 'underline',
+    },
     errorBanner: {
       marginTop: spacing.md,
       marginBottom: spacing.md,
@@ -485,12 +508,16 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       borderColor: colors.border,
       backgroundColor: colors.accentCream,
     },
-    errorText: { fontSize: typography.sm, color: colors.textSecondary },
+    errorText: {
+      ...typeface('regular'),
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+    },
     errorRetry: {
+      ...typeface('medium'),
       marginTop: spacing.sm,
       fontSize: typography.sm,
       color: colors.brand,
-      fontWeight: '600',
     },
     orderCard: {
       borderWidth: 1,
@@ -508,40 +535,77 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     orderTitleBlock: { flex: 1 },
     orderKind: {
+      ...typeface('medium'),
       fontSize: typography.xs,
-      fontWeight: '700',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
       color: colors.textTertiary,
     },
-    orderTitle: { fontSize: typography.lg, fontWeight: '700', color: colors.textPrimary, marginTop: 2 },
-    orderStatus: { fontSize: typography.sm, fontWeight: '600', color: colors.brand, flexShrink: 0 },
-    orderMeta: { fontSize: typography.sm, color: colors.textTertiary, marginTop: spacing.xs },
+    orderTitle: {
+      ...typeface('medium'),
+      fontSize: typography.lg,
+      color: colors.textPrimary,
+      marginTop: 2,
+      letterSpacing: -0.22,
+    },
+    orderStatus: {
+      ...typeface('medium'),
+      fontSize: typography.sm,
+      color: colors.brand,
+      flexShrink: 0,
+    },
+    orderMeta: {
+      ...typeface('regular'),
+      fontSize: typography.sm,
+      color: colors.textTertiary,
+      marginTop: spacing.xs,
+    },
     orderTotal: {
+      ...typeface('medium'),
       fontSize: typography.xl,
-      fontWeight: '700',
       color: colors.textPrimary,
       marginTop: spacing.sm,
+      letterSpacing: -0.26,
     },
-    recipient: { fontSize: typography.md, color: colors.textSecondary, marginTop: spacing.sm },
+    recipient: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      color: colors.textSecondary,
+      marginTop: spacing.sm,
+    },
     giftMessage: {
+      ...typeface('regular'),
       fontSize: typography.md,
       color: colors.textSecondary,
       fontStyle: 'italic',
       marginTop: spacing.xs,
     },
-    address: { fontSize: typography.sm, color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 20 },
+    address: {
+      ...typeface('regular'),
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      marginTop: spacing.sm,
+      lineHeight: 20,
+    },
     itemsToggle: { marginTop: spacing.md },
-    itemsToggleText: { fontSize: typography.sm, color: colors.brand, fontWeight: '600' },
+    itemsToggleText: {
+      ...typeface('medium'),
+      fontSize: typography.sm,
+      color: colors.brand,
+    },
     itemsExpanded: { marginTop: spacing.md, gap: spacing.md },
     giftCurationBlock: { gap: spacing.sm },
     giftCurationHeading: {
+      ...typeface('medium'),
       fontSize: typography.sm,
-      fontWeight: '700',
       color: colors.textPrimary,
     },
     trackingBlock: { marginTop: spacing.sm, gap: spacing.sm },
-    trackingDetail: { fontSize: typography.sm, color: colors.textSecondary },
+    trackingDetail: {
+      ...typeface('regular'),
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+    },
     trackBtn: {
       alignSelf: 'flex-start',
       paddingVertical: spacing.sm,
@@ -550,12 +614,18 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       backgroundColor: colors.logoDark,
     },
     trackBtnText: {
+      ...typeface('medium'),
       fontSize: typography.sm,
-      fontWeight: '700',
       color: colors.textInverse,
     },
-    hint: { marginTop: spacing.sm, fontSize: typography.sm, color: colors.textTertiary },
+    hint: {
+      ...typeface('regular'),
+      marginTop: spacing.sm,
+      fontSize: typography.sm,
+      color: colors.textTertiary,
+    },
     chargeError: {
+      ...typeface('regular'),
       fontSize: typography.sm,
       color: colors.textSecondary,
       fontStyle: 'italic',
@@ -571,8 +641,8 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       paddingHorizontal: spacing.md,
     },
     cancelBtnText: {
+      ...typeface('medium'),
       fontSize: typography.sm,
-      fontWeight: '600',
       color: colors.textSecondary,
       textDecorationLine: 'underline',
     },
@@ -595,8 +665,10 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     modalTitle: {
       fontSize: 22,
-      ...typeface('bold'),
-      color: colors.textPrimary,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      ...typeface('medium'),
+      color: colors.logoDark,
       marginBottom: spacing.sm,
     },
     modalBody: {
@@ -618,8 +690,8 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       paddingHorizontal: spacing.md,
     },
     modalKeepText: {
+      ...typeface('medium'),
       fontSize: typography.md,
-      fontWeight: '600',
       color: colors.textSecondary,
     },
     modalCancelConfirmBtn: {
@@ -631,8 +703,8 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       backgroundColor: colors.logoDark,
     },
     modalCancelConfirmText: {
+      ...typeface('medium'),
       fontSize: typography.md,
-      fontWeight: '700',
       color: colors.textInverse,
     },
     devChargeBtn: {
@@ -646,6 +718,10 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       backgroundColor: colors.accentCream,
     },
     devChargeBtnDisabled: { opacity: 0.45 },
-    devChargeBtnText: { color: colors.brand, fontWeight: '700', fontSize: typography.sm },
+    devChargeBtnText: {
+      ...typeface('medium'),
+      color: colors.brand,
+      fontSize: typography.sm,
+    },
   });
 }

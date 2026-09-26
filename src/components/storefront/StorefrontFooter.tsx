@@ -156,7 +156,8 @@ export function StorefrontFooter() {
     return [
       {
         heading: 'The Collection',
-        linkColumns: 3,
+        // Mobile: 2 stacks so Company + Contact stay on the same row.
+        linkColumns: compact ? 2 : 3,
         links: [
           { label: 'Shop all', onPress: () => goCategory('collection') },
           ...marketplaceLinks,
@@ -208,7 +209,7 @@ export function StorefrontFooter() {
             },
           },
           {
-            label: 'hello@grapejuice.co',
+            label: compact ? 'Email us' : 'hello@grapejuice.co',
             onPress: () => {
               void Linking.openURL('mailto:hello@grapejuice.co');
             },
@@ -216,11 +217,13 @@ export function StorefrontFooter() {
         ],
       },
     ];
-  }, [navigation]);
+  }, [compact, navigation]);
 
   return (
-    <View style={styles.root} accessibilityRole="contentinfo">
-      <View style={styles.shell} onLayout={onShellLayout}>
+    <View
+      style={[styles.root, compact && styles.rootCompact]}
+      accessibilityRole="contentinfo"
+    >      <View style={styles.shell} onLayout={onShellLayout}>
         <View style={[styles.inner, compact && styles.innerCompact]}>
           <TouchableOpacity
             style={styles.brand}
@@ -266,7 +269,7 @@ export function StorefrontFooter() {
                           accessibilityRole="link"
                           accessibilityLabel="Grapejuice on Instagram"
                           hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
-                          style={styles.linkRow}
+                          style={[styles.linkRow, styles.instagramRow]}
                         >
                           <Icon
                             icon={icons.instagram}
@@ -282,9 +285,6 @@ export function StorefrontFooter() {
             })}
           </View>
         </View>
-        <Text style={styles.copyright} accessibilityRole="text">
-          © 2026 Unaffiliated Inc. All Rights Reserved
-        </Text>
         <Text
           style={[
             styles.wordmarkWatermark,
@@ -300,6 +300,12 @@ export function StorefrontFooter() {
         >
           {WORDMARK_LABEL}
         </Text>
+        <Text
+          style={[styles.copyright, compact && styles.copyrightCompact]}
+          accessibilityRole="text"
+        >
+          © 2026 Unaffiliated Inc. All Rights Reserved
+        </Text>
       </View>
     </View>
   );
@@ -307,21 +313,22 @@ export function StorefrontFooter() {
 
 const styles = StyleSheet.create({
   root: {
-    // With StorefrontChrome scrollContent flexGrow:1, this pins the footer to the
-    // viewport bottom on short pages (empty space sits above, not below).
-    marginTop: 'auto',
     backgroundColor: FOOTER_BG,
     paddingTop: MOBILE_GUTTER,
-    paddingBottom: spacing.lg,
+    // Room under the oversized wordmark watermark (descenders) + copyright.
+    paddingBottom: spacing.xl,
     paddingHorizontal: MOBILE_GUTTER,
+    flexShrink: 0,
     // Cover RN-web / svh subpixel seam that flashes the light page bg under the footer.
-    // Bleed stays inside the scrollport (overflow:hidden clips negative margin).
+    // Shadow fills the seam; layout padding keeps the watermark fully in scroll range.
     ...(Platform.OS === 'web'
       ? ({
-          paddingBottom: spacing.lg + 48,
           boxShadow: `0 48px 0 0 ${FOOTER_BG}`,
         } as object)
       : null),
+  },
+  rootCompact: {
+    paddingBottom: spacing.xl,
   },
   /** Same width as the menu row so wordmark right edge = contact column right edge. */
   shell: {
@@ -349,8 +356,13 @@ const styles = StyleSheet.create({
     fontSize: typography.xs,
     color: 'rgba(216, 201, 144, 0.72)',
     letterSpacing: -0.1,
-    marginTop: spacing.lg,
+    // Air under the wordmark watermark before the legal line.
+    marginTop: spacing.xl,
     alignSelf: 'stretch',
+    textAlign: 'center',
+  },
+  copyrightCompact: {
+    marginTop: spacing.xl,
   },
   inner: {
     width: '100%',
@@ -378,6 +390,7 @@ const styles = StyleSheet.create({
   columnsCompact: {
     marginLeft: 0,
     alignSelf: 'stretch',
+    gap: 48,
   },
   column: {
     // Width from content only — no flexGrow / basis / maxWidth stretch.
@@ -406,6 +419,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     flexWrap: 'wrap',
+  },
+  /** Extra air between email and the Instagram icon. */
+  instagramRow: {
+    marginTop: spacing.sm,
   },
   link: {
     ...typeface('regular'),

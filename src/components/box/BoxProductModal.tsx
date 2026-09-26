@@ -25,19 +25,27 @@ import { icons } from '../../constants/icons';
 import { similarCatalogItems } from '../../constants/catalogCuration';
 import { pdpBodyCopyForItem } from '../../constants/pdpCategoryCopy';
 import { howToLinkForItem } from '../../constants/pdpHowToLink';
+import { isBookItem } from '../../constants/storefrontCategories';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
-import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
-import { boxAddOnUnitCents } from '../../services/box/pricing';
-import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
+import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
+import { isGiftSlotLine } from './boxLineDisplay';
+import { boxAddOnUnitCents, HANUKKAH_SHIP_WINDOW_LABEL } from '../../services/box/pricing';
+import {
+  resolveFreeSwapUnitCents,
+  resolveIncludedGiftOptions,
+  resolveSwapOptionsForItem,
+} from '../../services/box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
-import { navigateMainStack } from '../../navigation/mainStackNavigation';
+import { navigateMainStack, navigateMainTab } from '../../navigation/mainStackNavigation';
+import { SwapIntoBoxModal } from '../storefront/SwapIntoBoxModal';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import type { SemanticColors } from '../../constants/themeMode';
 import {
   MOBILE_GUTTER,
+  PRODUCT_SPLIT_GUTTER,
   borderRadius,
   spacing,
   typeface,
@@ -77,6 +85,8 @@ type Props = {
   onAdd: (item: CatalogItem) => void | Promise<void>;
   onSwap: (item: CatalogItem, source: BoxLineItem) => void | Promise<void>;
   onRemove?: (item: CatalogItem) => void | Promise<void>;
+  /** In-box quantity adjust (+1 / −1). At qty 1, −1 donates/removes. */
+  onQuantityChange?: (item: CatalogItem, delta: 1 | -1) => void | Promise<void>;
 };
 
 export function BoxProductModal({
@@ -92,6 +102,7 @@ export function BoxProductModal({
   onAdd,
   onSwap,
   onRemove,
+  onQuantityChange,
 }: Props) {
   const { colors } = useThemeMode();
   const insets = useSafeAreaInsets();
@@ -101,6 +112,7 @@ export function BoxProductModal({
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [swapPickerOpen, setSwapPickerOpen] = useState(false);
   /** Soft-mask the sheet bottom while more scroll content remains below. */
   const [showBottomFade, setShowBottomFade] = useState(false);
   const scrollViewportH = React.useRef(0);
@@ -110,6 +122,7 @@ export function BoxProductModal({
     if (visible) {
       setDetailsOpen(true);
       setShowBottomFade(false);
+      setSwapPickerOpen(false);
       scrollViewportH.current = 0;
       scrollContentH.current = 0;
     }
@@ -132,32 +145,65 @@ export function BoxProductModal({
     [item, lineItems]
   );
 
-  const swapSource = useMemo(() => {
-    if (!item || inBox) return null;
-    return findSwapSourceLine(item, lineItems, catalog, fromSection);
-  }, [item, inBox, lineItems, catalog, fromSection]);
-
-  const swapSourceItem = useMemo(
-    () => (swapSource ? catalog.find((c) => c.id === swapSource.itemId) : undefined),
-    [swapSource, catalog]
+  const inBoxLines = useMemo(
+    () => (item ? lineItems.filter((li) => li.itemId === item.id) : []),
+    [item, lineItems]
   );
+  const inBoxPrimary = inBoxLines[0] ?? null;
+  const boxQuantity = useMemo(
+    () => inBoxLines.reduce((sum, li) => sum + Math.max(1, li.quantity ?? 1), 0),
+    [inBoxLines]
+  );
+  const inBoxUnitCents = inBoxPrimary?.unitCents ?? 0;
+
+  /** When already in box: alternate SKUs to swap this line for (My Box swap shelf). */
+  const inBoxSwapOptions = useMemo(() => {
+    if (!item || !inBox || !inBoxPrimary) return [];
+    // Paid extras aren't swapped laterally — same rule as My Box cards.
+    if (inBoxUnitCents > 0) return [];
+    const opts = isGiftSlotLine(inBoxPrimary)
+      ? resolveIncludedGiftOptions(catalog, item.id, 12)
+      : resolveSwapOptionsForItem(item, catalog, 12);
+    return opts.filter((o) => o.id !== item.id);
+  }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog]);
+
+  const swapSources = useMemo(() => {
+    if (!item || inBox) return [];
+    return findSwapSourceLines(item, lineItems, catalog, fromSection);
+  }, [item, inBox, lineItems, catalog, fromSection]);
+  const swapSource = swapSources[0] ?? null;
 
   const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
+  /** Cheapest policy-valid swap delta (included swaps are $0). */
   const swapDeltaCents = useMemo(() => {
-    if (!swapSource || !item) return 0;
-    const sectionId = fromSection ?? (swapSourceItem ? displaySectionForCatalogItem(swapSourceItem) : undefined);
-    const resolved = sectionId ? resolveFreeSwapUnitCents(swapSourceItem, item, sectionId) : undefined;
-    return resolved ?? Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0));
-  }, [swapSource, swapSourceItem, item, fromSection, boxUnitCents]);
+    if (!item || swapSources.length === 0) return 0;
+    let best: number | null = null;
+    for (const source of swapSources) {
+      const sourceItem = catalog.find((c) => c.id === source.itemId);
+      const sectionId =
+        fromSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
+      if (!sectionId) continue;
+      const free = resolveFreeSwapUnitCents(sourceItem, item, sectionId);
+      if (free === undefined) continue;
+      const delta = Math.max(0, free - (source.unitCents ?? 0));
+      best = best == null ? delta : Math.min(best, delta);
+    }
+    if (best != null) return best;
+    if (!swapSource) return 0;
+    return Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0));
+  }, [item, swapSources, catalog, fromSection, swapSource, boxUnitCents]);
 
-  /** Only offer Swap when the target is an included/policy swap — not paid extras like brass. */
+  /** Only offer Swap when at least one target is an included/policy swap. */
   const canPolicySwap = useMemo(() => {
-    if (!swapSource || !item) return false;
-    const sectionId =
-      fromSection ?? (swapSourceItem ? displaySectionForCatalogItem(swapSourceItem) : undefined);
-    if (!sectionId) return false;
-    return resolveFreeSwapUnitCents(swapSourceItem, item, sectionId) !== undefined;
-  }, [swapSource, swapSourceItem, item, fromSection]);
+    if (!item || swapSources.length === 0) return false;
+    return swapSources.some((source) => {
+      const sourceItem = catalog.find((c) => c.id === source.itemId);
+      const sectionId =
+        fromSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
+      if (!sectionId) return false;
+      return resolveFreeSwapUnitCents(sourceItem, item, sectionId) !== undefined;
+    });
+  }, [item, swapSources, catalog, fromSection]);
 
   const bodyCopy = item ? pdpBodyCopyForItem(item) : undefined;
   const details = item ? detailRowsFromItem(item) : [];
@@ -166,25 +212,38 @@ export function BoxProductModal({
   const wishlisted = item ? isWishlisted(item.id) : false;
 
   const noun = context === 'giftBox' ? 'gift' : 'box';
-  const primaryLabel = inBox
-    ? context === 'giftBox'
-      ? 'Remove from gift'
-      : 'Remove from box'
-    : boxUnitCents > 0
+  const primaryLabel =
+    boxUnitCents > 0
       ? `Add to ${noun} (+${formatCatalogDollars(boxUnitCents)})`
       : `Add to ${noun}`;
 
-  const secondaryLabel =
-    swapDeltaCents > 0
-      ? context === 'giftBox'
-        ? `Swap into gift (+${formatCatalogDollars(swapDeltaCents)})`
-        : `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`
-      : context === 'giftBox'
-        ? 'Swap into gift'
-        : 'Swap into my box';
+  const secondaryLabel = inBox
+    ? 'Swap'
+    : context === 'giftBox'
+      ? `Swap into gift (+${formatCatalogDollars(swapDeltaCents)})`
+      : `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`;
 
-  const showSecondary = !inBox && Boolean(swapSource) && canPolicySwap;
-  const showRemove = inBox && Boolean(onRemove);
+  const showSecondary = inBox
+    ? inBoxSwapOptions.length > 0
+    : swapSources.length > 0 && canPolicySwap;
+  const showQty = inBox && Boolean(onQuantityChange) && !locked;
+  const atOneQty = boxQuantity <= 1;
+  const qtyMinusLabel = atOneQty
+    ? context === 'giftBox'
+      ? 'Donate'
+      : inBoxUnitCents === 0
+        ? 'Donate'
+        : 'Remove'
+    : '−';
+
+  const askFollowUpAboutCopy = () => {
+    if (!bodyCopy) return;
+    onClose();
+    navigateMainTab('Rav', {
+      newChat: true,
+      openingAssistantMessage: bodyCopy,
+    });
+  };
 
   const run = async (fn: () => void | Promise<void>) => {
     if (busy || locked) return;
@@ -196,6 +255,26 @@ export function BoxProductModal({
       setBusy(false);
     }
   };
+
+  const swapPickerOptions = useMemo(() => {
+    if (inBox) {
+      return inBoxSwapOptions.map((opt) => ({
+        key: opt.id,
+        name: opt.name,
+        imageUrl: opt.imageUrl,
+        itemId: opt.id,
+      }));
+    }
+    return swapSources.map((li) => {
+      const src = catalog.find((c) => c.id === li.itemId);
+      return {
+        key: `${li.slotId}:${li.itemId}`,
+        name: src?.name ?? li.label ?? li.itemId,
+        imageUrl: src?.imageUrl,
+        itemId: src?.id ?? li.itemId,
+      };
+    });
+  }, [inBox, inBoxSwapOptions, swapSources, catalog]);
 
   if (!item) return null;
 
@@ -270,8 +349,25 @@ export function BoxProductModal({
                 </View>
 
                 <View style={[styles.buy, desktop && styles.buyDesktop]}>
-                  <Text style={[styles.name, !desktop && styles.nameMobile]}>{item.name}</Text>
-                  {bodyCopy ? <Text style={styles.desc}>{bodyCopy}</Text> : null}
+                  <View style={styles.titleBlock}>
+                    <Text style={[styles.name, !desktop && styles.nameMobile]}>{item.name}</Text>
+                    {isBookItem(item) && item.brand?.trim() ? (
+                      <Text style={styles.author}>by {item.brand.trim()}</Text>
+                    ) : null}
+                  </View>
+                  {bodyCopy ? (
+                    <Text style={styles.desc}>
+                      {bodyCopy}{' '}
+                      <Text
+                        style={styles.followUpLink}
+                        onPress={askFollowUpAboutCopy}
+                        accessibilityRole="link"
+                        accessibilityLabel="I have a follow up question"
+                      >
+                        I have a follow up question {'>'}
+                      </Text>
+                    </Text>
+                  ) : null}
 
                   {howTo ? (
                     <TouchableOpacity
@@ -292,6 +388,110 @@ export function BoxProductModal({
                       </Text>
                     </TouchableOpacity>
                   ) : null}
+
+                  <View style={styles.priceRule}>
+                    <ProductPricingBlock item={item} hasBox />
+                  </View>
+
+                  <View style={styles.ctaBlock}>
+                    <View style={styles.ctaRow}>
+                      {inBox ? (
+                        <>
+                          {showSecondary ? (
+                            <TouchableOpacity
+                              style={[
+                                styles.cta,
+                                styles.ctaPrimary,
+                                (locked || busy) && styles.ctaDisabled,
+                              ]}
+                              onPress={() => setSwapPickerOpen(true)}
+                              disabled={locked || busy}
+                              accessibilityRole="button"
+                            >
+                              <Text style={styles.ctaPrimaryText}>{secondaryLabel}</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                          {showQty && onQuantityChange ? (
+                            <View style={styles.qtyRow}>
+                              <TouchableOpacity
+                                style={[styles.qtyBtn, atOneQty && styles.qtyBtnWide]}
+                                onPress={() => {
+                                  if (atOneQty) {
+                                    void run(() => onQuantityChange(item, -1));
+                                  } else {
+                                    void onQuantityChange(item, -1);
+                                  }
+                                }}
+                                disabled={busy}
+                                accessibilityRole="button"
+                                accessibilityLabel={
+                                  atOneQty
+                                    ? qtyMinusLabel === 'Donate'
+                                      ? 'Donate'
+                                      : 'Remove from box'
+                                    : 'Decrease quantity'
+                                }
+                              >
+                                <Text
+                                  style={[styles.qtyBtnText, atOneQty && styles.qtyBtnTextWide]}
+                                >
+                                  {qtyMinusLabel}
+                                </Text>
+                              </TouchableOpacity>
+                              <Text style={styles.qtyValue}>{boxQuantity}</Text>
+                              <TouchableOpacity
+                                style={styles.qtyBtn}
+                                onPress={() => void onQuantityChange(item, 1)}
+                                disabled={busy}
+                                accessibilityRole="button"
+                                accessibilityLabel="Increase quantity"
+                              >
+                                <Text style={styles.qtyBtnText}>+</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={[
+                              styles.cta,
+                              styles.ctaPrimary,
+                              (locked || busy) && styles.ctaDisabled,
+                            ]}
+                            onPress={() => void run(() => onAdd(item))}
+                            disabled={locked || busy}
+                            accessibilityRole="button"
+                          >
+                            {busy ? (
+                              <ActivityIndicator color={colors.textInverse} />
+                            ) : (
+                              <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                            )}
+                          </TouchableOpacity>
+                          {showSecondary ? (
+                            <TouchableOpacity
+                              style={[
+                                styles.cta,
+                                styles.ctaSecondary,
+                                (locked || busy) && styles.ctaDisabled,
+                              ]}
+                              onPress={() => setSwapPickerOpen(true)}
+                              disabled={locked || busy}
+                              accessibilityRole="button"
+                            >
+                              <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </>
+                      )}
+                    </View>
+                    {!inBox ? (
+                      <Text style={styles.shipNote}>
+                        Arrives in time for Hanukkah (est. {HANUKKAH_SHIP_WINDOW_LABEL})
+                      </Text>
+                    ) : null}
+                  </View>
 
                   {details.length > 0 ? (
                     <View style={styles.details}>
@@ -322,53 +522,6 @@ export function BoxProductModal({
                         : null}
                     </View>
                   ) : null}
-
-                  <View style={styles.priceRule}>
-                    <ProductPricingBlock item={item} hasBox />
-                  </View>
-
-                  <View style={styles.ctaBlock}>
-                    <View style={styles.ctaRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.cta,
-                          styles.ctaPrimary,
-                          (locked || busy) && styles.ctaDisabled,
-                        ]}
-                        onPress={() =>
-                          void run(() =>
-                            showRemove && onRemove ? onRemove(item) : onAdd(item)
-                          )
-                        }
-                        disabled={locked || busy}
-                        accessibilityRole="button"
-                      >
-                        {busy ? (
-                          <ActivityIndicator color={colors.brand} />
-                        ) : (
-                          <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
-                        )}
-                      </TouchableOpacity>
-                      {showSecondary ? (
-                        <TouchableOpacity
-                          style={[
-                            styles.cta,
-                            styles.ctaSecondary,
-                            (locked || busy) && styles.ctaDisabled,
-                          ]}
-                          onPress={() =>
-                            void run(() => {
-                              if (swapSource) return onSwap(item, swapSource);
-                            })
-                          }
-                          disabled={locked || busy}
-                          accessibilityRole="button"
-                        >
-                          <Text style={styles.ctaSecondaryText}>{secondaryLabel}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  </View>
                 </View>
               </View>
 
@@ -401,6 +554,35 @@ export function BoxProductModal({
           </View>
         </View>
       </View>
+      <SwapIntoBoxModal
+        visible={swapPickerOpen && swapPickerOptions.length > 0}
+        options={swapPickerOptions}
+        onSelect={(key) => {
+          if (!item) return;
+          if (inBox) {
+            const replacement = inBoxSwapOptions.find((o) => o.id === key);
+            const source = inBoxPrimary;
+            if (!replacement || !source) return;
+            setSwapPickerOpen(false);
+            if (busy || locked) return;
+            setBusy(true);
+            void (async () => {
+              try {
+                await onSwap(replacement, source);
+                onSelectItem?.(replacement);
+              } finally {
+                setBusy(false);
+              }
+            })();
+            return;
+          }
+          const source = swapSources.find((li) => `${li.slotId}:${li.itemId}` === key);
+          if (!source) return;
+          setSwapPickerOpen(false);
+          void run(() => onSwap(item, source));
+        }}
+        onCancel={() => setSwapPickerOpen(false)}
+      />
     </Modal>
   );
 }
@@ -481,44 +663,65 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
     splitDesktop: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: spacing.xxl + spacing.md,
+      gap: PRODUCT_SPLIT_GUTTER,
     },
     galleryCol: { width: '100%' },
     galleryColDesktop: {
-      flex: 0.48,
-      maxWidth: '48%',
+      flex: 0.55,
+      maxWidth: '55%',
       minWidth: 0,
     },
     buy: {
       width: '100%',
       alignItems: 'flex-start',
-      gap: spacing.lg,
+      gap: spacing.md,
     },
     buyDesktop: {
-      flex: 0.52,
-      maxWidth: '52%',
+      flex: 0.45,
+      maxWidth: '42%',
       minWidth: 0,
       paddingTop: spacing.sm,
+      paddingRight: spacing.md,
+    },
+    titleBlock: {
+      alignItems: 'flex-start',
+      gap: 6,
     },
     name: {
       ...typeface('medium'),
-      fontSize: 28,
+      fontSize: 32,
       color: colors.logoDark,
-      lineHeight: 34,
+      lineHeight: 38,
     },
     nameMobile: {
-      fontSize: 22,
-      lineHeight: 28,
+      fontSize: 24,
+      lineHeight: 30,
+    },
+    author: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      lineHeight: 24,
+      color: colors.textSecondary,
+      maxWidth: 440,
     },
     desc: {
       ...typeface('regular'),
       fontSize: typography.md,
       lineHeight: 24,
       color: colors.textSecondary,
+      maxWidth: 440,
+    },
+    followUpLink: {
+      ...typeface('bold'),
+      fontSize: typography.md,
+      lineHeight: 24,
+      color: colors.logoDark,
+      textDecorationLine: 'underline',
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
     howToLink: {
       alignSelf: 'flex-start',
-      marginTop: -spacing.sm,
+      marginTop: spacing.xs,
     },
     howToLinkText: {
       ...typeface('medium'),
@@ -528,23 +731,123 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       textDecorationLine: 'underline',
       ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
+    priceRule: {
+      marginTop: 0,
+      paddingTop: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      width: '100%',
+    },
+    ctaBlock: {
+      alignSelf: 'flex-start',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      marginBottom: 6,
+    },
+    ctaRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'stretch',
+      alignSelf: 'flex-start',
+      gap: spacing.sm,
+    },
+    cta: {
+      paddingVertical: 14,
+      paddingHorizontal: spacing.lg,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+    },
+    ctaPrimary: {
+      backgroundColor: colors.logoDark,
+    },
+    ctaSecondary: {
+      borderWidth: 1,
+      borderColor: colors.logoDark,
+      backgroundColor: colors.bgPrimary,
+    },
+    ctaDisabled: { opacity: 0.55 },
+    ctaPrimaryText: {
+      ...typeface('medium'),
+      fontSize: 11,
+      lineHeight: 14,
+      color: colors.textInverse,
+      textAlign: 'center',
+    },
+    ctaSecondaryText: {
+      ...typeface('medium'),
+      fontSize: 11,
+      lineHeight: 14,
+      color: colors.logoDark,
+      textAlign: 'center',
+    },
+    qtyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderWidth: 1,
+      borderColor: colors.logoDark,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: 6,
+      minHeight: 42,
+      backgroundColor: colors.bgPrimary,
+    },
+    qtyBtn: {
+      minWidth: 28,
+      minHeight: 42,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+    },
+    qtyBtnWide: { minWidth: 56, paddingHorizontal: 8 },
+    qtyBtnText: {
+      ...typeface('medium'),
+      fontSize: 14,
+      lineHeight: 16,
+      color: colors.logoDark,
+    },
+    qtyBtnTextWide: {
+      fontSize: 11,
+      lineHeight: 14,
+      textTransform: 'lowercase',
+      letterSpacing: -0.18,
+    },
+    qtyValue: {
+      ...typeface('medium'),
+      fontSize: 13,
+      color: colors.logoDark,
+      minWidth: 16,
+      textAlign: 'center',
+    },
+    shipNote: {
+      ...typeface('regular'),
+      fontSize: 11,
+      lineHeight: 14,
+      color: colors.textSecondary,
+      textAlign: 'left',
+    },
     details: {
       width: '100%',
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
-      paddingTop: spacing.md,
-      gap: spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
     },
     detailsToggle: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: spacing.xs,
+      paddingVertical: spacing.sm,
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
     detailsHeading: {
       ...typeface('medium'),
       fontSize: typography.md,
-      color: colors.textPrimary,
+      lineHeight: 22,
+      color: colors.logoDark,
+      letterSpacing: -0.2,
     },
     detailsChevron: {
       transform: [{ rotate: '0deg' }],
@@ -553,77 +856,23 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       transform: [{ rotate: '180deg' }],
     },
     detailRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-      paddingVertical: 4,
+      paddingVertical: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      gap: 4,
     },
     detailLabel: {
       ...typeface('medium'),
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      width: 110,
+      fontSize: 11,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      color: colors.goldMuted,
     },
     detailValue: {
       ...typeface('regular'),
-      fontSize: typography.sm,
-      color: colors.textPrimary,
-      flex: 1,
-    },
-    priceRule: {
-      width: '100%',
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      paddingTop: spacing.md,
-    },
-    ctaBlock: { width: '100%', gap: spacing.md, marginTop: spacing.md },
-    ctaRow: {
-      flexDirection: 'row',
-      flexWrap: desktop ? 'nowrap' : 'wrap',
-      gap: spacing.md + 2,
-      width: '100%',
-      alignItems: 'stretch',
-    },
-    cta: {
-      borderRadius: borderRadius.md,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.xl + spacing.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: 52,
-      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
-    },
-    ctaPrimary: {
-      backgroundColor: '#000000',
-      borderWidth: 1,
-      borderColor: colors.brand,
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: desktop ? 260 : 200,
-    },
-    ctaSecondary: {
-      backgroundColor: colors.bgPrimary,
-      borderWidth: 1,
-      borderColor: colors.logoDark,
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: desktop ? 260 : 200,
-    },
-    ctaDisabled: { opacity: 0.45 },
-    ctaPrimaryText: {
-      ...typeface('light'),
-      fontSize: typography.titleLg,
-      color: colors.brand,
-      letterSpacing: -0.32,
-      textAlign: 'center',
-      ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : null),
-    },
-    ctaSecondaryText: {
-      ...typeface('light'),
-      fontSize: typography.titleLg,
+      fontSize: typography.md,
+      lineHeight: 22,
       color: colors.logoDark,
-      letterSpacing: -0.32,
-      textAlign: 'center',
-      ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as object) : null),
     },
     similarBleed: {
       marginHorizontal: desktop ? -spacing.xxl : -MOBILE_GUTTER,

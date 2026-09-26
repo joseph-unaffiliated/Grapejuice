@@ -39,22 +39,22 @@ export const LANDING_MEDIA_LIBRARY: LandingMediaEntry[] = [
   {
     key: 'plush-dreidel',
     label: 'Plush dreidel',
-    source: require('../../assets/catalog/plush-dreidel.png'),
+    source: require('../../assets/catalog/plush-dreidel.webp'),
   },
   {
     key: 'english-hebrew-dreidel',
     label: 'Wooden dreidels',
-    source: require('../../assets/catalog/english-hebrew-dreidel.png'),
+    source: require('../../assets/catalog/english-hebrew-dreidel.webp'),
   },
   {
     key: 'family-hanukkiah-keepsake',
     label: 'Family hanukkiah (catalog)',
-    source: require('../../assets/catalog/family-hanukkiah-keepsake.png'),
+    source: require('../../assets/catalog/family-hanukkiah-keepsake.webp'),
   },
   {
     key: 'keepsake-dreidel',
     label: 'Keepsake / figurines',
-    source: require('../../assets/catalog/keepsake-dreidel.png'),
+    source: require('../../assets/catalog/keepsake-dreidel.webp'),
   },
 ];
 

@@ -18,7 +18,15 @@ const STOREFRONT_PREVIEW_KEYS = new Set([
   'store-category',
 ]);
 
-function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category: string }): void {
+function navigateToStore(target: {
+  kind: 'home';
+} | {
+  kind: 'category';
+  category: string;
+  q?: string;
+  avail?: 'buy-now' | 'box-only' | 'all';
+  style?: 'collection' | 'kids' | 'all';
+}): void {
   if (!navigationRef.isReady()) return;
   if (target.kind === 'home') {
     navigationRef.navigate('Main', { screen: 'StorefrontHome' });
@@ -34,6 +42,9 @@ function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category
       category: resolveStorefrontCategorySlug(
         target.category || DEFAULT_STOREFRONT_CATEGORY
       ),
+      ...(target.q ? { q: target.q } : null),
+      ...(target.avail ? { avail: target.avail } : null),
+      ...(target.style ? { style: target.style } : null),
     },
   });
 }
@@ -41,7 +52,7 @@ function navigateToStore(target: { kind: 'home' } | { kind: 'category'; category
 /**
  * Web: `/store`, `/store/:category`, or bare `/` → storefront screens.
  * Guests who land cold are put into explore so MainGate can mount.
- * Bare `/` is canonicalized to `/store` in the address bar.
+ * Home stays at `/` (canonical); `/store` alone also opens home.
  * Skips when `?preview=` is a non-storefront design preview (e.g. my-box).
  */
 export function StorefrontLinkEffect() {
@@ -95,10 +106,15 @@ export function StorefrontLinkEffect() {
       return;
     }
 
+    // Canonicalize legacy `/store` home → `/` in the address bar.
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.replace(/\/$/, '') || '/';
-      if (path === '/') {
-        window.history.replaceState({ gjNav: true }, '', '/store' + window.location.search);
+      if (path === '/store' && target.kind === 'home') {
+        window.history.replaceState(
+          { gjNav: true },
+          '',
+          '/' + window.location.search
+        );
       }
     }
 

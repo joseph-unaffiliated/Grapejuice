@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Pressable,
   Platform,
+  type NativeSyntheticEvent,
+  type TextLayoutEventData,
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
 import { Icon } from '../ui/Icon';
@@ -28,6 +30,7 @@ import {
   semanticColors,
   spacing,
   typeface,
+  WEB_FONT_FAMILY,
 } from '../../constants/theme';
 import {
   WelcomeSubscriberBadge,
@@ -36,6 +39,128 @@ import {
 import { isBookItem } from '../../constants/storefrontCategories';
 
 export type StorefrontTileBoxRelation = 'in_box' | 'swap' | 'add';
+
+const DESCRIPTION_MAX_LINES = 4;
+const DESCRIPTION_LINE_HEIGHT = 14;
+const DESCRIPTION_FONT_SIZE = 11;
+
+function endsWithSentencePunctuation(text: string): boolean {
+  return /[.!?…]$/u.test(text);
+}
+
+/**
+ * After fitting to the line budget: no "…" when we end on a sentence or
+ * paragraph break; "…" only for a true mid-sentence cut.
+ */
+function finalizeClampedDescription(visibleRaw: string, wasTruncated: boolean): string {
+  let visible = visibleRaw.replace(/\s+$/u, '').trimEnd();
+  if (!visible) return '';
+  if (!wasTruncated) return visible;
+
+  // Stop before a blank / paragraph break inside the window.
+  const paraBreak = visible.search(/\n\s*\n/);
+  if (paraBreak >= 0) {
+    const beforePara = visible.slice(0, paraBreak).trimEnd();
+    if (beforePara) return beforePara;
+  }
+
+  if (endsWithSentencePunctuation(visible)) return visible;
+
+  // Prefer the last complete sentence in the window over a mid-sentence "…".
+  const lastSentenceEnd = Math.max(
+    visible.lastIndexOf('.'),
+    visible.lastIndexOf('!'),
+    visible.lastIndexOf('?')
+  );
+  if (lastSentenceEnd >= Math.min(32, Math.floor(visible.length * 0.35))) {
+    return visible.slice(0, lastSentenceEnd + 1).trimEnd();
+  }
+
+  return `${visible.replace(/[,;:\-–—\s]+$/u, '')}…`;
+}
+
+function clampDescriptionFromLines(
+  full: string,
+  lines: ReadonlyArray<{ text: string }>,
+  maxLines: number
+): string {
+  const trimmed = full.trim();
+  if (!trimmed) return '';
+  if (lines.length <= maxLines) return trimmed;
+  const visible = lines
+    .slice(0, maxLines)
+    .map((l) => l.text)
+    .join('');
+  return finalizeClampedDescription(visible, true);
+}
+
+/** Web: RN-web has no onTextLayout — binary-search a DOM probe at the tile width. */
+function clampDescriptionByDom(
+  full: string,
+  contentWidth: number,
+  maxLines: number,
+  lineHeight: number,
+  fontSize: number
+): string {
+  const trimmed = full.trim();
+  if (!trimmed || contentWidth <= 0 || typeof document === 'undefined') {
+    return trimmed;
+  }
+
+  const maxHeight = lineHeight * maxLines;
+  const probe = document.createElement('div');
+  probe.style.cssText = [
+    'position:absolute',
+    'left:-99999px',
+    'top:0',
+    `width:${Math.floor(contentWidth)}px`,
+    `font-family:${WEB_FONT_FAMILY}, sans-serif`,
+    'font-weight:400',
+    `font-size:${fontSize}px`,
+    `line-height:${lineHeight}px`,
+    'letter-spacing:normal',
+    'white-space:normal',
+    'word-wrap:break-word',
+    'overflow-wrap:anywhere',
+    'visibility:hidden',
+    'pointer-events:none',
+  ].join(';');
+  document.body.appendChild(probe);
+
+  const fits = (text: string) => {
+    probe.textContent = text;
+    return probe.scrollHeight <= maxHeight + 1;
+  };
+
+  try {
+    if (fits(trimmed)) return trimmed;
+
+    let lo = 0;
+    let hi = trimmed.length;
+    let best = '';
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const candidate = trimmed.slice(0, mid).replace(/\s+$/u, '');
+      if (fits(candidate)) {
+        best = candidate;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    if (!best) return trimmed.slice(0, Math.min(24, trimmed.length)) + '…';
+
+    let result = finalizeClampedDescription(best, true);
+    while (result.endsWith('…') && !fits(result) && best.length > 0) {
+      best = best.slice(0, -1).replace(/\s+$/u, '');
+      result = finalizeClampedDescription(best, true);
+    }
+    return result;
+  } finally {
+    document.body.removeChild(probe);
+  }
+}
 
 type Props = {
   item: CatalogItem;
@@ -50,6 +175,10 @@ type Props = {
   boxQuantity?: number;
   /** Delta (+1 / −1); at qty 1, −1 removes. */
   onBoxQtyChange?: (delta: 1 | -1) => void;
+  /** Opens swap-into-box picker; falls back to `onPress` when omitted. */
+  onSwapPress?: () => void;
+  /** Horizontal rails: omit bottom margin (grid uses it for row gap). */
+  flushBottom?: boolean;
 };
 
 function firstSecondaryUrl(item: CatalogItem): string | null {
@@ -71,6 +200,8 @@ export function StorefrontProductTile({
   boxRelation = null,
   boxQuantity = 1,
   onBoxQtyChange,
+  onSwapPress,
+  flushBottom = false,
 }: Props) {
   const imageSize = Math.max(120, width);
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
@@ -90,12 +221,46 @@ export function StorefrontProductTile({
   const description = item.description?.trim() ?? '';
   const secondaryUrl = firstSecondaryUrl(item);
   const [hoverSecondary, setHoverSecondary] = useState(false);
+  const [descriptionShown, setDescriptionShown] = useState(description);
   // Books keep a single cover image — no hover secondary reveal.
   const canCrossfade =
     Platform.OS === 'web' && Boolean(secondaryUrl) && !isBookItem(item);
 
+  useEffect(() => {
+    if (!description) {
+      setDescriptionShown('');
+      return;
+    }
+    if (Platform.OS === 'web') {
+      setDescriptionShown(
+        clampDescriptionByDom(
+          description,
+          width,
+          DESCRIPTION_MAX_LINES,
+          DESCRIPTION_LINE_HEIGHT,
+          DESCRIPTION_FONT_SIZE
+        )
+      );
+      return;
+    }
+    // Native: wait for onTextLayout measurement.
+    setDescriptionShown(description);
+  }, [description, width]);
+
+  const onDescriptionTextLayout = (
+    e: NativeSyntheticEvent<TextLayoutEventData>
+  ) => {
+    if (Platform.OS === 'web') return;
+    const next = clampDescriptionFromLines(
+      description,
+      e.nativeEvent.lines,
+      DESCRIPTION_MAX_LINES
+    );
+    setDescriptionShown((prev) => (prev === next ? prev : next));
+  };
+
   return (
-    <View style={[styles.root, { width }]}>
+    <View style={[styles.root, flushBottom && styles.rootFlushBottom, { width }]}>
       <View style={[styles.imageWrap, { width, height: imageSize }]}>
         <Pressable
           onPress={onPress}
@@ -139,7 +304,7 @@ export function StorefrontProductTile({
           </View>
         ) : null}
         <TouchableOpacity
-          style={styles.heart}
+          style={[styles.heart, wishlisted && styles.heartWishlisted]}
           onPress={onToggleWishlist}
           accessibilityRole="button"
           accessibilityLabel={
@@ -150,7 +315,7 @@ export function StorefrontProductTile({
           <Icon
             icon={wishlisted ? icons.heart : icons.heartOutline}
             size={16}
-            color={wishlisted ? semanticColors.secondary : semanticColors.logoDark}
+            color={wishlisted ? semanticColors.brand : '#FFFFFF'}
           />
         </TouchableOpacity>
       </View>
@@ -159,9 +324,19 @@ export function StorefrontProductTile({
           {item.name}
         </Text>
         {description ? (
-          <Text style={styles.description} numberOfLines={2}>
-            {description}
-          </Text>
+          <View style={styles.descriptionWrap}>
+            {Platform.OS !== 'web' ? (
+              <Text
+                style={[styles.description, styles.descriptionMeasure]}
+                onTextLayout={onDescriptionTextLayout}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {description}
+              </Text>
+            ) : null}
+            <Text style={styles.description}>{descriptionShown}</Text>
+          </View>
         ) : null}
         {isBoxOnly ? (
           <View style={styles.priceRow}>
@@ -208,7 +383,7 @@ export function StorefrontProductTile({
         <View style={styles.chipRow}>
           <TouchableOpacity
             style={[styles.chip, styles.chipPrimary]}
-            onPress={onPress}
+            onPress={onSwapPress ?? onPress}
             accessibilityRole="button"
             accessibilityLabel={`Swap into my box ${item.name}`}
           >
@@ -239,7 +414,10 @@ export function StorefrontProductTile({
 
 const styles = StyleSheet.create({
   root: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  rootFlushBottom: {
+    marginBottom: 0,
   },
   imageWrap: {
     position: 'relative',
@@ -260,6 +438,7 @@ const styles = StyleSheet.create({
     bottom: spacing.xs,
     zIndex: 2,
   },
+  /** Match lifestyle hotspots: white ring, no fill. */
   heart: {
     position: 'absolute',
     top: spacing.xs,
@@ -267,10 +446,18 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
+  },
+  /** Favorited: solid white disk + filled heart (unchanged). */
+  heartWishlisted: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   name: {
     ...typeface('medium'),
@@ -278,14 +465,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     letterSpacing: -0.3,
     color: semanticColors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   description: {
     ...typeface('regular'),
     fontSize: 11,
-    lineHeight: 14,
+    lineHeight: DESCRIPTION_LINE_HEIGHT,
     color: semanticColors.textSecondary,
     marginBottom: 10,
+  },
+  descriptionWrap: {
+    position: 'relative',
+    width: '100%',
+  },
+  descriptionMeasure: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    opacity: 0,
+    pointerEvents: 'none',
+    marginBottom: 0,
   },
   priceRow: {
     flexDirection: 'row',
@@ -328,8 +528,8 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.bgPrimary,
   },
   chipPrimary: {
-    backgroundColor: semanticColors.logoDark,
-    borderColor: semanticColors.logoDark,
+    backgroundColor: semanticColors.brand,
+    borderColor: semanticColors.brand,
   },
   chipSpaced: {
     marginTop: spacing.sm,
@@ -343,6 +543,6 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   chipTextPrimary: {
-    color: semanticColors.goldMuted,
+    color: semanticColors.logoDark,
   },
 });

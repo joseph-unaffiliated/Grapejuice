@@ -43,6 +43,7 @@ import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { semanticColors, spacing } from '../../constants/theme';
+import { HOW_TO_PAGES_PUBLISHED } from '../../constants/pdpHowToLink';
 import {
   STOREFRONT_SCROLL_CLASS,
   STOREFRONT_H_SCROLL_CLASS,
@@ -233,7 +234,7 @@ function StorefrontChromeInner({
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
-  const { width: windowWidth, isCompact: compact } = useLayoutBreakpoint();
+  const { width: windowWidth, isCompact: compact, isDesktop } = useLayoutBreakpoint();
   const fillBody = bodyMode === 'fill';
   /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
   const showPromoStrip =
@@ -325,9 +326,12 @@ function StorefrontChromeInner({
       ? stickyChromeHeight.current
       : Math.min(chromeHeight.current || STICKY_FALLBACK_CHROME_H, 96);
 
+  /** Mobile: full bleed. Tablet: half viewport (docked was too tight). Desktop: capped side panel. */
   const ravWidth = compact
     ? windowWidth
-    : Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.36));
+    : isDesktop
+      ? Math.min(DESKTOP_RAV_MAX, Math.round(windowWidth * 0.36))
+      : Math.round(windowWidth * 0.5);
 
   const goHome = () => {
     if (onLeave) {
@@ -342,7 +346,12 @@ function StorefrontChromeInner({
       onLeave({ type: 'category', slug });
       return;
     }
-    navigation.navigate('StorefrontCategory', { category: slug });
+    // merge:false clears prior aisle filters (style/avail/q) on the next category.
+    navigation.navigate({
+      name: 'StorefrontCategory',
+      params: { category: slug },
+      merge: false,
+    });
   };
 
   const startBox = () =>
@@ -747,7 +756,7 @@ function StorefrontChromeInner({
       return;
     }
     // Deep mid-page: pin under the short sticky nav (desktop logo·search / mobile menu).
-    // Keep scroll position — do not jump to top or open Rav full-bleed.
+    // Keep scroll position — do not jump to top.
     const compensated = Math.max(0, y - h);
     suppressOverlayDismissRef.current = true;
     lastY.current = compensated;
@@ -767,10 +776,9 @@ function StorefrontChromeInner({
   ]);
 
   /**
-   * Mobile: Rav height under the visible chrome —
-   * full promo+header at the top, mini sticky bar mid-page.
-   * Pin mode is held through the close animation so the taller sheet
-   * doesn’t collapse under the full header while sliding out.
+   * Mobile: while Rav is open mid-page, keep the sticky mini-bar pinned so Rav
+   * sits under it (not full-bleed over the collapse control). Pin mode is held
+   * through the close animation so sticky doesn’t thrash while the sheet slides out.
    */
   useLayoutEffect(() => {
     if (!compact || fillBody || !useOverlaySticky) {
@@ -932,8 +940,11 @@ function StorefrontChromeInner({
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      bounces
-      alwaysBounceVertical
+      // Mobile Rav: freeze the page so Safari can’t scroll the storefront
+      // out from under the sheet when the keyboard opens.
+      scrollEnabled={!(compact && ravVisible)}
+      bounces={!(compact && ravVisible)}
+      alwaysBounceVertical={!(compact && ravVisible)}
       overScrollMode="auto"
       refreshControl={
         fillBody ? undefined : (
@@ -970,6 +981,13 @@ function StorefrontChromeInner({
         </View>
       )}
       {children}
+      {/*
+        Pin footer to the viewport bottom on short pages without marginTop:auto.
+        Auto margins + flexGrow on the scroll content can leave RN-web with a
+        stuck scrollHeight after async body growth (catalog / auth / mode),
+        clipping the bottom of long category pages.
+      */}
+      <View style={styles.footerPinSpacer} collapsable={false} />
       <StorefrontFooter />
     </ScrollView>
   );
@@ -1022,7 +1040,7 @@ function StorefrontChromeInner({
           </View>
           <View style={styles.bodyRow}>
             <View style={styles.fillBody}>{children}</View>
-            {ravDrawer}
+            {!compact ? ravDrawer : null}
           </View>
         </>
       ) : (
@@ -1033,9 +1051,13 @@ function StorefrontChromeInner({
           ]}
         >
           {pageScroll}
-          {ravDrawer}
+          {!compact ? ravDrawer : null}
         </View>
       )}
+
+      {/* Mobile sheet: sibling of sticky chrome (not inside bodyRow) so `position:fixed`
+          tracks the visual viewport and stacks under the nav (zIndex 30). */}
+      {compact ? ravDrawer : null}
 
       {floatingFooter ? (
         <View style={styles.floatingFooter} pointerEvents="box-none">
@@ -1098,8 +1120,14 @@ export function useStorefrontActions() {
     goEligibility: () => navigation.navigate('BoxDiscountEligibility'),
     goOurStory: () => navigation.navigate('StorefrontOurStory'),
     goPassover: () => navigation.navigate('StorefrontPassover'),
-    goHowToPlayDreidel: () => navigation.navigate('StorefrontHowToPlayDreidel'),
-    goHowToLightCandles: () => navigation.navigate('StorefrontHowToLightCandles'),
+    goHowToPlayDreidel: () => {
+      if (!HOW_TO_PAGES_PUBLISHED) return;
+      navigation.navigate('StorefrontHowToPlayDreidel');
+    },
+    goHowToLightCandles: () => {
+      if (!HOW_TO_PAGES_PUBLISHED) return;
+      navigation.navigate('StorefrontHowToLightCandles');
+    },
   };
 }
 
@@ -1212,9 +1240,26 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   scrollContent: {
-    // flexGrow + StorefrontFooter marginTop:auto pins footer to viewport bottom
-    // on short pages (empty space above the footer, not below).
+    // flexGrow + footerPinSpacer pins footer to viewport bottom on short pages
+    // (empty space above the footer, not below).
     flexGrow: 1,
+    // Web: size to content first (not flex-basis 0%), then grow to fill short pages.
+    // Pairs with public/index.html .gj-storefront-scroll > div rules.
+    ...(Platform.OS === 'web'
+      ? ({
+          flexShrink: 0,
+          flexBasis: 'auto',
+          minHeight: '100%',
+        } as object)
+      : null),
+  },
+  /** Absorbs leftover viewport height so the footer sits at the bottom when short. */
+  footerPinSpacer: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 0,
+    // Don't let the spacer invent a flex-basis that eats scroll height on web.
+    ...(Platform.OS === 'web' ? ({ flexBasis: 0 } as object) : null),
   },
   scrollContentFloatClearance: {
     paddingBottom: FLOATING_FOOTER_CLEARANCE,

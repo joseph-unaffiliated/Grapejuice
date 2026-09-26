@@ -6,12 +6,15 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 
 /**
- * Idempotent storefront interest mark (Passover pre-reg, B'Mitzvah pilot, etc.).
+ * Toggleable storefront interest (Passover pre-reg, B'Mitzvah pilot, holiday waitlists).
  * Guests → guestSessionStore.interests; signed-in → users.storefrontInterests
- * (and notificationsOptIn for Passover).
+ * (and notificationsOptIn when marking Passover).
  */
 export function useStorefrontInterest(key: string): {
   marked: boolean;
+  /** Add or remove this interest (guest + Firestore when signed in). */
+  toggle: () => void;
+  /** @deprecated Prefer `toggle` — same behavior. */
   mark: () => void;
 } {
   const guestInterests = useGuestSessionStore((s) => s.interests);
@@ -24,21 +27,25 @@ export function useStorefrontInterest(key: string): {
   const marked =
     guestInterests.includes(key) || profileInterests.includes(key);
 
-  const mark = useCallback(() => {
-    if (marked) return;
+  const toggle = useCallback(() => {
+    const nextMarked = !marked;
 
-    if (!guestInterests.includes(key)) {
+    // Keep guest list in sync (toggleInterest flips membership).
+    if (guestInterests.includes(key) !== nextMarked) {
       toggleGuestInterest(key);
     }
 
     if (isAuthenticated && user?.uid) {
-      const next = profileInterests.includes(key)
-        ? profileInterests
-        : [...profileInterests, key];
+      const next = nextMarked
+        ? profileInterests.includes(key)
+          ? profileInterests
+          : [...profileInterests, key]
+        : profileInterests.filter((i) => i !== key);
+
       void usersService
         .upsert(user.uid, {
           storefrontInterests: next,
-          ...(key === PASSOVER_NOTIFY_INTEREST
+          ...(nextMarked && key === PASSOVER_NOTIFY_INTEREST
             ? { notificationsOptIn: true }
             : null),
         })
@@ -56,5 +63,5 @@ export function useStorefrontInterest(key: string): {
     refresh,
   ]);
 
-  return { marked, mark };
+  return { marked, toggle, mark: toggle };
 }

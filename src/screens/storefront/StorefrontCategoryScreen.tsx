@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,10 @@ import {
   ActivityIndicator,
   ScrollView,
   Platform,
+  Pressable,
+  Modal,
   useWindowDimensions,
+  type View as RNView,
 } from 'react-native';
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -19,6 +22,7 @@ import { StorefrontProductGrid } from '../../components/storefront/StorefrontPro
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
 import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
 import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
+import { Icon } from '../../components/ui/Icon';
 import {
   DEFAULT_STOREFRONT_CATEGORY,
   filterByStorefrontCategory,
@@ -26,6 +30,7 @@ import {
   resolveStorefrontCategorySlug,
   STOREFRONT_CATEGORIES,
   storefrontCategoryBySlug,
+  orderCandlesRollYourOwnBeforeElectric,
 } from '../../constants/storefrontCategories';
 import {
   matchesStorefrontSearchQuery,
@@ -35,6 +40,7 @@ import {
   applyContextualFilters,
   contextualFiltersForCategory,
 } from '../../constants/storefrontCategoryFilters';
+import { icons } from '../../constants/icons';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
@@ -63,76 +69,141 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'A–Z' },
 ];
 
-function FilterChipButton({
-  label,
-  active,
-  onPress,
-  accent,
-}: {
+type FilterOption = {
+  key: string;
   label: string;
-  active: boolean;
-  onPress: () => void;
-  /** Gold treatment for On Sale (matches dark category nav). */
   accent?: 'sale';
-}) {
-  const isSale = accent === 'sale';
-  return (
-    <TouchableOpacity
-      style={[
-        styles.filterChip,
-        isSale && styles.filterChipSale,
-        active && styles.filterChipActive,
-      ]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-    >
-      {/* Invisible medium text reserves width so bolding doesn't reflow the row */}
-      <View>
-        <Text
-          style={[styles.filterChipText, styles.filterChipTextSizer]}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          {label}
-        </Text>
-        <Text
-          style={[
-            styles.filterChipText,
-            isSale && styles.filterChipTextSale,
-            active && styles.filterChipTextActive,
-            styles.filterChipTextOverlay,
-          ]}
-        >
-          {label}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
+};
 
-function FilterChipRow({
-  children,
-  scrollable,
+function FilterDropdown({
+  id,
+  label,
+  options,
+  value,
+  open,
+  onOpenChange,
+  onChange,
 }: {
-  children: React.ReactNode;
-  scrollable: boolean;
+  id: string;
+  label: string;
+  options: FilterOption[];
+  value: string;
+  open: boolean;
+  onOpenChange: (id: string | null) => void;
+  onChange: (key: string) => void;
 }) {
-  if (!scrollable) {
-    return <View style={styles.chipRow}>{children}</View>;
-  }
+  const { width: windowWidth } = useWindowDimensions();
+  const triggerRef = useRef<RNView>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0, minWidth: 160 });
+  const selected = options.find((o) => o.key === value) ?? options[0];
+  const isDefault = value === 'all' || value === 'relevant';
+
+  const openMenu = () => {
+    triggerRef.current?.measureInWindow((x, y, w, h) => {
+      const minWidth = Math.max(w, 160);
+      const left = Math.min(
+        Math.max(8, x),
+        Math.max(8, windowWidth - minWidth - 8)
+      );
+      setMenuPos({ top: y + h + 4, left, minWidth });
+      onOpenChange(id);
+    });
+  };
+
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.chipRowScrollContent}
-      style={[
-        styles.chipRowScroll,
-        Platform.OS === 'web' ? ({ scrollbarWidth: 'none' } as object) : null,
-      ]}
-    >
-      {children}
-    </ScrollView>
+    <View style={styles.dropdownWrap}>
+      <Text style={styles.dropdownLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      <View ref={triggerRef} collapsable={false}>
+        <TouchableOpacity
+          style={[
+            styles.dropdownTrigger,
+            !isDefault && styles.dropdownTriggerActive,
+            open && styles.dropdownTriggerOpen,
+          ]}
+          onPress={() => (open ? onOpenChange(null) : openMenu())}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={`${label}, ${selected?.label ?? value}`}
+        >
+          <Text
+            style={[
+              styles.dropdownValue,
+              selected?.accent === 'sale' && styles.dropdownValueSale,
+            ]}
+            numberOfLines={1}
+          >
+            {selected?.label ?? value}
+          </Text>
+          <Icon
+            icon={icons.chevronDown}
+            size={11}
+            color={semanticColors.brand}
+            style={open ? styles.dropdownChevronOpen : undefined}
+          />
+        </TouchableOpacity>
+      </View>
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => onOpenChange(null)}
+      >
+        <View style={styles.dropdownModalRoot} pointerEvents="box-none">
+          <Pressable
+            style={styles.dropdownDismiss}
+            onPress={() => onOpenChange(null)}
+            accessibilityLabel={`Dismiss ${label} menu`}
+          />
+          <View
+            style={[
+              styles.dropdownMenu,
+              {
+                top: menuPos.top,
+                left: menuPos.left,
+                minWidth: menuPos.minWidth,
+              },
+            ]}
+            accessibilityRole="menu"
+          >
+            <ScrollView
+              style={styles.dropdownMenuScroll}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {options.map((opt) => {
+                const active = opt.key === value;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.dropdownItem, active && styles.dropdownItemActive]}
+                    onPress={() => {
+                      onChange(opt.key);
+                      onOpenChange(null);
+                    }}
+                    accessibilityRole="menuitem"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        opt.accent === 'sale' && styles.dropdownItemTextSale,
+                        active && styles.dropdownItemTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -182,6 +253,7 @@ export function StorefrontCategoryScreen() {
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
+  const [openFilterId, setOpenFilterId] = useState<string | null>(null);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const mode = useStorefrontHomeMode(lockAt, startsOn);
@@ -290,6 +362,7 @@ export function StorefrontCategoryScreen() {
     }
     setFacetFilters(next);
     setSort('relevant');
+    setOpenFilterId(null);
   }, [slug, searchQuery, availParam, styleParam]);
 
   const categoryItems = useMemo(() => {
@@ -311,13 +384,14 @@ export function StorefrontCategoryScreen() {
       availabilityById
     );
     const booksLast = facetFilters.availability === 'box-only';
-    return sortItems(faceted, sort, booksLast);
+    const sorted = sortItems(faceted, sort, booksLast);
+    if (slug === 'candles' && sort === 'relevant') {
+      return orderCandlesRollYourOwnBeforeElectric(sorted);
+    }
+    return sorted;
   }, [categoryItems, slug, facetFilters, sort, availabilityById]);
 
   const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';
-  const description = searchQuery
-    ? `${filtered.length} item${filtered.length === 1 ? '' : 's'} in ${def?.label ?? 'the store'}`
-    : def?.description ?? '';
 
   const setFacet = (groupId: string, key: string) => {
     setFacetFilters((prev) => ({ ...prev, [groupId]: key }));
@@ -349,83 +423,67 @@ export function StorefrontCategoryScreen() {
         ) : null}
 
         <View style={[styles.headingBlock, !isDesktop && styles.headingBlockMobile]}>
-          <Text style={styles.title}>{title}</Text>
-          {description ? <Text style={styles.description}>{description}</Text> : null}
+          <Text style={[styles.title, !isDesktop && styles.titleMobile]}>{title}</Text>
         </View>
 
-        <View style={styles.toolbar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.toolbarScroll}
+          contentContainerStyle={styles.toolbar}
+        >
           {showCategoryChips && categoryChipOptions ? (
-            <View style={styles.facetBlock}>
-              <Text style={styles.filterLabel}>Category</Text>
-              <FilterChipRow scrollable={!isDesktop}>
-                {categoryChipOptions.map((c, index) => (
-                  <React.Fragment key={c.slug}>
-                    {c.separatorBefore && index > 0 ? (
-                      <Text
-                        style={styles.chipSeparator}
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                      >
-                        |
-                      </Text>
-                    ) : null}
-                    <FilterChipButton
-                      label={c.label}
-                      active={c.slug === slug}
-                      accent={c.navStyle === 'sale' ? 'sale' : undefined}
-                      onPress={() =>
-                        goCategory(c.slug, {
-                          ...(searchQuery ? { q: searchQuery } : null),
-                          ...(facetFilters.availability &&
-                          facetFilters.availability !== 'all'
-                            ? {
-                                avail: facetFilters.availability as
-                                  | 'buy-now'
-                                  | 'box-only',
-                              }
-                            : null),
-                        })
+            <FilterDropdown
+              id="category"
+              label="Category"
+              options={categoryChipOptions.map((c) => ({
+                key: c.slug,
+                label: c.label,
+                accent: c.navStyle === 'sale' ? 'sale' : undefined,
+              }))}
+              value={slug}
+              open={openFilterId === 'category'}
+              onOpenChange={setOpenFilterId}
+              onChange={(nextSlug) =>
+                goCategory(nextSlug, {
+                  ...(searchQuery ? { q: searchQuery } : null),
+                  ...(facetFilters.availability &&
+                  facetFilters.availability !== 'all'
+                    ? {
+                        avail: facetFilters.availability as 'buy-now' | 'box-only',
                       }
-                    />
-                  </React.Fragment>
-                ))}
-              </FilterChipRow>
-            </View>
+                    : null),
+                })
+              }
+            />
           ) : null}
 
           {contextualGroups.map((group) => {
             const selected = facetFilters[group.id] ?? 'all';
             return (
-              <View key={group.id} style={styles.facetBlock}>
-                <Text style={styles.filterLabel}>{group.label}</Text>
-                <FilterChipRow scrollable={!isDesktop}>
-                  {group.options.map((opt) => (
-                    <FilterChipButton
-                      key={opt.key}
-                      label={opt.label}
-                      active={opt.key === selected}
-                      onPress={() => setFacet(group.id, opt.key)}
-                    />
-                  ))}
-                </FilterChipRow>
-              </View>
+              <FilterDropdown
+                key={group.id}
+                id={group.id}
+                label={group.label}
+                options={group.options}
+                value={selected}
+                open={openFilterId === group.id}
+                onOpenChange={setOpenFilterId}
+                onChange={(key) => setFacet(group.id, key)}
+              />
             );
           })}
 
-          <View style={styles.facetBlock}>
-            <Text style={styles.filterLabel}>Sort</Text>
-            <FilterChipRow scrollable={!isDesktop}>
-              {SORT_OPTIONS.map((opt) => (
-                <FilterChipButton
-                  key={opt.key}
-                  label={opt.label}
-                  active={opt.key === sort}
-                  onPress={() => setSort(opt.key)}
-                />
-              ))}
-            </FilterChipRow>
-          </View>
-        </View>
+          <FilterDropdown
+            id="sort"
+            label="Sort"
+            options={SORT_OPTIONS}
+            value={sort}
+            open={openFilterId === 'sort'}
+            onOpenChange={setOpenFilterId}
+            onChange={(key) => setSort(key as SortKey)}
+          />
+        </ScrollView>
 
         {loading ? (
           <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
@@ -500,98 +558,128 @@ const styles = StyleSheet.create({
   },
   headingBlock: {
     paddingHorizontal: MOBILE_GUTTER,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-    gap: 6,
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
-  /** Breadcrumbs are desktop-only — give the title room under chrome on mobile. */
+  /** Breadcrumbs are desktop-only — tighter title stack under chrome on mobile. */
   headingBlockMobile: {
-    marginTop: spacing.xl,
-    paddingTop: spacing.sm,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    paddingTop: 0,
   },
   title: {
     ...typeface('medium'),
-    fontSize: 28,
+    fontSize: 36,
     color: semanticColors.logoDark,
-    lineHeight: 34,
+    lineHeight: 42,
   },
-  description: {
-    ...typeface('regular'),
-    fontSize: 15,
-    color: semanticColors.textSecondary,
-    lineHeight: 22,
+  titleMobile: {
+    fontSize: 40,
+    lineHeight: 46,
+  },
+  toolbarScroll: {
+    marginBottom: spacing.md,
+    ...(Platform.OS === 'web' ? ({ scrollbarWidth: 'none' } as object) : null),
   },
   toolbar: {
-    paddingHorizontal: MOBILE_GUTTER,
-    marginBottom: spacing.md,
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'flex-start',
     gap: spacing.sm,
+    paddingHorizontal: MOBILE_GUTTER,
+    paddingBottom: 2,
   },
-  facetBlock: {
-    gap: spacing.xs,
+  dropdownWrap: {
+    flexGrow: 0,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    gap: 6,
   },
-  filterLabel: {
+  dropdownLabel: {
     ...typeface('medium'),
     fontSize: typography.sm,
     color: semanticColors.logoDark,
   },
-  chipRow: {
+  dropdownTrigger: {
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: borderRadius.pill,
+    borderWidth: 1,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.bgPrimary,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  chipRowScroll: {
-    marginHorizontal: -2,
-  },
-  chipRowScrollContent: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingVertical: 2,
-    paddingHorizontal: 2,
   },
-  filterChip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: semanticColors.borderDark,
-    backgroundColor: semanticColors.bgDark,
-  },
-  filterChipSale: {
+  dropdownTriggerActive: {
+    backgroundColor: semanticColors.bgPrimary,
     borderColor: semanticColors.brand,
   },
-  filterChipActive: {
+  dropdownTriggerOpen: {
+    borderColor: semanticColors.brand,
+  },
+  dropdownValue: {
+    ...typeface('regular'),
+    flexGrow: 0,
+    flexShrink: 0,
+    fontSize: typography.sm,
+    color: semanticColors.logoDark,
+  },
+  dropdownValueSale: {
+    color: semanticColors.brand,
+  },
+  dropdownChevronOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  dropdownModalRoot: {
+    flex: 1,
+  },
+  dropdownDismiss: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.bgPrimary,
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: '0 10px 28px rgba(17, 2, 34, 0.14)',
+        } as object)
+      : {
+          shadowColor: '#110222',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.14,
+          shadowRadius: 14,
+          elevation: 8,
+        }),
+  },
+  dropdownMenuScroll: {
+    maxHeight: 260,
+  },
+  dropdownItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  dropdownItemActive: {
     backgroundColor: semanticColors.accentCream,
-    borderColor: semanticColors.brand,
   },
-  filterChipText: {
+  dropdownItemText: {
     ...typeface('regular'),
     fontSize: typography.sm,
     color: semanticColors.textSecondary,
   },
-  filterChipTextSale: {
+  dropdownItemTextSale: {
     color: semanticColors.brand,
   },
-  filterChipTextActive: {
+  dropdownItemTextActive: {
     ...typeface('medium'),
     color: semanticColors.logoDark,
-  },
-  filterChipTextSizer: {
-    ...typeface('medium'),
-    opacity: 0,
-  },
-  filterChipTextOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    textAlign: 'center',
-  },
-  chipSeparator: {
-    ...typeface('medium'),
-    fontSize: typography.sm,
-    color: semanticColors.textTertiary,
-    opacity: 0.55,
-    alignSelf: 'center',
-    paddingHorizontal: 2,
   },
   loader: { marginVertical: spacing.xl },
   empty: {

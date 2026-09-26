@@ -33,6 +33,8 @@ type Props = {
   quiet?: boolean;
   /** Fill parent bounds (no intrinsic aspect). Image covers and centers. */
   fill?: boolean;
+  /** Web video: eager for hero, lazy for below-fold strips. */
+  videoLoad?: 'eager' | 'lazy';
 };
 
 function resolveAssetUri(src: string | number | ImageSourcePropType | null | undefined): string | null {
@@ -57,7 +59,14 @@ function toImageSource(
 }
 
 /** Cream/gold frame until lifestyle assets exist (`slot.src`). */
-export function StorefrontMediaPlaceholder({ slot, style, minHeight, quiet, fill }: Props) {
+export function StorefrontMediaPlaceholder({
+  slot,
+  style,
+  minHeight,
+  quiet,
+  fill,
+  videoLoad = 'lazy',
+}: Props) {
   const showPlay = slot.kind === 'video' && !quiet;
   const videoUri = slot.kind === 'video' ? resolveAssetUri(slot.src) : null;
   const posterSource = toImageSource(slot.poster ?? (slot.kind === 'image' ? slot.src : null));
@@ -74,7 +83,7 @@ export function StorefrontMediaPlaceholder({ slot, style, minHeight, quiet, fill
       ]}
     >
       {playVideoOnWeb ? (
-        <StorefrontWebVideo src={videoUri!} poster={posterSource} />
+        <StorefrontWebVideo src={videoUri!} poster={posterSource} load={videoLoad} />
       ) : imageSource ? (
         <Image source={imageSource} style={styles.image} resizeMode="cover" />
       ) : (

@@ -323,6 +323,7 @@ export function OnboardingStack({
             name: c.name || undefined,
             ageGroup: c.ageGroup,
             birthdate: c.birthdate,
+            plannerAge: c.plannerAge,
           }))
       );
       let remappedItems = remapGuestChildIds(items, savedKids);

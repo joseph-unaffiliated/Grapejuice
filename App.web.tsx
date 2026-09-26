@@ -14,8 +14,9 @@ warmWebAuth();
 const FONT_WAIT_MS = 2500;
 
 /**
- * Wait for DM Sans weights before first paint so text metrics don't jump
- * when Google Fonts finishes (App.web does not use expo-splash / useFonts).
+ * Wait for DM Sans before mounting the app so we never paint with the
+ * system fallback (display=optional was skipping the face entirely).
+ * Plain white hold — no HTML marketing shell.
  */
 function useWebFontsReady(): boolean {
   const [ready, setReady] = useState(false);

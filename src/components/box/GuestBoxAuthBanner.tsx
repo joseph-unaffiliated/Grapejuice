@@ -16,7 +16,7 @@ function formatHold(seconds: number): string {
  * Inline guest hold copy for the My Box order-summary card.
  * CTAs live on the summary row (Sign up / Sign in) — this is messaging only.
  */
-export function GuestBoxAuthBanner() {
+export function GuestBoxAuthBanner({ centered = false }: { centered?: boolean }) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [remaining, setRemaining] = useState(HOLD_SECONDS);
@@ -29,7 +29,10 @@ export function GuestBoxAuthBanner() {
   }, []);
 
   return (
-    <Text style={styles.copy} accessibilityRole="summary">
+    <Text
+      style={[styles.copy, centered && styles.copyCentered]}
+      accessibilityRole="summary"
+    >
       {`Items held for ${formatHold(remaining)}. Sign up to save.`}
     </Text>
   );
@@ -44,8 +47,14 @@ function createStyles(colors: SemanticColors) {
       color: colors.goldMuted,
       letterSpacing: -0.22,
       flexShrink: 1,
-      // Breath after Total / price before hold messaging.
+      // Breath after Total / price before hold messaging (inline desktop layout).
       paddingLeft: spacing.sm,
+    },
+    copyCentered: {
+      paddingLeft: 0,
+      width: '100%',
+      textAlign: 'center',
+      flexShrink: 0,
     },
   });
 }

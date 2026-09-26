@@ -38,7 +38,7 @@ export function CartQtyStepper({ quantity, onChange, disabled, maxQuantity, labe
         accessibilityLabel={atOne ? `Remove ${name}` : `Decrease quantity of ${name}`}
       >
         {atOne ? (
-          <Icon icon={icons.trash} size={11} color={semanticColors.goldMuted} />
+          <Icon icon={icons.trash} size={11} color={semanticColors.brand} />
         ) : (
           <Text style={styles.btnText}>−</Text>
         )}
@@ -65,11 +65,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderWidth: 0.5,
-    borderColor: semanticColors.goldMuted,
+    borderColor: semanticColors.brand,
     borderRadius: borderRadius.pill,
     paddingHorizontal: 4,
     minHeight: 32,
-    backgroundColor: semanticColors.bgPrimary,
+    backgroundColor: semanticColors.logoDark,
   },
   disabled: { opacity: 0.55 },
   btn: {
@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
     ...typeface('regular'),
     fontSize: 14,
     lineHeight: 16,
-    color: semanticColors.goldMuted,
+    color: semanticColors.brand,
   },
   value: {
     ...typeface('medium'),
     fontSize: 13,
-    color: semanticColors.logoDark,
+    color: semanticColors.textInverse,
     minWidth: 16,
     textAlign: 'center',
   },

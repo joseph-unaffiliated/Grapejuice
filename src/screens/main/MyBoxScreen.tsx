@@ -58,6 +58,7 @@ import {
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
+import { SwapIntoBoxModal } from '../../components/storefront/SwapIntoBoxModal';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
@@ -222,6 +223,10 @@ export function MyBoxScreen() {
   const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(
     null
   );
+  const [swapPicker, setSwapPicker] = useState<{
+    slotIds: string[];
+    options: CatalogItem[];
+  } | null>(null);
   const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
   const { cardOnFile, openOrder, guardMutation, refreshOrders } = usePaymentGate();
@@ -1303,7 +1308,18 @@ export function MyBoxScreen() {
                         isWrappingPaper && group.unitCents === 0
                           ? () =>
                               void swapToPreWrap(group.lines.map((line) => line.slotId))
-                          : undefined
+                          : group.unitCents === 0
+                            ? () => {
+                                const opts = (swapOptionsBySlot[li.slotId] ?? []).filter(
+                                  (o) => o.id !== li.itemId
+                                );
+                                if (!opts.length) return;
+                                setSwapPicker({
+                                  slotIds: group.lines.map((line) => line.slotId),
+                                  options: opts,
+                                });
+                              }
+                            : undefined
                       }
                       onToggleSurprise={
                         !PILOT_PARENT_ONLY && isParentProfile && isWrappableSlot(li.slotId)
@@ -1504,43 +1520,24 @@ export function MyBoxScreen() {
           : null,
       ]}
     >
-      <View style={styles.summaryBreakdown}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>
-            {kidsCount === 1 ? 'Base box (1 kid)' : `Base box (${kidsCount} kids)`}
-          </Text>
-          <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
-        </View>
-        {chargeableAddOns > 0 ? (
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Add-ons</Text>
-            <Text style={styles.summaryValue}>{formatCatalogDollars(chargeableAddOns)}</Text>
-          </View>
-        ) : null}
-        {donatedCents > 0 || cashDonationCents > 0 ? (
-          <BoxSummaryDonated
-            cents={donatedCents}
-            cashDonationCents={cashDonationCents}
-            onCashDonationChange={
-              locked || guestViewOnly ? undefined : (cents) => void setCashDonation(cents)
-            }
-            labelStyle={styles.summaryLabel}
-            valueStyle={styles.summaryDonatedValue}
-            itemStyle={styles.summaryItem}
-          />
-        ) : null}
-        <View style={styles.summaryTotalItem}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
-          {retailValueCents > 0 ? (
-            <Text style={styles.summaryRetailValue}>
-              ({formatCatalogDollars(retailValueCents)} value)
+      {guestViewOnly && !isDesktop ? (
+        <View style={styles.guestSummaryStack}>
+          <View style={styles.guestPriceLine}>
+            <Text style={styles.summaryLabel}>
+              {kidsCount === 1 ? 'Base box (1 kid)' : `Base box (${kidsCount} kids)`}
             </Text>
-          ) : null}
-          {guestViewOnly ? <GuestBoxAuthBanner /> : null}
-        </View>
-        {guestViewOnly ? (
-          <View style={styles.summaryCtaRow}>
+            <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
+            <Text style={styles.guestPriceSep}>|</Text>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
+            {retailValueCents > 0 ? (
+              <Text style={styles.summaryRetailValue}>
+                ({formatCatalogDollars(retailValueCents)} value)
+              </Text>
+            ) : null}
+          </View>
+          <GuestBoxAuthBanner centered />
+          <View style={styles.guestCtaRow}>
             <Pressable
               style={({ pressed, hovered }) => [
                 styles.checkoutCta,
@@ -1569,86 +1566,154 @@ export function MyBoxScreen() {
               <Text style={styles.guestSignIn}>Log in</Text>
             </TouchableOpacity>
           </View>
-        ) : canUpdateCommittedOrder ? (
-          <View style={styles.summaryCtaRow} accessibilityLiveRegion="polite">
-            {savingOrder || (hasSessionEdits && orderDirty) ? (
-              <Text style={styles.orderSaveStatus}>Saving changes…</Text>
-            ) : hasSessionEdits ? (
-              <Text style={styles.orderSaveStatus} accessibilityRole="text">
-                ✓ All changes saved
+        </View>
+      ) : (
+        <View style={styles.summaryBreakdown}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>
+              {kidsCount === 1 ? 'Base box (1 kid)' : `Base box (${kidsCount} kids)`}
+            </Text>
+            <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
+          </View>
+          {chargeableAddOns > 0 ? (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Add-ons</Text>
+              <Text style={styles.summaryValue}>{formatCatalogDollars(chargeableAddOns)}</Text>
+            </View>
+          ) : null}
+          {donatedCents > 0 || cashDonationCents > 0 ? (
+            <BoxSummaryDonated
+              cents={donatedCents}
+              cashDonationCents={cashDonationCents}
+              onCashDonationChange={
+                locked || guestViewOnly ? undefined : (cents) => void setCashDonation(cents)
+              }
+              labelStyle={styles.summaryLabel}
+              valueStyle={styles.summaryDonatedValue}
+              itemStyle={styles.summaryItem}
+            />
+          ) : null}
+          <View style={styles.summaryTotalItem}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
+            {retailValueCents > 0 ? (
+              <Text style={styles.summaryRetailValue}>
+                ({formatCatalogDollars(retailValueCents)} value)
               </Text>
             ) : null}
-            {hasSessionEdits ? (
+            {guestViewOnly ? <GuestBoxAuthBanner /> : null}
+          </View>
+          {guestViewOnly ? (
+            <View style={styles.summaryCtaRow}>
               <Pressable
                 style={({ pressed, hovered }) => [
                   styles.checkoutCta,
-                  (hovered || pressed) && !savingOrder && styles.checkoutCtaHover,
-                  savingOrder && styles.checkoutCtaDisabled,
+                  styles.guestPrimaryCta,
+                  (hovered || pressed) && styles.checkoutCtaHover,
                 ]}
-                onPress={() => void discardOrderChanges()}
-                disabled={savingOrder}
+                onPress={() => requireAuthToCustomize('signup')}
                 accessibilityRole="button"
-                accessibilityLabel="Revert changes"
-                accessibilityState={{ disabled: savingOrder }}
               >
                 {({ pressed, hovered }) => (
                   <Text
                     style={[
                       styles.checkoutText,
-                      (hovered || pressed) && !savingOrder && styles.checkoutTextHover,
+                      (hovered || pressed) && styles.checkoutTextHover,
                     ]}
                   >
-                    Revert changes
+                    Sign up
                   </Text>
                 )}
               </Pressable>
-            ) : null}
-            <Pressable
-              style={({ pressed, hovered }) => [
-                styles.checkoutCta,
-                (hovered || pressed) && styles.checkoutCtaHover,
-              ]}
-              onPress={goToCheckout}
-              accessibilityRole="button"
-            >
-              {({ pressed, hovered }) => (
-                <Text
-                  style={[
-                    styles.checkoutText,
-                    (hovered || pressed) && styles.checkoutTextHover,
-                  ]}
-                >
-                  View order status
+              <TouchableOpacity
+                onPress={() => requireAuthToCustomize('signin')}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Text style={styles.guestSignIn}>Log in</Text>
+              </TouchableOpacity>
+            </View>
+          ) : canUpdateCommittedOrder ? (
+            <View style={styles.summaryCtaRow} accessibilityLiveRegion="polite">
+              {savingOrder || (hasSessionEdits && orderDirty) ? (
+                <Text style={styles.orderSaveStatus}>Saving changes…</Text>
+              ) : hasSessionEdits ? (
+                <Text style={styles.orderSaveStatus} accessibilityRole="text">
+                  ✓ All changes saved
                 </Text>
-              )}
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.summaryCtaRow}>
-            <Pressable
-              style={({ pressed, hovered }) => [
-                styles.checkoutCta,
-                (hovered || pressed) && styles.checkoutCtaHover,
-                locked && styles.checkoutCtaDisabled,
-              ]}
-              onPress={goToCheckout}
-              disabled={locked || lineItems.length === 0}
-              accessibilityRole="button"
-            >
-              {({ pressed, hovered }) => (
-                <Text
-                  style={[
-                    styles.checkoutText,
-                    (hovered || pressed) && styles.checkoutTextHover,
+              ) : null}
+              {hasSessionEdits ? (
+                <Pressable
+                  style={({ pressed, hovered }) => [
+                    styles.checkoutCta,
+                    (hovered || pressed) && !savingOrder && styles.checkoutCtaHover,
+                    savingOrder && styles.checkoutCtaDisabled,
                   ]}
+                  onPress={() => void discardOrderChanges()}
+                  disabled={savingOrder}
+                  accessibilityRole="button"
+                  accessibilityLabel="Revert changes"
+                  accessibilityState={{ disabled: savingOrder }}
                 >
-                  {cardOnFile ? 'Review shipping' : 'Add payment & shipping'}
-                </Text>
-              )}
-            </Pressable>
-          </View>
-        )}
-      </View>
+                  {({ pressed, hovered }) => (
+                    <Text
+                      style={[
+                        styles.checkoutText,
+                        (hovered || pressed) && !savingOrder && styles.checkoutTextHover,
+                      ]}
+                    >
+                      Revert changes
+                    </Text>
+                  )}
+                </Pressable>
+              ) : null}
+              <Pressable
+                style={({ pressed, hovered }) => [
+                  styles.checkoutCta,
+                  (hovered || pressed) && styles.checkoutCtaHover,
+                ]}
+                onPress={goToCheckout}
+                accessibilityRole="button"
+              >
+                {({ pressed, hovered }) => (
+                  <Text
+                    style={[
+                      styles.checkoutText,
+                      (hovered || pressed) && styles.checkoutTextHover,
+                    ]}
+                  >
+                    View order status
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.summaryCtaRow}>
+              <Pressable
+                style={({ pressed, hovered }) => [
+                  styles.checkoutCta,
+                  (hovered || pressed) && styles.checkoutCtaHover,
+                  locked && styles.checkoutCtaDisabled,
+                ]}
+                onPress={goToCheckout}
+                disabled={locked || lineItems.length === 0}
+                accessibilityRole="button"
+              >
+                {({ pressed, hovered }) => (
+                  <Text
+                    style={[
+                      styles.checkoutText,
+                      (hovered || pressed) && styles.checkoutTextHover,
+                    ]}
+                  >
+                    {cardOnFile ? 'Review shipping' : 'Add payment & shipping'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 
@@ -1676,6 +1741,7 @@ export function MyBoxScreen() {
           lineItems={lineItems}
           catalog={catalog}
           childrenProfiles={children}
+          showReset={!locked && !guestViewOnly && !isChildProfile}
           onPressItem={(_itemId, sectionId) => {
             requestAnimationFrame(() =>
               scrollToSection(sectionId, { inset: BOX_SUMMARY_SCROLL_INSET })
@@ -1777,6 +1843,32 @@ export function MyBoxScreen() {
         onAdd={modalAddToBox}
         onSwap={modalSwapIntoBox}
         onRemove={modalRemoveFromBox}
+        onQuantityChange={(next, delta) => {
+          const group = coalesceLinesByItemId(
+            lineItems.filter((li) => li.itemId === next.id)
+          )[0];
+          if (!group) return;
+          const sectionId =
+            productModalSection ?? displaySectionForCatalogItem(next);
+          void changeBoxQuantity(group, delta, sectionId);
+        }}
+      />
+      <SwapIntoBoxModal
+        visible={swapPicker != null && (swapPicker?.options.length ?? 0) > 0}
+        options={(swapPicker?.options ?? []).map((opt) => ({
+          key: opt.id,
+          name: opt.name,
+          imageUrl: opt.imageUrl,
+          itemId: opt.id,
+        }))}
+        onSelect={(key) => {
+          if (!swapPicker) return;
+          const opt = swapPicker.options.find((o) => o.id === key);
+          const slotIds = swapPicker.slotIds;
+          setSwapPicker(null);
+          if (opt) void applySwap(slotIds, opt);
+        }}
+        onCancel={() => setSwapPicker(null)}
       />
     </StorefrontChrome>
   );
@@ -1914,6 +2006,33 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     // Mobile: no top hairline — it reads as a seam over scrolling product.
     borderWidth: isDesktop ? StyleSheet.hairlineWidth : 0,
     borderColor: colors.goldMuted,
+  },
+  /** Mobile guest: price line → hold copy → CTAs, all centered. */
+  guestSummaryStack: {
+    width: '100%',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  guestPriceLine: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  guestPriceSep: {
+    fontSize: typography.sm,
+    color: colors.goldMuted,
+    ...typeface('medium'),
+    marginHorizontal: spacing.xs,
+    opacity: 0.7,
+  },
+  guestCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    width: '100%',
   },
   summaryBreakdown: {
     flexDirection: 'row',

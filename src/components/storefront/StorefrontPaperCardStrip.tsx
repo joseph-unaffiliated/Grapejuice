@@ -101,7 +101,9 @@ const styles = StyleSheet.create({
   headline: {
     ...typeface('medium'),
     fontSize: 28,
-    lineHeight: 34,
+    // RN lineHeight is px only — 115% of fontSize (unitless % is not supported).
+    lineHeight: 28 * 1.15,
+    letterSpacing: -0.3,
     color: semanticColors.logoDark,
     textAlign: 'center',
     maxWidth: 400,
@@ -145,7 +147,7 @@ const styles = StyleSheet.create({
   ctaSecondary: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: semanticColors.border,
+    borderColor: semanticColors.logoDark,
   },
   ctaSecondaryText: {
     ...typeface('medium'),

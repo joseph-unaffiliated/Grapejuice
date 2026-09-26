@@ -96,7 +96,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 16,
     paddingHorizontal: MOBILE_GUTTER,
-    paddingVertical: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm - 2,
     borderBottomWidth: 0,
   },
   separator: {

@@ -34,6 +34,7 @@ import { resolveCatalogDisplayPrices, boxALaCarteRetailValueCents, boxAddOnUnitC
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
+import { SwapIntoBoxModal } from '../../components/storefront/SwapIntoBoxModal';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
@@ -173,6 +174,12 @@ export function GiftGiverCustomizeContent({
   const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(
     null
   );
+  const [swapPicker, setSwapPicker] = useState<{
+    slotIds: string[];
+    options: CatalogItem[];
+    sourceItemId: string;
+    quantity: number;
+  } | null>(null);
   const styles = useMemo(() => createGiftCustomizeStyles(colors, isDesktop), [colors, isDesktop]);
   const detailStyles = useMemo(
     () => createBoxDetailStyles(colors, { desktop: isDesktop }),
@@ -541,9 +548,23 @@ export function GiftGiverCustomizeContent({
               onPrimarySwapAction={
                 isWrappingPaper
                   ? () => swapToPreWrap(group.lines.map((line) => line.slotId))
-                  : undefined
+                  : group.unitCents === 0
+                    ? () => {
+                        const opts = (swapOptionsBySlot[li.slotId] ?? []).filter(
+                          (o) => o.id !== li.itemId
+                        );
+                        if (!opts.length) return;
+                        setSwapPicker({
+                          slotIds: group.lines.map((line) => line.slotId),
+                          options: opts,
+                          sourceItemId: group.itemId,
+                          quantity: Math.max(1, group.quantity ?? 1),
+                        });
+                      }
+                    : undefined
               }
               decrementMode={group.unitCents === 0 ? 'donate' : 'remove'}
+              removeLabel="Remove from gift"
               onRemove={() => trackAndRemoveCoalesced(group)}
               onOpenProduct={() => {
                 if (!item) return;
@@ -830,6 +851,31 @@ export function GiftGiverCustomizeContent({
           const group = coalesceLinesByItemId(lineItems.filter((li) => li.itemId === next.id))[0];
           if (group) trackAndRemoveCoalesced(group);
         }}
+      />
+      <SwapIntoBoxModal
+        visible={swapPicker != null && (swapPicker?.options.length ?? 0) > 0}
+        options={(swapPicker?.options ?? []).map((opt) => ({
+          key: opt.id,
+          name: opt.name,
+          imageUrl: opt.imageUrl,
+          itemId: opt.id,
+        }))}
+        onSelect={(key) => {
+          if (!swapPicker) return;
+          const opt = swapPicker.options.find((o) => o.id === key);
+          const { slotIds, sourceItemId, quantity } = swapPicker;
+          setSwapPicker(null);
+          if (!opt) return;
+          transferIncludedBaselineOnSwap(
+            includedBaselineByItemId.current,
+            sourceItemId,
+            opt.id,
+            quantity,
+            0
+          );
+          applySwap(slotIds, opt);
+        }}
+        onCancel={() => setSwapPicker(null)}
       />
     </View>
   );

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   TouchableOpacity,
   Animated,
@@ -10,7 +11,7 @@ import {
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../chat/PilotAIChatSheet';
-import { semanticColors, spacing } from '../../constants/theme';
+import { semanticColors, spacing, typography, typeface } from '../../constants/theme';
 
 type Props = {
   visible: boolean;
@@ -21,9 +22,8 @@ type Props = {
   /** Panel width (desktop docked or mobile overlay). */
   width: number;
   /**
-   * Offset from the top of the storefront shell so Rav sits below the visible
-   * header (in-flow, overlay, or 1:1 scroll-tracked). Animated while the overlay
-   * header moves.
+   * Offset from the top of the storefront shell so Rav sits under the visible nav
+   * (promo+header at top, or sticky mini-bar mid-page).
    */
   topInset?: number | Animated.AnimatedInterpolation<number> | Animated.Value;
   /**
@@ -38,8 +38,9 @@ type RavView = 'welcome' | 'recent' | 'thread';
 const DRAWER_MS = 280;
 
 /**
- * Rav chat pane — docked side panel on desktop; absolute sheet on mobile.
- * Not a Modal: the storefront page stays interactive and scrollable.
+ * Rav chat pane — docked side panel on desktop; fixed sheet under the nav on mobile.
+ * Mobile web pins to the visual viewport and locks background scroll so the soft
+ * keyboard can’t shove the storefront out from under the sheet.
  *
  * When opening with an Ask Rav question, the pane stays hidden until the chat
  * reports thread view (seeded user bubble + thinking) so welcome/history never flash.
@@ -58,8 +59,14 @@ export function StorefrontRavDrawer({
   const [mounted, setMounted] = useState(false);
   const [uiRevealed, setUiRevealed] = useState(false);
   const [ravView, setRavView] = useState<RavView>('welcome');
+  /** Web visual viewport — keep a fixed sheet above the soft keyboard. */
+  const [vv, setVv] = useState(() => ({
+    offsetTop: 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
   const bootstrapMessage = initialMessage?.trim() || undefined;
   const bootstrapping = Boolean(bootstrapMessage) && visible;
+  const insetPx = typeof topInset === 'number' ? topInset : 0;
 
   const onViewChange = useCallback((view: RavView) => {
     setRavView(view);
@@ -116,6 +123,47 @@ export function StorefrontRavDrawer({
     return () => clearTimeout(t);
   }, [visible, bootstrapping, uiRevealed]);
 
+  // Mobile web: pin to the visual viewport (not 100svh / document scroll).
+  // Outer shell stays `position: fixed` without a transform so iOS doesn’t
+  // scroll the page out from under the sheet when the keyboard opens.
+  useEffect(() => {
+    if (docked || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const sync = () => {
+      const v = window.visualViewport;
+      setVv({
+        offsetTop: v?.offsetTop ?? 0,
+        height: v?.height ?? window.innerHeight,
+      });
+    };
+    sync();
+    const v = window.visualViewport;
+    v?.addEventListener('resize', sync);
+    v?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      v?.removeEventListener('resize', sync);
+      v?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, [docked, visible]);
+
+  // Lock background document scroll while the mobile sheet is open.
+  useEffect(() => {
+    if (docked || Platform.OS !== 'web' || !visible || typeof document === 'undefined') {
+      return;
+    }
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
+    };
+  }, [docked, visible]);
+
   if (!mounted) return null;
 
   const historyOpen = ravView === 'recent';
@@ -131,24 +179,34 @@ export function StorefrontRavDrawer({
   const chrome = (
     <View style={styles.chrome}>
       <TouchableOpacity
-        style={styles.chromeHit}
+        style={styles.chromeAction}
         onPress={onHistoryToggle}
         accessibilityRole="button"
         accessibilityLabel={historyOpen ? 'Back to Rav' : 'Chat history'}
       >
-        <Icon
-          icon={historyOpen ? icons.arrowLeft : icons.clockHistory}
-          size={14}
-          color={semanticColors.logoDark}
-        />
+        <View style={styles.chromeHit}>
+          <Icon
+            icon={historyOpen ? icons.arrowLeft : icons.clockHistory}
+            size={14}
+            color={semanticColors.logoDark}
+          />
+        </View>
+        {docked ? (
+          <Text style={styles.chromeLabel}>
+            {historyOpen ? 'back' : 'chat history'}
+          </Text>
+        ) : null}
       </TouchableOpacity>
       <TouchableOpacity
-        style={styles.chromeHit}
+        style={styles.chromeAction}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close Rav"
       >
-        <Icon icon={icons.chevronsRight} size={14} color={semanticColors.logoDark} />
+        {docked ? <Text style={styles.chromeLabel}>collapse</Text> : null}
+        <View style={styles.chromeHit}>
+          <Icon icon={icons.chevronsRight} size={14} color={semanticColors.logoDark} />
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -191,24 +249,38 @@ export function StorefrontRavDrawer({
     );
   }
 
-  // Mobile: absolute sheet — no Modal, so body scroll is never locked.
+  // Mobile: fixed to the visual viewport under the storefront nav.
+  // Slide transform lives on an inner wrapper so `position: fixed` stays viewport-relative.
+  // Mount as a direct child of StorefrontChrome root (not bodyRow) so fixed + z-index
+  // stack correctly under the sticky chrome.
+  const sheetTop = Platform.OS === 'web' ? vv.offsetTop + insetPx : topInset;
+  const sheetHeight =
+    Platform.OS === 'web' ? Math.max(160, vv.height - insetPx) : undefined;
+
   return (
-    <Animated.View
+    <View
       style={[
         styles.overlaySheet,
+        Platform.OS === 'web' ? styles.overlaySheetFixed : null,
         {
           width: drawerWidth,
-          top: topInset,
-          transform: [{ translateX }],
+          top: sheetTop,
+          ...(sheetHeight != null
+            ? { height: sheetHeight, bottom: undefined }
+            : { bottom: 0 }),
           opacity: bootstrapping && !uiRevealed ? 0 : 1,
         },
       ]}
       pointerEvents={uiRevealed ? 'auto' : 'none'}
       accessibilityLabel="Rav chat"
     >
-      {chrome}
-      {chat}
-    </Animated.View>
+      <Animated.View
+        style={[styles.overlayInner, { transform: [{ translateX }] }]}
+      >
+        {chrome}
+        {chat}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -240,8 +312,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     bottom: 0,
+    // Below sticky chrome (zIndex 30) so nav stays on top of the sheet.
     zIndex: 20,
     backgroundColor: semanticColors.bgPrimary,
+    overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)' } as object)
       : {
@@ -252,19 +326,42 @@ const styles = StyleSheet.create({
           elevation: 16,
         }),
   },
+  /** Web: escape document scroll / keyboard jank by pinning to the viewport. */
+  overlaySheetFixed: {
+    position: 'fixed' as unknown as 'absolute',
+    left: 'auto',
+    right: 0,
+  },
+  overlayInner: {
+    flex: 1,
+    minHeight: 0,
+    flexDirection: 'column',
+    height: '100%',
+  },
   chrome: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    // Match top padding optically on left/right.
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
+  },
+  chromeAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   chromeHit: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chromeLabel: {
+    ...typeface('medium'),
+    fontSize: typography.sm,
+    color: semanticColors.logoDark,
   },
   chat: {
     flex: 1,

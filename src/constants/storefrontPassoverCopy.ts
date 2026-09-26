@@ -3,6 +3,12 @@
  * + early passover-2027.html structure (roadmap).
  */
 
+import {
+  HANUKKAH_2027_NOTIFY_INTEREST,
+  HIGH_HOLIDAYS_SUKKOT_2027_INTEREST,
+  PASSOVER_NOTIFY_INTEREST,
+} from './pilotHolidays';
+
 export const PASSOVER_COPY = {
   crumb: '2027 Passover',
   eyebrow: 'Passover 2027',
@@ -34,12 +40,14 @@ export const PASSOVER_COPY = {
             ctaLabel: 'Pre-register',
             ctaAction: 'preRegister' as const,
             ctaVariant: 'primary' as const,
+            interestKey: PASSOVER_NOTIFY_INTEREST,
           },
           {
             when: 'October 2–23, 2027',
             what: 'High Holidays + Sukkot',
             ctaLabel: 'Pre-register',
             ctaAction: 'preRegister' as const,
+            interestKey: HIGH_HOLIDAYS_SUKKOT_2027_INTEREST,
           },
           {
             // Hebcal: 1 Candle → 8th Day
@@ -47,6 +55,7 @@ export const PASSOVER_COPY = {
             what: 'Hanukkah',
             ctaLabel: 'Pre-register',
             ctaAction: 'preRegister' as const,
+            interestKey: HANUKKAH_2027_NOTIFY_INTEREST,
           },
           {
             when: 'February 12, 2028',

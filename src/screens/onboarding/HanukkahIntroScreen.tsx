@@ -18,7 +18,7 @@ export function HanukkahIntroScreen({ onContinue }: Props) {
   return (
     <OnboardingScreenLayout
       kicker="How it Works"
-      title="Eight nights. Your pace."
+      title="Eight nights. Your way."
       primaryLabel="Continue"
       onPrimary={onContinue}
     >

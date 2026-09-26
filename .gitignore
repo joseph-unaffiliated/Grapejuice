@@ -15,3 +15,6 @@ functions/.env.*
 .DS_Store
 tmp/
 .tools/
+# Local originals kept after web asset compression (do not deploy / commit)
+assets/catalog/archive/
+assets/storefront/archive/

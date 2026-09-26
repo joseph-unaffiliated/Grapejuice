@@ -1,6 +1,10 @@
 import type { ImageSourcePropType } from 'react-native';
 import { HOME_HOLIDAY_THUMBS } from './homeImages';
-import { PASSOVER_NOTIFY_INTEREST } from './pilotHolidays';
+import {
+  HANUKKAH_2027_NOTIFY_INTEREST,
+  HIGH_HOLIDAYS_SUKKOT_2027_INTEREST,
+  PASSOVER_NOTIFY_INTEREST,
+} from './pilotHolidays';
 
 export type MyBoxesHolidayAction = 'get-started' | 'pre-register';
 
@@ -42,7 +46,17 @@ export const MY_BOXES_HOLIDAYS: MyBoxesHoliday[] = [
     image: HOME_HOLIDAY_THUMBS.highHolidays,
     action: 'pre-register',
     ravPrompt: "I'd like to start thinking about the High Holidays and Sukkot",
-    interestKey: 'high-holidays-sukkot-2027',
+    interestKey: HIGH_HOLIDAYS_SUKKOT_2027_INTEREST,
+  },
+  {
+    id: 'hanukkah-2027',
+    name: 'Hanukkah',
+    dateLabel: 'December 24, 2027 – January 1, 2028',
+    dismissLabel: 'Hanukkah 2027',
+    image: HOME_HOLIDAY_THUMBS.hanukkah,
+    action: 'pre-register',
+    ravPrompt: "I'd like to start thinking about Hanukkah 2027",
+    interestKey: HANUKKAH_2027_NOTIFY_INTEREST,
   },
   {
     id: 'purim-2028',

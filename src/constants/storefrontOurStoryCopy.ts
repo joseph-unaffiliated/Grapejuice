@@ -8,13 +8,17 @@ export const OUR_STORY_COPY = {
   eyebrow: 'About Grapejuice',
   title: 'Anyone who wants to do Jewish should be able to.',
   lead:
-    'We build Grapejuice so people with an interest in doing Jewish can actually do it — holidays, rites of passage, or the occasional Shabbat — so nothing, not cost, proximity, fluency, politics, or religious beliefs get in the way.',
+    'We build Grapejuice so anyone interested in Jewish practices can do them however they see fit — holidays, rites of passage, or the occasional Shabbat — so nothing, not cost, proximity, fluency, politics, or religious beliefs get in the way.',
   listening: {
-    heading: 'We started by listening',
+    heading: 'We started by asking people what, if\u00A0anything, they want help with',
     body: [
-      'We began in 2026 by listening. Even for the most widely practiced parts of Jewish life, some people still feel locked out.',
-      { body: 'So we decided to start with Hanukkah.', weight: 'semibold' as const },
-      'Hanukkah is by far the most practiced Jewish holiday — more than about 80% of people do it in some form. Roughly one in five don’t. Of those who don’t, some wish they could. Reasons we heard: they don’t know when it’s coming (the lunar calendar shifts each year), it isn’t affordable, they can’t get the materials or don’t know what they need, it feels too politicized right now, or too religious — and they wish there were a way that crossed those barriers.',
+      'Starting in January 2026, we conducted interviews, organized research panels, and surveyed hundreds of families to better understand where there is friction preventing them from practicing as they wish they could.',
+      'For some the barriers were ideological (too religious, too political) and for others they were logistical (too expensive, too time consuming, too hard to remember when it is). Some just didn\'t know where to start.',
+      [
+        { body: 'We decided to start with Hanukkah.', weight: 'semibold' as const },
+        'From our research, we found that more than 80% of people who hold a Jewish identity do it in some form. Of the 20% who don’t, some wish they could.',
+      ],
+      'Our goal is to make it so noone who wishes they could bring Hanukkah into their home is unable to do so',
     ],
   },
   beliefs: {
@@ -26,17 +30,17 @@ export const OUR_STORY_COPY = {
           {
             title: "'Jewish' is a verb",
             body:
-              'Not a denomination. Not a bloodline certificate. Not a position on Israel. Something you do. You practice Jewish the way you practice music or medicine — imperfectly, continuously, with accumulating depth. "I am Jewish" is identity. "I do Jewish" is practice. Both are true. Only one builds anything.',
+              'You practice Jewish the way you practice music or medicine — imperfectly, continuously, with accumulating fluency. It\'s not about what you feel or believe, it\'s about what you do. The sense of connection and meaning follows.',
           },
           {
             title: "Anyone can do 'Jewish'",
             body:
-              'We do not ask for a rabbinical conversion certificate. We do not require Jewish parents or Jewish grandparents. If you want to practice, you can practice. The question of who is Jewish — policed by institutional gatekeepers — is not our question. Our question is: what are you practicing, and toward what end?',
+              'We don\'t need to see any paperwork. If you want to practice, you can practice. The question of who is Jewish is not our question. Our question is: what is your practice today, what do you wish it were, and how can we help close that gap?',
           },
           {
             title: "'A part' not 'apart'",
             body:
-              'The community we are building is not inward-facing. The Jewish ethical tradition — tzedakah, tikkun olam, the obligation to repair — produces people who go outward. Until everyone is free, no one is free. This kind of Jewish practice makes people more engaged with the world — not more insular.',
+              'We don\'t fear the stranger. We don\'t idealize insularity. Our work is rooted in the traditions of tzedakah (charity), hachnasat orchim (welcoming strangers), and tikkun olam (repairing the world), ones that ask us to open our hearts.',
           },
         ],
       },
@@ -46,17 +50,17 @@ export const OUR_STORY_COPY = {
           {
             title: 'You are enough',
             body:
-              "We do not start from the premise that disconnected Jewish families are a problem to be solved or a group to be returned to the fold. If they're happy, we're happy. Our work is to build infrastructure to support them on their terms — not to change them. Deficit framing is condescending and it doesn't work.",
+              "You get to define success on your own terms. We come in with no agenda to change people or engage with them as broken things to be fixed. If you're happy, we're happy. Deficit framing is condescending and it doesn't work.",
           },
           {
             title: 'All is up for interpretation',
             body:
-              'The oral torah was given as a living document — an ongoing invitation for each generation to interpret Judaism on its own terms. In a moment of fear, it was declared closed. We are living in the wake of that decision. The tradition of interpretation is core Jewish technology. It belongs to everyone who practices.',
+              'The oral torah was given as a living practice — an ongoing invitation for each generation to interpret Judaism on its own terms. The tradition of interpretation is core Jewish technology. It belongs to everyone who practices.',
           },
           {
             title: 'Permission to do it your way',
             body:
-              "Many secular Jewish families do not feel empowered to make Jewish practices their own — afraid of doing it wrong, uncertain whether it's really for them, worried about what they don't know. Nobody has told them they're allowed to make it their own, no performance required. There's no one right way.",
+              "Many families don't feel empowered to make Jewish practices their own — afraid of doing it wrong, worried about what they don't know. We are in a position to help them realize they are allowed to make it their own – that there's no one right way.",
           },
         ],
       },
@@ -64,33 +68,37 @@ export const OUR_STORY_COPY = {
         heading: "It's Practical",
         items: [
           {
-            title: 'Design for change',
+            title: 'The calendar as technology',
             body:
-              'The organizing principle for Jewish family experiences and education is that kids get older every year. Hanukkah for a 4-year-old is different from Hanukkah for an 8-year-old — and both are different from a bar mitzvah at 13. Families are always changing, and so are the conversations.',
+              "Judaism offers us a unique approach to meaning-making by inviting us to note the passage of time across all time-scales, with rituals for each — lifecycle events, annual holidays, months, weeks, days... You don't need to believe anything to benefit from it.",
           },
           {
-            title: 'The calendar is technology',
+            title: 'Practices evolve with you',
             body:
-              "Judaism's most durable innovation is not theology. It is time-keeping. A structured relationship to the year — Shabbat every week, holidays at their seasons, life cycle moments marked with ritual — is the mechanism by which meaning accretes across a lifetime. You don't need to believe anything to use it.",
+              'We take as a given that people\'s beliefs change, their circumstances change, their kids get older, everything changes. And so it is only natural that one\'s practice should evolve with it. The work of re-imagination is an ongoing process.',
           },
           {
-            title: 'Culture goes beyond religion',
+            title: 'Belonging and community',
             body:
-              'Without ties to institutional Judaism people lose more than just religion, they lose the social fabric: shared meals, community aid and accountability, arts patronage, the marking of ordinary time. Most of that fabric was not religious in any essential sense — it was cultural. It can be rebuilt without the ideology.',
+              'Jewish culture naturally affords a rich social fabric: shared meals, community aid and accountability, arts patronage, the marking of ordinary time. It should be available to anyone regardless of what they believe.',
           },
         ],
       },
     ],
   },
   give: {
-    heading: "Making it your own\ndoesn’t mean doing it alone",
+    heading: 'Making it your own doesn’t\u00A0mean doing it alone',
+    /** Forced breaks only on compact viewports. */
+    headingMobile: "Making it your own\ndoesn’t mean\ndoing it alone",
     body:
-      'You can donate boxes — we distribute them for free to families. We subsidize programs for people for whom this would be their first Hanukkah, and for people who lack the means to do Hanukkah for themselves. Make a donation if you can; we do not issue tax receipts.',
+      'In addition to the products you see on this site, making it cheap and easy to do Jewish your own way, we also distribute overstocked products to families in need at no cost. This is made possible thanks to donations made by our customers and is further subsidized by our backers. We focus this program on serving families for whom this would be their first Hanukkah, and for people who lack the means to do Hanukkah for themselves.',
+    primaryCta: 'Make a donation',
+    secondaryCta: 'Gift a Hanukkah box',
   },
   team: {
-    heading: 'Who’s behind this',
+    heading: 'Who’s behind all this?',
     body:
-      'Grapejuice was started in 2026 by Joseph Weissgold, a designer, social entrepreneur, and the son of a (untraditional) rabbi. Grapejuice is a product of Unaffiliated Inc. and is maintained by a small team based out of Toronto and New York. Early funding for the development of Grapejuice was granted by Common Era, a division of the Jim Joseph Foundation.',
+      'Grapejuice was started in 2026 by Joseph Weissgold, a designer, social entrepreneur, and the son of an (untraditional) rabbi. Grapejuice is a product of Unaffiliated Inc. and is maintained by a small team based out of Toronto and New York. Early funding for the development of Grapejuice was granted by Common Era, a division of the Jim Joseph Foundation.',
   },
   involve: {
     heading: 'Get involved',

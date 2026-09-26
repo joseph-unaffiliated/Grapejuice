@@ -3,11 +3,12 @@ import { Platform, useWindowDimensions } from 'react-native';
 import { LAYOUT } from '../constants/theme';
 
 /**
- * Layout viewport width for breakpoint decisions.
+ * Layout viewport size for breakpoint / hero decisions.
  *
- * On web, prefer `window.innerWidth` / `documentElement.clientWidth` over RN’s
- * `visualViewport`-based Dimensions — pinch-zoom and some embedded browsers
- * under-report visualViewport and incorrectly flip the storefront into “mobile”.
+ * On web, prefer `window.innerWidth` / `innerHeight` (and documentElement)
+ * over RN’s `visualViewport`-based Dimensions — pinch-zoom and some embedded
+ * browsers under-report visualViewport (wrong “mobile” breakpoint) and the
+ * first Dimensions height can be 0, which makes the hero jump after hydrate.
  */
 export function readLayoutViewportWidth(fallback = 0): number {
   if (Platform.OS !== 'web' || typeof window === 'undefined') {
@@ -19,12 +20,28 @@ export function readLayoutViewportWidth(fallback = 0): number {
   return Math.round(w);
 }
 
+export function readLayoutViewportHeight(fallback = 0): number {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return fallback;
+  }
+  const fromInner = window.innerHeight;
+  const fromDoc = document.documentElement?.clientHeight ?? 0;
+  const h = fromInner || fromDoc || fallback;
+  return Math.round(h);
+}
+
 export function useLayoutBreakpoint() {
-  const { width: dimWidth, height } = useWindowDimensions();
+  const { width: dimWidth, height: dimHeight } = useWindowDimensions();
   const [width, setWidth] = useState(() => readLayoutViewportWidth(dimWidth));
+  const [height, setHeight] = useState(() =>
+    readLayoutViewportHeight(dimHeight)
+  );
 
   useEffect(() => {
-    const sync = () => setWidth(readLayoutViewportWidth(dimWidth));
+    const sync = () => {
+      setWidth(readLayoutViewportWidth(dimWidth));
+      setHeight(readLayoutViewportHeight(dimHeight));
+    };
     sync();
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
 
@@ -34,7 +51,7 @@ export function useLayoutBreakpoint() {
       window.removeEventListener('resize', sync);
       window.visualViewport?.removeEventListener('resize', sync);
     };
-  }, [dimWidth]);
+  }, [dimWidth, dimHeight]);
 
   const isCompact = width < LAYOUT.BREAKPOINT_TABLET;
   const isTabletUp = width >= LAYOUT.BREAKPOINT_TABLET;

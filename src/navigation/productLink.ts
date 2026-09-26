@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
-import { STORE_PATH_PREFIX, storefrontFromState } from './storeLink';
+import { STORE_PATH_PREFIX, storePathHome, storefrontFromState } from './storeLink';
 import { BOX_PATH, myBoxFromState, shouldPreserveInboundBoxUrl, consumeInboundBoxUrlPreserve } from './boxLink';
 import { ACCOUNT_PATH, accountFromState } from './accountLink';
 import { ORDERS_PATH, ordersFromState } from './ordersLink';
@@ -37,7 +37,7 @@ export const PRODUCT_PATH_PREFIX = '/product';
 /** Browser path for a catalog product (`/product/arch-menorah`). */
 export function productPathForSlug(slug: string): string {
   const clean = slug.trim().replace(/^\/+|\/+$/g, '');
-  if (!clean) return STORE_PATH_PREFIX;
+  if (!clean) return storePathHome();
   return `${PRODUCT_PATH_PREFIX}/${encodeURIComponent(clean)}`;
 }
 
@@ -80,7 +80,7 @@ export function catalogProductSlugFromState(
 export function browserPathForNavigationState(
   state: NavigationState | PartialState<NavigationState> | undefined
 ): string {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return STORE_PATH_PREFIX;
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return storePathHome();
 
   const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
   const search = window.location.search;
@@ -210,7 +210,7 @@ export function browserPathForNavigationState(
   const store = storefrontFromState(state);
   if (store) {
     // Default web route is StorefrontHome. Don't let that rewrite an inbound
-    // marketing landing URL to `/store` before the landing screen mounts.
+    // marketing landing URL to home/`/store` before the landing screen mounts.
     if (shouldPreserveInboundLandingUrl()) {
       const inbound = getBootLocation()?.pathname ?? currentPath;
       if (shouldPreserveMarketingPath(inbound) || isCulturalLandingPath(inbound)) {
@@ -230,18 +230,23 @@ export function browserPathForNavigationState(
       return currentPath + search;
     }
     if (search.includes('preview=')) {
-      return `${store.path}${search}`;
+      const preview = new URLSearchParams(search).get('preview');
+      if (preview) {
+        const url = new URL(store.path, 'https://grapejuice.co');
+        url.searchParams.set('preview', preview);
+        return `${url.pathname}${url.search}`;
+      }
     }
     return store.path;
   }
 
   if (currentPath === '/home') {
-    return STORE_PATH_PREFIX + search;
+    return storePathHome() + search;
   }
 
   /**
    * Preserve deep-link URLs until the matching screen mounts.
-   * Otherwise MainTabs' first sync rewrites `/store` or `/product/…` away
+   * Otherwise Main's first sync rewrites `/store/…` or `/product/…` away
    * and the link effect loses its target.
    */
   if (
@@ -249,9 +254,11 @@ export function browserPathForNavigationState(
     currentPath === STORE_PATH_PREFIX ||
     currentPath.startsWith(`${STORE_PATH_PREFIX}/`)
   ) {
-    // Canonicalize bare `/` to `/store` while the storefront mounts.
-    const path = currentPath === '/' ? STORE_PATH_PREFIX : currentPath;
-    return path + search;
+    // Canonicalize bare `/store` → `/` while the home screen mounts.
+    if (currentPath === STORE_PATH_PREFIX) {
+      return storePathHome() + search;
+    }
+    return currentPath + search;
   }
   if (currentPath === ACCOUNT_PATH) {
     return currentPath + search;
@@ -299,9 +306,9 @@ export function browserPathForNavigationState(
   }
 
   if (search.includes('preview=')) {
-    return `${STORE_PATH_PREFIX}${search}`;
+    return `${storePathHome()}${search}`;
   }
 
-  // Other Main stack screens — stay off `/` so grapejuice.co keeps landing on store.
-  return STORE_PATH_PREFIX;
+  // Other Main stack screens — fall back to storefront home.
+  return storePathHome();
 }

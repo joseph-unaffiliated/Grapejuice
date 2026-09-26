@@ -181,6 +181,9 @@ export const spacing = {
 /** Figma mobile gutter — 24px horizontal padding on phone layouts. */
 export const MOBILE_GUTTER = 24;
 
+/** Desktop PDP / box product modal — gap between gallery and buy column. */
+export const PRODUCT_SPLIT_GUTTER = spacing.xxl;
+
 /** Figma 366:1799 — bottom tab bar (Home / Rav / Account). */
 export const TAB_NAV = {
   padTop: 16,

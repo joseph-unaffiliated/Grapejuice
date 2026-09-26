@@ -4,9 +4,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   TextInput,
   Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -15,26 +16,48 @@ import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useDevPreviewStore } from '../../stores/devPreviewStore';
 import { clearDevPreview } from '../../navigation/devPreview';
-import { usersService } from '../../services/firestore/users';
+import { childrenService } from '../../services/firestore/children';
+import { boxDraftService } from '../../services/firestore/boxDraft';
 import {
   createPartnerInvite,
   listPartnerInvites,
   acceptPartnerInvite,
 } from '../../services/householdInvites';
-import { useUnifiedOrders } from '../../hooks/useUnifiedOrders';
-import type { PartnerInvite, Household, UserProfile } from '../../types/pilot';
+import type { PartnerInvite, Household, UserProfile, ChildProfile } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
-import { spacing, typography, borderRadius } from '../../constants/theme';
+import {
+  spacing,
+  typography,
+  borderRadius,
+  typeface,
+} from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
-import { useActiveProfile, profileDisplayName } from '../../context/ActiveProfileContext';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { AccountHubHeader } from '../../components/account/AccountHubHeader';
+import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
+import {
+  type ChildDraft,
+  defaultFamilyMembers,
+  ensureAdultLead,
+  familyMembersComplete,
+  familyMembersFingerprint,
+  makeAdultDraft,
+  makeKidDraft,
+  normalizeFamilyDraft,
+} from '../../components/family/familyDraft';
+import {
+  rebuildBoxFromFamily,
+  saveFamilyMembers,
+} from '../../services/box/rebuildBoxFromFamily';
+import { representativeAgeForBand, type IntakeAgeGroup } from '../../services/box/boxRules';
+import { firstNameFromDisplayName } from '../../utils/personName';
 import { useWebLayout } from '../../hooks/useWebLayout';
-import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
-import { isOpsAdmin } from '../../constants/admin';
+import { navigateMainStack } from '../../navigation/mainStackNavigation';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -69,7 +92,53 @@ const PREVIEW_PROFILE: UserProfile = {
   updatedAt: new Date().toISOString(),
 };
 
-const PREVIEW_ORDER_COUNT = 1;
+function childProfilesToDrafts(
+  kids: ChildProfile[],
+  guestDrafts: ChildDraft[],
+  defaultName?: string | null
+): ChildDraft[] {
+  const guestAdults = guestDrafts
+    .filter((d) => d.role === 'adult')
+    .map(normalizeFamilyDraft);
+  const guestKids = guestDrafts
+    .filter((d) => d.role !== 'adult')
+    .map(normalizeFamilyDraft);
+
+  let kidDrafts: ChildDraft[];
+  if (kids.length) {
+    kidDrafts = kids.map((c, i) => {
+      const fromGuest = guestKids[i];
+      const age =
+        typeof c.plannerAge === 'number' && Number.isFinite(c.plannerAge)
+          ? c.plannerAge
+          : typeof fromGuest?.plannerAge === 'number'
+            ? fromGuest.plannerAge
+            : representativeAgeForBand(c.ageGroup as IntakeAgeGroup);
+      return {
+        ...makeKidDraft(c.name ?? '', age),
+        name: c.name ?? '',
+        birthdate: c.birthdate,
+        ageGroup: c.ageGroup,
+        plannerAge: age,
+        interests: fromGuest?.interests,
+        customInterests: fromGuest?.customInterests,
+      };
+    });
+  } else if (guestKids.length) {
+    kidDrafts = guestKids;
+  } else {
+    kidDrafts = [];
+  }
+
+  const adults = guestAdults.length
+    ? guestAdults
+    : [makeAdultDraft(firstNameFromDisplayName(defaultName) || '')];
+
+  if (!kidDrafts.length && !guestDrafts.length) {
+    return defaultFamilyMembers(defaultName ?? undefined);
+  }
+  return ensureAdultLead([...adults, ...kidDrafts], defaultName ?? undefined);
+}
 
 export function AccountScreen() {
   return (
@@ -89,10 +158,8 @@ function AccountScreenBody() {
   const changePassword = useAuthStore((s) => s.changePassword);
   const authError = useAuthStore((s) => s.error);
   const clearAuthError = useAuthStore((s) => s.clearError);
-  const { household: sessionHousehold, profile: sessionProfile, loading: sessionLoading } = useSession();
-  const { activeProfile, activeChild } = useActiveProfile();
-  const guestHidden = useGuestSessionStore((s) => s.hiddenHolidays);
-  const toggleGuestHidden = useGuestSessionStore((s) => s.toggleHiddenHoliday);
+  const { household: sessionHousehold, profile: sessionProfile, loading: sessionLoading, refresh } =
+    useSession();
   const previewKey = useDevPreviewStore((s) => s.previewKey);
   const fakeSignedIn = previewKey === 'account-signed-in';
 
@@ -100,8 +167,6 @@ function AccountScreenBody() {
   const household = fakeSignedIn ? PREVIEW_HOUSEHOLD : sessionHousehold;
   const profile = fakeSignedIn ? PREVIEW_PROFILE : sessionProfile;
 
-  const { orders: unifiedOrders } = useUnifiedOrders();
-  const orderCount = fakeSignedIn ? PREVIEW_ORDER_COUNT : unifiedOrders.length;
   const [invites, setInvites] = useState<PartnerInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
@@ -114,26 +179,72 @@ function AccountScreenBody() {
   const [passwordLocalError, setPasswordLocalError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const hiddenHolidays = profile?.hiddenHolidays ?? guestHidden;
+  const [familyMembers, setFamilyMembers] = useState<ChildDraft[]>(() =>
+    defaultFamilyMembers(profile?.displayName ?? user?.displayName)
+  );
+  const [familyBaseline, setFamilyBaseline] = useState(() =>
+    familyMembersFingerprint(defaultFamilyMembers(profile?.displayName ?? user?.displayName))
+  );
+  const [familyBusy, setFamilyBusy] = useState(false);
+  const [familyError, setFamilyError] = useState<string | null>(null);
+  const [familySaved, setFamilySaved] = useState(false);
+  const [rebuildModalOpen, setRebuildModalOpen] = useState(false);
+  const [hasOwnBox, setHasOwnBox] = useState(false);
+
+  const familyDirty = familyMembersFingerprint(familyMembers) !== familyBaseline;
+  const familyComplete = familyMembersComplete(familyMembers);
+  const cardOnFile = Boolean(household?.cardOnFileAt);
 
   const load = useCallback(async () => {
     if (fakeSignedIn) {
       setInvites([]);
+      const previewFamily = defaultFamilyMembers('Alex');
+      setFamilyMembers(previewFamily);
+      setFamilyBaseline(familyMembersFingerprint(previewFamily));
+      setHasOwnBox(true);
       setLoading(false);
       return;
     }
     if (!household?.id) {
       setInvites([]);
+      const fromGuest = childProfilesToDrafts(
+        [],
+        useGuestSessionStore.getState().childDrafts,
+        profile?.displayName ?? authUser?.displayName
+      );
+      setFamilyMembers(fromGuest);
+      setFamilyBaseline(familyMembersFingerprint(fromGuest));
+      setHasOwnBox(false);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      setInvites(await listPartnerInvites({ householdId: household.id }));
+      const guestDrafts = useGuestSessionStore.getState().childDrafts;
+      const [nextInvites, kids, draft] = await Promise.all([
+        listPartnerInvites({ householdId: household.id }),
+        authUser?.uid ? childrenService.list(authUser.uid) : Promise.resolve([]),
+        boxDraftService.get(household.id),
+      ]);
+      setInvites(nextInvites);
+      setHasOwnBox(Boolean(draft?.lineItems?.length));
+      const nextFamily = childProfilesToDrafts(
+        kids,
+        guestDrafts,
+        profile?.displayName ?? authUser?.displayName
+      );
+      setFamilyMembers(nextFamily);
+      setFamilyBaseline(familyMembersFingerprint(nextFamily));
     } finally {
       setLoading(false);
     }
-  }, [household?.id, fakeSignedIn]);
+  }, [
+    household?.id,
+    fakeSignedIn,
+    authUser?.uid,
+    authUser?.displayName,
+    profile?.displayName,
+  ]);
 
   useEffect(() => {
     load();
@@ -164,14 +275,6 @@ function AccountScreenBody() {
       await load();
     } finally {
       setInviteSending(false);
-    }
-  };
-
-  const restoreHidden = async (holidayId: string) => {
-    toggleGuestHidden(holidayId);
-    if (authUser?.uid) {
-      const next = hiddenHolidays.filter((id) => id !== holidayId);
-      await usersService.upsert(authUser.uid, { hiddenHolidays: next });
     }
   };
 
@@ -220,7 +323,85 @@ function AccountScreenBody() {
     }
   };
 
-  const goOrders = () => navigation.navigate('Orders');
+  const persistFamilyOnly = async () => {
+    await saveFamilyMembers({
+      uid: fakeSignedIn ? null : authUser?.uid,
+      members: familyMembers,
+    });
+    setFamilyBaseline(familyMembersFingerprint(familyMembers));
+    setFamilySaved(true);
+  };
+
+  const onSaveFamilyPress = () => {
+    setFamilyError(null);
+    setFamilySaved(false);
+    if (!familyComplete) {
+      setFamilyError('Add a name for each person.');
+      return;
+    }
+    if (fakeSignedIn) {
+      setFamilyBaseline(familyMembersFingerprint(familyMembers));
+      setFamilySaved(true);
+      return;
+    }
+    if (hasOwnBox) {
+      setRebuildModalOpen(true);
+      return;
+    }
+    setFamilyBusy(true);
+    void persistFamilyOnly()
+      .catch((err) => {
+        setFamilyError(err instanceof Error ? err.message : 'Could not save family.');
+      })
+      .finally(() => setFamilyBusy(false));
+  };
+
+  const onLeaveBoxAsIs = async () => {
+    if (familyBusy) return;
+    setFamilyBusy(true);
+    setFamilyError(null);
+    try {
+      await persistFamilyOnly();
+      setRebuildModalOpen(false);
+    } catch (err) {
+      setFamilyError(err instanceof Error ? err.message : 'Could not save family.');
+    } finally {
+      setFamilyBusy(false);
+    }
+  };
+
+  const onRebuildBox = async () => {
+    if (familyBusy || fakeSignedIn) return;
+    if (!authUser?.uid || !household?.id) {
+      setFamilyError('Sign in with a household to rebuild your box.');
+      return;
+    }
+    setFamilyBusy(true);
+    setFamilyError(null);
+    try {
+      const draft = await boxDraftService.get(household.id);
+      await rebuildBoxFromFamily({
+        uid: authUser.uid,
+        householdId: household.id,
+        members: familyMembers,
+        familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate',
+        childInterests: draft?.childInterests,
+        ravNotes: profile?.ravNotes,
+      });
+      setFamilyBaseline(familyMembersFingerprint(familyMembers));
+      setFamilySaved(true);
+      setHasOwnBox(true);
+      setRebuildModalOpen(false);
+      await refresh({ silent: true });
+      navigateMainStack('MyBox');
+    } catch (err) {
+      setFamilyError(err instanceof Error ? err.message : 'Could not rebuild your box.');
+    } finally {
+      setFamilyBusy(false);
+    }
+  };
+
+  const goUpdatePayment = () => navigation.navigate('UpdatePayment');
 
   if (!fakeSignedIn && (sessionLoading || loading)) {
     return (
@@ -251,11 +432,115 @@ function AccountScreenBody() {
         {fakeSignedIn ? (
           <Text style={styles.previewBanner}>Preview — signed-in account (mock data)</Text>
         ) : null}
-        <Text style={styles.title}>Account</Text>
-        <Text style={styles.email}>{user?.email ?? 'Exploring as guest'}</Text>
-        {profile?.displayName ? <Text style={styles.meta}>{profile.displayName}</Text> : null}
+        <AccountHubHeader
+          page="account"
+          email={user?.email ?? 'Exploring as guest'}
+          displayName={profile?.displayName}
+        />
 
-        <Text style={styles.section}>Password</Text>
+        <View style={styles.sectionDivider} />
+        <Text style={styles.section}>Your Household</Text>
+        <View style={styles.familyForm}>
+          <FamilyMembersForm
+            members={familyMembers}
+            onChange={(next) => {
+              setFamilyMembers(next);
+              setFamilySaved(false);
+              setFamilyError(null);
+            }}
+            sectionLead=""
+          />
+        </View>
+        <GrapejuiceButton
+          label={familyBusy ? 'Saving…' : 'Save changes'}
+          variant="filled"
+          onPress={onSaveFamilyPress}
+          disabled={!familyDirty || !familyComplete || familyBusy}
+          loading={familyBusy && !rebuildModalOpen}
+          style={styles.actionBtn}
+          textStyle={styles.primaryBtnText}
+        />
+        {familyError ? <Text style={styles.passwordError}>{familyError}</Text> : null}
+        {familySaved && !familyDirty ? (
+          <Text style={styles.passwordSuccess}>Family saved.</Text>
+        ) : null}
+
+        {household?.id ? (
+          <>
+            <View style={styles.sectionDivider} />
+            <Text style={styles.section}>Invite a Collaborator</Text>
+            <Text style={styles.hint}>Invite a collaborator to edit the same box.</Text>
+            <View style={styles.inviteFieldRow}>
+              <TextInput
+                style={styles.inviteInput}
+                value={inviteEmail}
+                onChangeText={setInviteEmail}
+                placeholder="partner@email.com"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!fakeSignedIn}
+              />
+              <GrapejuiceButton
+                label={inviteSending ? 'Sending…' : 'Send invite'}
+                variant="filled"
+                onPress={() => void sendInvite()}
+                disabled={inviteSending || fakeSignedIn}
+                style={styles.inviteBtn}
+                textStyle={styles.inviteBtnText}
+              />
+            </View>
+            <View style={styles.inviteFieldRow}>
+              <TextInput
+                style={styles.inviteInput}
+                value={inviteCode}
+                onChangeText={setInviteCode}
+                placeholder="Paste invite code to join"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                editable={!fakeSignedIn}
+              />
+              <GrapejuiceButton
+                label={inviteSending ? 'Joining…' : 'Accept invite'}
+                variant="filled"
+                onPress={() => void acceptInvite()}
+                disabled={inviteSending || fakeSignedIn}
+                style={styles.inviteBtn}
+                textStyle={styles.inviteBtnText}
+              />
+            </View>
+            {invites.map((inv) => (
+              <Text key={inv.id} style={styles.inviteRow}>
+                {inv.invitedEmail} — {inv.status}
+              </Text>
+            ))}
+          </>
+        ) : (
+          <>
+            <View style={styles.sectionDivider} />
+            <Text style={styles.section}>Invite a Collaborator</Text>
+            <Text style={styles.hint}>Sign in to invite a collaborator and share your box.</Text>
+          </>
+        )}
+
+        <View style={styles.sectionDivider} />
+        <Text style={styles.section}>Payment Information</Text>
+        <Text style={styles.hint}>
+          {cardOnFile
+            ? 'A card is saved for your household box and checkout.'
+            : 'No card on file yet. Add one to commit your box or check out faster.'}
+        </Text>
+        <GrapejuiceButton
+          label={cardOnFile ? 'Update payment' : 'Add payment'}
+          variant="filled"
+          onPress={goUpdatePayment}
+          disabled={fakeSignedIn || !household?.id}
+          style={styles.actionBtn}
+          textStyle={styles.primaryBtnText}
+        />
+
+        <View style={styles.sectionDivider} />
+        <Text style={styles.section}>Reset Password</Text>
         {user.hasPasswordProvider ? (
           <>
             <Text style={styles.hint}>Change the password for {user.email ?? 'your account'}.</Text>
@@ -264,49 +549,47 @@ function AccountScreenBody() {
               value={currentPassword}
               onChangeText={setCurrentPassword}
               placeholder="Current password"
+              placeholderTextColor={colors.textTertiary}
               secureTextEntry
               autoCapitalize="none"
               autoComplete="password"
               textContentType="password"
               editable={!fakeSignedIn && !passwordBusy}
-              fontSize={16}
             />
             <TextInput
               style={styles.input}
               value={nextPassword}
               onChangeText={setNextPassword}
               placeholder="New password"
+              placeholderTextColor={colors.textTertiary}
               secureTextEntry
               autoCapitalize="none"
               autoComplete="password-new"
               textContentType="newPassword"
               editable={!fakeSignedIn && !passwordBusy}
-              fontSize={16}
             />
             <TextInput
               style={styles.input}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               placeholder="Confirm new password"
+              placeholderTextColor={colors.textTertiary}
               secureTextEntry
               autoCapitalize="none"
               autoComplete="password-new"
               textContentType="newPassword"
               editable={!fakeSignedIn && !passwordBusy}
-              fontSize={16}
               onSubmitEditing={() => void onChangePassword()}
             />
-            <TouchableOpacity
-              style={[styles.inviteBtn, (passwordBusy || fakeSignedIn) && styles.inviteBtnDisabled]}
+            <GrapejuiceButton
+              label={passwordBusy ? 'Updating…' : 'Update password'}
+              variant="filled"
               onPress={() => void onChangePassword()}
               disabled={passwordBusy || fakeSignedIn}
-              accessibilityRole="button"
-              accessibilityLabel="Update password"
-            >
-              <Text style={styles.inviteBtnText}>
-                {passwordBusy ? 'Updating…' : 'Update password'}
-              </Text>
-            </TouchableOpacity>
+              loading={passwordBusy}
+              style={styles.actionBtn}
+              textStyle={styles.primaryBtnText}
+            />
             {passwordLocalError || authError ? (
               <Text style={styles.passwordError}>{passwordLocalError || authError}</Text>
             ) : null}
@@ -321,112 +604,66 @@ function AccountScreenBody() {
           </Text>
         )}
 
-        <Text style={styles.section}>Household</Text>
-        <Text style={styles.meta}>{household?.name ?? 'Your household'}</Text>
-        {household?.id ? (
-          <>
-            <Text style={styles.hint}>Invite a partner to edit the same box.</Text>
-            <TextInput
-              style={styles.input}
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              placeholder="partner@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!fakeSignedIn}
-              fontSize={16}
-            />
-            <TouchableOpacity
-              style={[styles.inviteBtn, fakeSignedIn && styles.inviteBtnDisabled]}
-              onPress={() => void sendInvite()}
-              disabled={inviteSending || fakeSignedIn}
-            >
-              <Text style={styles.inviteBtnText}>{inviteSending ? 'Sending…' : 'Send invite'}</Text>
-            </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              value={inviteCode}
-              onChangeText={setInviteCode}
-              placeholder="Paste invite code to join"
-              autoCapitalize="none"
-              editable={!fakeSignedIn}
-              fontSize={16}
-            />
-            <TouchableOpacity
-              style={[styles.inviteBtn, fakeSignedIn && styles.inviteBtnDisabled]}
-              onPress={() => void acceptInvite()}
-              disabled={inviteSending || fakeSignedIn}
-            >
-              <Text style={styles.inviteBtnText}>{inviteSending ? 'Joining…' : 'Accept invite'}</Text>
-            </TouchableOpacity>
-            {invites.map((inv) => (
-              <Text key={inv.id} style={styles.inviteRow}>
-                {inv.invitedEmail} — {inv.status}
-              </Text>
-            ))}
-          </>
-        ) : (
-          <Text style={styles.hint}>Sign in to invite a partner and share your box.</Text>
-        )}
-
-        {!PILOT_PARENT_ONLY ? (
-          <>
-            <Text style={styles.section}>Profiles</Text>
-            <Text style={styles.hint}>
-              Active: {profileDisplayName(activeProfile, profile?.displayName, activeChild)}
-            </Text>
-            <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('Profiles')}>
-              <Text style={styles.profilesBtnText}>Who&apos;s using Grapejuice?</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
-
-        {hiddenHolidays.length ? (
-          <>
-            <Text style={styles.section}>Hidden holidays</Text>
-            {hiddenHolidays.map((id) => (
-              <TouchableOpacity key={id} onPress={() => void restoreHidden(id)}>
-                <Text style={styles.restoreLink}>Show {id} again</Text>
-              </TouchableOpacity>
-            ))}
-          </>
-        ) : null}
-
-        <Text style={styles.section}>Gift a box</Text>
-        <Text style={styles.hint}>Send gift credit or a curated gift box to another family (grandparent flow).</Text>
-        <TouchableOpacity style={styles.profilesBtn} onPress={() => navigation.navigate('GiftGive')}>
-          <Text style={styles.profilesBtnText}>Send a gift</Text>
-        </TouchableOpacity>
-
-        {isOpsAdmin(user) ? (
-          <>
-            <Text style={styles.section}>Ops</Text>
-            <Text style={styles.hint}>Add or edit Hanukkah catalog SKUs (books, menorahs, etc.).</Text>
-            <TouchableOpacity
-              style={styles.profilesBtn}
-              onPress={() => navigation.navigate('AdminCatalog')}
-            >
-              <Text style={styles.profilesBtnText}>Catalog admin</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
-
-        <Text style={styles.section}>Orders</Text>
-        <Text style={styles.hint}>
-          {orderCount === 0
-            ? 'Gift boxes you send and your household Hanukkah box appear here.'
-            : `${orderCount} order${orderCount === 1 ? '' : 's'} — gifts, your box, and add-ons.`}
-        </Text>
-        <TouchableOpacity style={styles.profilesBtn} onPress={goOrders}>
-          <Text style={styles.profilesBtnText}>
-            {orderCount === 0 ? 'View orders' : 'View all orders'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut}>
-          <Text style={styles.logoutText}>{fakeSignedIn ? 'Exit preview' : 'Sign out'}</Text>
-        </TouchableOpacity>
+        <View style={styles.sectionDivider} />
+        <GrapejuiceButton
+          label={fakeSignedIn ? 'Exit preview' : 'Sign out'}
+          variant="filled"
+          onPress={onSignOut}
+          style={styles.logoutBtn}
+          textStyle={styles.logoutBtnText}
+        />
       </ScrollView>
+
+      <Modal
+        visible={rebuildModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!familyBusy) setRebuildModalOpen(false);
+        }}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={styles.backdrop}
+            onPress={() => {
+              if (!familyBusy) setRebuildModalOpen(false);
+            }}
+            accessibilityLabel="Close"
+          />
+          <View
+            style={styles.modalCard}
+            accessibilityRole="summary"
+            accessibilityLabel="Rebuild your box?"
+          >
+            <Text style={styles.modalHeadline}>
+              Do you want to rebuild your box to account for these changes?
+            </Text>
+            <Text style={styles.modalBody}>
+              If you do, you will lose all customizations and some items you&apos;d selected may no
+              longer be available.
+            </Text>
+            <View style={styles.modalActions}>
+              <GrapejuiceButton
+                label="Leave it as is"
+                variant="filled"
+                onPress={() => void onLeaveBoxAsIs()}
+                disabled={familyBusy}
+                loading={familyBusy}
+                style={styles.modalBtn}
+                textStyle={styles.primaryBtnText}
+              />
+              <GrapejuiceButton
+                label="Yes, rebuild my box"
+                variant="filled"
+                onPress={() => void onRebuildBox()}
+                disabled={familyBusy}
+                style={styles.modalBtn}
+                textStyle={styles.primaryBtnText}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </WebContentPanel>
   );
 }
@@ -437,6 +674,7 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
       padding: spacing.lg,
+      paddingTop: spacing.xxl + spacing.md,
       paddingBottom: 120,
       maxWidth: isDesktop ? 560 : undefined,
       width: '100%',
@@ -444,86 +682,179 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     previewBanner: {
+      ...typeface('light'),
       fontSize: typography.sm,
       color: colors.goldMuted,
       marginBottom: spacing.md,
       letterSpacing: -0.22,
+      textAlign: 'center',
     },
-    title: { fontSize: 24, fontWeight: '700' },
-    email: { fontSize: typography.lg, marginTop: spacing.xs },
-    meta: { fontSize: typography.md, color: colors.textSecondary, marginTop: 4 },
-    section: { fontSize: typography.xl, fontWeight: '700', marginTop: spacing.xl, marginBottom: spacing.sm },
-    hint: { fontSize: typography.md, color: colors.textTertiary },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
-      padding: spacing.sm,
+    section: {
+      ...typeface('medium'),
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      color: colors.logoDark,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    sectionDivider: {
+      alignSelf: 'stretch',
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginTop: spacing.xl,
+      marginBottom: spacing.sm,
+    },
+    hint: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      letterSpacing: -0.22,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    familyForm: {
       marginTop: spacing.sm,
-      fontSize: 16,
+    },
+    input: {
+      ...typeface('regular'),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.brand,
+      borderRadius: borderRadius.xl,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.sm,
+      fontSize: Platform.OS === 'web' ? 14 : 16,
+      color: colors.textPrimary,
+      minHeight: 44,
+    },
+    actionBtn: {
+      marginTop: spacing.sm,
+      alignSelf: 'stretch',
+      width: '100%',
+      borderRadius: borderRadius.xl,
+    },
+    primaryBtnText: {
+      ...typeface('regular'),
+      color: colors.logoDark,
+    },
+    inviteFieldRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    inviteInput: {
+      ...typeface('regular'),
+      flex: 1,
+      minWidth: 0,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.brand,
+      borderRadius: borderRadius.xl,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      fontSize: Platform.OS === 'web' ? 14 : 16,
+      color: colors.textPrimary,
+      minHeight: 44,
     },
     inviteBtn: {
-      marginTop: spacing.sm,
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.xs,
+      flexGrow: 0,
+      flexShrink: 0,
+      width: 'auto',
+      alignSelf: 'center',
       paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.md,
-      borderWidth: 1,
-      borderColor: colors.brand,
+      paddingVertical: 10,
+      minHeight: 44,
+      borderRadius: borderRadius.xl,
     },
-    inviteBtnDisabled: { opacity: 0.45 },
-    inviteBtnText: { color: colors.brand, fontWeight: '600' },
-    inviteRow: { fontSize: typography.sm, color: colors.textSecondary, marginTop: spacing.xs },
+    inviteBtnText: {
+      ...typeface('regular'),
+      color: colors.logoDark,
+      fontSize: typography.md,
+    },
+    inviteRow: {
+      ...typeface('light'),
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+    },
     passwordError: {
       marginTop: spacing.sm,
+      ...typeface('regular'),
       fontSize: typography.sm,
       color: colors.error,
     },
     passwordSuccess: {
       marginTop: spacing.sm,
+      ...typeface('medium'),
       fontSize: typography.sm,
       color: colors.textSecondary,
-      fontWeight: '600',
     },
-    profilesBtn: {
-      marginTop: spacing.lg,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      backgroundColor: colors.accentCream,
-    },
-    profilesBtnText: { fontWeight: '600', color: colors.textPrimary },
-    restoreLink: { color: colors.brand, fontWeight: '600', marginBottom: spacing.xs },
-    orderCard: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
-      padding: spacing.md,
-      marginBottom: spacing.sm,
-    },
-    orderHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-    orderId: { fontWeight: '600' },
-    orderStatus: { color: colors.brand, fontWeight: '600' },
-    orderTotal: { marginTop: spacing.xs, fontSize: typography.lg },
-    trackLink: { marginTop: spacing.sm, color: colors.brand, fontWeight: '600' },
-    cancelOrderBtn: {
-      marginTop: spacing.sm,
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    cancelOrderBtnDisabled: { opacity: 0.45 },
-    cancelOrderBtnText: { color: colors.textSecondary, fontWeight: '600' },
     logoutBtn: {
-      marginTop: spacing.xxl,
-      padding: spacing.md,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
+      marginTop: spacing.md,
+      alignSelf: 'stretch',
+      width: '100%',
+      backgroundColor: colors.logoDark,
+      borderRadius: borderRadius.xl,
     },
-    logoutText: { fontWeight: '600', color: colors.textSecondary },
+    logoutBtnText: {
+      ...typeface('regular'),
+      color: colors.brand,
+    },
+    modalRoot: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(17, 2, 34, 0.45)',
+    },
+    modalCard: {
+      width: '100%',
+      maxWidth: 400,
+      backgroundColor: colors.bgPrimary,
+      borderRadius: borderRadius.lg,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.lg,
+      gap: spacing.md,
+      zIndex: 1,
+      ...(Platform.OS === 'web'
+        ? ({ boxShadow: '0 16px 48px rgba(17, 2, 34, 0.28)' } as object)
+        : {
+            shadowColor: '#110222',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.28,
+            shadowRadius: 24,
+            elevation: 16,
+          }),
+    },
+    modalHeadline: {
+      ...typeface('medium'),
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      color: colors.logoDark,
+      textAlign: 'center',
+      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+    },
+    modalBody: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      lineHeight: 18,
+      letterSpacing: -0.2,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+    },
+    modalActions: {
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+      width: '100%',
+    },
+    modalBtn: {
+      borderRadius: borderRadius.xl,
+    },
   });
 }

@@ -1,13 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Platform,
-  TouchableOpacity,
-  Animated,
-  Easing,
 } from 'react-native';
 import {
   HANUKKAH_PRACTICES,
@@ -25,18 +22,6 @@ const THUMB_SIZE = 72;
 const GRID_GAP = spacing.sm;
 const CARD_INNER_WIDTH = 2 * THUMB_SIZE + GRID_GAP;
 const CARD_WIDTH = CARD_INNER_WIDTH + spacing.md * 2;
-/** Open/close — slightly longer with an ease-out so height changes feel less abrupt. */
-const ACCORDION_MS = 340;
-const ACCORDION_EASING = Easing.bezier(0.22, 1, 0.36, 1);
-/** Matches goldGlowSm blur (8px) so ScrollView overflowX doesn't clip the side glow. */
-const STACK_SHADOW_BLEED = 8;
-/**
- * Desktop stack reserves room for the tallest open body so onboarding chrome
- * doesn’t shift. Keep ≥ real content; animation uses measured height.
- */
-const STACK_BODY_MAX_HEIGHT = 320;
-/** stackHeader paddingVertical sm×2 + title (typography.xl). */
-const STACK_ROW_HEADER_HEIGHT = spacing.sm * 2 + typography.xl;
 
 const PRACTICE_ICONS: Record<string, (typeof icons)[keyof typeof icons]> = {
   candles: icons.menorah,
@@ -56,14 +41,6 @@ function PracticeRowIcon({ practiceId }: { practiceId: string }) {
 
 const goldGlowStyle =
   Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.goldGlowSm } as object) : shadows.goldGlow;
-
-/** Mouse clicks should not move focus — avoids the browser focus-ring flash on press. */
-const WEB_SUPPRESS_MOUSE_FOCUS =
-  Platform.OS === 'web'
-    ? ({
-        onMouseDown: (e: { preventDefault(): void }) => e.preventDefault(),
-      } as object)
-    : {};
 
 type Props = {
   layout?: 'carousel' | 'stack';
@@ -100,134 +77,15 @@ function PracticeCard({ practice }: { practice: HanukkahPractice }) {
   );
 }
 
-function PracticeAccordionRow({
-  practice,
-  expanded,
-  onToggle,
-}: {
-  practice: HanukkahPractice;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const chevron = useRef(new Animated.Value(expanded ? 1 : 0)).current;
-  const heightAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
-  const opacityAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
-  const [bodyMounted, setBodyMounted] = useState(expanded);
-  const [contentHeight, setContentHeight] = useState(0);
-  const heightAnimRef = useRef<Animated.CompositeAnimation | null>(null);
-  const opacityAnimRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  useEffect(() => {
-    Animated.timing(chevron, {
-      toValue: expanded ? 1 : 0,
-      duration: ACCORDION_MS,
-      easing: ACCORDION_EASING,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-  }, [chevron, expanded]);
-
-  useEffect(() => {
-    if (expanded) setBodyMounted(true);
-  }, [expanded]);
-
-  useEffect(() => {
-    if (!bodyMounted) return;
-    // Wait until the body has a real measured height before opening.
-    if (expanded && contentHeight <= 0) return;
-
-    heightAnimRef.current?.stop();
-    opacityAnimRef.current?.stop();
-
-    const open = expanded;
-    heightAnimRef.current = Animated.timing(heightAnim, {
-      toValue: open ? 1 : 0,
-      duration: ACCORDION_MS,
-      easing: ACCORDION_EASING,
-      useNativeDriver: false,
-    });
-    opacityAnimRef.current = Animated.timing(opacityAnim, {
-      toValue: open ? 1 : 0,
-      // Fade slightly ahead of height so text doesn’t linger while the clip closes.
-      duration: open ? ACCORDION_MS * 0.85 : ACCORDION_MS * 0.55,
-      delay: open ? 40 : 0,
-      easing: ACCORDION_EASING,
-      useNativeDriver: false,
-    });
-
-    heightAnimRef.current.start(({ finished }) => {
-      if (finished && !open) setBodyMounted(false);
-    });
-    opacityAnimRef.current.start();
-
-    return () => {
-      heightAnimRef.current?.stop();
-      opacityAnimRef.current?.stop();
-    };
-  }, [bodyMounted, contentHeight, expanded, heightAnim, opacityAnim]);
-
-  const chevronRotate = chevron.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-
-  const animatedHeight =
-    contentHeight > 0
-      ? heightAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, contentHeight],
-        })
-      : 0;
-
+function PracticeStackRow({ practice }: { practice: HanukkahPractice }) {
   return (
-    // Glow on the outer wrap — stackRow keeps overflow:hidden for the accordion clip.
     <View style={[styles.stackRowOuter, goldGlowStyle]}>
       <View style={styles.stackRow}>
-        <TouchableOpacity
-          onPress={onToggle}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          accessibilityLabel={practice.title}
-          style={styles.stackHeader}
-          {...WEB_SUPPRESS_MOUSE_FOCUS}
-        >
-          <View style={styles.stackTitleRow}>
-            <PracticeRowIcon practiceId={practice.id} />
-            <Text style={styles.stackTitle}>{practice.title}</Text>
-          </View>
-          <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
-            <Icon icon={icons.chevronDown} size={10} color={semanticColors.goldMuted} />
-          </Animated.View>
-        </TouchableOpacity>
-
-        {bodyMounted ? (
-          <Animated.View
-            style={[
-              styles.stackBodyClip,
-              {
-                height: animatedHeight,
-                opacity: opacityAnim,
-              },
-            ]}
-          >
-            <View
-              style={styles.stackBodyInner}
-              onLayout={(e) => {
-                const next = Math.ceil(e.nativeEvent.layout.height);
-                if (next > 0 && next !== contentHeight) setContentHeight(next);
-              }}
-            >
-              <Text style={styles.stackTagline}>{practice.tagline}</Text>
-              <Text style={styles.stackBody}>{practice.description}</Text>
-              <Text style={styles.stackBoxLabel}>In your box</Text>
-              {practice.boxItems.map((item) => (
-                <Text key={item} style={styles.stackBoxItem}>
-                  · {item}
-                </Text>
-              ))}
-            </View>
-          </Animated.View>
-        ) : null}
+        <View style={styles.stackTitleRow}>
+          <PracticeRowIcon practiceId={practice.id} />
+          <Text style={styles.stackTitle}>{practice.title}</Text>
+        </View>
+        <Text style={styles.stackBody}>{practice.description}</Text>
       </View>
     </View>
   );
@@ -245,19 +103,8 @@ export function HanukkahPracticesOverview({
     () => Math.min(CARD_WIDTH, Math.floor(contentWidth * 0.82)),
     [contentWidth]
   );
-  const [openPracticeId, setOpenPracticeId] = useState<string>(HANUKKAH_PRACTICES[0]?.id ?? 'candles');
 
   if (layout === 'stack') {
-    const practiceCount = HANUKKAH_PRACTICES.length;
-    // Desktop only: reserve N headers + one body so onboarding chrome doesn't shift.
-    // Mobile lets the list size naturally — the shell scrolls behind sticky CTAs.
-    const stackListHeight = isDesktop
-      ? practiceCount * STACK_ROW_HEADER_HEIGHT +
-        Math.max(0, practiceCount - 1) * GRID_GAP +
-        STACK_BODY_MAX_HEIGHT +
-        STACK_SHADOW_BLEED * 2
-      : undefined;
-
     return (
       <View style={styles.stackSection}>
         {showIntro ? (
@@ -266,16 +113,9 @@ export function HanukkahPracticesOverview({
             <Text style={styles.intro}>{HANUKKAH_PRACTICES_INTRO}</Text>
           </>
         ) : null}
-        <View style={[styles.stackList, stackListHeight != null ? { height: stackListHeight } : null]}>
+        <View style={styles.stackList}>
           {HANUKKAH_PRACTICES.map((practice) => (
-            <PracticeAccordionRow
-              key={practice.id}
-              practice={practice}
-              expanded={openPracticeId === practice.id}
-              onToggle={() => {
-                if (practice.id !== openPracticeId) setOpenPracticeId(practice.id);
-              }}
-            />
+            <PracticeStackRow key={practice.id} practice={practice} />
           ))}
         </View>
       </View>
@@ -376,11 +216,6 @@ const styles = StyleSheet.create({
   },
   stackList: {
     gap: GRID_GAP,
-    // Vertical bleed only — horizontal glow room comes from OnboardingScreenLayout
-    // scroll content padding (avoids ScrollView overflowX clipping).
-    paddingVertical: STACK_SHADOW_BLEED,
-    marginVertical: -STACK_SHADOW_BLEED,
-    overflow: 'visible' as const,
   },
   stackRowOuter: {
     borderRadius: borderRadius.xl,
@@ -389,25 +224,14 @@ const styles = StyleSheet.create({
   stackRow: {
     borderRadius: borderRadius.xl,
     backgroundColor: semanticColors.bgPrimary,
-    overflow: 'hidden',
-  },
-  stackHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
-    gap: spacing.sm,
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', outlineWidth: 0, boxShadow: 'none' } as object)
-      : {}),
+    gap: spacing.xs,
   },
   stackTitleRow: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    minWidth: 0,
   },
   stackTitle: {
     flex: 1,
@@ -415,36 +239,11 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#000000',
   },
-  stackBodyClip: {
-    overflow: 'hidden',
-  },
-  stackBodyInner: {
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  stackTagline: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: semanticColors.goldMuted,
-    marginBottom: spacing.sm,
-  },
   stackBody: {
     fontSize: typography.sm,
     fontWeight: '200',
     color: '#000000',
     lineHeight: 16.5,
-    marginBottom: spacing.sm,
-  },
-  stackBoxLabel: {
-    fontSize: typography.sm,
-    fontWeight: '400',
-    color: semanticColors.goldMuted,
-    marginBottom: spacing.xs,
-  },
-  stackBoxItem: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: '#000000',
-    lineHeight: 16.5,
+    paddingLeft: 14 + spacing.sm,
   },
 });

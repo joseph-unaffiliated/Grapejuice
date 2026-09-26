@@ -122,10 +122,15 @@ type Props = {
    */
   onQuantityChange?: (delta: 1 | -1) => void;
   /**
-   * Donate (included base) vs Remove (paid add-on) chip label when `onRemove` is set.
-   * Defaults from `li.unitCents === 0`.
+   * Donate (included base) vs Remove (paid add-on) — kept for callers; both use `removeLabel`
+   * at qty 1 so My Box matches the product modal wording.
    */
   decrementMode?: 'donate' | 'remove';
+  /**
+   * Label for removing the line (qty 1 or `onRemove`). Defaults to “Remove from box”.
+   * Gift customize should pass “Remove from gift”.
+   */
+  removeLabel?: string;
   /** Prefer product page; falls back to ItemDetailSheet. */
   onOpenProduct?: () => void;
   /** Floating overlay label on the image (bottom-left), e.g. “Sam’s gift”. */
@@ -168,13 +173,13 @@ function ActionChip({
 function QtyStepper({
   quantity,
   locked,
-  decrementMode,
+  removeLabel,
   onQuantityChange,
   styles,
 }: {
   quantity: number;
   locked: boolean;
-  decrementMode: 'donate' | 'remove';
+  removeLabel: string;
   onQuantityChange?: (delta: 1 | -1) => void;
   styles: BoxItemRowStyles;
 }) {
@@ -182,23 +187,34 @@ function QtyStepper({
     return null;
   }
   const atOne = quantity <= 1;
-  const wideMinus = atOne; // "donate" / "remove" need more width than "−"
+  if (atOne) {
+    return (
+      <View style={styles.qtyAtOneRow}>
+        <ActionChip
+          label={removeLabel}
+          styles={styles}
+          onPress={() => onQuantityChange(-1)}
+        />
+        <TouchableOpacity
+          style={styles.qtyAddAlone}
+          onPress={() => onQuantityChange(1)}
+          accessibilityRole="button"
+          accessibilityLabel="Increase quantity"
+        >
+          <Text style={styles.qtyBtnText}>+</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   return (
     <View style={styles.qtyRow}>
       <TouchableOpacity
-        style={[styles.qtyBtn, wideMinus && styles.qtyBtnDonate]}
+        style={styles.qtyBtn}
         onPress={() => onQuantityChange(-1)}
         accessibilityRole="button"
-        accessibilityLabel={atOne ? (decrementMode === 'donate' ? 'Donate' : 'Remove') : 'Decrease quantity'}
+        accessibilityLabel="Decrease quantity"
       >
-        <Text
-          style={[
-            styles.qtyBtnText,
-            atOne && styles.qtyBtnTextDonate,
-          ]}
-        >
-          {atOne ? (decrementMode === 'donate' ? 'Donate' : 'Remove') : '−'}
-        </Text>
+        <Text style={styles.qtyBtnText}>−</Text>
       </TouchableOpacity>
       <Text style={styles.qtyValue}>{quantity}</Text>
       <TouchableOpacity
@@ -233,7 +249,8 @@ export function BoxItemRow({
   previewChips = false,
   quantity: quantityProp,
   onQuantityChange,
-  decrementMode,
+  decrementMode: _decrementMode,
+  removeLabel = 'Remove from box',
   onOpenProduct,
   imageBadge,
   note,
@@ -258,9 +275,8 @@ export function BoxItemRow({
   const swappable = !locked && (hasAlternateSwaps || !!onPrimarySwapAction);
   const displayName = li.label ?? item?.name ?? li.itemId;
   const quantity = Math.max(1, quantityProp ?? li.quantity ?? 1);
-  const resolvedDecrement: 'donate' | 'remove' =
-    decrementMode ?? (li.unitCents === 0 ? 'donate' : 'remove');
   const primarySwapLabel = swapLabel ?? 'Swap';
+  const resolvedRemoveLabel = removeLabel;
 
   const openDetail = () => {
     if (onOpenProduct) {
@@ -372,7 +388,7 @@ export function BoxItemRow({
                 <>
                   {swapPrimary}
                   <ActionChip label="Add more" styles={styles} disabled />
-                  <ActionChip label="Remove" styles={styles} disabled />
+                  <ActionChip label={resolvedRemoveLabel} styles={styles} disabled />
                 </>
               ) : (
                 <>
@@ -381,7 +397,7 @@ export function BoxItemRow({
                     <QtyStepper
                       quantity={quantity}
                       locked={locked}
-                      decrementMode={resolvedDecrement}
+                      removeLabel={resolvedRemoveLabel}
                       onQuantityChange={onQuantityChange}
                       styles={styles}
                     />
@@ -390,7 +406,7 @@ export function BoxItemRow({
                   ) : null}
                   {!onQuantityChange && onRemove && !locked ? (
                     <ActionChip
-                      label={resolvedDecrement === 'donate' ? 'Donate' : 'Remove'}
+                      label={resolvedRemoveLabel}
                       onPress={onRemove}
                       styles={styles}
                     />
@@ -508,7 +524,7 @@ export function BoxItemRow({
           <QtyStepper
             quantity={quantity}
             locked={locked}
-            decrementMode={resolvedDecrement}
+            removeLabel={resolvedRemoveLabel}
             onQuantityChange={onQuantityChange}
             styles={styles}
           />
@@ -777,7 +793,13 @@ function createBoxItemRowStyles(
       letterSpacing: -0.2,
       fontStyle: 'italic',
     },
-    cardActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 },
+    cardActions: {
+      flexDirection: 'row',
+      flexWrap: 'nowrap',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+    },
     /** Match qty stepper pill height (~27px). */
     chip: {
       borderWidth: 0.5,
@@ -800,6 +822,22 @@ function createBoxItemRowStyles(
       textTransform: 'lowercase',
     },
     chipTextPrimary: { color: colors.goldMuted },
+    qtyAtOneRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    qtyAddAlone: {
+      minWidth: 27,
+      minHeight: 27,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 0.5,
+      borderColor: colors.goldMuted,
+      borderRadius: borderRadius.pill,
+      paddingHorizontal: 6,
+      backgroundColor: colors.bgPrimary,
+    },
     qtyRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -819,14 +857,12 @@ function createBoxItemRowStyles(
       justifyContent: 'center',
       paddingHorizontal: 4,
     },
-    qtyBtnDonate: { minWidth: 52 },
     qtyBtnText: {
       fontSize: 12,
       color: colors.goldMuted,
       ...typeface('regular'),
       lineHeight: 14,
     },
-    qtyBtnTextDonate: { fontSize: 9, letterSpacing: -0.18, textTransform: 'lowercase' },
     qtyValue: {
       fontSize: 11,
       color: colors.textPrimary,

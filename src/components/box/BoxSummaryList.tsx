@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemImage } from './BoxItemImage';
+import { ResetMyBoxControl } from './ResetMyBoxControl';
 import {
   bookBadgeLabelForLines,
   coalesceLinesByItemId,
@@ -25,7 +26,6 @@ import {
 } from '../../constants/boxDisplaySections';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
-import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
 
 const GRID_COL_GAP = 8;
@@ -37,6 +37,8 @@ type Props = {
   childrenProfiles: ChildProfile[];
   /** Jump to the practice section that owns this item so it can be edited in place. */
   onPressItem?: (itemId: string, sectionId: BoxDisplaySectionId) => void;
+  /** Show “Reset my box” under the heading (hidden when locked / view-only). */
+  showReset?: boolean;
 };
 
 type SummaryRow = {
@@ -134,11 +136,11 @@ export function BoxSummaryList({
   catalog,
   childrenProfiles,
   onPressItem,
+  showReset = false,
 }: Props) {
   const { colors } = useThemeMode();
-  const { isDesktop } = useWebLayout();
   const tile = UPSELL_TILE_MEDIUM;
-  const styles = useMemo(() => createStyles(colors, isDesktop, tile), [colors, isDesktop, tile]);
+  const styles = useMemo(() => createStyles(colors, tile), [colors, tile]);
   const rows = useMemo(
     () => buildSummaryRows(lineItems, catalog, childrenProfiles),
     [lineItems, catalog, childrenProfiles]
@@ -208,7 +210,10 @@ export function BoxSummaryList({
   return (
     <View style={styles.root} testID="box-summary-list">
       <View style={styles.rule} />
-      <Text style={styles.heading}>Your box</Text>
+      <View style={styles.headingBlock}>
+        <Text style={styles.heading}>Your box</Text>
+        {showReset ? <ResetMyBoxControl /> : null}
+      </View>
       <View style={styles.grid} onLayout={onGridLayout}>
         {rowChunks.map((chunk, i) => (
           <View key={`row-${i}`} style={styles.row}>
@@ -220,7 +225,7 @@ export function BoxSummaryList({
   );
 }
 
-function createStyles(colors: SemanticColors, desktop: boolean, tile: number) {
+function createStyles(colors: SemanticColors, tile: number) {
   return StyleSheet.create({
     root: {
       gap: spacing.lg,
@@ -234,13 +239,18 @@ function createStyles(colors: SemanticColors, desktop: boolean, tile: number) {
       width: '100%',
       alignSelf: 'stretch',
     },
+    headingBlock: {
+      gap: spacing.xs,
+      alignItems: 'center',
+      width: '100%',
+    },
     heading: {
       // Match BoxDetailToolbar “Your Hanukkah Box” title size.
       fontSize: 28,
       ...typeface('medium'),
       color: colors.textPrimary,
       letterSpacing: -0.6,
-      textAlign: desktop ? 'center' : 'left',
+      textAlign: 'center',
     },
     grid: {
       width: '100%',

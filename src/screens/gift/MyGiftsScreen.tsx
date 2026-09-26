@@ -28,9 +28,11 @@ import {
 import { formatThreadListDate } from '../../services/hanukkah/dates';
 import type { MainStackParamList } from '../../navigation/types';
 import type { ReceivedGift } from '../../types/pilot';
-import { spacing, typography, borderRadius } from '../../constants/theme';
+import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
+import { AccountHubHeader } from '../../components/account/AccountHubHeader';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -288,41 +290,10 @@ function MyGiftsBody() {
   return (
     <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-          <Text style={styles.backLink}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>My Gifts</Text>
-        <Text style={styles.subtitle}>
-          Gifts you&apos;ve received stay separate from your family&apos;s own box. {GIFT_CREDIT_SPEND_HINT}{' '}
-          Curated gift boxes are managed here.
-        </Text>
+        <AccountHubHeader page="gifts" />
 
-        <View style={styles.creditBanner}>
-          <Text style={styles.creditLabel}>Gift credit on hand</Text>
-          <Text style={styles.creditValue}>{formatDollars(giftCreditCents)}</Text>
-          {platformCreditCents > 0 ? (
-            <Text style={styles.creditSub}>
-              + {formatDollars(platformCreditCents)} platform credit
-            </Text>
-          ) : null}
-        </View>
-
-        {multiBoxHint ? (
-          <Text style={styles.multiHint}>
-            You have {availableBoxGifts.length} curated gift boxes. Keep the one you want; convert
-            extras to gift credit to spend in the store or on a Hanukkah box.
-          </Text>
-        ) : null}
-
-        {error ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={() => void refresh()}>
-              <Text style={styles.errorRetry}>Try again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
+        <View style={styles.sectionDivider} />
+        <Text style={styles.section}>Received gifts</Text>
         {gifts.length === 0 ? (
           <Text style={styles.empty}>
             No gifts yet. When someone sends you a gift, it will appear here after you claim it.
@@ -342,6 +313,56 @@ function MyGiftsBody() {
             />
           ))
         )}
+
+        <View style={styles.creditBanner}>
+          <Text style={styles.creditLabel}>Gift credit on hand</Text>
+          <Text style={styles.creditValue}>{formatDollars(giftCreditCents)}</Text>
+          {platformCreditCents > 0 ? (
+            <Text style={styles.creditSub}>
+              + {formatDollars(platformCreditCents)} platform credit
+            </Text>
+          ) : null}
+          <Text style={styles.creditBody}>
+            Gifts you&apos;ve received stay separate from your family&apos;s own box.{' '}
+            {GIFT_CREDIT_SPEND_HINT} Curated gift boxes are managed here.
+          </Text>
+        </View>
+
+        {multiBoxHint ? (
+          <Text style={styles.multiHint}>
+            You have {availableBoxGifts.length} curated gift boxes. Keep the one you want; convert
+            extras to gift credit to spend in the store or on a Hanukkah box.
+          </Text>
+        ) : null}
+
+        {error ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={() => void refresh()}>
+              <Text style={styles.errorRetry}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <View style={styles.sectionDividerGive} />
+        <Text style={styles.section}>Give a gift</Text>
+        <Text style={styles.sectionHint}>
+          Send gift credit they can spend, or pick items for a curated gift box.
+        </Text>
+        <GrapejuiceButton
+          label="Send gift credit"
+          variant="filled"
+          onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' })}
+          style={styles.giveBtn}
+          textStyle={styles.giveBtnText}
+        />
+        <GrapejuiceButton
+          label="Pick items for them"
+          variant="pillOutline"
+          onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'customize' })}
+          style={styles.giveBtnSecondary}
+          textStyle={styles.giveBtnSecondaryText}
+        />
       </ScrollView>
     </WebContentPanel>
   );
@@ -360,55 +381,126 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
       padding: spacing.lg,
+      paddingTop: spacing.xxl + spacing.md,
       paddingBottom: 120,
-      maxWidth: isDesktop ? 640 : undefined,
+      maxWidth: isDesktop ? 560 : undefined,
       width: '100%',
       alignSelf: isDesktop ? 'center' : undefined,
     },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 240 },
-    backRow: { marginBottom: spacing.sm },
-    backLink: { color: colors.brand, fontWeight: '600', fontSize: typography.md },
-    title: { fontSize: 28, fontWeight: '700', color: colors.textPrimary },
-    subtitle: {
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      marginTop: spacing.xs,
+    sectionDivider: {
+      alignSelf: 'stretch',
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginTop: spacing.xl,
+      marginBottom: spacing.md,
+    },
+    sectionDividerGive: {
+      alignSelf: 'stretch',
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginTop: spacing.xl,
       marginBottom: spacing.lg,
     },
+    section: {
+      ...typeface('medium'),
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      color: colors.logoDark,
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+      textAlign: 'center',
+    },
+    sectionHint: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      letterSpacing: -0.22,
+      lineHeight: 18,
+      marginBottom: spacing.md,
+      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+    },
+    giveBtn: {
+      marginTop: spacing.sm,
+      alignSelf: 'stretch',
+      width: '100%',
+      borderRadius: borderRadius.xl,
+    },
+    giveBtnText: {
+      ...typeface('regular'),
+      color: colors.logoDark,
+    },
+    giveBtnSecondary: {
+      marginTop: spacing.sm,
+      alignSelf: 'stretch',
+      width: '100%',
+      borderRadius: borderRadius.xl,
+    },
+    giveBtnSecondaryText: {
+      ...typeface('regular'),
+      color: colors.logoDark,
+    },
     creditBanner: {
-      marginBottom: spacing.lg,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
       padding: spacing.md,
       borderRadius: borderRadius.md,
       backgroundColor: colors.accentCream,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
+      alignItems: 'center',
     },
     creditLabel: {
+      ...typeface('medium'),
       fontSize: typography.sm,
-      fontWeight: '600',
-      letterSpacing: 0.4,
-      textTransform: 'uppercase',
+      letterSpacing: -0.22,
       color: colors.textTertiary,
+      textAlign: 'center',
     },
     creditValue: {
+      ...typeface('medium'),
       marginTop: 4,
       fontSize: 28,
-      fontWeight: '700',
       color: colors.textPrimary,
-      letterSpacing: -0.4,
+      letterSpacing: -0.6,
+      textAlign: 'center',
     },
     creditSub: {
+      ...typeface('regular'),
       marginTop: 4,
       fontSize: typography.sm,
       color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    creditBody: {
+      ...typeface('regular'),
+      marginTop: spacing.md,
+      fontSize: typography.md,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      letterSpacing: -0.22,
+      lineHeight: 18,
+      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
     },
     multiHint: {
+      ...typeface('regular'),
       fontSize: typography.md,
       color: colors.textSecondary,
       lineHeight: 20,
       marginBottom: spacing.lg,
+      textAlign: 'center',
     },
-    empty: { fontSize: typography.md, color: colors.textTertiary, marginTop: spacing.md },
+    empty: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      color: colors.textSecondary,
+      marginTop: spacing.sm,
+      textAlign: 'center',
+      lineHeight: 20,
+      letterSpacing: -0.22,
+    },
     errorBanner: {
       marginBottom: spacing.md,
       padding: spacing.md,
@@ -417,8 +509,17 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       borderColor: colors.border,
       backgroundColor: colors.accentCream,
     },
-    errorText: { fontSize: typography.sm, color: colors.textSecondary },
-    errorRetry: { marginTop: spacing.sm, fontSize: typography.sm, color: colors.brand, fontWeight: '600' },
+    errorText: {
+      ...typeface('regular'),
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+    },
+    errorRetry: {
+      ...typeface('medium'),
+      marginTop: spacing.sm,
+      fontSize: typography.sm,
+      color: colors.brand,
+    },
     card: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -428,32 +529,41 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       backgroundColor: colors.bgPrimary,
     },
     cardKind: {
+      ...typeface('medium'),
       fontSize: typography.xs,
-      fontWeight: '700',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
       color: colors.textTertiary,
     },
     cardTitle: {
+      ...typeface('medium'),
       fontSize: typography.lg,
-      fontWeight: '700',
       color: colors.textPrimary,
       marginTop: 2,
+      letterSpacing: -0.22,
     },
-    cardMeta: { fontSize: typography.sm, color: colors.textTertiary, marginTop: spacing.xs },
+    cardMeta: {
+      ...typeface('regular'),
+      fontSize: typography.sm,
+      color: colors.textTertiary,
+      marginTop: spacing.xs,
+    },
     message: {
+      ...typeface('regular'),
       fontSize: typography.md,
       color: colors.textSecondary,
       fontStyle: 'italic',
       marginTop: spacing.sm,
     },
     preview: {
+      ...typeface('regular'),
       fontSize: typography.sm,
       color: colors.textSecondary,
       marginTop: spacing.sm,
       lineHeight: 18,
     },
     body: {
+      ...typeface('regular'),
       fontSize: typography.md,
       color: colors.textSecondary,
       marginTop: spacing.sm,
@@ -467,7 +577,11 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       paddingHorizontal: spacing.lg,
       borderRadius: borderRadius.pill,
     },
-    primaryBtnText: { color: colors.textInverse, fontWeight: '700', fontSize: typography.md },
+    primaryBtnText: {
+      ...typeface('medium'),
+      color: colors.textInverse,
+      fontSize: typography.md,
+    },
     editBtn: {
       marginTop: spacing.sm,
       alignSelf: 'flex-start',
@@ -477,7 +591,11 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
-    editBtnText: { color: colors.brand, fontWeight: '600', fontSize: typography.md },
+    editBtnText: {
+      ...typeface('medium'),
+      color: colors.brand,
+      fontSize: typography.md,
+    },
     secondaryBtn: {
       marginTop: spacing.sm,
       alignSelf: 'flex-start',
@@ -485,6 +603,10 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       paddingHorizontal: spacing.md,
     },
     secondaryBtnDisabled: { opacity: 0.55 },
-    secondaryBtnText: { color: colors.brand, fontWeight: '600', fontSize: typography.sm },
+    secondaryBtnText: {
+      ...typeface('medium'),
+      color: colors.brand,
+      fontSize: typography.sm,
+    },
   });
 }

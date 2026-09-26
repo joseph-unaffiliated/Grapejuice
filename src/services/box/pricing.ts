@@ -206,7 +206,7 @@ export function catalogPercentOff(nonMemberCents: number, memberCents: number): 
 }
 
 /**
- * Storefront member offer copy, e.g. "$18 (74% off) when in a box".
+ * Storefront member offer copy, e.g. "$18 (74% off) with a box".
  * Pass preformatted dollar strings from `formatCatalogDollars`.
  */
 export function formatSubscriberOfferLine(
@@ -216,8 +216,8 @@ export function formatSubscriberOfferLine(
 ): string {
   const off = catalogPercentOff(nonMemberCents, memberCents);
   return off
-    ? `${memberPriceLabel} (${off}% off) when in a box`
-    : `${memberPriceLabel} when in a box`;
+    ? `${memberPriceLabel} (${off}% off) with a box`
+    : `${memberPriceLabel} with a box`;
 }
 
 /** When a box is already started: retail as secondary gold line. */

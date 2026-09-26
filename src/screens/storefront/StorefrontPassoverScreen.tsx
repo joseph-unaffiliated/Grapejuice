@@ -4,7 +4,12 @@ import { StorefrontArticlePage } from '../../components/storefront/StorefrontArt
 import { StorefrontBMitzvahStrip } from '../../components/storefront/StorefrontBMitzvahStrip';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { BMITZVAH_PILOT_INTEREST } from '../../constants/storefrontBMitzvahCopy';
-import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
+import {
+  HANUKKAH_2027_NOTIFY_INTEREST,
+  HIGH_HOLIDAYS_SUKKOT_2027_INTEREST,
+  PASSOVER_NOTIFY_INTEREST,
+  PRE_REGISTERED_CTA_LABEL,
+} from '../../constants/pilotHolidays';
 import { STOREFRONT_PASSOVER_BOX_THUMBS } from '../../constants/storefrontMedia';
 import { PASSOVER_COPY } from '../../constants/storefrontPassoverCopy';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
@@ -15,13 +20,17 @@ export function StorefrontPassoverScreen() {
   usePublishRavSurface({ type: 'content', id: 'passover-2027', label: 'Passover 2027' });
   const c = PASSOVER_COPY;
   const passover = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
+  const highHolidays = useStorefrontInterest(HIGH_HOLIDAYS_SUKKOT_2027_INTEREST);
+  const hanukkah2027 = useStorefrontInterest(HANUKKAH_2027_NOTIFY_INTEREST);
   const bmitzvah = useStorefrontInterest(BMITZVAH_PILOT_INTEREST);
 
-  const reserveInterest = () => {
-    passover.mark();
+  const interestByKey: Record<string, ReturnType<typeof useStorefrontInterest>> = {
+    [PASSOVER_NOTIFY_INTEREST]: passover,
+    [HIGH_HOLIDAYS_SUKKOT_2027_INTEREST]: highHolidays,
+    [HANUKKAH_2027_NOTIFY_INTEREST]: hanukkah2027,
   };
 
-  const primaryLabel = passover.marked ? 'Done!' : c.primaryCta;
+  const primaryLabel = passover.marked ? PRE_REGISTERED_CTA_LABEL : c.primaryCta;
 
   return (
     <StorefrontArticlePage
@@ -31,8 +40,7 @@ export function StorefrontPassoverScreen() {
       leadMaxWidth={520}
       primaryCta={{
         label: primaryLabel,
-        onPress: reserveInterest,
-        disabled: passover.marked,
+        onPress: passover.toggle,
       }}
       primaryCtaSize="medium"
       showHeroDivider
@@ -52,25 +60,31 @@ export function StorefrontPassoverScreen() {
             items: group.items.map((item) => {
               const ctaLabel = 'ctaLabel' in item ? item.ctaLabel : undefined;
               const ctaAction = 'ctaAction' in item ? item.ctaAction : undefined;
+              const interestKey = 'interestKey' in item ? item.interestKey : undefined;
               const isStartBox = ctaAction === 'startBox';
               const ctaVariant =
                 'ctaVariant' in item && item.ctaVariant ? item.ctaVariant : undefined;
-              const isPreRegister = Boolean(ctaLabel) && !isStartBox;
-              const label =
-                isPreRegister && passover.marked ? 'Done!' : ctaLabel;
+              const interest = interestKey ? interestByKey[interestKey] : undefined;
+              const marked = Boolean(interest?.marked);
+              const label = marked ? PRE_REGISTERED_CTA_LABEL : ctaLabel;
               return {
                 when: item.when,
                 what: item.what,
                 cta: label
                   ? {
                       label,
-                      onPress: isStartBox ? startBox : reserveInterest,
-                      disabled: isPreRegister && passover.marked,
+                      onPress: isStartBox
+                        ? startBox
+                        : interest
+                          ? interest.toggle
+                          : passover.toggle,
                     }
                   : undefined,
-                // Passover Pre-register = gold fill; Hanukkah + other holidays = outline
+                // Marked pre-registers use gold fill; otherwise Passover primary / others outline.
                 ctaVariant: ctaLabel
-                  ? ((ctaVariant ?? 'outline') as 'primary' | 'outline')
+                  ? ((marked || ctaVariant === 'primary' ? 'primary' : 'outline') as
+                      | 'primary'
+                      | 'outline')
                   : undefined,
               };
             }),
@@ -90,9 +104,8 @@ export function StorefrontPassoverScreen() {
       ]}
       beforeFooterStrips={
         <StorefrontBMitzvahStrip
-          onInterested={() => bmitzvah.mark()}
-          primaryLabel={bmitzvah.marked ? 'Done!' : undefined}
-          disabled={bmitzvah.marked}
+          onInterested={bmitzvah.toggle}
+          primaryLabel={bmitzvah.marked ? "You're interested!" : undefined}
         />
       }
     />

@@ -63,6 +63,11 @@ import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
 import { isGiftCustomizePath, isGiftGivePath } from './giftFlowLink';
 import { contentRouteFromPath } from './contentLink';
+import { readStorePathFromBoot } from './storeLink';
+import {
+  DEFAULT_STOREFRONT_CATEGORY,
+  resolveStorefrontCategorySlug,
+} from '../constants/storefrontCategories';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 
@@ -90,13 +95,18 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
   const bootPath = getBootLocation()?.pathname;
   if (bootPath && isGiftCustomizePath(bootPath)) return 'GiftGiverCustomize';
   if (bootPath && isGiftGivePath(bootPath)) return 'GiftGive';
-  // Refresh on /box must not land on StorefrontHome (that rewrites the URL to /store).
+  // Refresh on /box must not land on StorefrontHome (that rewrites the URL).
   if (bootPath) {
     const normalized = bootPath.replace(/\/$/, '') || '/';
     if (normalized === '/box' || normalized === '/my-box') return 'MyBox';
     if (normalized === '/checkout') return 'Checkout';
     const contentRoute = contentRouteFromPath(normalized);
     if (contentRoute) return contentRoute;
+    const store = readStorePathFromBoot();
+    if (store?.kind === 'category') {
+      if (store.category === 'favorites') return 'StorefrontFavorites';
+      return 'StorefrontCategory';
+    }
   }
   const bootAudience = bootLandingAudience();
   if (bootAudience?.id === 'gift') return 'GiftLanding';
@@ -372,10 +382,25 @@ export function MainStack() {
             : null;
         })()
       : null;
+  const bootStoreAtMount =
+    initialRouteName === 'StorefrontCategory'
+      ? (() => {
+          const store = readStorePathFromBoot();
+          if (!store || store.kind !== 'category') return null;
+          return {
+            category: resolveStorefrontCategorySlug(
+              store.category || DEFAULT_STOREFRONT_CATEGORY
+            ),
+            ...(store.q ? { q: store.q } : null),
+            ...(store.avail ? { avail: store.avail } : null),
+            ...(store.style ? { style: store.style } : null),
+          };
+        })()
+      : null;
   const initialParams =
     pendingAtMount?.screen === initialRouteName
       ? pendingAtMount.params
-      : giftDraftAtMount ?? bootLandingAtMount ?? undefined;
+      : giftDraftAtMount ?? bootLandingAtMount ?? bootStoreAtMount ?? undefined;
 
   return (
     <WebDesktopFrame>
@@ -425,9 +450,18 @@ export function MainStack() {
           name="StorefrontCategory"
           component={StorefrontCategoryScreen}
           options={{ title: 'Store' }}
+          // Distinct stack entries per aisle so Back / URL history track category changes.
+          getId={({ params }) => params?.category ?? 'collection'}
           initialParams={
             initialRouteName === 'StorefrontCategory'
-              ? (initialParams as { category: string; q?: string } | undefined)
+              ? (initialParams as
+                  | {
+                      category: string;
+                      q?: string;
+                      avail?: 'buy-now' | 'box-only' | 'all';
+                      style?: 'collection' | 'kids' | 'all';
+                    }
+                  | undefined)
               : undefined
           }
         />

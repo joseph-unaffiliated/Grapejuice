@@ -43,6 +43,7 @@ import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { SearchPill, SEARCH_PILL_HEIGHT } from '../ui/SearchPill';
 import { RavBlockRenderer } from './RavBlockRenderer';
 import { FormattedChatText } from './FormattedChatText';
+import { RavStarterChipRails } from './RavStarterChipRails';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useWebSidebar } from '../../context/WebSidebarContext';
@@ -64,8 +65,10 @@ import type { OpenRavCompanionPaneInput } from '../../types/ravPane';
 
 const MAX_HISTORY_TURNS = 10;
 const WELCOME_SEND_SIZE = 32;
+/** Match top/bottom inset so the send control sits optically centered in the pill end. */
+const WELCOME_SEND_EDGE = (SEARCH_PILL_HEIGHT - WELCOME_SEND_SIZE) / 2;
 /** Room for the send overlay — only applied while the field is active. */
-const WELCOME_SEND_INSET = WELCOME_SEND_SIZE + spacing.sm;
+const WELCOME_SEND_INSET = WELCOME_SEND_SIZE + WELCOME_SEND_EDGE + spacing.sm;
 
 type RavView = 'welcome' | 'recent' | 'thread';
 
@@ -150,6 +153,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
   const [lastActivityAt, setLastActivityAt] = useState(() => new Date());
   const [welcomeFocused, setWelcomeFocused] = useState(false);
+  const welcomeSearchAnchorRef = useRef<View>(null);
   const pendingInitialMessage = useRef<string | null>(bootstrap || null);
   const [pendingSendNonce, setPendingSendNonce] = useState(() => (bootstrap ? 1 : 0));
   /** Local-only opening assistant bubble not yet written to Firestore. */
@@ -705,7 +709,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   ) : null;
 
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
+    <SafeAreaView style={styles.root} edges={overlay === 'drawer' ? [] : ['top']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {initializing ? (
           <View style={styles.centered}>
@@ -780,26 +784,44 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               styles.welcome,
               isDesktop && styles.welcomeDesktop,
               overlay === 'drawer' ? styles.welcomeDrawer : null,
+              overlay === 'drawer' && welcomeFocused ? styles.welcomeDrawerKeyboard : null,
               {
                 paddingBottom:
                   overlay === 'drawer' ? spacing.lg + bottomPad : bottomPad + 80,
               },
             ]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           >
             <View style={[styles.welcomeColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
+            <View style={styles.welcomePadded}>
             {overlay === 'drawer' ? null : <GrapejuiceBrandMark animating={loading} />}
             <View style={styles.welcomeHeadings}>
               <Text style={styles.welcomeTitle}>What&apos;s on your mind?</Text>
               {overlay === 'drawer' ? null : <Text style={styles.welcomeSub}>{welcomeSubtext}</Text>}
             </View>
 
-            <View style={styles.welcomeSearchWrap}>
+            <View
+              ref={welcomeSearchAnchorRef}
+              style={styles.welcomeSearchWrap}
+              collapsable={false}
+            >
               <SearchPill
                 value={input}
                 onChangeText={setInput}
                 onSubmitEditing={() => sendMessage(input)}
-                onFocus={() => setWelcomeFocused(true)}
+                onFocus={() => {
+                  setWelcomeFocused(true);
+                  // Keep the composer in the shrunk visual viewport (mobile web keyboard).
+                  if (Platform.OS === 'web') {
+                    requestAnimationFrame(() => {
+                      const node = welcomeSearchAnchorRef.current as unknown as
+                        | HTMLElement
+                        | null;
+                      node?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+                    });
+                  }
+                }}
                 onBlur={() => setWelcomeFocused(false)}
                 onKeyPress={handleComposerKeyPress}
                 animatePlaceholder={false}
@@ -824,21 +846,15 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 </TouchableOpacity>
               ) : null}
             </View>
-
-            <View style={styles.chips}>
-              {starterChips.map((chip) => (
-                <TouchableOpacity key={chip.message} style={styles.chip} onPress={() => sendMessage(chip.message)}>
-                  {chip.lines.map((line, i) => (
-                    <Text key={`${chip.message}-${i}`} style={styles.chipText}>
-                      {line}
-                    </Text>
-                  ))}
-                </TouchableOpacity>
-              ))}
             </View>
 
+            <RavStarterChipRails
+              chips={starterChips}
+              onSelect={(message) => sendMessage(message)}
+            />
+
             {hasThreadHistory ? (
-              <View style={styles.recentSection}>
+              <View style={[styles.recentSection, styles.welcomePadded]}>
                 <View style={styles.recentHeader}>
                   <Text style={styles.recentTitle}>Recent Chats</Text>
                   <TouchableOpacity onPress={showRecentChats} accessibilityLabel="View all chats">
@@ -933,9 +949,6 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                     {...(Platform.OS === 'web' ? ({ rows: 1 } as object) : null)}
                   />
                   <View style={styles.replyActions}>
-                    <TouchableOpacity style={styles.pillIconBtn} accessibilityLabel="Add attachment">
-                      <Icon icon={icons.plus} size={12} color={colors.goldMuted} />
-                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.pillIconBtn}
                       onPress={() => sendMessage(input)}
@@ -985,11 +998,22 @@ function createPilotStyles(colors: SemanticColors) {
     justifyContent: 'center',
     paddingTop: spacing.lg,
   },
+  /** Keyboard open: pin content to the top so the composer isn’t clipped. */
+  welcomeDrawerKeyboard: {
+    justifyContent: 'flex-start',
+    paddingTop: spacing.sm,
+  },
   welcomeColumn: {
+    width: '100%',
+    alignItems: 'stretch',
+    gap: spacing.xl,
+  },
+  /** Title / search / recent — keep gutters; chip rails sit outside and go edge-to-edge. */
+  welcomePadded: {
     width: '100%',
     paddingHorizontal: MOBILE_GUTTER,
     alignItems: 'center',
-    gap: spacing.xl,
+    gap: spacing.md,
   },
   threadContent: {
     paddingHorizontal: spacing.lg,
@@ -999,10 +1023,11 @@ function createPilotStyles(colors: SemanticColors) {
   },
   welcomeHeadings: { alignItems: 'center', gap: spacing.xs },
   welcomeTitle: {
-    fontSize: 24,
-    fontWeight: '400',
-    color: colors.textPrimary,
-    letterSpacing: -0.72,
+    ...typeface('medium'),
+    fontSize: 28,
+    lineHeight: 28,
+    letterSpacing: -0.3,
+    color: colors.logoDark,
   },
   welcomeSub: {
     fontSize: typography.sm,
@@ -1018,8 +1043,8 @@ function createPilotStyles(colors: SemanticColors) {
   },
   sendCircle: {
     position: 'absolute',
-    right: MOBILE_GUTTER,
-    top: (SEARCH_PILL_HEIGHT - WELCOME_SEND_SIZE) / 2,
+    right: WELCOME_SEND_EDGE,
+    top: WELCOME_SEND_EDGE,
     zIndex: 4,
     width: WELCOME_SEND_SIZE,
     height: WELCOME_SEND_SIZE,
@@ -1134,23 +1159,6 @@ function createPilotStyles(colors: SemanticColors) {
     textAlign: 'center',
     letterSpacing: -0.26,
   },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
-  chip: {
-    borderWidth: 0.5,
-    borderColor: colors.goldMuted,
-    borderRadius: borderRadius.chip,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    alignItems: 'center',
-  },
-  chipText: {
-    fontSize: typography.sm,
-    fontWeight: '200',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: -0.22,
-    lineHeight: 14,
-  },
   menuBtn: {
     position: 'absolute',
     top: spacing.md,
@@ -1163,7 +1171,7 @@ function createPilotStyles(colors: SemanticColors) {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  userChipWrap: { alignItems: 'flex-end' },
+  userChipWrap: { alignItems: 'flex-start' },
   userChip: {
     borderWidth: 0.5,
     borderColor: colors.brand,
@@ -1175,8 +1183,9 @@ function createPilotStyles(colors: SemanticColors) {
   userChipText: {
     fontSize: typography.lg,
     color: colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: -0.26,
+    lineHeight: 20,
+    letterSpacing: -0.39,
+    textAlign: 'left',
   },
   assistantWrap: { paddingRight: spacing.xl },
   assistantText: {

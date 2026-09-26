@@ -114,7 +114,7 @@ export const DEFAULT_LANDING_CATEGORY_CARDS: LandingCategoryCardDef[] = [
   {
     label: 'Stuffies',
     category: 'stuffies',
-    image: require('../../assets/catalog/plush-dreidel.png'),
+    image: require('../../assets/catalog/plush-dreidel.webp'),
   },
   {
     label: 'Food',
@@ -124,7 +124,7 @@ export const DEFAULT_LANDING_CATEGORY_CARDS: LandingCategoryCardDef[] = [
   {
     label: 'Dreidels',
     category: 'dreidels',
-    image: require('../../assets/catalog/english-hebrew-dreidel.png'),
+    image: require('../../assets/catalog/english-hebrew-dreidel.webp'),
   },
 ];
 
@@ -168,7 +168,7 @@ export const STOREFRONT_HOME_AISLE_CARDS: LandingCategoryCardDef[] = [
   {
     label: 'Books',
     category: 'books',
-    image: require('../../assets/catalog/picture-book-hanukkah.png'),
+    image: require('../../assets/catalog/picture-book-hanukkah.webp'),
   },
 ];
 

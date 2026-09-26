@@ -5,7 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  useWindowDimensions,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -13,9 +14,8 @@ import {
   StorefrontChrome,
   useStorefrontActions,
 } from '../../components/storefront/StorefrontChrome';
+import { AccountHubHeader } from '../../components/account/AccountHubHeader';
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
-import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
-import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useWishlist } from '../../hooks/useWishlist';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
@@ -23,8 +23,6 @@ import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
 import {
   borderRadius,
-  LAYOUT,
-  MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
@@ -80,7 +78,13 @@ function FilterChipButton({
         >
           {label}
         </Text>
-        <Text style={[styles.filterChipText, active && styles.filterChipTextActive, styles.filterChipTextOverlay]}>
+        <Text
+          style={[
+            styles.filterChipText,
+            active && styles.filterChipTextActive,
+            styles.filterChipTextOverlay,
+          ]}
+        >
           {label}
         </Text>
       </View>
@@ -90,11 +94,9 @@ function FilterChipButton({
 
 export function StorefrontFavoritesScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
   const { items, loading } = useCatalog();
   const { ids } = useWishlist();
-  const { goHome, askRav, startBox } = useStorefrontActions();
+  const { goHome } = useStorefrontActions();
   const [sort, setSort] = useState<SortKey>('recent');
 
   usePublishRavSurface({
@@ -114,42 +116,34 @@ export function StorefrontFavoritesScreen() {
   }, [items, ids, sort]);
 
   return (
-    <StorefrontChrome>
-      <View style={styles.page}>
-        {isDesktop ? (
-          <View style={styles.breadcrumb}>
-            <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-              Store
-            </Text>
-            <Text style={styles.crumbSep}> / </Text>
-            <Text style={styles.crumbCurrent}>Favorites</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.headingBlock}>
-          <Text style={styles.title}>Favorites</Text>
-          <Text style={styles.description}>
-            {ids.length === 0
-              ? 'Save products with the heart icon while you browse — they’ll show up here.'
-              : `${favoriteItems.length} saved product${favoriteItems.length === 1 ? '' : 's'}`}
-          </Text>
-        </View>
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.page}
+        showsVerticalScrollIndicator={false}
+      >
+        <AccountHubHeader page="favorites" />
 
         {ids.length > 0 ? (
-          <View style={styles.toolbar}>
-            <Text style={styles.filterLabel}>Sort</Text>
-            <View style={styles.chipRow}>
-              {SORT_OPTIONS.map((opt) => (
-                <FilterChipButton
-                  key={opt.key}
-                  label={opt.label}
-                  active={opt.key === sort}
-                  onPress={() => setSort(opt.key)}
-                />
-              ))}
+          <>
+            <View style={styles.sectionDivider} />
+            <View style={styles.toolbar}>
+              <Text style={styles.filterLabel}>Sort</Text>
+              <View style={styles.chipRow}>
+                {SORT_OPTIONS.map((opt) => (
+                  <FilterChipButton
+                    key={opt.key}
+                    label={opt.label}
+                    active={opt.key === sort}
+                    onPress={() => setSort(opt.key)}
+                  />
+                ))}
+              </View>
             </View>
-          </View>
-        ) : null}
+          </>
+        ) : (
+          <View style={styles.sectionDivider} />
+        )}
 
         {loading ? (
           <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
@@ -166,59 +160,32 @@ export function StorefrontFavoritesScreen() {
         ) : (
           <StorefrontProductGrid items={favoriteItems} />
         )}
-
-        <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
-        <StorefrontBuildBoxStrip onPress={startBox} variant="content" />
-      </View>
+      </ScrollView>
     </StorefrontChrome>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {},
-  breadcrumb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+  scroll: {
+    flex: 1,
+    width: '100%',
   },
-  crumbLink: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.textSecondary,
-    textDecorationLine: 'underline',
+  page: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xxl + spacing.md,
+    paddingBottom: spacing.xxl,
+    maxWidth: 560,
+    width: '100%',
+    alignSelf: 'center',
   },
-  crumbSep: {
-    ...typeface('regular'),
-    fontSize: typography.sm,
-    color: semanticColors.textTertiary,
-  },
-  crumbCurrent: {
-    ...typeface('medium'),
-    fontSize: typography.sm,
-    color: semanticColors.logoDark,
-  },
-  headingBlock: {
-    paddingHorizontal: MOBILE_GUTTER,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-    gap: 6,
-  },
-  title: {
-    ...typeface('medium'),
-    fontSize: 28,
-    color: semanticColors.logoDark,
-    lineHeight: 34,
-  },
-  description: {
-    ...typeface('regular'),
-    fontSize: 15,
-    color: semanticColors.textSecondary,
-    lineHeight: 22,
+  sectionDivider: {
+    alignSelf: 'stretch',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: semanticColors.border,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
   toolbar: {
-    paddingHorizontal: MOBILE_GUTTER,
     marginBottom: spacing.md,
     gap: spacing.xs,
   },
@@ -235,23 +202,23 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: semanticColors.borderDark,
-    backgroundColor: semanticColors.bgDark,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.bgPrimary,
   },
   filterChipActive: {
-    backgroundColor: semanticColors.accentCream,
-    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.logoDark,
+    borderColor: semanticColors.logoDark,
   },
   filterChipText: {
     ...typeface('regular'),
     fontSize: typography.sm,
-    color: semanticColors.textSecondary,
+    color: semanticColors.textPrimary,
   },
   filterChipTextActive: {
     ...typeface('medium'),
-    color: semanticColors.logoDark,
+    color: semanticColors.brand,
   },
   filterChipTextSizer: {
     ...typeface('medium'),
@@ -263,34 +230,36 @@ const styles = StyleSheet.create({
   },
   loader: { marginVertical: spacing.xl },
   empty: {
-    paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.xxl,
     alignItems: 'center',
     gap: spacing.sm,
   },
   emptyTitle: {
     ...typeface('medium'),
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.3,
     color: semanticColors.logoDark,
   },
   emptyBody: {
     ...typeface('regular'),
-    fontSize: 14,
+    fontSize: typography.md,
     color: semanticColors.textSecondary,
     textAlign: 'center',
     maxWidth: 360,
-    lineHeight: 22,
+    lineHeight: 20,
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   emptyCta: {
     marginTop: spacing.sm,
-    backgroundColor: semanticColors.logoDark,
+    backgroundColor: semanticColors.brand,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.xl,
   },
   emptyCtaText: {
-    ...typeface('medium'),
+    ...typeface('regular'),
     fontSize: typography.md,
-    color: semanticColors.textInverse,
+    color: semanticColors.logoDark,
   },
 });

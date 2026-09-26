@@ -3,49 +3,58 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <!-- Keep CSP in sync with scripts/patch-expo-csp.js (header ∩ meta). -->
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://*.google.com https://www.gstatic.com https://use.typekit.net https://js.stripe.com https://cdn.cookielaw.org https://*.onetrust.com https://connect.facebook.net https://s3-us-west-2.amazonaws.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://accounts.google.com https://api.unsplash.com https://api.stripe.com https://*.stripe.com https://cdn.cookielaw.org https://*.onetrust.com https://connect.facebook.net https://www.facebook.com https://*.facebook.com https://s3-us-west-2.amazonaws.com; frame-src 'self' https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://*.web.app https://js.stripe.com https://hooks.stripe.com https://cdn.cookielaw.org https://*.onetrust.com; img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://*.stripe.com https://*.googleusercontent.com https://storage.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com https://www.facebook.com https://*.facebook.com https://cdn.cookielaw.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net https://cdn.cookielaw.org; font-src 'self' https://fonts.gstatic.com https://use.typekit.net;" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://*.google.com https://www.gstatic.com https://use.typekit.net https://js.stripe.com https://cdn.cookielaw.org https://*.onetrust.com https://connect.facebook.net https://s3-us-west-2.amazonaws.com https://b-code.liadm.com https://*.liadm.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://accounts.google.com https://api.unsplash.com https://api.stripe.com https://*.stripe.com https://cdn.cookielaw.org https://*.onetrust.com https://connect.facebook.net https://www.facebook.com https://*.facebook.com https://s3-us-west-2.amazonaws.com https://*.ecs.us-east-1.on.aws https://*.ecs.us-west-2.on.aws https://*.ecs.us-east-2.on.aws https://*.on.aws https://*.liadm.com https://b-code.liadm.com https://*.a.run.app https://pro.ip-api.com https://*.ip-api.com https://api.retention.com https://*.retention.com; frame-src 'self' https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://*.web.app https://js.stripe.com https://hooks.stripe.com https://cdn.cookielaw.org https://*.onetrust.com; img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://*.stripe.com https://*.googleusercontent.com https://storage.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com https://www.facebook.com https://*.facebook.com https://cdn.cookielaw.org https://s3-us-west-2.amazonaws.com https://*.retention.com https://app.retention.com https://retention.com https://*.amazonaws.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net https://cdn.cookielaw.org; font-src 'self' https://fonts.gstatic.com https://use.typekit.net;" />
     <title>Grapejuice</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <link rel="shortcut icon" href="/favicon.png" />
     <!--
-      Compliance / marketing (brand-sites pattern):
+      Compliance / marketing (brand-sites pattern) — loaded AFTER first paint
+      so they don’t contend with the app bundle (see #gj-boot-defer below):
       - OneTrust domain script: 01a0cfd2-da9c-7e6a-a312-7f370c33ab6c (grapejuice.co)
       - Retention.com site id: X2JHJ4WE (Untraditional network default)
       - Meta Pixel id: 809409995127436 (Untraditional network default)
     -->
-    <!-- OneTrust Cookies Consent Notice start for grapejuice.co
-         async: never block document parser / tab spinner if the CDN stalls. -->
-    <script
-      src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js"
-      type="text/javascript"
-      charset="UTF-8"
-      async
-      data-domain-script="01a0cfd2-da9c-7e6a-a312-7f370c33ab6c"
-    ></script>
     <script type="text/javascript">
       function OptanonWrapper() {}
-    </script>
-    <!-- OneTrust Cookies Consent Notice end for grapejuice.co -->
-    <!-- Retention.com site snippet (network default X2JHJ4WE) -->
-    <script type="text/javascript">
-      !function(){var geq=window.geq=window.geq||[];if(geq.initialize)return;if(geq.invoked){if(window.console&&console.error){console.error("Retention snippet included twice.")}return}geq.invoked=!0;geq.methods=["page","suppress","track","doNotTrack","trackOrder","identify","addToCart","callBack","event"];geq.factory=function(method){return function(){var args=Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq}};for(var i=0;i<geq.methods.length;i++){var key=geq.methods[i];geq[key]=geq.factory(key)}geq.load=function(key){var script=document.createElement("script");script.type="text/javascript";script.async=!0;if(location.href.indexOf("vge=true")!==-1){script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js?v="+Math.random()}else{script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js"}var first=document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script,first)};geq.SNIPPET_VERSION="1.6.1";geq.load("X2JHJ4WE")}();
-    </script>
-    <!-- Meta Pixel Code (network default 809409995127436) -->
-    <script type="text/javascript">
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '809409995127436');
-      fbq('track', 'PageView');
+      /** Retention.com collection loader (site id X2JHJ4WE).
+       *  Base stub + geq.load + geq.page() — Retention's verifier Ctrl+F's for "geq.page".
+       *  Honors ?vge=true cache-bust for their installer test. */
+      window.__gjLoadRetention = function () {
+        if (window.__gjRetentionLoaded) return;
+        window.__gjRetentionLoaded = true;
+        !function(){var geq=window.geq=window.geq||[];if(geq.initialize)return;if(geq.invoked){if(window.console&&console.error){console.error("GE snippet included twice.");}return;}geq.invoked=!0;geq.methods=["page","suppress","track","doNotTrack","trackOrder","identify","addToCart","callBack","event"];geq.factory=function(method){return function(){var args=Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq}};for(var i=0;i<geq.methods.length;i++){var key=geq.methods[i];geq[key]=geq.factory(key)}geq.load=function(key){var script=document.createElement("script");script.type="text/javascript";script.async=!0;if(location.href.indexOf("vge=true")!==-1){script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js?v="+Math.random()}else{script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js"}var first=document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script,first)};geq.SNIPPET_VERSION="1.6.1";geq.load("X2JHJ4WE");geq.page();}();
+      };
+      window.__gjDeferMarketing = function () {
+        if (window.__gjMarketingLoaded) return;
+        window.__gjMarketingLoaded = true;
+        // OneTrust
+        var ot = document.createElement('script');
+        ot.src = 'https://cdn.cookielaw.org/scripttemplates/otSDKStub.js';
+        ot.type = 'text/javascript';
+        ot.charset = 'UTF-8';
+        ot.async = true;
+        ot.setAttribute('data-domain-script', '01a0cfd2-da9c-7e6a-a312-7f370c33ab6c');
+        document.head.appendChild(ot);
+        // Retention.com (no-op if already loaded for ?vge=true)
+        if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
+        // Meta Pixel
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '809409995127436');
+        fbq('track', 'PageView');
+      };
+      // Retention collection: load immediately (verifier + SPA need geq.page in-source).
+      // OneTrust / Meta stay deferred so they don't contend with first paint.
+      if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
     </script>
     <noscript
       ><img
@@ -55,7 +64,6 @@
         src="https://www.facebook.com/tr?id=809409995127436&ev=PageView&noscript=1"
         alt=""
     /></noscript>
-    <!-- End Meta Pixel Code -->
     <style id="expo-reset">
       html, body { height: 100%; margin: 0; overscroll-behavior-y: contain; }
       body {
@@ -229,11 +237,20 @@
       #root .gj-storefront-scroll > div,
       #root [data-testid="storefront-vertical-scroll"] > div {
         overflow: visible !important;
-        /* Short pages: grow to the scrollport so footer marginTop:auto can pin bottom */
+        /* Short pages: min-height 100% + spacer flex-grow pins the footer.
+           Tall pages: height/max-height must NOT freeze at the scrollport —
+           RN-web flex-basis:0% + min-height:100% alone leaves scrollHeight stuck
+           after async body growth, clipping the footer wordmark. */
         display: flex !important;
         flex-direction: column !important;
         flex-grow: 1 !important;
+        flex-shrink: 0 !important;
+        flex-basis: auto !important;
         min-height: 100% !important;
+        height: max-content !important;
+        max-height: none !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
       }
       #root .gj-storefront-h-scroll {
         overflow-x: auto !important;
@@ -259,7 +276,7 @@
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- display=block avoids FOUT layout jump; include all weights the app uses (200–700). -->
+    <!-- display=block: hold invisible text until DM Sans is ready (avoids wrong fallback face). -->
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,400;0,9..40,500;0,9..40,700&display=block"
       rel="stylesheet"
@@ -268,5 +285,24 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <script id="gj-boot-defer">
+      (function () {
+        var loaded = false;
+        function run() {
+          if (loaded) return;
+          loaded = true;
+          if (typeof window.__gjDeferMarketing === 'function') window.__gjDeferMarketing();
+        }
+        // After the app bundle has had a chance to start, or on first input.
+        if (document.readyState === 'complete') {
+          setTimeout(run, 1800);
+        } else {
+          window.addEventListener('load', function () { setTimeout(run, 1800); });
+        }
+        ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(function (evt) {
+          window.addEventListener(evt, run, { once: true, passive: true });
+        });
+      })();
+    </script>
   </body>
 </html>

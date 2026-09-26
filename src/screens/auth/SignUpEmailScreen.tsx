@@ -50,6 +50,8 @@ export function SignUpEmailScreen() {
     }
     try {
       await signUp(e, password, name);
+      const { retentionSuppress } = await import('../../services/analytics/retention');
+      retentionSuppress(e);
     } catch {
       /* store surfaces error */
     }

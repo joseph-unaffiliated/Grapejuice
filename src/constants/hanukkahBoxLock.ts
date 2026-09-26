@@ -2,7 +2,10 @@
 export const HANUKKAH_BOX_LOCK_DATE = new Date('2026-11-04T23:59:59-05:00');
 
 /** Fallback estimated delivery day (display) when config is unavailable. */
-export const HANUKKAH_DELIVERY_FALLBACK_ISO = '2026-11-24';
+export const HANUKKAH_DELIVERY_FALLBACK_ISO = '2026-11-21';
+
+/** Fallback first night when Firestore `startsOn` is unavailable. */
+export const HANUKKAH_STARTS_FALLBACK_ISO = '2026-12-05';
 
 export const HANUKKAH_BOX_LOCK_YEAR_LABEL = '2026 Hanukkah Box';
 
@@ -95,7 +98,7 @@ export function arrivesByPromoLabel(estimatedDeliveryBy?: string | null): string
   const day =
     formatShortMonthDay(estimatedDeliveryBy) ??
     formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
-    'Nov 24';
+    'Nov 21';
   return `Arrives by ${day}`;
 }
 
@@ -107,13 +110,36 @@ export function hanukkahStartsSundownLabel(startsOn?: string | null): string | n
   return `Hanukkah starts sundown ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 }
 
+/** Promo starts clause (no “sundown”): `Hanukkah starts Dec 5`. */
+export function hanukkahStartsPromoLabel(startsOn?: string | null): string {
+  const iso = startsOn?.trim() || HANUKKAH_STARTS_FALLBACK_ISO;
+  const d = parseIsoDate(iso);
+  if (Number.isNaN(d.getTime())) {
+    return 'Hanukkah starts Dec 5';
+  }
+  return `Hanukkah starts ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** Promo delivery clause: `Boxes arrive by Nov 21`. */
+export function boxesArriveByPromoLabel(estimatedDeliveryBy?: string | null): string {
+  const day =
+    formatShortMonthDay(estimatedDeliveryBy) ??
+    formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
+    'Nov 21';
+  return `Boxes arrive by ${day}`;
+}
+
+/**
+ * Acquisition promo (fits one line on mobile):
+ * `Hanukkah starts Dec 5 • Boxes arrive by Nov 21 • Free shipping`
+ */
 export function freeShippingPromoLine(
   estimatedDeliveryBy?: string | null,
   startsOn?: string | null
 ): string {
-  const base = `Free shipping on boxes • ${arrivesByPromoLabel(estimatedDeliveryBy)}`;
-  const third = hanukkahStartsSundownLabel(startsOn);
-  return third ? `${base} • ${third}` : base;
+  const starts = hanukkahStartsPromoLabel(startsOn);
+  const arrives = boxesArriveByPromoLabel(estimatedDeliveryBy);
+  return `${starts} • ${arrives} • Free shipping`;
 }
 
 /**
@@ -142,6 +168,6 @@ export function shipWindowLabel(estimatedDeliveryBy?: string | null): string {
   return (
     formatShortMonthDay(estimatedDeliveryBy) ??
     formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
-    'Nov 24'
+    'Nov 21'
   );
 }

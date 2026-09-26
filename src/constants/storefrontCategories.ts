@@ -406,6 +406,32 @@ export function itemsForStorefrontRail(
   return source.slice(0, limit);
 }
 
+function isRollYourOwnCandles(item: CatalogItem): boolean {
+  return (
+    /roll[_-]?your[_-]?own/i.test(item.id) || /roll\s+your\s+own/i.test(item.name)
+  );
+}
+
+function isElectricCandles(item: CatalogItem): boolean {
+  return /electric/i.test(item.id) || /electric\s+candles?/i.test(item.name);
+}
+
+/**
+ * Home / candles aisle: keep Roll Your Own immediately before Electric Candles
+ * when both appear (Airtable rank may list Electric first).
+ */
+export function orderCandlesRollYourOwnBeforeElectric(
+  items: CatalogItem[]
+): CatalogItem[] {
+  const list = [...items];
+  const rollIdx = list.findIndex(isRollYourOwnCandles);
+  const elecIdx = list.findIndex(isElectricCandles);
+  if (rollIdx < 0 || elecIdx < 0 || rollIdx < elecIdx) return list;
+  const [roll] = list.splice(rollIdx, 1);
+  list.splice(elecIdx, 0, roll!);
+  return list;
+}
+
 function minDefaultBookAge(item: CatalogItem): number {
   const ages = item.defaultBookAges ?? [];
   if (!ages.length) return Number.POSITIVE_INFINITY;
