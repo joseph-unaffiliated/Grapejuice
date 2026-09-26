@@ -16,15 +16,14 @@ import {
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 
 /**
- * Box line this item can replace, if any.
- * Prefers the lowest-priced matching line when several qualify.
+ * Box lines this item can replace (lowest unitCents first).
  */
-export function findSwapSourceLine(
+export function findSwapSourceLines(
   item: CatalogItem,
   lineItems: BoxLineItem[],
   catalog: CatalogItem[],
   withinSection?: BoxDisplaySectionId | null
-): BoxLineItem | null {
+): BoxLineItem[] {
   const matches: BoxLineItem[] = [];
 
   for (const li of lineItems) {
@@ -42,7 +41,19 @@ export function findSwapSourceLine(
     }
   }
 
-  if (!matches.length) return null;
   matches.sort((a, b) => (a.unitCents ?? 0) - (b.unitCents ?? 0));
-  return matches[0] ?? null;
+  return matches;
+}
+
+/**
+ * Box line this item can replace, if any.
+ * Prefers the lowest-priced matching line when several qualify.
+ */
+export function findSwapSourceLine(
+  item: CatalogItem,
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[],
+  withinSection?: BoxDisplaySectionId | null
+): BoxLineItem | null {
+  return findSwapSourceLines(item, lineItems, catalog, withinSection)[0] ?? null;
 }

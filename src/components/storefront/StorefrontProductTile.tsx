@@ -175,6 +175,8 @@ type Props = {
   boxQuantity?: number;
   /** Delta (+1 / −1); at qty 1, −1 removes. */
   onBoxQtyChange?: (delta: 1 | -1) => void;
+  /** Opens swap-into-box picker; falls back to `onPress` when omitted. */
+  onSwapPress?: () => void;
   /** Horizontal rails: omit bottom margin (grid uses it for row gap). */
   flushBottom?: boolean;
 };
@@ -198,6 +200,7 @@ export function StorefrontProductTile({
   boxRelation = null,
   boxQuantity = 1,
   onBoxQtyChange,
+  onSwapPress,
   flushBottom = false,
 }: Props) {
   const imageSize = Math.max(120, width);
@@ -312,7 +315,7 @@ export function StorefrontProductTile({
           <Icon
             icon={wishlisted ? icons.heart : icons.heartOutline}
             size={16}
-            color={wishlisted ? semanticColors.secondary : '#FFFFFF'}
+            color={wishlisted ? semanticColors.brand : '#FFFFFF'}
           />
         </TouchableOpacity>
       </View>
@@ -380,7 +383,7 @@ export function StorefrontProductTile({
         <View style={styles.chipRow}>
           <TouchableOpacity
             style={[styles.chip, styles.chipPrimary]}
-            onPress={onPress}
+            onPress={onSwapPress ?? onPress}
             accessibilityRole="button"
             accessibilityLabel={`Swap into my box ${item.name}`}
           >
@@ -525,8 +528,8 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.bgPrimary,
   },
   chipPrimary: {
-    backgroundColor: semanticColors.logoDark,
-    borderColor: semanticColors.logoDark,
+    backgroundColor: semanticColors.brand,
+    borderColor: semanticColors.brand,
   },
   chipSpaced: {
     marginTop: spacing.sm,
@@ -540,6 +543,6 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   chipTextPrimary: {
-    color: semanticColors.goldMuted,
+    color: semanticColors.logoDark,
   },
 });

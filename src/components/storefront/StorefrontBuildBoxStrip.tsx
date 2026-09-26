@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,7 @@ import {
   Image,
   Platform,
   type ImageSourcePropType,
-  type LayoutChangeEvent,
 } from 'react-native';
-import Svg, {
-  Defs,
-  RadialGradient as SvgRadialGradient,
-  Stop,
-  Rect,
-} from 'react-native-svg';
 import {
   STOREFRONT_BOX_BUILD_STRIP_ALT,
   STOREFRONT_BOX_REVEAL_STRIP,
@@ -31,21 +24,6 @@ import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { DreidelIcon } from '../ui/DreidelIcon';
 import { Icon } from '../ui/Icon';
 import { StorefrontWebVideo } from './StorefrontWebVideo';
-
-/**
- * Anti-vignette (same as StorefrontHero): darkest at center for copy,
- * gradual fade to clear edges so the reel stays visible.
- */
-const HERO_SCRIM_RADIAL_WEB =
-  'radial-gradient(ellipse 72% 68% at center, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.22) 28%, rgba(0, 0, 0, 0.1) 52%, rgba(0, 0, 0, 0.03) 70%, transparent 82%)';
-
-const NATIVE_HERO_SCRIM_STOPS = [
-  { offset: '0', color: '#000000', opacity: '0.34' },
-  { offset: '0.28', color: '#000000', opacity: '0.22' },
-  { offset: '0.52', color: '#000000', opacity: '0.1' },
-  { offset: '0.7', color: '#000000', opacity: '0.03' },
-  { offset: '0.82', color: '#000000', opacity: '0' },
-] as const;
 
 /** How it Works / HANUKKAH_PRACTICES order — icons match practices accordion. */
 export type BuildBoxInclusion = {
@@ -91,47 +69,6 @@ function resolveAssetUri(src: string | number | ImageSourcePropType | null | und
     return src.uri;
   }
   return null;
-}
-
-function NativeHeroScrim({ width, height }: { width: number; height: number }) {
-  const rawId = useId().replace(/:/g, '');
-  const gradId = `buildBoxStripScrim-${rawId}`;
-  if (width <= 0 || height <= 0) return null;
-
-  const cx = width / 2;
-  const cy = height / 2;
-  const rx = width * 0.72;
-  const ry = height * 0.68;
-
-  return (
-    <Svg
-      width={width}
-      height={height}
-      style={StyleSheet.absoluteFillObject}
-      pointerEvents="none"
-    >
-      <Defs>
-        <SvgRadialGradient
-          id={gradId}
-          cx={cx}
-          cy={cy}
-          rx={rx}
-          ry={ry}
-          gradientUnits="userSpaceOnUse"
-        >
-          {NATIVE_HERO_SCRIM_STOPS.map((stop) => (
-            <Stop
-              key={stop.offset}
-              offset={stop.offset}
-              stopColor={stop.color}
-              stopOpacity={stop.opacity}
-            />
-          ))}
-        </SvgRadialGradient>
-      </Defs>
-      <Rect x={0} y={0} width={width} height={height} fill={`url(#${gradId})`} />
-    </Svg>
-  );
 }
 
 type Props = {
@@ -186,7 +123,6 @@ export function StorefrontBuildBoxStrip({
   backgroundSource,
   variant = 'home',
 }: Props) {
-  const [size, setSize] = useState({ w: 0, h: 0 });
   const { isCompact } = useLayoutBreakpoint();
   const isWeb = Platform.OS === 'web';
   const mediaSlot =
@@ -208,28 +144,17 @@ export function StorefrontBuildBoxStrip({
     (inclusionItems.length > 0 ? DEFAULT_INCLUDES_LABEL : undefined);
   const showIncludesSection = Boolean(includesHeading && inclusionItems.length > 0);
 
-  const onLayout = (e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
-  };
-
   return (
     <View style={[styles.outer, isCompact && styles.outerCompact]}>
       {/* Desktop: radius clips the reel. Mobile: full-bleed, square. */}
       <View style={[styles.card, isCompact && styles.cardCompact]}>
         <View
           style={[styles.root, isCompact ? styles.rootCompact : styles.rootWide]}
-          onLayout={onLayout}
         >
           {playVideoOnWeb ? (
             <StorefrontWebVideo src={videoUri!} poster={stillSource} load="lazy" />
           ) : (
             <Image source={stillSource} style={styles.bgImage} resizeMode="cover" />
-          )}
-          {isWeb ? (
-            <View style={styles.scrim} pointerEvents="none" />
-          ) : (
-            <NativeHeroScrim width={size.w} height={size.h} />
           )}
           <View style={styles.inner}>
             <Text style={styles.headline}>{headline}</Text>
@@ -293,6 +218,8 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
+    // Air before the footer (or next section) so the full-bleed plate doesn’t sit flush.
+    marginBottom: 64,
   },
   /** Full-bleed media + more space after the paper card above. */
   outerCompact: {
@@ -329,13 +256,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-  },
-  /** Radial anti-vignette — dark at center, clear at edges (StorefrontHero). */
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
-    ...(Platform.OS === 'web'
-      ? ({ backgroundImage: HERO_SCRIM_RADIAL_WEB } as object)
-      : { backgroundColor: 'rgba(0, 0, 0, 0.12)' }),
   },
   inner: {
     maxWidth: 560,

@@ -15,12 +15,21 @@ import {
   StorefrontProductTile,
   type StorefrontTileBoxRelation,
 } from './StorefrontProductTile';
+import { SwapIntoBoxModal } from './SwapIntoBoxModal';
+import { transferLiveIncludedBaselineOnSwap } from '../box/boxLineDisplay';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
-import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
+import {
+  findSwapSourceLine,
+  findSwapSourceLines,
+} from '../../services/box/findSwapSourceLine';
+import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
+import { boxAddOnUnitCents } from '../../services/box/pricing';
+import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import type { BoxLineItem, CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -98,8 +107,10 @@ export function StorefrontProductGrid({
   const availabilityById = availabilityProp ?? availHook.byId;
   const { items: catalog } = useCatalog();
   const { lineItems, persist } = useBoxDraft();
+  const { guardMutation } = usePaymentGate();
   const hasStartedBox = usePreviewedHasStartedBox();
   const [containerWidth, setContainerWidth] = useState(0);
+  const [swapIncoming, setSwapIncoming] = useState<CatalogItem | null>(null);
   const isRail = layout === 'rail';
   const showBrowseMore = isRail && Boolean(browseMoreLabel && onBrowseMore);
 
@@ -124,6 +135,25 @@ export function StorefrontProductGrid({
 
   const catalogForSwap = catalog.length ? catalog : items;
 
+  const swapSources = useMemo(() => {
+    if (!swapIncoming) return [];
+    return findSwapSourceLines(swapIncoming, lineItems, catalogForSwap);
+  }, [swapIncoming, lineItems, catalogForSwap]);
+
+  const swapOptions = useMemo(
+    () =>
+      swapSources.map((li) => {
+        const src = catalogForSwap.find((c) => c.id === li.itemId);
+        return {
+          key: `${li.slotId}:${li.itemId}`,
+          name: src?.name ?? li.label ?? li.itemId,
+          imageUrl: src?.imageUrl,
+          itemId: src?.id ?? li.itemId,
+        };
+      }),
+    [swapSources, catalogForSwap]
+  );
+
   const placeholders =
     visible.length === 0 && placeholderCount > 0
       ? Array.from({ length: placeholderCount }, (_, i) => i)
@@ -141,6 +171,40 @@ export function StorefrontProductGrid({
             i === idx ? { ...li, quantity: nextQty } : li
           );
     void persist(next);
+  };
+
+  const confirmSwap = (key: string) => {
+    if (!swapIncoming) return;
+    const source = swapSources.find((li) => `${li.slotId}:${li.itemId}` === key);
+    if (!source) return;
+    const sourceItem = catalogForSwap.find((c) => c.id === source.itemId);
+    const sectionId = displaySectionForCatalogItem(sourceItem ?? swapIncoming);
+    const swapUnitCents =
+      resolveFreeSwapUnitCents(sourceItem, swapIncoming, sectionId) ??
+      boxAddOnUnitCents(swapIncoming);
+    const delta = Math.max(0, swapUnitCents - (source.unitCents ?? 0));
+    if (delta > 0 && !guardMutation()) return;
+    transferLiveIncludedBaselineOnSwap(
+      source.itemId,
+      swapIncoming.id,
+      Math.max(1, source.quantity ?? 1),
+      swapUnitCents
+    );
+    const next = lineItems.map((li) =>
+      li.slotId === source.slotId && li.itemId === source.itemId
+        ? {
+            ...li,
+            itemId: swapIncoming.id,
+            label: swapIncoming.name,
+            unitCents: swapUnitCents,
+            quantity: 1,
+          }
+        : li
+    );
+    setSwapIncoming(null);
+    void persist(next).then(() => {
+      navigation.navigate('MyBox');
+    });
   };
 
   const browseMoreLabelText = browseMoreLabel
@@ -176,6 +240,9 @@ export function StorefrontProductGrid({
               relation === 'in_box' ? (delta) => updateBoxQty(item.id, delta) : undefined
             }
             onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
+            onSwapPress={
+              relation === 'swap' ? () => setSwapIncoming(item) : undefined
+            }
             onToggleWishlist={() => void toggleWishlist(item.id)}
             flushBottom={isRail}
           />
@@ -210,46 +277,62 @@ export function StorefrontProductGrid({
     </>
   );
 
+  const swapModal = (
+    <SwapIntoBoxModal
+      visible={swapIncoming != null && swapOptions.length > 0}
+      options={swapOptions}
+      onSelect={confirmSwap}
+      onCancel={() => setSwapIncoming(null)}
+    />
+  );
+
   if (isRail) {
     return (
-      <View
-        style={[
-          styles.railOuter,
-          constrainWidth && styles.constrained,
-          flushBottom && styles.railOuterFlush,
-        ]}
-        onLayout={onLayout}
-      >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.railContent,
-            { gap, paddingLeft: pad, paddingRight: pad },
+      <>
+        <View
+          style={[
+            styles.railOuter,
+            constrainWidth && styles.constrained,
+            flushBottom && styles.railOuterFlush,
           ]}
-          style={
-            Platform.OS === 'web'
-              ? ({ scrollbarWidth: 'none' } as object)
-              : undefined
-          }
+          onLayout={onLayout}
         >
-          {tiles}
-        </ScrollView>
-      </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.railContent,
+              { gap, paddingLeft: pad, paddingRight: pad },
+            ]}
+            style={
+              Platform.OS === 'web'
+                ? ({ scrollbarWidth: 'none' } as object)
+                : undefined
+            }
+          >
+            {tiles}
+          </ScrollView>
+        </View>
+        {swapModal}
+      </>
     );
   }
 
   return (
-    <View
-      style={[
-        styles.grid,
-        constrainWidth && styles.constrained,
-        { paddingHorizontal: pad, gap },
-      ]}
-      onLayout={onLayout}
-    >
-      {tiles}
-    </View>
+    <>
+      <View
+        style={[
+          styles.grid,
+          constrainWidth && styles.constrained,
+          flushBottom && styles.gridFlush,
+          { paddingHorizontal: pad, gap },
+        ]}
+        onLayout={onLayout}
+      >
+        {tiles}
+      </View>
+      {swapModal}
+    </>
   );
 }
 
@@ -262,6 +345,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     width: '100%',
     alignSelf: 'center',
+  },
+  gridFlush: {
+    marginBottom: 0,
   },
   constrained: {
     maxWidth: 1024,

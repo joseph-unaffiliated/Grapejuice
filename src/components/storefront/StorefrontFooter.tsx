@@ -313,15 +313,14 @@ export function StorefrontFooter() {
 
 const styles = StyleSheet.create({
   root: {
-    // With StorefrontChrome scrollContent flexGrow:1, this pins the footer to the
-    // viewport bottom on short pages (empty space sits above, not below).
-    marginTop: 'auto',
     backgroundColor: FOOTER_BG,
     paddingTop: MOBILE_GUTTER,
-    paddingBottom: 12,
+    // Room under the oversized wordmark watermark (descenders) + copyright.
+    paddingBottom: spacing.xl,
     paddingHorizontal: MOBILE_GUTTER,
+    flexShrink: 0,
     // Cover RN-web / svh subpixel seam that flashes the light page bg under the footer.
-    // Keep layout padding tight so copyright sits near the bottom; shadow fills the seam.
+    // Shadow fills the seam; layout padding keeps the watermark fully in scroll range.
     ...(Platform.OS === 'web'
       ? ({
           boxShadow: `0 48px 0 0 ${FOOTER_BG}`,
@@ -329,8 +328,7 @@ const styles = StyleSheet.create({
       : null),
   },
   rootCompact: {
-    // Same tight bottom inset as desktop (kept for breakpoint clarity).
-    paddingBottom: 12,
+    paddingBottom: spacing.xl,
   },
   /** Same width as the menu row so wordmark right edge = contact column right edge. */
   shell: {

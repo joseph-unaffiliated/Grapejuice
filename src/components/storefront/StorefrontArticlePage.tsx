@@ -243,13 +243,13 @@ function ArticleHairlineDivider() {
 function normalizeProseLine(
   line: StorefrontArticleProseLine,
 ): { body: string; weight: StorefrontArticleProseWeight } | null {
-  if (typeof line === 'string') {
-    const text = line.trim();
+      if (typeof line === 'string') {
+        const text = line.trim();
     return text ? { body: text, weight: 'regular' } : null;
-  }
-  const text = line.body.trim();
-  if (!text) return null;
-  return { body: text, weight: line.weight ?? 'regular' };
+      }
+      const text = line.body.trim();
+      if (!text) return null;
+      return { body: text, weight: line.weight ?? 'regular' };
 }
 
 /** Top-level items become paragraphs; nested arrays stay as inline runs. */
@@ -998,7 +998,7 @@ function ArticleBandBlock({
       {block.cta || block.secondaryCta ? (
         <View style={[styles.bandCtas, !compact ? styles.bandCtasRow : null]}>
           {block.cta ? (
-            <TouchableOpacity
+          <TouchableOpacity
               style={[styles.bandCta, !compact ? styles.bandCtaRowItem : null]}
               onPress={block.cta.onPress}
               disabled={block.cta.disabled}
@@ -1007,7 +1007,7 @@ function ArticleBandBlock({
               accessibilityState={{ disabled: Boolean(block.cta.disabled) }}
             >
               <Text style={styles.bandCtaText}>{block.cta.label}</Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
           ) : null}
           {block.secondaryCta ? (
             <TouchableOpacity
@@ -1027,7 +1027,7 @@ function ArticleBandBlock({
               <Text style={styles.bandCtaSecondaryText}>{block.secondaryCta.label}</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
+      </View>
       ) : null}
     </>
   );

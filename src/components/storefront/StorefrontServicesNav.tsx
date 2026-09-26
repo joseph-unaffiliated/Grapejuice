@@ -106,15 +106,12 @@ export function StorefrontServicesNav({ onPress }: Props) {
         ) : null}
 
         <TouchableOpacity
-          style={styles.lockGroup}
+          style={styles.linkHit}
           onPress={() => onPress('passover')}
           accessibilityRole="button"
           accessibilityLabel="2027 Passover"
         >
-          <Text style={styles.lockYear}>2027 Passover</Text>
-          <View style={styles.lockChip}>
-            <Text style={styles.lockChipText}>Coming soon</Text>
-          </View>
+          <Text style={styles.link}>2027 Passover</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

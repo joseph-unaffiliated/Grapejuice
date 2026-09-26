@@ -14,6 +14,7 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+import { Crossfade } from '../ui/Crossfade';
 
 /** Centered promo line; wraps as one unit if the viewport is too narrow. */
 export function StorefrontPromoStrip() {
@@ -55,18 +56,20 @@ export function StorefrontPromoStrip() {
 
   return (
     <View style={[styles.root, { paddingTop }]}>
-      {isGuestBox ? (
-        <Pressable
-          onPress={() => startAuthFromGuest('MyBox', 'signup', 'SignUp')}
-          accessibilityRole="button"
-          accessibilityLabel="Create an account to secure the items in your box"
-          style={({ pressed }) => [pressed && styles.pressed]}
-        >
-          {content}
-        </Pressable>
-      ) : (
-        content
-      )}
+      <Crossfade contentKey={`${mode}|${promo}`}>
+        {isGuestBox ? (
+          <Pressable
+            onPress={() => startAuthFromGuest('MyBox', 'signup', 'SignUp')}
+            accessibilityRole="button"
+            accessibilityLabel="Create an account to secure the items in your box"
+            style={({ pressed }) => [pressed && styles.pressed]}
+          >
+            {content}
+          </Pressable>
+        ) : (
+          content
+        )}
+      </Crossfade>
     </View>
   );
 }

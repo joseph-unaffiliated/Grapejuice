@@ -18,6 +18,8 @@ type Milestone = {
   label: string;
   /** Calendar date under the node; omit for milestones that are already done. */
   date: Date | null;
+  /** Override for the date row (e.g. Hanukkah span “Dec 5-12”). */
+  dateText?: string | null;
   /** When true, this milestone is behind the “you are here” pin. */
   completed: boolean;
 };
@@ -48,6 +50,16 @@ function formatMilestoneDate(date: Date): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+/** Eight-night span from first candle, e.g. “Dec 5-12”. */
+function formatHanukkahDateRange(start: Date): string {
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+  const startLabel = formatMilestoneDate(start);
+  if (start.getMonth() === end.getMonth()) {
+    return `${startLabel}-${end.getDate()}`;
+  }
+  return `${startLabel}-${formatMilestoneDate(end)}`;
 }
 
 function daysUntil(target: Date, now: Date): number {
@@ -110,7 +122,8 @@ export function boxJourneyCopy(journey: BoxJourneyDates, now = new Date()) {
   let headline = 'Your Hanukkah box is underway';
   if (status.phase === 'before' && status.daysUntilStart != null) {
     const d = status.daysUntilStart;
-    headline = d <= 1 ? 'Hanukkah starts tomorrow' : `Hanukkah is in ${d} days`;
+    headline =
+      d <= 1 ? 'tomorrow\nuntil hanukkah' : `${d} days\nuntil hanukkah`;
   } else if (status.phase === 'during') {
     headline = status.night ? `Night ${status.night} of Hanukkah` : 'Hanukkah is here';
   } else if (status.phase === 'after') {
@@ -215,13 +228,7 @@ export function StorefrontHeroJourneyTimeline({
       { id: 'reveal', label: 'Customize Box', date: null, completed: true },
       {
         id: 'lock',
-        label: (() => {
-          if (!lockDate) return 'Box Locks';
-          const days = daysToBoxLock(now, journey.lockAt);
-          if (startOfLocalDay(lockDate).getTime() < today.getTime()) return 'Box Locks';
-          if (days === 0) return 'Box Locks (today)';
-          return `Box Locks (${days} day${days === 1 ? '' : 's'} from now)`;
-        })(),
+        label: 'Box Locks',
         date: lockDate,
         completed: !!lockDate && startOfLocalDay(lockDate).getTime() < today.getTime(),
       },
@@ -233,8 +240,9 @@ export function StorefrontHeroJourneyTimeline({
       },
       {
         id: 'hanukkah',
-        label: 'Hanukkah Starts',
+        label: 'Hanukkah',
         date: hanukkahDate,
+        dateText: formatHanukkahDateRange(hanukkahDate),
         completed: startOfLocalDay(hanukkahDate).getTime() < today.getTime(),
       },
     ];
@@ -248,10 +256,10 @@ export function StorefrontHeroJourneyTimeline({
    * Dense dot-dash between first and last markers. Count is high enough that
    * space-between keeps ~8–12px gaps on banner (max ~720) and overlay widths.
    */
-  const railDotCount = isBanner ? 40 : 32;
-  const pinColor = isBanner ? semanticColors.logoDark : '#FFFFFF';
-  const markerBg = isBanner ? semanticColors.logoDark : '#FFFFFF';
-  const trackDotBg = isBanner ? 'rgba(17, 2, 34, 0.35)' : 'rgba(255, 255, 255, 0.55)';
+  const railDotCount = isBanner ? 80 : 64;
+  const pinColor = isBanner ? semanticColors.brand : '#FFFFFF';
+  const markerBg = isBanner ? semanticColors.brand : '#FFFFFF';
+  const trackDotBg = isBanner ? 'rgba(216, 201, 144, 0.45)' : 'rgba(255, 255, 255, 0.55)';
 
   return (
     <View
@@ -275,7 +283,7 @@ export function StorefrontHeroJourneyTimeline({
               ]}
               numberOfLines={1}
             >
-              {m.date ? formatMilestoneDate(m.date) : ' '}
+              {m.dateText ?? (m.date ? formatMilestoneDate(m.date) : ' ')}
             </Text>
           </View>
         ))}
@@ -355,7 +363,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   datesRowBanner: {
-    marginBottom: 2,
+    marginBottom: 0,
   },
   rail: {
     height: 28,
@@ -365,7 +373,7 @@ const styles = StyleSheet.create({
   },
   railBanner: {
     height: 22,
-    marginBottom: spacing.xs,
+    marginBottom: 0,
   },
   trackDots: {
     position: 'absolute',
@@ -415,7 +423,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   pinBanner: {
-    top: -12,
+    top: -10,
     marginLeft: -6,
   },
   labelsRow: {
@@ -447,7 +455,7 @@ const styles = StyleSheet.create({
   labelBanner: {
     fontSize: typography.sm,
     lineHeight: 15,
-    color: semanticColors.logoDark,
+    color: semanticColors.textInverse,
   },
   date: {
     ...typeface('regular'),
@@ -464,7 +472,7 @@ const styles = StyleSheet.create({
   dateBanner: {
     fontSize: 9,
     lineHeight: 11,
-    color: semanticColors.textSecondary,
+    color: semanticColors.goldMuted,
   },
   datePlaceholder: {
     opacity: 0,

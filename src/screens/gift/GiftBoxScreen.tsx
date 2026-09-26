@@ -292,6 +292,7 @@ function GiftBoxBody() {
               meta={li.unitCents > 0 ? `${formatDollars(li.unitCents)} value` : 'Included in gift'}
               onRemove={() => void onRemove(li.itemId)}
               decrementMode={li.unitCents > 0 ? 'remove' : 'donate'}
+              removeLabel="Remove from gift"
             />
           );
         })}

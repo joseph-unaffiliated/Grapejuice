@@ -14,7 +14,7 @@ import {
   boxOnlyPdpSubcopy,
   limitedRemainingLabel,
 } from '../../services/catalog/availabilityCopy';
-import { spacing, typography } from '../../constants/theme';
+import { spacing, typography, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 
 type Props = {
@@ -47,9 +47,7 @@ export function ProductPricingBlock({
   );
 
   if (hasBox) {
-    const hero = includedOrMemberZero
-      ? 'Included in your box'
-      : formatCatalogDollars(memberCents);
+    const hero = formatCatalogDollars(memberCents);
     return (
       <View style={styles.root}>
         <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{hero}</Text>
@@ -98,9 +96,7 @@ export function ProductPricingBlock({
   const heroRetail =
     nonMemberCents > 0
       ? formatCatalogDollars(nonMemberCents)
-      : includedOrMemberZero
-        ? 'Included in your box'
-        : formatCatalogDollars(memberCents);
+      : formatCatalogDollars(memberCents);
 
   let offerLine: string | null = null;
   if (includedOrMemberZero && nonMemberCents > 0) {
@@ -158,14 +154,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   heroPrice: {
+    ...typeface('medium'),
     fontSize: 32,
-    fontWeight: '500',
     letterSpacing: -0.6,
     lineHeight: 38,
   },
   retail: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    fontWeight: '500',
     lineHeight: 18,
     letterSpacing: 0,
   },
@@ -176,24 +172,25 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   offer: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    fontWeight: '500',
     lineHeight: 18,
     letterSpacing: 0,
   },
   offerSep: {
+    ...typeface('regular'),
     fontSize: typography.sm,
     lineHeight: 18,
   },
   secondaryLink: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    fontWeight: '500',
     letterSpacing: 0,
     textDecorationLine: 'underline',
   },
   limited: {
+    ...typeface('medium'),
     fontSize: typography.sm,
-    fontWeight: '500',
     lineHeight: 18,
     marginTop: 2,
   },

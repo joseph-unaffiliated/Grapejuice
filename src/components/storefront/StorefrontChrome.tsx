@@ -981,6 +981,13 @@ function StorefrontChromeInner({
         </View>
       )}
       {children}
+      {/*
+        Pin footer to the viewport bottom on short pages without marginTop:auto.
+        Auto margins + flexGrow on the scroll content can leave RN-web with a
+        stuck scrollHeight after async body growth (catalog / auth / mode),
+        clipping the bottom of long category pages.
+      */}
+      <View style={styles.footerPinSpacer} collapsable={false} />
       <StorefrontFooter />
     </ScrollView>
   );
@@ -1233,9 +1240,26 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   scrollContent: {
-    // flexGrow + StorefrontFooter marginTop:auto pins footer to viewport bottom
-    // on short pages (empty space above the footer, not below).
+    // flexGrow + footerPinSpacer pins footer to viewport bottom on short pages
+    // (empty space above the footer, not below).
     flexGrow: 1,
+    // Web: size to content first (not flex-basis 0%), then grow to fill short pages.
+    // Pairs with public/index.html .gj-storefront-scroll > div rules.
+    ...(Platform.OS === 'web'
+      ? ({
+          flexShrink: 0,
+          flexBasis: 'auto',
+          minHeight: '100%',
+        } as object)
+      : null),
+  },
+  /** Absorbs leftover viewport height so the footer sits at the bottom when short. */
+  footerPinSpacer: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 0,
+    // Don't let the spacer invent a flex-basis that eats scroll height on web.
+    ...(Platform.OS === 'web' ? ({ flexBasis: 0 } as object) : null),
   },
   scrollContentFloatClearance: {
     paddingBottom: FLOATING_FOOTER_CLEARANCE,

@@ -237,11 +237,20 @@
       #root .gj-storefront-scroll > div,
       #root [data-testid="storefront-vertical-scroll"] > div {
         overflow: visible !important;
-        /* Short pages: grow to the scrollport so footer marginTop:auto can pin bottom */
+        /* Short pages: min-height 100% + spacer flex-grow pins the footer.
+           Tall pages: height/max-height must NOT freeze at the scrollport —
+           RN-web flex-basis:0% + min-height:100% alone leaves scrollHeight stuck
+           after async body growth, clipping the footer wordmark. */
         display: flex !important;
         flex-direction: column !important;
         flex-grow: 1 !important;
+        flex-shrink: 0 !important;
+        flex-basis: auto !important;
         min-height: 100% !important;
+        height: max-content !important;
+        max-height: none !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
       }
       #root .gj-storefront-h-scroll {
         overflow-x: auto !important;

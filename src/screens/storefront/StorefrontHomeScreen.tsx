@@ -28,6 +28,7 @@ import {
   StorefrontMenorahsLifestyleCard,
 } from '../../components/storefront/StorefrontMenorahsLifestyleCard';
 import { LazyMount } from '../../components/storefront/LazyMount';
+import { Crossfade } from '../../components/ui/Crossfade';
 import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import {
   excludeBooks,
@@ -330,13 +331,23 @@ export function StorefrontHomeScreen() {
         onPrimary={onHeroPrimary}
         onSecondary={onHeroSecondary}
       />
-      {showJourneyBanner && journey ? (
-        <View style={styles.journeyBanner} accessibilityRole="region">
-          <StorefrontHeroJourneyTimeline journey={journey} variant="banner" />
-        </View>
-      ) : reserveJourneyBanner ? (
-        <View style={styles.journeyBannerReserve} accessibilityElementsHidden />
-      ) : null}
+      <Crossfade
+        contentKey={
+          showJourneyBanner && journey
+            ? `banner|${journey.startsOn ?? ''}|${journey.lockAt ?? ''}`
+            : reserveJourneyBanner
+              ? 'reserve'
+              : 'none'
+        }
+      >
+        {showJourneyBanner && journey ? (
+          <View style={styles.journeyBanner} accessibilityRole="region">
+            <StorefrontHeroJourneyTimeline journey={journey} variant="banner" />
+          </View>
+        ) : reserveJourneyBanner ? (
+          <View style={styles.journeyBannerReserve} accessibilityElementsHidden />
+        ) : null}
+      </Crossfade>
 
         {/* Products first */}
         <View
@@ -345,7 +356,7 @@ export function StorefrontHomeScreen() {
           }}
         >
           <SectionHeader
-            title="Top picks"
+            title="Top Picks"
             subtitle="The most favorited products from our collection"
             onPress={() => goCategory('collection')}
           />
@@ -416,6 +427,7 @@ export function StorefrontHomeScreen() {
             items={menorahsCollection}
             limit={collectionGridLimit}
             layout={gridLayout}
+            flushBottom
             browseMoreLabel="menorahs"
             onBrowseMore={() => goCategory('menorahs', { style: 'collection' })}
           />
@@ -423,18 +435,24 @@ export function StorefrontHomeScreen() {
             <>
               <SubSectionHeader
                 title="Something for everyone"
+                compactTop
                 onPress={() => goCategory('menorahs', { style: 'kids' })}
               />
               <StorefrontProductGrid
                 items={menorahsKids}
                 limit={gridLimit}
                 layout={gridLayout}
+                flushBottom
                 browseMoreLabel="kids menorahs"
                 onBrowseMore={() => goCategory('menorahs', { style: 'kids' })}
               />
             </>
           ) : null}
-          <SubSectionHeader title="Don't forget the candles" onPress={() => goCategory('candles')} />
+          <SubSectionHeader
+            title="Don't forget the candles"
+            compactTop
+            onPress={() => goCategory('candles')}
+          />
           <StorefrontProductGrid
             items={candles}
             limit={gridLimit}
@@ -446,7 +464,7 @@ export function StorefrontHomeScreen() {
 
         <LazyMount minHeight={900}>
           <StorefrontMenorahsLifestyleCard
-            label="Let the fun begin"
+            label={'Let the\nfun begin'}
             image={DREIDELS_LIFESTYLE_IMG}
             aspectRatio={DREIDELS_LIFESTYLE_ASPECT}
             hotspots={DREIDELS_LIFESTYLE_HOTSPOTS}
@@ -463,6 +481,9 @@ export function StorefrontHomeScreen() {
             items={dreidelsCollection}
             limit={collectionGridLimit}
             layout={gridLayout}
+            flushBottom={Boolean(
+              dreidelsKids.length || dreidelsSnuggle.length || books.length
+            )}
             browseMoreLabel="dreidels"
             onBrowseMore={() => goCategory('dreidels', { style: 'collection' })}
           />
@@ -470,12 +491,14 @@ export function StorefrontHomeScreen() {
             <>
               <SubSectionHeader
                 title="Make it yourself"
+                compactTop
                 onPress={() => goCategory('dreidels', { style: 'kids' })}
               />
               <StorefrontProductGrid
                 items={dreidelsKids}
                 limit={gridLimit}
                 layout={gridLayout}
+                flushBottom={Boolean(dreidelsSnuggle.length || books.length)}
                 browseMoreLabel="kids dreidels"
                 onBrowseMore={() => goCategory('dreidels', { style: 'kids' })}
               />
@@ -485,12 +508,14 @@ export function StorefrontHomeScreen() {
             <>
               <SubSectionHeader
                 title="Time to snuggle"
+                compactTop
                 onPress={() => goCategory('stuffies')}
               />
               <StorefrontProductGrid
                 items={dreidelsSnuggle}
                 limit={gridLimit}
                 layout={gridLayout}
+                flushBottom={Boolean(books.length)}
                 browseMoreLabel="stuffies"
                 onBrowseMore={() => goCategory('stuffies')}
               />
@@ -500,6 +525,7 @@ export function StorefrontHomeScreen() {
             <>
               <SubSectionHeader
                 title="Tell me a story"
+                compactTop
                 onPress={() => goCategory('books')}
               />
               <StorefrontProductGrid
@@ -582,7 +608,16 @@ function SectionHeader({
   );
 }
 
-function SubSectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
+function SubSectionHeader({
+  title,
+  onPress,
+  /** After a product row: drop paddingTop so stacked rails sit tight. */
+  compactTop,
+}: {
+  title: string;
+  onPress?: () => void;
+  compactTop?: boolean;
+}) {
   const content = (
     <View style={styles.subHeadRow}>
       <Text style={styles.subTitle}>{title}</Text>
@@ -595,10 +630,12 @@ function SubSectionHeader({ title, onPress }: { title: string; onPress?: () => v
     </View>
   );
 
+  const headStyle = [styles.subHead, compactTop ? styles.subHeadCompactTop : null];
+
   if (onPress) {
     return (
       <TouchableOpacity
-        style={styles.subHead}
+        style={headStyle}
         onPress={onPress}
         accessibilityRole="link"
         accessibilityLabel={`${title}, view all`}
@@ -607,25 +644,26 @@ function SubSectionHeader({ title, onPress }: { title: string; onPress?: () => v
       </TouchableOpacity>
     );
   }
-  return <View style={styles.subHead}>{content}</View>;
+  return <View style={headStyle}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
   journeyBanner: {
     width: '100%',
-    backgroundColor: semanticColors.accentCream,
-    paddingVertical: spacing.md,
+    backgroundColor: '#000000',
+    paddingTop: spacing.md - 2,
+    paddingBottom: spacing.md,
     paddingHorizontal: MOBILE_GUTTER,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: semanticColors.border,
+    borderTopColor: 'rgba(216, 201, 144, 0.35)',
   },
   /** Matches journey banner block height while Hanukkah config resolves. */
   journeyBannerReserve: {
     width: '100%',
     height: 88,
-    backgroundColor: semanticColors.accentCream,
+    backgroundColor: '#000000',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: semanticColors.border,
+    borderTopColor: 'rgba(216, 201, 144, 0.35)',
   },
   loader: { marginVertical: spacing.xl },
   /** Keep Top picks from collapsing → expanding when catalog arrives. */
@@ -641,8 +679,8 @@ const styles = StyleSheet.create({
     maxWidth: 1024,
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.xxl,
+    paddingBottom: 32,
   },
   /**
    * Flush rail + xl would match tallest tile → title; visible cards are often shorter,
@@ -654,24 +692,28 @@ const styles = StyleSheet.create({
   sectionHeadRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: spacing.md,
   },
   sectionHeadText: {
     flex: 1,
     gap: 4,
+    alignItems: 'center',
   },
   sectionTitle: {
     ...typeface('medium'),
-    fontSize: 28,
-    lineHeight: 28,
-    letterSpacing: -0.3,
+    // Match Build Box strip headline (“Secure your Hanukkah Box”).
+    fontSize: 40,
+    lineHeight: 38,
+    letterSpacing: -0.2,
     color: semanticColors.logoDark,
+    textAlign: 'center',
   },
   sectionSub: {
     ...typeface('regular'),
     fontSize: typography.md,
     color: semanticColors.textSecondary,
+    textAlign: 'center',
   },
   subHead: {
     width: '100%',
@@ -680,6 +722,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  /** Product rail already owns spacing; stacked subheads sit flush under tiles. */
+  subHeadCompactTop: {
+    paddingTop: spacing.sm,
   },
   subHeadRow: {
     flexDirection: 'row',

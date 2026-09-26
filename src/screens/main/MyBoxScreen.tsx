@@ -58,6 +58,7 @@ import {
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
+import { SwapIntoBoxModal } from '../../components/storefront/SwapIntoBoxModal';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
@@ -222,6 +223,10 @@ export function MyBoxScreen() {
   const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(
     null
   );
+  const [swapPicker, setSwapPicker] = useState<{
+    slotIds: string[];
+    options: CatalogItem[];
+  } | null>(null);
   const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
   const { cardOnFile, openOrder, guardMutation, refreshOrders } = usePaymentGate();
@@ -1303,7 +1308,18 @@ export function MyBoxScreen() {
                         isWrappingPaper && group.unitCents === 0
                           ? () =>
                               void swapToPreWrap(group.lines.map((line) => line.slotId))
-                          : undefined
+                          : group.unitCents === 0
+                            ? () => {
+                                const opts = (swapOptionsBySlot[li.slotId] ?? []).filter(
+                                  (o) => o.id !== li.itemId
+                                );
+                                if (!opts.length) return;
+                                setSwapPicker({
+                                  slotIds: group.lines.map((line) => line.slotId),
+                                  options: opts,
+                                });
+                              }
+                            : undefined
                       }
                       onToggleSurprise={
                         !PILOT_PARENT_ONLY && isParentProfile && isWrappableSlot(li.slotId)
@@ -1827,6 +1843,32 @@ export function MyBoxScreen() {
         onAdd={modalAddToBox}
         onSwap={modalSwapIntoBox}
         onRemove={modalRemoveFromBox}
+        onQuantityChange={(next, delta) => {
+          const group = coalesceLinesByItemId(
+            lineItems.filter((li) => li.itemId === next.id)
+          )[0];
+          if (!group) return;
+          const sectionId =
+            productModalSection ?? displaySectionForCatalogItem(next);
+          void changeBoxQuantity(group, delta, sectionId);
+        }}
+      />
+      <SwapIntoBoxModal
+        visible={swapPicker != null && (swapPicker?.options.length ?? 0) > 0}
+        options={(swapPicker?.options ?? []).map((opt) => ({
+          key: opt.id,
+          name: opt.name,
+          imageUrl: opt.imageUrl,
+          itemId: opt.id,
+        }))}
+        onSelect={(key) => {
+          if (!swapPicker) return;
+          const opt = swapPicker.options.find((o) => o.id === key);
+          const slotIds = swapPicker.slotIds;
+          setSwapPicker(null);
+          if (opt) void applySwap(slotIds, opt);
+        }}
+        onCancel={() => setSwapPicker(null)}
       />
     </StorefrontChrome>
   );

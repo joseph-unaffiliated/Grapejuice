@@ -241,25 +241,19 @@ function RootRoutes() {
   const stayOnMainForAuthReturn = pendingAuth != null || giftResume;
 
   /**
-   * Web storefront: don't hold BrandLoadingMark while Firebase auth initializes.
-   * Guests default to Main (exploreStarted); waiting on auth was ~seconds of
-   * logomark after the JS bundle already parsed. Signed-in users still wait
-   * for session once auth resolves so we don’t flash the wrong gate.
+   * Web storefront: never swap Main for BrandLoadingMark during auth/session
+   * settle. Guests paint immediately; signed-in users keep that surface while
+   * Firestore catches up (hero/promo crossfade in place). Unmounting for the
+   * logomark after first paint is the fullscreen “grapejuice logo” flash.
+   * Password-reset links still use the boot gate below.
    */
-  const skipAuthBootSpinner =
-    Platform.OS === 'web' &&
-    authLoading &&
-    !isAuthenticated &&
-    !passwordResetOobCode &&
-    !pendingAuth &&
-    !giftResume;
+  const skipWebStorefrontBoot = Platform.OS === 'web' && !passwordResetOobCode;
 
-  // Wait for auth + (when signed in) session so we don’t paint the wrong
-  // onboarding/main gate. Box draft can finish after first paint — waiting on
-  // it kept the logomark up while Firestore hydrated line items.
+  // Native (and web password-reset): wait for auth + session so we don’t paint
+  // the wrong onboarding/main gate. Box draft finishes after first paint.
   const booting =
     !guestHydrated ||
-    (!skipAuthBootSpinner &&
+    (!skipWebStorefrontBoot &&
       (authLoading || (isAuthenticated && sessionLoading)) &&
       !stayOnMainForAuthReturn);
 

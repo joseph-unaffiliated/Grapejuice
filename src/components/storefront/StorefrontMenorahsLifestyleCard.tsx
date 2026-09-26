@@ -36,14 +36,14 @@ export type LifestyleHotspot = {
  * (Arch · beeswax candles · Branches · Welcome, left→right).
  */
 export const MENORAHS_LIFESTYLE_HOTSPOTS: LifestyleHotspot[] = [
-  // Arch: flat face of the stone (not the top curve)
-  { productId: 'arch-menorah', label: '"Arch" Menorah', x: 0.31, y: 0.68 },
+  // Arch: left of stone face
+  { productId: 'arch-menorah', label: '"Arch" Menorah', x: 0.112, y: 0.633 },
   // Straight beeswax candles on the Branches candle shafts
-  { productId: 'beeswax-candles', label: 'Straight beeswax candles', x: 0.505, y: 0.3 },
-  // Branches: metal junction below the candle cups (green annotation)
-  { productId: 'branches-menorah', label: '"Branches" Menorah', x: 0.5, y: 0.48 },
-  // Welcome: curved arm right of center (not the hub ring)
-  { productId: 'welcome-menorah', label: '"Welcome" Menorah', x: 0.81, y: 0.63 },
+  { productId: 'beeswax-candles', label: 'Straight beeswax candles', x: 0.424, y: 0.269 },
+  // Branches: lower on the base / right of center
+  { productId: 'branches-menorah', label: '"Branches" Menorah', x: 0.56, y: 0.78 },
+  // Welcome: curved arm
+  { productId: 'welcome-menorah', label: '"Welcome" Menorah', x: 0.782, y: 0.697 },
 ];
 
 /**
@@ -55,24 +55,24 @@ export const DREIDELS_LIFESTYLE_HOTSPOTS: LifestyleHotspot[] = [
   {
     productId: 'jelly-the-sufganiyah-stuffie',
     label: 'Jelly, the Sufganiyah Stuffie',
-    x: 0.17,
-    y: 0.65,
+    x: 0.193,
+    y: 0.608,
   },
-  // Wrapping: menorah motif on the second gift in the stack
-  { productId: 'wrapping-paper', label: 'Wrapping paper', x: 0.415, y: 0.385 },
-  // Classic wood: where the stem meets the body
+  // Wrapping: menorah-pattern gift
+  { productId: 'wrapping-paper', label: 'Wrapping paper', x: 0.272, y: 0.376 },
+  // Classic wood: body of the dreidel
   {
     productId: 'classic-wooden-dreidel',
     label: 'Classic Wooden Dreidel',
-    x: 0.63,
-    y: 0.76,
+    x: 0.605,
+    y: 0.808,
   },
   // Gelt: coins at the mouth of the little bag
   {
     productId: 'little-bag-of-gelt-2-big-5-little',
     label: 'Little Bag of Gelt',
-    x: 0.82,
-    y: 0.78,
+    x: 0.805,
+    y: 0.854,
   },
 ];
 
@@ -89,7 +89,7 @@ type Props = {
 };
 
 const HOTSPOT_SIZE = 28;
-const DEFAULT_LABEL = 'Light the Candles';
+const DEFAULT_LABEL = 'Light the\nCandles';
 
 function LifestyleHotspotMarker({
   hotspot,
@@ -150,8 +150,13 @@ export function StorefrontMenorahsLifestyleCard({
   aspectRatio = ASPECT,
 }: Props) {
   const { isCompact: compact } = useLayoutBreakpoint();
-  /** Taller plate on mobile — cover crops the left/right edges. */
-  const displayAspect = compact ? aspectRatio * 0.82 : aspectRatio;
+  /**
+   * Taller than the native plate — cover crops left/right so height grows
+   * without widening the card (desktop + mobile).
+   */
+  const displayAspect = aspectRatio * 0.82;
+  /** Soft line breaks are desktop-only; mobile title sits above the plate on one line. */
+  const displayLabel = compact ? label.replace(/\n+/g, ' ') : label;
 
   return (
     <View style={[styles.outer, compact && styles.outerCompact]}>
@@ -160,9 +165,9 @@ export function StorefrontMenorahsLifestyleCard({
           onPress={onShopAll}
           style={styles.titleAbove}
           accessibilityRole="link"
-          accessibilityLabel={label}
+          accessibilityLabel={displayLabel}
         >
-          <Text style={styles.shopLabelMobile}>{label}</Text>
+          <Text style={styles.shopLabelMobile}>{displayLabel}</Text>
         </Pressable>
       ) : null}
       <View
@@ -184,21 +189,23 @@ export function StorefrontMenorahsLifestyleCard({
           />
         </View>
         {!compact ? (
-          <Pressable
-            onPress={onShopAll}
-            style={styles.shopLabelHit}
-            accessibilityRole="link"
-            accessibilityLabel={label}
-          >
-            <View style={styles.shopLabelScrim} pointerEvents="none" />
-            <Text style={styles.shopLabel}>{label}</Text>
-          </Pressable>
+          <View style={styles.shopLabelCenter} pointerEvents="box-none">
+            <Pressable
+              onPress={onShopAll}
+              style={styles.shopLabelHit}
+              accessibilityRole="link"
+              accessibilityLabel={displayLabel}
+            >
+              <View style={styles.shopLabelScrim} pointerEvents="none" />
+              <Text style={styles.shopLabel}>{displayLabel}</Text>
+            </Pressable>
+          </View>
         ) : (
           <Pressable
             onPress={onShopAll}
             style={StyleSheet.absoluteFillObject}
             accessibilityRole="link"
-            accessibilityLabel={label}
+            accessibilityLabel={displayLabel}
           />
         )}
         {hotspots.map((h, i) => (
@@ -219,12 +226,12 @@ const styles = StyleSheet.create({
     maxWidth: 1024,
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.xl,
     paddingBottom: spacing.md,
   },
   outerCompact: {
     maxWidth: '100%',
     paddingHorizontal: 0,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
   },
   titleAbove: {
@@ -234,10 +241,11 @@ const styles = StyleSheet.create({
   },
   shopLabelMobile: {
     ...typeface('medium'),
-    fontSize: 34,
-    lineHeight: 34 * 1.05,
+    // Match Build Box strip headline (“Secure your Hanukkah Box”).
+    fontSize: 40,
+    lineHeight: 38,
     color: semanticColors.logoDark,
-    letterSpacing: -0.4,
+    letterSpacing: -0.2,
     textAlign: 'center',
   },
   card: {
@@ -264,14 +272,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  shopLabelHit: {
-    position: 'absolute',
-    top: spacing.md,
-    left: spacing.md,
+  shopLabelCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 2,
+  },
+  shopLabelHit: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   /** Light scrim so white type stays readable on bright photo areas. */
   shopLabelScrim: {
@@ -292,14 +303,12 @@ const styles = StyleSheet.create({
   },
   shopLabel: {
     ...typeface('medium'),
-    fontSize: 36,
-    lineHeight: 36,
+    fontSize: 64,
+    lineHeight: 60,
     color: '#FFFFFF',
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
+    textAlign: 'center',
     zIndex: 1,
-    textShadowColor: 'rgba(0,0,0,0.22)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   hotspot: {
     position: 'absolute',
