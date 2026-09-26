@@ -10,8 +10,20 @@ import {
 } from 'react-native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
-import { PilotAIChatSheet, type PilotAIChatSheetRef } from '../chat/PilotAIChatSheet';
-import { semanticColors, spacing, typography, typeface } from '../../constants/theme';
+import {
+  PilotAIChatSheet,
+  RAV_FLOATING_CHROME_SIZE as FLOATING_CHROME_SIZE,
+  RAV_FLOATING_CHROME_TOP,
+  type PilotAIChatSheetRef,
+} from '../chat/PilotAIChatSheet';
+import {
+  semanticColors,
+  shadows,
+  shadowsWeb,
+  spacing,
+  typography,
+  typeface,
+} from '../../constants/theme';
 
 type Props = {
   visible: boolean;
@@ -395,7 +407,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 5,
-    paddingTop: spacing.sm + 2,
+    paddingTop: RAV_FLOATING_CHROME_TOP,
     paddingBottom: 0,
     backgroundColor: 'transparent',
     pointerEvents: 'box-none',
@@ -414,22 +426,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /** History / back / collapse share one fixed circle, independent of glyph size. */
   chromeHitFloating: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(17, 2, 34, 0.08)',
+    width: FLOATING_CHROME_SIZE,
+    height: FLOATING_CHROME_SIZE,
+    minWidth: FLOATING_CHROME_SIZE,
+    maxWidth: FLOATING_CHROME_SIZE,
+    minHeight: FLOATING_CHROME_SIZE,
+    maxHeight: FLOATING_CHROME_SIZE,
+    flexShrink: 0,
+    borderRadius: FLOATING_CHROME_SIZE / 2,
+    backgroundColor: semanticColors.bgPrimary,
+    // Same gold glow as the Reply pill.
     ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 2px 10px rgba(17, 2, 34, 0.12)' } as object)
-      : {
-          shadowColor: '#110222',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.12,
-          shadowRadius: 6,
-          elevation: 3,
-        }),
+      ? ({ boxShadow: shadowsWeb.goldGlowSm } as object)
+      : shadows.goldGlow),
   },
   chromeLabel: {
     ...typeface('medium'),

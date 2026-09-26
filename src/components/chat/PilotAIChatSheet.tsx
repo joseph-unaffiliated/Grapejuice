@@ -77,6 +77,9 @@ const WELCOME_SEND_SIZE = 32;
 const WELCOME_SEND_EDGE = (SEARCH_PILL_HEIGHT - WELCOME_SEND_SIZE) / 2;
 /** Room for the send overlay — only applied while the field is active. */
 const WELCOME_SEND_INSET = WELCOME_SEND_SIZE + WELCOME_SEND_EDGE + spacing.sm;
+/** Phone sheet: floating history / back / collapse circles (StorefrontRavDrawer). */
+export const RAV_FLOATING_CHROME_SIZE = 36;
+export const RAV_FLOATING_CHROME_TOP = spacing.sm + 2;
 /** Last bubble → timestamp. */
 const THREAD_FOOTER_GAP = spacing.lg - spacing.sm;
 /** Grape mark → floated Reply pill (drawer). */
@@ -189,6 +192,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const isDrawerOverlay = overlay === 'drawer';
   /** 16px on the phone sheet — iOS Safari zooms inputs under 16. Desktop matches bubble text. */
   const replyFontSize = isDrawerOverlay && !isDesktop ? 16 : typography.lg;
+  /** Phone sheet: history / collapse float over the top edge of the content. */
+  const floatingChrome = isDrawerOverlay && externalHistoryChrome && !isDesktop;
   const replyLineHeight = Math.round(replyFontSize * 1.35);
   const replyInputMaxHeight = 180;
   const [replyInputHeight, setReplyInputHeight] = useState(replyLineHeight);
@@ -817,12 +822,18 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             contentContainerStyle={[
               styles.recentPage,
               isDesktop && styles.welcomeDesktop,
+              floatingChrome && styles.recentPageFloatingChrome,
               { paddingBottom: bottomPad + 80 },
             ]}
             keyboardShouldPersistTaps="handled"
           >
             <View style={[styles.recentPageColumn, isDesktop ? { maxWidth: layoutWidth } : null]}>
-              <View style={styles.recentPageHeader}>
+              <View
+                style={[
+                  styles.recentPageHeader,
+                  floatingChrome && styles.recentPageHeaderFloatingChrome,
+                ]}
+              >
                 {externalHistoryChrome ? null : (
                   <TouchableOpacity
                     style={[styles.headerIconBtn, goldGlow]}
@@ -1260,6 +1271,15 @@ function createPilotStyles(colors: SemanticColors) {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  /** Title row sits on the same line as the floating circles. */
+  recentPageFloatingChrome: {
+    paddingTop: RAV_FLOATING_CHROME_TOP,
+  },
+  /** Centered between the back / collapse circles instead of under the arrow. */
+  recentPageHeaderFloatingChrome: {
+    justifyContent: 'center',
+    minHeight: RAV_FLOATING_CHROME_SIZE,
   },
   headerIconBtn: {
     width: 32,
