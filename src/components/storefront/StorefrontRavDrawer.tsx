@@ -171,6 +171,28 @@ export function StorefrontRavDrawer({
     };
   }, [docked, visible]);
 
+  // Hide OneTrust cookie FAB while the soft keyboard is open (covers the composer).
+  useEffect(() => {
+    if (docked || Platform.OS !== 'web' || !visible || typeof document === 'undefined') {
+      return;
+    }
+    const syncCookieFab = () => {
+      const v = window.visualViewport;
+      const keyboardOpen =
+        Boolean(v) && window.innerHeight - (v?.height ?? window.innerHeight) > 80;
+      document.body.classList.toggle('rav-keyboard-open', keyboardOpen);
+    };
+    syncCookieFab();
+    const v = window.visualViewport;
+    v?.addEventListener('resize', syncCookieFab);
+    window.addEventListener('resize', syncCookieFab);
+    return () => {
+      document.body.classList.remove('rav-keyboard-open');
+      v?.removeEventListener('resize', syncCookieFab);
+      window.removeEventListener('resize', syncCookieFab);
+    };
+  }, [docked, visible]);
+
   if (!mounted) return null;
 
   const historyOpen = ravView === 'recent';
@@ -184,14 +206,14 @@ export function StorefrontRavDrawer({
   });
 
   const chrome = (
-    <View style={styles.chrome}>
+    <View style={[styles.chrome, !docked && styles.chromeFloating]}>
       <TouchableOpacity
-        style={styles.chromeAction}
+        style={[styles.chromeAction, !docked && styles.chromeActionFloating]}
         onPress={onHistoryToggle}
         accessibilityRole="button"
         accessibilityLabel={historyOpen ? 'Back to Rav' : 'Chat history'}
       >
-        <View style={styles.chromeHit}>
+        <View style={[styles.chromeHit, !docked && styles.chromeHitFloating]}>
           <Icon
             icon={historyOpen ? icons.arrowLeft : icons.clockHistory}
             size={14}
@@ -205,13 +227,13 @@ export function StorefrontRavDrawer({
         ) : null}
       </TouchableOpacity>
       <TouchableOpacity
-        style={styles.chromeAction}
+        style={[styles.chromeAction, !docked && styles.chromeActionFloating]}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close Rav"
       >
         {docked ? <Text style={styles.chromeLabel}>collapse</Text> : null}
-        <View style={styles.chromeHit}>
+        <View style={[styles.chromeHit, !docked && styles.chromeHitFloating]}>
           <Icon icon={icons.chevronsRight} size={14} color={semanticColors.logoDark} />
         </View>
       </TouchableOpacity>
@@ -283,9 +305,10 @@ export function StorefrontRavDrawer({
       pointerEvents={uiRevealed ? 'auto' : 'none'}
       accessibilityLabel="Rav chat"
     >
+      {/* Chat fills the sheet; floating circles sit on top so history reads to the edge. */}
       <View style={styles.overlayInner}>
-        {chrome}
         {chat}
+        {chrome}
       </View>
     </Animated.View>
   );
@@ -341,6 +364,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     height: '100%',
     width: '100%',
+    position: 'relative',
   },
   chrome: {
     flexDirection: 'row',
@@ -351,16 +375,48 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
   },
+  /** Mobile: transparent overlay so thread scrolls under the controls. */
+  chromeFloating: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 5,
+    paddingTop: spacing.sm + 2,
+    paddingBottom: 0,
+    backgroundColor: 'transparent',
+    pointerEvents: 'box-none',
+  },
   chromeAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  chromeActionFloating: {
+    pointerEvents: 'auto',
   },
   chromeHit: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chromeHitFloating: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(17, 2, 34, 0.08)',
+    ...(Platform.OS === 'web'
+      ? ({ boxShadow: '0 2px 10px rgba(17, 2, 34, 0.12)' } as object)
+      : {
+          shadowColor: '#110222',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.12,
+          shadowRadius: 6,
+          elevation: 3,
+        }),
   },
   chromeLabel: {
     ...typeface('medium'),

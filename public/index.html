@@ -118,6 +118,17 @@
       #root textarea:focus {
         outline: none;
       }
+      /* Rav mobile: hide OneTrust cookie FAB while soft keyboard covers the composer */
+      body.rav-keyboard-open #ot-sdk-btn-floating,
+      body.rav-keyboard-open .ot-floating-button,
+      body.rav-keyboard-open #ot-sdk-btn-floating.ot-floating-button,
+      body.rav-keyboard-open #onetrust-consent-sdk .ot-sdk-show-settings,
+      body.rav-keyboard-open #ot-sdk-btn {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
       /* Click/tap: no focus ring. Keyboard navigation still uses :focus-visible. */
       #root button:focus:not(:focus-visible),
       #root [role="button"]:focus:not(:focus-visible),

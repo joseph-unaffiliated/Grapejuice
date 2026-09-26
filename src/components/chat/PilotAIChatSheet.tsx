@@ -721,7 +721,21 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
   const chatFooter = messages.length > 0 ? (
     <View style={styles.threadFooter}>
-      <Text style={styles.timestamp}>{formatRelativeTime(lastActivityAt)}</Text>
+      <View style={styles.threadFooterRow}>
+        <Text style={styles.timestamp}>{formatRelativeTime(lastActivityAt)}</Text>
+        {showGuestSaveChip ? (
+          <TouchableOpacity
+            style={styles.saveChipInline}
+            onPress={() => startAuthForRav('signin')}
+            accessibilityRole="button"
+            accessibilityLabel="Log in or create an account to save your chat"
+          >
+            <Text style={styles.saveChipText} numberOfLines={1}>
+              log in / create account
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
       <GrapejuiceBrandMark variant="footer" align="left" markOnly animating={loading} />
     </View>
   ) : null;
@@ -921,8 +935,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               keyExtractor={(_, i) => String(i)}
               contentContainerStyle={[
                 styles.threadContent,
+                styles.threadContentBottomUp,
+                isDrawerOverlay && styles.threadContentDrawer,
                 {
-                  paddingBottom: isDrawerOverlay ? spacing.md : bottomPad + 88,
+                  paddingBottom: isDrawerOverlay ? spacing.sm : bottomPad + 88,
                 },
               ]}
               renderItem={renderMessage}
@@ -935,28 +951,22 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             <View
               style={[
                 styles.inputBar,
+                isDrawerOverlay && styles.inputBarDrawer,
                 {
                   paddingBottom: isDrawerOverlay
-                    ? Math.max(insets.bottom, spacing.sm)
+                    ? Math.max(insets.bottom, spacing.xs)
                     : Math.max(insets.bottom, spacing.sm) +
                       (bottomInset || tabBarHeight - 48),
                 },
               ]}
             >
-              {showGuestSaveChip ? (
-                <TouchableOpacity
-                  style={styles.saveChipAboveComposer}
-                  onPress={() => startAuthForRav('signin')}
-                >
-                  <Text style={styles.saveChipText}>log in / create account to save your chat</Text>
-                </TouchableOpacity>
-              ) : null}
               <View style={styles.composerRow}>
                 <View
                   style={[
                     styles.replyPill,
                     goldGlow,
                     styles.replyPillFlex,
+                    isDrawerOverlay && styles.replyPillDrawer,
                     replyInputHeight > replyLineHeight + 2 && styles.replyPillMultiline,
                   ]}
                 >
@@ -1060,6 +1070,15 @@ function createPilotStyles(colors: SemanticColors) {
     paddingTop: spacing.xxxl,
     gap: spacing.lg,
     width: '100%',
+  },
+  /** Short threads sit against the composer; long threads scroll normally. */
+  threadContentBottomUp: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
+  /** Room under floating history/close circles on mobile storefront sheet. */
+  threadContentDrawer: {
+    paddingTop: spacing.xl + 28,
   },
   welcomeHeadings: { alignItems: 'center', gap: spacing.xs },
   welcomeTitle: {
@@ -1234,12 +1253,33 @@ function createPilotStyles(colors: SemanticColors) {
     lineHeight: 20,
     letterSpacing: -0.39,
   },
-  threadFooter: { gap: spacing.sm, marginTop: spacing.sm, alignItems: 'flex-start', width: '100%' },
+  threadFooter: {
+    gap: spacing.xs,
+    // Offset threadContent gap so timestamp sits closer to the last bubble.
+    marginTop: -spacing.sm,
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  threadFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    width: '100%',
+  },
   timestamp: {
     fontSize: typography.sm,
     fontWeight: '200',
     color: colors.goldMuted,
     letterSpacing: -0.22,
+  },
+  saveChipInline: {
+    borderWidth: 0.5,
+    borderColor: colors.brand,
+    borderRadius: borderRadius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    flexShrink: 1,
   },
   saveChipAboveComposer: {
     alignSelf: 'center',
@@ -1269,6 +1309,10 @@ function createPilotStyles(colors: SemanticColors) {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
+  inputBarDrawer: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+  },
   composerRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -1288,6 +1332,12 @@ function createPilotStyles(colors: SemanticColors) {
     paddingVertical: spacing.sm,
     minHeight: 40,
     gap: spacing.sm,
+  },
+  replyPillDrawer: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    minHeight: 36,
+    borderRadius: 18,
   },
   replyPillMultiline: {
     alignItems: 'flex-end',
