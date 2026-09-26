@@ -890,7 +890,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               <View style={[styles.recentSection, styles.welcomePadded]}>
                 <View style={styles.recentHeader}>
                   <Text style={styles.recentTitle}>Recent Chats</Text>
-                  <TouchableOpacity onPress={showRecentChats} accessibilityLabel="View all chats">
+                  <TouchableOpacity
+                    style={styles.viewAllBtn}
+                    onPress={showRecentChats}
+                    accessibilityLabel="View all chats"
+                  >
                     <TextWithChevron
                       text="View All"
                       chevron="always"
@@ -1111,15 +1115,27 @@ function createPilotStyles(colors: SemanticColors) {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recentSection: { width: '100%', gap: 6 },
+  recentSection: { width: '100%', alignSelf: 'stretch', gap: 6 },
   recentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    alignSelf: 'stretch',
+    width: '100%',
+    gap: spacing.md,
     paddingBottom: spacing.md,
   },
-  recentTitle: { fontSize: typography.sm, fontWeight: '400', color: colors.textPrimary },
+  recentTitle: {
+    flexShrink: 0,
+    fontSize: typography.sm,
+    fontWeight: '400',
+    color: colors.textPrimary,
+  },
   viewAll: { fontSize: typography.sm, fontWeight: '200', color: colors.goldMuted },
+  viewAllBtn: {
+    marginLeft: 'auto',
+    flexShrink: 0,
+  },
   recentRow: {
     flexDirection: 'row',
     alignItems: 'center',
