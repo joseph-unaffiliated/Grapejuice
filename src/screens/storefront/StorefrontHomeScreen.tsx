@@ -611,7 +611,7 @@ function SectionHeader({
 function SubSectionHeader({
   title,
   onPress,
-  /** After a product row: drop paddingTop so stacked rails sit tight. */
+  /** After a product row: extra top padding so stacked rails breathe. */
   compactTop,
 }: {
   title: string;
@@ -723,9 +723,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
   },
-  /** Product rail already owns spacing; stacked subheads sit flush under tiles. */
+  /** Space after a flush product rail before the next row title. */
   subHeadCompactTop: {
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xl,
   },
   subHeadRow: {
     flexDirection: 'row',
