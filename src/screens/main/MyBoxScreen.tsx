@@ -1994,7 +1994,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   summaryFloatInner: {
     width: '100%',
-    maxWidth: isDesktop ? 960 : undefined,
+    maxWidth: isDesktop ? 1024 : undefined,
     paddingHorizontal: 0,
   },
   summaryCard: {

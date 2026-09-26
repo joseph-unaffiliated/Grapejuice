@@ -15,6 +15,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { claimGiftInvite, peekGiftInvite } from '../../services/gift/giftFlow';
 import { useSession } from '../../hooks/useSession';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -174,7 +175,7 @@ function GiftClaimBody() {
   if (surface === 'checking') {
     return shell(
       <>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark color={colors.brand} />
         <Text style={[styles.body, styles.checkingBody]}>Checking your gift link…</Text>
       </>
     );
@@ -185,7 +186,7 @@ function GiftClaimBody() {
   if (surface === 'claiming') {
     return shell(
       <>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark color={colors.brand} />
         <Text style={[styles.body, styles.checkingBody]}>Claiming your gift…</Text>
       </>
     );

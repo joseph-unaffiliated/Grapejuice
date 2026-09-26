@@ -12,6 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   formatCatalogDollars,
@@ -596,7 +597,7 @@ export function GiftGiverCustomizeContent({
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark color={colors.brand} />
       </View>
     );
   }
@@ -976,7 +977,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     },
     summaryFloatInner: {
       width: '100%',
-      maxWidth: isDesktop ? 960 : undefined,
+      maxWidth: isDesktop ? 1024 : undefined,
       paddingHorizontal: 0,
     },
     summaryCard: {

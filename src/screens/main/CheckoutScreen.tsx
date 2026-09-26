@@ -3,10 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
-  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -16,14 +14,13 @@ import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
+import { householdsService } from '../../services/firestore/households';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import type { MainStackParamList } from '../../navigation/types';
-import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-import type { SemanticColors } from '../../constants/themeMode';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
@@ -31,6 +28,18 @@ import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 import type { ShippingAddress } from '../../types/pilot';
+
+function savedCardReplaced(
+  hh: { cardOnFileAt?: string; stripeDefaultPaymentMethodId?: string } | null | undefined,
+  before: { at?: string; pm?: string },
+): boolean {
+  if (!hh?.cardOnFileAt) return false;
+  if (before.pm && hh.stripeDefaultPaymentMethodId && hh.stripeDefaultPaymentMethodId !== before.pm) {
+    return true;
+  }
+  if (before.at && hh.cardOnFileAt !== before.at) return true;
+  return false;
+}
 
 export function CheckoutScreen() {
   return (
@@ -46,8 +55,7 @@ function CheckoutScreenBody() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, refresh: refreshSession } = useSession();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(), []);
   const {
     lineItems,
     catalog,
@@ -66,6 +74,7 @@ function CheckoutScreenBody() {
     platformCreditApplied,
   } = useCheckoutDraft(household?.id);
   const [submitting, setSubmitting] = useState(false);
+  const [changingCard, setChangingCard] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
@@ -134,6 +143,29 @@ function CheckoutScreenBody() {
     return true;
   }, [household?.id, stripeKey, initPaymentSheet, presentPaymentSheet, refreshSession]);
 
+  const onChangeCard = async () => {
+    if (!household?.id) return;
+    const before = {
+      at: household.cardOnFileAt,
+      pm: household.stripeDefaultPaymentMethodId,
+    };
+    setChangingCard(true);
+    try {
+      const ok = await handleSaveCard();
+      if (!ok) return;
+      for (let i = 0; i < 10; i += 1) {
+        const hh = await householdsService.get(household.id);
+        if (savedCardReplaced(hh, before)) {
+          await refreshSession();
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    } finally {
+      setChangingCard(false);
+    }
+  };
+
   const handleCommit = async () => {
     if (!user || !household?.id) return;
     if (locked) {
@@ -170,38 +202,39 @@ function CheckoutScreenBody() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <BrandLoadingMark color={colors.brand} />
-      </View>
+      <SystemPage loading onBack={() => navigation.goBack()} />
     );
   }
 
   if (!lineItems.length) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>Your box is empty. Finish onboarding or add items in My Box.</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backLink}>Back to My Box</Text>
-        </TouchableOpacity>
-      </View>
+      <SystemPage onBack={() => navigation.goBack()}>
+        <Text style={page.title}>Shipping</Text>
+        <Text style={page.lead}>Your box is empty. Finish onboarding or add items in My Box.</Text>
+      </SystemPage>
     );
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-        <Text style={styles.backLink}>← Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Shipping</Text>
-      <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
+    <SystemPage onBack={() => navigation.goBack()}>
+      <Text style={page.title}>Shipping</Text>
+      <Text style={page.lead}>You won&apos;t be charged until your box ships.</Text>
       {!cardOnFile ? (
-        <Text style={styles.pendingCopy}>
+        <Text style={page.sectionLead}>
           Your box will not ship until you add payment information and a shipping address.
         </Text>
-      ) : null}
+      ) : (
+        <TouchableOpacity
+          onPress={() => void onChangeCard()}
+          disabled={changingCard || submitting || locked}
+          accessibilityRole="button"
+          accessibilityLabel="Change card"
+        >
+          <Text style={page.link}>{changingCard ? 'Updating card…' : 'Change card'}</Text>
+        </TouchableOpacity>
+      )}
       {locked ? (
-        <Text style={styles.lockBanner}>Box customization is locked. Checkout may be unavailable.</Text>
+        <Text style={page.errorText}>Box customization is locked. Checkout may be unavailable.</Text>
       ) : null}
 
       <View style={styles.summaryCard}>
@@ -233,9 +266,9 @@ function CheckoutScreenBody() {
       />
 
       <TouchableOpacity
-        style={[styles.cta, (submitting || locked) && styles.ctaDisabled]}
+        style={[styles.cta, (submitting || locked || changingCard) && styles.ctaDisabled]}
         onPress={() => void handleCommit()}
-        disabled={submitting || locked}
+        disabled={submitting || locked || changingCard}
         activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel={cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
@@ -243,102 +276,46 @@ function CheckoutScreenBody() {
         <ButtonLoadingLabel
           label={cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
           loading={submitting}
-          loaderColor={colors.goldMuted}
+          loaderColor={semanticColors.textInverse}
           labelStyle={styles.ctaText}
         />
       </TouchableOpacity>
-    </ScrollView>
+    </SystemPage>
   );
 }
 
-function createStyles(colors: SemanticColors) {
+function createStyles() {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bgPrimary },
-    content: {
-      padding: spacing.lg,
-      paddingTop: spacing.xxl,
-      paddingBottom: 120,
-      ...(Platform.OS === 'web' ? { width: '100%' as const } : {}),
-    },
-    centered: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: spacing.lg,
-      backgroundColor: colors.bgPrimary,
-    },
-    backRow: { marginBottom: spacing.md },
-    backLink: {
-      color: colors.brand,
-      fontSize: typography.md,
-      ...typeface('medium'),
-    },
-    title: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
-      marginBottom: spacing.sm,
-      ...typeface('regular'),
-    },
-    chargeBanner: {
-      backgroundColor: colors.brandLight,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
-      fontSize: typography.md,
-      lineHeight: typography.md * 1.4,
-      ...typeface('regular'),
-    },
-    pendingCopy: {
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
-      lineHeight: typography.sm * 1.45,
-      ...typeface('regular'),
-    },
-    lockBanner: {
-      backgroundColor: colors.brandLight,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      color: colors.textSecondary,
-      marginBottom: spacing.lg,
-      fontSize: typography.md,
-      ...typeface('regular'),
-    },
     summaryCard: {
-      backgroundColor: colors.accentCream,
-      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: semanticColors.border,
+      borderRadius: borderRadius.md,
       padding: spacing.lg,
-      marginTop: spacing.md,
       marginBottom: spacing.md,
     },
     cta: {
-      backgroundColor: colors.textPrimary,
-      padding: spacing.md,
+      alignSelf: 'stretch',
+      width: '100%',
+      marginTop: spacing.lg,
+      minHeight: 40,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
       borderRadius: borderRadius.md,
+      backgroundColor: semanticColors.logoDark,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: spacing.lg,
-      alignSelf: 'stretch',
     },
     ctaDisabled: { opacity: 0.5 },
     ctaText: {
-      color: colors.goldMuted,
-      fontWeight: '700',
-    },
-    emptyText: {
-      textAlign: 'center',
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
+      ...typeface('medium'),
       fontSize: typography.md,
-      ...typeface('regular'),
+      color: semanticColors.textInverse,
+      letterSpacing: -0.2,
     },
     addressFormError: {
       marginTop: spacing.sm,
-      fontSize: typography.md,
-      color: '#B42318',
-      lineHeight: typography.md * 1.4,
+      fontSize: typography.sm,
+      color: semanticColors.error,
       ...typeface('medium'),
     },
   });

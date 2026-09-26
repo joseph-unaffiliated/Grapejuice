@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useSession } from './useSession';
+import { useBoxPresenceStore } from '../stores/boxPresenceStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
@@ -272,6 +273,7 @@ export function useBoxDraft() {
       children: nextKids,
       familiarity: profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate',
     });
+    useBoxPresenceStore.getState().setHasBox(household.id, nextLines.length > 0);
     setLoading(false);
   }, [
     isAuthenticated,
@@ -314,6 +316,7 @@ export function useBoxDraft() {
         children: prev?.children ?? children,
         familiarity: prev?.familiarity ?? familiarity,
       });
+      useBoxPresenceStore.getState().setHasBox(household.id, next.length > 0);
       await boxDraftService.save(household.id, user.uid, next, {
         familiarityLevel: profile?.familiarityLevel ?? familiarity,
         slotVotes,

@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -9,20 +7,22 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import {
+  SystemChip,
+  SystemPage,
+  SystemPageSpinner,
+  systemPageStyles as page,
+} from '../../components/layout/SystemPage';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
-import { AccountHubHeader } from '../../components/account/AccountHubHeader';
+import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import {
-  borderRadius,
   semanticColors,
   spacing,
   typeface,
   typography,
 } from '../../constants/theme';
-import { useWebLayout } from '../../hooks/useWebLayout';
 import { useCatalog } from '../../hooks/useCatalog';
 import type { MainStackParamList } from '../../navigation/types';
 import { aiChatService } from '../../services/firestore/aiChat';
@@ -44,7 +44,6 @@ export function HistoryScreen() {
 
 function HistoryScreenBody() {
   const navigation = useNavigation<Nav>();
-  const { isDesktop, layoutWidth } = useWebLayout();
   const user = useAuthStore((s) => s.user);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const { items: catalog } = useCatalog();
@@ -80,6 +79,7 @@ function HistoryScreenBody() {
       return {
         ...e,
         name: catalogItem?.name?.trim() || e.name,
+        imageUrl: catalogItem?.imageUrl,
       };
     });
   }, [browsingEntries, catalog]);
@@ -105,35 +105,28 @@ function HistoryScreenBody() {
 
   const signIn = () => startAuthFromGuest('History', 'signin');
 
-  const body = (
-    <>
-      <AccountHubHeader page="history" />
+  return (
+    <SystemPage onBack={() => navigation.goBack()}>
+      <Text style={page.title}>History</Text>
+      <Text style={page.lead}>Chats with Rav and pages you’ve browsed.</Text>
 
-      <View style={styles.sectionDivider} />
-      <View style={styles.section}>
-        <Text style={styles.sectionHeading}>Chat history</Text>
-        <Text style={styles.sectionLead}>Recent conversations with Rav</Text>
+      <View style={page.section}>
+        <Text style={page.sectionHeading}>Chat history</Text>
+        <Text style={page.sectionLead}>Recent conversations with Rav</Text>
         {isGuest ? (
           <View style={styles.emptyBlock}>
-            <Text style={styles.emptyText}>Sign in to save and browse past Rav conversations.</Text>
-            <TouchableOpacity style={styles.signInChip} onPress={signIn} accessibilityRole="button">
-              <Text style={styles.signInChipText}>log in / create account</Text>
-            </TouchableOpacity>
+            <Text style={page.emptyText}>Sign in to save and browse past Rav conversations.</Text>
+            <SystemChip label="log in / create account" onPress={signIn} />
           </View>
         ) : threadsLoading ? (
-          <ActivityIndicator color={semanticColors.brand} style={styles.spinner} />
+          <SystemPageSpinner />
         ) : threads.length === 0 ? (
           <View style={styles.emptyBlock}>
-            <Text style={styles.emptyText}>No chats yet. Start a conversation with Rav.</Text>
-            <TouchableOpacity
-              style={styles.signInChip}
-              onPress={() =>
-                navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } })
-              }
-              accessibilityRole="button"
-            >
-              <Text style={styles.signInChipText}>Open Rav</Text>
-            </TouchableOpacity>
+            <Text style={page.emptyText}>No chats yet. Start a conversation with Rav.</Text>
+            <SystemChip
+              label="Open Rav"
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } })}
+            />
           </View>
         ) : (
           <View style={styles.list}>
@@ -174,14 +167,11 @@ function HistoryScreenBody() {
         )}
       </View>
 
-      <View style={styles.sectionDivider} />
-      <View style={styles.section}>
-        <Text style={styles.sectionHeading}>Browsing history</Text>
-        <Text style={styles.sectionLead}>Products you’ve viewed recently</Text>
+      <View style={page.section}>
+        <Text style={page.sectionHeading}>Browsing history</Text>
+        <Text style={page.sectionLead}>Products you’ve viewed recently</Text>
         {browsingRows.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No browsing history yet. Open a product to start a trail.
-          </Text>
+          <Text style={page.emptyText}>No browsing history yet. Open a product to start a trail.</Text>
         ) : (
           <View style={styles.list}>
             {browsingRows.map((e) => (
@@ -192,10 +182,13 @@ function HistoryScreenBody() {
                   accessibilityRole="link"
                   accessibilityLabel={`Open ${e.name}`}
                 >
-                  <Text style={styles.browseName} numberOfLines={2}>
-                    {e.name}
-                  </Text>
-                  <Text style={styles.browseMeta}>View product</Text>
+                  <BoxItemImage size={56} itemId={e.itemId} imageUrl={e.imageUrl} />
+                  <View style={styles.browseCopy}>
+                    <Text style={styles.browseName} numberOfLines={2}>
+                      {e.name}
+                    </Text>
+                    <Text style={styles.browseMeta}>View product</Text>
+                  </View>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dismissBtn}
@@ -210,96 +203,12 @@ function HistoryScreenBody() {
           </View>
         )}
       </View>
-    </>
-  );
-
-  return (
-    <SafeAreaView style={styles.safe} edges={[]}>
-      <WebContentPanel
-        flush={isDesktop}
-        gutter={!isDesktop}
-        centerDesktop={isDesktop}
-        omitDesktopTopPadding={isDesktop}
-        style={styles.panel}
-      >
-        <ScrollView
-          style={styles.root}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {isDesktop ? (
-            <View style={[styles.contentColumn, { maxWidth: layoutWidth }]}>{body}</View>
-          ) : (
-            body
-          )}
-        </ScrollView>
-      </WebContentPanel>
-    </SafeAreaView>
+    </SystemPage>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: semanticColors.bgPrimary },
-  panel: { flex: 1, width: '100%', backgroundColor: semanticColors.bgPrimary },
-  root: { flex: 1, backgroundColor: semanticColors.bgPrimary, width: '100%' },
-  scrollContent: {
-    paddingTop: spacing.xxl + spacing.md,
-    paddingBottom: spacing.xxl,
-    paddingHorizontal: spacing.lg,
-    width: '100%',
-    maxWidth: 560,
-    alignSelf: 'center',
-  },
-  contentColumn: {
-    width: '100%',
-    alignSelf: 'center',
-  },
-  sectionDivider: {
-    alignSelf: 'stretch',
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: semanticColors.border,
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  section: {
-    marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  sectionHeading: {
-    ...typeface('medium'),
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: -0.3,
-    color: semanticColors.logoDark,
-    marginTop: spacing.sm,
-  },
-  sectionLead: {
-    ...typeface('regular'),
-    fontSize: typography.md,
-    color: semanticColors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  emptyBlock: { gap: spacing.sm, alignItems: 'flex-start' },
-  emptyText: {
-    ...typeface('regular'),
-    fontSize: typography.md,
-    color: semanticColors.textTertiary,
-    lineHeight: 20,
-  },
-  signInChip: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.pill,
-    borderWidth: 1,
-    borderColor: semanticColors.brand,
-  },
-  signInChipText: {
-    ...typeface('medium'),
-    color: semanticColors.brand,
-    fontSize: typography.sm,
-  },
-  spinner: { alignSelf: 'flex-start', marginTop: spacing.sm },
+  emptyBlock: { alignItems: 'flex-start' },
   list: { gap: spacing.xs },
   chatRow: {
     flexDirection: 'row',
@@ -352,7 +261,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.sm,
   },
-  browseMain: { flex: 1, minWidth: 0, gap: 2 },
+  browseMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  browseCopy: { flex: 1, minWidth: 0, gap: 2 },
   browseName: {
     ...typeface('medium'),
     fontSize: typography.md,

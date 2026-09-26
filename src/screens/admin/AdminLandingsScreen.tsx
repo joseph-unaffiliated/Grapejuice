@@ -5,11 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   TextInput,
   Platform,
   Alert,
 } from 'react-native';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
@@ -206,7 +206,7 @@ export function AdminLandingsScreen() {
     return (
       <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
-          <ActivityIndicator color={colors.brand} />
+          <BrandLoadingMark color={colors.brand} />
         </View>
       </WebContentPanel>
     );
@@ -318,7 +318,9 @@ export function AdminLandingsScreen() {
           ) : null}
 
           {loading ? (
-            <ActivityIndicator color={colors.brand} style={styles.loader} />
+            <View style={styles.loader}>
+              <BrandLoadingMark color={colors.brand} />
+            </View>
           ) : error ? (
             <Text style={styles.error}>{error}</Text>
           ) : (
@@ -430,7 +432,11 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     primaryBtnText: { fontWeight: '600', color: colors.logoDark },
     btnDisabled: { opacity: 0.6 },
-    loader: { marginTop: spacing.xl },
+    loader: {
+      minHeight: 240,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     error: { color: colors.error, marginTop: spacing.sm },
     list: { gap: spacing.sm, paddingBottom: spacing.xxl },
     row: {

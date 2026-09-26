@@ -58,6 +58,8 @@ import { representativeAgeForBand, type IntakeAgeGroup } from '../../services/bo
 import { firstNameFromDisplayName } from '../../utils/personName';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { navigateMainStack } from '../../navigation/mainStackNavigation';
+import { usersService } from '../../services/firestore/users';
+import { isOpsAdmin } from '../../constants/admin';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -160,6 +162,8 @@ function AccountScreenBody() {
   const clearAuthError = useAuthStore((s) => s.clearError);
   const { household: sessionHousehold, profile: sessionProfile, loading: sessionLoading, refresh } =
     useSession();
+  const guestHidden = useGuestSessionStore((s) => s.hiddenHolidays);
+  const toggleGuestHidden = useGuestSessionStore((s) => s.toggleHiddenHoliday);
   const previewKey = useDevPreviewStore((s) => s.previewKey);
   const fakeSignedIn = previewKey === 'account-signed-in';
 
@@ -191,6 +195,7 @@ function AccountScreenBody() {
   const [rebuildModalOpen, setRebuildModalOpen] = useState(false);
   const [hasOwnBox, setHasOwnBox] = useState(false);
 
+  const hiddenHolidays = profile?.hiddenHolidays ?? guestHidden;
   const familyDirty = familyMembersFingerprint(familyMembers) !== familyBaseline;
   const familyComplete = familyMembersComplete(familyMembers);
   const cardOnFile = Boolean(household?.cardOnFileAt);
@@ -275,6 +280,15 @@ function AccountScreenBody() {
       await load();
     } finally {
       setInviteSending(false);
+    }
+  };
+
+  const restoreHidden = async (holidayId: string) => {
+    toggleGuestHidden(holidayId);
+    if (authUser?.uid) {
+      const next = hiddenHolidays.filter((id) => id !== holidayId);
+      await usersService.upsert(authUser.uid, { hiddenHolidays: next });
+      await refresh();
     }
   };
 
@@ -603,6 +617,49 @@ function AccountScreenBody() {
             here. Use “Forgot password?” on email sign-in if you also created an email password.
           </Text>
         )}
+
+        {hiddenHolidays.length ? (
+          <>
+            <View style={styles.sectionDivider} />
+            <Text style={styles.section}>Hidden holidays</Text>
+            {hiddenHolidays.map((id) => (
+              <GrapejuiceButton
+                key={id}
+                label={`Show ${id} again`}
+                variant="pillOutline"
+                onPress={() => void restoreHidden(id)}
+                style={styles.actionBtn}
+                textStyle={styles.primaryBtnText}
+              />
+            ))}
+          </>
+        ) : null}
+
+        <View style={styles.sectionDivider} />
+        <Text style={styles.section}>Gift a box</Text>
+        <Text style={styles.hint}>Send gift credit or a curated gift box to another family.</Text>
+        <GrapejuiceButton
+          label="Send a gift"
+          variant="filled"
+          onPress={() => navigation.navigate('GiftGive')}
+          style={styles.actionBtn}
+          textStyle={styles.primaryBtnText}
+        />
+
+        {isOpsAdmin(user) ? (
+          <>
+            <View style={styles.sectionDivider} />
+            <Text style={styles.section}>Ops</Text>
+            <Text style={styles.hint}>Add or edit Hanukkah catalog SKUs (books, menorahs, etc.).</Text>
+            <GrapejuiceButton
+              label="Catalog admin"
+              variant="filled"
+              onPress={() => navigation.navigate('AdminCatalog')}
+              style={styles.actionBtn}
+              textStyle={styles.primaryBtnText}
+            />
+          </>
+        ) : null}
 
         <View style={styles.sectionDivider} />
         <GrapejuiceButton

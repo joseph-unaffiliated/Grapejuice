@@ -2,44 +2,56 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   Alert,
   Platform,
+  StyleSheet,
+  TouchableOpacity,
+  ImageBackground,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import {
+  SystemChip,
+  SystemPage,
+  SystemTextAction,
+  systemPageStyles as page,
+} from '../../components/layout/SystemPage';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { useAuthStore } from '../../stores/authStore';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useSession } from '../../hooks/useSession';
-import { useWebLayout } from '../../hooks/useWebLayout';
 import { convertReceivedGiftToCredit, reopenReceivedGiftBox } from '../../services/gift/giftFlow';
 import { formatDollars } from '../../services/box/buildDefaultBox';
+import { useCatalog } from '../../hooks/useCatalog';
+import { OrderBoxCollage, OrderItemNameGrid } from '../../components/orders/OrderPurchaseMedia';
 import {
   CURATED_GIFT_BOX_LABEL,
   GIFT_CREDIT_LABEL,
   GIFT_CREDIT_SPEND_HINT,
 } from '../../constants/giftCopy';
-import { formatThreadListDate } from '../../services/hanukkah/dates';
 import type { MainStackParamList } from '../../navigation/types';
-import type { ReceivedGift } from '../../types/pilot';
-import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-import type { SemanticColors } from '../../constants/themeMode';
-import { AccountHubHeader } from '../../components/account/AccountHubHeader';
-import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import type { CatalogItem, ReceivedGift } from '../../types/pilot';
+import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { semanticColors, spacing, borderRadius, typeface, typography } from '../../constants/theme';
+
+/** Same cold-press paper as the Ask Rav band. */
+const PAPER_BG = require('../../../assets/storefront/cold-press-toothy.jpg');
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
-function formatDate(iso: string): string {
+const guestPanel = { flex: 1, width: '100%' as const };
+
+function formatGiftDate(iso: string | undefined): string | null {
+  if (!iso) return null;
   const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return '—';
-  return formatThreadListDate(new Date(ms));
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function statusLabel(gift: ReceivedGift): string {
@@ -50,20 +62,9 @@ function statusLabel(gift: ReceivedGift): string {
   return 'Ready to open';
 }
 
-function itemPreview(gift: ReceivedGift): string | null {
-  const items = gift.lineItems ?? [];
-  if (!items.length) return null;
-  const labels = items
-    .map((li) => li.label?.trim() || li.itemId)
-    .filter(Boolean)
-    .slice(0, 3);
-  if (!labels.length) return null;
-  const more = items.length > labels.length ? ` +${items.length - labels.length} more` : '';
-  return `${labels.join(' · ')}${more}`;
-}
-
 function GiftCard({
   gift,
+  catalog,
   styles,
   onView,
   onEdit,
@@ -73,7 +74,8 @@ function GiftCard({
   reopening,
 }: {
   gift: ReceivedGift;
-  styles: ReturnType<typeof createStyles>;
+  catalog: CatalogItem[];
+  styles: ReturnType<typeof createGiftStyles>;
   onView: () => void;
   onEdit: () => void;
   onConvert: () => void;
@@ -81,83 +83,112 @@ function GiftCard({
   converting: boolean;
   reopening: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const isBox = gift.kind === 'box';
+  const items = isBox ? (gift.lineItems ?? []) : [];
   const available = isBox && gift.status === 'available';
   const accepted = isBox && gift.status === 'accepted';
   const converted = gift.status === 'converted_to_credit';
-  const preview = isBox ? itemPreview(gift) : null;
-  // Accepted without a fulfilled checkout can be reopened (legacy Review CTA).
-  const canReopen = accepted;
+  const claimed = formatGiftDate(gift.claimedAt);
+  const convertedOn = formatGiftDate(gift.convertedAt);
+  const facts = [
+    claimed ? { label: 'Claimed', value: claimed } : null,
+    { label: 'From', value: gift.giverName?.trim() || 'someone special' },
+  ].filter((fact): fact is { label: string; value: string } => fact != null);
+
+  const note = gift.kind === 'credit'
+    ? `${formatDollars(gift.creditCents)} was added to your gift credit balance. ${GIFT_CREDIT_SPEND_HINT}`
+    : available
+      ? 'Open this box to adjust items, or convert it to gift credit.'
+      : converted
+        ? `Converted to ${formatDollars(gift.creditCents)} in gift credit${convertedOn ? ` on ${convertedOn}` : ''}.`
+        : accepted
+          ? 'Reopen it to edit or convert to credit, unless you already finished checkout.'
+          : null;
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardKind}>{isBox ? CURATED_GIFT_BOX_LABEL : GIFT_CREDIT_LABEL}</Text>
-      <Text style={styles.cardTitle}>From {gift.giverName || 'someone special'}</Text>
-      <Text style={styles.cardMeta}>
-        Claimed {formatDate(gift.claimedAt)} · {statusLabel(gift)}
-      </Text>
-      {gift.message ? <Text style={styles.message}>&ldquo;{gift.message}&rdquo;</Text> : null}
-      {preview ? <Text style={styles.preview}>{preview}</Text> : null}
+      <View style={styles.bar}>
+        {facts.map((fact, index) => (
+          <View key={fact.label} style={styles.barFact}>
+            {index > 0 ? <View style={styles.barRule} /> : null}
+            <Text style={styles.barLabel}>{fact.label}</Text>
+            <Text style={styles.barValue}>{fact.value}</Text>
+          </View>
+        ))}
+      </View>
 
-      {gift.kind === 'credit' ? (
-        <Text style={styles.body}>
-          {formatDollars(gift.creditCents)} was added to your {GIFT_CREDIT_LABEL.toLowerCase()} balance. {GIFT_CREDIT_SPEND_HINT}
-        </Text>
-      ) : available ? (
-        <Text style={styles.body}>
-          Open this curated gift box to adjust items, add from other gifts, or convert it to gift credit.
-        </Text>
-      ) : converted ? (
-        <Text style={styles.body}>
-          Converted to {formatDollars(gift.creditCents)} in gift credit
-          {gift.convertedAt ? ` on ${formatDate(gift.convertedAt)}` : ''}.
-        </Text>
-      ) : accepted ? (
-        <Text style={styles.body}>
-          This gift was marked accepted. Reopen it to edit, add from other gifts, or convert to
-          credit — unless you already finished checkout.
-        </Text>
-      ) : (
-        <Text style={styles.body}>You&apos;re receiving this {CURATED_GIFT_BOX_LABEL.toLowerCase()} as a gift.</Text>
-      )}
+      <View style={styles.body}>
+        <View style={styles.main}>
+          <View style={styles.row}>
+            {items.length > 0 ? <OrderBoxCollage items={items} catalog={catalog} /> : null}
+            <View style={styles.titleBlock}>
+              <Text style={styles.productName}>
+                {isBox ? CURATED_GIFT_BOX_LABEL : GIFT_CREDIT_LABEL}
+              </Text>
+              <Text style={styles.productPrice}>{formatDollars(gift.creditCents)}</Text>
+              {gift.message ? (
+                <Text style={styles.message}>&ldquo;{gift.message}&rdquo;</Text>
+              ) : null}
+              {note ? <Text style={styles.note}>{note}</Text> : null}
+              {items.length > 0 ? (
+                <TouchableOpacity
+                  style={styles.itemsToggle}
+                  onPress={() => setExpanded((v) => !v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded }}
+                >
+                  <Text style={page.link}>{expanded ? 'Hide items' : 'Show all items'}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        </View>
 
-      {available ? (
-        <>
-          <TouchableOpacity style={styles.primaryBtn} onPress={onEdit}>
-            <Text style={styles.primaryBtnText}>Open gift box</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.editBtn} onPress={onView}>
-            <Text style={styles.editBtnText}>View reveal</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.secondaryBtn, converting && styles.secondaryBtnDisabled]}
-            disabled={converting}
-            onPress={onConvert}
-          >
-            <Text style={styles.secondaryBtnText}>
-              {converting
-                ? 'Converting…'
-                : `Convert to ${formatDollars(gift.creditCents)} credit`}
-            </Text>
-          </TouchableOpacity>
-        </>
-      ) : null}
+        <View style={styles.actions}>
+          <Text style={styles.status}>{statusLabel(gift)}</Text>
+          {available ? (
+            <>
+              <SystemChip label="Open gift box" onPress={onEdit} style={styles.actionControl} />
+              <SystemTextAction
+                label="View reveal"
+                tone="brand"
+                onPress={onView}
+                style={styles.actionControl}
+              />
+              <SystemTextAction
+                label={
+                  converting
+                    ? 'Converting…'
+                    : `Convert to ${formatDollars(gift.creditCents)} credit`
+                }
+                onPress={onConvert}
+                disabled={converting}
+                style={styles.actionControl}
+              />
+            </>
+          ) : null}
+          {accepted ? (
+            <>
+              <SystemChip
+                label={reopening ? 'Reopening…' : 'Reopen to manage'}
+                onPress={onReopen}
+                disabled={reopening}
+                style={styles.actionControl}
+              />
+              <SystemTextAction
+                label="View reveal"
+                tone="brand"
+                onPress={onView}
+                style={styles.actionControl}
+              />
+            </>
+          ) : null}
+        </View>
+      </View>
 
-      {canReopen ? (
-        <>
-          <TouchableOpacity
-            style={[styles.primaryBtn, reopening && styles.secondaryBtnDisabled]}
-            disabled={reopening}
-            onPress={onReopen}
-          >
-            <Text style={styles.primaryBtnText}>
-              {reopening ? 'Reopening…' : 'Reopen to manage'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.editBtn} onPress={onView}>
-            <Text style={styles.editBtnText}>View reveal</Text>
-          </TouchableOpacity>
-        </>
+      {expanded && items.length > 0 ? (
+        <OrderItemNameGrid items={items} catalog={catalog} />
       ) : null}
     </View>
   );
@@ -165,12 +196,13 @@ function GiftCard({
 
 function MyGiftsBody() {
   const navigation = useNavigation<Nav>();
-  const { colors } = useThemeMode();
-  const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => createGiftStyles(), []);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, loading: sessionLoading, refresh: refreshSession } = useSession();
   const { gifts, loading, error, refresh } = useReceivedGifts();
+  const { items: catalog } = useCatalog();
+  const hasStartedBox = usePreviewedHasStartedBox();
+  const { goCategory, startBox } = useStorefrontActions();
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
 
@@ -271,7 +303,7 @@ function MyGiftsBody() {
 
   if (!isAuthenticated) {
     return (
-      <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
+      <WebContentPanel flush centerDesktop omitDesktopTopPadding style={guestPanel}>
         <GuestAuthPrompt returnTo="MyGifts" />
       </WebContentPanel>
     );
@@ -279,23 +311,87 @@ function MyGiftsBody() {
 
   if (sessionLoading || loading) {
     return (
-      <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
-        <View style={styles.centered}>
-          <BrandLoadingMark color={colors.brand} />
-        </View>
-      </WebContentPanel>
+      <SystemPage loading onBack={() => navigation.goBack()} />
     );
   }
 
   return (
-    <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        <AccountHubHeader page="gifts" />
+    <SystemPage onBack={() => navigation.goBack()}>
+        <Text style={page.title}>My Gifts</Text>
+        <Text style={page.lead}>
+          Gifts you&apos;ve received stay separate from your family&apos;s own box. {GIFT_CREDIT_SPEND_HINT}{' '}
+          Curated gift boxes are managed here.
+        </Text>
 
-        <View style={styles.sectionDivider} />
-        <Text style={styles.section}>Received gifts</Text>
+        <ImageBackground
+          source={PAPER_BG}
+          style={styles.balancePanel}
+          imageStyle={styles.balancePaper}
+          resizeMode="cover"
+        >
+          <View style={styles.balanceWash} pointerEvents="none" />
+          <Text style={styles.balanceLabel}>Gift credit balance</Text>
+          <Text style={styles.balanceAmount}>{formatDollars(giftCreditCents)}</Text>
+          <Text style={styles.balanceHint}>{GIFT_CREDIT_SPEND_HINT}</Text>
+          {platformCreditCents > 0 ? (
+            <Text style={styles.balanceHint}>
+              Plus {formatDollars(platformCreditCents)} platform credit
+            </Text>
+          ) : null}
+          {multiBoxHint ? (
+            <Text style={styles.balanceHint}>
+              You have {availableBoxGifts.length} curated gift boxes. Keep the one you want; convert
+              extras to gift credit to spend in the store or on a Hanukkah box.
+            </Text>
+          ) : null}
+          <View style={styles.balanceActions}>
+            <TouchableOpacity
+              style={[styles.paperCta, styles.paperCtaPrimary]}
+              onPress={() => goCategory('collection')}
+              accessibilityRole="button"
+              accessibilityLabel={hasStartedBox ? 'Add to your box' : 'Shop the collection'}
+            >
+              <Text style={styles.paperCtaPrimaryText}>
+                {hasStartedBox ? 'Add to your box' : 'Shop the collection'}
+              </Text>
+            </TouchableOpacity>
+            {hasStartedBox ? null : (
+              <TouchableOpacity
+                style={[styles.paperCta, styles.paperCtaSecondary]}
+                onPress={() => startBox()}
+                accessibilityRole="button"
+                accessibilityLabel="Build your box"
+              >
+                <Text style={styles.paperCtaSecondaryText}>Build your box</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ImageBackground>
+
+        {error ? (
+          <View style={page.section}>
+            <Text style={page.emptyText}>{error}</Text>
+            <SystemChip label="Try again" onPress={() => void refresh()} />
+          </View>
+        ) : null}
+
+        <View style={page.section}>
+          <Text style={page.sectionHeading}>Give a gift</Text>
+          <Text style={page.sectionLead}>
+            Send gift credit they can spend, or pick items for a curated gift box.
+          </Text>
+          <SystemChip
+            label="Send gift credit"
+            onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' })}
+          />
+          <SystemChip
+            label="Pick items for them"
+            onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'customize' })}
+          />
+        </View>
+
         {gifts.length === 0 ? (
-          <Text style={styles.empty}>
+          <Text style={page.emptyText}>
             No gifts yet. When someone sends you a gift, it will appear here after you claim it.
           </Text>
         ) : (
@@ -303,6 +399,7 @@ function MyGiftsBody() {
             <GiftCard
               key={gift.id}
               gift={gift}
+              catalog={catalog}
               styles={styles}
               onView={() => openGift(gift)}
               onEdit={() => openGiftBox(gift)}
@@ -313,58 +410,7 @@ function MyGiftsBody() {
             />
           ))
         )}
-
-        <View style={styles.creditBanner}>
-          <Text style={styles.creditLabel}>Gift credit on hand</Text>
-          <Text style={styles.creditValue}>{formatDollars(giftCreditCents)}</Text>
-          {platformCreditCents > 0 ? (
-            <Text style={styles.creditSub}>
-              + {formatDollars(platformCreditCents)} platform credit
-            </Text>
-          ) : null}
-          <Text style={styles.creditBody}>
-            Gifts you&apos;ve received stay separate from your family&apos;s own box.{' '}
-            {GIFT_CREDIT_SPEND_HINT} Curated gift boxes are managed here.
-          </Text>
-        </View>
-
-        {multiBoxHint ? (
-          <Text style={styles.multiHint}>
-            You have {availableBoxGifts.length} curated gift boxes. Keep the one you want; convert
-            extras to gift credit to spend in the store or on a Hanukkah box.
-          </Text>
-        ) : null}
-
-        {error ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={() => void refresh()}>
-              <Text style={styles.errorRetry}>Try again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        <View style={styles.sectionDividerGive} />
-        <Text style={styles.section}>Give a gift</Text>
-        <Text style={styles.sectionHint}>
-          Send gift credit they can spend, or pick items for a curated gift box.
-        </Text>
-        <GrapejuiceButton
-          label="Send gift credit"
-          variant="filled"
-          onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' })}
-          style={styles.giveBtn}
-          textStyle={styles.giveBtnText}
-        />
-        <GrapejuiceButton
-          label="Pick items for them"
-          variant="pillOutline"
-          onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'customize' })}
-          style={styles.giveBtnSecondary}
-          textStyle={styles.giveBtnSecondaryText}
-        />
-      </ScrollView>
-    </WebContentPanel>
+    </SystemPage>
   );
 }
 
@@ -376,237 +422,179 @@ export function MyGiftsScreen() {
   );
 }
 
-function createStyles(colors: SemanticColors, isDesktop: boolean) {
+function createGiftStyles() {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bgPrimary },
-    content: {
-      padding: spacing.lg,
-      paddingTop: spacing.xxl + spacing.md,
-      paddingBottom: 120,
-      maxWidth: isDesktop ? 560 : undefined,
-      width: '100%',
-      alignSelf: isDesktop ? 'center' : undefined,
-    },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 240 },
-    sectionDivider: {
-      alignSelf: 'stretch',
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginTop: spacing.xl,
-      marginBottom: spacing.md,
-    },
-    sectionDividerGive: {
-      alignSelf: 'stretch',
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginTop: spacing.xl,
-      marginBottom: spacing.lg,
-    },
-    section: {
-      ...typeface('medium'),
-      fontSize: 22,
-      lineHeight: 28,
-      letterSpacing: -0.3,
-      color: colors.logoDark,
-      marginTop: spacing.sm,
-      marginBottom: spacing.sm,
-      textAlign: 'center',
-    },
-    sectionHint: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      letterSpacing: -0.22,
-      lineHeight: 18,
-      marginBottom: spacing.md,
-      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
-    },
-    giveBtn: {
-      marginTop: spacing.sm,
-      alignSelf: 'stretch',
-      width: '100%',
-      borderRadius: borderRadius.xl,
-    },
-    giveBtnText: {
-      ...typeface('regular'),
-      color: colors.logoDark,
-    },
-    giveBtnSecondary: {
-      marginTop: spacing.sm,
-      alignSelf: 'stretch',
-      width: '100%',
-      borderRadius: borderRadius.xl,
-    },
-    giveBtnSecondaryText: {
-      ...typeface('regular'),
-      color: colors.logoDark,
-    },
-    creditBanner: {
-      marginTop: spacing.lg,
-      marginBottom: spacing.sm,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      backgroundColor: colors.accentCream,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      alignItems: 'center',
-    },
-    creditLabel: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      letterSpacing: -0.22,
-      color: colors.textTertiary,
-      textAlign: 'center',
-    },
-    creditValue: {
-      ...typeface('medium'),
-      marginTop: 4,
-      fontSize: 28,
-      color: colors.textPrimary,
-      letterSpacing: -0.6,
-      textAlign: 'center',
-    },
-    creditSub: {
-      ...typeface('regular'),
-      marginTop: 4,
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      textAlign: 'center',
-    },
-    creditBody: {
-      ...typeface('regular'),
-      marginTop: spacing.md,
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      letterSpacing: -0.22,
-      lineHeight: 18,
-      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
-    },
-    multiHint: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      lineHeight: 20,
-      marginBottom: spacing.lg,
-      textAlign: 'center',
-    },
-    empty: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      marginTop: spacing.sm,
-      textAlign: 'center',
-      lineHeight: 20,
-      letterSpacing: -0.22,
-    },
-    errorBanner: {
-      marginBottom: spacing.md,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
+    balancePanel: {
       borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.accentCream,
-    },
-    errorText: {
-      ...typeface('regular'),
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-    },
-    errorRetry: {
-      ...typeface('medium'),
-      marginTop: spacing.sm,
-      fontSize: typography.sm,
-      color: colors.brand,
-    },
-    card: {
-      borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: semanticColors.border,
       borderRadius: borderRadius.md,
-      padding: spacing.md,
-      marginBottom: spacing.md,
-      backgroundColor: colors.bgPrimary,
+      overflow: 'hidden',
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.xl,
+      gap: spacing.xs,
+      backgroundColor: '#F7F6F2',
     },
-    cardKind: {
-      ...typeface('medium'),
-      fontSize: typography.xs,
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-      color: colors.textTertiary,
+    balancePaper: {
+      borderRadius: borderRadius.md,
     },
-    cardTitle: {
+    balanceWash: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(251, 248, 239, 0.42)',
+      ...(Platform.OS === 'web'
+        ? ({
+            backgroundImage:
+              'linear-gradient(90deg, rgba(216, 201, 144, 0.18) 0%, rgba(255, 255, 255, 0.55) 42%, rgba(255, 255, 255, 0.62) 50%, rgba(255, 255, 255, 0.55) 58%, rgba(216, 201, 144, 0.18) 100%)',
+          } as object)
+        : null),
+    },
+    balanceLabel: {
       ...typeface('medium'),
       fontSize: typography.lg,
-      color: colors.textPrimary,
-      marginTop: 2,
-      letterSpacing: -0.22,
+      color: semanticColors.textSecondary,
     },
-    cardMeta: {
+    balanceAmount: {
+      ...typeface('bold'),
+      fontSize: 36,
+      lineHeight: 42,
+      color: semanticColors.textPrimary,
+    },
+    balanceHint: {
       ...typeface('regular'),
-      fontSize: typography.sm,
-      color: colors.textTertiary,
+      fontSize: typography.lg,
+      lineHeight: 22,
+      color: semanticColors.textSecondary,
       marginTop: spacing.xs,
+    },
+    balanceActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    paperCta: {
+      minHeight: 40,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
+    },
+    paperCtaPrimary: {
+      backgroundColor: semanticColors.brand,
+    },
+    paperCtaPrimaryText: {
+      ...typeface('medium'),
+      fontSize: typography.md,
+      color: semanticColors.logoDark,
+      letterSpacing: -0.2,
+      textAlign: 'center',
+    },
+    paperCtaSecondary: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: semanticColors.logoDark,
+    },
+    paperCtaSecondaryText: {
+      ...typeface('medium'),
+      fontSize: typography.md,
+      color: semanticColors.logoDark,
+      textAlign: 'center',
+    },
+    card: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: semanticColors.border,
+      paddingVertical: spacing.md,
+      gap: spacing.md,
+    },
+    bar: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: semanticColors.logoDark,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    barFact: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    barRule: {
+      width: StyleSheet.hairlineWidth,
+      height: 14,
+      backgroundColor: 'rgba(255,255,255,0.45)',
+      marginRight: spacing.xs,
+    },
+    barLabel: {
+      ...typeface('medium'),
+      fontSize: typography.lg,
+      color: semanticColors.textInverse,
+    },
+    barValue: {
+      ...typeface('regular'),
+      fontSize: typography.lg,
+      color: semanticColors.textInverse,
+    },
+    body: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'flex-start',
+      gap: spacing.lg,
+    },
+    main: { flex: 1, minWidth: 180, gap: spacing.sm },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+    },
+    titleBlock: { flex: 1, gap: spacing.xs },
+    actions: {
+      marginLeft: 'auto',
+      alignItems: 'flex-end',
+      gap: spacing.xs,
+      maxWidth: 220,
+      flexShrink: 0,
+    },
+    actionControl: {
+      marginTop: 0,
+      alignSelf: 'flex-end',
+      paddingHorizontal: spacing.sm,
+    },
+    productName: {
+      ...typeface('medium'),
+      fontSize: 18,
+      lineHeight: 24,
+      color: semanticColors.textPrimary,
+    },
+    productPrice: {
+      ...typeface('medium'),
+      fontSize: typography.xl,
+      color: semanticColors.textPrimary,
     },
     message: {
       ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      fontStyle: 'italic',
-      marginTop: spacing.sm,
-    },
-    preview: {
-      ...typeface('regular'),
       fontSize: typography.sm,
-      color: colors.textSecondary,
-      marginTop: spacing.sm,
+      color: semanticColors.textSecondary,
+      fontStyle: 'italic',
       lineHeight: 18,
     },
-    body: {
+    note: {
       ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      marginTop: spacing.sm,
-      lineHeight: 20,
-    },
-    primaryBtn: {
-      marginTop: spacing.md,
-      alignSelf: 'flex-start',
-      backgroundColor: colors.brand,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.lg,
-      borderRadius: borderRadius.pill,
-    },
-    primaryBtnText: {
-      ...typeface('medium'),
-      color: colors.textInverse,
-      fontSize: typography.md,
-    },
-    editBtn: {
-      marginTop: spacing.sm,
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.lg,
-      borderRadius: borderRadius.pill,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-    },
-    editBtnText: {
-      ...typeface('medium'),
-      color: colors.brand,
-      fontSize: typography.md,
-    },
-    secondaryBtn: {
-      marginTop: spacing.sm,
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
-    },
-    secondaryBtnDisabled: { opacity: 0.55 },
-    secondaryBtnText: {
-      ...typeface('medium'),
-      color: colors.brand,
       fontSize: typography.sm,
+      color: semanticColors.textSecondary,
+      lineHeight: 18,
+    },
+    itemsToggle: { alignSelf: 'flex-start' },
+    status: {
+      ...typeface('medium'),
+      fontSize: typography.lg,
+      color: semanticColors.textPrimary,
+      textAlign: 'right',
     },
   });
 }
+

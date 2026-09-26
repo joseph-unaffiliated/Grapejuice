@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -13,6 +12,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { guideContentService, type GuideNight } from '../../services/firestore/guideContent';
 import { NightCard } from '../../components/guide/NightCard';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebScreenFrame } from '../../constants/webLayout';
 import { spacing, typography } from '../../constants/theme';
@@ -48,7 +48,7 @@ function GuideScreenBody() {
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.bgPrimary }]}>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark />
       </View>
     );
   }

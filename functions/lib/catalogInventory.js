@@ -245,6 +245,7 @@ async function recomputeBoxAllocations(db, _options) {
  * Release reservations on pending marketplace orders older than TTL.
  */
 async function releaseStaleMarketplaceReservations(db) {
+    var _a;
     const cutoff = new Date(Date.now() - exports.MARKETPLACE_RESERVATION_TTL_MS).toISOString();
     const snap = await db
         .collectionGroup('orders')
@@ -279,6 +280,14 @@ async function releaseStaleMarketplaceReservations(db) {
             status: 'cancelled',
             cancelReason: 'stale_inventory_reservation',
         });
+        const giftRestore = typeof order.giftCreditAppliedCents === 'number' ? order.giftCreditAppliedCents : 0;
+        const platformRestore = typeof order.platformCreditAppliedCents === 'number' ? order.platformCreditAppliedCents : 0;
+        const householdId = (_a = doc.ref.parent.parent) === null || _a === void 0 ? void 0 : _a.id;
+        if (householdId && (giftRestore > 0 || platformRestore > 0)) {
+            await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftRestore > 0 ? { giftCreditCents: firestore_1.FieldValue.increment(giftRestore) } : {})), (platformRestore > 0
+                ? { platformCreditCents: firestore_1.FieldValue.increment(platformRestore) }
+                : {})), { updatedAt: new Date().toISOString() }));
+        }
         released += 1;
     }
     return { released };

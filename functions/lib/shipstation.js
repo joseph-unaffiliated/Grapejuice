@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.carrierLabelFromShipStation = carrierLabelFromShipStation;
+exports.parseCatalogWeightOunces = parseCatalogWeightOunces;
 exports.exportOrderToShipStation = exportOrderToShipStation;
 exports.applyShipStationTracking = applyShipStationTracking;
 exports.processShipStationShipNotify = processShipStationShipNotify;
@@ -64,7 +65,28 @@ async function writeShipStationIndex(params) {
         updatedAt: new Date().toISOString(),
     }, { merge: true });
 }
-async function resolveFulfillmentSkus(lineItems) {
+/** Catalog weight is free text ("1.2 lb", "8 oz", "1 lb 4 oz"). Returns ounces, or null if it can't be parsed. */
+function parseCatalogWeightOunces(raw) {
+    if (typeof raw !== 'string' || !raw.trim())
+        return null;
+    const text = raw.toLowerCase().replace(/,/g, ' ');
+    let ounces = 0;
+    let matched = false;
+    const lb = text.match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds)\b/);
+    const oz = text.match(/(\d+(?:\.\d+)?)\s*(oz|ounce|ounces)\b/);
+    if (lb) {
+        ounces += parseFloat(lb[1]) * 16;
+        matched = true;
+    }
+    if (oz) {
+        ounces += parseFloat(oz[1]);
+        matched = true;
+    }
+    if (!matched || !Number.isFinite(ounces) || ounces <= 0)
+        return null;
+    return Math.round(ounces * 100) / 100;
+}
+async function resolveFulfillmentMeta(lineItems) {
     const db = (0, firestore_1.getFirestore)();
     const ids = [
         ...new Set(lineItems
@@ -76,20 +98,21 @@ async function resolveFulfillmentSkus(lineItems) {
         var _a;
         try {
             const snap = await db.doc(`catalog/hanukkah/items/${id}`).get();
-            const raw = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.sku;
-            if (typeof raw === 'string' && raw.trim()) {
-                out.set(id, raw.trim());
-            }
+            const data = (_a = snap.data()) !== null && _a !== void 0 ? _a : {};
+            const sku = typeof data.sku === 'string' && data.sku.trim() ? data.sku.trim() : undefined;
+            const weightOz = parseCatalogWeightOunces(data.weight);
+            if (sku || weightOz)
+                out.set(id, Object.assign({ sku }, (weightOz ? { weightOz } : {})));
         }
         catch (err) {
-            logger.warn('ShipStation SKU lookup failed', { itemId: id, err });
+            logger.warn('ShipStation catalog lookup failed', { itemId: id, err });
         }
     }));
     return out;
 }
 /** ShipStation order export — no-op when keys missing. */
 async function exportOrderToShipStation(order) {
-    var _a;
+    var _a, _b;
     const auth = shipStationAuthHeader();
     if (!auth) {
         logger.info('ShipStation export skipped (keys not configured)', { orderId: order.orderId });
@@ -100,37 +123,30 @@ async function exportOrderToShipStation(order) {
         logger.warn('ShipStation export skipped (incomplete address)', { orderId: order.orderId });
         return { exported: false };
     }
-    const skuByItemId = await resolveFulfillmentSkus(order.lineItems);
+    const metaByItemId = await resolveFulfillmentMeta(order.lineItems);
+    let weightOz = 0;
+    let weightedLines = 0;
     const items = order.lineItems.map((li, i) => {
         var _a, _b, _c, _d, _e;
         const itemId = ((_a = li.itemId) === null || _a === void 0 ? void 0 : _a.trim()) || '';
-        const sku = (itemId && skuByItemId.get(itemId)) || itemId || `pilot-${i}`;
-        return {
-            lineItemKey: itemId || `line-${i}`,
-            sku,
-            name: (_c = (_b = li.label) !== null && _b !== void 0 ? _b : itemId) !== null && _c !== void 0 ? _c : 'Hanukkah box item',
-            quantity: (_d = li.quantity) !== null && _d !== void 0 ? _d : 1,
-            unitPrice: (((_e = li.unitCents) !== null && _e !== void 0 ? _e : 0) / 100).toFixed(2),
-        };
+        const meta = itemId ? metaByItemId.get(itemId) : undefined;
+        const sku = (meta === null || meta === void 0 ? void 0 : meta.sku) || itemId || `pilot-${i}`;
+        const quantity = (_b = li.quantity) !== null && _b !== void 0 ? _b : 1;
+        const lineWeight = (meta === null || meta === void 0 ? void 0 : meta.weightOz) ? Math.round(meta.weightOz * quantity * 100) / 100 : undefined;
+        if (lineWeight) {
+            weightOz += lineWeight;
+            weightedLines += 1;
+        }
+        return Object.assign({ lineItemKey: itemId || `line-${i}`, sku, name: (_d = (_c = li.label) !== null && _c !== void 0 ? _c : itemId) !== null && _d !== void 0 ? _d : 'Hanukkah box item', quantity, unitPrice: (((_e = li.unitCents) !== null && _e !== void 0 ? _e : 0) / 100).toFixed(2) }, (lineWeight ? { weight: { value: lineWeight, units: 'ounces' } } : {}));
     });
     const orderNumber = `GJ-${order.householdId.slice(0, 6)}-${order.orderId.slice(0, 8)}`;
-    const payload = {
-        orderNumber,
+    const payload = Object.assign(Object.assign({ orderNumber, 
         // Firestore order id — webhook uses this (+ shipStationOrders index / SS customerUsername).
-        orderKey: order.orderId,
-        orderDate: new Date().toISOString(),
-        orderStatus: 'awaiting_shipment',
-        customerUsername: order.householdId,
-        customerEmail: String((_a = order.shippingAddress.email) !== null && _a !== void 0 ? _a : ''),
-        billTo: shipTo,
-        shipTo,
-        items: items.length
+        orderKey: order.orderId, orderDate: new Date().toISOString(), orderStatus: 'awaiting_shipment', customerUsername: order.householdId, customerEmail: ((_a = order.customerEmail) === null || _a === void 0 ? void 0 : _a.trim()) || String((_b = order.shippingAddress.email) !== null && _b !== void 0 ? _b : ''), billTo: shipTo, shipTo, items: items.length
             ? items
-            : [{ sku: 'hanukkah-pilot-box', name: 'Hanukkah pilot box', quantity: 1, unitPrice: '50.00' }],
-        amountPaid: (order.totalCents / 100).toFixed(2),
-        shippingAmount: 0,
-        advancedOptions: order.expeditedShipping ? { customField1: 'expedited' } : undefined,
-    };
+            : [{ sku: 'hanukkah-pilot-box', name: 'Hanukkah pilot box', quantity: 1, unitPrice: '50.00' }], amountPaid: (order.totalCents / 100).toFixed(2), shippingAmount: 0 }, (items.length > 0 && weightedLines === items.length && weightOz > 0
+        ? { weight: { value: Math.round(weightOz * 100) / 100, units: 'ounces' } }
+        : {})), { advancedOptions: order.expeditedShipping ? { customField1: 'expedited' } : undefined });
     const res = await fetch('https://ssapi.shipstation.com/orders/createorder', {
         method: 'POST',
         headers: {

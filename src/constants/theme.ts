@@ -200,7 +200,7 @@ export function tabBarTotalHeight(bottomSafeInset = 0): number {
 /** Web layout — sidebar, panel max widths, breakpoints. Keep in sync with public/index.html. */
 export const LAYOUT = {
   WEB_TABLET_MAX_WIDTH: 720,
-  WEB_DESKTOP_MAX_WIDTH: 960,
+  WEB_DESKTOP_MAX_WIDTH: 1024,
   WEB_WIDE_PANEL_MAX_WIDTH: 1120,
   WEB_CONTENT_GUTTER: 32,
   WEB_AUTH_CARD_MAX_WIDTH: 440,

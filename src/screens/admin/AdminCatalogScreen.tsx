@@ -6,9 +6,9 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
@@ -148,7 +148,7 @@ export function AdminCatalogScreen() {
 
           {loading ? (
             <View style={styles.centered}>
-              <ActivityIndicator color={colors.brand} />
+              <BrandLoadingMark color={colors.brand} />
             </View>
           ) : error ? (
             <View style={styles.centered}>

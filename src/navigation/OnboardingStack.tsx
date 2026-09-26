@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
-import { View, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
+import { View, StyleSheet, Alert, Platform } from 'react-native';
 import { type ChildDraft } from '../screens/onboarding/ChildrenScreen';
 import { WhatWeDoScreen } from '../screens/onboarding/WhatWeDoScreen';
 import { HanukkahIntroScreen } from '../screens/onboarding/HanukkahIntroScreen';
@@ -544,7 +544,7 @@ export function OnboardingStack({
         >
           {wrap(
             <View style={styles.loading}>
-              <ActivityIndicator size="large" color={semanticColors.brand} />
+              <BrandLoadingMark />
             </View>
           )}
         </StorefrontChrome>

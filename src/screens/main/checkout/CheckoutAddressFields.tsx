@@ -2,9 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import type { ShippingAddress } from '../../../types/pilot';
 import type { ShippingAddressFieldErrors, ShippingRequiredField } from '../../../utils/formValidation';
-import { spacing, typography, borderRadius, typeface } from '../../../constants/theme';
-import { useThemeMode } from '../../../context/ThemeContext';
-import type { SemanticColors } from '../../../constants/themeMode';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../../constants/theme';
 
 type Props = {
   address: ShippingAddress;
@@ -31,8 +29,7 @@ function FieldLabel({
 }
 
 export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props) {
-  const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(), []);
 
   const inputStyle = (key: ShippingRequiredField) => [
     styles.input,
@@ -50,7 +47,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         value={address.name}
         onChangeText={(v) => onChange({ name: v })}
         placeholder="Jane Cohen"
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={semanticColors.textTertiary}
         autoComplete="name"
         accessibilityLabel="Full name, required"
       />
@@ -62,7 +59,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         value={address.line1}
         onChangeText={(v) => onChange({ line1: v })}
         placeholder="123 Main St"
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={semanticColors.textTertiary}
         autoComplete="street-address"
         accessibilityLabel="Address line 1, required"
       />
@@ -74,7 +71,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         value={address.line2 ?? ''}
         onChangeText={(v) => onChange({ line2: v })}
         placeholder="Apt 4"
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={semanticColors.textTertiary}
         accessibilityLabel="Address line 2, optional"
       />
 
@@ -83,7 +80,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         style={inputStyle('city')}
         value={address.city}
         onChangeText={(v) => onChange({ city: v })}
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={semanticColors.textTertiary}
         autoComplete="postal-address-locality"
         accessibilityLabel="City, required"
       />
@@ -96,7 +93,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
             style={inputStyle('stateProvince')}
             value={address.stateProvince}
             onChangeText={(v) => onChange({ stateProvince: v })}
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={semanticColors.textTertiary}
             autoComplete="postal-address-region"
             accessibilityLabel="State or province, required"
           />
@@ -110,7 +107,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
             style={inputStyle('postalCode')}
             value={address.postalCode}
             onChangeText={(v) => onChange({ postalCode: v })}
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={semanticColors.textTertiary}
             autoComplete="postal-code"
             accessibilityLabel="Postal code, required"
           />
@@ -123,50 +120,49 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
   );
 }
 
-function createStyles(colors: SemanticColors) {
+function createStyles() {
   return StyleSheet.create({
     sectionTitle: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
+      ...typeface('bold'),
+      fontSize: typography.xl,
+      color: semanticColors.textPrimary,
       marginTop: spacing.lg,
       marginBottom: spacing.xs,
-      ...typeface('medium'),
     },
     requiredHint: {
-      fontSize: typography.sm,
-      color: colors.textTertiary,
-      marginBottom: spacing.sm,
       ...typeface('regular'),
+      fontSize: typography.md,
+      color: semanticColors.textTertiary,
+      marginBottom: spacing.sm,
     },
     label: {
+      ...typeface('medium'),
       fontSize: typography.sm,
-      color: colors.textSecondary,
+      color: semanticColors.textSecondary,
       marginTop: spacing.sm,
       marginBottom: 4,
-      ...typeface('regular'),
     },
     requiredMark: {
-      color: '#B42318',
+      color: semanticColors.error,
       ...typeface('medium'),
     },
     input: {
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: semanticColors.border,
       borderRadius: borderRadius.md,
-      padding: spacing.md,
-      fontSize: 16,
-      color: colors.textPrimary,
-      backgroundColor: colors.bgPrimary,
+      padding: spacing.sm,
+      fontSize: typography.md,
+      color: semanticColors.textPrimary,
+      backgroundColor: semanticColors.bgPrimary,
       ...typeface('regular'),
     },
     inputError: {
-      borderColor: '#B42318',
+      borderColor: semanticColors.error,
     },
     fieldError: {
       marginTop: 4,
       fontSize: typography.sm,
-      color: '#B42318',
+      color: semanticColors.error,
       ...typeface('medium'),
     },
     row2: { flexDirection: 'row', gap: spacing.sm, minWidth: 0 },

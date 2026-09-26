@@ -1,8 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { spacing, typography, borderRadius, typeface } from '../../../constants/theme';
-import { useThemeMode } from '../../../context/ThemeContext';
-import type { SemanticColors } from '../../../constants/themeMode';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../../constants/theme';
 
 type Props = {
   phone: string;
@@ -12,8 +10,7 @@ type Props = {
 };
 
 export function CheckoutSmsOptIn({ phone, smsOptIn, onPhoneChange, onSmsOptInChange }: Props) {
-  const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(), []);
 
   return (
     <View style={styles.wrap}>
@@ -25,7 +22,7 @@ export function CheckoutSmsOptIn({ phone, smsOptIn, onPhoneChange, onSmsOptInCha
         value={phone}
         onChangeText={onPhoneChange}
         placeholder="+1 647 555 1234"
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={semanticColors.textTertiary}
         keyboardType="phone-pad"
         autoComplete="tel"
       />
@@ -37,37 +34,36 @@ export function CheckoutSmsOptIn({ phone, smsOptIn, onPhoneChange, onSmsOptInCha
   );
 }
 
-function createStyles(colors: SemanticColors) {
+function createStyles() {
   return StyleSheet.create({
     wrap: { marginTop: spacing.lg },
     sectionTitle: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
+      ...typeface('bold'),
+      fontSize: typography.xl,
+      color: semanticColors.textPrimary,
       marginBottom: spacing.xs,
-      ...typeface('medium'),
     },
     hint: {
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
-      lineHeight: typography.md * 1.4,
       ...typeface('regular'),
+      fontSize: typography.md,
+      color: semanticColors.textSecondary,
+      marginBottom: spacing.md,
+      lineHeight: 20,
     },
     label: {
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      marginBottom: spacing.xs,
       ...typeface('medium'),
+      fontSize: typography.sm,
+      color: semanticColors.textSecondary,
+      marginBottom: spacing.xs,
     },
     input: {
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: semanticColors.border,
       borderRadius: borderRadius.md,
-      padding: spacing.md,
-      fontSize: 16,
-      color: colors.textPrimary,
-      backgroundColor: colors.bgPrimary,
+      padding: spacing.sm,
+      fontSize: typography.md,
+      color: semanticColors.textPrimary,
+      backgroundColor: semanticColors.bgPrimary,
       marginBottom: spacing.md,
       ...typeface('regular'),
     },
@@ -76,16 +72,16 @@ function createStyles(colors: SemanticColors) {
       width: 22,
       height: 22,
       borderRadius: 4,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      backgroundColor: colors.bgPrimary,
+      borderWidth: 1,
+      borderColor: semanticColors.borderDark,
+      backgroundColor: semanticColors.bgPrimary,
     },
-    checkboxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
+    checkboxOn: { backgroundColor: semanticColors.brand, borderColor: semanticColors.brand },
     checkboxLabel: {
+      ...typeface('regular'),
       fontSize: typography.md,
       flex: 1,
-      color: colors.textPrimary,
-      ...typeface('regular'),
+      color: semanticColors.textPrimary,
     },
   });
 }

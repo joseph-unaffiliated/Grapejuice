@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import {
   StorefrontChrome,
   useStorefrontActions,
@@ -146,7 +146,9 @@ export function StorefrontFavoritesScreen() {
         )}
 
         {loading ? (
-          <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
+          <View style={styles.loader}>
+            <BrandLoadingMark />
+          </View>
         ) : favoriteItems.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>No favorites yet</Text>
@@ -228,7 +230,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     textAlign: 'center',
   },
-  loader: { marginVertical: spacing.xl },
+  loader: {
+    minHeight: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   empty: {
     paddingVertical: spacing.xxl,
     alignItems: 'center',

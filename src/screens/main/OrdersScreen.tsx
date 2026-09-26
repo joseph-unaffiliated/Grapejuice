@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
   Platform,
@@ -15,26 +14,32 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import {
+  SystemChip,
+  SystemPage,
+  SystemTextAction,
+  systemPageStyles as page,
+} from '../../components/layout/SystemPage';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { openOrderTracking } from '../../components/orders/OrderHistoryList';
-import { OrderItemsBreakdown } from '../../components/orders/OrderItemsBreakdown';
+import {
+  OrderItemNameGrid,
+  OrderItemPressable,
+  OrderBoxCollage,
+  OrderProductImage,
+  orderItemName,
+} from '../../components/orders/OrderPurchaseMedia';
 import { useAuthStore } from '../../stores/authStore';
 import { useSession } from '../../hooks/useSession';
 import { useUnifiedOrders, type UnifiedOrder } from '../../hooks/useUnifiedOrders';
 import { useCatalog } from '../../hooks/useCatalog';
-import { useWebLayout } from '../../hooks/useWebLayout';
 import { chargePilotBoxOrder } from '../../services/checkout/chargePilotBoxOrder';
 import { cancelPilotBoxOrder } from '../../services/checkout/cancelPilotBoxOrder';
-import { formatDollars } from '../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../services/box/pricing';
-import { formatThreadListDate } from '../../services/hanukkah/dates';
+import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
-import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-import type { SemanticColors } from '../../constants/themeMode';
-import { AccountHubHeader } from '../../components/account/AccountHubHeader';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -46,10 +51,15 @@ function notify(title: string, body: string) {
   Alert.alert(title, body);
 }
 
-function formatPurchaseDate(iso: string): string {
+function formatOrderDate(iso: string | undefined): string | null {
+  if (!iso) return null;
   const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return '—';
-  return formatThreadListDate(new Date(ms));
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function partitionLineItems(lineItems: BoxLineItem[], catalog: CatalogItem[]) {
@@ -95,56 +105,36 @@ function OrderCard({
       : partitionLineItems(pilot.lineItems, catalog)
     : { box: [], alaCarte: [] };
   const giftItems = gift?.lineItems ?? [];
-  const itemCount = box.length + alaCarte.length + giftItems.length;
-  const hasItems = itemCount > 0;
+  const visualItems = [...box, ...alaCarte, ...giftItems];
+  const isDirectPurchase = pilot?.orderType === 'marketplace';
   const canCancelBox =
     order.kind === 'box' &&
     (pilot?.status === 'committed' || pilot?.status === 'pending') &&
     Boolean(onCancel);
 
-  return (
-    <View style={styles.orderCard}>
-      <View style={styles.orderHeader}>
-        <View style={styles.orderTitleBlock}>
-          <Text style={styles.orderKind}>
-            {order.kind === 'gift' ? 'Gift' : order.kind === 'box' ? 'Box' : 'Purchase'}
-          </Text>
-          <Text style={styles.orderTitle}>{order.title}</Text>
-        </View>
-        <Text style={styles.orderStatus}>{order.statusLabel}</Text>
-      </View>
+  const severalDirect = isDirectPurchase && visualItems.length > 1;
+  const orderDate = formatOrderDate(order.createdAt);
+  const orderNumber = (pilot?.id ?? gift?.id ?? order.id).slice(0, 8).toUpperCase();
+  const facts = [
+    orderDate ? { label: 'Order date', value: orderDate } : null,
+    orderNumber ? { label: 'Order #', value: orderNumber } : null,
+    order.recipientLabel
+      ? {
+          label: order.kind === 'gift' ? 'Gifted to' : 'Ship to',
+          value: order.recipientLabel,
+        }
+      : null,
+  ].filter((fact): fact is { label: string; value: string } => fact != null);
 
-      <Text style={styles.orderMeta}>Purchased {formatPurchaseDate(order.createdAt)}</Text>
-      <Text style={styles.orderTotal}>{formatDollars(order.totalCents)}</Text>
-
-      {order.recipientLabel ? (
-        <Text style={styles.recipient}>
-          {order.kind === 'gift' ? 'Gifted to' : 'Ship to'}: {order.recipientLabel}
-        </Text>
-      ) : null}
-
+  const actionStyle = styles.actionControl;
+  const claimedOn = gift?.status === 'claimed' ? formatOrderDate(gift.claimedAt) : null;
+  const orderDetails = (
+    <>
       {gift?.message ? (
         <Text style={styles.giftMessage}>&ldquo;{gift.message}&rdquo;</Text>
       ) : null}
-
-      {gift?.status === 'claimed' && gift.claimedAt ? (
-        <Text style={styles.orderMeta}>Claimed {formatPurchaseDate(gift.claimedAt)}</Text>
-      ) : null}
-
-      {hasItems ? (
-        <TouchableOpacity
-          style={styles.itemsToggle}
-          onPress={() => setExpanded((v) => !v)}
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-        >
-          <Text style={styles.itemsToggleText}>
-            {expanded ? 'Hide items' : `View items (${itemCount})`}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {expanded && pilot?.shippingAddress ? (
+      {claimedOn ? <Text style={page.rowAside}>Claimed {claimedOn}</Text> : null}
+      {pilot?.shippingAddress ? (
         <Text style={styles.address}>
           {pilot.shippingAddress.line1}
           {pilot.shippingAddress.line2 ? `, ${pilot.shippingAddress.line2}` : ''}
@@ -153,95 +143,146 @@ function OrderCard({
           {pilot.shippingAddress.postalCode}
         </Text>
       ) : null}
+      {!isDirectPurchase && visualItems.length > 0 ? (
+        <TouchableOpacity
+          style={styles.itemsToggle}
+          onPress={() => setExpanded((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+        >
+          <Text style={page.link}>{expanded ? 'Hide items' : 'Show all items'}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </>
+  );
 
-      {expanded && (box.length > 0 || alaCarte.length > 0 || giftItems.length > 0) ? (
-        <View style={styles.itemsExpanded}>
-          {box.length > 0 ? (
-            <OrderItemsBreakdown lineItems={box} catalog={catalog} variant="box" />
+  return (
+    <View style={styles.orderCard}>
+      {facts.length > 0 ? (
+        <View style={styles.orderBar}>
+          {facts.map((fact, index) => (
+            <View key={fact.label} style={styles.orderBarFact}>
+              {index > 0 ? <View style={styles.orderBarRule} /> : null}
+              <Text style={styles.orderBarLabel}>{fact.label}</Text>
+              <Text style={styles.orderBarValue}>{fact.value}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.purchaseBody}>
+        <View style={styles.purchaseMain}>
+          {severalDirect
+            ? visualItems.map((li) => {
+                const qty = Math.max(1, li.quantity ?? 1);
+                return (
+                  <View key={`${li.slotId}-${li.itemId}`} style={styles.purchaseRow}>
+                    <OrderProductImage li={li} catalog={catalog} />
+                    <OrderItemPressable
+                      itemId={li.itemId}
+                      accessibilityLabel={orderItemName(li, catalog)}
+                      style={styles.productNameBeside}
+                    >
+                      <Text style={styles.productName}>
+                        {orderItemName(li, catalog)}
+                        {qty > 1 ? ` ×${qty}` : ''}
+                      </Text>
+                    </OrderItemPressable>
+                  </View>
+                );
+              })
+            : (
+              <View style={styles.purchaseRow}>
+                {isDirectPurchase && visualItems[0] ? (
+                  <OrderProductImage li={visualItems[0]} catalog={catalog} />
+                ) : visualItems.length > 0 ? (
+                  <OrderBoxCollage items={visualItems} catalog={catalog} />
+                ) : null}
+                <View style={styles.orderTitleBlock}>
+                  {isDirectPurchase && visualItems[0] ? (
+                    <OrderItemPressable
+                      itemId={visualItems[0].itemId}
+                      accessibilityLabel={order.title}
+                    >
+                      <Text style={styles.productName}>{order.title}</Text>
+                    </OrderItemPressable>
+                  ) : (
+                    <Text style={styles.productName}>{order.title}</Text>
+                  )}
+                  <Text style={styles.productPrice}>{formatDollars(order.totalCents)}</Text>
+                  {orderDetails}
+                </View>
+              </View>
+            )}
+
+          {severalDirect ? (
+            <>
+              <Text style={styles.productPrice}>{formatDollars(order.totalCents)}</Text>
+              {orderDetails}
+            </>
           ) : null}
-          {alaCarte.length > 0 ? (
-            <OrderItemsBreakdown
-              lineItems={alaCarte}
-              catalog={catalog}
-              variant="flat"
-              sectionTitle={isPurchaseOrder ? 'Items' : 'À la carte add-ons'}
-              showPrice
+        </View>
+
+        <View style={styles.purchaseActions}>
+          <Text style={styles.statusAside}>{order.statusLabel}</Text>
+
+          {order.trackingNumber && pilot ? (
+            <>
+              <Text style={styles.trackingDetail}>
+                {order.carrier ? `${order.carrier} · ${order.trackingNumber}` : order.trackingNumber}
+              </Text>
+              <SystemChip
+                label="Track package"
+                onPress={() => openOrderTracking(pilot)}
+                style={actionStyle}
+              />
+            </>
+          ) : pilot && (pilot.status === 'confirmed' || pilot.status === 'committed') ? (
+            <Text style={styles.trackingDetail}>
+              {isPurchaseOrder
+                ? 'Tracking will appear when your order ships.'
+                : 'Tracking will appear when your box ships.'}
+            </Text>
+          ) : null}
+
+          {pilot?.chargeFailureMessage ? (
+            <Text style={styles.trackingDetail}>
+              Last charge attempt: {pilot.chargeFailureMessage}
+            </Text>
+          ) : null}
+
+          {onUpdatePayment && pilot?.chargeFailureMessage ? (
+            <SystemChip
+              label="Update payment method"
+              onPress={onUpdatePayment}
+              accessibilityLabel="Update payment method"
+              style={actionStyle}
             />
           ) : null}
-          {giftItems.length > 0 ? (
-            <View style={styles.giftCurationBlock}>
-              <Text style={styles.giftCurationHeading}>Gift box curation</Text>
-              <OrderItemsBreakdown lineItems={giftItems} catalog={catalog} variant="box" />
-            </View>
+
+          {canCancelBox ? (
+            <SystemTextAction
+              label={cancelling ? 'Cancelling…' : 'Cancel this box'}
+              onPress={onCancel!}
+              disabled={cancelling}
+              accessibilityLabel="Cancel this box"
+              style={actionStyle}
+            />
+          ) : null}
+
+          {__DEV__ && pilot?.status === 'committed' && order.kind === 'box' && onDevCharge ? (
+            <SystemChip
+              label={charging ? 'Charging…' : 'Dev: charge now'}
+              onPress={onDevCharge}
+              disabled={charging}
+              style={actionStyle}
+            />
           ) : null}
         </View>
-      ) : null}
+      </View>
 
-      {order.trackingNumber && pilot ? (
-        <View style={styles.trackingBlock}>
-          <Text style={styles.trackingDetail}>
-            {order.carrier ? `${order.carrier} · ${order.trackingNumber}` : order.trackingNumber}
-          </Text>
-          <TouchableOpacity
-            style={styles.trackBtn}
-            onPress={() => openOrderTracking(pilot)}
-            accessibilityRole="button"
-            accessibilityLabel="Track package"
-          >
-            <Text style={styles.trackBtnText}>Track package</Text>
-          </TouchableOpacity>
-        </View>
-      ) : pilot && (pilot.status === 'confirmed' || pilot.status === 'committed') ? (
-        <Text style={styles.hint}>
-          {isPurchaseOrder
-            ? 'Tracking will appear when your order ships.'
-            : 'Tracking will appear when your box ships.'}
-        </Text>
-      ) : null}
-
-      {pilot?.chargeFailureMessage ? (
-        <View style={styles.chargeFailBlock}>
-          <Text style={styles.chargeError}>
-            Last charge attempt: {pilot.chargeFailureMessage}
-          </Text>
-          {onUpdatePayment ? (
-            <TouchableOpacity
-              style={styles.trackBtn}
-              onPress={onUpdatePayment}
-              accessibilityRole="button"
-              accessibilityLabel="Update payment method"
-            >
-              <Text style={styles.trackBtnText}>Update payment method</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      ) : null}
-
-      {canCancelBox ? (
-        <TouchableOpacity
-          style={[styles.cancelBtn, cancelling && styles.devChargeBtnDisabled]}
-          disabled={cancelling}
-          onPress={onCancel}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel this box"
-        >
-          <Text style={styles.cancelBtnText}>
-            {cancelling ? 'Cancelling…' : 'Cancel this box'}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {__DEV__ && pilot?.status === 'committed' && order.kind === 'box' && onDevCharge ? (
-        <TouchableOpacity
-          style={[styles.devChargeBtn, charging && styles.devChargeBtnDisabled]}
-          disabled={charging}
-          onPress={onDevCharge}
-          accessibilityRole="button"
-        >
-          <Text style={styles.devChargeBtnText}>
-            {charging ? 'Charging…' : 'Dev: charge now'}
-          </Text>
-        </TouchableOpacity>
+      {expanded && !isDirectPurchase && visualItems.length > 0 ? (
+        <OrderItemNameGrid items={visualItems} catalog={catalog} />
       ) : null}
     </View>
   );
@@ -249,9 +290,7 @@ function OrderCard({
 
 function OrdersScreenBody() {
   const navigation = useNavigation<Nav>();
-  const { colors } = useThemeMode();
-  const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createOrdersStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => createOrdersStyles(), []);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household } = useSession();
   const { items: catalog } = useCatalog();
@@ -321,7 +360,7 @@ function OrdersScreenBody() {
 
   if (!isAuthenticated) {
     return (
-      <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
+      <WebContentPanel flush centerDesktop omitDesktopTopPadding style={styles.guestPanel}>
         <GuestAuthPrompt returnTo="Orders" />
       </WebContentPanel>
     );
@@ -329,51 +368,30 @@ function OrdersScreenBody() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <BrandLoadingMark color={colors.brand} />
-      </View>
+      <SystemPage loading onBack={() => navigation.goBack()} />
     );
   }
 
   return (
-    <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        <AccountHubHeader page="orders" />
-        <View style={styles.sectionDivider} />
+    <>
+    <SystemPage onBack={() => navigation.goBack()}>
+        <Text style={page.title}>Orders</Text>
+        <Text style={page.lead}>
+          Status and summaries for gift boxes you&apos;ve sent, your household box, and à la carte
+          add-ons. Tracking appears when a package ships.
+        </Text>
 
         {loadError ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{loadError}</Text>
-            <TouchableOpacity onPress={() => void refresh()} accessibilityRole="button">
-              <Text style={styles.errorRetry}>Try again</Text>
-            </TouchableOpacity>
+          <View style={page.section}>
+            <Text style={page.emptyText}>{loadError}</Text>
+            <SystemChip label="Try again" onPress={() => void refresh()} />
           </View>
         ) : null}
 
         {orders.length === 0 ? (
-          loading ? (
-            <Text style={styles.empty}>Loading orders…</Text>
-          ) : (
-            <Text style={styles.empty}>
-              No orders yet. Send a gift from the{' '}
-              <Text
-                style={styles.emptyLink}
-                onPress={() => navigation.navigate('MyGifts')}
-                accessibilityRole="link"
-              >
-                Gifts
-              </Text>{' '}
-              tab, or commit your Hanukkah box from{' '}
-              <Text
-                style={styles.emptyLink}
-                onPress={() => navigation.navigate('MyBox')}
-                accessibilityRole="link"
-              >
-                My Box
-              </Text>
-              .
-            </Text>
-          )
+          <Text style={page.emptyText}>
+            No orders yet. Send a gift from Account, or commit your Hanukkah box from My Box.
+          </Text>
         ) : (
           orders.map((order) => (
             <OrderCard
@@ -404,8 +422,8 @@ function OrdersScreenBody() {
             />
           ))
         )}
-      </ScrollView>
 
+    </SystemPage>
       <Modal
         visible={cancelConfirmOrderId != null}
         transparent
@@ -447,7 +465,7 @@ function OrdersScreenBody() {
                 accessibilityLabel="Cancel box"
               >
                 {cancellingOrderId ? (
-                  <ActivityIndicator color={colors.textInverse} />
+                  <ActivityIndicator color={semanticColors.textInverse} />
                 ) : (
                   <Text style={styles.modalCancelConfirmText}>Cancel box</Text>
                 )}
@@ -456,7 +474,7 @@ function OrdersScreenBody() {
           </View>
         </View>
       </Modal>
-    </WebContentPanel>
+    </>
   );
 }
 
@@ -468,183 +486,108 @@ export function OrdersScreen() {
   );
 }
 
-function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
+function createOrdersStyles() {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bgPrimary },
-    content: {
-      padding: spacing.lg,
-      paddingTop: spacing.xxl + spacing.md,
-      paddingBottom: 120,
-      maxWidth: isDesktop ? 560 : undefined,
-      width: '100%',
-      alignSelf: isDesktop ? 'center' : undefined,
-    },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 240 },
-    sectionDivider: {
-      alignSelf: 'stretch',
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginTop: spacing.xl,
-      marginBottom: spacing.sm,
-    },
-    empty: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textTertiary,
-      marginTop: spacing.md,
-      textAlign: 'center',
-    },
-    emptyLink: {
-      ...typeface('regular'),
-      color: colors.textTertiary,
-      textDecorationLine: 'underline',
-    },
-    errorBanner: {
-      marginTop: spacing.md,
-      marginBottom: spacing.md,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.accentCream,
-    },
-    errorText: {
-      ...typeface('regular'),
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-    },
-    errorRetry: {
-      ...typeface('medium'),
-      marginTop: spacing.sm,
-      fontSize: typography.sm,
-      color: colors.brand,
-    },
+    guestPanel: { flex: 1, width: '100%' },
     orderCard: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
-      padding: spacing.md,
-      marginBottom: spacing.md,
-      backgroundColor: colors.bgPrimary,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: semanticColors.border,
+      paddingVertical: spacing.md,
+      gap: spacing.md,
     },
-    orderHeader: {
+    orderBar: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: semanticColors.logoDark,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    orderBarFact: {
+      flexDirection: 'row',
+      alignItems: 'center',
       gap: spacing.sm,
     },
-    orderTitleBlock: { flex: 1 },
-    orderKind: {
-      ...typeface('medium'),
-      fontSize: typography.xs,
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-      color: colors.textTertiary,
+    orderBarRule: {
+      width: StyleSheet.hairlineWidth,
+      height: 14,
+      backgroundColor: 'rgba(255,255,255,0.45)',
+      marginRight: spacing.xs,
     },
-    orderTitle: {
+    orderBarLabel: {
       ...typeface('medium'),
       fontSize: typography.lg,
-      color: colors.textPrimary,
-      marginTop: 2,
-      letterSpacing: -0.22,
+      color: semanticColors.textInverse,
     },
-    orderStatus: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      color: colors.brand,
+    orderBarValue: {
+      ...typeface('regular'),
+      fontSize: typography.lg,
+      color: semanticColors.textInverse,
+    },
+    purchaseBody: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'flex-start',
+      gap: spacing.lg,
+    },
+    purchaseMain: { flex: 1, minWidth: 180, gap: spacing.sm },
+    purchaseRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+    },
+    purchaseActions: {
+      marginLeft: 'auto',
+      alignItems: 'flex-end',
+      gap: spacing.xs,
+      maxWidth: 220,
       flexShrink: 0,
     },
-    orderMeta: {
-      ...typeface('regular'),
-      fontSize: typography.sm,
-      color: colors.textTertiary,
-      marginTop: spacing.xs,
+    actionControl: {
+      marginTop: 0,
+      alignSelf: 'flex-end',
+      paddingHorizontal: spacing.sm,
     },
-    orderTotal: {
+    productName: {
       ...typeface('medium'),
-      fontSize: typography.xl,
-      color: colors.textPrimary,
-      marginTop: spacing.sm,
-      letterSpacing: -0.26,
+      fontSize: 18,
+      lineHeight: 24,
+      color: semanticColors.textPrimary,
     },
-    recipient: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      marginTop: spacing.sm,
-    },
+    productNameBeside: { flex: 1 },
     giftMessage: {
       ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
+      fontSize: typography.sm,
+      color: semanticColors.textSecondary,
       fontStyle: 'italic',
-      marginTop: spacing.xs,
+      lineHeight: 18,
     },
+    productPrice: {
+      ...typeface('medium'),
+      fontSize: typography.xl,
+      color: semanticColors.textPrimary,
+    },
+    orderTitleBlock: { flex: 1, gap: spacing.xs },
     address: {
       ...typeface('regular'),
       fontSize: typography.sm,
-      color: colors.textSecondary,
-      marginTop: spacing.sm,
-      lineHeight: 20,
+      color: semanticColors.textSecondary,
+      lineHeight: 18,
     },
-    itemsToggle: { marginTop: spacing.md },
-    itemsToggleText: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      color: colors.brand,
-    },
-    itemsExpanded: { marginTop: spacing.md, gap: spacing.md },
-    giftCurationBlock: { gap: spacing.sm },
-    giftCurationHeading: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      color: colors.textPrimary,
-    },
-    trackingBlock: { marginTop: spacing.sm, gap: spacing.sm },
+    itemsToggle: { alignSelf: 'flex-start' },
     trackingDetail: {
       ...typeface('regular'),
       fontSize: typography.sm,
-      color: colors.textSecondary,
+      color: semanticColors.textSecondary,
+      lineHeight: 18,
+      textAlign: 'right',
     },
-    trackBtn: {
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.lg,
-      borderRadius: borderRadius.md,
-      backgroundColor: colors.logoDark,
-    },
-    trackBtnText: {
+    statusAside: {
       ...typeface('medium'),
-      fontSize: typography.sm,
-      color: colors.textInverse,
-    },
-    hint: {
-      ...typeface('regular'),
-      marginTop: spacing.sm,
-      fontSize: typography.sm,
-      color: colors.textTertiary,
-    },
-    chargeError: {
-      ...typeface('regular'),
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      fontStyle: 'italic',
-    },
-    chargeFailBlock: {
-      marginTop: spacing.sm,
-      gap: spacing.sm,
-    },
-    cancelBtn: {
-      marginTop: spacing.md,
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
-    },
-    cancelBtnText: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      textDecorationLine: 'underline',
+      fontSize: typography.lg,
+      color: semanticColors.textPrimary,
+      textAlign: 'right',
     },
     modalBackdrop: {
       flex: 1,
@@ -656,26 +599,24 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
     modalCard: {
       width: '100%',
       maxWidth: 420,
-      backgroundColor: colors.bgPrimary,
+      backgroundColor: semanticColors.bgPrimary,
       borderRadius: borderRadius.lg,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: semanticColors.border,
       padding: spacing.xl,
       zIndex: 1,
     },
     modalTitle: {
-      fontSize: 22,
-      lineHeight: 28,
-      letterSpacing: -0.3,
-      ...typeface('medium'),
-      color: colors.logoDark,
+      fontSize: 26,
+      ...typeface('bold'),
+      color: semanticColors.textPrimary,
       marginBottom: spacing.sm,
     },
     modalBody: {
-      fontSize: typography.md,
-      lineHeight: 22,
-      color: colors.textSecondary,
       ...typeface('regular'),
+      fontSize: typography.lg,
+      lineHeight: 22,
+      color: semanticColors.textSecondary,
       marginBottom: spacing.lg,
     },
     modalActions: {
@@ -686,42 +627,27 @@ function createOrdersStyles(colors: SemanticColors, isDesktop: boolean) {
       flexWrap: 'wrap',
     },
     modalKeepBtn: {
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
     },
     modalKeepText: {
       ...typeface('medium'),
-      fontSize: typography.md,
-      color: colors.textSecondary,
+      fontSize: typography.sm,
+      color: semanticColors.textSecondary,
     },
     modalCancelConfirmBtn: {
-      minWidth: 120,
       alignItems: 'center',
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.lg,
-      borderRadius: borderRadius.md,
-      backgroundColor: colors.logoDark,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.pill,
+      borderWidth: 1,
+      borderColor: semanticColors.brand,
     },
     modalCancelConfirmText: {
       ...typeface('medium'),
-      fontSize: typography.md,
-      color: colors.textInverse,
-    },
-    devChargeBtn: {
-      marginTop: spacing.md,
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.md,
-      borderWidth: 1,
-      borderColor: colors.brand,
-      backgroundColor: colors.accentCream,
+      fontSize: typography.sm,
+      color: semanticColors.brand,
     },
     devChargeBtnDisabled: { opacity: 0.45 },
-    devChargeBtnText: {
-      ...typeface('medium'),
-      color: colors.brand,
-      fontSize: typography.sm,
-    },
   });
 }

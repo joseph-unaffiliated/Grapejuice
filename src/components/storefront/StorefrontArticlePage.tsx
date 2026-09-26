@@ -1111,7 +1111,7 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                     style={styles.stepsPaperShell}
                     compactVerticalPadding
                     contentStyle={styles.stepsOnPaper}
-                    contentMaxWidth={960}
+                    contentMaxWidth={1024}
                   >
                     <View style={styles.stepsRow}>
                       {block.items.map((item, i) => (

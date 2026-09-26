@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import {
   StorefrontChrome,
   useStorefrontActions,
@@ -486,7 +486,9 @@ export function StorefrontCategoryScreen() {
         </ScrollView>
 
         {loading ? (
-          <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
+          <View style={styles.loader}>
+            <BrandLoadingMark />
+          </View>
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Nothing matches</Text>
@@ -681,7 +683,11 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     color: semanticColors.logoDark,
   },
-  loader: { marginVertical: spacing.xl },
+  loader: {
+    minHeight: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   empty: {
     paddingHorizontal: MOBILE_GUTTER,
     paddingVertical: spacing.xxl,

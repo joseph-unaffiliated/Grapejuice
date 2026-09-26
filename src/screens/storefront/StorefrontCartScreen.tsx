@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +16,7 @@ import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import {
   marketplaceCartCount,
@@ -47,7 +47,7 @@ const THUMB = 72;
  */
 export function StorefrontCartScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
   const { goHome, goCategory, startBox } = useStorefrontActions();
   const lineItems = useMarketplaceCartStore((s) => s.items);
@@ -128,8 +128,8 @@ export function StorefrontCartScreen() {
   if (catalogLoading) {
     return (
       <StorefrontChrome>
-        <View style={styles.centered}>
-          <ActivityIndicator color={semanticColors.brand} />
+        <View style={[styles.centered, { minHeight: Math.round(height * 0.65) }]}>
+          <BrandLoadingMark />
         </View>
       </StorefrontChrome>
     );

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
   Platform,
@@ -20,10 +19,10 @@ import { createPilotSetupIntent } from '../../services/checkout/createPilotSetup
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import type { MainStackParamList } from '../../navigation/types';
-import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
-import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useCheckoutDraft';
@@ -38,9 +37,20 @@ import { CHECKOUT_PATH, checkoutPath, readCheckoutPaymentStepFromWindow } from '
 import { pushBrowserPath, replaceBrowserPath } from '../../navigation/webBrowserHistory';
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 
-/** Match My Box desktop top offset under sticky nav. */
-const DESKTOP_CONTENT_TOP = 41;
 const SHIPPING_CONFIRMED_KEY = 'gj.checkout.shippingConfirmed';
+
+function savedCardReplaced(
+  hh: { cardOnFileAt?: string; stripeDefaultPaymentMethodId?: string } | null | undefined,
+  before: { at?: string; pm?: string } | null
+): boolean {
+  if (!hh?.cardOnFileAt) return false;
+  if (!before?.at && !before?.pm) return true;
+  if (before.pm && hh.stripeDefaultPaymentMethodId && hh.stripeDefaultPaymentMethodId !== before.pm) {
+    return true;
+  }
+  if (before.at && hh.cardOnFileAt !== before.at) return true;
+  return false;
+}
 
 function notifyCheckout(title: string, body: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -115,7 +125,7 @@ function CheckoutCta({
       <ButtonLoadingLabel
         label={label}
         loading={loading}
-        loaderColor={colors.goldMuted}
+        loaderColor={semanticColors.textInverse}
         labelStyle={styles.ctaText}
       />
     </TouchableOpacity>
@@ -126,10 +136,12 @@ function SetupCardStep({
   onSaved,
   colors,
   styles,
+  replacing,
 }: {
   onSaved: () => void;
   colors: SemanticColors;
   styles: ReturnType<typeof createCheckoutStyles>;
+  replacing?: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -163,7 +175,7 @@ function SetupCardStep({
         <PaymentElement options={{ layout: 'tabs' }} />
       </View>
       <CheckoutCta
-        label="Save card"
+        label={replacing ? 'Save new card' : 'Save card'}
         onPress={() => void handleSave()}
         loading={saving}
         disabled={saving}
@@ -179,9 +191,9 @@ function CheckoutScreenBody() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, refresh: refreshSession } = useSession();
-  const { isDesktop, widePanelMaxWidth } = useWebLayout();
+  const { isDesktop } = useWebLayout();
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createCheckoutStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => createCheckoutStyles(), []);
   const {
     lineItems,
     catalog,
@@ -203,6 +215,7 @@ function CheckoutScreenBody() {
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
   /** Keeps the SetupIntent secret across shipping ↔ payment browser history. */
   const setupSecretRef = useRef<string | null>(null);
+  const cardBeforeSetupRef = useRef<{ at?: string; pm?: string } | null>(null);
   /**
    * True after the user saves a card, before the webhook has set cardOnFileAt.
    * Prevents flashing back to the "continue to payment" shipping step.
@@ -302,13 +315,18 @@ function CheckoutScreenBody() {
       return;
     }
     if (!ensureAddressValid()) return;
+    cardBeforeSetupRef.current = {
+      at: household.cardOnFileAt,
+      pm: household.stripeDefaultPaymentMethodId,
+    };
+    const keepShipping = shippingConfirmed;
     setShippingConfirmed(true);
     setPreparing(true);
     try {
       const result = await createPilotSetupIntent(household.id);
       if (!result.clientSecret) {
         notifyCheckout('Error', 'No setup secret returned.');
-        setShippingConfirmed(false);
+        if (!keepShipping) setShippingConfirmed(false);
         return;
       }
       setupSecretRef.current = result.clientSecret;
@@ -316,7 +334,7 @@ function CheckoutScreenBody() {
       // Own history entry so Back returns to shipping, not My Box.
       pushBrowserPath(checkoutPath('payment'));
     } catch (e) {
-      setShippingConfirmed(false);
+      if (!keepShipping) setShippingConfirmed(false);
       notifyCheckout('Could not continue to payment', formatSetupIntentError(e));
     } finally {
       setPreparing(false);
@@ -380,7 +398,7 @@ function CheckoutScreenBody() {
     for (let i = 0; i < 10; i += 1) {
       await refreshSession({ silent: true });
       const hh = await householdsService.get(householdId);
-      if (hh?.cardOnFileAt) {
+      if (savedCardReplaced(hh, cardBeforeSetupRef.current)) {
         setAwaitingCardOnFile(false);
         break;
       }
@@ -407,7 +425,7 @@ function CheckoutScreenBody() {
       for (let i = 0; i < 10; i += 1) {
         await refreshSession({ silent: true });
         const hh = await householdsService.get(householdId);
-        if (hh?.cardOnFileAt) {
+        if (savedCardReplaced(hh, cardBeforeSetupRef.current)) {
           setAwaitingCardOnFile(false);
           break;
         }
@@ -417,12 +435,7 @@ function CheckoutScreenBody() {
   }, [household?.id, refreshSession]);
 
   const summaryCard = (
-    <View
-      style={[
-        styles.summaryCard,
-        Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.sm } as object) : null,
-      ]}
-    >
+    <View style={styles.summaryCard}>
       <CheckoutOrderSummary
         lineItems={lineItems}
         total={total}
@@ -446,21 +459,44 @@ function CheckoutScreenBody() {
   /** Card already on file and no address yet — collect shipping once. */
   const shippingThenCommit = cardReady && !commitOnly;
 
-  const checkoutForm = commitOnly ? (
+  const checkoutForm = setupClientSecret && stripePromise ? (
+    <Elements
+      stripe={stripePromise}
+      options={{ clientSecret: setupClientSecret, appearance: { theme: 'stripe' } }}
+    >
+      <SetupCardStep
+        colors={colors}
+        styles={styles}
+        replacing={cardOnFile}
+        onSaved={() => void onCardSaved()}
+      />
+    </Elements>
+  ) : commitOnly ? (
     <>
-      {awaitingCardOnFile && !cardOnFile ? (
+      {awaitingCardOnFile ? (
         <View style={styles.savingCardRow}>
           <BrandLoadingMark large={false} color={colors.brand} />
           <Text style={styles.savingCardCopy}>Saving your card…</Text>
         </View>
       ) : (
-        <Text style={styles.cardSavedCopy}>Card saved. Commit when you&apos;re ready.</Text>
+        <>
+          <Text style={styles.cardSavedCopy}>Card saved. Commit when you&apos;re ready.</Text>
+          <TouchableOpacity
+            onPress={() => void startSetup()}
+            disabled={preparing || locked}
+            accessibilityRole="button"
+            accessibilityLabel="Change card"
+          >
+            <Text style={page.link}>Change card</Text>
+          </TouchableOpacity>
+          {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
+        </>
       )}
       <CheckoutCta
         label="Commit to box"
         onPress={() => void handleCommit()}
         loading={committing}
-        disabled={committing || locked || (awaitingCardOnFile && !cardOnFile)}
+        disabled={committing || locked || awaitingCardOnFile}
         colors={colors}
         styles={styles}
       />
@@ -468,6 +504,14 @@ function CheckoutScreenBody() {
   ) : shippingThenCommit ? (
     <>
       <Text style={styles.cardSavedCopy}>Card on file — add shipping and commit.</Text>
+      <TouchableOpacity
+        onPress={() => void startSetup()}
+        disabled={preparing || locked}
+        accessibilityRole="button"
+        accessibilityLabel="Change card"
+      >
+        <Text style={page.link}>Change card</Text>
+      </TouchableOpacity>
       <CheckoutAddressFields
         address={address}
         onChange={onAddressChange}
@@ -493,17 +537,6 @@ function CheckoutScreenBody() {
         styles={styles}
       />
     </>
-  ) : setupClientSecret && stripePromise ? (
-    <Elements
-      stripe={stripePromise}
-      options={{ clientSecret: setupClientSecret, appearance: { theme: 'stripe' } }}
-    >
-      <SetupCardStep
-        colors={colors}
-        styles={styles}
-        onSaved={() => void onCardSaved()}
-      />
-    </Elements>
   ) : (
     <>
       <CheckoutAddressFields
@@ -537,77 +570,45 @@ function CheckoutScreenBody() {
 
   if (loading || ordersLoading) {
     return (
-      <View style={styles.centered}>
-        <BrandLoadingMark color={colors.brand} />
-      </View>
+      <SystemPage wide loading onBack={onBack} />
     );
   }
 
   if (!lineItems.length) {
     return (
-      <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>
-            Your box is empty. Finish onboarding or add items in My Box.
-          </Text>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backLink}>Back to My Box</Text>
-          </TouchableOpacity>
-        </View>
-      </WebContentPanel>
+      <SystemPage wide onBack={onBack}>
+        <Text style={page.title}>Shipping</Text>
+        <Text style={page.lead}>Your box is empty. Finish onboarding or add items in My Box.</Text>
+      </SystemPage>
     );
   }
 
-  const pageHeader = (
-    <>
-      <TouchableOpacity onPress={onBack} style={styles.backRow}>
-        <Text style={styles.backLink}>← Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>
+  return (
+    <SystemPage wide onBack={onBack}>
+      <Text style={page.title}>
         {onPaymentStep ? 'Payment' : commitOnly ? 'Commit' : 'Shipping'}
       </Text>
-      <Text style={styles.chargeBanner}>You won&apos;t be charged until your box ships.</Text>
+      <Text style={page.lead}>You won&apos;t be charged until your box ships.</Text>
       {!cardOnFile && !commitOnly ? (
-        <Text style={styles.pendingCopy}>
+        <Text style={page.sectionLead}>
           Your box will not ship until you add payment information and a shipping address.
         </Text>
       ) : null}
       {locked ? (
-        <Text style={styles.lockBanner}>Box customization is locked. Checkout is unavailable.</Text>
+        <Text style={page.errorText}>Box customization is locked. Checkout is unavailable.</Text>
       ) : null}
-    </>
-  );
-
-  return (
-    <WebContentPanel
-      flush
-      centerDesktop={isDesktop}
-      omitDesktopTopPadding={isDesktop}
-      style={styles.panel}
-    >
-      <ScrollView
-        style={styles.root}
-        contentContainerStyle={isDesktop ? styles.desktopScrollContent : styles.mobileScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.shell, isDesktop ? { maxWidth: widePanelMaxWidth } : null]}>
-          {pageHeader}
-
-          {isDesktop ? (
-            <View style={styles.desktopColumns}>
-              <View style={styles.desktopMain}>{checkoutForm}</View>
-              <View style={styles.desktopSummary}>{summaryCard}</View>
-            </View>
-          ) : (
-            <>
-              {summaryCard}
-              {checkoutForm}
-            </>
-          )}
+      {isDesktop ? (
+        <View style={styles.columns}>
+          <View style={styles.formColumn}>{checkoutForm}</View>
+          <View style={styles.summaryColumn}>{summaryCard}</View>
         </View>
-      </ScrollView>
-    </WebContentPanel>
+      ) : (
+        <>
+          {checkoutForm}
+          {summaryCard}
+        </>
+      )}
+    </SystemPage>
   );
 }
 
@@ -619,115 +620,37 @@ export function CheckoutScreen() {
   );
 }
 
-function createCheckoutStyles(colors: SemanticColors, isDesktop: boolean) {
+function createCheckoutStyles() {
   return StyleSheet.create({
-    panel: {
-      flex: 1,
-      width: '100%',
-      minHeight: 0,
-      backgroundColor: colors.bgPrimary,
+    summaryCard: {
+      borderWidth: 1,
+      borderColor: semanticColors.border,
+      borderRadius: borderRadius.md,
+      padding: spacing.lg,
     },
-    root: { flex: 1, backgroundColor: colors.bgPrimary },
-    desktopScrollContent: {
-      flexGrow: 1,
-      paddingBottom: 120,
-    },
-    mobileScrollContent: {
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.xl,
-      paddingBottom: 120,
-    },
-    shell: {
-      width: '100%',
-      alignSelf: 'center',
-      paddingTop: isDesktop ? DESKTOP_CONTENT_TOP : 0,
-    },
-    desktopColumns: {
+    columns: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: spacing.xl,
-      marginTop: spacing.md,
-      width: '100%',
+    },
+    formColumn: {
+      flex: 1,
       minWidth: 0,
     },
-    desktopMain: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 0,
-      maxWidth: 480,
-      minWidth: 0,
-    },
-    desktopSummary: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 280,
-      minWidth: 260,
-      maxWidth: 400,
+    summaryColumn: {
+      width: 400,
+      flexShrink: 0,
       alignSelf: 'flex-start',
       ...(Platform.OS === 'web'
-        ? ({ position: 'sticky' as const, top: DESKTOP_CONTENT_TOP, zIndex: 1 } as object)
+        ? ({ position: 'sticky' as const, top: spacing.lg } as object)
         : null),
     },
-    summaryCard: {
-      backgroundColor: isDesktop ? colors.bgElevated : colors.accentCream,
-      borderRadius: 16,
-      padding: spacing.lg,
-      marginTop: isDesktop ? 0 : spacing.md,
-      marginBottom: isDesktop ? 0 : spacing.lg,
-    },
-    centered: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: spacing.lg,
-      backgroundColor: colors.bgPrimary,
-    },
-    backRow: { marginBottom: spacing.md },
-    backLink: {
-      color: colors.brand,
-      fontSize: typography.md,
-      ...typeface('medium'),
-    },
-    title: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
-      marginBottom: spacing.sm,
-      ...typeface('regular'),
-    },
-    chargeBanner: {
-      backgroundColor: colors.brandLight,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
-      fontSize: typography.md,
-      lineHeight: typography.md * 1.4,
-      ...typeface('regular'),
-    },
-    pendingCopy: {
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
-      lineHeight: typography.sm * 1.45,
-      ...typeface('regular'),
-    },
-    lockBanner: {
-      backgroundColor: colors.brandLight,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      color: colors.textSecondary,
-      marginBottom: spacing.lg,
-      fontSize: typography.md,
-      ...typeface('regular'),
-    },
     sectionTitle: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
+      ...typeface('bold'),
+      fontSize: typography.xl,
+      color: semanticColors.textPrimary,
       marginTop: spacing.lg,
       marginBottom: spacing.sm,
-      ...typeface('medium'),
     },
     paymentBlock: { marginTop: spacing.md },
     paymentElementWrap: { minHeight: 120, marginBottom: spacing.md },
@@ -739,43 +662,43 @@ function createCheckoutStyles(colors: SemanticColors, isDesktop: boolean) {
       marginBottom: spacing.sm,
     },
     savingCardCopy: {
-      fontSize: typography.md,
-      color: colors.textSecondary,
       ...typeface('regular'),
+      fontSize: typography.md,
+      color: semanticColors.textSecondary,
     },
     cardSavedCopy: {
+      ...typeface('regular'),
       fontSize: typography.md,
-      color: colors.textSecondary,
+      color: semanticColors.textSecondary,
       marginTop: spacing.md,
       marginBottom: spacing.sm,
-      ...typeface('medium'),
+      lineHeight: 22,
     },
     addressFormError: {
       marginTop: spacing.sm,
       fontSize: typography.sm,
-      color: '#B42318',
+      color: semanticColors.error,
       ...typeface('medium'),
     },
     cta: {
-      backgroundColor: colors.textPrimary,
-      padding: spacing.md,
+      alignSelf: 'stretch',
+      width: '100%',
+      marginTop: spacing.lg,
+      minHeight: 40,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
       borderRadius: borderRadius.md,
+      backgroundColor: semanticColors.logoDark,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: spacing.lg,
-      alignSelf: 'stretch',
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
     ctaDisabled: { opacity: 0.5 },
     ctaText: {
-      color: colors.goldMuted,
-      fontWeight: '700',
-    },
-    emptyText: {
-      textAlign: 'center',
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
+      ...typeface('medium'),
       fontSize: typography.md,
-      ...typeface('regular'),
+      color: semanticColors.textInverse,
+      letterSpacing: -0.2,
     },
   });
 }

@@ -5,12 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { guideContentService, type GuideNight } from '../../services/firestore/guideContent';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
 import { NightCard } from '../../components/guide/NightCard';
@@ -45,7 +45,7 @@ export function KidGuideScreen() {
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.bgPrimary }]}>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark />
       </View>
     );
   }

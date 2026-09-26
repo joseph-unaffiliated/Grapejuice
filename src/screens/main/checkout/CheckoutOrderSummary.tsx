@@ -2,10 +2,12 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { formatDollars } from '../../../services/box/buildDefaultBox';
 import { inferPricingTier } from '../../../services/box/pricing';
+import { OrderBoxCollage, OrderProductImage, orderItemName } from '../../../components/orders/OrderPurchaseMedia';
 import type { BoxLineItem, CatalogItem } from '../../../types/pilot';
-import { spacing, typography, typeface } from '../../../constants/theme';
-import { useThemeMode } from '../../../context/ThemeContext';
-import type { SemanticColors } from '../../../constants/themeMode';
+import { spacing, typography, typeface, semanticColors } from '../../../constants/theme';
+
+/** Same square as the orders collage, scaled down for the summary column. */
+const SUMMARY_MEDIA = 104;
 
 export function CheckoutOrderSummary({
   lineItems,
@@ -34,8 +36,7 @@ export function CheckoutOrderSummary({
   /** À la carte cart — hide Hanukkah box base line. */
   marketplaceOnly?: boolean;
 }) {
-  const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors, compact), [colors, compact]);
+  const styles = useMemo(() => createStyles(compact), [compact]);
 
   const chargeable = useMemo(() => {
     if (marketplaceOnly) return lineItems;
@@ -47,21 +48,38 @@ export function CheckoutOrderSummary({
     });
   }, [lineItems, catalog, marketplaceOnly]);
 
+  const boxPreview = useMemo(() => {
+    if (marketplaceOnly) return [];
+    const priced = new Set(chargeable);
+    const included = lineItems.filter((li) => !priced.has(li));
+    return included.length > 0 ? included : lineItems;
+  }, [lineItems, chargeable, marketplaceOnly]);
+
   return (
     <>
       <Text style={styles.sectionTitle}>Order summary</Text>
       {!marketplaceOnly ? (
-        <View style={styles.summaryRow}>
+        <View style={styles.itemRow}>
+          {boxPreview.length > 0 ? (
+            <OrderBoxCollage items={boxPreview} catalog={catalog} size={SUMMARY_MEDIA} linked={false} />
+          ) : null}
           <Text style={styles.summaryName}>Hanukkah box</Text>
           <Text style={styles.summaryPrice}>{formatDollars(boxPriceCents)}</Text>
         </View>
       ) : null}
-      {chargeable.map((li) => (
-        <View key={li.slotId} style={styles.summaryRow}>
-          <Text style={styles.summaryName}>{li.label ?? li.itemId}</Text>
-          <Text style={styles.summaryPrice}>{formatDollars(li.unitCents * li.quantity)}</Text>
-        </View>
-      ))}
+      {chargeable.map((li) => {
+        const qty = Math.max(1, li.quantity ?? 1);
+        return (
+          <View key={li.slotId} style={styles.itemRow}>
+            <OrderProductImage li={li} catalog={catalog} size={SUMMARY_MEDIA} linked={false} />
+            <Text style={styles.summaryName}>
+              {orderItemName(li, catalog)}
+              {qty > 1 ? ` ×${qty}` : ''}
+            </Text>
+            <Text style={styles.summaryPrice}>{formatDollars(li.unitCents * li.quantity)}</Text>
+          </View>
+        );
+      })}
       {shippingCents ? (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryName}>
@@ -102,54 +120,66 @@ export function CheckoutOrderSummary({
   );
 }
 
-function createStyles(colors: SemanticColors, compact: boolean) {
+function createStyles(compact: boolean) {
   return StyleSheet.create({
     sectionTitle: {
+      ...typeface('bold'),
       fontSize: typography.xl,
-      color: colors.textPrimary,
+      color: semanticColors.textPrimary,
       marginTop: compact ? 0 : spacing.lg,
-      marginBottom: spacing.md,
-      fontWeight: '700',
+      marginBottom: spacing.sm,
+    },
+    itemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      gap: spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: semanticColors.border,
     },
     summaryRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      paddingVertical: spacing.xs,
+      alignItems: 'flex-start',
+      paddingVertical: spacing.sm,
       gap: spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: semanticColors.border,
     },
     summaryName: {
       flex: 1,
-      fontSize: typography.md,
-      color: colors.textPrimary,
       ...typeface('regular'),
+      fontSize: typography.md,
+      color: semanticColors.textPrimary,
+      lineHeight: 20,
     },
     summaryPrice: {
-      fontSize: typography.md,
-      color: colors.textPrimary,
       ...typeface('medium'),
+      fontSize: typography.md,
+      color: semanticColors.textPrimary,
+      flexShrink: 0,
     },
     creditPrice: {
-      fontSize: typography.md,
-      color: colors.brand,
       ...typeface('medium'),
+      fontSize: typography.md,
+      color: semanticColors.textSecondary,
     },
     totalRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
+      alignItems: 'baseline',
       marginTop: spacing.md,
-      paddingTop: spacing.md,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.goldMuted,
+      paddingTop: spacing.sm,
     },
     totalLabel: {
-      fontSize: typography.xl,
-      color: colors.textPrimary,
       ...typeface('medium'),
+      fontSize: 18,
+      color: semanticColors.textPrimary,
     },
     totalValue: {
-      fontSize: typography.xl,
-      color: colors.brand,
-      ...typeface('medium'),
+      ...typeface('bold'),
+      fontSize: 18,
+      color: semanticColors.textPrimary,
     },
   });
 }

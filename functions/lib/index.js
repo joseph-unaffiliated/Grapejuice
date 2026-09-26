@@ -94,6 +94,14 @@ function isLocked(lockAt) {
         return false;
     return Date.now() >= new Date(lockAt).getTime();
 }
+function guestHouseholdId(email) {
+    return `guest_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 140);
+}
+function lockHasPassed(lockAt) {
+    if (!lockAt)
+        return false;
+    return Date.now() >= new Date(lockAt).getTime();
+}
 /** Firestore rejects undefined field values — strip them before writes. */
 function sanitizeShippingAddress(raw) {
     var _a, _b, _c, _d, _e, _f;
@@ -154,11 +162,19 @@ async function resolveMarketplaceLineItems(raw) {
     return normalized;
 }
 async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStation) {
-    var _a, _b, _c, _d, _e, _f;
-    const userId = order.userId;
-    const userSnap = await db.doc(`users/${userId}`).get();
-    const email = (_b = (_a = userSnap.data()) === null || _a === void 0 ? void 0 : _a.email) !== null && _b !== void 0 ? _b : '';
-    if (email) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+    const freshSnap = await orderRef.get();
+    const fresh = (_a = freshSnap.data()) !== null && _a !== void 0 ? _a : order;
+    if (fresh.marketplaceFulfilledAt)
+        return;
+    const userId = typeof fresh.userId === 'string' ? fresh.userId : '';
+    let email = typeof fresh.guestEmail === 'string' ? fresh.guestEmail : '';
+    if (userId) {
+        const userSnap = await db.doc(`users/${userId}`).get();
+        email = ((_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.email) || email;
+    }
+    if (email.includes('@') && !fresh.marketplaceEmailSentAt) {
         const lineItems = (_c = order.lineItems) !== null && _c !== void 0 ? _c : [];
         const itemSummary = lineItems
             .map((li) => {
@@ -185,26 +201,159 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
                     itemCount: lineItems.reduce((sum, li) => sum + Math.max(1, Math.floor(Number(li.quantity) || 1)), 0),
                 },
             });
+            await orderRef.update({ marketplaceEmailSentAt: new Date().toISOString() });
         }
         catch (emailErr) {
             logger.error('Marketplace order confirmation email failed', emailErr);
         }
     }
-    if (skipShipStation === true) {
+    if (skipShipStation === true || fresh.playthrough === true) {
         logger.info('ShipStation export skipped (visitor playthrough)', { orderId });
+        await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
+        return;
+    }
+    if (fresh.shipStationExportedAt) {
+        await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
         return;
     }
     try {
         await (0, shipstation_1.exportOrderToShipStation)({
             orderId,
             householdId,
-            shippingAddress: order.shippingAddress,
-            lineItems: (_e = order.lineItems) !== null && _e !== void 0 ? _e : [],
-            totalCents: (_f = order.totalCents) !== null && _f !== void 0 ? _f : 0,
+            shippingAddress: (_e = fresh.shippingAddress) !== null && _e !== void 0 ? _e : {},
+            lineItems: (_f = fresh.lineItems) !== null && _f !== void 0 ? _f : [],
+            totalCents: (_g = fresh.totalCents) !== null && _g !== void 0 ? _g : 0,
+            customerEmail: email.includes('@') ? email : undefined,
         });
+        await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
     }
     catch (shipErr) {
         logger.error('Marketplace ShipStation export failed', shipErr);
+    }
+}
+/** Charge one committed à la carte order once lock has passed. Card was saved at checkout. */
+async function chargeSingleMarketplaceOrder(householdId, orderId, order) {
+    var _a, _b;
+    const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+    if (!lockHasPassed(order.lockAt))
+        return;
+    if (order.status !== 'committed')
+        return;
+    const totalCents = typeof order.totalCents === 'number' ? order.totalCents : 0;
+    if (totalCents === 0) {
+        await confirmMarketplaceCharge(householdId, orderId, orderRef, order, null);
+        return;
+    }
+    const hhSnap = await db.doc(`households/${householdId}`).get();
+    const hh = (_a = hhSnap.data()) !== null && _a !== void 0 ? _a : {};
+    const customerId = typeof hh.stripeCustomerId === 'string' ? hh.stripeCustomerId : '';
+    const paymentMethodId = typeof hh.stripeDefaultPaymentMethodId === 'string' ? hh.stripeDefaultPaymentMethodId : '';
+    const priorAttempts = typeof order.chargeAttemptCount === 'number' ? Math.max(0, Math.floor(order.chargeAttemptCount)) : 0;
+    const chargeAttempt = priorAttempts + 1;
+    await orderRef.update({
+        chargeAttemptedAt: new Date().toISOString(),
+        chargeAttemptCount: chargeAttempt,
+    });
+    if (!stripe_1.stripe || !customerId || !paymentMethodId) {
+        await orderRef.update({
+            chargeFailedAt: new Date().toISOString(),
+            chargeFailureMessage: !stripe_1.stripe ? 'Stripe is not configured' : 'No saved payment method on file',
+        });
+        return;
+    }
+    try {
+        const paymentIntent = await stripe_1.stripe.paymentIntents.create({
+            amount: totalCents,
+            currency: 'usd',
+            customer: customerId,
+            payment_method: paymentMethodId,
+            confirm: true,
+            off_session: true,
+            metadata: {
+                householdId,
+                orderId,
+                userId: String((_b = order.userId) !== null && _b !== void 0 ? _b : ''),
+                type: 'marketplace',
+                chargeAttempt: String(chargeAttempt),
+            },
+        }, { idempotencyKey: `charge-marketplace-${orderId}-attempt-${chargeAttempt}` });
+        if (paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing') {
+            await confirmMarketplaceCharge(householdId, orderId, orderRef, order, paymentIntent.id);
+            return;
+        }
+        await orderRef.update({
+            stripePaymentIntentId: paymentIntent.id,
+            chargeFailedAt: new Date().toISOString(),
+            chargeFailureMessage: `PaymentIntent status: ${paymentIntent.status}`,
+        });
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : 'Charge failed';
+        logger.error('Marketplace lock charge failed', { householdId, orderId, err });
+        await orderRef.update({
+            chargeFailedAt: new Date().toISOString(),
+            chargeFailureMessage: message,
+        });
+    }
+}
+async function confirmMarketplaceCharge(householdId, orderId, orderRef, order, paymentIntentId) {
+    var _a;
+    const claimed = await db.runTransaction(async (tx) => {
+        var _a;
+        const snap = await tx.get(orderRef);
+        const data = (_a = snap.data()) !== null && _a !== void 0 ? _a : {};
+        if (data.status === 'confirmed' || data.status === 'shipped' || data.status === 'delivered') {
+            return false;
+        }
+        tx.update(orderRef, Object.assign(Object.assign(Object.assign({ status: 'confirmed', confirmedAt: firestore_1.FieldValue.serverTimestamp() }, (paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {})), { chargeFailedAt: firestore_1.FieldValue.delete(), chargeFailureMessage: firestore_1.FieldValue.delete() }), (data.inventoryReserved === true && !data.inventoryCommittedAt
+            ? { inventoryReserved: false, inventoryCommittedAt: new Date().toISOString() }
+            : {})));
+        return data.inventoryReserved === true && !data.inventoryCommittedAt;
+    });
+    if (claimed) {
+        try {
+            await (0, catalogInventory_1.commitMarketplaceReservations)(db, (0, catalogInventory_1.reservedLinesFromOrder)(order));
+        }
+        catch (invErr) {
+            logger.error('Marketplace inventory commit failed', { orderId, invErr });
+        }
+    }
+    const fresh = (_a = (await orderRef.get()).data()) !== null && _a !== void 0 ? _a : order;
+    if (fresh.status === 'confirmed' || fresh.status === 'shipped') {
+        await fulfillMarketplaceOrder(householdId, orderId, fresh, fresh.playthrough === true);
+    }
+}
+async function runChargeEligibleMarketplaceOrders() {
+    var _a;
+    const snap = await db
+        .collectionGroup('orders')
+        .where('status', '==', 'committed')
+        .where('holidayId', '==', HOLIDAY_ID)
+        .get();
+    for (const doc of snap.docs) {
+        const order = doc.data();
+        if (order.orderType !== 'marketplace')
+            continue;
+        const householdId = (_a = doc.ref.parent.parent) === null || _a === void 0 ? void 0 : _a.id;
+        if (!householdId)
+            continue;
+        try {
+            await chargeSingleMarketplaceOrder(householdId, doc.id, order);
+        }
+        catch (err) {
+            logger.error('Marketplace lock charge skipped', { orderId: doc.id, err });
+        }
+    }
+}
+async function retryFailedMarketplaceCharges(householdId) {
+    const open = await db.collection(`households/${householdId}/orders`).where('status', '==', 'committed').get();
+    for (const doc of open.docs) {
+        const data = doc.data();
+        if (data.orderType !== 'marketplace' || !data.chargeFailureMessage)
+            continue;
+        if (!lockHasPassed(data.lockAt))
+            continue;
+        await chargeSingleMarketplaceOrder(householdId, doc.id, data);
     }
 }
 exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
@@ -276,27 +425,52 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
         totalCents,
     };
 });
-/** Immediate checkout for à la carte marketplace cart — no box base price. */
+/** À la carte checkout. Saves a card and charges when Hanukkah boxes lock. Guests need an email; a box still requires an account. */
 exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
-    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
-    }
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
     try {
-        const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
-        const householdId = data.householdId;
-        if (!householdId || !((_c = data.shippingAddress) === null || _c === void 0 ? void 0 : _c.line1) || !((_d = data.shippingAddress) === null || _d === void 0 ? void 0 : _d.city)) {
-            throw new https_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
-        }
+        const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
         const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
+        if (!((_b = data.shippingAddress) === null || _b === void 0 ? void 0 : _b.line1) || !((_c = data.shippingAddress) === null || _c === void 0 ? void 0 : _c.city)) {
+            throw new https_1.HttpsError('invalid-argument', 'shippingAddress is required.');
+        }
         if (!shippingAddress.name || !shippingAddress.stateProvince || !shippingAddress.postalCode) {
             throw new https_1.HttpsError('invalid-argument', 'Please enter name, street, city, state/province, and postal code.');
         }
-        const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);
-        const hhData = (_e = hhSnap.data()) !== null && _e !== void 0 ? _e : {};
+        const authedUid = (_d = request.auth) === null || _d === void 0 ? void 0 : _d.uid;
+        let householdId = '';
+        let guestEmail = '';
+        let hhData = {};
+        if (authedUid) {
+            householdId = String((_e = data.householdId) !== null && _e !== void 0 ? _e : '').trim();
+            if (!householdId) {
+                throw new https_1.HttpsError('invalid-argument', 'householdId is required.');
+            }
+            const hhSnap = await assertHouseholdMember(authedUid, householdId);
+            hhData = (_f = hhSnap.data()) !== null && _f !== void 0 ? _f : {};
+        }
+        else {
+            guestEmail = String((_g = data.email) !== null && _g !== void 0 ? _g : '').trim().toLowerCase();
+            if (!guestEmail.includes('@')) {
+                throw new https_1.HttpsError('invalid-argument', 'Enter an email so we can send your receipt.');
+            }
+            householdId = guestHouseholdId(guestEmail);
+            const hhRef = db.doc(`households/${householdId}`);
+            const existing = await hhRef.get();
+            hhData = (_h = existing.data()) !== null && _h !== void 0 ? _h : {};
+            if (!existing.exists) {
+                const now = new Date().toISOString();
+                await hhRef.set({
+                    guest: true,
+                    guestEmail,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+            }
+        }
         const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
         const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
-        const lineItems = await resolveMarketplaceLineItems((_f = data.lineItems) !== null && _f !== void 0 ? _f : []);
+        const lineItems = await resolveMarketplaceLineItems((_j = data.lineItems) !== null && _j !== void 0 ? _j : []);
         const subtotalCents = chargeableLineTotal(lineItems);
         if (subtotalCents < 1) {
             throw new https_1.HttpsError('invalid-argument', 'Cart total is too small.');
@@ -308,81 +482,65 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
             throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
         }
         const configSnap = await db.doc('config/hanukkah-2026').get();
-        const configData = (_g = configSnap.data()) !== null && _g !== void 0 ? _g : {};
-        const estimatedDelivery = (_h = configData.estimatedDeliveryBy) !== null && _h !== void 0 ? _h : '2026-11-24';
-        const lockAt = typeof configData.lockAt === 'string' ? configData.lockAt : null;
+        const configData = (_k = configSnap.data()) !== null && _k !== void 0 ? _k : {};
+        const estimatedDelivery = (_l = configData.estimatedDeliveryBy) !== null && _l !== void 0 ? _l : '2026-11-24';
+        const lockAt = await getLockAt(false);
         const orderRef = db.collection(`households/${householdId}/orders`).doc();
         const skipShipStation = data.skipShipStation === true;
         const reservedLines = await db.runTransaction(async (tx) => (0, catalogInventory_1.reserveMarketplaceInventoryInTx)(db, tx, lineItems.map((li) => ({ itemId: li.itemId, quantity: li.quantity })), lockAt));
+        const cardOnFile = Boolean(hhData.stripeDefaultPaymentMethodId);
+        const needsCard = totalCents > 0 && !cardOnFile;
         const reservedAt = new Date().toISOString();
-        const orderPayload = {
-            status: totalCents === 0 ? 'confirmed' : 'pending',
-            orderType: 'marketplace',
-            lineItems,
+        const orderPayload = Object.assign(Object.assign(Object.assign({ status: needsCard ? 'pending' : 'committed', orderType: 'marketplace', lineItems,
             subtotalCents,
             shippingCents,
             taxCents,
-            totalCents,
-            creditAppliedCents: creditApplied,
-            giftCreditAppliedCents: giftCreditApplied,
-            platformCreditAppliedCents: platformCreditApplied,
-            shippingAddress,
-            holidayId: HOLIDAY_ID,
-            userId: request.auth.uid,
-            estimatedDelivery,
-            inventoryReserved: true,
-            inventoryReservedAt: reservedAt,
-            inventoryReservedLines: reservedLines,
-            createdAt: firestore_1.FieldValue.serverTimestamp(),
-        };
-        if (totalCents === 0)
-            orderPayload.confirmedAt = firestore_1.FieldValue.serverTimestamp();
+            totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, shippingAddress, holidayId: HOLIDAY_ID, lockAt }, (authedUid ? { userId: authedUid } : {})), (guestEmail ? { guestEmail } : {})), { estimatedDelivery, inventoryReserved: true, inventoryReservedAt: reservedAt, inventoryReservedLines: reservedLines, createdAt: firestore_1.FieldValue.serverTimestamp() });
         if (skipShipStation)
             orderPayload.playthrough = true;
+        let creditsDeducted = false;
         try {
             await orderRef.set(orderPayload);
             if (creditApplied > 0) {
                 await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0
                     ? { platformCreditCents: platformCreditCents - platformCreditApplied }
                     : {})), { updatedAt: new Date().toISOString() }));
+                creditsDeducted = true;
             }
-            // Fully credit-covered carts confirm without Stripe.
-            if (totalCents === 0) {
-                await (0, catalogInventory_1.commitMarketplaceReservations)(db, reservedLines);
-                await orderRef.update({
-                    inventoryReserved: false,
-                    inventoryCommittedAt: new Date().toISOString(),
-                });
-                await fulfillMarketplaceOrder(householdId, orderRef.id, orderPayload, skipShipStation);
+            if (!needsCard) {
                 return {
                     orderId: orderRef.id,
-                    totalCents: 0,
+                    totalCents,
                     clientSecret: null,
-                    status: 'confirmed',
+                    intent: null,
+                    status: 'committed',
                 };
             }
             if (!stripe_1.stripe) {
                 throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
             }
-            const paymentIntent = await stripe_1.stripe.paymentIntents.create({
-                amount: totalCents,
-                currency: 'usd',
-                metadata: {
-                    householdId,
-                    orderId: orderRef.id,
-                    userId: request.auth.uid,
-                    type: 'marketplace',
-                },
-                automatic_payment_methods: { enabled: true },
-            });
-            if (!paymentIntent.client_secret) {
-                throw new https_1.HttpsError('internal', 'PaymentIntent missing client secret.');
+            let customerId = typeof hhData.stripeCustomerId === 'string' ? hhData.stripeCustomerId : '';
+            if (!customerId) {
+                const email = guestEmail ||
+                    (authedUid ? String((_o = (_m = (await db.doc(`users/${authedUid}`).get()).data()) === null || _m === void 0 ? void 0 : _m.email) !== null && _o !== void 0 ? _o : '') : '');
+                const customer = await stripe_1.stripe.customers.create(Object.assign(Object.assign({}, (email.includes('@') ? { email } : {})), { metadata: Object.assign({ householdId }, (guestEmail ? { guest: 'true' } : {})) }));
+                customerId = customer.id;
+                await db.doc(`households/${householdId}`).set({ stripeCustomerId: customerId, updatedAt: new Date().toISOString() }, { merge: true });
             }
-            await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
+            const setupIntent = await stripe_1.stripe.setupIntents.create({
+                customer: customerId,
+                usage: 'off_session',
+                automatic_payment_methods: { enabled: true },
+                metadata: Object.assign({ householdId, orderId: orderRef.id, type: 'marketplace' }, (authedUid ? { userId: authedUid } : {})),
+            });
+            if (!setupIntent.client_secret) {
+                throw new https_1.HttpsError('internal', 'SetupIntent missing client secret.');
+            }
             return {
-                clientSecret: paymentIntent.client_secret,
+                clientSecret: setupIntent.client_secret,
                 orderId: orderRef.id,
                 totalCents,
+                intent: 'setup',
                 status: 'pending',
             };
         }
@@ -399,6 +557,18 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
             }
             catch (releaseErr) {
                 logger.error('Failed to release marketplace reservation after checkout error', releaseErr);
+            }
+            if (creditsDeducted && (giftCreditApplied > 0 || platformCreditApplied > 0)) {
+                try {
+                    await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0
+                        ? { giftCreditCents: firestore_1.FieldValue.increment(giftCreditApplied) }
+                        : {})), (platformCreditApplied > 0
+                        ? { platformCreditCents: firestore_1.FieldValue.increment(platformCreditApplied) }
+                        : {})), { updatedAt: new Date().toISOString() }));
+                }
+                catch (creditErr) {
+                    logger.error('Failed to restore marketplace credit after checkout error', creditErr);
+                }
             }
             throw innerErr;
         }
@@ -700,7 +870,7 @@ exports.chargePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     return (0, chargePilotBox_1.chargePilotBoxOrderForUser)(db, stripe_1.stripe, request.auth.uid, householdId, orderId, force);
 });
 exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
         return;
@@ -740,6 +910,17 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                         invoice_settings: { default_payment_method: paymentMethodId },
                     });
                 }
+                const setupOrderId = (_f = si.metadata) === null || _f === void 0 ? void 0 : _f.orderId;
+                if (((_g = si.metadata) === null || _g === void 0 ? void 0 : _g.type) === 'marketplace' && setupOrderId) {
+                    const pendingRef = db.doc(`households/${householdId}/orders/${setupOrderId}`);
+                    const pendingSnap = await pendingRef.get();
+                    if (pendingSnap.exists && ((_h = pendingSnap.data()) === null || _h === void 0 ? void 0 : _h.status) === 'pending') {
+                        await pendingRef.update({
+                            status: 'committed',
+                            updatedAt: new Date().toISOString(),
+                        });
+                    }
+                }
                 try {
                     await (0, chargePilotBox_1.retryFailedHanukkahBoxCharges)(db, stripe_1.stripe, householdId);
                 }
@@ -749,13 +930,36 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                         retryErr,
                     });
                 }
+                try {
+                    await retryFailedMarketplaceCharges(householdId);
+                }
+                catch (retryErr) {
+                    logger.warn('Could not retry marketplace charge after card update', { householdId, retryErr });
+                }
+                if (((_j = si.metadata) === null || _j === void 0 ? void 0 : _j.type) === 'marketplace' && setupOrderId) {
+                    const savedRef = db.doc(`households/${householdId}/orders/${setupOrderId}`);
+                    const savedSnap = await savedRef.get();
+                    const saved = savedSnap.data();
+                    if ((saved === null || saved === void 0 ? void 0 : saved.status) === 'committed' && lockHasPassed(saved.lockAt)) {
+                        try {
+                            await chargeSingleMarketplaceOrder(householdId, setupOrderId, saved);
+                        }
+                        catch (chargeErr) {
+                            logger.warn('Could not charge marketplace order after card save', {
+                                householdId,
+                                orderId: setupOrderId,
+                                chargeErr,
+                            });
+                        }
+                    }
+                }
             }
         }
         if (event.type === 'payment_intent.succeeded') {
             const pi = event.data.object;
-            const giftType = (_f = pi.metadata) === null || _f === void 0 ? void 0 : _f.type;
+            const giftType = (_k = pi.metadata) === null || _k === void 0 ? void 0 : _k.type;
             if (giftType === 'pilot_gift') {
-                const giftInviteId = (_g = pi.metadata) === null || _g === void 0 ? void 0 : _g.giftInviteId;
+                const giftInviteId = (_l = pi.metadata) === null || _l === void 0 ? void 0 : _l.giftInviteId;
                 if (giftInviteId) {
                     try {
                         await (0, giftPayment_1.finalizeGiftInvitePayment)(db, giftInviteId);
@@ -766,28 +970,35 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                 }
             }
             else {
-                const householdId = (_h = pi.metadata) === null || _h === void 0 ? void 0 : _h.householdId;
-                const orderId = (_j = pi.metadata) === null || _j === void 0 ? void 0 : _j.orderId;
+                const householdId = (_m = pi.metadata) === null || _m === void 0 ? void 0 : _m.householdId;
+                const orderId = (_o = pi.metadata) === null || _o === void 0 ? void 0 : _o.orderId;
                 if (!householdId || !orderId) {
                     logger.warn('payment_intent.succeeded missing metadata', pi.metadata);
                 }
                 else {
                     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
                     const orderSnap = await orderRef.get();
-                    if (orderSnap.exists && ((_k = orderSnap.data()) === null || _k === void 0 ? void 0 : _k.status) !== 'confirmed') {
+                    if (orderSnap.exists && ((_p = orderSnap.data()) === null || _p === void 0 ? void 0 : _p.status) !== 'confirmed') {
                         const order = orderSnap.data();
-                        const isMarketplaceOrder = order.orderType === 'marketplace' || ((_l = pi.metadata) === null || _l === void 0 ? void 0 : _l.type) === 'marketplace';
-                        const isReceivedGift = order.orderType === 'received_gift' || ((_m = pi.metadata) === null || _m === void 0 ? void 0 : _m.type) === 'received_gift';
-                        if (isMarketplaceOrder &&
-                            order.inventoryReserved === true &&
-                            !order.inventoryCommittedAt) {
+                        const isMarketplaceOrder = order.orderType === 'marketplace' || ((_q = pi.metadata) === null || _q === void 0 ? void 0 : _q.type) === 'marketplace';
+                        const isReceivedGift = order.orderType === 'received_gift' || ((_r = pi.metadata) === null || _r === void 0 ? void 0 : _r.type) === 'received_gift';
+                        if (isMarketplaceOrder) {
                             try {
-                                const reserved = (0, catalogInventory_1.reservedLinesFromOrder)(order);
-                                await (0, catalogInventory_1.commitMarketplaceReservations)(db, reserved);
-                                await orderRef.update({
-                                    inventoryReserved: false,
-                                    inventoryCommittedAt: new Date().toISOString(),
+                                const shouldCommit = await db.runTransaction(async (tx) => {
+                                    var _a;
+                                    const snap = await tx.get(orderRef);
+                                    const data = (_a = snap.data()) !== null && _a !== void 0 ? _a : {};
+                                    if (data.inventoryCommittedAt || data.inventoryReserved !== true)
+                                        return false;
+                                    tx.update(orderRef, {
+                                        inventoryReserved: false,
+                                        inventoryCommittedAt: new Date().toISOString(),
+                                    });
+                                    return true;
                                 });
+                                if (shouldCommit) {
+                                    await (0, catalogInventory_1.commitMarketplaceReservations)(db, (0, catalogInventory_1.reservedLinesFromOrder)(order));
+                                }
                             }
                             catch (invErr) {
                                 logger.error('Marketplace inventory commit failed', { orderId, invErr });
@@ -800,16 +1011,16 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                             chargeFailedAt: firestore_1.FieldValue.delete(),
                             chargeFailureMessage: firestore_1.FieldValue.delete(),
                         });
-                        const fresh = (_o = (await orderRef.get()).data()) !== null && _o !== void 0 ? _o : order;
+                        const fresh = (_s = (await orderRef.get()).data()) !== null && _s !== void 0 ? _s : order;
                         if (isMarketplaceOrder || isReceivedGift) {
                             await fulfillMarketplaceOrder(householdId, orderId, Object.assign(Object.assign({}, fresh), { totalCents: fresh.totalCents }), fresh.playthrough === true);
                             const giftInviteId = (typeof fresh.giftInviteId === 'string' && fresh.giftInviteId) ||
-                                ((_p = pi.metadata) === null || _p === void 0 ? void 0 : _p.giftInviteId);
+                                ((_t = pi.metadata) === null || _t === void 0 ? void 0 : _t.giftInviteId);
                             if (giftInviteId &&
-                                (fresh.orderType === 'received_gift' || ((_q = pi.metadata) === null || _q === void 0 ? void 0 : _q.type) === 'received_gift')) {
+                                (fresh.orderType === 'received_gift' || ((_u = pi.metadata) === null || _u === void 0 ? void 0 : _u.type) === 'received_gift')) {
                                 const giftRef = db.doc(`households/${householdId}/receivedGifts/${giftInviteId}`);
                                 const giftSnap = await giftRef.get();
-                                if (giftSnap.exists && ((_r = giftSnap.data()) === null || _r === void 0 ? void 0 : _r.status) === 'available') {
+                                if (giftSnap.exists && ((_v = giftSnap.data()) === null || _v === void 0 ? void 0 : _v.status) === 'available') {
                                     await giftRef.update({
                                         status: 'accepted',
                                         acceptedAt: new Date().toISOString(),
@@ -826,7 +1037,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                         else {
                             const userId = order.userId;
                             const userSnap = await db.doc(`users/${userId}`).get();
-                            const email = (_t = (_s = userSnap.data()) === null || _s === void 0 ? void 0 : _s.email) !== null && _t !== void 0 ? _t : '';
+                            const email = (_x = (_w = userSnap.data()) === null || _w === void 0 ? void 0 : _w.email) !== null && _x !== void 0 ? _x : '';
                             if (email) {
                                 try {
                                     await (0, email_1.sendEmail)({
@@ -850,15 +1061,15 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         if (event.type === 'payment_intent.payment_failed') {
             const pi = event.data.object;
-            if (((_u = pi.metadata) === null || _u === void 0 ? void 0 : _u.type) === 'hanukkah_box') {
+            if (((_y = pi.metadata) === null || _y === void 0 ? void 0 : _y.type) === 'hanukkah_box') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
-                    const message = (_w = (_v = pi.last_payment_error) === null || _v === void 0 ? void 0 : _v.message) !== null && _w !== void 0 ? _w : 'Payment failed';
+                    const message = (_0 = (_z = pi.last_payment_error) === null || _z === void 0 ? void 0 : _z.message) !== null && _0 !== void 0 ? _0 : 'Payment failed';
                     const attempt = Number(pi.metadata.chargeAttempt);
                     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
                     const orderSnap = await orderRef.get();
-                    const status = (_x = orderSnap.data()) === null || _x === void 0 ? void 0 : _x.status;
+                    const status = (_1 = orderSnap.data()) === null || _1 === void 0 ? void 0 : _1.status;
                     if (status === 'committed' || status === 'pending') {
                         await orderRef.update({
                             chargeFailedAt: new Date().toISOString(),
@@ -869,21 +1080,28 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                     logger.warn('Hanukkah box charge failed', { householdId, orderId, message });
                 }
             }
-            if (((_y = pi.metadata) === null || _y === void 0 ? void 0 : _y.type) === 'marketplace') {
+            if (((_2 = pi.metadata) === null || _2 === void 0 ? void 0 : _2.type) === 'marketplace') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
                     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
                     const orderSnap = await orderRef.get();
                     const order = orderSnap.data();
-                    if ((order === null || order === void 0 ? void 0 : order.inventoryReserved) === true && !order.reservationReleasedAt) {
+                    const message = (_4 = (_3 = pi.last_payment_error) === null || _3 === void 0 ? void 0 : _3.message) !== null && _4 !== void 0 ? _4 : 'Payment failed';
+                    if ((order === null || order === void 0 ? void 0 : order.status) === 'committed') {
+                        await orderRef.update({
+                            chargeFailedAt: new Date().toISOString(),
+                            chargeFailureMessage: message,
+                        });
+                    }
+                    else if ((order === null || order === void 0 ? void 0 : order.inventoryReserved) === true && !order.reservationReleasedAt) {
                         try {
                             await (0, catalogInventory_1.releaseMarketplaceReservations)(db, (0, catalogInventory_1.reservedLinesFromOrder)(order));
                             await orderRef.update({
                                 inventoryReserved: false,
                                 reservationReleasedAt: new Date().toISOString(),
                                 chargeFailedAt: new Date().toISOString(),
-                                chargeFailureMessage: (_0 = (_z = pi.last_payment_error) === null || _z === void 0 ? void 0 : _z.message) !== null && _0 !== void 0 ? _0 : 'Payment failed',
+                                chargeFailureMessage: message,
                             });
                         }
                         catch (relErr) {
@@ -895,7 +1113,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         if (event.type === 'payment_intent.canceled') {
             const pi = event.data.object;
-            if (((_1 = pi.metadata) === null || _1 === void 0 ? void 0 : _1.type) === 'marketplace') {
+            if (((_5 = pi.metadata) === null || _5 === void 0 ? void 0 : _5.type) === 'marketplace') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
@@ -1734,6 +1952,7 @@ exports.scheduledChargePilotBoxes = (0, scheduler_1.onSchedule)('every 1 hours',
     }
     else {
         await (0, chargePilotBox_1.runChargeEligiblePilotBoxOrders)(db, stripe_1.stripe);
+        await runChargeEligibleMarketplaceOrders();
     }
     try {
         const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);

@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { StorefrontHero } from '../../components/storefront/StorefrontHero';
 import {
@@ -362,7 +362,9 @@ export function StorefrontHomeScreen() {
           />
           <View style={styles.topPicksBody}>
             {loading ? (
-              <ActivityIndicator color={semanticColors.brand} style={styles.loader} />
+              <View style={styles.loader}>
+                <BrandLoadingMark />
+              </View>
             ) : (
               <StorefrontProductGrid
                 items={loved}
@@ -665,7 +667,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(216, 201, 144, 0.35)',
   },
-  loader: { marginVertical: spacing.xl },
+  loader: {
+    minHeight: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   /** Keep Top picks from collapsing → expanding when catalog arrives. */
   topPicksBody: {
     minHeight: 280,

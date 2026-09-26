@@ -6,10 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { useSession } from '../../hooks/useSession';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -75,7 +75,7 @@ function ProfilesScreenBody() {
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.bgPrimary }]}>
-        <ActivityIndicator color={colors.brand} />
+        <BrandLoadingMark />
       </View>
     );
   }

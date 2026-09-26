@@ -24,12 +24,13 @@ import type { MainStackParamList } from '../../navigation/types';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
-import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { CheckoutSmsOptIn } from '../main/checkout/CheckoutSmsOptIn';
+import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useMarketplaceCheckout } from './useMarketplaceCheckout';
 import { GIFT_STRIPE_APPEARANCE } from '../gift/GiftPaymentPanel.web';
@@ -70,7 +71,7 @@ function CheckoutCta({
       <ButtonLoadingLabel
         label={label}
         loading={loading}
-        loaderColor={colors.goldMuted}
+        loaderColor={semanticColors.logoDark}
         labelStyle={styles.ctaText}
       />
     </TouchableOpacity>
@@ -232,22 +233,16 @@ function MarketplaceCheckoutBody() {
 
   if (catalogLoading || (isAuthenticated && sessionLoading)) {
     return (
-      <View style={styles.centered}>
-        <BrandLoadingMark color={colors.brand} />
-      </View>
+      <SystemPage loading onBack={() => navigation.goBack()} />
     );
   }
 
   if (!lineItems.length) {
     return (
-      <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>Your cart is empty.</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('StorefrontCart')}>
-            <Text style={styles.backLink}>Back to cart</Text>
-          </TouchableOpacity>
-        </View>
-      </WebContentPanel>
+      <SystemPage onBack={() => navigation.navigate('StorefrontCart')}>
+        <Text style={page.title}>Shipping</Text>
+        <Text style={page.lead}>Your cart is empty.</Text>
+      </SystemPage>
     );
   }
 
@@ -302,12 +297,7 @@ function MarketplaceCheckoutBody() {
   }
 
   const summaryCard = (
-    <View
-      style={[
-        styles.summaryCard,
-        Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.sm } as object) : null,
-      ]}
-    >
+    <View style={styles.summaryCard}>
       <CheckoutOrderSummary
         lineItems={lineItems}
         total={total}
@@ -372,43 +362,16 @@ function MarketplaceCheckoutBody() {
   );
 
   return (
-    <WebContentPanel
-      flush
-      centerDesktop={isDesktop}
-      omitDesktopTopPadding={isDesktop}
-      style={styles.panel}
-    >
-      <ScrollView
-        style={styles.root}
-        contentContainerStyle={isDesktop ? styles.desktopScrollContent : styles.mobileScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.shell, isDesktop ? { maxWidth: widePanelMaxWidth } : null]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backRow}>
-            <Text style={styles.backLink}>← Back to cart</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.title}>Shipping</Text>
-          <Text style={styles.chargeBanner}>
-            {total > 0
-              ? "We'll save your card and charge it when Hanukkah boxes lock. These items ship with that wave."
-              : "Your credits cover this order. We'll hold it until boxes lock, then ship it with them."}
-          </Text>
-
-          {isDesktop ? (
-            <View style={styles.desktopColumns}>
-              <View style={styles.desktopMain}>{shippingForm}</View>
-              <View style={styles.desktopSummary}>{summaryCard}</View>
-            </View>
-          ) : (
-            <>
-              {summaryCard}
-              {shippingForm}
-            </>
-          )}
-        </View>
-      </ScrollView>
-    </WebContentPanel>
+    <SystemPage onBack={() => navigation.goBack()}>
+      <Text style={page.title}>Shipping</Text>
+      <Text style={page.lead}>
+        {total > 0
+          ? "We'll save your card and charge it when Hanukkah boxes lock. These items ship with that wave."
+          : "Your credits cover this order. We'll hold it until boxes lock, then ship it with them."}
+      </Text>
+      {summaryCard}
+      {shippingForm}
+    </SystemPage>
   );
 }
 
@@ -475,11 +438,11 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
         : null),
     },
     summaryCard: {
-      backgroundColor: isDesktop ? colors.bgElevated : colors.accentCream,
-      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: semanticColors.border,
+      borderRadius: borderRadius.md,
       padding: spacing.lg,
-      marginTop: isDesktop ? 0 : spacing.md,
-      marginBottom: isDesktop ? 0 : spacing.lg,
+      marginBottom: spacing.lg,
     },
     centered: {
       flex: 1,
@@ -519,12 +482,12 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     emailInput: {
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: semanticColors.border,
       borderRadius: borderRadius.md,
-      padding: spacing.md,
+      padding: spacing.sm,
       fontSize: typography.md,
-      color: colors.textPrimary,
-      backgroundColor: colors.bgElevated,
+      color: semanticColors.textPrimary,
+      backgroundColor: semanticColors.bgPrimary,
       marginBottom: spacing.xs,
       ...typeface('regular'),
     },
@@ -543,18 +506,23 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       ...typeface('regular'),
     },
     cta: {
-      backgroundColor: colors.textPrimary,
-      padding: spacing.md,
+      alignSelf: 'flex-start',
+      marginTop: spacing.lg,
+      minHeight: 40,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
       borderRadius: borderRadius.md,
+      backgroundColor: semanticColors.brand,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: spacing.lg,
-      alignSelf: 'stretch',
+      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
     ctaDisabled: { opacity: 0.5 },
     ctaText: {
-      color: colors.goldMuted,
-      fontWeight: '700',
+      ...typeface('medium'),
+      fontSize: typography.md,
+      color: semanticColors.logoDark,
+      letterSpacing: -0.2,
     },
     emptyText: {
       textAlign: 'center',

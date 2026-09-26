@@ -6,12 +6,12 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   Platform,
   Modal,
   Pressable,
 } from 'react-native';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -239,7 +239,7 @@ export function AdminCatalogItemScreen() {
     return (
       <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
-          <ActivityIndicator color={colors.brand} />
+          <BrandLoadingMark color={colors.brand} />
         </View>
       </WebContentPanel>
     );

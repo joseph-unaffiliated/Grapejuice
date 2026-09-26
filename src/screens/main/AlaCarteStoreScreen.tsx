@@ -5,11 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { useCatalog } from '../../hooks/useCatalog';
 import { getHanukkahConfig, isBoxLocked } from '../../services/firestore/config';
@@ -93,7 +93,7 @@ function AlaCarteStoreBody() {
   if (loading || draftLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={semanticColors.brand} />
+        <BrandLoadingMark />
       </View>
     );
   }

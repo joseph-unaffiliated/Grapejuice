@@ -11,6 +11,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -99,7 +100,7 @@ export function CatalogProductScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'CatalogProduct'>>();
   const { slug } = route.params;
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const desktop = width >= 768;
   const {
     lineItems,
@@ -523,8 +524,8 @@ export function CatalogProductScreen() {
   if (loading || draftLoading) {
     return (
       <StorefrontChrome activeCategory={aisle?.slug}>
-        <View style={styles.centered}>
-          <ActivityIndicator color={semanticColors.brand} />
+        <View style={[styles.centered, { minHeight: Math.round(height * 0.65) }]}>
+          <BrandLoadingMark />
         </View>
       </StorefrontChrome>
     );

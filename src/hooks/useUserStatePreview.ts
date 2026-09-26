@@ -1,10 +1,13 @@
 import { useMemo } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { useBoxPresenceStore } from '../stores/boxPresenceStore';
+import { useGuestSessionStore } from '../stores/guestSessionStore';
 import {
   dateFromPreviewNowIso,
   useUserStatePreviewStore,
   type UserStatePreview,
 } from '../stores/userStatePreviewStore';
+import { useSession } from './useSession';
 import { useBoxDraft } from './useBoxDraft';
 import { isBoxLocked } from '../services/firestore/config';
 
@@ -40,10 +43,20 @@ export function usePreviewedIsAuthenticated(): boolean {
 export function usePreviewedHasStartedBox(): boolean {
   const preview = useUserStatePreviewStore((s) => s.preview);
   const overridden = previewHasBox(preview);
-  const { lineItems } = useBoxDraft();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const householdId = useSession().household?.id ?? null;
+  const guestHasBox = useGuestSessionStore(
+    (s) => s.onboardingComplete || s.boxRevealComplete || s.lineItems.length > 0
+  );
+  const { lineItems, loading } = useBoxDraft();
+  const remembered = useBoxPresenceStore((s) =>
+    householdId ? s.byKey[householdId] : undefined
+  );
 
   if (overridden != null) return overridden;
-
+  if (!isAuthenticated) return guestHasBox;
+  // A new screen starts with an empty draft. Keep the last answer until this load finishes.
+  if (loading && remembered !== undefined) return remembered;
   return lineItems.length > 0;
 }
 

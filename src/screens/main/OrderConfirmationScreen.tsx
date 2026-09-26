@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -9,6 +9,7 @@ import { ordersService } from '../../services/firestore/orders';
 import type { PilotOrder } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { retentionTrackOrder } from '../../services/analytics/retention';
@@ -103,7 +104,9 @@ function OrderConfirmationBody() {
           <>
             {pending ? (
               <>
-                <ActivityIndicator size="large" color={semanticColors.brand} style={styles.spinner} />
+                <View style={styles.pendingMark}>
+                  <BrandLoadingMark />
+                </View>
                 <Text style={styles.title}>{title}</Text>
                 <Text style={styles.subtitle}>{subtitle}</Text>
               </>
@@ -149,7 +152,9 @@ function OrderConfirmationBody() {
             )}
           </>
         ) : isAuthenticated ? (
-          <ActivityIndicator size="large" color={semanticColors.brand} />
+          <View style={styles.waiting}>
+            <BrandLoadingMark />
+          </View>
         ) : (
           <>
             <Text style={styles.emoji}>✓</Text>
@@ -193,7 +198,12 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     alignItems: 'center',
   },
-  spinner: { marginBottom: spacing.lg },
+  pendingMark: { marginBottom: spacing.lg },
+  waiting: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emoji: {
     fontSize: 48,
     color: semanticColors.brand,

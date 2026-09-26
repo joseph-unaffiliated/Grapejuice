@@ -6,12 +6,12 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   Platform,
   Alert,
   Image,
   useWindowDimensions,
 } from 'react-native';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -661,7 +661,9 @@ export function AdminLandingEditorScreen() {
             </Text>
 
             {loading || !doc ? (
-              <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.xl }} />
+              <View style={styles.centered}>
+                <BrandLoadingMark color={colors.brand} />
+              </View>
             ) : (
               <ScrollView
                 style={styles.editorScroll}

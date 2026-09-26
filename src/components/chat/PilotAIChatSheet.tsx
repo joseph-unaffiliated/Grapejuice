@@ -39,6 +39,7 @@ import { useSession } from '../../hooks/useSession';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
+import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { SearchPill, SEARCH_PILL_HEIGHT } from '../ui/SearchPill';
 import { RavBlockRenderer } from './RavBlockRenderer';
@@ -713,7 +714,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {initializing ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={colors.brand} />
+            <BrandLoadingMark color={colors.brand} />
           </View>
         ) : showRecentUi ? (
           <ScrollView
