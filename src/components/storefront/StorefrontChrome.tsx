@@ -107,13 +107,9 @@ type ChromeProps = {
   hideSearchAndRav?: boolean;
   servicesSlot?: ReactNode;
   showPromoStrip?: boolean;
-  onHeaderStackLayout?: (height: number) => void;
   /** `sticky` — mobile-only mini overlay (menu · search · account · cart). */
   chromeVariant?: 'full' | 'sticky';
 };
-
-/** Fallback when header stack hasn’t measured — ~promo-or-not + header row. */
-const RAV_HEADER_FALLBACK_H = 96;
 
 function StorefrontChromeBlocks({
   activeCategory,
@@ -124,16 +120,11 @@ function StorefrontChromeBlocks({
   hideSearchAndRav,
   servicesSlot,
   showPromoStrip = true,
-  onHeaderStackLayout,
   chromeVariant = 'full',
 }: ChromeProps) {
   if (chromeVariant === 'sticky') {
     return (
-      <View
-        style={styles.chromeInner}
-        collapsable={false}
-        onLayout={(e) => onHeaderStackLayout?.(e.nativeEvent.layout.height)}
-      >
+      <View style={styles.chromeInner} collapsable={false}>
         <StorefrontHeader onLogoPress={onLogoPress} variant="sticky" />
       </View>
     );
@@ -141,10 +132,7 @@ function StorefrontChromeBlocks({
 
   return (
     <View style={styles.chromeInner}>
-      <View
-        collapsable={false}
-        onLayout={(e) => onHeaderStackLayout?.(e.nativeEvent.layout.height)}
-      >
+      <View collapsable={false}>
         {showPromoStrip ? <StorefrontPromoStrip /> : null}
         <StorefrontHeader
           onLogoPress={onLogoPress}
@@ -242,8 +230,6 @@ function StorefrontChromeInner({
   const [refreshing, setRefreshing] = useState(false);
   const [pullPx, setPullPx] = useState(0);
   const pullStartY = useRef<number | null>(null);
-  /** Promo + header only — Rav sits under this on mobile (not under services/category). */
-  const [ravHeaderStackH, setRavHeaderStackH] = useState(0);
   const {
     visible: ravVisible,
     closeRav,
@@ -393,7 +379,6 @@ function StorefrontChromeInner({
     hideSearchAndRav,
     servicesSlot,
     showPromoStrip,
-    onHeaderStackLayout: setRavHeaderStackH,
   };
 
   const onChromeLayout = (e: LayoutChangeEvent) => {
@@ -850,18 +835,10 @@ function StorefrontChromeInner({
     outputRange: [-overlayHideOffset, 0],
   });
 
-  // Mobile: under full promo+header at top, or under mini sticky mid-page.
+  // Mobile overlay: full visual viewport over storefront chrome (do not tuck under nav).
   // Desktop dock: clearance is on bodyRow; undocked uses scroll-synced headerClearance.
-  const stickyInsetFallback =
-    stickyChromeH > 0
-      ? stickyChromeH
-      : Math.min(chromeH || STICKY_FALLBACK_CHROME_H, 96);
-  const fullHeaderInset =
-    ravHeaderStackH > 0 ? ravHeaderStackH : RAV_HEADER_FALLBACK_H;
   const ravTopInset = compact
-    ? ravMobilePinSticky
-      ? stickyInsetFallback
-      : fullHeaderInset
+    ? 0
     : ravDockedLayout
       ? 0
       : headerClearance;
@@ -1056,7 +1033,7 @@ function StorefrontChromeInner({
       )}
 
       {/* Mobile sheet: sibling of sticky chrome (not inside bodyRow) so `position:fixed`
-          tracks the visual viewport and stacks under the nav (zIndex 30). */}
+          tracks the visual viewport; sheet zIndex sits above sticky nav. */}
       {compact ? ravDrawer : null}
 
       {floatingFooter ? (

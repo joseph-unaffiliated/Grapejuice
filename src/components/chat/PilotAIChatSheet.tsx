@@ -173,7 +173,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const { canMutateBox, guardMutation } = usePaymentGate();
   const paymentGated = !canMutateBox;
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
-  const bottomPad = bottomInset || tabBarHeight;
+  /** Storefront drawer has no tab bar — don't reserve tab height (kills phone keyboard space). */
+  const isDrawerOverlay = overlay === 'drawer';
+  const bottomPad = isDrawerOverlay
+    ? Math.max(insets.bottom, spacing.sm)
+    : bottomInset || tabBarHeight;
   const starterChips = useMemo(() => {
     if (isChildProfile && ravEnabledForActiveChild && !PILOT_PARENT_ONLY) {
       return buildKidRavStarterChips(activeChild?.name ?? 'friend');
@@ -640,6 +644,19 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     return () => clearTimeout(t);
   }, [focusComposerNonce]);
 
+  // Drawer on web: when the soft keyboard resizes the visual viewport, keep the
+  // thread scrolled so history stays above the docked composer.
+  useEffect(() => {
+    if (!isDrawerOverlay || Platform.OS !== 'web' || view !== 'thread') return;
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const onVv = () => {
+      requestAnimationFrame(() => scrollToEnd());
+    };
+    const v = window.visualViewport;
+    v.addEventListener('resize', onVv);
+    return () => v.removeEventListener('resize', onVv);
+  }, [isDrawerOverlay, view, scrollToEnd]);
+
   /**
    * Bootstrap / Ask-strip open: fire once per nonce.
    * Keep `sendMessage` out of deps — its identity churns (catalog, box, etc.)
@@ -852,6 +869,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             <RavStarterChipRails
               chips={starterChips}
               onSelect={(message) => sendMessage(message)}
+              edgeBleed={isDrawerOverlay ? 0 : undefined}
             />
 
             {hasThreadHistory ? (
@@ -903,14 +921,28 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               keyExtractor={(_, i) => String(i)}
               contentContainerStyle={[
                 styles.threadContent,
-                { paddingBottom: bottomPad + 88 },
+                {
+                  paddingBottom: isDrawerOverlay ? spacing.md : bottomPad + 88,
+                },
               ]}
               renderItem={renderMessage}
               ListFooterComponent={chatFooter}
               onContentSizeChange={scrollToEnd}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
             />
 
-            <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, spacing.sm) + (bottomInset || tabBarHeight - 48) }]}>
+            <View
+              style={[
+                styles.inputBar,
+                {
+                  paddingBottom: isDrawerOverlay
+                    ? Math.max(insets.bottom, spacing.sm)
+                    : Math.max(insets.bottom, spacing.sm) +
+                      (bottomInset || tabBarHeight - 48),
+                },
+              ]}
+            >
               {showGuestSaveChip ? (
                 <TouchableOpacity
                   style={styles.saveChipAboveComposer}
@@ -947,6 +979,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                     scrollEnabled={replyInputHeight >= replyInputMaxHeight - 1}
                     blurOnSubmit={false}
                     onKeyPress={handleComposerKeyPress}
+                    onFocus={() => {
+                      // Phone drawer: keep latest messages above the soft keyboard.
+                      if (isDrawerOverlay && Platform.OS === 'web') {
+                        requestAnimationFrame(() => scrollToEnd());
+                        setTimeout(() => scrollToEnd(), 160);
+                      }
+                    }}
                     {...(Platform.OS === 'web' ? ({ rows: 1 } as object) : null)}
                   />
                   <View style={styles.replyActions}>
