@@ -41,6 +41,7 @@ import { useActiveProfile } from '../../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
+import { MOBILE_RAV_THINKING_WOBBLE } from '../brand/GrapejuiceLogomarkSvg';
 import { SearchPill, SEARCH_PILL_HEIGHT } from '../ui/SearchPill';
 import { RavBlockRenderer } from './RavBlockRenderer';
 import { FormattedChatText } from './FormattedChatText';
@@ -736,7 +737,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           </TouchableOpacity>
         ) : null}
       </View>
-      <GrapejuiceBrandMark variant="footer" align="left" markOnly animating={loading} />
+      <GrapejuiceBrandMark
+        variant="footer"
+        align="left"
+        markOnly
+        animating={loading}
+        wobble={isDrawerOverlay ? MOBILE_RAV_THINKING_WOBBLE : undefined}
+      />
     </View>
   ) : null;
 

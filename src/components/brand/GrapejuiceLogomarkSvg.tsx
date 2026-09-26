@@ -55,6 +55,19 @@ export const DEFAULT_GRAPE_WOBBLE: Required<GrapeWobbleTune> = {
   squash: 0.07 * GRAPE_WOBBLE_INTENSITY,
 };
 
+/**
+ * Mobile Rav reply-thinking: bigger tilt + pulse so the tiny footer mark still reads
+ * as “thinking” (desktop stays on DEFAULT_GRAPE_WOBBLE).
+ */
+export const MOBILE_RAV_THINKING_WOBBLE: Required<GrapeWobbleTune> = {
+  ampScale: 2.05,
+  speedScale: 0.72,
+  pauseMs: 40,
+  pulseMode: 'sequence',
+  pulseDepth: 0.38,
+  squash: 0.18,
+};
+
 type Props = {
   width?: number;
   height?: number;
