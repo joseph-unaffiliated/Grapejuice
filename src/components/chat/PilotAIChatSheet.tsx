@@ -71,6 +71,8 @@ const WELCOME_SEND_SIZE = 32;
 const WELCOME_SEND_EDGE = (SEARCH_PILL_HEIGHT - WELCOME_SEND_SIZE) / 2;
 /** Room for the send overlay — only applied while the field is active. */
 const WELCOME_SEND_INSET = WELCOME_SEND_SIZE + WELCOME_SEND_EDGE + spacing.sm;
+/** Last bubble → timestamp, and grape mark → Reply pill (drawer). */
+const THREAD_FOOTER_GAP = spacing.lg - spacing.sm;
 
 type RavView = 'welcome' | 'recent' | 'thread';
 
@@ -169,6 +171,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const replyLineHeight = Math.round(replyFontSize * 1.35);
   const replyInputMaxHeight = 180;
   const [replyInputHeight, setReplyInputHeight] = useState(replyLineHeight);
+  /** Drawer: measured height of the floated composer (thread pads under it). */
+  const [drawerComposerHeight, setDrawerComposerHeight] = useState(0);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList<AIChatMessage>>(null);
   const isGuest = !user?.uid;
@@ -953,7 +957,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 {
                   // Drawer: leave room under the absolutely floated composer.
                   paddingBottom: isDrawerOverlay
-                    ? Math.max(insets.bottom, spacing.md) + 52
+                    ? (drawerComposerHeight ||
+                        Math.max(insets.bottom, spacing.md) + 46) -
+                      spacing.xs +
+                      THREAD_FOOTER_GAP
                     : bottomPad + 88,
                 },
               ]}
@@ -978,6 +985,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 },
               ]}
               pointerEvents="box-none"
+              onLayout={
+                isDrawerOverlay
+                  ? (e) => {
+                      const h = Math.round(e.nativeEvent.layout.height);
+                      setDrawerComposerHeight((prev) => (prev === h ? prev : h));
+                    }
+                  : undefined
+              }
             >
               <View style={styles.composerRow} pointerEvents="box-none">
                 <View
@@ -1293,8 +1308,8 @@ function createPilotStyles(colors: SemanticColors) {
   },
   threadFooter: {
     gap: spacing.xs,
-    // Offset threadContent gap so timestamp sits closer to the last bubble.
-    marginTop: -spacing.sm,
+    // threadContent gap (spacing.lg) + this = THREAD_FOOTER_GAP.
+    marginTop: THREAD_FOOTER_GAP - spacing.lg,
     alignItems: 'flex-start',
     width: '100%',
   },

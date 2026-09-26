@@ -60,12 +60,12 @@ export const DEFAULT_GRAPE_WOBBLE: Required<GrapeWobbleTune> = {
  * as “thinking” (desktop stays on DEFAULT_GRAPE_WOBBLE).
  */
 export const MOBILE_RAV_THINKING_WOBBLE: Required<GrapeWobbleTune> = {
-  ampScale: 2.05,
-  speedScale: 0.72,
-  pauseMs: 40,
+  ampScale: 1.33,
+  speedScale: 0.6,
+  pauseMs: 20,
   pulseMode: 'sequence',
-  pulseDepth: 0.38,
-  squash: 0.18,
+  pulseDepth: 0.23,
+  squash: 0.1,
 };
 
 type Props = {
