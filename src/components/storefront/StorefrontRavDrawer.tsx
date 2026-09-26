@@ -24,6 +24,7 @@ type Props = {
   /**
    * Offset from the top of the storefront shell so Rav sits under the visible nav
    * (promo+header at top, or sticky mini-bar mid-page).
+   * Mobile overlay uses 0 (full visual viewport over chrome).
    */
   topInset?: number | Animated.AnimatedInterpolation<number> | Animated.Value;
   /**
@@ -36,11 +37,13 @@ type Props = {
 type RavView = 'welcome' | 'recent' | 'thread';
 
 const DRAWER_MS = 280;
+/** Above sticky chrome (30), floating footer (20), and admin FAB (2000). */
+const MOBILE_SHEET_Z = 2100;
 
 /**
- * Rav chat pane — docked side panel on desktop; fixed sheet under the nav on mobile.
- * Mobile web pins to the visual viewport and locks background scroll so the soft
- * keyboard can’t shove the storefront out from under the sheet.
+ * Rav chat pane — docked side panel on desktop; full visual-viewport sheet on mobile.
+ * Mobile web pins to the visual viewport (over storefront chrome) and locks background
+ * scroll so the soft keyboard can’t shove the storefront out from under the sheet.
  *
  * When opening with an Ask Rav question, the pane stays hidden until the chat
  * reports thread view (seeded user bubble + thinking) so welcome/history never flash.
@@ -62,6 +65,8 @@ export function StorefrontRavDrawer({
   /** Web visual viewport — keep a fixed sheet above the soft keyboard. */
   const [vv, setVv] = useState(() => ({
     offsetTop: 0,
+    offsetLeft: 0,
+    width: typeof window !== 'undefined' ? window.innerWidth : drawerWidth,
     height: typeof window !== 'undefined' ? window.innerHeight : 800,
   }));
   const bootstrapMessage = initialMessage?.trim() || undefined;
@@ -132,6 +137,8 @@ export function StorefrontRavDrawer({
       const v = window.visualViewport;
       setVv({
         offsetTop: v?.offsetTop ?? 0,
+        offsetLeft: v?.offsetLeft ?? 0,
+        width: v?.width ?? window.innerWidth,
         height: v?.height ?? window.innerHeight,
       });
     };
@@ -171,9 +178,9 @@ export function StorefrontRavDrawer({
     inputRange: [0, 1],
     outputRange: [0, drawerWidth],
   });
-  const translateX = slide.interpolate({
+  const fadeOpacity = slide.interpolate({
     inputRange: [0, 1],
-    outputRange: [drawerWidth, 0],
+    outputRange: [0, 1],
   });
 
   const chrome = (
@@ -219,6 +226,7 @@ export function StorefrontRavDrawer({
         embedded
         externalHistoryChrome
         overlay="drawer"
+        bottomInset={0}
         bootstrapMessage={bootstrapMessage}
         onViewChange={onViewChange}
       />
@@ -249,38 +257,37 @@ export function StorefrontRavDrawer({
     );
   }
 
-  // Mobile: fixed to the visual viewport under the storefront nav.
-  // Slide transform lives on an inner wrapper so `position: fixed` stays viewport-relative.
-  // Mount as a direct child of StorefrontChrome root (not bodyRow) so fixed + z-index
-  // stack correctly under the sticky chrome.
-  const sheetTop = Platform.OS === 'web' ? vv.offsetTop + insetPx : topInset;
+  // Mobile: full visual viewport over storefront chrome (topInset typically 0).
+  // Opacity fade (no translateX) so the sheet never leaves a side gap while opening.
+  const sheetTop = Platform.OS === 'web' ? vv.offsetTop + insetPx : insetPx;
+  const sheetLeft = Platform.OS === 'web' ? vv.offsetLeft : 0;
+  const sheetWidth = Platform.OS === 'web' ? vv.width : drawerWidth;
   const sheetHeight =
     Platform.OS === 'web' ? Math.max(160, vv.height - insetPx) : undefined;
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.overlaySheet,
         Platform.OS === 'web' ? styles.overlaySheetFixed : null,
         {
-          width: drawerWidth,
+          left: sheetLeft,
+          width: sheetWidth,
           top: sheetTop,
           ...(sheetHeight != null
-            ? { height: sheetHeight, bottom: undefined }
-            : { bottom: 0 }),
-          opacity: bootstrapping && !uiRevealed ? 0 : 1,
+            ? { height: sheetHeight, bottom: undefined, right: undefined }
+            : { bottom: 0, right: 0 }),
+          opacity: bootstrapping && !uiRevealed ? 0 : fadeOpacity,
         },
       ]}
       pointerEvents={uiRevealed ? 'auto' : 'none'}
       accessibilityLabel="Rav chat"
     >
-      <Animated.View
-        style={[styles.overlayInner, { transform: [{ translateX }] }]}
-      >
+      <View style={styles.overlayInner}>
         {chrome}
         {chat}
-      </Animated.View>
-    </View>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -310,33 +317,30 @@ const styles = StyleSheet.create({
   },
   overlaySheet: {
     position: 'absolute',
-    right: 0,
-    bottom: 0,
-    // Below sticky chrome (zIndex 30) so nav stays on top of the sheet.
-    zIndex: 20,
+    // Above sticky chrome / floating footer so the sheet owns the phone viewport.
+    zIndex: MOBILE_SHEET_Z,
     backgroundColor: semanticColors.bgPrimary,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)' } as object)
+      ? ({ boxShadow: '0 0 32px rgba(17, 2, 34, 0.18)' } as object)
       : {
           shadowColor: '#110222',
-          shadowOffset: { width: -8, height: 0 },
+          shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 0.18,
           shadowRadius: 24,
-          elevation: 16,
+          elevation: 24,
         }),
   },
   /** Web: escape document scroll / keyboard jank by pinning to the viewport. */
   overlaySheetFixed: {
     position: 'fixed' as unknown as 'absolute',
-    left: 'auto',
-    right: 0,
   },
   overlayInner: {
     flex: 1,
     minHeight: 0,
     flexDirection: 'column',
     height: '100%',
+    width: '100%',
   },
   chrome: {
     flexDirection: 'row',
