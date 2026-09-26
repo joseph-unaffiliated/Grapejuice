@@ -42,6 +42,12 @@ import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { MOBILE_RAV_THINKING_WOBBLE } from '../brand/GrapejuiceLogomarkSvg';
+import {
+  clearRavSession,
+  getResumableRavSession,
+  saveRavSession,
+  touchRavSession,
+} from '../../stores/ravSessionStore';
 import { SearchPill, SEARCH_PILL_HEIGHT } from '../ui/SearchPill';
 import { RavBlockRenderer } from './RavBlockRenderer';
 import { FormattedChatText } from './FormattedChatText';
@@ -71,8 +77,10 @@ const WELCOME_SEND_SIZE = 32;
 const WELCOME_SEND_EDGE = (SEARCH_PILL_HEIGHT - WELCOME_SEND_SIZE) / 2;
 /** Room for the send overlay — only applied while the field is active. */
 const WELCOME_SEND_INSET = WELCOME_SEND_SIZE + WELCOME_SEND_EDGE + spacing.sm;
-/** Last bubble → timestamp, and grape mark → Reply pill (drawer). */
+/** Last bubble → timestamp. */
 const THREAD_FOOTER_GAP = spacing.lg - spacing.sm;
+/** Grape mark → floated Reply pill (drawer). */
+const COMPOSER_TOP_GAP = THREAD_FOOTER_GAP + 8;
 
 type RavView = 'welcome' | 'recent' | 'thread';
 
@@ -140,22 +148,35 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const navigationState = useNavigationState((state) => state);
   const { isChildProfile, activeChild, ravEnabledForActiveChild } = useActiveProfile();
   const insets = useSafeAreaInsets();
-  const [view, setView] = useState<RavView>(() => (bootstrap ? 'thread' : 'welcome'));
+  const ravOwnerKey = !user?.uid
+    ? 'guest'
+    : `${user.uid}:${
+        !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild && activeChild?.id
+          ? activeChild.id
+          : 'parent'
+      }`;
+  /** Reopening within the same tab session lands on the last chat, not welcome. */
+  const [resumed] = useState(() => (bootstrap ? null : getResumableRavSession(ravOwnerKey)));
+  const [view, setView] = useState<RavView>(() =>
+    bootstrap || resumed ? 'thread' : 'welcome'
+  );
   const [returnToRecent, setReturnToRecent] = useState(false);
   const [messages, setMessages] = useState<AIChatMessage[]>(() =>
-    bootstrap ? [{ role: 'user', content: bootstrap }] : []
+    bootstrap ? [{ role: 'user', content: bootstrap }] : resumed?.messages ?? []
   );
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(() => resumed?.threadId ?? null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(() => Boolean(bootstrap));
-  const [initializing, setInitializing] = useState(() => !bootstrap);
+  const [initializing, setInitializing] = useState(() => !bootstrap && !resumed);
   const [error, setError] = useState<string | null>(null);
   const [recentChats, setRecentChats] = useState<AIChatThreadSummary[]>([]);
   const [hanukkahStartsOn, setHanukkahStartsOn] = useState<string | null>(null);
   const [lockAt, setLockAt] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
-  const [lastActivityAt, setLastActivityAt] = useState(() => new Date());
+  const [lastActivityAt, setLastActivityAt] = useState(() =>
+    resumed ? new Date(resumed.lastActivityAt) : new Date()
+  );
   const [welcomeFocused, setWelcomeFocused] = useState(false);
   const welcomeSearchAnchorRef = useRef<View>(null);
   const pendingInitialMessage = useRef<string | null>(bootstrap || null);
@@ -166,8 +187,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const replyInputRef = useRef<TextInput>(null);
   /** Storefront drawer has no tab bar — don't reserve tab height (kills phone keyboard space). */
   const isDrawerOverlay = overlay === 'drawer';
-  /** 16px on mobile web — iOS Safari zooms inputs under 16. */
-  const replyFontSize = isDrawerOverlay ? 16 : typography.lg;
+  /** 16px on the phone sheet — iOS Safari zooms inputs under 16. Desktop matches bubble text. */
+  const replyFontSize = isDrawerOverlay && !isDesktop ? 16 : typography.lg;
   const replyLineHeight = Math.round(replyFontSize * 1.35);
   const replyInputMaxHeight = 180;
   const [replyInputHeight, setReplyInputHeight] = useState(replyLineHeight);
@@ -324,11 +345,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     catalogService.getAll().then(setCatalog);
   }, []);
 
-  /** Open on welcome — do not auto-resume the previous thread. */
+  /** New session opens on welcome; a resumed session keeps its thread. */
   useEffect(() => {
     if (isGuest) {
-      // Don't clobber a bootstrapped first message from the storefront Ask Rav strip.
-      if (pendingInitialMessage.current || pendingSendNonce) {
+      // Don't clobber a bootstrapped first message or a resumed session.
+      if (resumed || pendingInitialMessage.current || pendingSendNonce) {
         setInitializing(false);
         return;
       }
@@ -341,7 +362,30 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     if (!user?.uid) return;
     void refreshThreads();
     setInitializing(false);
-  }, [isGuest, user?.uid, refreshThreads, pendingSendNonce]);
+  }, [isGuest, user?.uid, refreshThreads, pendingSendNonce, resumed]);
+
+  // Signed-in resume: refetch so a reply that landed after the panel closed shows up.
+  const resumeRefetchedRef = useRef(false);
+  useEffect(() => {
+    if (resumeRefetchedRef.current || !resumed?.threadId || !user?.uid) return;
+    resumeRefetchedRef.current = true;
+    void loadThread(resumed.threadId, false);
+  }, [resumed, user?.uid, loadThread]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      if (view === 'welcome') clearRavSession();
+      return;
+    }
+    saveRavSession({
+      ownerKey: ravOwnerKey,
+      threadId,
+      messages,
+      lastActivityAt: lastActivityAt.getTime(),
+    });
+  }, [view, messages, threadId, lastActivityAt, ravOwnerKey]);
+
+  useEffect(() => () => touchRavSession(), []);
 
   useEffect(() => {
     onViewChange?.(view);
@@ -577,6 +621,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         const assistantMsg: AIChatMessage = { role: 'assistant', content, blocks: displayBlocks };
         setMessages((m) => [...m, assistantMsg]);
         setLastActivityAt(new Date());
+        // Direct save: the panel may have closed (unmounted) while Rav was thinking.
+        saveRavSession({
+          ownerKey: ravOwnerKey,
+          threadId: activeThreadId ?? null,
+          messages: [...historyPrior, userMsg, assistantMsg],
+          lastActivityAt: Date.now(),
+        });
         if (!isGuest && activeThreadId && user?.uid) {
           const toAppend: AIChatMessage[] = includeOpeningSeed
             ? [...prior, userMsg, assistantMsg]
@@ -600,7 +651,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, guestFamiliarityLevel, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id, guestInterests, profile?.storefrontInterests]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, guestFamiliarityLevel, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id, guestInterests, profile?.storefrontInterests, ravOwnerKey]
   );
 
   /** Web: Enter sends, Shift+Enter inserts a newline.
@@ -960,7 +1011,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                     ? (drawerComposerHeight ||
                         Math.max(insets.bottom, spacing.md) + 46) -
                       spacing.xs +
-                      THREAD_FOOTER_GAP
+                      COMPOSER_TOP_GAP
                     : bottomPad + 88,
                 },
               ]}
