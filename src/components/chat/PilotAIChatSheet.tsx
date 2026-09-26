@@ -162,7 +162,11 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const unpersistedOpeningRef = useRef(false);
   const [focusComposerNonce, setFocusComposerNonce] = useState(0);
   const replyInputRef = useRef<TextInput>(null);
-  const replyLineHeight = Math.round(typography.lg * 1.35);
+  /** Storefront drawer has no tab bar — don't reserve tab height (kills phone keyboard space). */
+  const isDrawerOverlay = overlay === 'drawer';
+  /** 16px on mobile web — iOS Safari zooms inputs under 16. */
+  const replyFontSize = isDrawerOverlay ? 16 : typography.lg;
+  const replyLineHeight = Math.round(replyFontSize * 1.35);
   const replyInputMaxHeight = 180;
   const [replyInputHeight, setReplyInputHeight] = useState(replyLineHeight);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,8 +178,6 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const { canMutateBox, guardMutation } = usePaymentGate();
   const paymentGated = !canMutateBox;
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
-  /** Storefront drawer has no tab bar — don't reserve tab height (kills phone keyboard space). */
-  const isDrawerOverlay = overlay === 'drawer';
   const bottomPad = isDrawerOverlay
     ? Math.max(insets.bottom, spacing.sm)
     : bottomInset || tabBarHeight;
@@ -951,7 +953,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 {
                   // Drawer: leave room under the absolutely floated composer.
                   paddingBottom: isDrawerOverlay
-                    ? Math.max(insets.bottom, spacing.xs) + 52
+                    ? Math.max(insets.bottom, spacing.md) + 52
                     : bottomPad + 88,
                 },
               ]}
@@ -969,7 +971,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 isDrawerOverlay && styles.inputBarDrawerFloat,
                 {
                   paddingBottom: isDrawerOverlay
-                    ? Math.max(insets.bottom, spacing.xs)
+                    // Match horizontal gutter (spacing.md) so bottom gap equals left/right.
+                    ? Math.max(insets.bottom, spacing.md)
                     : Math.max(insets.bottom, spacing.sm) +
                       (bottomInset || tabBarHeight - 48),
                 },
@@ -993,6 +996,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                       {
                         height: replyInputHeight,
                         maxHeight: replyInputMaxHeight,
+                        fontSize: replyFontSize,
                         lineHeight: replyLineHeight,
                       },
                     ]}
@@ -1379,8 +1383,8 @@ function createPilotStyles(colors: SemanticColors) {
   },
   replyPillDrawer: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    minHeight: 36,
+    paddingVertical: 8,
+    minHeight: 40,
     borderRadius: 18,
   },
   replyPillMultiline: {
@@ -1391,6 +1395,7 @@ function createPilotStyles(colors: SemanticColors) {
     // Web <textarea> won't shrink in a row without this — otherwise icons wrap under.
     minWidth: 0,
     width: 0,
+    // fontSize set inline (16 on mobile drawer — prevents iOS Safari focus zoom).
     fontSize: typography.lg,
     color: colors.textPrimary,
     // Match welcome search: zero vertical padding so text shares the icon midline.
