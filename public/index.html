@@ -118,16 +118,34 @@
       #root textarea:focus {
         outline: none;
       }
-      /* Rav mobile: hide OneTrust cookie FAB while soft keyboard covers the composer */
+      /* Rav mobile: hide OneTrust cookie FAB while the sheet is open (and when keyboard is up). */
+      body.rav-sheet-open #ot-sdk-btn-floating,
+      body.rav-sheet-open .ot-floating-button,
+      body.rav-sheet-open #ot-sdk-btn-floating.ot-floating-button,
+      body.rav-sheet-open #onetrust-consent-sdk .ot-sdk-show-settings,
+      body.rav-sheet-open #ot-sdk-btn,
+      body.rav-sheet-open #onetrust-consent-sdk #ot-sdk-btn,
+      body.rav-sheet-open #onetrust-consent-sdk .ot-floating-button__front,
+      body.rav-sheet-open #onetrust-consent-sdk .ot-floating-button__close,
+      body.rav-sheet-open button.ot-floating-button,
+      body.rav-sheet-open [id^="ot-sdk-btn"],
       body.rav-keyboard-open #ot-sdk-btn-floating,
       body.rav-keyboard-open .ot-floating-button,
       body.rav-keyboard-open #ot-sdk-btn-floating.ot-floating-button,
       body.rav-keyboard-open #onetrust-consent-sdk .ot-sdk-show-settings,
-      body.rav-keyboard-open #ot-sdk-btn {
+      body.rav-keyboard-open #ot-sdk-btn,
+      body.rav-keyboard-open #onetrust-consent-sdk #ot-sdk-btn,
+      body.rav-keyboard-open #onetrust-consent-sdk .ot-floating-button__front,
+      body.rav-keyboard-open button.ot-floating-button,
+      body.rav-keyboard-open [id^="ot-sdk-btn"] {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
+        transform: scale(0) !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
       }
       /* Click/tap: no focus ring. Keyboard navigation still uses :focus-visible. */
       #root button:focus:not(:focus-visible),

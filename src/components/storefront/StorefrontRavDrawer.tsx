@@ -171,25 +171,38 @@ export function StorefrontRavDrawer({
     };
   }, [docked, visible]);
 
-  // Hide OneTrust cookie FAB while the soft keyboard is open (covers the composer).
+  // Hide OneTrust cookie FAB while mobile Rav is open (keyboard detection is unreliable
+  // with interactive-widget=resizes-content — layout height shrinks with the keyboard).
   useEffect(() => {
-    if (docked || Platform.OS !== 'web' || !visible || typeof document === 'undefined') {
+    if (docked || Platform.OS !== 'web' || typeof document === 'undefined') {
       return;
     }
-    const syncCookieFab = () => {
+    if (!visible) {
+      document.body.classList.remove('rav-sheet-open', 'rav-keyboard-open');
+      return;
+    }
+    document.body.classList.add('rav-sheet-open');
+    const syncKeyboard = () => {
       const v = window.visualViewport;
-      const keyboardOpen =
-        Boolean(v) && window.innerHeight - (v?.height ?? window.innerHeight) > 80;
+      // Prefer screen/outer metrics: with resizes-content, innerHeight ≈ vv.height.
+      const layoutH = window.innerHeight;
+      const screenH = window.screen?.height ?? window.outerHeight;
+      const vvBottomGap =
+        v != null ? Math.max(0, layoutH - (v.height + v.offsetTop)) : 0;
+      const shrunkVsScreen = screenH > 0 && layoutH / screenH < 0.72;
+      const keyboardOpen = vvBottomGap > 60 || shrunkVsScreen;
       document.body.classList.toggle('rav-keyboard-open', keyboardOpen);
     };
-    syncCookieFab();
+    syncKeyboard();
     const v = window.visualViewport;
-    v?.addEventListener('resize', syncCookieFab);
-    window.addEventListener('resize', syncCookieFab);
+    v?.addEventListener('resize', syncKeyboard);
+    v?.addEventListener('scroll', syncKeyboard);
+    window.addEventListener('resize', syncKeyboard);
     return () => {
-      document.body.classList.remove('rav-keyboard-open');
-      v?.removeEventListener('resize', syncCookieFab);
-      window.removeEventListener('resize', syncCookieFab);
+      document.body.classList.remove('rav-sheet-open', 'rav-keyboard-open');
+      v?.removeEventListener('resize', syncKeyboard);
+      v?.removeEventListener('scroll', syncKeyboard);
+      window.removeEventListener('resize', syncKeyboard);
     };
   }, [docked, visible]);
 

@@ -729,10 +729,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             style={styles.saveChipInline}
             onPress={() => startAuthForRav('signin')}
             accessibilityRole="button"
-            accessibilityLabel="Log in or create an account to save your chat"
+            accessibilityLabel="Log in or create an account to save chat"
           >
             <Text style={styles.saveChipText} numberOfLines={1}>
-              log in / create account
+              log in / create account to save chat
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -928,7 +928,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
             </View>
           </ScrollView>
         ) : showThreadUi ? (
-          <>
+          <View style={styles.threadPane}>
             {returnToRecent ? (
               <TouchableOpacity
                 style={[styles.menuBtn, goldGlow]}
@@ -949,7 +949,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 styles.threadContentBottomUp,
                 isDrawerOverlay && styles.threadContentDrawer,
                 {
-                  paddingBottom: isDrawerOverlay ? spacing.sm : bottomPad + 88,
+                  // Drawer: leave room under the absolutely floated composer.
+                  paddingBottom: isDrawerOverlay
+                    ? Math.max(insets.bottom, spacing.xs) + 52
+                    : bottomPad + 88,
                 },
               ]}
               renderItem={renderMessage}
@@ -963,6 +966,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               style={[
                 styles.inputBar,
                 isDrawerOverlay && styles.inputBarDrawer,
+                isDrawerOverlay && styles.inputBarDrawerFloat,
                 {
                   paddingBottom: isDrawerOverlay
                     ? Math.max(insets.bottom, spacing.xs)
@@ -970,8 +974,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                       (bottomInset || tabBarHeight - 48),
                 },
               ]}
+              pointerEvents="box-none"
             >
-              <View style={styles.composerRow}>
+              <View style={styles.composerRow} pointerEvents="box-none">
                 <View
                   style={[
                     styles.replyPill,
@@ -1026,7 +1031,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 </View>
               </View>
             </View>
-          </>
+          </View>
         ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -1045,6 +1050,12 @@ function createPilotStyles(colors: SemanticColors) {
   root: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
   flex: { flex: 1, width: '100%' },
   scrollHost: { flex: 1, width: '100%' },
+  threadPane: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    position: 'relative',
+  },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   welcome: {
     paddingTop: spacing.xxl,
@@ -1335,6 +1346,16 @@ function createPilotStyles(colors: SemanticColors) {
   inputBarDrawer: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
+    backgroundColor: 'transparent',
+  },
+  /** Float over the thread so messages scroll under the Reply pill. */
+  inputBarDrawerFloat: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 4,
+    backgroundColor: 'transparent',
   },
   composerRow: {
     flexDirection: 'row',
