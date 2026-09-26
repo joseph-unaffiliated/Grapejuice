@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   ScrollView,
   Platform,
   Pressable,
+  Modal,
   useWindowDimensions,
+  type View as RNView,
 } from 'react-native';
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -90,49 +92,81 @@ function FilterDropdown({
   onOpenChange: (id: string | null) => void;
   onChange: (key: string) => void;
 }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const triggerRef = useRef<RNView>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0, minWidth: 160 });
   const selected = options.find((o) => o.key === value) ?? options[0];
   const isDefault = value === 'all' || value === 'relevant';
 
+  const openMenu = () => {
+    triggerRef.current?.measureInWindow((x, y, w, h) => {
+      const minWidth = Math.max(w, 160);
+      const left = Math.min(
+        Math.max(8, x),
+        Math.max(8, windowWidth - minWidth - 8)
+      );
+      setMenuPos({ top: y + h + 4, left, minWidth });
+      onOpenChange(id);
+    });
+  };
+
   return (
-    <View style={[styles.dropdownWrap, open && styles.dropdownWrapOpen]}>
+    <View style={styles.dropdownWrap}>
       <Text style={styles.dropdownLabel} numberOfLines={1}>
         {label}
       </Text>
-      <TouchableOpacity
-        style={[
-          styles.dropdownTrigger,
-          !isDefault && styles.dropdownTriggerActive,
-          open && styles.dropdownTriggerOpen,
-        ]}
-        onPress={() => onOpenChange(open ? null : id)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${label}, ${selected?.label ?? value}`}
-      >
-        <Text
+      <View ref={triggerRef} collapsable={false}>
+        <TouchableOpacity
           style={[
-            styles.dropdownValue,
-            selected?.accent === 'sale' && styles.dropdownValueSale,
+            styles.dropdownTrigger,
+            !isDefault && styles.dropdownTriggerActive,
+            open && styles.dropdownTriggerOpen,
           ]}
-          numberOfLines={1}
+          onPress={() => (open ? onOpenChange(null) : openMenu())}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={`${label}, ${selected?.label ?? value}`}
         >
-          {selected?.label ?? value}
-        </Text>
-        <Icon
-          icon={icons.chevronDown}
-          size={11}
-          color={semanticColors.brand}
-          style={open ? styles.dropdownChevronOpen : undefined}
-        />
-      </TouchableOpacity>
-      {open ? (
-        <>
+          <Text
+            style={[
+              styles.dropdownValue,
+              selected?.accent === 'sale' && styles.dropdownValueSale,
+            ]}
+            numberOfLines={1}
+          >
+            {selected?.label ?? value}
+          </Text>
+          <Icon
+            icon={icons.chevronDown}
+            size={11}
+            color={semanticColors.brand}
+            style={open ? styles.dropdownChevronOpen : undefined}
+          />
+        </TouchableOpacity>
+      </View>
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => onOpenChange(null)}
+      >
+        <View style={styles.dropdownModalRoot} pointerEvents="box-none">
           <Pressable
             style={styles.dropdownDismiss}
             onPress={() => onOpenChange(null)}
             accessibilityLabel={`Dismiss ${label} menu`}
           />
-          <View style={styles.dropdownMenu} accessibilityRole="menu">
+          <View
+            style={[
+              styles.dropdownMenu,
+              {
+                top: menuPos.top,
+                left: menuPos.left,
+                minWidth: menuPos.minWidth,
+              },
+            ]}
+            accessibilityRole="menu"
+          >
             <ScrollView
               style={styles.dropdownMenuScroll}
               nestedScrollEnabled
@@ -167,8 +201,8 @@ function FilterDropdown({
               })}
             </ScrollView>
           </View>
-        </>
-      ) : null}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -395,7 +429,7 @@ export function StorefrontCategoryScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={[styles.toolbarScroll, openFilterId ? styles.toolbarOpen : null]}
+          style={styles.toolbarScroll}
           contentContainerStyle={styles.toolbar}
         >
           {showCategoryChips && categoryChipOptions ? (
@@ -545,11 +579,7 @@ const styles = StyleSheet.create({
   },
   toolbarScroll: {
     marginBottom: spacing.md,
-    zIndex: 1,
     ...(Platform.OS === 'web' ? ({ scrollbarWidth: 'none' } as object) : null),
-  },
-  toolbarOpen: {
-    zIndex: 20,
   },
   toolbar: {
     flexDirection: 'row',
@@ -560,15 +590,10 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   dropdownWrap: {
-    position: 'relative',
     flexGrow: 0,
     flexShrink: 0,
     alignSelf: 'flex-start',
     gap: 6,
-    zIndex: 1,
-  },
-  dropdownWrapOpen: {
-    zIndex: 30,
   },
   dropdownLabel: {
     ...typeface('medium'),
@@ -608,25 +633,19 @@ const styles = StyleSheet.create({
   dropdownChevronOpen: {
     transform: [{ rotate: '180deg' }],
   },
+  dropdownModalRoot: {
+    flex: 1,
+  },
   dropdownDismiss: {
     ...StyleSheet.absoluteFillObject,
-    top: -4000,
-    right: -4000,
-    bottom: -4000,
-    left: -4000,
-    zIndex: 1,
+    backgroundColor: 'transparent',
   },
   dropdownMenu: {
     position: 'absolute',
-    top: '100%',
-    left: 0,
-    minWidth: '100%',
-    marginTop: 4,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: semanticColors.brand,
     backgroundColor: semanticColors.bgPrimary,
-    zIndex: 2,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? ({
