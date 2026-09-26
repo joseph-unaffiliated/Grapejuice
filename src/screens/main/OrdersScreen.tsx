@@ -368,15 +368,14 @@ function OrdersScreenBody() {
 
   if (loading) {
     return (
-      <SystemPage loading onBack={() => navigation.goBack()} />
+      <SystemPage hub="orders" loading />
     );
   }
 
   return (
     <>
-    <SystemPage onBack={() => navigation.goBack()}>
-        <Text style={page.title}>Orders</Text>
-        <Text style={page.lead}>
+    <SystemPage hub="orders">
+        <Text style={page.sectionLead}>
           Status and summaries for gift boxes you&apos;ve sent, your household box, and à la carte
           add-ons. Tracking appears when a package ships.
         </Text>

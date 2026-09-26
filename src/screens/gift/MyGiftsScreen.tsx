@@ -6,7 +6,6 @@ import {
   Platform,
   StyleSheet,
   TouchableOpacity,
-  ImageBackground,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -35,9 +34,6 @@ import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem, ReceivedGift } from '../../types/pilot';
 import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
 import { semanticColors, spacing, borderRadius, typeface, typography } from '../../constants/theme';
-
-/** Same cold-press paper as the Ask Rav band. */
-const PAPER_BG = require('../../../assets/storefront/cold-press-toothy.jpg');
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -311,63 +307,12 @@ function MyGiftsBody() {
 
   if (sessionLoading || loading) {
     return (
-      <SystemPage loading onBack={() => navigation.goBack()} />
+      <SystemPage hub="gifts" loading />
     );
   }
 
   return (
-    <SystemPage onBack={() => navigation.goBack()}>
-        <Text style={page.title}>My Gifts</Text>
-        <Text style={page.lead}>
-          Gifts you&apos;ve received stay separate from your family&apos;s own box. {GIFT_CREDIT_SPEND_HINT}{' '}
-          Curated gift boxes are managed here.
-        </Text>
-
-        <ImageBackground
-          source={PAPER_BG}
-          style={styles.balancePanel}
-          imageStyle={styles.balancePaper}
-          resizeMode="cover"
-        >
-          <View style={styles.balanceWash} pointerEvents="none" />
-          <Text style={styles.balanceLabel}>Gift credit balance</Text>
-          <Text style={styles.balanceAmount}>{formatDollars(giftCreditCents)}</Text>
-          <Text style={styles.balanceHint}>{GIFT_CREDIT_SPEND_HINT}</Text>
-          {platformCreditCents > 0 ? (
-            <Text style={styles.balanceHint}>
-              Plus {formatDollars(platformCreditCents)} platform credit
-            </Text>
-          ) : null}
-          {multiBoxHint ? (
-            <Text style={styles.balanceHint}>
-              You have {availableBoxGifts.length} curated gift boxes. Keep the one you want; convert
-              extras to gift credit to spend in the store or on a Hanukkah box.
-            </Text>
-          ) : null}
-          <View style={styles.balanceActions}>
-            <TouchableOpacity
-              style={[styles.paperCta, styles.paperCtaPrimary]}
-              onPress={() => goCategory('collection')}
-              accessibilityRole="button"
-              accessibilityLabel={hasStartedBox ? 'Add to your box' : 'Shop the collection'}
-            >
-              <Text style={styles.paperCtaPrimaryText}>
-                {hasStartedBox ? 'Add to your box' : 'Shop the collection'}
-              </Text>
-            </TouchableOpacity>
-            {hasStartedBox ? null : (
-              <TouchableOpacity
-                style={[styles.paperCta, styles.paperCtaSecondary]}
-                onPress={() => startBox()}
-                accessibilityRole="button"
-                accessibilityLabel="Build your box"
-              >
-                <Text style={styles.paperCtaSecondaryText}>Build your box</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </ImageBackground>
-
+    <SystemPage hub="gifts">
         {error ? (
           <View style={page.section}>
             <Text style={page.emptyText}>{error}</Text>
@@ -410,6 +355,49 @@ function MyGiftsBody() {
             />
           ))
         )}
+
+        <View style={styles.creditBanner}>
+          <Text style={styles.creditLabel}>Gift credit on hand</Text>
+          <Text style={styles.creditValue}>{formatDollars(giftCreditCents)}</Text>
+          {platformCreditCents > 0 ? (
+            <Text style={styles.creditSub}>
+              + {formatDollars(platformCreditCents)} platform credit
+            </Text>
+          ) : null}
+          <Text style={styles.creditBody}>
+            Gifts you&apos;ve received stay separate from your family&apos;s own box.{' '}
+            {GIFT_CREDIT_SPEND_HINT} Curated gift boxes are managed here.
+          </Text>
+          <View style={styles.creditActions}>
+            <TouchableOpacity
+              style={[styles.creditCta, styles.creditCtaPrimary]}
+              onPress={() => goCategory('collection')}
+              accessibilityRole="button"
+              accessibilityLabel={hasStartedBox ? 'Add to your box' : 'Shop the collection'}
+            >
+              <Text style={styles.creditCtaPrimaryText}>
+                {hasStartedBox ? 'Add to your box' : 'Shop the collection'}
+              </Text>
+            </TouchableOpacity>
+            {hasStartedBox ? null : (
+              <TouchableOpacity
+                style={[styles.creditCta, styles.creditCtaSecondary]}
+                onPress={() => startBox()}
+                accessibilityRole="button"
+                accessibilityLabel="Build your box"
+              >
+                <Text style={styles.creditCtaSecondaryText}>Build your box</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {multiBoxHint ? (
+          <Text style={styles.multiHint}>
+            You have {availableBoxGifts.length} curated gift boxes. Keep the one you want; convert
+            extras to gift credit to spend in the store or on a Hanukkah box.
+          </Text>
+        ) : null}
     </SystemPage>
   );
 }
@@ -424,56 +412,57 @@ export function MyGiftsScreen() {
 
 function createGiftStyles() {
   return StyleSheet.create({
-    balancePanel: {
-      borderWidth: 1,
+    creditBanner: {
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: semanticColors.accentCream,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: semanticColors.border,
-      borderRadius: borderRadius.md,
-      overflow: 'hidden',
-      paddingVertical: spacing.lg,
-      paddingHorizontal: spacing.lg,
-      marginBottom: spacing.xl,
-      gap: spacing.xs,
-      backgroundColor: '#F7F6F2',
+      alignItems: 'center',
     },
-    balancePaper: {
-      borderRadius: borderRadius.md,
-    },
-    balanceWash: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(251, 248, 239, 0.42)',
-      ...(Platform.OS === 'web'
-        ? ({
-            backgroundImage:
-              'linear-gradient(90deg, rgba(216, 201, 144, 0.18) 0%, rgba(255, 255, 255, 0.55) 42%, rgba(255, 255, 255, 0.62) 50%, rgba(255, 255, 255, 0.55) 58%, rgba(216, 201, 144, 0.18) 100%)',
-          } as object)
-        : null),
-    },
-    balanceLabel: {
+    creditLabel: {
       ...typeface('medium'),
-      fontSize: typography.lg,
-      color: semanticColors.textSecondary,
+      fontSize: typography.sm,
+      letterSpacing: -0.22,
+      color: semanticColors.textTertiary,
+      textAlign: 'center',
     },
-    balanceAmount: {
-      ...typeface('bold'),
-      fontSize: 36,
-      lineHeight: 42,
+    creditValue: {
+      ...typeface('medium'),
+      marginTop: 4,
+      fontSize: 28,
       color: semanticColors.textPrimary,
+      letterSpacing: -0.6,
+      textAlign: 'center',
     },
-    balanceHint: {
+    creditSub: {
       ...typeface('regular'),
-      fontSize: typography.lg,
-      lineHeight: 22,
+      marginTop: 4,
+      fontSize: typography.sm,
       color: semanticColors.textSecondary,
-      marginTop: spacing.xs,
+      textAlign: 'center',
     },
-    balanceActions: {
+    creditBody: {
+      ...typeface('regular'),
+      marginTop: spacing.md,
+      fontSize: typography.md,
+      color: semanticColors.textSecondary,
+      textAlign: 'center',
+      letterSpacing: -0.22,
+      lineHeight: 18,
+      ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+    },
+    creditActions: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+      justifyContent: 'center',
       alignItems: 'center',
       gap: spacing.sm,
       marginTop: spacing.md,
     },
-    paperCta: {
+    creditCta: {
       minHeight: 40,
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.sm,
@@ -482,25 +471,33 @@ function createGiftStyles() {
       justifyContent: 'center',
       ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
     },
-    paperCtaPrimary: {
+    creditCtaPrimary: {
       backgroundColor: semanticColors.brand,
     },
-    paperCtaPrimaryText: {
+    creditCtaPrimaryText: {
       ...typeface('medium'),
       fontSize: typography.md,
       color: semanticColors.logoDark,
       letterSpacing: -0.2,
       textAlign: 'center',
     },
-    paperCtaSecondary: {
+    creditCtaSecondary: {
       backgroundColor: 'transparent',
       borderWidth: 1,
       borderColor: semanticColors.logoDark,
     },
-    paperCtaSecondaryText: {
+    creditCtaSecondaryText: {
       ...typeface('medium'),
       fontSize: typography.md,
       color: semanticColors.logoDark,
+      textAlign: 'center',
+    },
+    multiHint: {
+      ...typeface('regular'),
+      fontSize: typography.md,
+      color: semanticColors.textSecondary,
+      lineHeight: 20,
+      marginBottom: spacing.lg,
       textAlign: 'center',
     },
     card: {

@@ -19,7 +19,11 @@ import {
   typography,
 } from '../../constants/theme';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { AccountHubHeader, type AccountHubPage } from '../account/AccountHubHeader';
 import { BrandLoadingMark } from '../brand/BrandLoadingMark';
+
+/** Account hub column — same narrow centered measure as the Account page. */
+const HUB_COLUMN = 560;
 
 type PageProps = {
   children: ReactNode;
@@ -32,6 +36,11 @@ type PageProps = {
   wide?: boolean;
   /** Centered grape loader. Replaces the page body while data is loading. */
   loading?: boolean;
+  /**
+   * Account-style page: 560px centered column, hub title, and links to the
+   * other system pages. Replaces the back link and the left-aligned page title.
+   */
+  hub?: AccountHubPage;
 };
 
 /**
@@ -39,14 +48,14 @@ type PageProps = {
  * History is the reference: column width, type scale, and button styles live here
  * so a later pass can change all four at once.
  */
-export function SystemPage({ children, onBack, wide = false, loading = false }: PageProps) {
+export function SystemPage({ children, onBack, wide = false, loading = false, hub }: PageProps) {
   const { isDesktop, layoutWidth, widePanelMaxWidth } = useWebLayout();
-  const columnWidth = wide ? widePanelMaxWidth : layoutWidth;
+  const columnWidth = hub ? HUB_COLUMN : wide ? widePanelMaxWidth : layoutWidth;
 
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={[]}>
-        {onBack ? (
+        {onBack && !hub ? (
           <TouchableOpacity
             onPress={onBack}
             style={styles.loaderBack}
@@ -69,7 +78,12 @@ export function SystemPage({ children, onBack, wide = false, loading = false }: 
 
   const body = (
     <>
-      {onBack ? (
+      {hub ? (
+        <>
+          <AccountHubHeader page={hub} />
+          <View style={styles.hubDivider} />
+        </>
+      ) : onBack ? (
         <TouchableOpacity
           onPress={onBack}
           style={styles.back}
@@ -94,7 +108,7 @@ export function SystemPage({ children, onBack, wide = false, loading = false }: 
       >
         <ScrollView
           style={styles.root}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={hub ? styles.hubScrollContent : styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           {isDesktop ? (
@@ -190,13 +204,19 @@ export const systemPageStyles = StyleSheet.create({
     gap: spacing.xs,
   },
   sectionHeading: {
-    ...typeface('bold'),
-    fontSize: typography.xl,
-    color: semanticColors.textPrimary,
+    ...typeface('medium'),
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.3,
+    color: semanticColors.logoDark,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   sectionLead: {
     ...typeface('regular'),
     fontSize: typography.md,
+    letterSpacing: -0.22,
+    lineHeight: 18,
     color: semanticColors.textSecondary,
     marginBottom: spacing.sm,
   },
@@ -266,6 +286,18 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
     width: '100%',
+  },
+  hubScrollContent: {
+    paddingTop: spacing.xxl + spacing.md,
+    paddingBottom: 120,
+    width: '100%',
+  },
+  hubDivider: {
+    alignSelf: 'stretch',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: semanticColors.border,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
   contentColumn: {
     width: '100%',

@@ -106,9 +106,8 @@ function HistoryScreenBody() {
   const signIn = () => startAuthFromGuest('History', 'signin');
 
   return (
-    <SystemPage onBack={() => navigation.goBack()}>
-      <Text style={page.title}>History</Text>
-      <Text style={page.lead}>Chats with Rav and pages you’ve browsed.</Text>
+    <SystemPage hub="history">
+      <Text style={page.sectionLead}>Chats with Rav and pages you’ve browsed.</Text>
 
       <View style={page.section}>
         <Text style={page.sectionHeading}>Chat history</Text>
