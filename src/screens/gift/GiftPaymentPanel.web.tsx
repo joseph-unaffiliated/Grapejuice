@@ -45,6 +45,8 @@ type Props = {
   onCancel: () => void;
   onError: (title: string, message: string) => void;
   cancelLabel?: string;
+  /** Small "Cancel gift" link under Pay — wipes the incomplete gift. */
+  onCancelGift?: () => void;
   completePurchase: (giftInviteId: string) => Promise<{ claimUrl: string }>;
 };
 
@@ -58,6 +60,7 @@ export function GiftPaymentPanel({
   onCancel,
   onError,
   cancelLabel = '← Back to box',
+  onCancelGift,
   completePurchase,
 }: Props) {
   const stripe = useStripe();
@@ -183,6 +186,18 @@ export function GiftPaymentPanel({
           labelStyle={styles.ctaText}
         />
       </TouchableOpacity>
+      {onCancelGift ? (
+        <TouchableOpacity
+          onPress={onCancelGift}
+          disabled={paying}
+          style={styles.cancelGift}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel gift"
+          hitSlop={8}
+        >
+          <Text style={styles.cancelGiftText}>Cancel gift</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -304,6 +319,15 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       color: colors.goldMuted,
       fontWeight: '700',
       fontSize: typography.md,
+    },
+    cancelGift: {
+      alignSelf: 'center',
+      marginTop: spacing.md,
+    },
+    cancelGiftText: {
+      color: colors.textTertiary,
+      fontSize: typography.sm,
+      textDecorationLine: 'underline',
     },
   });
 }

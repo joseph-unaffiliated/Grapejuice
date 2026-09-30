@@ -60,7 +60,7 @@ import { getHanukkahConfig } from '../../services/firestore/config';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
 import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
-import { usePreviewNow } from '../../hooks/useUserStatePreview';
+import { usePreviewedIsAuthenticated, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   MOBILE_GUTTER,
@@ -89,6 +89,7 @@ export function StorefrontHomeScreen() {
   const gridLimit = compact ? 10 : 3;
   const collectionGridLimit = compact ? 10 : collectionLimit;
   const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
+  const signedIn = usePreviewedIsAuthenticated();
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
   const [lockAt, setLockAt] = useState<string | null>(null);
@@ -181,7 +182,8 @@ export function StorefrontHomeScreen() {
         goCheckout();
         return;
       case 'passover':
-        goPassover();
+        if (signedIn) navigation.navigate('HanukkahFeedback');
+        else goPassover();
         return;
       case 'customize':
         goCategory('collection');
@@ -210,7 +212,7 @@ export function StorefrontHomeScreen() {
         goMyBox();
         return;
       case 'passover':
-        goCategory('collection');
+        passoverInterest.toggle();
         return;
       case 'gift_credit_incomplete':
       case 'gift_customize_incomplete':
@@ -334,6 +336,8 @@ export function StorefrontHomeScreen() {
         journey={journey}
         onPrimary={onHeroPrimary}
         onSecondary={onHeroSecondary}
+        signedIn={signedIn}
+        preRegisterLabel={passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined}
       />
       <Crossfade
         contentKey={

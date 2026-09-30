@@ -66,6 +66,8 @@ export type MainStackParamList = {
   OrderConfirmation: { orderId: string };
   Orders: undefined;
   Reflection: undefined;
+  /** Post-Hanukkah feedback survey ($50 credit). */
+  HanukkahFeedback: undefined;
   AboutHanukkah: undefined;
   History: undefined;
   /** Campaign landing — modular gift entry (`/gift`). */

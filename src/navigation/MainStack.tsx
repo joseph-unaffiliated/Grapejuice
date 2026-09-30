@@ -24,6 +24,7 @@ import { MarketplaceCheckoutScreen } from '../screens/storefront/MarketplaceChec
 import { OrderConfirmationScreen } from '../screens/main/OrderConfirmationScreen';
 import { OrdersScreen } from '../screens/main/OrdersScreen';
 import { ReflectionFlowScreen } from '../screens/main/ReflectionFlowScreen';
+import { HanukkahFeedbackScreen } from '../screens/main/HanukkahFeedbackScreen';
 import { AboutHanukkahScreen } from '../screens/main/AboutHanukkahScreen';
 import { HistoryScreen } from '../screens/main/HistoryScreen';
 import { GiftGiveScreen } from '../screens/gift/GiftGiveScreen';
@@ -523,6 +524,11 @@ export function MainStack() {
           name="Reflection"
           component={ReflectionFlowScreen}
           options={{ title: 'Reflection' }}
+        />
+        <Stack.Screen
+          name="HanukkahFeedback"
+          component={HanukkahFeedbackScreen}
+          options={{ title: 'Hanukkah feedback' }}
         />
         <Stack.Screen
           name="AboutHanukkah"

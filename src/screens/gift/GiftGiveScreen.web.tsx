@@ -47,11 +47,16 @@ function GiftGiveBody() {
   const [formError, setFormError] = useState<string | null>(null);
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
   const [giftInviteId, setGiftInviteId] = useState<string | null>(null);
+  const [serverStripeKey, setServerStripeKey] = useState<string | null>(null);
   const autoStartedPayment = useRef(false);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
-  const stripePromise = useMemo(() => (stripeKey ? loadStripe(stripeKey) : null), [stripeKey]);
+  const activeStripeKey = serverStripeKey || stripeKey;
+  const stripePromise = useMemo(
+    () => (activeStripeKey ? loadStripe(activeStripeKey) : null),
+    [activeStripeKey]
+  );
 
   const creditOnly = values.giftPath === 'credit_only';
 
@@ -108,6 +113,7 @@ function GiftGiveBody() {
           customize: false,
         });
         setGiftInviteId(result.giftInviteId);
+        setServerStripeKey(result.publishableKey);
         setPaymentSecret(result.clientSecret);
         if (__DEV__) console.log('[gift] prepared credit', result.claimUrl);
       } catch (e) {
@@ -150,6 +156,15 @@ function GiftGiveBody() {
     setGiftInviteId(null);
   };
 
+  const cancelGift = () => {
+    useGiftIntentStore.getState().clear();
+    resetPayment();
+    setFormError(null);
+    setValues({ recipientEmail: '', giverName: '', message: '', giftPath: null });
+    setChildDrafts(DEFAULT_GIFT_CHILDREN);
+    goHome();
+  };
+
   const submitLabel =
     values.giftPath == null
       ? 'Choose how this gift works'
@@ -166,6 +181,7 @@ function GiftGiveBody() {
     onChildDraftsChange: setChildDrafts,
     hideBack: true as const,
     error: formError,
+    onCancelGift: cancelGift,
   };
 
   return (
@@ -200,6 +216,7 @@ function GiftGiveBody() {
                 });
               }}
               onCancel={resetPayment}
+              onCancelGift={cancelGift}
               onError={notify}
               cancelLabel="← Back to gift details"
               completePurchase={completeGiftPurchase}

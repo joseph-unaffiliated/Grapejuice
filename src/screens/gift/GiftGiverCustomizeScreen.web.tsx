@@ -89,11 +89,18 @@ export function GiftGiverCustomizeScreen() {
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
-  const stripePromise = useMemo(() => (stripeKey ? loadStripe(stripeKey) : null), [stripeKey]);
+  const [serverStripeKey, setServerStripeKey] = useState<string | null>(null);
+  const activeStripeKey = serverStripeKey || stripeKey;
+  const stripePromise = useMemo(
+    () => (activeStripeKey ? loadStripe(activeStripeKey) : null),
+    [activeStripeKey]
+  );
+
+  const cancelledRef = React.useRef(false);
 
   // Persist so refresh on /gift/customize can restore this draft.
   React.useEffect(() => {
-    if (form.giftPath === 'credit_only') return;
+    if (form.giftPath === 'credit_only' || cancelledRef.current) return;
     useGiftIntentStore.getState().markIncomplete('customize', {
       form: { ...form, giftPath: 'customize' },
       childDrafts,
@@ -136,6 +143,7 @@ export function GiftGiverCustomizeScreen() {
         amountCents: giftAmountCents,
       });
       setGiftInviteId(result.giftInviteId);
+      setServerStripeKey(result.publishableKey);
       setPaymentSecret(result.clientSecret);
     } catch (e) {
       const msg = firebaseMessage(e);
@@ -147,6 +155,15 @@ export function GiftGiverCustomizeScreen() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const cancelGift = () => {
+    cancelledRef.current = true;
+    useGiftIntentStore.getState().clear();
+    setPaymentSecret(null);
+    setGiftInviteId(null);
+    setPayError(null);
+    navigation.navigate('StorefrontHome');
   };
 
   const paymentSlot =
@@ -175,6 +192,7 @@ export function GiftGiverCustomizeScreen() {
             setPaymentSecret(null);
             setGiftInviteId(null);
           }}
+          onCancelGift={cancelGift}
           onError={notify}
           completePurchase={completeGiftPurchase}
         />
@@ -202,6 +220,7 @@ export function GiftGiverCustomizeScreen() {
         persistWrapSelection={persistWrapSelection}
         setCashDonation={setCashDonation}
         onPay={() => void pay()}
+        onCancelGift={cancelGift}
         onRequireAuth={requireAuth}
         payError={payError}
         paymentSlot={paymentSlot}

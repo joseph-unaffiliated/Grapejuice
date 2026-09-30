@@ -180,11 +180,10 @@ export function boxJourneyStatusLine(
       ? parseIsoDate(journey.estimatedDeliveryBy)
       : null;
     if (!delivery) return 'Your box is locked — shipping soon.';
-    if (sameLocalDay(delivery, now) || startOfLocalDay(delivery).getTime() <= startOfLocalDay(now).getTime()) {
-      return startOfLocalDay(delivery).getTime() < startOfLocalDay(now).getTime()
-        ? 'Your box is locked — on its way.'
-        : 'Your box is locked — shipping soon.';
+    if (startOfLocalDay(delivery).getTime() < startOfLocalDay(now).getTime()) {
+      return 'Your box has arrived.';
     }
+    if (sameLocalDay(delivery, now)) return 'Your box arrives today.';
     const shipDays = daysUntil(delivery, now);
     if (shipDays === 0) return 'Your box is locked — shipping soon.';
     return `Your box is locked · ships in ${shipDays} day${shipDays === 1 ? '' : 's'}`;
@@ -224,8 +223,13 @@ export function StorefrontHeroJourneyTimeline({
     const today = startOfLocalDay(now);
 
     return [
-      // Seeing this hero means the parent already completed the in-app reveal.
-      { id: 'reveal', label: 'Customize Box', date: null, completed: true },
+      {
+        id: 'reveal',
+        label: 'Customize Box',
+        date: null,
+        // Customizing stays open until lock day.
+        completed: !!lockDate && startOfLocalDay(lockDate).getTime() <= today.getTime(),
+      },
       {
         id: 'lock',
         label: 'Box Locks',
@@ -250,6 +254,9 @@ export function StorefrontHeroJourneyTimeline({
 
   const progress = pinProgress(milestones, now);
   const pinLeft = pinLeftPercent(progress, milestones.length);
+  /** Pin index along the nodes; the date under a node the pin covers is hidden. */
+  const pinIndex = progress * (milestones.length - 1);
+  const dateHiddenByPin = (index: number) => Math.abs(pinIndex - index) < 0.3;
   /** Inset so the rail runs marker-center → marker-center (equal-width columns). */
   const trackInset = `${50 / milestones.length}%`;
   /**
@@ -272,21 +279,25 @@ export function StorefrontHeroJourneyTimeline({
     >
       {/* Dates above the rail */}
       <View style={[styles.datesRow, isBanner && styles.datesRowBanner]}>
-        {milestones.map((m) => (
-          <View key={`date-${m.id}`} style={styles.labelCol}>
-            <Text
-              style={[
-                styles.date,
-                compact && !isBanner && styles.dateCompact,
-                isBanner && styles.dateBanner,
-                !m.date && styles.datePlaceholder,
-              ]}
-              numberOfLines={1}
-            >
-              {m.dateText ?? (m.date ? formatMilestoneDate(m.date) : ' ')}
-            </Text>
-          </View>
-        ))}
+        {milestones.map((m, i) => {
+          const hidden = !m.date || dateHiddenByPin(i);
+          return (
+            <View key={`date-${m.id}`} style={styles.labelCol}>
+              <Text
+                style={[
+                  styles.date,
+                  compact && !isBanner && styles.dateCompact,
+                  isBanner && styles.dateBanner,
+                  hidden && styles.datePlaceholder,
+                ]}
+                numberOfLines={1}
+                aria-hidden={hidden}
+              >
+                {hidden ? ' ' : m.dateText ?? formatMilestoneDate(m.date!)}
+              </Text>
+            </View>
+          );
+        })}
       </View>
 
       <View style={[styles.rail, isBanner && styles.railBanner]}>
@@ -328,6 +339,7 @@ export function StorefrontHeroJourneyTimeline({
                 styles.label,
                 compact && !isBanner && styles.labelCompact,
                 isBanner ? styles.labelBanner : styles.labelOverlay,
+                m.completed && styles.labelPassed,
               ]}
               numberOfLines={isBanner ? 2 : 3}
             >
@@ -456,6 +468,9 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     lineHeight: 15,
     color: semanticColors.textInverse,
+  },
+  labelPassed: {
+    opacity: 0.3,
   },
   date: {
     ...typeface('regular'),

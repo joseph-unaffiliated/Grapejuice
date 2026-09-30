@@ -191,6 +191,10 @@ function GiftGiverCustomizeBody() {
       persistWrapSelection={persistWrapSelection}
       setCashDonation={setCashDonation}
       onPay={() => void pay()}
+      onCancelGift={() => {
+        useGiftIntentStore.getState().clear();
+        navigation.navigate('StorefrontHome');
+      }}
       onRequireAuth={requireAuth}
       payError={payError}
     />

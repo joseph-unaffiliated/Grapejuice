@@ -6,6 +6,8 @@ import type { ChildInterestId } from '../../constants/childInterests';
 export type PurchaseGiftResult = {
   giftInviteId: string;
   clientSecret: string | null;
+  /** Publishable key for the Stripe account that created the PaymentIntent. */
+  publishableKey?: string | null;
   claimToken: string;
   claimUrl: string;
 };

@@ -63,7 +63,10 @@ export function lockedBoxChipLabel(
 ): string {
   const days = daysToShip(estimatedDeliveryBy, now);
   if (days == null) return 'Locked';
-  if (days === 0) return 'Shipping soon';
+  if (days === 0) {
+    const arrival = startOfLocalDay(parseIsoDate(estimatedDeliveryBy!.trim())).getTime();
+    return arrival < startOfLocalDay(now).getTime() ? 'Arrived' : 'Arrives today';
+  }
   return `${days}d to ship`;
 }
 

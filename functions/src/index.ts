@@ -3,7 +3,7 @@ import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { stripe, verifyWebhook } from './stripe';
+import { stripe, stripePublishableKey, verifyWebhook } from './stripe';
 import { sendEmail, sendDebriefReminderEmail } from './email';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
@@ -1653,6 +1653,7 @@ export const purchasePilotGift = onCall(async (request) => {
   return {
     giftInviteId: inviteRef.id,
     clientSecret: paymentIntent.client_secret,
+    publishableKey: stripePublishableKey || null,
     claimToken,
     claimUrl,
   };

@@ -198,6 +198,10 @@ function GiftGiveScreenBody() {
           submitting={submitting}
           submitLabel={submitLabel}
           error={formError}
+          onCancelGift={() => {
+            useGiftIntentStore.getState().clear();
+            navigation.navigate('StorefrontHome');
+          }}
         >
           {creditOnly && !isAuthenticated ? (
             <TouchableOpacity

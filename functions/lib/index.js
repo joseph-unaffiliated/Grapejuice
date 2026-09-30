@@ -1304,6 +1304,7 @@ exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
     return {
         giftInviteId: inviteRef.id,
         clientSecret: paymentIntent.client_secret,
+        publishableKey: stripe_1.stripePublishableKey || null,
         claimToken,
         claimUrl,
     };

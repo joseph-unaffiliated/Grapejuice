@@ -24,7 +24,7 @@ import type { StorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
-import { STOREFRONT_HERO, STOREFRONT_HERO_PASSOVER } from '../../constants/storefrontMedia';
+import { STOREFRONT_HERO } from '../../constants/storefrontMedia';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -124,6 +124,10 @@ type Props = {
   journey?: BoxJourneyDates | null;
   onPrimary: () => void;
   onSecondary: () => void;
+  /** After Hanukkah: signed-in families get the feedback CTA instead of Passover pre-reg. */
+  signedIn?: boolean;
+  /** Replaces the after-Hanukkah guest pre-register label (e.g. once pre-registered). */
+  preRegisterLabel?: string;
 };
 
 function showJourney(mode: StorefrontHomeMode): boolean {
@@ -145,10 +149,12 @@ export function StorefrontHero({
   journey = null,
   onPrimary,
   onSecondary,
+  signedIn = false,
+  preRegisterLabel,
 }: Props) {
   const { height, isCompact: compact } = useLayoutBreakpoint();
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const hero = mode === 'passover' ? STOREFRONT_HERO_PASSOVER : STOREFRONT_HERO;
+  const hero = STOREFRONT_HERO;
   const now = usePreviewNow();
   const duringHanukkah =
     journey != null && getHanukkahStatus(journey.startsOn, now).phase === 'during';
@@ -202,17 +208,23 @@ export function StorefrontHero({
   let body: string | null | undefined = hero.body;
   let bodySecondary: string | null | undefined = hero.bodySecondary;
   let primaryLabel = hero.ctaLabel ?? 'Browse the Collection';
-  let secondaryLabel = 'Build your Box (starting at $80)';
+  let secondaryLabel: string | null = 'Build your Box (starting at $80)';
 
-  if (mode === 'passover') {
-    headline = hero.headline ?? 'Passover 2027 is next';
-    body = hero.body;
-    bodySecondary = hero.bodySecondary;
-    primaryLabel = hero.ctaLabel ?? 'Explore Passover 2027';
-    secondaryLabel = 'Browse the Collection';
+  if (mode === 'passover' && signedIn) {
+    headline = 'Thanks for celebrating with us!';
+    body = 'Let us know how it was for you';
+    bodySecondary = null;
+    primaryLabel = 'Give Feedback (earn $50 in credit)';
+    secondaryLabel = null;
+  } else if (mode === 'passover') {
+    headline = 'We hope you had a great Hanukkah!';
+    body = 'We are planning now for Passover 2027';
+    bodySecondary = null;
+    primaryLabel = 'Explore Passover 2027';
+    secondaryLabel = preRegisterLabel ?? 'Pre-register for Passover';
   } else if (mode === 'gift_credit_incomplete') {
     headline = 'Finish sending your gift';
-    body = 'You started gift credit for someone else. Continue to payment whenever you’re ready — they can use it in the store or toward a Hanukkah box. Or send a different gift.';
+    body = 'Your gift will not be sent until you add your payment info.';
     bodySecondary = null;
     primaryLabel = 'Continue to payment';
     secondaryLabel = 'Send a different gift';
@@ -234,7 +246,8 @@ export function StorefrontHero({
     headline = journeyHeadline ?? 'Your Hanukkah box is underway';
     // Prefer the soft white customize-days line (matches acquisition body);
     // fall back to mode-specific status when the rail isn’t showing.
-    body = customizeDaysLine ?? statusLine;
+    // Hanukkah nights: the night headline stands alone (box already arrived).
+    body = duringHanukkah ? null : customizeDaysLine ?? statusLine;
     bodySecondary = null;
     if (mode === 'guest_box') {
       primaryLabel = 'View your box';
@@ -276,16 +289,14 @@ export function StorefrontHero({
         pointerEvents="box-none"
       >
         <Crossfade
-          contentKey={`${mode}|${headline}|${primaryLabel}|${secondaryLabel}|${body ?? ''}`}
+          contentKey={`${mode}|${headline}|${primaryLabel}|${secondaryLabel ?? ''}|${body ?? ''}`}
           style={styles.crossfade}
         >
-          {mode !== 'passover' ? (
-            <HeroMenorahIcon
-              width={HERO_MENORAH_ICON_WIDTH}
-              height={HERO_MENORAH_ICON_HEIGHT}
-              compact={compact}
-            />
-          ) : null}
+          <HeroMenorahIcon
+            width={HERO_MENORAH_ICON_WIDTH}
+            height={HERO_MENORAH_ICON_HEIGHT}
+            compact={compact}
+          />
           <Text
             style={[
               styles.headline,
@@ -335,7 +346,7 @@ export function StorefrontHero({
                     style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
                     onPress={onSecondary}
                     accessibilityRole="button"
-                    accessibilityLabel={secondaryLabel}
+                    accessibilityLabel={secondaryLabel ?? undefined}
                   >
                     <Text style={styles.ctaPrimaryText}>{secondaryLabel}</Text>
                   </TouchableOpacity>
@@ -354,7 +365,7 @@ export function StorefrontHero({
                     style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
                     onPress={onSecondary}
                     accessibilityRole="button"
-                    accessibilityLabel={secondaryLabel}
+                    accessibilityLabel={secondaryLabel ?? undefined}
                   >
                     <Text style={styles.ctaGhostText}>{secondaryLabel}</Text>
                   </TouchableOpacity>
@@ -365,7 +376,7 @@ export function StorefrontHero({
                     style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
                     onPress={onSecondary}
                     accessibilityRole="button"
-                    accessibilityLabel={secondaryLabel}
+                    accessibilityLabel={secondaryLabel ?? undefined}
                   >
                     <Text style={styles.ctaGhostText}>{secondaryLabel}</Text>
                   </TouchableOpacity>
@@ -388,14 +399,16 @@ export function StorefrontHero({
                   >
                     <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
-                    onPress={onSecondary}
-                    accessibilityRole="button"
-                    accessibilityLabel={secondaryLabel}
-                  >
-                    <Text style={styles.ctaGhostText}>{secondaryLabel}</Text>
-                  </TouchableOpacity>
+                  {secondaryLabel ? (
+                    <TouchableOpacity
+                      style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}
+                      onPress={onSecondary}
+                      accessibilityRole="button"
+                      accessibilityLabel={secondaryLabel}
+                    >
+                      <Text style={styles.ctaGhostText}>{secondaryLabel}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </>
               )}
             </View>

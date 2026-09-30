@@ -131,6 +131,8 @@ type Props = {
   persistWrapSelection: (itemIds: string[]) => void;
   setCashDonation?: (cents: number) => void;
   onPay: () => void;
+  /** Small "Cancel gift" link under Continue to payment — wipes the incomplete gift. */
+  onCancelGift?: () => void;
   onRequireAuth?: (entry: 'signup' | 'signin') => void;
   payError?: string | null;
   paymentSlot?: React.ReactNode;
@@ -163,6 +165,7 @@ export function GiftGiverCustomizeContent({
   persistWrapSelection,
   setCashDonation,
   onPay,
+  onCancelGift,
   onRequireAuth,
   payError,
   paymentSlot,
@@ -728,6 +731,18 @@ export function GiftGiverCustomizeContent({
           </View>
         )}
       </View>
+      {onCancelGift ? (
+        <TouchableOpacity
+          onPress={onCancelGift}
+          disabled={submitting}
+          style={styles.cancelGift}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel gift"
+          hitSlop={8}
+        >
+          <Text style={styles.cancelGiftText}>Cancel gift</Text>
+        </TouchableOpacity>
+      ) : null}
       {payError ? <Text style={styles.payError}>{payError}</Text> : null}
     </View>
   );
@@ -1129,6 +1144,16 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       fontSize: typography.sm,
       color: colors.brand,
       ...typeface('medium'),
+    },
+    cancelGift: {
+      alignSelf: 'center',
+      marginTop: spacing.md,
+    },
+    cancelGiftText: {
+      fontSize: typography.sm,
+      color: colors.textTertiary,
+      textDecorationLine: 'underline',
+      ...typeface('regular'),
     },
   });
 }

@@ -15,6 +15,8 @@ export type GiftPurchaseInput = {
 export type GiftPurchaseResult = {
   giftInviteId: string;
   clientSecret: string;
+  /** Server's publishable key — must be used with clientSecret when present. */
+  publishableKey: string | null;
   claimUrl: string;
 };
 
@@ -45,6 +47,7 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
   return {
     giftInviteId: result.giftInviteId,
     clientSecret: result.clientSecret,
+    publishableKey: result.publishableKey?.trim() || null,
     claimUrl: result.claimUrl,
   };
 }

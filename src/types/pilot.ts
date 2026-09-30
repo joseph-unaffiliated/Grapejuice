@@ -440,6 +440,22 @@ export type HolidayReflection = {
   favoriteNight: string;
   updatedAt: string;
   platformCreditAwardedCents?: number;
+  /** Post-holiday feedback survey (HanukkahFeedbackScreen). */
+  feedback?: HolidayFeedbackResponse;
+};
+
+export type HolidayFeedbackResponse = {
+  /** 1–5 overall rating. */
+  overall: number | null;
+  /** Nights (1–8) the family did something. */
+  nights: number[];
+  favoriteItem: string;
+  change: string;
+  /** 0–10 likelihood to recommend. */
+  recommend: number | null;
+  passoverInterest: 'yes' | 'maybe' | 'no' | null;
+  anythingElse: string;
+  submittedAt: string;
 };
 
 export const HOLIDAY_ID = 'hanukkah-2026';

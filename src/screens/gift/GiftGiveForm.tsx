@@ -23,6 +23,8 @@ type Props = {
   error?: string | null;
   /** When marketplace chrome provides nav, hide the local ← Back link. */
   hideBack?: boolean;
+  /** Small "Cancel gift" link under the submit button — wipes the incomplete gift. */
+  onCancelGift?: () => void;
   children?: React.ReactNode;
 };
 
@@ -37,6 +39,7 @@ export function GiftGiveForm({
   submitLabel,
   error,
   hideBack = false,
+  onCancelGift,
   children,
 }: Props) {
   const { colors } = useThemeMode();
@@ -157,6 +160,19 @@ export function GiftGiveForm({
             style={styles.cta}
           />
 
+          {onCancelGift ? (
+            <TouchableOpacity
+              onPress={onCancelGift}
+              disabled={submitting}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel gift"
+              hitSlop={8}
+              style={styles.cancelGift}
+            >
+              <Text style={styles.cancelGiftText}>Cancel gift</Text>
+            </TouchableOpacity>
+          ) : null}
+
           {children}
         </>
       ) : (
@@ -272,6 +288,16 @@ function createStyles(colors: SemanticColors) {
       width: '100%',
       minWidth: 0,
       marginTop: spacing.xl,
+    },
+    cancelGift: {
+      alignSelf: 'center',
+      marginTop: spacing.md,
+    },
+    cancelGiftText: {
+      fontSize: typography.sm,
+      color: colors.textTertiary,
+      textDecorationLine: 'underline',
+      ...typeface('regular'),
     },
   });
 }
