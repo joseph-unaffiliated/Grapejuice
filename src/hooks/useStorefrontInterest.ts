@@ -3,65 +3,57 @@ import { PASSOVER_NOTIFY_INTEREST } from '../constants/pilotHolidays';
 import { useSession } from './useSession';
 import { usersService } from '../services/firestore/users';
 import { useAuthStore } from '../stores/authStore';
-import { useGuestSessionStore } from '../stores/guestSessionStore';
+import { useAuthFlowStore } from '../stores/authFlowStore';
+
+/** Write one storefront interest onto the signed-in user's profile. */
+export async function applyStorefrontInterest(
+  uid: string,
+  current: string[],
+  key: string,
+  marked: boolean
+): Promise<void> {
+  const next = marked
+    ? current.includes(key)
+      ? current
+      : [...current, key]
+    : current.filter((i) => i !== key);
+  await usersService.upsert(uid, {
+    storefrontInterests: next,
+    ...(marked && key === PASSOVER_NOTIFY_INTEREST ? { notificationsOptIn: true } : null),
+  });
+}
 
 /**
  * Toggleable storefront interest (Passover pre-reg, B'Mitzvah pilot, holiday waitlists).
- * Guests → guestSessionStore.interests; signed-in → users.storefrontInterests
- * (and notificationsOptIn when marking Passover).
+ * Signed-in only → users.storefrontInterests (and notificationsOptIn when marking
+ * Passover). Guests are sent to sign in; the interest is applied after auth
+ * (`PendingInterestEffect`).
  */
 export function useStorefrontInterest(key: string): {
   marked: boolean;
-  /** Add or remove this interest (guest + Firestore when signed in). */
+  /** Add or remove this interest (prompts sign-in for guests). */
   toggle: () => void;
   /** @deprecated Prefer `toggle` — same behavior. */
   mark: () => void;
 } {
-  const guestInterests = useGuestSessionStore((s) => s.interests);
-  const toggleGuestInterest = useGuestSessionStore((s) => s.toggleInterest);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   const { profile, refresh } = useSession();
 
   const profileInterests = profile?.storefrontInterests ?? [];
-  const marked =
-    guestInterests.includes(key) || profileInterests.includes(key);
+  const marked = isAuthenticated && profileInterests.includes(key);
 
   const toggle = useCallback(() => {
-    const nextMarked = !marked;
-
-    // Keep guest list in sync (toggleInterest flips membership).
-    if (guestInterests.includes(key) !== nextMarked) {
-      toggleGuestInterest(key);
+    if (!isAuthenticated || !user?.uid) {
+      const flow = useAuthFlowStore.getState();
+      flow.setPendingInterestKey(key);
+      flow.startAuthInPlace('signin');
+      return;
     }
-
-    if (isAuthenticated && user?.uid) {
-      const next = nextMarked
-        ? profileInterests.includes(key)
-          ? profileInterests
-          : [...profileInterests, key]
-        : profileInterests.filter((i) => i !== key);
-
-      void usersService
-        .upsert(user.uid, {
-          storefrontInterests: next,
-          ...(nextMarked && key === PASSOVER_NOTIFY_INTEREST
-            ? { notificationsOptIn: true }
-            : null),
-        })
-        .then(() => refresh({ silent: true }))
-        .catch(() => undefined);
-    }
-  }, [
-    marked,
-    guestInterests,
-    key,
-    toggleGuestInterest,
-    isAuthenticated,
-    user?.uid,
-    profileInterests,
-    refresh,
-  ]);
+    void applyStorefrontInterest(user.uid, profileInterests, key, !marked)
+      .then(() => refresh({ silent: true }))
+      .catch(() => undefined);
+  }, [marked, key, isAuthenticated, user?.uid, profileInterests, refresh]);
 
   return { marked, toggle, mark: toggle };
 }

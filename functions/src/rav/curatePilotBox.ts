@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import Anthropic from '@anthropic-ai/sdk';
 import { PRESENCE_APPEND } from './presence';
+import { PLAIN_TALK_APPEND } from './plainTalk';
 import { buildBoxRulesContext, loadCatalogRows } from './context';
 import {
   BOX_CURATOR_JSON_INSTRUCTIONS,
@@ -13,7 +14,7 @@ import { SECTION_RULES } from './boxRules';
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
 const MAX_ACTIONS = 2;
-const BLOCKED_SLOT_PREFIXES = ['gelt', 'latke', 'sufgan', 'applesauce', 'wrapping', 'pre-wrap'];
+const BLOCKED_SLOT_PREFIXES = ['gelt', 'latke', 'sufgan', 'wrapping', 'pre-wrap'];
 
 export type CuratePilotBoxKid = {
   id: string;
@@ -295,7 +296,7 @@ export const curatePilotBox = onCall(
 
     const catalogRows = await loadCatalogRows();
     const boxRulesContext = await buildBoxRulesContext(catalogRows);
-    const system = `${BOX_CURATOR_SYSTEM}${PRESENCE_APPEND}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}\n\n${BOX_CURATOR_JSON_INSTRUCTIONS}`;
+    const system = `${BOX_CURATOR_SYSTEM}${PRESENCE_APPEND}${PLAIN_TALK_APPEND}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}\n\n${BOX_CURATOR_JSON_INSTRUCTIONS}`;
 
     const anthropic = new Anthropic({ apiKey });
     try {

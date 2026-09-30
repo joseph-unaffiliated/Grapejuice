@@ -14,7 +14,8 @@ import {
 } from './context';
 import { assertKidRavAllowed, stripKidRavActions } from './kidRavGuard';
 import type { AskPilotRavData, RavBlock, RavPaneHint, RavResponse } from './types';
-import { sanitizeRavPane } from './types';
+import { sanitizeRavNavigate, sanitizeRavPane } from './types';
+import { PLAIN_TALK_APPEND } from './plainTalk';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
@@ -51,6 +52,51 @@ function ensureChatProductBlocks(blocks: RavBlock[], pane?: RavPaneHint): RavBlo
   }
   return next;
 }
+
+/**
+ * One product rail per reply: drop items already shown in an earlier block and
+ * any curation block left empty (the model sometimes repeats the same ids).
+ */
+function dedupeBlocks(blocks: RavBlock[]): RavBlock[] {
+  const seen = new Set<string>();
+  const out: RavBlock[] = [];
+  let curationKept = false;
+  for (const b of blocks) {
+    if (b.type === 'curation' && Array.isArray(b.swapOptions)) {
+      const ids = b.swapOptions.filter((id) => typeof id === 'string' && !seen.has(id));
+      if (!ids.length) continue;
+      if (curationKept) {
+        // Fold extra rails into the first so chat shows a single row.
+        const first = out.find((x) => x.type === 'curation');
+        if (first?.swapOptions) first.swapOptions = [...first.swapOptions, ...ids];
+      } else {
+        out.push({ ...b, swapOptions: ids });
+        curationKept = true;
+      }
+      ids.forEach((id) => seen.add(id));
+      continue;
+    }
+    if (b.type === 'product' && typeof b.itemId === 'string') {
+      if (seen.has(b.itemId)) continue;
+      seen.add(b.itemId);
+    }
+    out.push(b);
+  }
+  return out;
+}
+
+/**
+ * Conservative shopping-intent check on the latest user message. When absent,
+ * product blocks / product panes are dropped (box actions still pass through).
+ */
+const SHOPPING_INTENT_RE =
+  /\b(buy|shop|shopping|get|purchase|order|recommend|recommendation|suggest|option|options|alternatives?|swap|switch|replace|gift|gifts|present|price|prices|cost|costs|how much|show me|see (?:the|some|your|other)|which .* should|add|in my box|my box|browse|pick|choose|compare|cheaper|link)\b/i;
+
+function hasShoppingIntent(message: string): boolean {
+  return SHOPPING_INTENT_RE.test(message);
+}
+
+const PRODUCT_PANE_KINDS = new Set<RavPaneHint['kind']>(['swap_pick', 'curation', 'product_detail']);
 
 /** Sonnet sometimes wraps the schema in ```json fences — strip and extract the object. */
 function parseRavResponse(raw: string): RavResponse | null {
@@ -119,7 +165,9 @@ export const askPilotRav = onCall(
 
     const [householdContext, catalogRows] = await Promise.all([
       request.auth?.uid && modeName !== 'facilitator_kid'
-        ? buildHouseholdContext(request.auth.uid, clientDraft)
+        ? buildHouseholdContext(request.auth.uid, clientDraft, {
+            includeBeam: modeName === 'project_partner',
+          })
         : Promise.resolve(
             modeName === 'facilitator_kid' && kidChildName
               ? `Child profile: ${kidChildName}. Hanukkah 2026 at-home guide only.`
@@ -157,7 +205,8 @@ export const askPilotRav = onCall(
       .filter(Boolean)
       .join('\n\n');
 
-    const systemBase = `${modeConfig.systemPrompt}${PRESENCE_APPEND}`;
+    const plainTalk = modeName === 'project_partner' ? '' : PLAIN_TALK_APPEND;
+    const systemBase = `${modeConfig.systemPrompt}${PRESENCE_APPEND}${plainTalk}`;
     const system = contextParts
       ? `${systemBase}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${contextParts}`
       : systemBase;
@@ -183,15 +232,22 @@ export const askPilotRav = onCall(
       const text = parsed?.text?.trim() || raw.trim() || 'Sorry, I could not generate a reply.';
       let blocks = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.blocks) ? parsed!.blocks : [];
       const actions = modeName === 'facilitator_kid' ? [] : Array.isArray(parsed?.actions) ? parsed!.actions : [];
-      const pane =
+      let pane =
         modeName === 'facilitator_kid' ? undefined : sanitizeRavPane(parsed?.pane ?? null);
+      const navigate =
+        modeName === 'facilitator_kid' ? undefined : sanitizeRavNavigate(parsed?.navigate ?? null);
+      if (modeName !== 'facilitator_kid' && !hasShoppingIntent(message)) {
+        // How-to / meaning / conversation: text only — no product rails or product panes.
+        blocks = blocks.filter((b) => b.type !== 'curation' && b.type !== 'product');
+        if (pane && PRODUCT_PANE_KINDS.has(pane.kind)) pane = undefined;
+      }
       // Model often puts product ids only on pane.optionItemIds and leaves blocks empty.
       // Chat UIs (storefront drawer) have no companion pane — mirror ids into a curation block.
       if (modeName !== 'facilitator_kid') {
-        blocks = ensureChatProductBlocks(blocks, pane);
+        blocks = dedupeBlocks(ensureChatProductBlocks(blocks, pane));
       }
       const payload = stripKidRavActions({ reply: text, text, blocks, actions, pane });
-      return payload;
+      return navigate ? { ...payload, navigate } : payload;
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('askPilotRav Anthropic error', errMessage);

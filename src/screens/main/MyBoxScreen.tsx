@@ -58,7 +58,10 @@ import {
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
-import { SwapIntoBoxModal } from '../../components/storefront/SwapIntoBoxModal';
+import {
+  SwapIntoBoxModal,
+  swapTitleForItem,
+} from '../../components/storefront/SwapIntoBoxModal';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
@@ -72,6 +75,7 @@ import {
   childNamesForLines,
   coalesceLinesByItemId,
   donatedMemberValueCents,
+  donatedItemQuantities,
   formatBoxItemStatusMeta,
   fullCardLinesForSection,
   bookBadgeLabelForLines,
@@ -98,6 +102,7 @@ import {
 } from '../../components/box/boxLineDisplay';
 import { PerKidSlotAddBlock } from '../../components/box/PerKidSlotAddBlock';
 import { BoxSummaryDonated } from '../../components/box/BoxSummaryDonated';
+import { DonatedItemsModal } from '../../components/box/DonatedItemsModal';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import {
@@ -120,7 +125,7 @@ import {
 } from '../../services/box/slotVotes';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { updatePilotBoxOrder } from '../../services/checkout/updatePilotBoxOrder';
-import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
+import { boxItemDomId, useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { createBoxDetailStyles, BOX_SUMMARY_SCROLL_INSET } from '../../components/box/boxDetailLayout';
 import {
   spacing,
@@ -226,6 +231,13 @@ export function MyBoxScreen() {
   const [swapPicker, setSwapPicker] = useState<{
     slotIds: string[];
     options: CatalogItem[];
+    title?: string;
+  } | null>(null);
+  const [donationsOpen, setDonationsOpen] = useState(false);
+  /** “Swap something else in” for a donated item — picker replaces it with another option. */
+  const [donatedSwap, setDonatedSwap] = useState<{
+    itemId: string;
+    options: CatalogItem[];
   } | null>(null);
   const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
@@ -305,8 +317,16 @@ export function MyBoxScreen() {
     return BOX_DISPLAY_SECTIONS.map((section) => section.id);
   }, [isChildProfile]);
 
-  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
-    useBoxDetailScroll({ visibleSectionIds });
+  const {
+    scrollRef,
+    contentRef,
+    activeSection,
+    registerSection,
+    onSectionLayout,
+    onScroll,
+    scrollToSection,
+    scrollToItem,
+  } = useBoxDetailScroll({ visibleSectionIds });
 
   /** Recompute when catalog/lines change — never cache empty results across loads. */
   const swapOptionsBySlot = useMemo(() => {
@@ -374,6 +394,8 @@ export function MyBoxScreen() {
   };
 
   const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
+  /** Free lines as they were when donated — so Restore puts them back in the same slot. */
+  const donatedLineSnapshots = useRef<Map<string, BoxLineItem[]>>(new Map());
   useEffect(() => {
     setLiveIncludedBaselines(includedBaselineByItemId.current);
     return () => setLiveIncludedBaselines(null);
@@ -424,6 +446,12 @@ export function MyBoxScreen() {
       baselines.set(
         group.itemId,
         Math.max(baselines.get(group.itemId) ?? 0, persistedBaseline, freeQty)
+      );
+      donatedLineSnapshots.current.set(
+        group.itemId,
+        group.lines.filter(
+          (li) => !li.slotId.endsWith(EXTRA_UNIT_SUFFIX) && (li.unitCents ?? 0) === 0
+        )
       );
     }
     let next = removeCoalescedGroup(lineItems, group);
@@ -1280,7 +1308,16 @@ export function MyBoxScreen() {
             ) ?? li;
 
           return (
-            <View key={group.key}>
+            <View
+              key={group.key}
+              nativeID={boxItemDomId(group.key)}
+              style={
+                Platform.OS === 'web'
+                  ? ({ scrollMarginTop: BOX_SUMMARY_SCROLL_INSET } as object)
+                  : undefined
+              }
+              {...(Platform.OS === 'web' ? ({ id: boxItemDomId(group.key) } as object) : null)}
+            >
               {showChildWrapped ? (
                 <WrappedGiftPlaceholder />
               ) : (
@@ -1317,6 +1354,9 @@ export function MyBoxScreen() {
                                 setSwapPicker({
                                   slotIds: group.lines.map((line) => line.slotId),
                                   options: opts,
+                                  title: swapTitleForItem(item, {
+                                    giftSlot: isGiftSlotLine(li),
+                                  }),
                                 });
                               }
                             : undefined
@@ -1464,6 +1504,116 @@ export function MyBoxScreen() {
     if (cents > 0 && !guardMutation()) return;
     await persist(withCashDonationCents(lineItems, cents));
   };
+  const donatedItems = donatedItemQuantities(
+    lineItems,
+    catalog,
+    includedBaselineByItemId.current,
+    { wrapSelectedCount: wrapSelectedIds.size }
+  );
+  const donatedSwapOptions = (itemId: string): CatalogItem[] => {
+    const item = catalog.find((c) => c.id === itemId);
+    if (!item) return [];
+    const snapshot = donatedLineSnapshots.current.get(itemId)?.[0];
+    const options =
+      snapshot && isGiftSlotLine(snapshot)
+        ? resolveIncludedGiftOptions(catalog, itemId, 6)
+        : resolveSwapOptionsForItem(item, catalog, 6);
+    return options.filter((opt) => opt.id !== itemId);
+  };
+  /**
+   * Put a donated item back (or `replacement` in its place). Prefers the exact lines
+   * that were removed so gift/kid slots come back where they were.
+   */
+  const restoreDonated = async (itemId: string, replacement?: CatalogItem) => {
+    if (locked) return;
+    const item = catalog.find((c) => c.id === itemId);
+    if (!item) return;
+    const missing =
+      donatedItems.find((d) => d.item.id === itemId)?.missing ?? 0;
+    if (missing <= 0) return;
+    const freeLines = lineItems.filter(
+      (li) =>
+        li.itemId === itemId &&
+        !li.slotId.endsWith(EXTRA_UNIT_SUFFIX) &&
+        (li.unitCents ?? 0) === 0
+    );
+    const sectionId = displaySectionForCatalogItem(item);
+    if (!replacement && freeLines[0]) {
+      const target = freeLines[0];
+      await persist(
+        lineItems.map((li) =>
+          li.slotId === target.slotId
+            ? {
+                ...li,
+                quantity: (li.quantity ?? 1) + missing,
+                includedQty: li.includedQty ?? (li.quantity ?? 1) + missing,
+              }
+            : li
+        )
+      );
+      return;
+    }
+    const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
+    if (!replacement && !snapshot.length) {
+      await addFreeItemToEmptySlot(sectionId, item);
+      return;
+    }
+    const target = replacement ?? item;
+    const giftSwap = snapshot[0] ? isGiftSlotLine(snapshot[0]) : false;
+    const unit = !replacement || giftSwap
+      ? 0
+      : resolveFreeSwapUnitCents(item, replacement, sectionId) ?? boxAddOnUnitCents(replacement);
+    if (!guestViewOnly && unit > 0 && !guardMutation()) return;
+    const targetSection = displaySectionForCatalogItem(target);
+    let next = lineItems;
+    const snapshotQty = snapshot.reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+    const templates: BoxLineItem[] = snapshot.length
+      ? snapshot.map((li, i) =>
+          i === 0 && snapshotQty < missing
+            ? { ...li, quantity: (li.quantity ?? 1) + (missing - snapshotQty) }
+            : li
+        )
+      : [
+          {
+            slotId: '',
+            itemId,
+            quantity: missing,
+            includedQty: missing,
+            unitCents: 0,
+            label: item.name,
+            displaySectionId: sectionId,
+          } as BoxLineItem,
+        ];
+    for (const li of templates) {
+      let slotId = replacement && li.slotId ? slotIdAfterSwap(li.slotId, target) : li.slotId;
+      if (!slotId || next.some((x) => x.slotId === slotId)) {
+        slotId = uniqueSlotForFreeSectionAdd(targetSection, target, next);
+      }
+      next = [
+        ...next,
+        {
+          ...li,
+          slotId,
+          itemId: target.id,
+          label: target.name,
+          unitCents: unit,
+          curationNote: undefined,
+          ...(replacement ? { displaySectionId: giftSwap ? li.displaySectionId : targetSection } : null),
+        },
+      ];
+    }
+    if (replacement) {
+      transferIncludedBaselineOnSwap(
+        includedBaselineByItemId.current,
+        itemId,
+        replacement.id,
+        missing,
+        unit
+      );
+    }
+    donatedLineSnapshots.current.delete(itemId);
+    await persist(next);
+  };
   // Everything paid beyond the base box rolls into one “Add-ons” line.
 
   const lockBanner = locked && lockAt ? (
@@ -1588,6 +1738,7 @@ export function MyBoxScreen() {
               onCashDonationChange={
                 locked || guestViewOnly ? undefined : (cents) => void setCashDonation(cents)
               }
+              onOpenDonations={locked ? undefined : () => setDonationsOpen(true)}
               labelStyle={styles.summaryLabel}
               valueStyle={styles.summaryDonatedValue}
               itemStyle={styles.summaryItem}
@@ -1731,10 +1882,25 @@ export function MyBoxScreen() {
       </View>
     ) : null;
 
+  const jumpToItem = (_itemId: string, sectionId: BoxDisplaySectionId, rowKey: string) => {
+    requestAnimationFrame(() =>
+      scrollToItem(rowKey, sectionId, { inset: BOX_SUMMARY_SCROLL_INSET })
+    );
+  };
+
   const scrollBody = (
     <>
       {scrollHeader}
       {kidEmptyState}
+      {!isChildProfile && !kidEmptyState ? (
+        <BoxSummaryList
+          variant="jump"
+          lineItems={lineItems}
+          catalog={catalog}
+          childrenProfiles={children}
+          onPressItem={jumpToItem}
+        />
+      ) : null}
       {kidEmptyState ? null : sections}
       {!isChildProfile && !kidEmptyState ? (
         <BoxSummaryList
@@ -1742,11 +1908,7 @@ export function MyBoxScreen() {
           catalog={catalog}
           childrenProfiles={children}
           showReset={!locked && !guestViewOnly && !isChildProfile}
-          onPressItem={(_itemId, sectionId) => {
-            requestAnimationFrame(() =>
-              scrollToSection(sectionId, { inset: BOX_SUMMARY_SCROLL_INSET })
-            );
-          }}
+          onPressItem={jumpToItem}
         />
       ) : null}
     </>
@@ -1869,6 +2031,55 @@ export function MyBoxScreen() {
           if (opt) void applySwap(slotIds, opt);
         }}
         onCancel={() => setSwapPicker(null)}
+        title={swapPicker?.title}
+      />
+      <DonatedItemsModal
+        visible={donationsOpen && !donatedSwap}
+        items={donatedItems.map(({ item, missing }) => ({
+          itemId: item.id,
+          name: item.name,
+          imageUrl: item.imageUrl,
+          quantity: missing,
+          canSwap: donatedSwapOptions(item.id).length > 0,
+        }))}
+        cashDonationCents={cashDonationCents}
+        onCashDonationChange={
+          locked || guestViewOnly ? undefined : (cents) => void setCashDonation(cents)
+        }
+        onRestore={locked ? undefined : (itemId) => void restoreDonated(itemId)}
+        onSwapIn={
+          locked
+            ? undefined
+            : (itemId) => setDonatedSwap({ itemId, options: donatedSwapOptions(itemId) })
+        }
+        onClose={() => setDonationsOpen(false)}
+      />
+      <SwapIntoBoxModal
+        visible={donatedSwap != null && donatedSwap.options.length > 0}
+        options={(donatedSwap?.options ?? []).map((opt) => ({
+          key: opt.id,
+          name: opt.name,
+          imageUrl: opt.imageUrl,
+          itemId: opt.id,
+        }))}
+        onSelect={(key) => {
+          if (!donatedSwap) return;
+          const opt = donatedSwap.options.find((o) => o.id === key);
+          const { itemId } = donatedSwap;
+          setDonatedSwap(null);
+          if (opt) void restoreDonated(itemId, opt);
+        }}
+        onCancel={() => setDonatedSwap(null)}
+        title={
+          donatedSwap
+            ? swapTitleForItem(catalog.find((c) => c.id === donatedSwap.itemId), {
+                giftSlot: (() => {
+                  const snap = donatedLineSnapshots.current.get(donatedSwap.itemId)?.[0];
+                  return snap ? isGiftSlotLine(snap) : false;
+                })(),
+              })
+            : undefined
+        }
       />
     </StorefrontChrome>
   );

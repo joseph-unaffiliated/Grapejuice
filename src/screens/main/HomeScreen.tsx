@@ -19,9 +19,9 @@ import { useSession } from '../../hooks/useSession';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { PILOT_HIDE_IN_APP_GUIDE } from '../../constants/pilotFeatures';
 import { useAuthStore } from '../../stores/authStore';
-import { useGuestSessionStore } from '../../stores/guestSessionStore';
+import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { openBoxSurface } from '../../navigation/boxEntry';
-import { usersService } from '../../services/firestore/users';
+import { applyStorefrontInterest } from '../../hooks/useStorefrontInterest';
 import { ordersService } from '../../services/firestore/orders';
 import { useCatalog } from '../../hooks/useCatalog';
 import { getHanukkahConfig, getPassoverWaitlistConfig } from '../../services/firestore/config';
@@ -168,9 +168,6 @@ export function HomeScreen() {
   const { lineItems, loading: draftLoading } = useBoxDraft();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
-  const guestInterests = useGuestSessionStore((s) => s.interests);
-  const toggleGuestInterest = useGuestSessionStore((s) => s.toggleInterest);
-
   const scrollRef = useRef<ScrollView>(null);
   const collapseProgress = useRef(new Animated.Value(0)).current;
   const headerCollapsedRef = useRef(false);
@@ -216,9 +213,8 @@ export function HomeScreen() {
   const [passoverCapacity, setPassoverCapacity] = useState(39);
   const [now, setNow] = useState(() => new Date());
 
-  const interests = guestInterests;
   const passoverNotified =
-    interests.includes(PASSOVER_NOTIFY_INTEREST) ||
+    isAuthenticated &&
     (profile?.storefrontInterests ?? []).includes(PASSOVER_NOTIFY_INTEREST);
   const openBox = useCallback(() => {
     openBoxSurface(isAuthenticated, {
@@ -313,29 +309,22 @@ export function HomeScreen() {
   };
 
   const handleToggleInterest = async (holidayId: string) => {
-    toggleGuestInterest(holidayId);
-    if (isAuthenticated && user?.uid) {
-      const guestNow = useGuestSessionStore.getState().interests;
-      const others = (profile?.storefrontInterests ?? []).filter(
-        (i) => i !== holidayId
-      );
-      const next = guestNow.includes(holidayId)
-        ? [...others, holidayId]
-        : others;
-      await usersService.upsert(user.uid, {
-        notificationsOptIn: guestNow.includes(PASSOVER_NOTIFY_INTEREST)
-          ? true
-          : undefined,
-        storefrontInterests: next,
-      });
-      void refresh({ silent: true });
+    if (!isAuthenticated || !user?.uid) {
+      // Pre-registering needs an account — sign in, then PendingInterestEffect applies it.
+      const flow = useAuthFlowStore.getState();
+      flow.setPendingInterestKey(holidayId);
+      flow.startAuthInPlace('signin');
+      return;
     }
+    const current = profile?.storefrontInterests ?? [];
+    await applyStorefrontInterest(user.uid, current, holidayId, !current.includes(holidayId));
+    void refresh({ silent: true });
   };
 
   const handlePassoverPreregister = () => {
     if (passoverNotified) return;
     void handleToggleInterest(PASSOVER_NOTIFY_INTEREST);
-    Alert.alert("You're pre-registered for Passover 2027");
+    if (isAuthenticated) Alert.alert("You're pre-registered for Passover 2027");
   };
 
   const handleCategoryChip = (id: (typeof CATEGORY_CHIPS)[number]['id']) => {

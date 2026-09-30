@@ -38,6 +38,7 @@ import { AccountLinkEffect } from './AccountLinkEffect';
 import { OrdersLinkEffect } from './OrdersLinkEffect';
 import { MyGiftsLinkEffect } from './MyGiftsLinkEffect';
 import { CheckoutLinkEffect } from './CheckoutLinkEffect';
+import { PendingInterestEffect } from './PendingInterestEffect';
 import { BoxLinkEffect } from './BoxLinkEffect';
 import { PasswordResetLinkEffect } from './PasswordResetLinkEffect';
 import { hydratePasswordResetFromBoot } from './passwordResetLink';
@@ -438,6 +439,7 @@ export function RootNavigator() {
           <OrdersLinkEffect />
           <MyGiftsLinkEffect />
           <CheckoutLinkEffect />
+          <PendingInterestEffect />
           <BoxLinkEffect />
           <PasswordResetLinkEffect />
           <AuthResumeMainEffect />

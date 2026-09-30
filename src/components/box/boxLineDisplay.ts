@@ -656,7 +656,7 @@ export function uniqueSlotForFreeSectionAdd(
 const INCLUDED_PRACTICE_SLOT_IDS: Partial<Record<BoxDisplaySectionId, readonly string[]>> = {
   candles: ['candles'],
   dreidel: ['wood-dreidel', 'blank-dreidel', 'airdry-dreidel'],
-  food: ['latke-mix', 'sufganiyot-mix', 'applesauce', 'latke-kit', 'sufganiyot-kit', 'latke-recipe-printed'],
+  food: ['latke-mix', 'sufganiyot-mix', 'latke-kit', 'sufganiyot-kit', 'latke-recipe-printed'],
 };
 
 /**
@@ -942,7 +942,29 @@ export function donatedMemberValueCents(
   includedBaselines: ReadonlyMap<string, number>,
   opts?: { wrapSelectedCount?: number }
 ): number {
-  if (includedBaselines.size === 0) return 0;
+  let cents = 0;
+  for (const { item, missing } of donatedItemQuantities(
+    lineItems,
+    catalog,
+    includedBaselines,
+    opts
+  )) {
+    const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
+    const unit = memberCents > 0 ? memberCents : nonMemberCents;
+    if (unit <= 0) continue;
+    cents += missing * unit;
+  }
+  return cents;
+}
+
+/** Included items (and how many units) the member has taken out of the box. */
+export function donatedItemQuantities(
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[],
+  includedBaselines: ReadonlyMap<string, number>,
+  opts?: { wrapSelectedCount?: number }
+): { item: CatalogItem; missing: number }[] {
+  if (includedBaselines.size === 0) return [];
   const skipWrappingPaper = (opts?.wrapSelectedCount ?? 0) > 0;
 
   const freeQtyByItem = new Map<string, number>();
@@ -953,7 +975,7 @@ export function donatedMemberValueCents(
     freeQtyByItem.set(li.itemId, (freeQtyByItem.get(li.itemId) ?? 0) + qty);
   }
 
-  let cents = 0;
+  const out: { item: CatalogItem; missing: number }[] = [];
   for (const [itemId, baselineRaw] of includedBaselines) {
     if (skipWrappingPaper && isWrappingPaperItem(itemId, catalog)) continue;
     const baseline = Math.max(0, baselineRaw);
@@ -963,12 +985,9 @@ export function donatedMemberValueCents(
     if (missing <= 0) continue;
     const item = catalog.find((c) => c.id === itemId);
     if (!item) continue;
-    const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
-    const unit = memberCents > 0 ? memberCents : nonMemberCents;
-    if (unit <= 0) continue;
-    cents += missing * unit;
+    out.push({ item, missing });
   }
-  return cents;
+  return out;
 }
 
 /** Summary-bar cash donation — charged in Total, not shown as a section card. */

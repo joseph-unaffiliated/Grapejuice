@@ -39,7 +39,11 @@ import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
 import { navigateMainStack, navigateMainTab } from '../../navigation/mainStackNavigation';
-import { SwapIntoBoxModal } from '../storefront/SwapIntoBoxModal';
+import {
+  SwapIntoBoxModal,
+  swapOutTitleForItem,
+  swapTitleForItem,
+} from '../storefront/SwapIntoBoxModal';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -582,6 +586,13 @@ export function BoxProductModal({
           void run(() => onSwap(item, source));
         }}
         onCancel={() => setSwapPickerOpen(false)}
+        title={
+          inBox
+            ? swapTitleForItem(item, {
+                giftSlot: inBoxPrimary ? isGiftSlotLine(inBoxPrimary) : false,
+              })
+            : swapOutTitleForItem(item)
+        }
       />
     </Modal>
   );

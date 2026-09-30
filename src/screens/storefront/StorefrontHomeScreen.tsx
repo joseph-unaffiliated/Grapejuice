@@ -49,7 +49,11 @@ import {
   useStorefrontHomeMode,
 } from '../../hooks/useStorefrontHomeMode';
 import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
-import { PASSOVER_NOTIFY_INTEREST, PRE_REGISTERED_CTA_LABEL } from '../../constants/pilotHolidays';
+import {
+  PASSOVER_NOTIFY_INTEREST,
+  PRE_REGISTERED_CTA_LABEL,
+  PRE_REGISTERED_NOTE,
+} from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
@@ -546,6 +550,7 @@ export function StorefrontHomeScreen() {
             primaryLabel={
               passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
             }
+            note={passoverInterest.marked ? PRE_REGISTERED_NOTE : undefined}
           />
         </LazyMount>
     </StorefrontChrome>

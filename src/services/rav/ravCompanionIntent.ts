@@ -129,6 +129,14 @@ export function blocksFromRavPane(pane: RavPaneHint | undefined | null): RavBloc
   return [];
 }
 
+/** Mirrors the askPilotRav server guard — only surface product rails when asked. */
+const RAV_SHOPPING_INTENT_RE =
+  /\b(buy|shop|shopping|get|purchase|order|recommend|recommendation|suggest|option|options|alternatives?|swap|switch|replace|gift|gifts|present|price|prices|cost|costs|how much|show me|see (?:the|some|your|other)|which .* should|add|in my box|my box|browse|pick|choose|compare|cheaper|products?|side\s*by\s*side)\b/i;
+
+export function hasRavShoppingIntent(message: string): boolean {
+  return RAV_SHOPPING_INTENT_RE.test(message);
+}
+
 /**
  * When Rav promises products but returns neither blocks nor pane ids,
  * build a small aisle rail from the catalog using the user message.
@@ -139,6 +147,8 @@ export function buildCatalogBrowseBlock(
   limit = 8
 ): RavBlock | null {
   if (!message.trim() || !catalog.length) return null;
+  // "How do I light candles?" mentions candles but isn't asking to shop.
+  if (!hasRavShoppingIntent(message)) return null;
   const t = message.toLowerCase();
 
   const keywordToSlug: Array<{ re: RegExp; slug: string }> = [

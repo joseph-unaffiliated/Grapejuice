@@ -32,8 +32,8 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Eat & Drink',
     tagline: 'Fried food is the tradition.',
     description:
-      'Oil is the theme — latkes and sufganiyot. We include both mixes plus applesauce so you can cook either (or both) without hunting the store.',
-    boxItems: ['Latke mix', 'Sufganiyot mix', 'Applesauce'],
+      'Oil is the theme: latkes and sufganiyot. We include both mixes (the latke kit comes with applesauce spice mix) so you can cook either, or both, without hunting the store.',
+    boxItems: ['Latke mix', 'Sufganiyot mix'],
   },
   {
     id: 'story',

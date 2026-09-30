@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BoxLineItem } from '../types/pilot';
+import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 
 /** Soft cap so the header badge stays readable. */
 export const MAX_MARKETPLACE_CART_QTY = 99;
@@ -78,6 +79,11 @@ export const useMarketplaceCartStore = create<MarketplaceCartState>()(
       name: 'grapejuice-marketplace-cart',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({ items: s.items }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const retired = retireLegacyBoxLines(state.items ?? []);
+        if (retired.dirty) state.setItems(retired.lineItems);
+      },
     }
   )
 );

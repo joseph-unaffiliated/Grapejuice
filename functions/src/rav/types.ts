@@ -33,11 +33,18 @@ export type RavPaneHint = {
   topic?: string;
 };
 
+/** Rav-requested in-app navigation (sanitized against an allowlist). */
+export type RavNavigate = {
+  path: string;
+  label: string;
+};
+
 export type RavResponse = {
   text: string;
   blocks: RavBlock[];
   actions?: RavDraftAction[];
   pane?: RavPaneHint | null;
+  navigate?: RavNavigate | null;
 };
 
 export type AskPilotRavData = {
@@ -74,6 +81,50 @@ export type LineItem = {
   quantity?: number;
   childId?: string;
 };
+
+const NAVIGATE_EXACT = new Set([
+  '/box',
+  '/store',
+  '/checkout',
+  '/orders',
+  '/my-gifts',
+  '/account',
+  '/story',
+  '/passover',
+  '/gift',
+]);
+const NAVIGATE_PATTERNS = [/^\/store\/[a-z0-9-]{1,48}$/, /^\/product\/[a-z0-9-]{1,96}$/];
+
+const NAVIGATE_DEFAULT_LABELS: Record<string, string> = {
+  '/box': 'your box',
+  '/store': 'the store',
+  '/checkout': 'checkout',
+  '/orders': 'your orders',
+  '/my-gifts': 'your gifts',
+  '/account': 'your account',
+  '/story': 'our story',
+  '/passover': 'Passover',
+  '/gift': 'send a gift',
+};
+
+/** Keep only allowlisted in-app paths; drop query/hash and anything external. */
+export function sanitizeRavNavigate(raw: unknown): RavNavigate | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const n = raw as Record<string, unknown>;
+  if (typeof n.path !== 'string') return undefined;
+  let path = n.path.trim().toLowerCase().split(/[?#]/)[0] ?? '';
+  if (!path.startsWith('/')) path = `/${path}`;
+  if (path.length > 1) path = path.replace(/\/+$/, '');
+  const allowed = NAVIGATE_EXACT.has(path) || NAVIGATE_PATTERNS.some((re) => re.test(path));
+  if (!allowed) return undefined;
+  const rawLabel = typeof n.label === 'string' ? n.label.trim().slice(0, 48) : '';
+  const label =
+    rawLabel ||
+    NAVIGATE_DEFAULT_LABELS[path] ||
+    path.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') ||
+    'that page';
+  return { path, label };
+}
 
 const PANE_KINDS = new Set(['box', 'swap_pick', 'swap_review', 'curation', 'product_detail']);
 

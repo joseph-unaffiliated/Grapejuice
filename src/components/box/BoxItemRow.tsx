@@ -173,13 +173,13 @@ function ActionChip({
 function QtyStepper({
   quantity,
   locked,
-  removeLabel,
+  decrementMode,
   onQuantityChange,
   styles,
 }: {
   quantity: number;
   locked: boolean;
-  removeLabel: string;
+  decrementMode: 'donate' | 'remove';
   onQuantityChange?: (delta: 1 | -1) => void;
   styles: BoxItemRowStyles;
 }) {
@@ -187,34 +187,18 @@ function QtyStepper({
     return null;
   }
   const atOne = quantity <= 1;
-  if (atOne) {
-    return (
-      <View style={styles.qtyAtOneRow}>
-        <ActionChip
-          label={removeLabel}
-          styles={styles}
-          onPress={() => onQuantityChange(-1)}
-        />
-        <TouchableOpacity
-          style={styles.qtyAddAlone}
-          onPress={() => onQuantityChange(1)}
-          accessibilityRole="button"
-          accessibilityLabel="Increase quantity"
-        >
-          <Text style={styles.qtyBtnText}>+</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const atOneLabel = decrementMode === 'donate' ? 'donate' : 'remove';
   return (
     <View style={styles.qtyRow}>
       <TouchableOpacity
-        style={styles.qtyBtn}
+        style={[styles.qtyBtn, atOne && styles.qtyBtnDonate]}
         onPress={() => onQuantityChange(-1)}
         accessibilityRole="button"
-        accessibilityLabel="Decrease quantity"
+        accessibilityLabel={atOne ? (decrementMode === 'donate' ? 'Donate' : 'Remove') : 'Decrease quantity'}
       >
-        <Text style={styles.qtyBtnText}>−</Text>
+        <Text style={[styles.qtyBtnText, atOne && styles.qtyBtnTextDonate]}>
+          {atOne ? atOneLabel : '−'}
+        </Text>
       </TouchableOpacity>
       <Text style={styles.qtyValue}>{quantity}</Text>
       <TouchableOpacity
@@ -249,7 +233,7 @@ export function BoxItemRow({
   previewChips = false,
   quantity: quantityProp,
   onQuantityChange,
-  decrementMode: _decrementMode,
+  decrementMode,
   removeLabel = 'Remove from box',
   onOpenProduct,
   imageBadge,
@@ -277,6 +261,8 @@ export function BoxItemRow({
   const quantity = Math.max(1, quantityProp ?? li.quantity ?? 1);
   const primarySwapLabel = swapLabel ?? 'Swap';
   const resolvedRemoveLabel = removeLabel;
+  const resolvedDecrement: 'donate' | 'remove' =
+    decrementMode ?? ((li.unitCents ?? 0) === 0 ? 'donate' : 'remove');
 
   const openDetail = () => {
     if (onOpenProduct) {
@@ -397,7 +383,7 @@ export function BoxItemRow({
                     <QtyStepper
                       quantity={quantity}
                       locked={locked}
-                      removeLabel={resolvedRemoveLabel}
+                      decrementMode={resolvedDecrement}
                       onQuantityChange={onQuantityChange}
                       styles={styles}
                     />
@@ -524,7 +510,7 @@ export function BoxItemRow({
           <QtyStepper
             quantity={quantity}
             locked={locked}
-            removeLabel={resolvedRemoveLabel}
+            decrementMode={resolvedDecrement}
             onQuantityChange={onQuantityChange}
             styles={styles}
           />
@@ -822,22 +808,6 @@ function createBoxItemRowStyles(
       textTransform: 'lowercase',
     },
     chipTextPrimary: { color: colors.goldMuted },
-    qtyAtOneRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
-    qtyAddAlone: {
-      minWidth: 27,
-      minHeight: 27,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 0.5,
-      borderColor: colors.goldMuted,
-      borderRadius: borderRadius.pill,
-      paddingHorizontal: 6,
-      backgroundColor: colors.bgPrimary,
-    },
     qtyRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -862,6 +832,12 @@ function createBoxItemRowStyles(
       color: colors.goldMuted,
       ...typeface('regular'),
       lineHeight: 14,
+    },
+    qtyBtnDonate: { minWidth: 52 },
+    qtyBtnTextDonate: {
+      fontSize: 9,
+      letterSpacing: -0.18,
+      textTransform: 'lowercase',
     },
     qtyValue: {
       fontSize: 11,

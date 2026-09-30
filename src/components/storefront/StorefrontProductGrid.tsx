@@ -15,7 +15,7 @@ import {
   StorefrontProductTile,
   type StorefrontTileBoxRelation,
 } from './StorefrontProductTile';
-import { SwapIntoBoxModal } from './SwapIntoBoxModal';
+import { SwapIntoBoxModal, swapOutTitleForItem } from './SwapIntoBoxModal';
 import { transferLiveIncludedBaselineOnSwap } from '../box/boxLineDisplay';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
@@ -283,6 +283,7 @@ export function StorefrontProductGrid({
       options={swapOptions}
       onSelect={confirmSwap}
       onCancel={() => setSwapIncoming(null)}
+      title={swapOutTitleForItem(swapIncoming)}
     />
   );
 

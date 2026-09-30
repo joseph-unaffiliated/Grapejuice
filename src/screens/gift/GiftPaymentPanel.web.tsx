@@ -1,5 +1,5 @@
 /** Gift Stripe payment step — aligned with CheckoutScreen.web visual language. */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -66,6 +66,16 @@ export function GiftPaymentPanel({
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const [paying, setPaying] = useState(false);
+  const [elementState, setElementState] = useState<'loading' | 'slow' | 'ready' | 'error'>(
+    'loading'
+  );
+  const [elementError, setElementError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (elementState !== 'loading') return;
+    const t = setTimeout(() => setElementState((s) => (s === 'loading' ? 'slow' : s)), 12000);
+    return () => clearTimeout(t);
+  }, [elementState]);
 
   const pay = async () => {
     if (!stripe || !elements) return;
@@ -137,13 +147,31 @@ export function GiftPaymentPanel({
 
       <Text style={styles.sectionTitle}>Payment method</Text>
       <View style={styles.paymentElementWrap}>
-        <PaymentElement options={{ layout: 'tabs' }} />
+        <PaymentElement
+          options={{ layout: 'tabs' }}
+          onReady={() => setElementState('ready')}
+          onLoadError={(event) => {
+            console.warn('[gift] PaymentElement failed to load', event.error);
+            setElementError(event.error?.message ?? null);
+            setElementState('error');
+          }}
+        />
+        {elementState === 'loading' ? (
+          <Text style={styles.elementNote}>Loading secure payment form…</Text>
+        ) : null}
+        {elementState === 'error' || elementState === 'slow' ? (
+          <Text style={[styles.elementNote, styles.elementError]}>
+            {elementState === 'error'
+              ? `The payment form couldn't load${elementError ? ` (${elementError})` : ''}. Refresh the page or try another browser.`
+              : 'The payment form is taking a while. If it doesn’t appear, refresh the page or turn off content blockers for this site.'}
+          </Text>
+        ) : null}
       </View>
 
       <TouchableOpacity
-        style={[styles.cta, paying && styles.ctaDisabled]}
+        style={[styles.cta, (paying || elementState !== 'ready') && styles.ctaDisabled]}
         onPress={() => void pay()}
-        disabled={paying}
+        disabled={paying || elementState !== 'ready'}
         activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel={`Pay ${formatDollars(amountCents)} and send`}
@@ -254,6 +282,13 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       minHeight: 120,
       marginBottom: spacing.md,
     },
+    elementNote: {
+      marginTop: spacing.sm,
+      fontSize: typography.sm,
+      color: colors.textSecondary,
+      ...typeface('regular'),
+    },
+    elementError: { color: colors.error },
     cta: {
       backgroundColor: colors.textPrimary,
       padding: spacing.md,

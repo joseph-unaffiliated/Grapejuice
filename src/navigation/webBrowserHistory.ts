@@ -20,6 +20,8 @@ import { normalizeLandingPath } from '../constants/landingPaths';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
 import { navigateMainStack, navigateMainTab, navigateToLanding } from './mainStackNavigation';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
+import { useAuthStore } from '../stores/authStore';
+import { openBoxSurface } from './boxEntry';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 import { retentionPage } from '../services/analytics/retention';
 
@@ -116,42 +118,62 @@ function activeScreenPathname(state: NavigationState | undefined): string | null
  */
 function restoreFromBrowserUrl(): void {
   if (!navigationRef.isReady()) return;
-  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  restoreFromPath(window.location.pathname, window.location.search);
+}
+
+/**
+ * Open an in-app path the way a deep link would (Rav "navigate", links in chat).
+ * `/box` goes through `openBoxSurface` so guests without a box start the builder.
+ * Returns false when the path isn't a known screen.
+ */
+export function navigateToAppPath(rawPath: string): boolean {
+  if (!navigationRef.isReady()) return false;
+  const [pathPart, query = ''] = rawPath.trim().split('?');
+  const path = (pathPart || '/').replace(/\/$/, '') || '/';
+  if (path === BOX_PATH || path === '/my-box') {
+    openBoxSurface(useAuthStore.getState().isAuthenticated);
+    return true;
+  }
+  return restoreFromPath(path, query ? `?${query}` : '');
+}
+
+function restoreFromPath(pathname: string, search: string): boolean {
+  const path = pathname.replace(/\/$/, '') || '/';
 
   if (path === CHECKOUT_PATH) {
     navigateMainStack('Checkout');
-    return;
+    return true;
   }
   if (path === BOX_PATH || path === '/my-box') {
     navigateMainStack('MyBox');
-    return;
+    return true;
   }
   if (path === ORDERS_PATH) {
     navigateMainStack('Orders');
-    return;
+    return true;
   }
   if (path === MY_GIFTS_PATH) {
     navigateMainStack('MyGifts');
-    return;
+    return true;
   }
   const giftBoxId = readGiftBoxIdFromPath(path);
   if (giftBoxId) {
     navigateMainStack('GiftBox', { giftInviteId: giftBoxId });
-    return;
+    return true;
   }
   const giftRevealId = readGiftRevealIdFromPath(path);
   if (giftRevealId) {
     // Reveal is transitional — land on the editable gift box.
     navigateMainStack('GiftBox', { giftInviteId: giftRevealId });
-    return;
+    return true;
   }
   if (path === ACCOUNT_PATH) {
     navigateMainTab('Account');
-    return;
+    return true;
   }
   if (path === GIFT_LANDING_PATH) {
     navigateToLanding('gift');
-    return;
+    return true;
   }
   if (path === GIFT_CUSTOMIZE_PATH) {
     const intent = useGiftIntentStore.getState();
@@ -174,7 +196,7 @@ function restoreFromBrowserUrl(): void {
         initialGiftPath: 'customize' as const,
       });
     }
-    return;
+    return true;
   }
   if (path === GIFT_GIVE_PATH) {
     const intent = useGiftIntentStore.getState();
@@ -188,7 +210,7 @@ function restoreFromBrowserUrl(): void {
     } else {
       navigateMainStack('GiftGive');
     }
-    return;
+    return true;
   }
   if (path.startsWith(`${PRODUCT_PATH_PREFIX}/`)) {
     const raw = path.slice(PRODUCT_PATH_PREFIX.length + 1).split('/')[0] ?? '';
@@ -200,25 +222,25 @@ function restoreFromBrowserUrl(): void {
     }
     if (slug) {
       navigateMainStack('CatalogProduct', { slug });
-      return;
+      return true;
     }
   }
 
   const contentRoute = contentRouteFromPath(path);
   if (contentRoute) {
     navigateMainStack(contentRoute);
-    return;
+    return true;
   }
 
-  const store = readStorePathFromPathname(path, window.location.search);
+  const store = readStorePathFromPathname(path, search);
   if (store) {
     if (store.kind === 'home') {
       navigateMainStack('StorefrontHome');
-      return;
+      return true;
     }
     if (store.category === 'favorites') {
       navigateMainStack('StorefrontFavorites');
-      return;
+      return true;
     }
     navigateMainStack('StorefrontCategory', {
       category: resolveStorefrontCategorySlug(store.category || DEFAULT_STOREFRONT_CATEGORY),
@@ -226,13 +248,15 @@ function restoreFromBrowserUrl(): void {
       ...(store.avail ? { avail: store.avail } : null),
       ...(store.style ? { style: store.style } : null),
     });
-    return;
+    return true;
   }
 
   const audience = landingAudienceFromPath(normalizeLandingPath(path));
   if (audience) {
     navigateToLanding(audience.id);
+    return true;
   }
+  return false;
 }
 
 /** Push a browser history entry when in-app navigation moves forward. */

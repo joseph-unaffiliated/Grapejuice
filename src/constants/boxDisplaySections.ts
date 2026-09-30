@@ -78,7 +78,6 @@ const SLOT_TO_DISPLAY: Record<string, BoxDisplaySectionId> = {
   'latke-recipe-printed': 'food',
   'sufganiyot-kit': 'food',
   'sufganiyot-mix': 'food',
-  applesauce: 'food',
   'sufganiyot-recipe-media': 'food',
   'sufganiyot-recipe-printed': 'food',
   playlist: 'food',

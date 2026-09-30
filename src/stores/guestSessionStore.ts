@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BoxLineItem, FamiliarityLevel } from '../types/pilot';
 import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import { remapLegacyCatalogIds, retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 
 export function familiarityScoreToLevel(score: number): FamiliarityLevel {
   if (score <= 33) return 'minimal';
@@ -165,7 +166,6 @@ export const useGuestSessionStore = create<GuestSessionState>()(
           onboardingStep: null,
           buildBoxPath: false,
           exploreStarted: true,
-          ravNotes: '',
         }),
       reset: () => set({ ...initialState, _hasHydrated: true }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
@@ -197,6 +197,14 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         // Storefront is the default surface — never re-open the Welcome gateway.
         if (state && !state.exploreStarted) {
           state.exploreStarted = true;
+        }
+        if (state) {
+          const retired = retireLegacyBoxLines(state.lineItems ?? []);
+          if (retired.dirty) state.setLineItems(retired.lineItems);
+          const wish = remapLegacyCatalogIds(state.wishlistItemIds ?? []);
+          if (wish !== state.wishlistItemIds) useGuestSessionStore.setState({ wishlistItemIds: wish });
+          const wrap = remapLegacyCatalogIds(state.wrapSelectedItemIds ?? []);
+          if (wrap !== state.wrapSelectedItemIds) state.setWrapSelectedItemIds(wrap);
         }
         state?.setHasHydrated(true);
       },

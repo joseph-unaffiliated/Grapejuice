@@ -24,6 +24,8 @@ type Props = {
   cashDonationCents?: number;
   /** When set, click to add/edit cash donation. */
   onCashDonationChange?: (cents: number) => void;
+  /** When set, click opens the donated-items modal instead of the inline cash field. */
+  onOpenDonations?: () => void;
   labelStyle?: TextStyle;
   valueStyle?: TextStyle;
   itemStyle?: ViewStyle;
@@ -34,6 +36,7 @@ export function BoxSummaryDonated({
   cents,
   cashDonationCents = 0,
   onCashDonationChange,
+  onOpenDonations,
   labelStyle,
   valueStyle,
   itemStyle,
@@ -45,7 +48,9 @@ export function BoxSummaryDonated({
   /** After typing/submit, keep tooltip down until the pointer leaves Donated. */
   const [tooltipDismissed, setTooltipDismissed] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const canEditCash = typeof onCashDonationChange === 'function';
+  const opensModal = typeof onOpenDonations === 'function';
+  const canEditCash = !opensModal && typeof onCashDonationChange === 'function';
+  const pressable = opensModal || canEditCash;
 
   const kitsCents = Math.max(0, cents);
   const cashCents = Math.max(0, cashDonationCents);
@@ -81,15 +86,23 @@ export function BoxSummaryDonated({
   };
 
   // `+$` (and amount) stay visible while hovered, editing, or after a cash gift is set.
-  const showCashAffordance =
-    canEditCash && (hovered || editing || cashCents > 0);
+  const showCashAffordance = (pressable && hovered) || editing || cashCents > 0;
   const showTooltip = hovered && !tooltipDismissed;
+
+  const onPress = opensModal
+    ? () => {
+        setHovered(false);
+        onOpenDonations?.();
+      }
+    : canEditCash
+      ? startEdit
+      : undefined;
 
   return (
     <Pressable
-      onPress={canEditCash ? startEdit : undefined}
-      disabled={!canEditCash}
-      accessibilityRole={canEditCash ? 'button' : 'text'}
+      onPress={onPress}
+      disabled={!pressable}
+      accessibilityRole={pressable ? 'button' : 'text'}
       accessibilityLabel={
         cashCents > 0
           ? `Donated ${kitsAmount} in kits and $${cashDollarsLabel} cash. ${DONATION_TOOLTIP}`
@@ -99,7 +112,7 @@ export function BoxSummaryDonated({
         styles.item,
         itemStyle,
         Platform.OS === 'web'
-          ? ({ cursor: canEditCash ? 'pointer' : 'default' } as ViewStyle)
+          ? ({ cursor: pressable ? 'pointer' : 'default' } as ViewStyle)
           : null,
       ]}
       {...(Platform.OS === 'web'
@@ -159,9 +172,11 @@ export function BoxSummaryDonated({
         >
           <Text style={[styles.tooltipText, { color: colors.textPrimary }]}>
             {DONATION_TOOLTIP}
-            {canEditCash
-              ? ' Click to add an optional cash donation — that amount is added to your total.'
-              : ''}
+            {opensModal
+              ? ' Click to see donated items or add a cash donation.'
+              : canEditCash
+                ? ' Click to add an optional cash donation — that amount is added to your total.'
+                : ''}
           </Text>
         </View>
       ) : null}

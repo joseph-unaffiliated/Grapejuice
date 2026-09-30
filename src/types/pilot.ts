@@ -64,8 +64,20 @@ export type UserProfile = {
   collaborationName?: string;
   /** Set by nightly age-trigger function when a child approaches b-mitzvah age. */
   upcomingBeamMilestone?: UpcomingBeamMilestone | null;
+  /** Onboarding answers from the last box build — prefills the questionnaire on restart. */
+  lastBoxAnswers?: LastBoxAnswers;
   createdAt: string;
   updatedAt: string;
+};
+
+/** Family drafts (adults + kids incl. per-kid interests), stored loosely to avoid a UI type import. */
+export type LastBoxAnswers = {
+  childDrafts?: Array<Record<string, unknown>>;
+  childInterests?: string[];
+  familiarityScore?: number;
+  familiarityLevel?: FamiliarityLevel;
+  ravNotes?: string;
+  savedAt?: string;
 };
 
 export type Household = {

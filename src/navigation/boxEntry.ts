@@ -3,6 +3,7 @@ import { useGiftIntentStore } from '../stores/giftIntentStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { usersService } from '../services/firestore/users';
 import { boxDraftService } from '../services/firestore/boxDraft';
+import { saveLastBoxAnswers } from '../services/box/lastBoxAnswers';
 import { clearBoxDraftCache } from '../hooks/useBoxDraft';
 import { navigateMainStack } from './mainStackNavigation';
 
@@ -33,7 +34,6 @@ export async function startOwnBoxBuild(
     boxRevealComplete: false,
     openMyBoxAfterReveal: false,
     onboardingStep: null,
-    ravNotes: '',
     buildBoxPath: true,
     exploreStarted: true,
   });
@@ -43,6 +43,7 @@ export async function startOwnBoxBuild(
     return;
   }
 
+  await saveLastBoxAnswers(user.uid);
   if (householdId) {
     try {
       await boxDraftService.clear(householdId, user.uid);
@@ -74,6 +75,7 @@ export async function abandonOwnBox(
     return;
   }
 
+  await saveLastBoxAnswers(user.uid);
   if (householdId) {
     try {
       await boxDraftService.clear(householdId, user.uid);
@@ -89,7 +91,6 @@ export async function abandonOwnBox(
     boxRevealComplete: true,
     openMyBoxAfterReveal: false,
     onboardingStep: null,
-    ravNotes: '',
     buildBoxPath: false,
     exploreStarted: true,
   });

@@ -65,7 +65,11 @@ import {
   StorefrontChrome,
   useStorefrontActions,
 } from '../../components/storefront/StorefrontChrome';
-import { SwapIntoBoxModal } from '../../components/storefront/SwapIntoBoxModal';
+import {
+  SwapIntoBoxModal,
+  swapOutTitleForItem,
+  swapTitleForItem,
+} from '../../components/storefront/SwapIntoBoxModal';
 import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
@@ -816,6 +820,13 @@ export function CatalogProductScreen() {
           if (source) void swapIntoBox(source);
         }}
         onCancel={() => setSwapModalOpen(false)}
+        title={
+          showInBoxControls
+            ? swapTitleForItem(item, {
+                giftSlot: inBoxPrimary ? isGiftSlotLine(inBoxPrimary) : false,
+              })
+            : swapOutTitleForItem(item)
+        }
       />
     </StorefrontChrome>
   );

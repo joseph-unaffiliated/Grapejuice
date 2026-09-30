@@ -26,7 +26,21 @@ export type AskRavResult = {
   blocks?: RavBlock[];
   actions?: RavDraftAction[];
   pane?: RavPaneHint;
+  /** Server-sanitized in-app destination when the user asked Rav to go somewhere. */
+  navigate?: RavNavigate;
 };
+
+export type RavNavigate = { path: string; label: string };
+
+function sanitizeClientNavigate(raw: unknown): RavNavigate | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const n = raw as Record<string, unknown>;
+  if (typeof n.path !== 'string' || !n.path.startsWith('/') || n.path.startsWith('//')) {
+    return undefined;
+  }
+  const label = typeof n.label === 'string' && n.label.trim() ? n.label.trim() : 'that page';
+  return { path: n.path, label };
+}
 
 function callableMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
@@ -57,6 +71,7 @@ export async function askRav(params: AskRavParams): Promise<AskRavResult> {
       blocks: Array.isArray(data.blocks) ? data.blocks : [],
       actions: Array.isArray(data.actions) ? data.actions : [],
       pane: sanitizeClientPane(data.pane),
+      navigate: sanitizeClientNavigate(data.navigate),
     };
   } catch (err) {
     throw new Error(callableMessage(err));

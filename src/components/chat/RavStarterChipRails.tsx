@@ -20,10 +20,18 @@ const EDGE_FADE_W = 72;
 const CHIP_STROKE_IDLE = 'rgba(216, 201, 144, 0.35)';
 const DRAG_THRESHOLD_PX = 4;
 
+/** Desktop marquee speed. */
+const AUTO_SCROLL_PX_PER_SEC = 18;
+
 type Props = {
   chips: RavStarterChip[];
   onSelect: (message: string) => void;
   edgeBleed?: number;
+  /**
+   * Web only: drift the rows slowly and forever; pauses while hovered or dragged.
+   * Skipped when the user prefers reduced motion.
+   */
+  autoScroll?: boolean;
 };
 
 function splitIntoRows(chips: RavStarterChip[], rows: number): RavStarterChip[][] {
@@ -46,14 +54,24 @@ function middleCopyX(offset: number, cycleW: number): number {
  * Three prompt rows driven by one shared pixel offset (transform, not ScrollViews).
  * Drag moves every row in the same frame — no leader lag, no coast.
  */
-export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
+export function RavStarterChipRails({
+  chips,
+  onSelect,
+  edgeBleed = 0,
+  autoScroll = false,
+}: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const rows = useMemo(() => splitIntoRows(chips, ROW_COUNT), [chips]);
 
   const offsetRef = useRef(0);
-  const [offset, setOffset] = useState(0);
+  const [, setOffset] = useState(0);
   const [cycleWidths, setCycleWidths] = useState<number[]>([]);
+  const cycleWidthsRef = useRef<number[]>([]);
+  cycleWidthsRef.current = cycleWidths;
+  /** Row track DOM nodes — the marquee writes transforms directly (no per-frame render). */
+  const trackEls = useRef<(HTMLElement | null)[]>([]);
+  const hoveredRef = useRef(false);
   /** Callback ref so pointer listeners attach after mount (ref.current is null on first effect). */
   const [rootEl, setRootEl] = useState<HTMLElement | null>(null);
   const setRootRef = useCallback((node: View | null) => {
@@ -89,6 +107,58 @@ export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
     offsetRef.current = next;
     setOffset(next);
   }, []);
+
+  /** Move rows without a React render (render reads `offsetRef`, so it stays in sync). */
+  const applyOffsetToDom = useCallback((next: number) => {
+    offsetRef.current = next;
+    trackEls.current.forEach((el, i) => {
+      const cycleW = cycleWidthsRef.current[i] ?? 0;
+      if (!el || cycleW <= 0) return;
+      el.style.transform = `translateX(${middleCopyX(next, cycleW)}px)`;
+    });
+  }, []);
+
+  // Desktop marquee: rAF drift, paused on hover / drag; honors reduced motion.
+  useEffect(() => {
+    if (!autoScroll || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    let last = 0;
+    const tick = (now: number) => {
+      const dt = last ? Math.min(64, now - last) : 0;
+      last = now;
+      if (!hoveredRef.current && !dragRef.current.active && dt > 0) {
+        applyOffsetToDom(offsetRef.current + (AUTO_SCROLL_PX_PER_SEC * dt) / 1000);
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [autoScroll, applyOffsetToDom, chips]);
+
+  // Desktop: pause on hover; horizontal trackpad / wheel moves the rows.
+  useEffect(() => {
+    if (!autoScroll || Platform.OS !== 'web' || !rootEl) return;
+    const onEnter = () => {
+      hoveredRef.current = true;
+    };
+    const onLeave = () => {
+      hoveredRef.current = false;
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      applyOffsetToDom(offsetRef.current + e.deltaX);
+    };
+    rootEl.addEventListener('pointerenter', onEnter);
+    rootEl.addEventListener('pointerleave', onLeave);
+    rootEl.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      rootEl.removeEventListener('pointerenter', onEnter);
+      rootEl.removeEventListener('pointerleave', onLeave);
+      rootEl.removeEventListener('wheel', onWheel);
+    };
+  }, [autoScroll, rootEl, applyOffsetToDom]);
 
   // Web pointer drag on the mosaic root — one gesture, all rows follow together.
   useEffect(() => {
@@ -203,10 +273,15 @@ export function RavStarterChipRails({ chips, onSelect, edgeBleed = 0 }: Props) {
       <View style={[styles.rows, { gap: ROW_GAP }]}>
         {rows.map((row, rowIndex) => {
           const cycleW = cycleWidths[rowIndex] ?? 0;
-          const tx = cycleW > 0 ? middleCopyX(offset, cycleW) : 0;
+          const tx = cycleW > 0 ? middleCopyX(offsetRef.current, cycleW) : 0;
           return (
             <View key={`row-${rowIndex}`} style={styles.rowClip}>
-              <View style={[styles.rowTrack, { transform: [{ translateX: tx }] }]}>
+              <View
+                ref={(node) => {
+                  trackEls.current[rowIndex] = node as unknown as HTMLElement | null;
+                }}
+                style={[styles.rowTrack, { transform: [{ translateX: tx }] }]}
+              >
                 {Array.from({ length: LOOP_COPIES }, (_, copy) => (
                   <View
                     key={`copy-${copy}`}

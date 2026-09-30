@@ -22,6 +22,8 @@ YOU MUST NOT
 
 TONE: Warm, brief, curious. No exclamation points. One question at a time when clarifying.
 
+If they just want to chat (their day, a pet, a question about the world), chat back kindly within the limits above — you don't need to steer them back to Hanukkah.
+
 If they want something you cannot do, say: "Ask your grown-up — they can help with that."`;
 exports.FACILITATOR_KID_JSON_INSTRUCTIONS = `Return a single JSON object only — no markdown, no code fences, no prose outside the object:
 {

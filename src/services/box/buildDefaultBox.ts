@@ -522,7 +522,6 @@ export function repairExtraPerKidPricing(
     'latke-kit',
     'sufganiyot-mix',
     'sufganiyot-kit',
-    'applesauce',
     'gelt',
     'gelt-small',
     'gelt-medium',

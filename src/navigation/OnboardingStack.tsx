@@ -17,7 +17,8 @@ import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildCuratedBox } from '../services/box/buildDefaultBox';
 import { curateBox, applyCurateBoxResult } from '../services/rav/curateBox';
 import { remapGuestChildIds } from '../services/guest/persistGuestToAccount';
-import type { BoxLineItem, FamiliarityLevel, ChildProfile } from '../types/pilot';
+import type { BoxLineItem, FamiliarityLevel, ChildProfile, LastBoxAnswers } from '../types/pilot';
+import { saveLastBoxAnswers, seedOnboardingFromAccount } from '../services/box/lastBoxAnswers';
 import { representativeAgeForBand, type IntakeAgeGroup } from '../services/box/boxRules';
 import { semanticColors } from '../constants/theme';
 import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
@@ -163,6 +164,22 @@ export function OnboardingStack({
     },
     [goToStep, maxWizardIndex, lineItems.length, revealOnly]
   );
+
+  // Signed-in restart with an empty local store: prefill from the account's last answers.
+  const [seedVersion, setSeedVersion] = useState(0);
+  const seedAttempted = useRef(false);
+  useEffect(() => {
+    if (seedAttempted.current || guestMode || revealOnly || !user?.uid || !profile) return;
+    seedAttempted.current = true;
+    if (useGuestSessionStore.getState().childDrafts.length) return;
+    void seedOnboardingFromAccount(
+      user.uid,
+      profile,
+      profile.displayName ?? user.displayName
+    ).then((seeded) => {
+      if (seeded) setSeedVersion((v) => v + 1);
+    });
+  }, [guestMode, revealOnly, user?.uid, user?.displayName, profile]);
 
   useEffect(() => {
     if (guestChildDrafts.length) setChildDrafts(guestChildDrafts);
@@ -354,6 +371,13 @@ export function OnboardingStack({
         boxRevealComplete: false,
         lockReminderEligible: true,
         lockReminderAttempts: 0,
+      });
+      await saveLastBoxAnswers(user.uid, {
+        childDrafts: kids as unknown as LastBoxAnswers['childDrafts'],
+        childInterests: interests,
+        familiarityScore: score,
+        familiarityLevel: level,
+        ravNotes: notes,
       });
       setFamiliarity(level);
       setLineItems(remappedItems);
@@ -563,6 +587,7 @@ export function OnboardingStack({
     case 'children':
       stepContent = (
         <BoxIntroScreen
+          key={`box-intro-${seedVersion}`}
           initialChildren={childDrafts.length ? childDrafts : undefined}
           defaultName={
             firstNameFromDisplayName(profile?.displayName ?? user?.displayName) || 'Joseph'
@@ -579,6 +604,7 @@ export function OnboardingStack({
     case 'familiarity':
       stepContent = (
         <WhatWeDoScreen
+          key={`what-we-do-${seedVersion}`}
           family={childDrafts}
           initialScore={familiarityScore || familiarityLevelToScore(familiarity)}
           onContinue={({ level, score, children: nextKids, interests }) => {
@@ -601,6 +627,7 @@ export function OnboardingStack({
         <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready={false} />
       ) : (
         <RavOpenQuestionScreen
+          key={`rav-question-${seedVersion}`}
           initialNotes={ravNotes}
           isAuthenticated={!guestMode}
           buildError={buildError}

@@ -66,6 +66,12 @@ type AuthFlowState = {
   pendingGiftCustomize: PendingGiftCustomize | null;
   /** Credit-only gift form restored after auth. */
   pendingGiftGive: PendingGiftGive | null;
+  /**
+   * Storefront interest (e.g. Passover pre-register) a guest tapped — applied once
+   * they sign in. Survives `clearPending` so the post-auth effect can pick it up.
+   */
+  pendingInterestKey: string | null;
+  setPendingInterestKey: (key: string | null) => void;
   authEntry: AuthEntry;
   authScreen: keyof AuthStackParamList | null;
   /** Prefill SignInEmail after visitor playthrough Exit. */
@@ -99,6 +105,8 @@ export const useAuthFlowStore = create<AuthFlowState>((set) => ({
   pendingGiftClaimToken: null,
   pendingGiftCustomize: null,
   pendingGiftGive: null,
+  pendingInterestKey: null,
+  setPendingInterestKey: (key) => set({ pendingInterestKey: key }),
   authEntry: 'signup',
   authScreen: null,
   restoreSignInEmail: null,

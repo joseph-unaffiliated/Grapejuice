@@ -1,6 +1,12 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { AccountRole, FamiliarityLevel, UpcomingBeamMilestone, UserProfile } from '../../types/pilot';
+import type {
+  AccountRole,
+  FamiliarityLevel,
+  LastBoxAnswers,
+  UpcomingBeamMilestone,
+  UserProfile,
+} from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
 
 function parseUpcomingBeamMilestone(value: unknown): UpcomingBeamMilestone | null | undefined {
@@ -15,6 +21,25 @@ function parseUpcomingBeamMilestone(value: unknown): UpcomingBeamMilestone | nul
     milestoneType: o.milestoneType,
     monthsUntil: typeof o.monthsUntil === 'number' ? o.monthsUntil : 0,
     triggeredAt: typeof o.triggeredAt === 'string' ? o.triggeredAt : '',
+  };
+}
+
+function parseLastBoxAnswers(value: unknown): LastBoxAnswers | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const o = value as Record<string, unknown>;
+  const level = o.familiarityLevel;
+  return {
+    childDrafts: Array.isArray(o.childDrafts)
+      ? (o.childDrafts.filter((d) => d && typeof d === 'object') as Array<Record<string, unknown>>)
+      : undefined,
+    childInterests: Array.isArray(o.childInterests)
+      ? o.childInterests.filter((i): i is string => typeof i === 'string')
+      : undefined,
+    familiarityScore: typeof o.familiarityScore === 'number' ? o.familiarityScore : undefined,
+    familiarityLevel:
+      level === 'minimal' || level === 'moderate' || level === 'all-in' ? level : undefined,
+    ravNotes: typeof o.ravNotes === 'string' ? o.ravNotes : undefined,
+    savedAt: typeof o.savedAt === 'string' ? o.savedAt : undefined,
   };
 }
 
@@ -36,6 +61,7 @@ function toProfile(uid: string, data: Record<string, unknown>): UserProfile {
     hiddenHolidays: Array.isArray(data.hiddenHolidays) ? (data.hiddenHolidays as string[]) : [],
     collaborationName: (data.collaborationName as string | undefined) ?? undefined,
     upcomingBeamMilestone: parseUpcomingBeamMilestone(data.upcomingBeamMilestone),
+    lastBoxAnswers: parseLastBoxAnswers(data.lastBoxAnswers),
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };

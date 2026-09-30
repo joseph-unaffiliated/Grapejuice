@@ -4,6 +4,7 @@ import { childrenService } from '../firestore/children';
 import { usersService } from '../firestore/users';
 import { householdsService } from '../firestore/households';
 import { boxDraftService } from '../firestore/boxDraft';
+import { saveLastBoxAnswers } from '../box/lastBoxAnswers';
 import { queuePendingMainNav } from '../../navigation/pendingMainNav';
 import { peekPendingAuthReturn, type AuthUser } from '../auth/auth';
 import type { BoxLineItem, ChildProfile } from '../../types/pilot';
@@ -196,6 +197,7 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
           name: c.name || undefined,
           ageGroup: c.ageGroup,
           birthdate: c.birthdate,
+          plannerAge: c.plannerAge,
         }))
       );
     }
@@ -219,6 +221,10 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
           : undefined,
       });
     }
+  }
+
+  if (!giftResume && guest.childDrafts.length && guest.onboardingComplete) {
+    await saveLastBoxAnswers(user.uid);
   }
 
   await usersService.upsert(user.uid, {

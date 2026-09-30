@@ -105,7 +105,7 @@ const DEFAULT_INCLUDES_LABEL = 'Each box includes:';
 const DEFAULT_INCLUSIONS: BuildBoxInclusion[] = [
   { practiceId: 'candles', lead: 'Candles', rest: 'for all 8 nights' },
   { practiceId: 'dreidel', lead: 'Dreidels and gelt', rest: 'enough for everyone' },
-  { practiceId: 'food', lead: 'latkes and sufganiot', rest: 'in an easy mix' },
+  { practiceId: 'food', lead: 'latkes and sufganiyot', rest: 'in an easy mix' },
   { practiceId: 'story', lead: 'A book', rest: 'for each kid' },
   { practiceId: 'presents', lead: 'A wrapped present', rest: 'one per kid' },
 ];

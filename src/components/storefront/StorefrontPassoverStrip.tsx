@@ -21,6 +21,8 @@ type Props = {
   primaryLabel?: string;
   secondaryLabel?: string;
   primaryDisabled?: boolean;
+  /** Shown under the buttons once pre-registered. */
+  note?: string;
 };
 
 /**
@@ -35,6 +37,7 @@ export function StorefrontPassoverStrip({
   primaryLabel = PASSOVER_STRIP_PRIMARY_LABEL,
   secondaryLabel = PASSOVER_STRIP_SECONDARY_LABEL,
   primaryDisabled = false,
+  note,
 }: Props) {
   return (
     <StorefrontPaperCardStrip
@@ -46,6 +49,7 @@ export function StorefrontPassoverStrip({
         disabled: primaryDisabled,
       }}
       secondaryCta={{ label: secondaryLabel, onPress: onLearnMore }}
+      note={note}
       style={styles.outer}
     />
   );

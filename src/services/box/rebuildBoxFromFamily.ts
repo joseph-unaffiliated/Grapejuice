@@ -7,7 +7,8 @@ import { clearBoxDraftCache } from '../../hooks/useBoxDraft';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { curateBox, applyCurateBoxResult } from '../rav/curateBox';
 import { representativeAgeForBand, type IntakeAgeGroup } from './boxRules';
-import type { BoxLineItem, ChildProfile, FamiliarityLevel } from '../../types/pilot';
+import type { BoxLineItem, ChildProfile, FamiliarityLevel, LastBoxAnswers } from '../../types/pilot';
+import { saveLastBoxAnswers } from './lastBoxAnswers';
 import { kidDraftsOnly, remapGuestChildIds } from '../guest/persistGuestToAccount';
 
 function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
@@ -52,6 +53,11 @@ export async function saveFamilyMembers(opts: {
       birthdate: c.birthdate,
       plannerAge: c.plannerAge,
     }))
+  );
+  await saveLastBoxAnswers(
+    uid,
+    { childDrafts: members as unknown as LastBoxAnswers['childDrafts'] },
+    { onlyOverrides: true }
   );
   return { savedKids };
 }
@@ -137,6 +143,16 @@ export async function rebuildBoxFromFamily(opts: {
     sealedSectionIds: [],
     slotVotes: {},
   });
+  await saveLastBoxAnswers(
+    uid,
+    {
+      childDrafts: members as unknown as LastBoxAnswers['childDrafts'],
+      childInterests: interests,
+      familiarityLevel,
+      ...(typeof ravNotes === 'string' ? { ravNotes } : {}),
+    },
+    { onlyOverrides: true }
+  );
   clearBoxDraftCache();
   useGuestSessionStore.getState().setLineItems(items);
   useGuestSessionStore.getState().setWrapSelectedItemIds([]);

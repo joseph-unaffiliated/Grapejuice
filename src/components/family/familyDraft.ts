@@ -1,6 +1,10 @@
-import type { AgeGroup } from '../../types/pilot';
+import type { AgeGroup, ChildProfile } from '../../types/pilot';
 import type { ChildInterestId } from '../../constants/childInterests';
-import { ageGroupForNumericAge } from '../../services/box/boxRules';
+import {
+  ageGroupForNumericAge,
+  representativeAgeForBand,
+  type IntakeAgeGroup,
+} from '../../services/box/boxRules';
 import { firstNameFromDisplayName } from '../../utils/personName';
 
 export type FamilyMemberRole = 'kid' | 'adult';
@@ -103,6 +107,55 @@ export function defaultFamilyMembers(defaultName?: string): ChildDraft[] {
 
 export function familyMembersComplete(members: ChildDraft[]): boolean {
   return members.every((m) => m.name.trim().length > 0);
+}
+
+/** Saved child profiles (+ any guest drafts for adults / interests) → family form drafts. */
+export function childProfilesToDrafts(
+  kids: ChildProfile[],
+  guestDrafts: ChildDraft[],
+  defaultName?: string | null
+): ChildDraft[] {
+  const guestAdults = guestDrafts
+    .filter((d) => d.role === 'adult')
+    .map(normalizeFamilyDraft);
+  const guestKids = guestDrafts
+    .filter((d) => d.role !== 'adult')
+    .map(normalizeFamilyDraft);
+
+  let kidDrafts: ChildDraft[];
+  if (kids.length) {
+    kidDrafts = kids.map((c, i) => {
+      const fromGuest = guestKids[i];
+      const age =
+        typeof c.plannerAge === 'number' && Number.isFinite(c.plannerAge)
+          ? c.plannerAge
+          : typeof fromGuest?.plannerAge === 'number'
+            ? fromGuest.plannerAge
+            : representativeAgeForBand(c.ageGroup as IntakeAgeGroup);
+      return {
+        ...makeKidDraft(c.name ?? '', age),
+        name: c.name ?? '',
+        birthdate: c.birthdate,
+        ageGroup: c.ageGroup,
+        plannerAge: age,
+        interests: fromGuest?.interests,
+        customInterests: fromGuest?.customInterests,
+      };
+    });
+  } else if (guestKids.length) {
+    kidDrafts = guestKids;
+  } else {
+    kidDrafts = [];
+  }
+
+  const adults = guestAdults.length
+    ? guestAdults
+    : [makeAdultDraft(firstNameFromDisplayName(defaultName) || '')];
+
+  if (!kidDrafts.length && !guestDrafts.length) {
+    return defaultFamilyMembers(defaultName ?? undefined);
+  }
+  return ensureAdultLead([...adults, ...kidDrafts], defaultName ?? undefined);
 }
 
 /** Stable fingerprint for dirty-checking family edits. */

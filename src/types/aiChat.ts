@@ -6,6 +6,8 @@ export type AIChatMessage = {
   role: 'user' | 'assistant';
   content: string;
   blocks?: RavBlock[];
+  /** Tappable "Go to {label}" under an assistant reply (Rav navigate). */
+  link?: { path: string; label: string };
 };
 
 export type AIChatThread = {

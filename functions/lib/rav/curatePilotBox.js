@@ -6,12 +6,13 @@ const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const sdk_1 = require("@anthropic-ai/sdk");
 const presence_1 = require("./presence");
+const plainTalk_1 = require("./plainTalk");
 const context_1 = require("./context");
 const boxCurator_1 = require("./modes/boxCurator");
 const boxRules_1 = require("./boxRules");
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 const MAX_ACTIONS = 2;
-const BLOCKED_SLOT_PREFIXES = ['gelt', 'latke', 'sufgan', 'applesauce', 'wrapping', 'pre-wrap'];
+const BLOCKED_SLOT_PREFIXES = ['gelt', 'latke', 'sufgan', 'wrapping', 'pre-wrap'];
 function parseJsonObject(raw) {
     let candidate = raw.trim();
     if (!candidate)
@@ -211,7 +212,7 @@ exports.curatePilotBox = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxIn
     }
     const catalogRows = await (0, context_1.loadCatalogRows)();
     const boxRulesContext = await (0, context_1.buildBoxRulesContext)(catalogRows);
-    const system = `${boxCurator_1.BOX_CURATOR_SYSTEM}${presence_1.PRESENCE_APPEND}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}\n\n${boxCurator_1.BOX_CURATOR_JSON_INSTRUCTIONS}`;
+    const system = `${boxCurator_1.BOX_CURATOR_SYSTEM}${presence_1.PRESENCE_APPEND}${plainTalk_1.PLAIN_TALK_APPEND}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}\n\n${boxCurator_1.BOX_CURATOR_JSON_INSTRUCTIONS}`;
     const anthropic = new sdk_1.default({ apiKey });
     try {
         const response = await anthropic.messages.create({

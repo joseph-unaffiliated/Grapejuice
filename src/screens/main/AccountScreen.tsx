@@ -23,7 +23,7 @@ import {
   listPartnerInvites,
   acceptPartnerInvite,
 } from '../../services/householdInvites';
-import type { PartnerInvite, Household, UserProfile, ChildProfile } from '../../types/pilot';
+import type { PartnerInvite, Household, UserProfile } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   spacing,
@@ -42,20 +42,15 @@ import { AccountHubHeader } from '../../components/account/AccountHubHeader';
 import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
 import {
   type ChildDraft,
+  childProfilesToDrafts,
   defaultFamilyMembers,
-  ensureAdultLead,
   familyMembersComplete,
   familyMembersFingerprint,
-  makeAdultDraft,
-  makeKidDraft,
-  normalizeFamilyDraft,
 } from '../../components/family/familyDraft';
 import {
   rebuildBoxFromFamily,
   saveFamilyMembers,
 } from '../../services/box/rebuildBoxFromFamily';
-import { representativeAgeForBand, type IntakeAgeGroup } from '../../services/box/boxRules';
-import { firstNameFromDisplayName } from '../../utils/personName';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { navigateMainStack } from '../../navigation/mainStackNavigation';
 import { usersService } from '../../services/firestore/users';
@@ -93,54 +88,6 @@ const PREVIEW_PROFILE: UserProfile = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
-
-function childProfilesToDrafts(
-  kids: ChildProfile[],
-  guestDrafts: ChildDraft[],
-  defaultName?: string | null
-): ChildDraft[] {
-  const guestAdults = guestDrafts
-    .filter((d) => d.role === 'adult')
-    .map(normalizeFamilyDraft);
-  const guestKids = guestDrafts
-    .filter((d) => d.role !== 'adult')
-    .map(normalizeFamilyDraft);
-
-  let kidDrafts: ChildDraft[];
-  if (kids.length) {
-    kidDrafts = kids.map((c, i) => {
-      const fromGuest = guestKids[i];
-      const age =
-        typeof c.plannerAge === 'number' && Number.isFinite(c.plannerAge)
-          ? c.plannerAge
-          : typeof fromGuest?.plannerAge === 'number'
-            ? fromGuest.plannerAge
-            : representativeAgeForBand(c.ageGroup as IntakeAgeGroup);
-      return {
-        ...makeKidDraft(c.name ?? '', age),
-        name: c.name ?? '',
-        birthdate: c.birthdate,
-        ageGroup: c.ageGroup,
-        plannerAge: age,
-        interests: fromGuest?.interests,
-        customInterests: fromGuest?.customInterests,
-      };
-    });
-  } else if (guestKids.length) {
-    kidDrafts = guestKids;
-  } else {
-    kidDrafts = [];
-  }
-
-  const adults = guestAdults.length
-    ? guestAdults
-    : [makeAdultDraft(firstNameFromDisplayName(defaultName) || '')];
-
-  if (!kidDrafts.length && !guestDrafts.length) {
-    return defaultFamilyMembers(defaultName ?? undefined);
-  }
-  return ensureAdultLead([...adults, ...kidDrafts], defaultName ?? undefined);
-}
 
 export function AccountScreen() {
   return (

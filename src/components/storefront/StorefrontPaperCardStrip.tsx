@@ -29,6 +29,8 @@ type Props = {
   primaryCta: PaperCardCta;
   /** Optional second button (outline). */
   secondaryCta?: PaperCardCta;
+  /** Small secondary line under the buttons (e.g. pre-registered confirmation). */
+  note?: string;
   /** Merged onto the outer maxWidth wrapper (e.g. strip-specific marginBottom). */
   style?: StyleProp<ViewStyle>;
 };
@@ -42,6 +44,7 @@ export function StorefrontPaperCardStrip({
   body,
   primaryCta,
   secondaryCta,
+  note,
   style,
 }: Props) {
   return (
@@ -87,6 +90,7 @@ export function StorefrontPaperCardStrip({
           </TouchableOpacity>
         ) : null}
       </View>
+      {note ? <Text style={styles.note}>{note}</Text> : null}
     </StorefrontPaperCardShell>
   );
 }
@@ -157,5 +161,15 @@ const styles = StyleSheet.create({
   },
   ctaDisabled: {
     opacity: 0.72,
+  },
+  note: {
+    ...typeface('regular'),
+    fontSize: 12,
+    lineHeight: 17,
+    color: semanticColors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    maxWidth: 360,
+    alignSelf: 'center',
   },
 });

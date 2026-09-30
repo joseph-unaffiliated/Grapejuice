@@ -153,7 +153,6 @@ const DEFAULT_SLOT_PATTERNS = {
     // Broad food tokens still match; scoring prefers mix/kit and excludes plush/stuffie.
     'latke-mix': [/latke/i, /latke-kit|latke-mix/i],
     'sufganiyot-mix': [/sufgan/i, /sufganiyot-kit|sufganiyot-mix/i],
-    applesauce: [/applesauce|apple.?sauce/i],
     'wrapping-paper': [/wrapping|wrap.*paper/i, /^wrapping$/],
     'pre-wrap': [/pre.?wrap|prewrap|wrap.?service/i],
 };
@@ -236,9 +235,9 @@ exports.SECTION_RULES = [
         id: 'food',
         title: 'Eat & Drink',
         notes: [
-            'NO XOR: latke mix + sufganiyot mix + applesauce all default together.',
+            'NO XOR: latke mix + sufganiyot mix both default together.',
             'Latke and sufganiyot swap independently; box may end with no mixes.',
-            'Applesauce: donate or add-more (paid) only — no lateral swaps.',
+            'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
         ],
         slots: [
             {
@@ -263,16 +262,8 @@ exports.SECTION_RULES = [
                     { targetSlotOrKind: 'gelt-medium', price: 'included' },
                     { targetSlotOrKind: 'gelt-small×2', price: 'included' },
                     { targetSlotOrKind: 'gelt-party', price: 'extra' },
-                    { targetSlotOrKind: 'sufganiya-stuffie', price: 'extra' },
+                    { targetSlotOrKind: 'sufganiyah-stuffie', price: 'extra' },
                     { targetSlotOrKind: 'donate', price: 'donate' },
-                ],
-            },
-            {
-                defaultKind: 'applesauce',
-                role: 'default',
-                swaps: [
-                    { targetSlotOrKind: 'donate', price: 'donate' },
-                    { targetSlotOrKind: 'add-more-applesauce', price: 'extra', note: 'paid add; no lateral SKU swaps' },
                 ],
             },
         ],
@@ -451,7 +442,7 @@ function planKnowNothingOutline(inputs = { kids: [{ age: 5 }] }) {
         gifts,
         booksPerKid: inputs.kids.length,
         presentsPerKid: inputs.kids.length,
-        foodDefaults: ['latke-mix', 'sufganiyot-mix', 'applesauce'],
+        foodDefaults: ['latke-mix', 'sufganiyot-mix'],
         wrapDefault: 'wrapping-paper',
         candlesDefault: 'candles',
     };
@@ -740,7 +731,6 @@ function renderBoxRulesContext(catalog) {
             'gelt-party',
             'latke-mix',
             'sufganiyot-mix',
-            'applesauce',
             'wrapping-paper',
             'pre-wrap',
         ];
@@ -778,7 +768,7 @@ function renderBoxRulesContext(catalog) {
         'Simple default (know-nothing, 1 kid age 5):',
         `- Light Candles: ${annotateSlot(catalog, 'candles')} (not menorah)`,
         `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
-        `- Eat & Drink: ${annotateSlot(catalog, 'latke-mix')} + ${annotateSlot(catalog, 'sufganiyot-mix')} + ${annotateSlot(catalog, 'applesauce')} (NO XOR — both mixes default)`,
+        `- Eat & Drink: ${annotateSlot(catalog, 'latke-mix')} + ${annotateSlot(catalog, 'sufganiyot-mix')} (NO XOR — both mixes default; latke kit includes applesauce spice mix)`,
         `- Tell the Story: 1 age-default book for the 5yo${resolveBookForAge(catalog, 5) ? ` (${resolveBookForAge(catalog, 5).id})` : ''}`,
         `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${resolveGiftKind(catalog, giftEx.kind) ? `≈${resolveGiftKind(catalog, giftEx.kind).id}` : ''}`,
         '',

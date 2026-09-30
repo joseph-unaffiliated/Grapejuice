@@ -276,6 +276,7 @@ export function StorefrontRavDrawer({
         bottomInset={0}
         bootstrapMessage={bootstrapMessage}
         onViewChange={onViewChange}
+        onNavigated={docked ? undefined : onClose}
       />
     </View>
   );

@@ -257,7 +257,7 @@ Books are out of scope. Placeholder text below is what’s currently in Airtable
 - **What’s included:** Latke mix kit
 - **Care notes:** Check allergen info on the package. Use standard kitchen safety when frying in oil. Store sealed in a cool, dry place.
 
-### 5. Sufganiot Kit
+### 5. Sufganiyot Kit
 
 - Airtable record: `rec4UEsoXsyR4AobO`
 - Categories: Food, Activity

@@ -54,7 +54,6 @@ const SLOT_TO_GROUP: Record<string, PracticeGroupId> = {
   'latke-recipe-printed': 'food',
   'sufganiyot-kit': 'food',
   'sufganiyot-mix': 'food',
-  applesauce: 'food',
   'sufganiyot-recipe-media': 'food',
   'sufganiyot-recipe-printed': 'food',
   playlist: 'food',

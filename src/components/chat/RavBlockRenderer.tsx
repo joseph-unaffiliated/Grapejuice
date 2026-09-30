@@ -166,17 +166,17 @@ export function RavBlockRenderer({
     | { kind: 'swap'; block: RavBlock; index: number }
   > = [];
 
+  /** Items already shown anywhere in this message — a repeated rail is dropped. */
+  const shown = new Set<string>();
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     if (block.type === 'curation' && block.swapOptions?.length) {
       const items = block.swapOptions
         .map((id) => resolveCatalogItem(catalog, id))
         .filter((c): c is CatalogItem => Boolean(c));
-      // De-dupe while preserving model order
-      const seen = new Set<string>();
       const unique = items.filter((c) => {
-        if (seen.has(c.id)) return false;
-        seen.add(c.id);
+        if (shown.has(c.id)) return false;
+        shown.add(c.id);
         return true;
       });
       if (unique.length) {
@@ -192,10 +192,11 @@ export function RavBlockRenderer({
 
     if (block.type === 'product' && block.itemId) {
       const item = resolveCatalogItem(catalog, block.itemId);
-      if (!item) continue;
+      if (!item || shown.has(item.id)) continue;
+      shown.add(item.id);
       const last = segments[segments.length - 1];
       if (last?.kind === 'rail' && !last.title) {
-        if (!last.items.some((c) => c.id === item.id)) last.items.push(item);
+        last.items.push(item);
       } else {
         segments.push({ kind: 'rail', items: [item], slotId: block.slotId });
       }

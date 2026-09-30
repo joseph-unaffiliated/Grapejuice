@@ -13,6 +13,7 @@ import {
   repairWoodDreidelHouseholdQty,
   repairWoodDreidelIncluded,
 } from '../services/box/buildDefaultBox';
+import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
@@ -110,7 +111,7 @@ export function useBoxDraft() {
         if (guestLineItems.length) setGuestLineItems([]);
         setLineItems([]);
       } else {
-        let lines = guestLineItems;
+        let lines = retireLegacyBoxLines(guestLineItems).lineItems;
         const wrapIds = guestWrapSelectedItemIds ?? [];
         const adults = adultCountFromDrafts(guestDrafts);
         const repairedWood = repairWoodDreidelHouseholdQty(lines, kids, adults);
@@ -164,7 +165,8 @@ export function useBoxDraft() {
     ]);
 
     let nextKids = kids;
-    let nextLines = draft?.lineItems?.length ? draft.lineItems : [];
+    const retired = retireLegacyBoxLines(draft?.lineItems?.length ? draft.lineItems : []);
+    let nextLines = retired.lineItems;
 
     // Leftover guest-N ids after account create — remap so gifts/books count for kids.
     const hadGuestIds = nextLines.some((li) => {
@@ -244,7 +246,13 @@ export function useBoxDraft() {
     );
     const wrapDirty = nextLines !== beforeWrap;
 
-    if (repairedWood.dirty || repairedWoodIncluded.dirty || repairedBooks.dirty || wrapDirty) {
+    if (
+      retired.dirty ||
+      repairedWood.dirty ||
+      repairedWoodIncluded.dirty ||
+      repairedBooks.dirty ||
+      wrapDirty
+    ) {
       try {
         await boxDraftService.save(household.id, user.uid, nextLines, {
           familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel,

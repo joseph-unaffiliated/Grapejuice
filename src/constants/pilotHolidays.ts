@@ -6,6 +6,8 @@ export const HIGH_HOLIDAYS_SUKKOT_2027_INTEREST = 'high-holidays-sukkot-2027';
 export const HANUKKAH_2027_NOTIFY_INTEREST = 'hanukkah-2027-notify';
 
 export const PRE_REGISTERED_CTA_LABEL = "You're pre-registered!";
+export const PRE_REGISTERED_NOTE =
+  'Keep an eye on your inbox for early access and discounts when the time comes.';
 
 export const PILOT_HOLIDAYS: HolidayCard[] = [
   {

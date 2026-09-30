@@ -9,6 +9,7 @@ import {
   HIGH_HOLIDAYS_SUKKOT_2027_INTEREST,
   PASSOVER_NOTIFY_INTEREST,
   PRE_REGISTERED_CTA_LABEL,
+  PRE_REGISTERED_NOTE,
 } from '../../constants/pilotHolidays';
 import { STOREFRONT_PASSOVER_BOX_THUMBS } from '../../constants/storefrontMedia';
 import { PASSOVER_COPY } from '../../constants/storefrontPassoverCopy';
@@ -42,6 +43,7 @@ export function StorefrontPassoverScreen() {
         label: primaryLabel,
         onPress: passover.toggle,
       }}
+      primaryCtaNote={passover.marked ? PRE_REGISTERED_NOTE : undefined}
       primaryCtaSize="medium"
       showHeroDivider
       buildBoxHeadline="build your hanukkah box"
@@ -86,6 +88,7 @@ export function StorefrontPassoverScreen() {
                       | 'primary'
                       | 'outline')
                   : undefined,
+                ctaNote: marked && !isStartBox ? PRE_REGISTERED_NOTE : undefined,
               };
             }),
           })),

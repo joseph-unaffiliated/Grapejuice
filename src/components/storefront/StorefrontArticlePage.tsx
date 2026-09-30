@@ -150,6 +150,8 @@ export type StorefrontArticleBlock =
           cta?: StorefrontArticleCta;
           /** Outline = ink stroke; primary = solid gold for the current/actionable holiday. */
           ctaVariant?: 'primary' | 'outline';
+          /** Small secondary line under the CTA (e.g. pre-registered confirmation). */
+          ctaNote?: string;
         }[];
       }[];
     }
@@ -182,6 +184,8 @@ type Props = {
   leadMaxWidth?: number;
   primaryCta?: StorefrontArticleCta;
   secondaryCta?: StorefrontArticleCta;
+  /** Small secondary line under the hero CTAs (e.g. pre-registered confirmation). */
+  primaryCtaNote?: string;
   /**
    * Primary hero CTA scale:
    * - `default` — typography.md + sm/lg padding
@@ -1250,6 +1254,9 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                                 </Text>
                               </TouchableOpacity>
                             ) : null}
+                            {item.cta && item.ctaNote ? (
+                              <Text style={styles.ctaNote}>{item.ctaNote}</Text>
+                            ) : null}
                           </View>
                         );
                       })}
@@ -1314,6 +1321,7 @@ export function StorefrontArticlePage({
   leadMaxWidth,
   primaryCta,
   secondaryCta,
+  primaryCtaNote,
   primaryCtaSize = 'default',
   blocks,
   showHeroDivider = false,
@@ -1402,6 +1410,9 @@ export function StorefrontArticlePage({
                 </TouchableOpacity>
               ) : null}
             </View>
+          ) : null}
+          {primaryCta && primaryCtaNote ? (
+            <Text style={styles.ctaNote}>{primaryCtaNote}</Text>
           ) : null}
         </View>
 
@@ -1590,6 +1601,16 @@ const styles = StyleSheet.create({
     fontSize: typography.md,
     color: semanticColors.logoDark,
     textAlign: 'center',
+  },
+  ctaNote: {
+    ...typeface('regular'),
+    fontSize: 12,
+    lineHeight: 17,
+    color: semanticColors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    maxWidth: 360,
+    alignSelf: 'center',
   },
   ctaDisabled: {
     opacity: 0.72,

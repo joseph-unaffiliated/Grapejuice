@@ -19,6 +19,7 @@ import { useRavSurfaceStore } from '../../stores/ravSurfaceStore';
 import { aiChatService } from '../../services/firestore/aiChat';
 import { kidRavChatService } from '../../services/firestore/kidRavChat';
 import { askRav } from '../../services/rav/askRav';
+import { navigateToAppPath } from '../../navigation/webBrowserHistory';
 import { buildRavCopilotClientContext } from '../../services/rav/buildRavCopilotContext';
 import { summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
 import { getHanukkahConfig } from '../../services/firestore/config';
@@ -119,6 +120,8 @@ type Props = {
   bootstrapMessage?: string;
   /** How Rav is presented — used for co-pilot surface context. */
   overlay?: 'drawer' | 'tab' | 'none';
+  /** After Rav (or a "Go to" link) opens another page — e.g. collapse the phone sheet. */
+  onNavigated?: () => void;
 };
 
 export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(function PilotAIChatSheet(
@@ -130,6 +133,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     onViewChange,
     bootstrapMessage,
     overlay = 'tab',
+    onNavigated,
   },
   ref
 ) {
@@ -450,6 +454,14 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     [boxLocked, lineItems, persist, showBlockFeedback, guardMutation]
   );
 
+  /** Rav "navigate" — open the page; phone sheet collapses so the page is visible. */
+  const goToRavLink = useCallback(
+    (path: string) => {
+      if (navigateToAppPath(path)) onNavigated?.();
+    },
+    [onNavigated]
+  );
+
   const sendMessage = useCallback(
     async (text: string, opts?: { fromBootstrap?: boolean }) => {
       const trimmed = text.trim();
@@ -521,7 +533,13 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               ),
             });
 
-        const { reply, blocks = [], actions = [], pane: ravPane } = await askRav({
+        const {
+          reply,
+          blocks = [],
+          actions = [],
+          pane: ravPane,
+          navigate: ravNavigate,
+        } = await askRav({
           message: trimmed,
           conversationHistory: historyPrior.slice(-MAX_HISTORY_TURNS * 2),
           boxDraftSummary: ravMode ? undefined : summarizeLineItemsForRav(lineItems),
@@ -623,9 +641,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           displayBlocks = stripProductBlocksForBoxPane(displayBlocks);
         }
 
-        const assistantMsg: AIChatMessage = { role: 'assistant', content, blocks: displayBlocks };
+        const link = !ravMode && ravNavigate ? ravNavigate : undefined;
+        const assistantMsg: AIChatMessage = {
+          role: 'assistant',
+          content,
+          blocks: displayBlocks,
+          ...(link ? { link } : null),
+        };
         setMessages((m) => [...m, assistantMsg]);
         setLastActivityAt(new Date());
+        if (link) goToRavLink(link.path);
         // Direct save: the panel may have closed (unmounted) while Rav was thinking.
         saveRavSession({
           ownerKey: ravOwnerKey,
@@ -656,7 +681,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         setLoading(false);
       }
     },
-    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, guestFamiliarityLevel, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id, guestInterests, profile?.storefrontInterests, ravOwnerKey]
+    [loading, user?.uid, threadId, messages, refreshThreads, scrollToEnd, isGuest, recordGuestRavPrompt, guestFamiliarityLevel, lineItems, catalog, isChildProfile, ravEnabledForActiveChild, activeChild?.id, useKidRavThreads, boxLocked, guardMutation, onOpenCompanionPane, navigationState, publishedFocus, overlay, wishlistIds, household?.id, guestInterests, profile?.storefrontInterests, ravOwnerKey, goToRavLink]
   );
 
   /** Web: Enter sends, Shift+Enter inserts a newline.
@@ -776,10 +801,20 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               onAddExtra={(catalogItem) => void addBlockItem(catalogItem)}
             />
           ) : null}
+          {item.link ? (
+            <TouchableOpacity
+              style={styles.ravLink}
+              onPress={() => goToRavLink(item.link!.path)}
+              accessibilityRole="link"
+              accessibilityLabel={`Go to ${item.link.label}`}
+            >
+              <Text style={styles.ravLinkText}>Go to {item.link.label} →</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       );
     },
-    [lineItems, catalog, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation]
+    [lineItems, catalog, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation, goToRavLink, styles]
   );
 
   const chatFooter = messages.length > 0 ? (
@@ -959,6 +994,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               chips={starterChips}
               onSelect={(message) => sendMessage(message)}
               edgeBleed={isDrawerOverlay ? 0 : undefined}
+              autoScroll={isDesktop}
             />
 
             {hasThreadHistory ? (
@@ -1376,6 +1412,17 @@ function createPilotStyles(colors: SemanticColors) {
     color: colors.textPrimary,
     lineHeight: 20,
     letterSpacing: -0.39,
+  },
+  ravLink: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingVertical: 4,
+  },
+  ravLinkText: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: colors.goldMuted,
+    textDecorationLine: 'underline',
   },
   threadFooter: {
     gap: spacing.xs,

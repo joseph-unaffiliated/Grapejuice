@@ -35,7 +35,10 @@ import { resolveCatalogDisplayPrices, boxALaCarteRetailValueCents, boxAddOnUnitC
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
-import { SwapIntoBoxModal } from '../../components/storefront/SwapIntoBoxModal';
+import {
+  SwapIntoBoxModal,
+  swapTitleForItem,
+} from '../../components/storefront/SwapIntoBoxModal';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
@@ -877,6 +880,18 @@ export function GiftGiverCustomizeContent({
           applySwap(slotIds, opt);
         }}
         onCancel={() => setSwapPicker(null)}
+        title={
+          swapPicker
+            ? swapTitleForItem(
+                catalog.find((c) => c.id === swapPicker.sourceItemId),
+                {
+                  giftSlot: lineItems.some(
+                    (li) => swapPicker.slotIds.includes(li.slotId) && isGiftSlotLine(li)
+                  ),
+                }
+              )
+            : undefined
+        }
       />
     </View>
   );

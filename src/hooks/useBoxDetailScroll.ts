@@ -37,6 +37,11 @@ function sectionDataSelector(id: BoxDisplaySectionId): string {
   return `[data-gj-section="${id}"]`;
 }
 
+/** DOM id for one coalesced box card (summary grid → jump to that exact item). */
+export function boxItemDomId(groupKey: string): string {
+  return `box-item-${groupKey.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+}
+
 function isDomElement(node: unknown): node is HTMLElement {
   return (
     typeof node === 'object' &&
@@ -345,6 +350,37 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
     [getScrollElement, measureSectionOffset, resolveSectionElement, visibleSectionIds],
   );
 
+  /** Scroll to one item card; falls back to its section when the card has no DOM node. */
+  const scrollToItem = useCallback(
+    (groupKey: string, sectionId: BoxDisplaySectionId, options?: ScrollToSectionOptions) => {
+      if (Platform.OS === 'web') {
+        const scrollEl = getScrollElement();
+        const itemEl =
+          scrollEl?.querySelector<HTMLElement>(`#${boxItemDomId(groupKey)}`) ??
+          document.getElementById(boxItemDomId(groupKey));
+        if (itemEl && scrollEl && scrollEl.scrollHeight > scrollEl.clientHeight + 1) {
+          const inset = options?.inset ?? BOX_DETAIL_SCROLL_SPY_OFFSET;
+          if (visibleSectionIds.includes(sectionId)) setActiveSection(sectionId);
+          scrollingToSection.current = true;
+          if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
+          scrollEndTimer.current = setTimeout(() => {
+            scrollingToSection.current = false;
+            updateActiveFromDom(scrollEl);
+          }, 700);
+          const y = Math.max(0, sectionOffsetInScrollport(itemEl, scrollEl) - inset - 16);
+          scrollWebContainer(scrollEl, y, true);
+          return;
+        }
+        if (itemEl) {
+          itemEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
+      scrollToSection(sectionId, options);
+    },
+    [getScrollElement, scrollToSection, updateActiveFromDom, visibleSectionIds],
+  );
+
   return {
     scrollRef,
     contentRef,
@@ -353,6 +389,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
     onSectionLayout,
     onScroll,
     scrollToSection,
+    scrollToItem,
     remeasureSections,
   };
 }

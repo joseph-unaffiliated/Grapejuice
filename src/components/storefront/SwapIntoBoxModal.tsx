@@ -18,6 +18,7 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+import type { CatalogItem } from '../../types/pilot';
 
 export type SwapPickerOption = {
   key: string;
@@ -31,7 +32,43 @@ type Props = {
   options: SwapPickerOption[];
   onSelect: (key: string) => void;
   onCancel: () => void;
+  /** Defaults to “Swap for…”. See `swapTitleForItem`. */
+  title?: string;
 };
+
+function swapKindPlural(item: Pick<CatalogItem, 'id' | 'name' | 'category' | 'categories'>): string | null {
+  const cats = [item.category, ...(item.categories ?? [])]
+    .map((c) => (c ?? '').toLowerCase())
+    .join(' ');
+  const hay = `${item.id} ${item.name} ${cats}`.toLowerCase();
+  if (/stuffie|plush|softie/.test(hay)) return 'stuffies';
+  if (/\bbook\b|book-|novel/.test(hay)) return 'books';
+  if (/gelt/.test(hay)) return 'gelt';
+  if (/dreidel/.test(hay)) return 'dreidels';
+  if (/menorah|hanukkiah/.test(hay)) return 'menorahs';
+  if (/candle/.test(hay) && !/cookie/.test(hay)) return 'candles';
+  if (/wrapping|gift wrap/.test(hay)) return 'wrapping paper';
+  if (/latke|sufgan|\bmix\b/.test(hay)) return 'mixes';
+  return null;
+}
+
+/** “Swap for other candles” — or “Swap for another gift” on a mixed per-kid gift slot. */
+export function swapTitleForItem(
+  item: Pick<CatalogItem, 'id' | 'name' | 'category' | 'categories'> | null | undefined,
+  opts?: { giftSlot?: boolean }
+): string {
+  if (opts?.giftSlot) return 'Swap for another gift';
+  const kind = item ? swapKindPlural(item) : null;
+  return kind ? `Swap for other ${kind}` : 'Swap for…';
+}
+
+/** Picking which box line an incoming product replaces — “Swap out which candles?”. */
+export function swapOutTitleForItem(
+  item: Pick<CatalogItem, 'id' | 'name' | 'category' | 'categories'> | null | undefined
+): string {
+  const kind = item ? swapKindPlural(item) : null;
+  return kind ? `Swap out which ${kind}?` : 'Swap out which item?';
+}
 
 /** Match expanded My Box upsell tiles. */
 const IMAGE_SIZE = UPSELL_TILE_MEDIUM;
@@ -43,7 +80,13 @@ const MAX_ROW_WIDTH = CARD_WIDTH * MAX_VISIBLE_CARDS + ROW_GAP * (MAX_VISIBLE_CA
 /**
  * Pick a swap target — one horizontal row of large image cards (My Box expanded upsell size).
  */
-export function SwapIntoBoxModal({ visible, options, onSelect, onCancel }: Props) {
+export function SwapIntoBoxModal({
+  visible,
+  options,
+  onSelect,
+  onCancel,
+  title = 'Swap for…',
+}: Props) {
   if (!visible) return null;
 
   const contentWidth =
@@ -58,8 +101,8 @@ export function SwapIntoBoxModal({ visible, options, onSelect, onCancel }: Props
           onPress={onCancel}
           accessibilityLabel="Dismiss swap options"
         />
-        <View style={styles.sheet} accessibilityRole="dialog" accessibilityLabel="Swap for">
-          <Text style={styles.title}>Swap for…</Text>
+        <View style={styles.sheet} accessibilityRole="dialog" accessibilityLabel={title}>
+          <Text style={styles.title}>{title}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -135,6 +178,7 @@ const styles = StyleSheet.create({
   title: {
     ...typeface('medium'),
     fontSize: 18,
+    letterSpacing: -0.4,
     color: semanticColors.logoDark,
     textAlign: 'center',
   },

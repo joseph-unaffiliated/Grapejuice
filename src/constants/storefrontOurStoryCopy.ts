@@ -8,7 +8,7 @@ export const OUR_STORY_COPY = {
   eyebrow: 'About Grapejuice',
   title: 'Anyone who wants to do Jewish should be able to.',
   lead:
-    'We build Grapejuice so anyone interested in Jewish practices can do them however they see fit — holidays, rites of passage, or the occasional Shabbat — so nothing, not cost, proximity, fluency, politics, or religious beliefs get in the way.',
+    'We built Grapejuice so anyone interested in Jewish practices can do them however they see fit — holidays, rites of passage, or the occasional Shabbat — so nothing, not cost, proximity, fluency, politics, or religious beliefs get in the way.',
   listening: {
     heading: 'We started by asking people what, if\u00A0anything, they want help with',
     body: [

@@ -35,10 +35,15 @@ type Props = {
   lineItems: BoxLineItem[];
   catalog: CatalogItem[];
   childrenProfiles: ChildProfile[];
-  /** Jump to the practice section that owns this item so it can be edited in place. */
-  onPressItem?: (itemId: string, sectionId: BoxDisplaySectionId) => void;
+  /** Jump to the card for this item (row key = coalesced group key) so it can be edited in place. */
+  onPressItem?: (itemId: string, sectionId: BoxDisplaySectionId, rowKey: string) => void;
   /** Show “Reset my box” under the heading (hidden when locked / view-only). */
   showReset?: boolean;
+  /**
+   * `jump` — top-of-page index: no heading, no prices, a divider above and below.
+   * `summary` — the bottom “Your box” recap.
+   */
+  variant?: 'summary' | 'jump';
 };
 
 type SummaryRow = {
@@ -137,7 +142,9 @@ export function BoxSummaryList({
   childrenProfiles,
   onPressItem,
   showReset = false,
+  variant = 'summary',
 }: Props) {
+  const isJump = variant === 'jump';
   const { colors } = useThemeMode();
   const tile = UPSELL_TILE_MEDIUM;
   const styles = useMemo(() => createStyles(colors, tile), [colors, tile]);
@@ -164,9 +171,8 @@ export function BoxSummaryList({
   const renderTile = (row: SummaryRow) => {
     const title = `${row.label}${row.quantity > 1 ? ` ×${row.quantity}` : ''}`;
     const price = priceLabel(row);
-    const a11y = row.attribution
-      ? `${title}, ${price}, ${row.attribution}`
-      : `${title}, ${price}`;
+    const a11yParts = [title, isJump ? null : price, row.attribution].filter(Boolean);
+    const a11y = a11yParts.join(', ');
     const body = (
       <>
         <BoxItemImage
@@ -175,7 +181,7 @@ export function BoxSummaryList({
           itemId={row.itemId}
           style={styles.image}
         />
-        <Text style={styles.price}>{price}</Text>
+        {isJump ? null : <Text style={styles.price}>{price}</Text>}
         <Text style={styles.name} numberOfLines={2}>
           {title}
         </Text>
@@ -191,10 +197,10 @@ export function BoxSummaryList({
         <TouchableOpacity
           key={row.key}
           style={styles.tile}
-          onPress={() => onPressItem(row.itemId, row.sectionId)}
+          onPress={() => onPressItem(row.itemId, row.sectionId, row.key)}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={`${a11y}. Jump to section to edit.`}
+          accessibilityLabel={`${a11y}. Jump to this item.`}
         >
           {body}
         </TouchableOpacity>
@@ -206,6 +212,22 @@ export function BoxSummaryList({
       </View>
     );
   };
+
+  if (isJump) {
+    return (
+      <View style={styles.jumpRoot} testID="box-jump-list">
+        <View style={styles.jumpRule} />
+        <View style={styles.grid} onLayout={onGridLayout}>
+          {rowChunks.map((chunk, i) => (
+            <View key={`row-${i}`} style={styles.row}>
+              {chunk.map(renderTile)}
+            </View>
+          ))}
+        </View>
+        <View style={styles.jumpRule} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root} testID="box-summary-list">
@@ -232,6 +254,17 @@ function createStyles(colors: SemanticColors, tile: number) {
       width: '100%',
       marginTop: spacing.xxl,
       paddingTop: spacing.xl,
+    },
+    jumpRoot: {
+      gap: spacing.lg,
+      width: '100%',
+      paddingHorizontal: spacing.md,
+    },
+    jumpRule: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      width: '100%',
+      alignSelf: 'stretch',
     },
     rule: {
       height: 1,

@@ -41,7 +41,7 @@ const INCLUSIONS: { title: string; note: string }[] = [
   { title: 'Handmade beeswax candle set', note: 'Box of 50' },
   { title: "Children's books", note: 'One for each kid' },
   { title: 'Wrapping paper', note: 'Gifts can come pre-wrapped' },
-  { title: 'Latke and Sufganiot kits', note: 'Making food as an activity' },
+  { title: 'Latke and Sufganiyot kits', note: 'Making food as an activity' },
   { title: 'Dreidel & gelt set', note: 'Enough for everyone' },
   { title: 'Toys for the kids', note: 'Stuffies, lego, wood menorahs…' },
 ];

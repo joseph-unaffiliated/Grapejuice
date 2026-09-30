@@ -129,7 +129,6 @@ const DEFAULT_SLOTS = new Set<string>([
   'gelt-party',
   'latke-mix',
   'sufganiyot-mix',
-  'applesauce',
   'wrapping-paper',
   'pre-wrap',
 ]);
@@ -158,11 +157,10 @@ const KIND_PATTERNS: Record<string, RegExp[]> = {
   'cookie-cutters': [/cookie.?cutter/i],
   napkins: [/napkin/i],
   'latke-stuffie': [/latke.*(stuffie|plush)|plush.*latke|^latke,\s*the\s*latke\s*stuffie/i],
-  'sufganiya-stuffie': [
+  'sufganiyah-stuffie': [
     /sufgan.*(stuffie|plush)|plush.*sufgan|donut.*plush|jelly,\s*the\s*sufganiyah\s*stuffie/i,
   ],
   'menorah-stuffie': [/menorah.*stuffie|shamash,\s*the\s*menorah\s*stuffie|plush.*menorah/i],
-  'add-more-applesauce': [/applesauce|apple.?sauce/i],
   'more-gelt-small': [/gelt.*small|small.*gelt|little.?bag.*gelt|gelt.*little.?bag/i],
   'more-gelt-medium': [/gelt.*medium|medium.*gelt|big.?bag.*gelt|gelt.*big.?bag|^gelt$/i],
   'gelt-small×2': [/gelt.*small|small.*gelt|little.?bag.*gelt|gelt.*little.?bag/i],
@@ -573,7 +571,52 @@ export function resolveIncludedGiftOptions(
     .filter((s) => s.price === 'included')
     .map((s) => s.targetSlotOrKind);
   const exclude = new Set(excludeItemId ? [excludeItemId] : []);
-  return resolveKindsToCatalog(kinds, catalog, exclude, limit);
+  const current = excludeItemId ? catalog.find((c) => c.id === excludeItemId) : undefined;
+  const base = resolveKindsToCatalog(kinds, catalog, exclude, limit);
+  if (!current) return base;
+  const peers = openSwapPeers(current, catalog);
+  if (!peers) return base;
+  // Open peers (every stuffie / every book) go first and are never cut by `limit`.
+  return withOpenPeersFirst(peers, base, limit);
+}
+
+export function isStuffieCatalogItem(item: CatalogItem): boolean {
+  return (
+    [item.category, ...(item.categories ?? [])].some(
+      (c) => (c ?? '').trim().toLowerCase() === 'stuffies'
+    ) || /stuffie|plush|softie/.test(haystack(item))
+  );
+}
+
+/**
+ * Items that swap freely within their kind: any book ↔ any book, any stuffie ↔ any
+ * stuffie. Returns every other catalog item of that kind, or null for other items.
+ */
+function openSwapPeers(item: CatalogItem, catalog: CatalogItem[]): CatalogItem[] | null {
+  if (isStuffieCatalogItem(item)) {
+    return catalog.filter((c) => c.id !== item.id && isStuffieCatalogItem(c));
+  }
+  if (isBookishCatalogItem(item)) {
+    return catalog.filter(
+      (c) => c.id !== item.id && isBookishCatalogItem(c) && !isStuffieCatalogItem(c)
+    );
+  }
+  return null;
+}
+
+function withOpenPeersFirst(
+  peers: CatalogItem[],
+  rest: CatalogItem[],
+  limit: number
+): CatalogItem[] {
+  const seen = new Set(peers.map((p) => p.id));
+  const out = [...peers];
+  for (const c of rest) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    out.push(c);
+  }
+  return out.slice(0, Math.max(limit, peers.length));
 }
 
 /** Strip planner notes in parentheses / em-dashes from boxRules kind labels. */
@@ -701,6 +744,21 @@ export function resolveSwapOptionsForItem(
   opts?: { includeSectionPeers?: boolean }
 ): CatalogItem[] {
   if (!catalog.length || limit <= 0) return [];
+  const peers = openSwapPeers(item, catalog);
+  if (peers) {
+    // Books: any book for any book. Stuffies: every other stuffie first, then the graph.
+    if (isBookishCatalogItem(item) && !isStuffieCatalogItem(item)) return peers;
+    return withOpenPeersFirst(peers, resolveSwapOptionsForItemGraph(item, catalog, limit, opts), limit);
+  }
+  return resolveSwapOptionsForItemGraph(item, catalog, limit, opts);
+}
+
+function resolveSwapOptionsForItemGraph(
+  item: CatalogItem,
+  catalog: CatalogItem[],
+  limit: number,
+  opts?: { includeSectionPeers?: boolean }
+): CatalogItem[] {
   const includeSectionPeers = opts?.includeSectionPeers !== false;
   const sectionId = displaySectionForCatalogItem(item);
 
