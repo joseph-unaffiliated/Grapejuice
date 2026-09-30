@@ -2,11 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  HANUKKAH_BOX_LOCK_DATE,
   freeShippingPromoLine,
   guestBoxSecurePromoLine,
 } from '../../constants/hanukkahBoxLock';
-import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
+import {
+  getHanukkahConfig,
+  isBoxLocked,
+  peekHanukkahConfig,
+} from '../../services/firestore/config';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import {
   semanticColors,
@@ -15,6 +21,24 @@ import {
   typography,
 } from '../../constants/theme';
 import { Crossfade } from '../ui/Crossfade';
+
+/** The promo strip is pre-lock copy only; it disappears once Hanukkah boxes lock. */
+export function usePromoStripVisible(): boolean {
+  const now = usePreviewNow();
+  const [lockAt, setLockAt] = useState<string | null>(peekHanukkahConfig()?.lockAt ?? null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getHanukkahConfig().then((config) => {
+      if (!cancelled) setLockAt(config.lockAt);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return !isBoxLocked(lockAt ?? HANUKKAH_BOX_LOCK_DATE.toISOString(), now);
+}
 
 /** Centered promo line; wraps as one unit if the viewport is too narrow. */
 export function StorefrontPromoStrip() {

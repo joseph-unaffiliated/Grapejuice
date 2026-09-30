@@ -22,7 +22,7 @@ import {
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { useNavigation, useIsFocused, useRoute } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { StorefrontPromoStrip } from './StorefrontPromoStrip';
+import { StorefrontPromoStrip, usePromoStripVisible } from './StorefrontPromoStrip';
 import { StorefrontHeader } from './StorefrontHeader';
 import { StorefrontServicesNav, type StorefrontServiceId } from './StorefrontServicesNav';
 import { StorefrontCategoryNav } from './StorefrontCategoryNav';
@@ -119,9 +119,11 @@ function StorefrontChromeBlocks({
   hideServicesNav,
   hideSearchAndRav,
   servicesSlot,
-  showPromoStrip = true,
+  showPromoStrip: showPromoStripProp = true,
   chromeVariant = 'full',
 }: ChromeProps) {
+  const promoStripVisible = usePromoStripVisible();
+  const showPromoStrip = showPromoStripProp && promoStripVisible;
   if (chromeVariant === 'sticky') {
     return (
       <View style={styles.chromeInner} collapsable={false}>
