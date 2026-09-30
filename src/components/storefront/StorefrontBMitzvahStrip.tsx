@@ -1,4 +1,5 @@
 import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import {
   BMITZVAH_STRIP_BODY,
   BMITZVAH_STRIP_HEADLINE,
@@ -12,6 +13,7 @@ type Props = {
   body?: string;
   primaryLabel?: string;
   disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
@@ -24,12 +26,14 @@ export function StorefrontBMitzvahStrip({
   body = BMITZVAH_STRIP_BODY,
   primaryLabel = BMITZVAH_STRIP_PRIMARY_LABEL,
   disabled = false,
+  style,
 }: Props) {
   return (
     <StorefrontPaperCardStrip
       headline={headline}
       body={body}
       primaryCta={{ label: primaryLabel, onPress: onInterested, disabled }}
+      style={style}
     />
   );
 }

@@ -162,6 +162,13 @@ export type StorefrontArticleBlock =
       cta: StorefrontArticleCta;
       /** Outline = ink stroke (default); primary = solid gold. */
       ctaVariant?: 'primary' | 'outline';
+      /** Extra space below this block. */
+      paddingBottom?: number;
+    }
+  | {
+      /** Full-width custom section in the block flow (e.g. B'Mitzvah paper strip). */
+      type: 'node';
+      node: React.ReactNode;
     };
 
 /** Flat paragraph, or a titled segment (heading uses blockHeading / How-it-works styles). */
@@ -1268,7 +1275,13 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
           case 'cta': {
             const ctaPrimary = block.ctaVariant === 'primary';
             return (
-              <View key={key} style={styles.block}>
+              <View
+                key={key}
+                style={[
+                  styles.block,
+                  block.paddingBottom != null ? { paddingBottom: block.paddingBottom } : null,
+                ]}
+              >
                 <Text style={styles.blockHeading}>{block.heading}</Text>
                 <TouchableOpacity
                   style={[
@@ -1291,6 +1304,12 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
               </View>
             );
           }
+          case 'node':
+            return (
+              <View key={key} style={styles.bandPaperBlock}>
+                {block.node}
+              </View>
+            );
           default:
             return null;
         }
@@ -1611,6 +1630,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     maxWidth: 360,
     alignSelf: 'center',
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   ctaDisabled: {
     opacity: 0.72,

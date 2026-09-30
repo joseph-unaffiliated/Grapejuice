@@ -125,14 +125,6 @@ export function createBoxDetailStyles(
       letterSpacing: -0.33,
     },
     /** Gold rule under title / lock / calendar — same stroke as sectionBlock bottom border. */
-    toolbarGoldDivider: {
-      borderBottomWidth: 0.5,
-      borderBottomColor: colors.goldMuted,
-      alignSelf: 'stretch',
-      width: '100%',
-      marginHorizontal: 0,
-      marginBottom: 0,
-    },
     backText: {
       fontSize: typography.xxl,
       color: colors.goldMuted,

@@ -2,7 +2,8 @@
  * Homepage B'Mitzvah paper-card teaser — early pilot interest.
  */
 
-export const BMITZVAH_STRIP_HEADLINE = 'Thinking about Bar / Bat Mitzvah?';
+/** Non-breaking spaces keep "Bar / Bat Mitzvah?" on one line. */
+export const BMITZVAH_STRIP_HEADLINE = 'Thinking about Bar\u00A0/\u00A0Bat\u00A0Mitzvah?';
 
 export const BMITZVAH_STRIP_BODY =
   "We are developing a product for a design-your-own B'Mitzvah experience. If you'd be interested in being part of the pilot, let us know!";

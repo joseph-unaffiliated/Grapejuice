@@ -51,6 +51,7 @@ export function StorefrontOurStoryScreen() {
           maxWidth: 480,
           headingVariant: 'title',
           paddingTop: spacing.xl,
+          paddingBottom: spacing.xl,
         },
         {
           type: 'band',
@@ -61,13 +62,23 @@ export function StorefrontOurStoryScreen() {
           secondaryCta: { label: c.give.secondaryCta, onPress: goGiftHanukkahBox },
           paper: true,
         },
+        ...roadmapBlocks,
+        {
+          type: 'node',
+          node: (
+            <StorefrontBMitzvahStrip
+              onInterested={bmitzvah.toggle}
+              primaryLabel={bmitzvah.marked ? "You're interested!" : undefined}
+              style={{ marginTop: 0, marginBottom: 0 }}
+            />
+          ),
+        },
         {
           type: 'prose',
           heading: c.team.heading,
           body: c.team.body,
           maxWidth: 480,
         },
-        ...roadmapBlocks,
         {
           type: 'linkList',
           heading: c.involve.heading,
@@ -105,12 +116,6 @@ export function StorefrontOurStoryScreen() {
           ],
         },
       ]}
-      beforeFooterStrips={
-        <StorefrontBMitzvahStrip
-          onInterested={bmitzvah.toggle}
-          primaryLabel={bmitzvah.marked ? "You're interested!" : undefined}
-        />
-      }
     />
   );
 }

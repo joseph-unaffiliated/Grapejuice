@@ -233,7 +233,7 @@ export function BoxSummaryList({
     <View style={styles.root} testID="box-summary-list">
       <View style={styles.rule} />
       <View style={styles.headingBlock}>
-        <Text style={styles.heading}>Your box</Text>
+        <Text style={styles.heading}>Summary</Text>
         {showReset ? <ResetMyBoxControl /> : null}
       </View>
       <View style={styles.grid} onLayout={onGridLayout}>

@@ -24,7 +24,7 @@ export const PASSOVER_COPY = {
       'We’re just in the early stages of shaping the Passover collection. But here is an early sense of what might come in the box: Matzah. Bitter herbs. A make-your-own seder plate. Grapejuice. A Haggadah. Puppets of the Ten Plagues. Design-your-own Afikomen bag. Books telling the Passover story...',
   },
   roadmap: {
-    heading: 'Hanukkah, Passover, and then what?',
+    heading: 'Hanukkah and then what?',
     groups: [
       {
         items: [
@@ -33,13 +33,13 @@ export const PASSOVER_COPY = {
             what: 'Hanukkah',
             ctaLabel: 'Start my box',
             ctaAction: 'startBox' as const,
+            ctaVariant: 'primary' as const,
           },
           {
             when: 'April 21–29, 2027',
             what: 'Passover',
             ctaLabel: 'Pre-register',
             ctaAction: 'preRegister' as const,
-            ctaVariant: 'primary' as const,
             interestKey: PASSOVER_NOTIFY_INTEREST,
           },
           {

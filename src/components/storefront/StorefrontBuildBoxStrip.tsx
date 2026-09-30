@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   includesSection: {
     alignItems: 'center',
     paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.sm,
     gap: spacing.md,
     backgroundColor: semanticColors.bgPrimary,
   },

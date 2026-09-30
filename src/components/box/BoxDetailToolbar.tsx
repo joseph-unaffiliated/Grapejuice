@@ -90,7 +90,6 @@ export function BoxDetailToolbar({
         </View>
         {leftAlign ? null : <View style={styles.toolbarSide} />}
       </View>
-      <View style={styles.toolbarGoldDivider} accessibilityRole="none" />
     </View>
   );
 }

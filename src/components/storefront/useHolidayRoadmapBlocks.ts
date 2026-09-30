@@ -9,9 +9,10 @@ import {
   PRE_REGISTERED_NOTE,
 } from '../../constants/pilotHolidays';
 import { PASSOVER_COPY } from '../../constants/storefrontPassoverCopy';
+import { spacing } from '../../constants/theme';
 import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
 
-/** "Hanukkah, Passover, and then what?" roadmap + Lunar Cycle CTA article blocks. */
+/** "Hanukkah and then what?" roadmap + Lunar Cycle CTA article blocks. */
 export function useHolidayRoadmapBlocks(): StorefrontArticleBlock[] {
   const { startBox } = useStorefrontActions();
   const { roadmap, lunarCycle } = PASSOVER_COPY;
@@ -48,7 +49,7 @@ export function useHolidayRoadmapBlocks(): StorefrontArticleBlock[] {
                   onPress: isStartBox ? startBox : interest ? interest.toggle : passover.toggle,
                 }
               : undefined,
-            // Marked pre-registers use gold fill; otherwise Passover primary / others outline.
+            // Marked pre-registers use gold fill; otherwise Hanukkah primary / others outline.
             ctaVariant: ctaLabel
               ? ((marked || ctaVariant === 'primary' ? 'primary' : 'outline') as
                   | 'primary'
@@ -69,6 +70,7 @@ export function useHolidayRoadmapBlocks(): StorefrontArticleBlock[] {
         },
       },
       ctaVariant: 'outline',
+      paddingBottom: spacing.xl,
     },
   ];
 }

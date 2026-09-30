@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Platform,
   View,
   Text,
   StyleSheet,
@@ -120,6 +121,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: spacing.sm,
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   ctas: {
     flexDirection: 'row',
