@@ -1,4 +1,5 @@
 import type { StorefrontHomeMode } from '../hooks/useStorefrontHomeMode';
+import { PRE_REGISTERED_CTA_LABEL, PRE_REGISTER_PASSOVER_CTA_LABEL } from './pilotHolidays';
 
 const PASSOVER_STRIP_BG = require('../../assets/storefront/setthetablev1.webp');
 
@@ -11,7 +12,8 @@ export type StorefrontBuildBoxStripCopy = {
 
 /** Mode-aware copy for the lifestyle build/save box strip (home + category PLP). */
 export function storefrontBuildBoxStripCopy(
-  mode: StorefrontHomeMode
+  mode: StorefrontHomeMode,
+  passoverPreRegistered = false
 ): StorefrontBuildBoxStripCopy | null {
   switch (mode) {
     case 'guest_box':
@@ -53,15 +55,15 @@ export function storefrontBuildBoxStripCopy(
     case 'locked':
       return {
         headline: 'Passover 2027 is coming',
-        body: 'Your Hanukkah box is locked and on its way. Explore early interest for Passover 2027 — dates and offers coming soon.',
-        ctaLabel: 'Explore Passover 2027',
+        body: 'Your Hanukkah box is locked. Pre-register for Passover 2027 to get early access and discounts when the boxes are released.',
+        ctaLabel: passoverPreRegistered ? PRE_REGISTERED_CTA_LABEL : PRE_REGISTER_PASSOVER_CTA_LABEL,
         backgroundSource: PASSOVER_STRIP_BG,
       };
     case 'passover':
       return {
         headline: 'Passover 2027 is coming',
-        body: 'Hanukkah 2026 is complete. Explore early interest for Passover 2027 — dates and offers coming soon.',
-        ctaLabel: 'Explore Passover 2027',
+        body: 'Hanukkah 2026 is complete. Pre-register for Passover 2027 to get early access and discounts when the boxes are released.',
+        ctaLabel: passoverPreRegistered ? PRE_REGISTERED_CTA_LABEL : PRE_REGISTER_PASSOVER_CTA_LABEL,
         backgroundSource: PASSOVER_STRIP_BG,
       };
     default:

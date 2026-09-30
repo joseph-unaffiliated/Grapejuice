@@ -361,9 +361,6 @@ function StorefrontChromeInner({
       case 'box':
         startBox();
         break;
-      case 'passover':
-        navigation.navigate('StorefrontPassover');
-        break;
       case 'story':
         navigation.navigate('StorefrontOurStory');
         break;
@@ -1098,7 +1095,6 @@ export function useStorefrontActions() {
     goHome: () => navigation.navigate('StorefrontHome'),
     goEligibility: () => navigation.navigate('BoxDiscountEligibility'),
     goOurStory: () => navigation.navigate('StorefrontOurStory'),
-    goPassover: () => navigation.navigate('StorefrontPassover'),
     goHowToPlayDreidel: () => {
       if (!HOW_TO_PAGES_PUBLISHED) return;
       navigation.navigate('StorefrontHowToPlayDreidel');

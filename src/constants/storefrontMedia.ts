@@ -74,20 +74,6 @@ export const STOREFRONT_BOX_BUILD_STRIP_ALT: StorefrontMediaSlot = {
   poster: require('../../assets/storefront/boxrevealv2.webp'),
 };
 
-/** Post-Hanukkah seasonal hero — Passover interest (placeholder art). */
-export const STOREFRONT_HERO_PASSOVER: StorefrontMediaSlot = {
-  id: 'hero-passover',
-  kind: 'image',
-  aspect: '4082/1536',
-  label: 'Lifestyle — Passover table',
-  headline: 'Passover 2027 is next',
-  body: 'Hanukkah 2026 is behind us. Explore early interest for Passover — dates and offers coming soon.',
-  bodySecondary: 'Seasonal boxes for the year ahead',
-  ctaLabel: 'Explore Passover 2027',
-  href: 'passover',
-  src: require('../../assets/storefront/setthetablev1.webp'),
-};
-
 /**
  * Decorative square thumbs under “What comes in the Passover box?”
  * (matzah, story art, crafts, costumes — early collection mood).

@@ -24,6 +24,7 @@ import type { StorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
+import { PRE_REGISTER_PASSOVER_CTA_LABEL } from '../../constants/pilotHolidays';
 import { STOREFRONT_HERO } from '../../constants/storefrontMedia';
 import {
   borderRadius,
@@ -220,8 +221,8 @@ export function StorefrontHero({
     headline = 'We hope you had a great Hanukkah!';
     body = 'We are planning now for Passover 2027';
     bodySecondary = null;
-    primaryLabel = 'Explore Passover 2027';
-    secondaryLabel = preRegisterLabel ?? 'Pre-register for Passover';
+    primaryLabel = 'Our Story';
+    secondaryLabel = preRegisterLabel ?? PRE_REGISTER_PASSOVER_CTA_LABEL;
   } else if (mode === 'gift_credit_incomplete') {
     headline = 'Finish sending your gift';
     body = 'Your gift will not be sent until you add your payment info.';

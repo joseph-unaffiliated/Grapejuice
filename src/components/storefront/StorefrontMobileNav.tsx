@@ -115,17 +115,6 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         heading: 'Seasonal boxes',
         links: [
           { label: '2026 Hanukkah Box', onPress: () => go(startBox) },
-          {
-            label: '2027 Passover',
-            onPress: () =>
-              go(() => {
-                if (leave) {
-                  leave({ type: 'service', id: 'passover' });
-                  return;
-                }
-                navigation.navigate('StorefrontPassover');
-              }),
-          },
           ...(hasOwnBox
             ? [
                 {

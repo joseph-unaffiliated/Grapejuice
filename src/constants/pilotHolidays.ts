@@ -5,6 +5,14 @@ export const PASSOVER_NOTIFY_INTEREST = 'passover-2027-notify';
 export const HIGH_HOLIDAYS_SUKKOT_2027_INTEREST = 'high-holidays-sukkot-2027';
 export const HANUKKAH_2027_NOTIFY_INTEREST = 'hanukkah-2027-notify';
 
+/**
+ * The Passover 2027 page is drafted but hidden: nothing links to it and `/passover`
+ * resolves to Our Story (which carries the holiday roadmap). Flip to restore.
+ */
+export const PASSOVER_PAGE_PUBLISHED = false;
+
+export const PRE_REGISTER_PASSOVER_CTA_LABEL = 'Pre-register for Passover';
+
 export const PRE_REGISTERED_CTA_LABEL = "You're pre-registered!";
 export const PRE_REGISTERED_NOTE =
   'Keep an eye on your inbox for early access and discounts when the time comes.';

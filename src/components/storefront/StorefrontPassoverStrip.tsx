@@ -11,15 +11,11 @@ export const PASSOVER_STRIP_BODY =
 
 export const PASSOVER_STRIP_PRIMARY_LABEL = 'Pre-register for Passover 2027';
 
-export const PASSOVER_STRIP_SECONDARY_LABEL = 'Learn more about Passover';
-
 type Props = {
   onPreRegister: () => void;
-  onLearnMore: () => void;
   headline?: string;
   body?: string;
   primaryLabel?: string;
-  secondaryLabel?: string;
   primaryDisabled?: boolean;
   /** Shown under the buttons once pre-registered. */
   note?: string;
@@ -31,11 +27,9 @@ type Props = {
  */
 export function StorefrontPassoverStrip({
   onPreRegister,
-  onLearnMore,
   headline = PASSOVER_STRIP_HEADLINE,
   body = PASSOVER_STRIP_BODY,
   primaryLabel = PASSOVER_STRIP_PRIMARY_LABEL,
-  secondaryLabel = PASSOVER_STRIP_SECONDARY_LABEL,
   primaryDisabled = false,
   note,
 }: Props) {
@@ -48,7 +42,6 @@ export function StorefrontPassoverStrip({
         onPress: onPreRegister,
         disabled: primaryDisabled,
       }}
-      secondaryCta={{ label: secondaryLabel, onPress: onLearnMore }}
       note={note}
       style={styles.outer}
     />

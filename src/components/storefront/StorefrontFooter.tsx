@@ -171,10 +171,6 @@ export function StorefrontFooter() {
             onPress: () => navigation.navigate('StorefrontOurStory'),
           },
           {
-            label: 'Passover 2027',
-            onPress: () => navigation.navigate('StorefrontPassover'),
-          },
-          {
             label: 'Account',
             onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
           },

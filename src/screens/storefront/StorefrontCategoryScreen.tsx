@@ -44,6 +44,8 @@ import { icons } from '../../constants/icons';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
+import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
@@ -248,7 +250,8 @@ export function StorefrontCategoryScreen() {
     byId: availabilityById,
     loading,
   } = useCatalogAvailabilityMap();
-  const { goHome, askRav, startBox, goCategory, goPassover } = useStorefrontActions();
+  const { goHome, askRav, startBox, goCategory } = useStorefrontActions();
+  const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const [sort, setSort] = useState<SortKey>('relevant');
@@ -259,7 +262,7 @@ export function StorefrontCategoryScreen() {
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const giftDraft = useGiftIntentStore((s) => s.draft);
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);
-  const strip = storefrontBuildBoxStripCopy(mode);
+  const strip = storefrontBuildBoxStripCopy(mode, passoverInterest.marked);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,7 +289,7 @@ export function StorefrontCategoryScreen() {
         return;
       case 'locked':
       case 'passover':
-        goPassover();
+        passoverInterest.toggle();
         return;
       case 'gift_credit_incomplete':
         if (giftDraft) {

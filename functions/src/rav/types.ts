@@ -90,7 +90,6 @@ const NAVIGATE_EXACT = new Set([
   '/my-gifts',
   '/account',
   '/story',
-  '/passover',
   '/gift',
 ]);
 const NAVIGATE_PATTERNS = [/^\/store\/[a-z0-9-]{1,48}$/, /^\/product\/[a-z0-9-]{1,96}$/];
@@ -103,7 +102,6 @@ const NAVIGATE_DEFAULT_LABELS: Record<string, string> = {
   '/my-gifts': 'your gifts',
   '/account': 'your account',
   '/story': 'our story',
-  '/passover': 'Passover',
   '/gift': 'send a gift',
 };
 

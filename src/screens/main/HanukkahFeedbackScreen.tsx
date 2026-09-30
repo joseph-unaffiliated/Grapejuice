@@ -20,6 +20,12 @@ import { spacing, typography, borderRadius, typeface, shadowsWeb, MOBILE_GUTTER 
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
+import {
+  PASSOVER_NOTIFY_INTEREST,
+  PRE_REGISTERED_CTA_LABEL,
+  PRE_REGISTER_PASSOVER_CTA_LABEL,
+} from '../../constants/pilotHolidays';
 
 export const HANUKKAH_FEEDBACK_CREDIT_CENTS = 5000;
 
@@ -50,7 +56,8 @@ const EMPTY_DRAFT: Draft = {
 };
 
 function HanukkahFeedbackBody() {
-  const { goHome, goPassover } = useStorefrontActions();
+  const { goHome } = useStorefrontActions();
+  const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { colors } = useThemeMode();
@@ -110,8 +117,10 @@ function HanukkahFeedbackBody() {
           We read every response — it shapes what we build for Passover 2027 and next Hanukkah.
           Your $50 in credit will be added to your account.
         </Text>
-        <TouchableOpacity style={styles.cta} onPress={goPassover} accessibilityRole="button">
-          <Text style={styles.ctaText}>Explore Passover 2027</Text>
+        <TouchableOpacity style={styles.cta} onPress={passoverInterest.toggle} accessibilityRole="button">
+          <Text style={styles.ctaText}>
+            {passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : PRE_REGISTER_PASSOVER_CTA_LABEL}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={goHome} style={styles.secondary} accessibilityRole="button">
           <Text style={styles.secondaryText}>Back to store</Text>

@@ -6,10 +6,14 @@ import {
   StorefrontArticlePage,
   type StorefrontArticleBeliefSection,
 } from '../../components/storefront/StorefrontArticlePage';
+import { StorefrontBMitzvahStrip } from '../../components/storefront/StorefrontBMitzvahStrip';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import { useHolidayRoadmapBlocks } from '../../components/storefront/useHolidayRoadmapBlocks';
+import { BMITZVAH_PILOT_INTEREST } from '../../constants/storefrontBMitzvahCopy';
 import { OUR_STORY_COPY } from '../../constants/storefrontOurStoryCopy';
 import { spacing } from '../../constants/theme';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
+import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
 import type { MainStackParamList } from '../../navigation/types';
 
 export function StorefrontOurStoryScreen() {
@@ -17,6 +21,8 @@ export function StorefrontOurStoryScreen() {
   const { startBox, goHome } = useStorefrontActions();
   usePublishRavSurface({ type: 'content', id: 'our-story', label: 'Our Story' });
   const c = OUR_STORY_COPY;
+  const roadmapBlocks = useHolidayRoadmapBlocks();
+  const bmitzvah = useStorefrontInterest(BMITZVAH_PILOT_INTEREST);
 
   const goDonate = () => {
     void Linking.openURL('mailto:hello@grapejuice.co?subject=Make%20a%20donation');
@@ -47,13 +53,6 @@ export function StorefrontOurStoryScreen() {
           paddingTop: spacing.xl,
         },
         {
-          type: 'prose',
-          heading: c.team.heading,
-          body: c.team.body,
-          maxWidth: 480,
-          paddingBottom: spacing.xl,
-        },
-        {
           type: 'band',
           heading: c.give.heading,
           headingMobile: c.give.headingMobile,
@@ -62,6 +61,13 @@ export function StorefrontOurStoryScreen() {
           secondaryCta: { label: c.give.secondaryCta, onPress: goGiftHanukkahBox },
           paper: true,
         },
+        {
+          type: 'prose',
+          heading: c.team.heading,
+          body: c.team.body,
+          maxWidth: 480,
+        },
+        ...roadmapBlocks,
         {
           type: 'linkList',
           heading: c.involve.heading,
@@ -99,6 +105,12 @@ export function StorefrontOurStoryScreen() {
           ],
         },
       ]}
+      beforeFooterStrips={
+        <StorefrontBMitzvahStrip
+          onInterested={bmitzvah.toggle}
+          primaryLabel={bmitzvah.marked ? "You're interested!" : undefined}
+        />
+      }
     />
   );
 }

@@ -77,7 +77,7 @@ const DREIDELS_LIFESTYLE_ASPECT = 2752 / 1536;
 export function StorefrontHomeScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { items, loading } = useCatalog();
-  const { startBox, askRav, goCategory, goPassover, goOurStory } = useStorefrontActions();
+  const { startBox, askRav, goCategory, goOurStory } = useStorefrontActions();
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const { isCompact: compact } = useLayoutBreakpoint();
@@ -183,7 +183,7 @@ export function StorefrontHomeScreen() {
         return;
       case 'passover':
         if (signedIn) navigation.navigate('HanukkahFeedback');
-        else goPassover();
+        else goOurStory();
         return;
       case 'customize':
         goCategory('collection');
@@ -239,7 +239,7 @@ export function StorefrontHomeScreen() {
         return;
       case 'locked':
       case 'passover':
-        goPassover();
+        passoverInterest.toggle();
         return;
       case 'gift_credit_incomplete':
       case 'gift_customize_incomplete':
@@ -253,7 +253,9 @@ export function StorefrontHomeScreen() {
     }
   };
 
-  const strip = storefrontBuildBoxStripCopy(mode);
+  const strip = storefrontBuildBoxStripCopy(mode, passoverInterest.marked);
+  /** Locked / after Hanukkah, the build-box strip already pitches Passover pre-registration. */
+  const showPassoverStrip = mode !== 'locked' && mode !== 'passover';
 
   usePublishRavSurface({ type: 'home', id: 'store', label: 'Store home' });
 
@@ -548,14 +550,15 @@ export function StorefrontHomeScreen() {
             </>
           ) : null}
 
-          <StorefrontPassoverStrip
-            onPreRegister={passoverInterest.toggle}
-            onLearnMore={goPassover}
-            primaryLabel={
-              passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
-            }
-            note={passoverInterest.marked ? PRE_REGISTERED_NOTE : undefined}
-          />
+          {showPassoverStrip ? (
+            <StorefrontPassoverStrip
+              onPreRegister={passoverInterest.toggle}
+              primaryLabel={
+                passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
+              }
+              note={passoverInterest.marked ? PRE_REGISTERED_NOTE : undefined}
+            />
+          ) : null}
         </LazyMount>
     </StorefrontChrome>
   );

@@ -20,7 +20,7 @@ YOU CAN
 - Mutate their box draft via returned "actions" (swap, add, remove line items) — the app shows these in a review pane for the user to confirm
 - Open a companion pane via returned "pane" so interactive UI lives beside chat (not as a flood of product cards)
 - Suggest box swaps (gelt sizes, independent latke or sufganiyot swaps, books, gifts, wrap vs pre-wrap) when they ask about changing their box
-- Take them to a page in the app via returned "navigate" when they ask to go somewhere ("take me to my box", "open the store", "show me Passover")
+- Take them to a page in the app via returned "navigate" when they ask to go somewhere ("take me to my box", "open the store", "tell me about Grapejuice")
 - Explain Hanukkah customs, recipes, kid-friendly ideas
 - Answer "is it okay if…" with yes-first permission
 - Reference the printed guide in their box for night-by-night content
@@ -58,7 +58,7 @@ You sit beside their screen (drawer or tab overlay) — not a FAQ bot behind gla
 /** Paths Rav may send the app to (see `sanitizeRavNavigate`). */
 export const RAV_NAVIGATE_DOC = `"navigate": { "path": "/box", "label": "your box" }
 Set "navigate" only when the person asks to go somewhere. Allowed paths:
-/box (their box), /store (the store), /store/<category> (e.g. /store/menorahs, /store/dreidels, /store/candles, /store/books, /store/stuffies), /product/<catalog-id>, /checkout, /orders, /my-gifts, /account, /story (about Grapejuice), /passover, /gift (send a gift).
+/box (their box), /store (the store), /store/<category> (e.g. /store/menorahs, /store/dreidels, /store/candles, /store/books, /store/stuffies), /product/<catalog-id>, /checkout, /orders, /my-gifts, /account, /story (about Grapejuice, upcoming holidays, and Passover 2027 pre-registration), /gift (send a gift).
 "label" is a short lowercase noun phrase for a "Go to …" link. Keep "text" to a short confirmation like "Taking you to your box."`;
 
 export const FACILITATOR_JSON_INSTRUCTIONS = `Return a single JSON object only — no markdown, no code fences, no prose outside the object:
