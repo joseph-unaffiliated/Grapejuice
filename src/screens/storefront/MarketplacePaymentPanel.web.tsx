@@ -9,6 +9,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { BoxLineItem } from '../../types/pilot';
+import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 
 type Props = {
   lineItems: BoxLineItem[];
@@ -39,7 +40,7 @@ export function MarketplacePaymentPanel({
     }
     setPaying(true);
     try {
-      const { error } = await stripe.confirmSetup({
+      const { error, setupIntent } = await stripe.confirmSetup({
         elements,
         confirmParams: {
           return_url: typeof window !== 'undefined' ? window.location.href : undefined,
@@ -49,6 +50,9 @@ export function MarketplacePaymentPanel({
       if (error) {
         onError('Could not save card', error.message ?? 'Please try again.');
         return;
+      }
+      if (setupIntent?.id) {
+        trackMeta('AddPaymentInfo', undefined, metaEventIds.addPaymentInfo(setupIntent.id));
       }
       onPaid();
     } finally {

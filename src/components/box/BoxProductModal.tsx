@@ -38,6 +38,7 @@ import {
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
+import { trackMetaProduct } from '../../services/analytics/metaPixel';
 import { navigateMainStack, navigateMainTab } from '../../navigation/mainStackNavigation';
 import {
   SwapIntoBoxModal,
@@ -130,6 +131,12 @@ export function BoxProductModal({
       scrollViewportH.current = 0;
       scrollContentH.current = 0;
     }
+  }, [visible, item?.id]);
+
+  useEffect(() => {
+    if (!visible || !item) return;
+    trackMetaProduct('ViewContent', { id: item.id, name: item.name, priceCents: boxAddOnUnitCents(item) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per product shown
   }, [visible, item?.id]);
 
   const syncBottomFade = (offsetY = 0) => {
@@ -463,7 +470,16 @@ export function BoxProductModal({
                               styles.ctaPrimary,
                               (locked || busy) && styles.ctaDisabled,
                             ]}
-                            onPress={() => void run(() => onAdd(item))}
+                            onPress={() =>
+                              void run(async () => {
+                                await onAdd(item);
+                                trackMetaProduct('AddToCart', {
+                                  id: item.id,
+                                  name: item.name,
+                                  priceCents: boxUnitCents,
+                                });
+                              })
+                            }
                             disabled={locked || busy}
                             accessibilityRole="button"
                           >
@@ -583,7 +599,10 @@ export function BoxProductModal({
           const source = swapSources.find((li) => `${li.slotId}:${li.itemId}` === key);
           if (!source) return;
           setSwapPickerOpen(false);
-          void run(() => onSwap(item, source));
+          void run(async () => {
+            await onSwap(item, source);
+            trackMetaProduct('AddToCart', { id: item.id, name: item.name, priceCents: swapDeltaCents });
+          });
         }}
         onCancel={() => setSwapPickerOpen(false)}
         title={

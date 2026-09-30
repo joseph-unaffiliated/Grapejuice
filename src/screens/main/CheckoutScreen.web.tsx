@@ -18,6 +18,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
+import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 import type { MainStackParamList } from '../../navigation/types';
 import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
@@ -151,7 +152,7 @@ function SetupCardStep({
     if (!stripe || !elements) return;
     setSaving(true);
     try {
-      const { error } = await stripe.confirmSetup({
+      const { error, setupIntent } = await stripe.confirmSetup({
         elements,
         confirmParams: {
           return_url: checkoutReturnUrl(),
@@ -161,6 +162,9 @@ function SetupCardStep({
       if (error) {
         notifyCheckout('Could not save card', error.message ?? 'Please try again.');
         return;
+      }
+      if (setupIntent?.id) {
+        trackMeta('AddPaymentInfo', undefined, metaEventIds.addPaymentInfo(setupIntent.id));
       }
       onSaved();
     } finally {
@@ -283,11 +287,23 @@ function CheckoutScreenBody() {
 
     setCommitting(true);
     try {
-      const { orderId } = await commitPilotBox(household.id, normalizedAddress(), {
+      const { orderId, totalCents } = await commitPilotBox(household.id, normalizedAddress(), {
         contactPhone: contactPhone.trim() || undefined,
         smsOptIn: smsOptIn && contactPhone.trim().length > 0,
         skipShipStation,
       });
+      trackMeta(
+        'Purchase',
+        {
+          value: totalCents / 100,
+          currency: 'USD',
+          order_id: orderId,
+          content_name: 'Hanukkah box',
+          content_type: 'product',
+          num_items: lineItems.length,
+        },
+        metaEventIds.purchase(orderId)
+      );
       clearStoredCheckoutAddress();
       writeShippingConfirmed(false);
       navigation.replace('OrderConfirmation', { orderId });
@@ -306,7 +322,21 @@ function CheckoutScreenBody() {
     contactPhone,
     smsOptIn,
     skipShipStation,
+    lineItems.length,
   ]);
+
+  const initiateCheckoutTracked = useRef(false);
+  useEffect(() => {
+    if (initiateCheckoutTracked.current || loading || !lineItems.length || openOrder) return;
+    initiateCheckoutTracked.current = true;
+    trackMeta('InitiateCheckout', {
+      value: total / 100,
+      currency: 'USD',
+      content_name: 'Hanukkah box',
+      content_type: 'product',
+      num_items: lineItems.length,
+    });
+  }, [loading, lineItems.length, openOrder, total]);
 
   const startSetup = async () => {
     if (!household?.id) return;

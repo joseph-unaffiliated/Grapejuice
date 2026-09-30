@@ -37,6 +37,16 @@ import {
   reserveMarketplaceInventoryInTx,
   reservedLinesFromOrder,
 } from './catalogInventory';
+import {
+  metaContextForDoc,
+  metaContextFromCallable,
+  metaContextFromStripeMetadata,
+  metaContextToStripeMetadata,
+  sanitizeAttribution,
+  sendMetaEvent,
+  type MetaClientContext,
+  type MetaUserInput,
+} from './metaCapi';
 import { randomBytes } from 'crypto';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
@@ -148,10 +158,15 @@ interface CommitPilotBoxData {
   smsOptIn?: boolean;
   /** Visitor playthrough: marks order as playthrough (no warehouse export at charge time). */
   skipShipStation?: boolean;
+  /** Browser Meta ids (see metaCapi.sanitizeMetaContext). */
+  meta?: unknown;
+  /** First / last-touch UTMs (see metaCapi.sanitizeAttribution). */
+  attribution?: unknown;
 }
 
 interface CreatePilotSetupIntentData {
   householdId: string;
+  meta?: unknown;
 }
 
 interface CreateMarketplaceCheckoutData {
@@ -160,6 +175,70 @@ interface CreateMarketplaceCheckoutData {
   shippingAddress: ShippingAddress;
   lineItems: Array<{ itemId: string; quantity?: number }>;
   skipShipStation?: boolean;
+  meta?: unknown;
+  attribution?: unknown;
+}
+
+function metaUserWithAddress(
+  base: MetaUserInput,
+  address: Partial<ShippingAddress> | null | undefined
+): MetaUserInput {
+  if (!address) return base;
+  return {
+    ...base,
+    name: address.name ?? null,
+    city: address.city ?? null,
+    state: address.stateProvince ?? null,
+    zip: address.postalCode ?? null,
+    country: address.country === 'US' || address.country === 'CA' ? address.country : null,
+  };
+}
+
+/** Purchase for a newly committed order (box or marketplace). `purchase_<orderId>` matches the browser. */
+async function sendOrderPurchaseToMeta(input: {
+  orderId: string;
+  order: FirebaseFirestore.DocumentData;
+  context: MetaClientContext;
+  email?: string | null;
+  phone?: string | null;
+}): Promise<void> {
+  const { orderId, order } = input;
+  const lineItems = Array.isArray(order.lineItems) ? (order.lineItems as Array<Record<string, unknown>>) : [];
+  const contentIds = lineItems
+    .map((li) => (typeof li.itemId === 'string' ? li.itemId : null))
+    .filter((id): id is string => !!id)
+    .slice(0, 50);
+  await sendMetaEvent({
+    eventName: 'Purchase',
+    eventId: `purchase_${orderId}`,
+    context: input.context,
+    user: metaUserWithAddress(
+      {
+        email: input.email ?? (order.guestEmail as string | undefined) ?? null,
+        phone: input.phone ?? null,
+        externalId: (order.userId as string | undefined) ?? null,
+      },
+      order.shippingAddress as Partial<ShippingAddress> | undefined
+    ),
+    customData: {
+      value: Math.max(0, Number(order.totalCents ?? 0)) / 100,
+      currency: 'USD',
+      order_id: orderId,
+      content_name: order.orderType === 'marketplace' ? 'Marketplace order' : 'Hanukkah box',
+      content_type: 'product',
+      ...(contentIds.length ? { content_ids: contentIds } : {}),
+      num_items: lineItems.length,
+    },
+    stripeBacked: true,
+    playthrough: order.playthrough === true,
+  });
+}
+
+async function emailForMeta(uid: string | null | undefined, fallback?: string | null): Promise<string | null> {
+  if (fallback) return fallback;
+  if (!uid) return null;
+  const snap = await db.doc(`users/${uid}`).get();
+  return (snap.data()?.email as string | undefined) ?? null;
 }
 
 function guestHouseholdId(email: string): string {
@@ -626,6 +705,8 @@ export const createMarketplaceCheckout = onCall(async (request) => {
 
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     const skipShipStation = data.skipShipStation === true;
+    const metaCtx = metaContextFromCallable(request);
+    const attribution = sanitizeAttribution(data.attribution);
 
     const reservedLines = await db.runTransaction(async (tx) =>
       reserveMarketplaceInventoryInTx(
@@ -660,6 +741,7 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       inventoryReservedAt: reservedAt,
       inventoryReservedLines: reservedLines,
       createdAt: FieldValue.serverTimestamp(),
+      ...(attribution ? { attribution } : {}),
     };
     if (skipShipStation) orderPayload.playthrough = true;
 
@@ -679,6 +761,12 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       }
 
       if (!needsCard) {
+        await sendOrderPurchaseToMeta({
+          orderId: orderRef.id,
+          order: orderPayload,
+          context: metaCtx,
+          email: guestEmail || (authedUid ? await emailForMeta(authedUid, request.auth?.token.email) : null),
+        });
         return {
           orderId: orderRef.id,
           totalCents,
@@ -720,6 +808,7 @@ export const createMarketplaceCheckout = onCall(async (request) => {
           orderId: orderRef.id,
           type: 'marketplace',
           ...(authedUid ? { userId: authedUid } : {}),
+          ...metaContextToStripeMetadata(metaCtx),
         },
       });
       if (!setupIntent.client_secret) {
@@ -800,6 +889,7 @@ export const createPilotSetupIntent = onCall(async (request) => {
     metadata: {
       householdId,
       userId: request.auth.uid,
+      ...metaContextToStripeMetadata(metaContextFromCallable(request)),
     },
   });
 
@@ -876,9 +966,10 @@ export const commitPilotBox = onCall(async (request) => {
   }
 
   const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
+  const attribution = sanitizeAttribution(data.attribution);
 
   const orderRef = db.collection(`households/${householdId}/orders`).doc();
-  await orderRef.set({
+  const orderPayload: Record<string, unknown> = {
     status: 'committed',
     orderType: 'hanukkah_box',
     lineItems,
@@ -898,7 +989,9 @@ export const commitPilotBox = onCall(async (request) => {
     committedAt: FieldValue.serverTimestamp(),
     createdAt: FieldValue.serverTimestamp(),
     ...(isPlaythrough ? { playthrough: true } : {}),
-  });
+    ...(attribution ? { attribution } : {}),
+  };
+  await orderRef.set(orderPayload);
 
   if (giftCreditApplied > 0 || platformCreditApplied > 0) {
     await db.doc(`households/${householdId}`).update({
@@ -931,6 +1024,14 @@ export const commitPilotBox = onCall(async (request) => {
       });
     }
   }
+
+  await sendOrderPurchaseToMeta({
+    orderId: orderRef.id,
+    order: orderPayload,
+    context: metaContextFromCallable(request),
+    email: await emailForMeta(request.auth.uid, request.auth.token.email),
+    phone: data.contactPhone?.trim() || null,
+  });
 
   return {
     orderId: orderRef.id,
@@ -1199,6 +1300,7 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
 
     if (event.type === 'setup_intent.succeeded') {
       const si = event.data.object as {
+        id: string;
         metadata?: Record<string, string>;
         payment_method?: string | { id?: string };
         customer?: string | { id?: string };
@@ -1220,6 +1322,15 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
           });
         }
         const setupOrderId = si.metadata?.orderId;
+        const metaCtx = metaContextFromStripeMetadata(si.metadata);
+        const setupUserId = si.metadata?.userId ?? null;
+        let metaEmail: string | null = null;
+        try {
+          metaEmail = await emailForMeta(setupUserId);
+        } catch (emailErr) {
+          logger.warn('Meta: could not load email for setup intent', { setupIntentId: si.id, emailErr });
+        }
+        let committedMarketplaceOrder: FirebaseFirestore.DocumentData | null = null;
         if (si.metadata?.type === 'marketplace' && setupOrderId) {
           const pendingRef = db.doc(`households/${householdId}/orders/${setupOrderId}`);
           const pendingSnap = await pendingRef.get();
@@ -1228,7 +1339,24 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
               status: 'committed',
               updatedAt: new Date().toISOString(),
             });
+            committedMarketplaceOrder = pendingSnap.data() ?? null;
           }
+        }
+        await sendMetaEvent({
+          eventName: 'AddPaymentInfo',
+          eventId: `payment_${si.id}`,
+          context: metaCtx,
+          user: { email: metaEmail, externalId: setupUserId },
+          stripeBacked: true,
+          playthrough: committedMarketplaceOrder?.playthrough === true,
+        });
+        if (committedMarketplaceOrder && setupOrderId) {
+          await sendOrderPurchaseToMeta({
+            orderId: setupOrderId,
+            order: committedMarketplaceOrder,
+            context: metaCtx,
+            email: metaEmail,
+          });
         }
         try {
           await retryFailedHanukkahBoxCharges(db, stripe, householdId);
@@ -1615,6 +1743,8 @@ export const purchasePilotGift = onCall(async (request) => {
   const giverEmail = String(userSnap.data()?.email ?? '').trim().toLowerCase();
   const claimToken = randomBytes(24).toString('hex');
   const inviteRef = db.collection('giftInvites').doc();
+  const metaContext = metaContextForDoc(metaContextFromCallable(request));
+  const attribution = sanitizeAttribution(request.data?.attribution);
   const payload: GiftInviteRecord = {
     giverUid: request.auth.uid,
     giverName,
@@ -1629,6 +1759,8 @@ export const purchasePilotGift = onCall(async (request) => {
     ...(giftKind === 'box' && lineItems ? { lineItems } : {}),
     ...(giftKind === 'box' && childInterests ? { childInterests } : {}),
     ...(giftKind === 'box' && childAgeGroups ? { childAgeGroups } : {}),
+    ...(Object.keys(metaContext).length ? { metaContext } : {}),
+    ...(attribution ? { attribution } : {}),
     createdAt: new Date().toISOString(),
   };
   await inviteRef.set(payload);
@@ -1672,12 +1804,59 @@ export const finalizePilotGiftPayment = onCall(async (request) => {
   }
 
   try {
-    const result = await finalizeGiftInvitePayment(db, giftInviteId);
+    const result = await finalizeGiftInvitePayment(db, giftInviteId, metaContextFromCallable(request));
     return { ok: true, claimUrl: result.claimUrl, alreadyFinalized: result.alreadyFinalized };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Payment not completed';
     throw new HttpsError('failed-precondition', message);
   }
+});
+
+/**
+ * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
+ * per account (`reg_<uid>`); PreRegister reuses the browser's event id for dedupe.
+ */
+export const trackMetaEvent = onCall(async (request) => {
+  const eventName = request.data?.eventName;
+  if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister') {
+    throw new HttpsError('invalid-argument', 'Unsupported event.');
+  }
+  const context = metaContextFromCallable(request);
+  if (context.skip) return { ok: true };
+  const uid = request.auth?.uid ?? null;
+  const email = uid ? await emailForMeta(uid, request.auth?.token.email) : null;
+
+  if (eventName === 'CompleteRegistration') {
+    if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.');
+    const userRef = db.doc(`users/${uid}`);
+    const firstSend = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      // Never create the profile here — SessionContext treats an existing doc as onboarded state.
+      if (!snap.exists || snap.data()?.metaRegistrationSentAt) return false;
+      tx.update(userRef, { metaRegistrationSentAt: new Date().toISOString() });
+      return true;
+    });
+    if (firstSend) {
+      await sendMetaEvent({
+        eventName,
+        eventId: `reg_${uid}`,
+        context,
+        user: { email, externalId: uid },
+      });
+    }
+    return { ok: true };
+  }
+
+  const contentName =
+    typeof request.data?.contentName === 'string' ? request.data.contentName.trim().slice(0, 100) : '';
+  await sendMetaEvent({
+    eventName,
+    eventId: context.eventId ?? `prereg_${randomBytes(8).toString('hex')}`,
+    context,
+    user: { email, externalId: uid },
+    ...(contentName ? { customData: { content_name: contentName } } : {}),
+  });
+  return { ok: true };
 });
 
 /** Gifts the signed-in user has purchased (giver side). */

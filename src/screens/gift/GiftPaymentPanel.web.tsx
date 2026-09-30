@@ -19,6 +19,7 @@ import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../c
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 
 /** Stripe Elements appearance — closer to Grapejuice checkout than default purple Stripe. */
 export const GIFT_STRIPE_APPEARANCE = {
@@ -95,6 +96,17 @@ export function GiftPaymentPanel({
         onError('Payment failed', error.message ?? 'Please try again.');
         return;
       }
+      trackMeta(
+        'Purchase',
+        {
+          value: amountCents / 100,
+          currency: 'USD',
+          order_id: giftInviteId,
+          content_name: customize ? 'Gift box' : 'Gift credit',
+          content_type: 'product',
+        },
+        metaEventIds.giftPurchase(giftInviteId)
+      );
       const result = await completePurchase(giftInviteId);
       onPaid(result);
     } catch (e) {

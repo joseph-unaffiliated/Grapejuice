@@ -1,6 +1,12 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import type { ShippingAddress } from '../../types/pilot';
+import {
+  attributionForServer,
+  metaServerContext,
+  type MetaServerContext,
+} from '../analytics/metaPixel';
+import type { AttributionSnapshot } from '../../stores/entryContextStore';
 
 export type CommitPilotBoxResult = {
   orderId: string;
@@ -29,6 +35,8 @@ export async function commitPilotBox(
       contactPhone?: string;
       smsOptIn?: boolean;
       skipShipStation?: boolean;
+      meta?: MetaServerContext;
+      attribution?: AttributionSnapshot;
     },
     CommitPilotBoxResult
   >(functions, 'commitPilotBox');
@@ -39,6 +47,8 @@ export async function commitPilotBox(
     contactPhone: options?.contactPhone,
     smsOptIn: options?.smsOptIn,
     skipShipStation: options?.skipShipStation,
+    meta: metaServerContext(),
+    attribution: attributionForServer(),
   });
   return data;
 }

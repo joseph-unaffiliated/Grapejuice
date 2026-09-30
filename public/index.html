@@ -41,17 +41,23 @@
         document.head.appendChild(ot);
         // Retention.com (no-op if already loaded for ?vge=true)
         if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
-        // Meta Pixel
-        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t,s)}(window, document,'script',
-        'https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '809409995127436');
-        fbq('track', 'PageView');
+        // Meta Pixel library — the fbq queue stub below already holds init + events.
+        var fb = document.createElement('script');
+        fb.async = true;
+        fb.src = 'https://connect.facebook.net/en_US/fbevents.js';
+        var first = document.getElementsByTagName('script')[0];
+        first.parentNode.insertBefore(fb, first);
       };
+      // Meta Pixel queue stub: app events (src/services/analytics/metaPixel.ts) queue
+      // here before the deferred fbevents.js load, then flush in order.
+      !function(f){if(f.fbq)return;var n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];}(window);
+      // SPA PageViews come from webBrowserHistory.ts; the pixel's own pushState
+      // PageView would double-count and swallow ours (same URL).
+      fbq.disablePushState = true;
+      fbq('init', '809409995127436');
+      fbq('track', 'PageView', { content_category: 'grapejuice' });
       // Retention collection: load immediately (verifier + SPA need geq.page in-source).
       // OneTrust / Meta stay deferred so they don't contend with first paint.
       if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();

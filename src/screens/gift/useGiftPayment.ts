@@ -1,5 +1,6 @@
 import { purchasePilotGift, finalizePilotGiftPayment } from '../../services/gift/giftFlow';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import { trackMeta } from '../../services/analytics/metaPixel';
 import type { AgeGroup, BoxLineItem } from '../../types/pilot';
 import type { GiftGiveFormValues } from './giftGiveTypes';
 
@@ -30,6 +31,12 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
     typeof input.amountCents === 'number' && input.amountCents > 0
       ? input.amountCents
       : DEFAULT_BOX_PRICE_CENTS;
+  trackMeta('InitiateCheckout', {
+    value: creditCents / 100,
+    currency: 'USD',
+    content_name: input.customize ? 'Gift box' : 'Gift credit',
+    content_type: 'product',
+  });
   const result = await purchasePilotGift({
     recipientEmail: input.form.recipientEmail.trim(),
     giverName: input.form.giverName.trim() || 'Someone who loves you',

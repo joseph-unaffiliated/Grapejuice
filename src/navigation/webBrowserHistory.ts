@@ -24,6 +24,7 @@ import { useAuthStore } from '../stores/authStore';
 import { openBoxSurface } from './boxEntry';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 import { retentionPage } from '../services/analytics/retention';
+import { trackMeta } from '../services/analytics/metaPixel';
 
 type GjHistoryState = { gjNav: true; idx: number };
 
@@ -271,6 +272,8 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
   if (navHistory.length === 0) {
     navHistory.push(fingerprint);
     syncBrowserUrl(state, 'replace');
+    // index.html already fired the landing PageView.
+    lastMetaPageViewPath = window.location.pathname;
     return;
   }
 
@@ -281,6 +284,7 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
     syncBrowserUrl(state, mode);
     // SPA pageview for Retention (initial load already called geq.page() in index.html).
     if (mode === 'push') retentionPage();
+    trackMetaPageViewIfPathChanged();
     return;
   }
 
@@ -289,6 +293,17 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
   }
   // Same stack entry revisited (or filter tweak) — keep the URL honest.
   syncBrowserUrl(state, 'replace');
+  trackMetaPageViewIfPathChanged();
+}
+
+let lastMetaPageViewPath: string | null = null;
+
+/** Meta PageView per distinct pathname (Back/Forward included; filter-only query tweaks skipped). */
+function trackMetaPageViewIfPathChanged(): void {
+  const path = window.location.pathname;
+  if (path === lastMetaPageViewPath) return;
+  lastMetaPageViewPath = path;
+  trackMeta('PageView');
 }
 
 /**
@@ -332,6 +347,7 @@ export function installWebBrowserHistory(): () => void {
       restoreFromBrowserUrl();
     } finally {
       suppressHistoryPush = false;
+      trackMetaPageViewIfPathChanged();
     }
   };
 

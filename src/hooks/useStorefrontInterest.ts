@@ -4,6 +4,7 @@ import { useSession } from './useSession';
 import { usersService } from '../services/firestore/users';
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
+import { trackPreRegister } from '../services/analytics/metaServerEvents';
 
 /** Write one storefront interest onto the signed-in user's profile. */
 export async function applyStorefrontInterest(
@@ -21,6 +22,7 @@ export async function applyStorefrontInterest(
     storefrontInterests: next,
     ...(marked && key === PASSOVER_NOTIFY_INTEREST ? { notificationsOptIn: true } : null),
   });
+  if (marked && !current.includes(key)) trackPreRegister(key);
 }
 
 /**

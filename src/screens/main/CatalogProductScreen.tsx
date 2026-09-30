@@ -44,6 +44,7 @@ import {
   resolveAvailability,
 } from '../../services/catalog/availability';
 import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
+import { trackMetaProduct } from '../../services/analytics/metaPixel';
 import {
   resolveFreeSwapUnitCents,
   resolveIncludedGiftOptions,
@@ -202,6 +203,17 @@ export function CatalogProductScreen() {
     setDetailsOpen(true);
   }, [slug]);
 
+  const viewedItemId = item?.id;
+  useEffect(() => {
+    if (!item) return;
+    trackMetaProduct('ViewContent', {
+      id: item.id,
+      name: item.name,
+      priceCents: resolveCatalogDisplayPrices(item).nonMemberCents,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per product shown
+  }, [viewedItemId]);
+
   useEffect(() => {
     let cancelled = false;
     setLoadingConfig(true);
@@ -331,6 +343,7 @@ export function CatalogProductScreen() {
         label: item.name,
       },
     ]);
+    trackMetaProduct('AddToCart', { id: item.id, name: item.name, priceCents: boxUnitCents });
     navigation.navigate('MyBox');
   };
 
@@ -367,6 +380,7 @@ export function CatalogProductScreen() {
     );
     setSwapModalOpen(false);
     await persist(next);
+    trackMetaProduct('AddToCart', { id: item.id, name: item.name, priceCents: delta });
     navigation.navigate('MyBox');
   };
 

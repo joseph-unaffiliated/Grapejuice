@@ -8,6 +8,8 @@ import type {
   UserProfile,
 } from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
+import { attributionForServer } from '../analytics/metaPixel';
+import { trackRegistration } from '../analytics/metaServerEvents';
 
 function parseUpcomingBeamMilestone(value: unknown): UpcomingBeamMilestone | null | undefined {
   if (value === null) return null;
@@ -99,12 +101,17 @@ export const usersService = {
       ...data,
       updatedAt: now,
     });
-    if (!existing.exists()) {
+    const isNewProfile = !existing.exists();
+    if (isNewProfile) {
       payload.createdAt = now;
       payload.role = data.role ?? 'parent';
       payload.onboardingComplete = data.onboardingComplete ?? false;
+      const attribution = attributionForServer();
+      // JSON round-trip drops undefined utm keys (Firestore rejects undefined).
+      if (attribution) payload.attribution = JSON.parse(JSON.stringify(attribution));
     }
     await setDoc(ref, payload, { merge: true });
+    if (isNewProfile) trackRegistration(uid);
     const snap = await getDoc(ref);
     return toProfile(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
   },

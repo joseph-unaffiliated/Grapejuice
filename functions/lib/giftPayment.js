@@ -5,6 +5,7 @@ exports.finalizeGiftInvitePayment = finalizeGiftInvitePayment;
 const logger = require("firebase-functions/logger");
 const stripe_1 = require("./stripe");
 const email_1 = require("./email");
+const metaCapi_1 = require("./metaCapi");
 /** Prefer stored kind; fall back to lineItems for older invites. */
 function resolveGiftInviteKind(invite) {
     if (invite.kind === 'box' || invite.kind === 'credit')
@@ -15,8 +16,10 @@ function resolveGiftInviteKind(invite) {
  * Mark gift paid and email recipient.
  * Idempotent across client finalize + Stripe webhook (transaction claims the send).
  */
-async function finalizeGiftInvitePayment(db, giftInviteId) {
-    var _a, _b;
+async function finalizeGiftInvitePayment(db, giftInviteId, 
+/** Finalize callable's browser context — used when the invite predates stored metaContext. */
+fallbackMetaContext) {
+    var _a, _b, _c, _d;
     const inviteRef = db.collection('giftInvites').doc(giftInviteId);
     const inviteSnap = await inviteRef.get();
     if (!inviteSnap.exists) {
@@ -64,6 +67,21 @@ async function finalizeGiftInvitePayment(db, giftInviteId) {
         return true;
     });
     if (shouldSendEmail) {
+        // Same transaction claim as the email, so client finalize + webhook send one Purchase.
+        await (0, metaCapi_1.sendMetaEvent)({
+            eventName: 'Purchase',
+            eventId: `purchase_gift_${giftInviteId}`,
+            context: ((_d = (_c = invite.metaContext) !== null && _c !== void 0 ? _c : fallbackMetaContext) !== null && _d !== void 0 ? _d : {}),
+            user: { email: invite.giverEmail || null, externalId: invite.giverUid },
+            customData: {
+                value: (pi.amount_received || pi.amount) / 100,
+                currency: (pi.currency || 'usd').toUpperCase(),
+                order_id: giftInviteId,
+                content_name: resolveGiftInviteKind(invite) === 'box' ? 'Gift box' : 'Gift credit',
+                content_type: 'product',
+            },
+            stripeBacked: true,
+        });
         try {
             await (0, email_1.sendGiftClaimEmail)({
                 to: invite.recipientEmail,

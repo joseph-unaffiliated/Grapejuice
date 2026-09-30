@@ -2,6 +2,12 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import type { AgeGroup, BoxLineItem, GiftInvite } from '../../types/pilot';
 import type { ChildInterestId } from '../../constants/childInterests';
+import {
+  attributionForServer,
+  metaServerContext,
+  type MetaServerContext,
+} from '../analytics/metaPixel';
+import type { AttributionSnapshot } from '../../stores/entryContextStore';
 
 export type PurchaseGiftResult = {
   giftInviteId: string;
@@ -23,8 +29,15 @@ export async function purchasePilotGift(input: {
   childAgeGroups?: AgeGroup[];
 }): Promise<PurchaseGiftResult> {
   if (!functions) throw new Error('Firebase Functions is not configured.');
-  const callable = httpsCallable<typeof input, PurchaseGiftResult>(functions, 'purchasePilotGift');
-  const { data } = await callable(input);
+  const callable = httpsCallable<
+    typeof input & { meta?: MetaServerContext; attribution?: AttributionSnapshot },
+    PurchaseGiftResult
+  >(functions, 'purchasePilotGift');
+  const { data } = await callable({
+    ...input,
+    meta: metaServerContext(),
+    attribution: attributionForServer(),
+  });
   return data;
 }
 
@@ -160,11 +173,11 @@ export async function finalizePilotGiftPayment(giftInviteId: string): Promise<{
   alreadyFinalized: boolean;
 }> {
   if (!functions) throw new Error('Firebase Functions is not configured.');
-  const callable = httpsCallable<{ giftInviteId: string }, { ok: boolean; claimUrl: string; alreadyFinalized: boolean }>(
-    functions,
-    'finalizePilotGiftPayment'
-  );
-  const { data } = await callable({ giftInviteId });
+  const callable = httpsCallable<
+    { giftInviteId: string; meta?: MetaServerContext },
+    { ok: boolean; claimUrl: string; alreadyFinalized: boolean }
+  >(functions, 'finalizePilotGiftPayment');
+  const { data } = await callable({ giftInviteId, meta: metaServerContext() });
   return data;
 }
 

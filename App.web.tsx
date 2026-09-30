@@ -6,6 +6,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { TypographyProvider } from './src/components/ui/TypographyProvider';
 import { warmWebAuth } from './src/services/auth/auth';
+import { captureAttributionFromWindow } from './src/stores/entryContextStore';
+
+// Before navigation rewrites the URL (drops utm_* / fbclid).
+captureAttributionFromWindow();
 
 // Start Firebase redirect completion before the font gate mounts RootNavigator.
 // Late getRedirectResult is a common cause of "signed in with Google, still a guest".

@@ -1,6 +1,12 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import type { BoxLineItem, ShippingAddress } from '../../types/pilot';
+import {
+  attributionForServer,
+  metaServerContext,
+  type MetaServerContext,
+} from '../analytics/metaPixel';
+import type { AttributionSnapshot } from '../../stores/entryContextStore';
 
 export type CreateMarketplaceCheckoutResult = {
   clientSecret: string | null;
@@ -38,6 +44,8 @@ export async function createMarketplaceCheckout(
       shippingAddress: ShippingAddress;
       lineItems: Pick<BoxLineItem, 'itemId' | 'quantity'>[];
       skipShipStation?: boolean;
+      meta?: MetaServerContext;
+      attribution?: AttributionSnapshot;
     },
     CreateMarketplaceCheckoutResult
   >(functions, 'createMarketplaceCheckout');
@@ -47,6 +55,8 @@ export async function createMarketplaceCheckout(
     shippingAddress: address,
     lineItems,
     skipShipStation: options?.skipShipStation,
+    meta: metaServerContext(),
+    attribution: attributionForServer(),
   });
   return data;
 }

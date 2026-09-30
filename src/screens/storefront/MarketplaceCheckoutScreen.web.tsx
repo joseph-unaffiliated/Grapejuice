@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthStore } from '../../stores/authStore';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
+import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 import { createMarketplaceCheckout } from '../../services/checkout/createMarketplaceCheckout';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
@@ -134,12 +135,39 @@ function MarketplaceCheckoutBody() {
   );
 
   const finishOrder = useCallback(
-    (orderId: string) => {
+    (orderId: string, totalCents: number) => {
+      trackMeta(
+        'Purchase',
+        {
+          value: totalCents / 100,
+          currency: 'USD',
+          order_id: orderId,
+          content_name: 'Marketplace order',
+          content_type: 'product',
+          content_ids: lineItems.map((li) => li.itemId),
+          num_items: lineItems.length,
+        },
+        metaEventIds.purchase(orderId)
+      );
       clearCart();
       navigation.replace('OrderConfirmation', { orderId });
     },
-    [clearCart, navigation]
+    [clearCart, navigation, lineItems]
   );
+
+  const initiateCheckoutTracked = useRef(false);
+  useEffect(() => {
+    if (initiateCheckoutTracked.current || catalogLoading || !lineItems.length) return;
+    initiateCheckoutTracked.current = true;
+    trackMeta('InitiateCheckout', {
+      value: total / 100,
+      currency: 'USD',
+      content_name: 'Marketplace order',
+      content_type: 'product',
+      content_ids: lineItems.map((li) => li.itemId),
+      num_items: lineItems.length,
+    });
+  }, [catalogLoading, lineItems, total]);
 
   const resetPayment = () => {
     setPaymentSecret(null);
@@ -198,7 +226,7 @@ function MarketplaceCheckoutBody() {
         result.status === 'confirmed' ||
         result.totalCents === 0
       ) {
-        finishOrder(result.orderId);
+        finishOrder(result.orderId, result.totalCents);
         return;
       }
 
@@ -287,7 +315,7 @@ function MarketplaceCheckoutBody() {
                 totalCents={pendingTotalCents}
                 onCancel={resetPayment}
                 onError={marketplaceCheckoutNotify}
-                onPaid={() => finishOrder(pendingOrderId)}
+                onPaid={() => finishOrder(pendingOrderId, pendingTotalCents)}
               />
             </Elements>
           </View>

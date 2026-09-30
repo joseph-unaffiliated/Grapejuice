@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BoxLineItem } from '../types/pilot';
 import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
+import { trackMetaProduct } from '../services/analytics/metaPixel';
 
 /** Soft cap so the header badge stays readable. */
 export const MAX_MARKETPLACE_CART_QTY = 99;
@@ -39,6 +40,11 @@ export const useMarketplaceCartStore = create<MarketplaceCartState>()(
         const items = get().items;
         const existing = items.find((li) => li.itemId === item.itemId);
         const addBy = Math.max(1, item.quantity || 1);
+        trackMetaProduct('AddToCart', {
+          id: item.itemId,
+          name: item.label,
+          priceCents: item.unitCents * addBy,
+        });
         if (existing) {
           const nextQty = clampQty(lineQty(existing) + addBy);
           set({

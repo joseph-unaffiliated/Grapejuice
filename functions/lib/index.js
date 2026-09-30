@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -20,6 +20,7 @@ const lockReminders_1 = require("./lockReminders");
 const airtableCatalogSync_1 = require("./airtableCatalogSync");
 const chargePilotBox_1 = require("./chargePilotBox");
 const catalogInventory_1 = require("./catalogInventory");
+const metaCapi_1 = require("./metaCapi");
 const crypto_1 = require("crypto");
 var welcome_1 = require("./welcome");
 Object.defineProperty(exports, "sendWelcomeOnSignup", { enumerable: true, get: function () { return welcome_1.sendWelcomeOnSignup; } });
@@ -93,6 +94,44 @@ function isLocked(lockAt) {
     if (!lockAt)
         return false;
     return Date.now() >= new Date(lockAt).getTime();
+}
+function metaUserWithAddress(base, address) {
+    var _a, _b, _c, _d;
+    if (!address)
+        return base;
+    return Object.assign(Object.assign({}, base), { name: (_a = address.name) !== null && _a !== void 0 ? _a : null, city: (_b = address.city) !== null && _b !== void 0 ? _b : null, state: (_c = address.stateProvince) !== null && _c !== void 0 ? _c : null, zip: (_d = address.postalCode) !== null && _d !== void 0 ? _d : null, country: address.country === 'US' || address.country === 'CA' ? address.country : null });
+}
+/** Purchase for a newly committed order (box or marketplace). `purchase_<orderId>` matches the browser. */
+async function sendOrderPurchaseToMeta(input) {
+    var _a, _b, _c, _d, _e;
+    const { orderId, order } = input;
+    const lineItems = Array.isArray(order.lineItems) ? order.lineItems : [];
+    const contentIds = lineItems
+        .map((li) => (typeof li.itemId === 'string' ? li.itemId : null))
+        .filter((id) => !!id)
+        .slice(0, 50);
+    await (0, metaCapi_1.sendMetaEvent)({
+        eventName: 'Purchase',
+        eventId: `purchase_${orderId}`,
+        context: input.context,
+        user: metaUserWithAddress({
+            email: (_b = (_a = input.email) !== null && _a !== void 0 ? _a : order.guestEmail) !== null && _b !== void 0 ? _b : null,
+            phone: (_c = input.phone) !== null && _c !== void 0 ? _c : null,
+            externalId: (_d = order.userId) !== null && _d !== void 0 ? _d : null,
+        }, order.shippingAddress),
+        customData: Object.assign(Object.assign({ value: Math.max(0, Number((_e = order.totalCents) !== null && _e !== void 0 ? _e : 0)) / 100, currency: 'USD', order_id: orderId, content_name: order.orderType === 'marketplace' ? 'Marketplace order' : 'Hanukkah box', content_type: 'product' }, (contentIds.length ? { content_ids: contentIds } : {})), { num_items: lineItems.length }),
+        stripeBacked: true,
+        playthrough: order.playthrough === true,
+    });
+}
+async function emailForMeta(uid, fallback) {
+    var _a, _b;
+    if (fallback)
+        return fallback;
+    if (!uid)
+        return null;
+    const snap = await db.doc(`users/${uid}`).get();
+    return (_b = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.email) !== null && _b !== void 0 ? _b : null;
 }
 function guestHouseholdId(email) {
     return `guest_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 140);
@@ -427,7 +466,7 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
 });
 /** À la carte checkout. Saves a card and charges when Hanukkah boxes lock. Guests need an email; a box still requires an account. */
 exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     try {
         const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
         const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
@@ -487,15 +526,17 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
         const lockAt = await getLockAt(false);
         const orderRef = db.collection(`households/${householdId}/orders`).doc();
         const skipShipStation = data.skipShipStation === true;
+        const metaCtx = (0, metaCapi_1.metaContextFromCallable)(request);
+        const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
         const reservedLines = await db.runTransaction(async (tx) => (0, catalogInventory_1.reserveMarketplaceInventoryInTx)(db, tx, lineItems.map((li) => ({ itemId: li.itemId, quantity: li.quantity })), lockAt));
         const cardOnFile = Boolean(hhData.stripeDefaultPaymentMethodId);
         const needsCard = totalCents > 0 && !cardOnFile;
         const reservedAt = new Date().toISOString();
-        const orderPayload = Object.assign(Object.assign(Object.assign({ status: needsCard ? 'pending' : 'committed', orderType: 'marketplace', lineItems,
+        const orderPayload = Object.assign(Object.assign(Object.assign(Object.assign({ status: needsCard ? 'pending' : 'committed', orderType: 'marketplace', lineItems,
             subtotalCents,
             shippingCents,
             taxCents,
-            totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, shippingAddress, holidayId: HOLIDAY_ID, lockAt }, (authedUid ? { userId: authedUid } : {})), (guestEmail ? { guestEmail } : {})), { estimatedDelivery, inventoryReserved: true, inventoryReservedAt: reservedAt, inventoryReservedLines: reservedLines, createdAt: firestore_1.FieldValue.serverTimestamp() });
+            totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, shippingAddress, holidayId: HOLIDAY_ID, lockAt }, (authedUid ? { userId: authedUid } : {})), (guestEmail ? { guestEmail } : {})), { estimatedDelivery, inventoryReserved: true, inventoryReservedAt: reservedAt, inventoryReservedLines: reservedLines, createdAt: firestore_1.FieldValue.serverTimestamp() }), (attribution ? { attribution } : {}));
         if (skipShipStation)
             orderPayload.playthrough = true;
         let creditsDeducted = false;
@@ -508,6 +549,12 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
                 creditsDeducted = true;
             }
             if (!needsCard) {
+                await sendOrderPurchaseToMeta({
+                    orderId: orderRef.id,
+                    order: orderPayload,
+                    context: metaCtx,
+                    email: guestEmail || (authedUid ? await emailForMeta(authedUid, (_m = request.auth) === null || _m === void 0 ? void 0 : _m.token.email) : null),
+                });
                 return {
                     orderId: orderRef.id,
                     totalCents,
@@ -522,7 +569,7 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
             let customerId = typeof hhData.stripeCustomerId === 'string' ? hhData.stripeCustomerId : '';
             if (!customerId) {
                 const email = guestEmail ||
-                    (authedUid ? String((_o = (_m = (await db.doc(`users/${authedUid}`).get()).data()) === null || _m === void 0 ? void 0 : _m.email) !== null && _o !== void 0 ? _o : '') : '');
+                    (authedUid ? String((_p = (_o = (await db.doc(`users/${authedUid}`).get()).data()) === null || _o === void 0 ? void 0 : _o.email) !== null && _p !== void 0 ? _p : '') : '');
                 const customer = await stripe_1.stripe.customers.create(Object.assign(Object.assign({}, (email.includes('@') ? { email } : {})), { metadata: Object.assign({ householdId }, (guestEmail ? { guest: 'true' } : {})) }));
                 customerId = customer.id;
                 await db.doc(`households/${householdId}`).set({ stripeCustomerId: customerId, updatedAt: new Date().toISOString() }, { merge: true });
@@ -531,7 +578,7 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
                 customer: customerId,
                 usage: 'off_session',
                 automatic_payment_methods: { enabled: true },
-                metadata: Object.assign({ householdId, orderId: orderRef.id, type: 'marketplace' }, (authedUid ? { userId: authedUid } : {})),
+                metadata: Object.assign(Object.assign({ householdId, orderId: orderRef.id, type: 'marketplace' }, (authedUid ? { userId: authedUid } : {})), (0, metaCapi_1.metaContextToStripeMetadata)(metaCtx)),
             });
             if (!setupIntent.client_secret) {
                 throw new https_1.HttpsError('internal', 'SetupIntent missing client secret.');
@@ -601,10 +648,7 @@ exports.createPilotSetupIntent = (0, https_1.onCall)(async (request) => {
     const setupIntent = await stripe_1.stripe.setupIntents.create({
         customer: customerId,
         automatic_payment_methods: { enabled: true },
-        metadata: {
-            householdId,
-            userId: request.auth.uid,
-        },
+        metadata: Object.assign({ householdId, userId: request.auth.uid }, (0, metaCapi_1.metaContextToStripeMetadata)((0, metaCapi_1.metaContextFromCallable)(request))),
     });
     if (!setupIntent.client_secret) {
         throw new https_1.HttpsError('internal', 'SetupIntent missing client secret.');
@@ -616,7 +660,7 @@ exports.createPilotSetupIntent = (0, https_1.onCall)(async (request) => {
  * No PaymentIntent here — one off-session charge at lock/ship (see charge-once-at-ship).
  */
 exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
@@ -663,13 +707,15 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
     const estimatedDelivery = (_f = configData.estimatedDeliveryBy) !== null && _f !== void 0 ? _f : '2026-11-24';
+    const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
-    await orderRef.set(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
+    const orderPayload = Object.assign(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
         subtotalCents,
         shippingCents,
         taxCents,
         totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, expeditedShipping: false, shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
-        estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})));
+        estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})), (attribution ? { attribution } : {}));
+    await orderRef.set(orderPayload);
     if (giftCreditApplied > 0 || platformCreditApplied > 0) {
         await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
     }
@@ -686,6 +732,13 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
             });
         }
     }
+    await sendOrderPurchaseToMeta({
+        orderId: orderRef.id,
+        order: orderPayload,
+        context: (0, metaCapi_1.metaContextFromCallable)(request),
+        email: await emailForMeta(request.auth.uid, request.auth.token.email),
+        phone: ((_h = data.contactPhone) === null || _h === void 0 ? void 0 : _h.trim()) || null,
+    });
     return {
         orderId: orderRef.id,
         totalCents,
@@ -870,7 +923,7 @@ exports.chargePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     return (0, chargePilotBox_1.chargePilotBoxOrderForUser)(db, stripe_1.stripe, request.auth.uid, householdId, orderId, force);
 });
 exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
         return;
@@ -911,15 +964,42 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                     });
                 }
                 const setupOrderId = (_f = si.metadata) === null || _f === void 0 ? void 0 : _f.orderId;
-                if (((_g = si.metadata) === null || _g === void 0 ? void 0 : _g.type) === 'marketplace' && setupOrderId) {
+                const metaCtx = (0, metaCapi_1.metaContextFromStripeMetadata)(si.metadata);
+                const setupUserId = (_h = (_g = si.metadata) === null || _g === void 0 ? void 0 : _g.userId) !== null && _h !== void 0 ? _h : null;
+                let metaEmail = null;
+                try {
+                    metaEmail = await emailForMeta(setupUserId);
+                }
+                catch (emailErr) {
+                    logger.warn('Meta: could not load email for setup intent', { setupIntentId: si.id, emailErr });
+                }
+                let committedMarketplaceOrder = null;
+                if (((_j = si.metadata) === null || _j === void 0 ? void 0 : _j.type) === 'marketplace' && setupOrderId) {
                     const pendingRef = db.doc(`households/${householdId}/orders/${setupOrderId}`);
                     const pendingSnap = await pendingRef.get();
-                    if (pendingSnap.exists && ((_h = pendingSnap.data()) === null || _h === void 0 ? void 0 : _h.status) === 'pending') {
+                    if (pendingSnap.exists && ((_k = pendingSnap.data()) === null || _k === void 0 ? void 0 : _k.status) === 'pending') {
                         await pendingRef.update({
                             status: 'committed',
                             updatedAt: new Date().toISOString(),
                         });
+                        committedMarketplaceOrder = (_l = pendingSnap.data()) !== null && _l !== void 0 ? _l : null;
                     }
+                }
+                await (0, metaCapi_1.sendMetaEvent)({
+                    eventName: 'AddPaymentInfo',
+                    eventId: `payment_${si.id}`,
+                    context: metaCtx,
+                    user: { email: metaEmail, externalId: setupUserId },
+                    stripeBacked: true,
+                    playthrough: (committedMarketplaceOrder === null || committedMarketplaceOrder === void 0 ? void 0 : committedMarketplaceOrder.playthrough) === true,
+                });
+                if (committedMarketplaceOrder && setupOrderId) {
+                    await sendOrderPurchaseToMeta({
+                        orderId: setupOrderId,
+                        order: committedMarketplaceOrder,
+                        context: metaCtx,
+                        email: metaEmail,
+                    });
                 }
                 try {
                     await (0, chargePilotBox_1.retryFailedHanukkahBoxCharges)(db, stripe_1.stripe, householdId);
@@ -936,7 +1016,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                 catch (retryErr) {
                     logger.warn('Could not retry marketplace charge after card update', { householdId, retryErr });
                 }
-                if (((_j = si.metadata) === null || _j === void 0 ? void 0 : _j.type) === 'marketplace' && setupOrderId) {
+                if (((_m = si.metadata) === null || _m === void 0 ? void 0 : _m.type) === 'marketplace' && setupOrderId) {
                     const savedRef = db.doc(`households/${householdId}/orders/${setupOrderId}`);
                     const savedSnap = await savedRef.get();
                     const saved = savedSnap.data();
@@ -957,9 +1037,9 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         if (event.type === 'payment_intent.succeeded') {
             const pi = event.data.object;
-            const giftType = (_k = pi.metadata) === null || _k === void 0 ? void 0 : _k.type;
+            const giftType = (_o = pi.metadata) === null || _o === void 0 ? void 0 : _o.type;
             if (giftType === 'pilot_gift') {
-                const giftInviteId = (_l = pi.metadata) === null || _l === void 0 ? void 0 : _l.giftInviteId;
+                const giftInviteId = (_p = pi.metadata) === null || _p === void 0 ? void 0 : _p.giftInviteId;
                 if (giftInviteId) {
                     try {
                         await (0, giftPayment_1.finalizeGiftInvitePayment)(db, giftInviteId);
@@ -970,18 +1050,18 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                 }
             }
             else {
-                const householdId = (_m = pi.metadata) === null || _m === void 0 ? void 0 : _m.householdId;
-                const orderId = (_o = pi.metadata) === null || _o === void 0 ? void 0 : _o.orderId;
+                const householdId = (_q = pi.metadata) === null || _q === void 0 ? void 0 : _q.householdId;
+                const orderId = (_r = pi.metadata) === null || _r === void 0 ? void 0 : _r.orderId;
                 if (!householdId || !orderId) {
                     logger.warn('payment_intent.succeeded missing metadata', pi.metadata);
                 }
                 else {
                     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
                     const orderSnap = await orderRef.get();
-                    if (orderSnap.exists && ((_p = orderSnap.data()) === null || _p === void 0 ? void 0 : _p.status) !== 'confirmed') {
+                    if (orderSnap.exists && ((_s = orderSnap.data()) === null || _s === void 0 ? void 0 : _s.status) !== 'confirmed') {
                         const order = orderSnap.data();
-                        const isMarketplaceOrder = order.orderType === 'marketplace' || ((_q = pi.metadata) === null || _q === void 0 ? void 0 : _q.type) === 'marketplace';
-                        const isReceivedGift = order.orderType === 'received_gift' || ((_r = pi.metadata) === null || _r === void 0 ? void 0 : _r.type) === 'received_gift';
+                        const isMarketplaceOrder = order.orderType === 'marketplace' || ((_t = pi.metadata) === null || _t === void 0 ? void 0 : _t.type) === 'marketplace';
+                        const isReceivedGift = order.orderType === 'received_gift' || ((_u = pi.metadata) === null || _u === void 0 ? void 0 : _u.type) === 'received_gift';
                         if (isMarketplaceOrder) {
                             try {
                                 const shouldCommit = await db.runTransaction(async (tx) => {
@@ -1011,16 +1091,16 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                             chargeFailedAt: firestore_1.FieldValue.delete(),
                             chargeFailureMessage: firestore_1.FieldValue.delete(),
                         });
-                        const fresh = (_s = (await orderRef.get()).data()) !== null && _s !== void 0 ? _s : order;
+                        const fresh = (_v = (await orderRef.get()).data()) !== null && _v !== void 0 ? _v : order;
                         if (isMarketplaceOrder || isReceivedGift) {
                             await fulfillMarketplaceOrder(householdId, orderId, Object.assign(Object.assign({}, fresh), { totalCents: fresh.totalCents }), fresh.playthrough === true);
                             const giftInviteId = (typeof fresh.giftInviteId === 'string' && fresh.giftInviteId) ||
-                                ((_t = pi.metadata) === null || _t === void 0 ? void 0 : _t.giftInviteId);
+                                ((_w = pi.metadata) === null || _w === void 0 ? void 0 : _w.giftInviteId);
                             if (giftInviteId &&
-                                (fresh.orderType === 'received_gift' || ((_u = pi.metadata) === null || _u === void 0 ? void 0 : _u.type) === 'received_gift')) {
+                                (fresh.orderType === 'received_gift' || ((_x = pi.metadata) === null || _x === void 0 ? void 0 : _x.type) === 'received_gift')) {
                                 const giftRef = db.doc(`households/${householdId}/receivedGifts/${giftInviteId}`);
                                 const giftSnap = await giftRef.get();
-                                if (giftSnap.exists && ((_v = giftSnap.data()) === null || _v === void 0 ? void 0 : _v.status) === 'available') {
+                                if (giftSnap.exists && ((_y = giftSnap.data()) === null || _y === void 0 ? void 0 : _y.status) === 'available') {
                                     await giftRef.update({
                                         status: 'accepted',
                                         acceptedAt: new Date().toISOString(),
@@ -1037,7 +1117,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                         else {
                             const userId = order.userId;
                             const userSnap = await db.doc(`users/${userId}`).get();
-                            const email = (_x = (_w = userSnap.data()) === null || _w === void 0 ? void 0 : _w.email) !== null && _x !== void 0 ? _x : '';
+                            const email = (_0 = (_z = userSnap.data()) === null || _z === void 0 ? void 0 : _z.email) !== null && _0 !== void 0 ? _0 : '';
                             if (email) {
                                 try {
                                     await (0, email_1.sendEmail)({
@@ -1061,15 +1141,15 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         if (event.type === 'payment_intent.payment_failed') {
             const pi = event.data.object;
-            if (((_y = pi.metadata) === null || _y === void 0 ? void 0 : _y.type) === 'hanukkah_box') {
+            if (((_1 = pi.metadata) === null || _1 === void 0 ? void 0 : _1.type) === 'hanukkah_box') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
-                    const message = (_0 = (_z = pi.last_payment_error) === null || _z === void 0 ? void 0 : _z.message) !== null && _0 !== void 0 ? _0 : 'Payment failed';
+                    const message = (_3 = (_2 = pi.last_payment_error) === null || _2 === void 0 ? void 0 : _2.message) !== null && _3 !== void 0 ? _3 : 'Payment failed';
                     const attempt = Number(pi.metadata.chargeAttempt);
                     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
                     const orderSnap = await orderRef.get();
-                    const status = (_1 = orderSnap.data()) === null || _1 === void 0 ? void 0 : _1.status;
+                    const status = (_4 = orderSnap.data()) === null || _4 === void 0 ? void 0 : _4.status;
                     if (status === 'committed' || status === 'pending') {
                         await orderRef.update({
                             chargeFailedAt: new Date().toISOString(),
@@ -1080,14 +1160,14 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                     logger.warn('Hanukkah box charge failed', { householdId, orderId, message });
                 }
             }
-            if (((_2 = pi.metadata) === null || _2 === void 0 ? void 0 : _2.type) === 'marketplace') {
+            if (((_5 = pi.metadata) === null || _5 === void 0 ? void 0 : _5.type) === 'marketplace') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
                     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
                     const orderSnap = await orderRef.get();
                     const order = orderSnap.data();
-                    const message = (_4 = (_3 = pi.last_payment_error) === null || _3 === void 0 ? void 0 : _3.message) !== null && _4 !== void 0 ? _4 : 'Payment failed';
+                    const message = (_7 = (_6 = pi.last_payment_error) === null || _6 === void 0 ? void 0 : _6.message) !== null && _7 !== void 0 ? _7 : 'Payment failed';
                     if ((order === null || order === void 0 ? void 0 : order.status) === 'committed') {
                         await orderRef.update({
                             chargeFailedAt: new Date().toISOString(),
@@ -1113,7 +1193,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         if (event.type === 'payment_intent.canceled') {
             const pi = event.data.object;
-            if (((_5 = pi.metadata) === null || _5 === void 0 ? void 0 : _5.type) === 'marketplace') {
+            if (((_8 = pi.metadata) === null || _8 === void 0 ? void 0 : _8.type) === 'marketplace') {
                 const householdId = pi.metadata.householdId;
                 const orderId = pi.metadata.orderId;
                 if (householdId && orderId) {
@@ -1267,7 +1347,7 @@ exports.shipStationWebhook = (0, https_1.onRequest)({ cors: false }, async (req,
     }
 });
 exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
     if (!stripe_1.stripe)
@@ -1288,10 +1368,12 @@ exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
     const giverEmail = String((_p = (_o = userSnap.data()) === null || _o === void 0 ? void 0 : _o.email) !== null && _p !== void 0 ? _p : '').trim().toLowerCase();
     const claimToken = (0, crypto_1.randomBytes)(24).toString('hex');
     const inviteRef = db.collection('giftInvites').doc();
-    const payload = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ giverUid: request.auth.uid, giverName,
+    const metaContext = (0, metaCapi_1.metaContextForDoc)((0, metaCapi_1.metaContextFromCallable)(request));
+    const attribution = (0, metaCapi_1.sanitizeAttribution)((_q = request.data) === null || _q === void 0 ? void 0 : _q.attribution);
+    const payload = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ giverUid: request.auth.uid, giverName,
         giverEmail,
         recipientEmail,
-        creditCents, kind: giftKind, claimToken, status: 'pending', paymentStatus: 'pending' }, (message ? { message } : {})), (giftKind === 'box' && lineItems ? { lineItems } : {})), (giftKind === 'box' && childInterests ? { childInterests } : {})), (giftKind === 'box' && childAgeGroups ? { childAgeGroups } : {})), { createdAt: new Date().toISOString() });
+        creditCents, kind: giftKind, claimToken, status: 'pending', paymentStatus: 'pending' }, (message ? { message } : {})), (giftKind === 'box' && lineItems ? { lineItems } : {})), (giftKind === 'box' && childInterests ? { childInterests } : {})), (giftKind === 'box' && childAgeGroups ? { childAgeGroups } : {})), (Object.keys(metaContext).length ? { metaContext } : {})), (attribution ? { attribution } : {})), { createdAt: new Date().toISOString() });
     await inviteRef.set(payload);
     const paymentIntent = await stripe_1.stripe.paymentIntents.create(Object.assign(Object.assign({ amount: creditCents, currency: 'usd', metadata: {
             type: 'pilot_gift',
@@ -1299,7 +1381,7 @@ exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
             giverUid: request.auth.uid,
         } }, (giverEmail ? { receipt_email: giverEmail } : {})), { automatic_payment_methods: { enabled: true } }));
     await inviteRef.update({ stripePaymentIntentId: paymentIntent.id });
-    const appBase = (_q = process.env.PILOT_APP_BASE_URL) !== null && _q !== void 0 ? _q : 'https://app.grapejuice.co';
+    const appBase = (_r = process.env.PILOT_APP_BASE_URL) !== null && _r !== void 0 ? _r : 'https://app.grapejuice.co';
     const claimUrl = `${appBase}/gift/claim?token=${claimToken}`;
     return {
         giftInviteId: inviteRef.id,
@@ -1324,13 +1406,55 @@ exports.finalizePilotGiftPayment = (0, https_1.onCall)(async (request) => {
         throw new https_1.HttpsError('permission-denied', 'Only the giver can finalize this gift.');
     }
     try {
-        const result = await (0, giftPayment_1.finalizeGiftInvitePayment)(db, giftInviteId);
+        const result = await (0, giftPayment_1.finalizeGiftInvitePayment)(db, giftInviteId, (0, metaCapi_1.metaContextFromCallable)(request));
         return { ok: true, claimUrl: result.claimUrl, alreadyFinalized: result.alreadyFinalized };
     }
     catch (err) {
         const message = err instanceof Error ? err.message : 'Payment not completed';
         throw new https_1.HttpsError('failed-precondition', message);
     }
+});
+/**
+ * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
+ * per account (`reg_<uid>`); PreRegister reuses the browser's event id for dedupe.
+ */
+exports.trackMetaEvent = (0, https_1.onCall)(async (request) => {
+    var _a, _b, _c, _d, _e, _f;
+    const eventName = (_a = request.data) === null || _a === void 0 ? void 0 : _a.eventName;
+    if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister') {
+        throw new https_1.HttpsError('invalid-argument', 'Unsupported event.');
+    }
+    const context = (0, metaCapi_1.metaContextFromCallable)(request);
+    if (context.skip)
+        return { ok: true };
+    const uid = (_c = (_b = request.auth) === null || _b === void 0 ? void 0 : _b.uid) !== null && _c !== void 0 ? _c : null;
+    const email = uid ? await emailForMeta(uid, (_d = request.auth) === null || _d === void 0 ? void 0 : _d.token.email) : null;
+    if (eventName === 'CompleteRegistration') {
+        if (!uid)
+            throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        const userRef = db.doc(`users/${uid}`);
+        const firstSend = await db.runTransaction(async (tx) => {
+            var _a;
+            const snap = await tx.get(userRef);
+            // Never create the profile here — SessionContext treats an existing doc as onboarded state.
+            if (!snap.exists || ((_a = snap.data()) === null || _a === void 0 ? void 0 : _a.metaRegistrationSentAt))
+                return false;
+            tx.update(userRef, { metaRegistrationSentAt: new Date().toISOString() });
+            return true;
+        });
+        if (firstSend) {
+            await (0, metaCapi_1.sendMetaEvent)({
+                eventName,
+                eventId: `reg_${uid}`,
+                context,
+                user: { email, externalId: uid },
+            });
+        }
+        return { ok: true };
+    }
+    const contentName = typeof ((_e = request.data) === null || _e === void 0 ? void 0 : _e.contentName) === 'string' ? request.data.contentName.trim().slice(0, 100) : '';
+    await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_f = context.eventId) !== null && _f !== void 0 ? _f : `prereg_${(0, crypto_1.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
+    return { ok: true };
 });
 /** Gifts the signed-in user has purchased (giver side). */
 exports.listMyGiftInvites = (0, https_1.onCall)(async (request) => {
