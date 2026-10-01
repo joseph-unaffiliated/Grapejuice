@@ -32,7 +32,33 @@ export type CuratePilotBoxDeviation = {
 export type CuratePilotBoxAllowedSwap = {
   slotId: string;
   optionItemIds: string[];
+  /** Options near their swap reserve — only for an explicit ask. */
+  lowStockItemIds?: string[];
 };
+
+/**
+ * Low-stock items Rav may still pick when the family asks for exactly that
+ * thing. Items without a matcher need their full name in the family's words.
+ */
+const EXPLICIT_ASK_MATCHERS: Array<{ item: RegExp; ask: RegExp }> = [
+  { item: /lego/i, ask: /\blegos?\b/i },
+  {
+    item: /electric.*candle|candle.*electric|led.*candle/i,
+    ask: /\b(fires?|flames?|flammable|burns?|burned|burning|fire hazard|smoke (alarm|detector)s?|candle safety|no (open )?candles|can'?t have candles|cannot have candles|candles (are )?not allowed|electric candles?)\b/i,
+  },
+];
+
+function normalizeName(s: string): string {
+  return s.toLowerCase().replace(/["“”']/g, '').replace(/\s+/g, ' ').trim();
+}
+
+export function explicitlyAskedFor(item: { id: string; name: string }, familyText: string): boolean {
+  const hay = `${item.id} ${item.name}`;
+  const matcher = EXPLICIT_ASK_MATCHERS.find((m) => m.item.test(hay));
+  if (matcher) return matcher.ask.test(familyText);
+  const name = normalizeName(item.name);
+  return name.length > 0 && normalizeName(familyText).includes(name);
+}
 
 export type CuratePilotBoxData = {
   practiceLevel?: 'minimal' | 'moderate' | 'all-in';
@@ -114,9 +140,11 @@ function sectionAllowsIncludedSwap(): boolean {
 
 function validateResult(
   parsed: Record<string, unknown> | null,
-  data: CuratePilotBoxData
+  data: CuratePilotBoxData,
+  itemNames: Map<string, string>
 ): CuratePilotBoxResult {
   const allowedBySlot = new Map<string, Set<string>>();
+  const lowStock = new Set<string>();
   for (const row of data.allowedSwaps ?? []) {
     if (!row?.slotId) continue;
     const set = allowedBySlot.get(row.slotId) ?? new Set<string>();
@@ -124,7 +152,11 @@ function validateResult(
       if (typeof id === 'string' && id.trim()) set.add(id.trim());
     }
     allowedBySlot.set(row.slotId, set);
+    for (const id of row.lowStockItemIds ?? []) {
+      if (typeof id === 'string' && id.trim()) lowStock.add(id.trim());
+    }
   }
+  const familyText = [...(data.interests ?? []), asString(data.notes)].join(' \n ');
 
   const deviationKeys = new Set(
     (data.deviations ?? []).map(
@@ -189,6 +221,13 @@ function validateResult(
       Array.from(allowedBySlot.entries()).find(([k]) => slotId === k || slotId.startsWith(`${k}-`))?.[1];
     if (!allowed || !allowed.has(itemId)) {
       logger.info('curatePilotBox dropped swap not in allowlist', { slotId, itemId });
+      continue;
+    }
+    if (
+      lowStock.has(itemId) &&
+      !explicitlyAskedFor({ id: itemId, name: itemNames.get(itemId) ?? itemId }, familyText)
+    ) {
+      logger.info('curatePilotBox dropped low-stock swap without explicit ask', { slotId, itemId });
       continue;
     }
 
@@ -265,7 +304,11 @@ function buildUserMessage(data: CuratePilotBoxData): string {
     })
     .join('; ');
   const allowed = (data.allowedSwaps ?? [])
-    .map((s) => `${s.slotId}→[${(s.optionItemIds ?? []).join(', ')}]`)
+    .map((s) => {
+      const low = new Set(s.lowStockItemIds ?? []);
+      const opts = (s.optionItemIds ?? []).map((id) => (low.has(id) ? `${id} (low)` : id));
+      return `${s.slotId}→[${opts.join(', ')}]`;
+    })
     .join('; ');
 
   return [
@@ -309,7 +352,7 @@ export const curatePilotBox = onCall(
       const textBlock = response.content.find((b) => b.type === 'text');
       const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
       const parsed = parseJsonObject(raw);
-      return validateResult(parsed, data);
+      return validateResult(parsed, data, new Map(catalogRows.map((r) => [r.id, r.name])));
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('curatePilotBox Anthropic error', errMessage);

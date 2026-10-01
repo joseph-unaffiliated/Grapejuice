@@ -365,7 +365,7 @@ export const SECTION_RULES: SectionRules[] = [
     id: 'food',
     title: 'Eat & Drink',
     notes: [
-      'Latke mix + sufganiyot mix both default while kit stock covers every remaining box; when kits run short the default is one mix (whichever has more left).',
+      'Latke mix + sufganiyot mix both default until either kit is nearly gone; then the default is one mix (whichever has more left).',
       'Latke and sufganiyot swap independently; box may end with no mixes.',
       'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
     ],
@@ -688,27 +688,8 @@ export function planCandlesDefault(
 }
 
 /**
- * Every box takes exactly one candles option, so candles stock caps how many
- * more boxes can sell. null when untracked.
- */
-export function boxCapacityLeft(catalog: BoxRulesCatalogRow[] | undefined): number | null {
-  if (!catalog?.length) return null;
-  let total = 0;
-  let found = false;
-  for (const kind of CANDLES_FALLBACK_ORDER) {
-    const row = resolveCandlesRow(catalog, kind);
-    if (!row) continue;
-    const left = rowStockLeft(row);
-    if (left == null) return null;
-    total += left;
-    found = true;
-  }
-  return found ? total : null;
-}
-
-/**
- * Both mixes while kit stock exceeds remaining box capacity (a second kit never
- * leaves a later box without one); otherwise the single mix with more left.
+ * Both mixes until either kit is down to its swap reserve; then the single mix
+ * with more left. Later boxes may get no mix once both kits are gone.
  */
 export function planFoodDefaults(catalog: BoxRulesCatalogRow[] | undefined): DefaultSlotId[] {
   const both: DefaultSlotId[] = ['latke-mix', 'sufganiyot-mix'];
@@ -717,13 +698,7 @@ export function planFoodDefaults(catalog: BoxRulesCatalogRow[] | undefined): Def
     .map((slot) => ({ slot, row: resolveByDefaultSlot(catalog, slot) }))
     .filter((o): o is { slot: DefaultSlotId; row: BoxRulesCatalogRow } => !!o.row);
   if (options.length < 2) return both;
-  const lefts = options.map((o) => rowStockLeft(o.row));
-  if (lefts.some((l) => l == null)) return both;
-  const foodLeft = (lefts as number[]).reduce((a, b) => a + b, 0);
-  const capacity = boxCapacityLeft(catalog);
-  if (options.every((o) => canAssignUnit(o.row)) && (capacity == null || foodLeft > capacity)) {
-    return both;
-  }
+  if (options.every((o) => isDefaultEligible(o.row))) return both;
   const single = options
     .filter((o) => canAssignUnit(o.row))
     .sort((a, b) => (rowStockLeft(b.row) ?? 0) - (rowStockLeft(a.row) ?? 0))[0];
@@ -1172,7 +1147,7 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     'Simple default (know-nothing, 1 kid age 5):',
     `- Light Candles: ${example.candlesDefault}${exampleCandles ? `→${exampleCandles.id}` : ''} (not menorah)`,
     `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
-    `- Eat & Drink: ${exampleFood} (both mixes while kit stock lasts, else one; latke kit includes applesauce spice mix)`,
+    `- Eat & Drink: ${exampleFood} (both mixes until kits are nearly gone, then one; latke kit includes applesauce spice mix)`,
     `- Tell the Story: 1 age-default book for the 5yo${resolveBookForAge(catalog, 5) ? ` (${resolveBookForAge(catalog, 5)!.id})` : ''}`,
     `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${exampleGift ? `≈${exampleGift.id}` : ''}`,
     '',
@@ -1191,7 +1166,8 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     'Gift defaults (prefer distinct across kids; never last unit; books infinite/no hold):',
     `- Stock-led: among gifts tagged for the kid's age, default to the one with the most stock left per age it serves (big-stock items like airdry clay and toddler menorahs go first). Items within ~${Math.round(STOCK_POLICY.swapReserveFraction * 100)}% of their starting inventory stop being defaults but stay available as swaps.`,
     '- Fallback age table when stock is unknown: 0 stuffie, 1 wood-toy-menorah, 2 stuffie, 3 stuffie, 4 airdry, 5 stuffie, 6 lego-menorah, 7 blank, 8 DIY-candles; 9+ bias blank/DIY/lego/airdry/books',
-    '- When suggesting gifts, swaps, or add-ons, lean toward items with plenty left (Catalog left=N). Items marked low: offer only when the shopper asks for that item.',
+    '- When suggesting gifts, swaps, or add-ons, lean toward items with plenty left (Catalog left=N).',
+    '- Items marked low are still fair game for an explicit, exact match: the shopper names the item (says "Lego" → lego menorah) or states the need it uniquely solves (fire / open-flame / candle-safety worry → electric candles). Use them then, as long as any are left. A loose affinity ("likes building", "crafty") is not enough when an item is low — pick a well-stocked option instead.',
     '- Dual-home browse OK; same catalog id twice → confirm in UX (not a hard block)',
     '',
     'Practice level policy (onboarding slider — current practice intensity, NOT knowledge):',

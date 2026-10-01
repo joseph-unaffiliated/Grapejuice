@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.curatePilotBox = void 0;
+exports.explicitlyAskedFor = explicitlyAskedFor;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
@@ -13,6 +14,28 @@ const boxRules_1 = require("./boxRules");
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 const MAX_ACTIONS = 2;
 const BLOCKED_SLOT_PREFIXES = ['gelt', 'latke', 'sufgan', 'wrapping', 'pre-wrap'];
+/**
+ * Low-stock items Rav may still pick when the family asks for exactly that
+ * thing. Items without a matcher need their full name in the family's words.
+ */
+const EXPLICIT_ASK_MATCHERS = [
+    { item: /lego/i, ask: /\blegos?\b/i },
+    {
+        item: /electric.*candle|candle.*electric|led.*candle/i,
+        ask: /\b(fires?|flames?|flammable|burns?|burned|burning|fire hazard|smoke (alarm|detector)s?|candle safety|no (open )?candles|can'?t have candles|cannot have candles|candles (are )?not allowed|electric candles?)\b/i,
+    },
+];
+function normalizeName(s) {
+    return s.toLowerCase().replace(/["“”']/g, '').replace(/\s+/g, ' ').trim();
+}
+function explicitlyAskedFor(item, familyText) {
+    const hay = `${item.id} ${item.name}`;
+    const matcher = EXPLICIT_ASK_MATCHERS.find((m) => m.item.test(hay));
+    if (matcher)
+        return matcher.ask.test(familyText);
+    const name = normalizeName(item.name);
+    return name.length > 0 && normalizeName(familyText).includes(name);
+}
 function parseJsonObject(raw) {
     let candidate = raw.trim();
     if (!candidate)
@@ -54,9 +77,10 @@ function sectionAllowsIncludedSwap() {
     // SECTION_RULES is imported so the policy file stays linked for future server-side kind checks.
     return boxRules_1.SECTION_RULES.length > 0;
 }
-function validateResult(parsed, data) {
-    var _a, _b, _c, _d, _e, _f, _g;
+function validateResult(parsed, data, itemNames) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     const allowedBySlot = new Map();
+    const lowStock = new Set();
     for (const row of (_a = data.allowedSwaps) !== null && _a !== void 0 ? _a : []) {
         if (!(row === null || row === void 0 ? void 0 : row.slotId))
             continue;
@@ -66,8 +90,13 @@ function validateResult(parsed, data) {
                 set.add(id.trim());
         }
         allowedBySlot.set(row.slotId, set);
+        for (const id of (_d = row.lowStockItemIds) !== null && _d !== void 0 ? _d : []) {
+            if (typeof id === 'string' && id.trim())
+                lowStock.add(id.trim());
+        }
     }
-    const deviationKeys = new Set(((_d = data.deviations) !== null && _d !== void 0 ? _d : []).map((d) => { var _a; return `${d.slotId}::${(_a = d.childId) !== null && _a !== void 0 ? _a : ''}::${d.toItemId}`; }));
+    const familyText = [...((_e = data.interests) !== null && _e !== void 0 ? _e : []), asString(data.notes)].join(' \n ');
+    const deviationKeys = new Set(((_f = data.deviations) !== null && _f !== void 0 ? _f : []).map((d) => { var _a; return `${d.slotId}::${(_a = d.childId) !== null && _a !== void 0 ? _a : ''}::${d.toItemId}`; }));
     const notesRaw = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.notes) ? parsed.notes : [];
     const notes = [];
     for (const raw of notesRaw) {
@@ -88,7 +117,7 @@ function validateResult(parsed, data) {
     void sectionAllowsIncludedSwap;
     const actionsRaw = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.actions) ? parsed.actions : [];
     const baselineGiftItems = new Map();
-    for (const li of (_e = data.baseline) !== null && _e !== void 0 ? _e : []) {
+    for (const li of (_g = data.baseline) !== null && _g !== void 0 ? _g : []) {
         const slot = asString(li.slotId);
         const childId = asString(li.childId);
         const itemId = asString(li.itemId);
@@ -120,9 +149,14 @@ function validateResult(parsed, data) {
             logger.info('curatePilotBox dropped blocked slot', slotId);
             continue;
         }
-        const allowed = (_f = allowedBySlot.get(slotId)) !== null && _f !== void 0 ? _f : (_g = Array.from(allowedBySlot.entries()).find(([k]) => slotId === k || slotId.startsWith(`${k}-`))) === null || _g === void 0 ? void 0 : _g[1];
+        const allowed = (_h = allowedBySlot.get(slotId)) !== null && _h !== void 0 ? _h : (_j = Array.from(allowedBySlot.entries()).find(([k]) => slotId === k || slotId.startsWith(`${k}-`))) === null || _j === void 0 ? void 0 : _j[1];
         if (!allowed || !allowed.has(itemId)) {
             logger.info('curatePilotBox dropped swap not in allowlist', { slotId, itemId });
+            continue;
+        }
+        if (lowStock.has(itemId) &&
+            !explicitlyAskedFor({ id: itemId, name: (_k = itemNames.get(itemId)) !== null && _k !== void 0 ? _k : itemId }, familyText)) {
+            logger.info('curatePilotBox dropped low-stock swap without explicit ask', { slotId, itemId });
             continue;
         }
         const isGiftSlot = slotId === 'gift' || slotId.startsWith('gift-') || slotId.startsWith('gift');
@@ -188,7 +222,12 @@ function buildUserMessage(data) {
     })
         .join('; ');
     const allowed = ((_d = data.allowedSwaps) !== null && _d !== void 0 ? _d : [])
-        .map((s) => { var _a; return `${s.slotId}→[${((_a = s.optionItemIds) !== null && _a !== void 0 ? _a : []).join(', ')}]`; })
+        .map((s) => {
+        var _a, _b;
+        const low = new Set((_a = s.lowStockItemIds) !== null && _a !== void 0 ? _a : []);
+        const opts = ((_b = s.optionItemIds) !== null && _b !== void 0 ? _b : []).map((id) => (low.has(id) ? `${id} (low)` : id));
+        return `${s.slotId}→[${opts.join(', ')}]`;
+    })
         .join('; ');
     return [
         `How familiar / how much they do Hanukkah (plain language for your reasons — never quote scores or internal labels): ${practiceFamiliarityPlain(data.practiceLevel, data.practiceScore)}`,
@@ -224,7 +263,7 @@ exports.curatePilotBox = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxIn
         const textBlock = response.content.find((b) => b.type === 'text');
         const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
         const parsed = parseJsonObject(raw);
-        return validateResult(parsed, data);
+        return validateResult(parsed, data, new Map(catalogRows.map((r) => [r.id, r.name])));
     }
     catch (err) {
         const errMessage = err instanceof Error ? err.message : String(err);

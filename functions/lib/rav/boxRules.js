@@ -23,7 +23,6 @@ exports.giftDefaultScore = giftDefaultScore;
 exports.rankGiftKindsForAge = rankGiftKindsForAge;
 exports.resolveCandlesRow = resolveCandlesRow;
 exports.planCandlesDefault = planCandlesDefault;
-exports.boxCapacityLeft = boxCapacityLeft;
 exports.planFoodDefaults = planFoodDefaults;
 exports.planDreidels = planDreidels;
 exports.listBoxCentsForKids = listBoxCentsForKids;
@@ -251,7 +250,7 @@ exports.SECTION_RULES = [
         id: 'food',
         title: 'Eat & Drink',
         notes: [
-            'Latke mix + sufganiyot mix both default while kit stock covers every remaining box; when kits run short the default is one mix (whichever has more left).',
+            'Latke mix + sufganiyot mix both default until either kit is nearly gone; then the default is one mix (whichever has more left).',
             'Latke and sufganiyot swap independently; box may end with no mixes.',
             'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
         ],
@@ -542,29 +541,8 @@ function planCandlesDefault(catalog, preferred = 'candles') {
     return ((_d = (_b = (_a = options.find((o) => isDefaultEligible(o.row))) === null || _a === void 0 ? void 0 : _a.kind) !== null && _b !== void 0 ? _b : (_c = options.find((o) => canAssignUnit(o.row))) === null || _c === void 0 ? void 0 : _c.kind) !== null && _d !== void 0 ? _d : preferred);
 }
 /**
- * Every box takes exactly one candles option, so candles stock caps how many
- * more boxes can sell. null when untracked.
- */
-function boxCapacityLeft(catalog) {
-    if (!(catalog === null || catalog === void 0 ? void 0 : catalog.length))
-        return null;
-    let total = 0;
-    let found = false;
-    for (const kind of CANDLES_FALLBACK_ORDER) {
-        const row = resolveCandlesRow(catalog, kind);
-        if (!row)
-            continue;
-        const left = rowStockLeft(row);
-        if (left == null)
-            return null;
-        total += left;
-        found = true;
-    }
-    return found ? total : null;
-}
-/**
- * Both mixes while kit stock exceeds remaining box capacity (a second kit never
- * leaves a later box without one); otherwise the single mix with more left.
+ * Both mixes until either kit is down to its swap reserve; then the single mix
+ * with more left. Later boxes may get no mix once both kits are gone.
  */
 function planFoodDefaults(catalog) {
     const both = ['latke-mix', 'sufganiyot-mix'];
@@ -575,14 +553,8 @@ function planFoodDefaults(catalog) {
         .filter((o) => !!o.row);
     if (options.length < 2)
         return both;
-    const lefts = options.map((o) => rowStockLeft(o.row));
-    if (lefts.some((l) => l == null))
+    if (options.every((o) => isDefaultEligible(o.row)))
         return both;
-    const foodLeft = lefts.reduce((a, b) => a + b, 0);
-    const capacity = boxCapacityLeft(catalog);
-    if (options.every((o) => canAssignUnit(o.row)) && (capacity == null || foodLeft > capacity)) {
-        return both;
-    }
     const single = options
         .filter((o) => canAssignUnit(o.row))
         .sort((a, b) => { var _a, _b; return ((_a = rowStockLeft(b.row)) !== null && _a !== void 0 ? _a : 0) - ((_b = rowStockLeft(a.row)) !== null && _b !== void 0 ? _b : 0); })[0];
@@ -974,7 +946,7 @@ function renderBoxRulesContext(catalog) {
         'Simple default (know-nothing, 1 kid age 5):',
         `- Light Candles: ${example.candlesDefault}${exampleCandles ? `→${exampleCandles.id}` : ''} (not menorah)`,
         `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
-        `- Eat & Drink: ${exampleFood} (both mixes while kit stock lasts, else one; latke kit includes applesauce spice mix)`,
+        `- Eat & Drink: ${exampleFood} (both mixes until kits are nearly gone, then one; latke kit includes applesauce spice mix)`,
         `- Tell the Story: 1 age-default book for the 5yo${resolveBookForAge(catalog, 5) ? ` (${resolveBookForAge(catalog, 5).id})` : ''}`,
         `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${exampleGift ? `≈${exampleGift.id}` : ''}`,
         '',
@@ -993,7 +965,8 @@ function renderBoxRulesContext(catalog) {
         'Gift defaults (prefer distinct across kids; never last unit; books infinite/no hold):',
         `- Stock-led: among gifts tagged for the kid's age, default to the one with the most stock left per age it serves (big-stock items like airdry clay and toddler menorahs go first). Items within ~${Math.round(exports.STOCK_POLICY.swapReserveFraction * 100)}% of their starting inventory stop being defaults but stay available as swaps.`,
         '- Fallback age table when stock is unknown: 0 stuffie, 1 wood-toy-menorah, 2 stuffie, 3 stuffie, 4 airdry, 5 stuffie, 6 lego-menorah, 7 blank, 8 DIY-candles; 9+ bias blank/DIY/lego/airdry/books',
-        '- When suggesting gifts, swaps, or add-ons, lean toward items with plenty left (Catalog left=N). Items marked low: offer only when the shopper asks for that item.',
+        '- When suggesting gifts, swaps, or add-ons, lean toward items with plenty left (Catalog left=N).',
+        '- Items marked low are still fair game for an explicit, exact match: the shopper names the item (says "Lego" → lego menorah) or states the need it uniquely solves (fire / open-flame / candle-safety worry → electric candles). Use them then, as long as any are left. A loose affinity ("likes building", "crafty") is not enough when an item is low — pick a well-stocked option instead.',
         '- Dual-home browse OK; same catalog id twice → confirm in UX (not a hard block)',
         '',
         'Practice level policy (onboarding slider — current practice intensity, NOT knowledge):',

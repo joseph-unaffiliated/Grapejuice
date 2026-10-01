@@ -3,7 +3,6 @@
  */
 import assert from 'node:assert/strict';
 import {
-  boxCapacityLeft,
   isDefaultEligible,
   planCandlesDefault,
   planCuratedOutline,
@@ -97,7 +96,6 @@ function catalog(stockLeft: Record<string, number> = {}): BoxRulesCatalogRow[] {
     planCandlesDefault(catalog({ 'beeswax-candles': 15, 'roll-your-own-beeswax-candles': 8 })),
     'electric-candles'
   );
-  assert.equal(boxCapacityLeft(catalog()), 172);
 }
 
 // Roll-your-own as the candles default never doubles as that household's gift.
@@ -108,13 +106,14 @@ function catalog(stockLeft: Record<string, number> = {}): BoxRulesCatalogRow[] {
   assert.ok(outline.gifts.every((g) => g.kind !== 'diy-candles'));
 }
 
-// Food: both mixes only while kits outnumber remaining box capacity.
+// Food: both mixes until either kit reaches its swap reserve, then the fuller one.
 {
   assert.deepEqual(planFoodDefaults(catalog()), ['latke-mix', 'sufganiyot-mix']);
   assert.deepEqual(
-    planFoodDefaults(catalog({ 'latke-kit': 60, 'sufganiyot-kit': 70, 'beeswax-candles': 90 })),
-    ['sufganiyot-mix']
+    planFoodDefaults(catalog({ 'latke-kit': 20, 'sufganiyot-kit': 25 })),
+    ['latke-mix', 'sufganiyot-mix']
   );
+  assert.deepEqual(planFoodDefaults(catalog({ 'latke-kit': 15, 'sufganiyot-kit': 25 })), ['sufganiyot-mix']);
   assert.deepEqual(planFoodDefaults(catalog({ 'latke-kit': 1, 'sufganiyot-kit': 1 })), []);
 }
 

@@ -23,6 +23,9 @@ YOU MUST
 2. Optionally propose at most two additional "swap" actions from allowedSwaps when notes or interests clearly call for it. Every action needs a short reason. Prefer leaving the box alone when unsure.
 3. Never invent catalog ids. Never add or remove lines. Never touch gelt, food kits, or wrapping. Never checkout.
 
+LOW-STOCK OPTIONS
+Options marked (low) in allowedSwaps are nearly gone. Swap one in only for an explicit, exact match: the family names it (they mention Lego → the Lego menorah for that child) or states the need it uniquely solves (worry about fire, open flames, or candle safety → electric candles). An exact match like that overrides the default even when stock is low. A loose affinity ("likes building", "crafty", "loves toys") is not enough — use a well-stocked option or leave the line alone. Never mention stock or scarcity in a reason.
+
 HOW TO WRITE EACH REASON
 - Make it feel hand-picked for them — like you listened to what they shared and chose accordingly.
 - Speak to what they told you in plain language: how familiar they are with the holiday, wanting something active / quiet / traditional, a kid's age or interest, a note they wrote.

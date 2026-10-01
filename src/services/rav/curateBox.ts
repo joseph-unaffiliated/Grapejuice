@@ -52,7 +52,12 @@ export type CurateBoxResult = {
 
 const CURATE_TIMEOUT_MS = 8000;
 
-type AllowedSwap = { slotId: string; optionItemIds: string[] };
+type AllowedSwap = {
+  slotId: string;
+  optionItemIds: string[];
+  /** Subset near their swap reserve — Rav may use these only for an explicit ask. */
+  lowStockItemIds?: string[];
+};
 
 function baseSlot(slotId: string): string {
   const match = slotId.match(
@@ -68,14 +73,13 @@ export function buildAllowedSwapsForBox(
 ): AllowedSwap[] {
   const bySlot = new Map<string, Set<string>>();
 
-  // Rav never swaps in items near their swap reserve; shoppers can still pick them.
-  const wellStocked = (id: string) => {
+  const isLowStock = (id: string) => {
     const item = catalog.find((c) => c.id === id);
-    return !!item && isDefaultEligible(toRulesRow(item));
+    return !!item && !isDefaultEligible(toRulesRow(item));
   };
   const add = (slotId: string, ids: string[]) => {
     const set = bySlot.get(slotId) ?? new Set<string>();
-    for (const id of ids) if (wellStocked(id)) set.add(id);
+    for (const id of ids) set.add(id);
     bySlot.set(slotId, set);
   };
 
@@ -117,7 +121,11 @@ export function buildAllowedSwapsForBox(
 
   return Array.from(bySlot.entries())
     .filter(([, ids]) => ids.size > 0)
-    .map(([slotId, ids]) => ({ slotId, optionItemIds: Array.from(ids) }));
+    .map(([slotId, ids]) => {
+      const optionItemIds = Array.from(ids);
+      const lowStockItemIds = optionItemIds.filter(isLowStock);
+      return lowStockItemIds.length ? { slotId, optionItemIds, lowStockItemIds } : { slotId, optionItemIds };
+    });
 }
 
 function callableMessage(error: unknown): string {
