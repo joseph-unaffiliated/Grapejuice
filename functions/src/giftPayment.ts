@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { stripe } from './stripe';
 import { sendGiftClaimEmail } from './email';
 import { sendMetaEvent, type MetaClientContext } from './metaCapi';
+import { recomputeBoxAllocations } from './catalogInventory';
 
 export type GiftInviteRecord = {
   giverUid: string;
@@ -103,6 +104,14 @@ export async function finalizeGiftInvitePayment(
   });
 
   if (shouldSendEmail) {
+    if (resolveGiftInviteKind(invite) === 'box') {
+      try {
+        const alloc = await recomputeBoxAllocations(db);
+        logger.info('Gift box paid — box allocations', { giftInviteId, ...alloc });
+      } catch (allocErr) {
+        logger.error('Gift box paid — recomputeBoxAllocations failed', { giftInviteId, allocErr });
+      }
+    }
     // Same transaction claim as the email, so client finalize + webhook send one Purchase.
     await sendMetaEvent({
       eventName: 'Purchase',

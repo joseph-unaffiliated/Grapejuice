@@ -31,6 +31,7 @@ import {
 import {
   assertBoxLinesWithinInventory,
   commitMarketplaceReservations,
+  heldReceivedGiftLines,
   recomputeBoxAllocations,
   releaseMarketplaceReservations,
   releaseStaleMarketplaceReservations,
@@ -316,6 +317,19 @@ async function resolveMarketplaceLineItems(
     });
   }
   return normalized;
+}
+
+/** Stock totals are a best-effort refresh; never fail the caller's write over them. */
+async function recomputeBoxAllocationsLogged(
+  context: string,
+  extra: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    const alloc = await recomputeBoxAllocations(db);
+    logger.info(`${context} box allocations`, { ...extra, ...alloc });
+  } catch (allocErr) {
+    logger.error(`${context} recomputeBoxAllocations failed`, { ...extra, allocErr });
+  }
 }
 
 async function fulfillMarketplaceOrder(
@@ -1469,6 +1483,12 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
                     updatedAt: new Date().toISOString(),
                   });
                 }
+                if (fresh.playthrough !== true) {
+                  await recomputeBoxAllocationsLogged('received_gift payment', {
+                    orderId,
+                    giftInviteId,
+                  });
+                }
               }
             } else if (
               giftType === 'hanukkah_box' ||
@@ -1737,6 +1757,9 @@ export const purchasePilotGift = onCall(async (request) => {
 
   if (!isValidEmail(recipientEmail)) {
     throw new HttpsError('invalid-argument', 'A valid recipient email is required.');
+  }
+  if (giftKind === 'box' && lineItems?.length) {
+    await assertBoxLinesWithinInventory(db, lineItems);
   }
 
   const userSnap = await db.doc(`users/${request.auth.uid}`).get();
@@ -2227,6 +2250,9 @@ export const updateReceivedGiftLineItems = onCall(async (request) => {
   );
   const now = new Date().toISOString();
   const existingLines = (gift.lineItems as GiftLineItemInput[]) ?? [];
+  await assertBoxLinesWithinInventory(db, lineItems, {
+    creditLines: await heldReceivedGiftLines(db, householdId, giftInviteId, existingLines),
+  });
   const prepaidAddOnCents =
     typeof gift.prepaidAddOnCents === 'number' && Number.isFinite(gift.prepaidAddOnCents)
       ? Math.max(0, Math.round(gift.prepaidAddOnCents))
@@ -2237,6 +2263,7 @@ export const updateReceivedGiftLineItems = onCall(async (request) => {
     viewedAt: gift.viewedAt ?? now,
     updatedAt: now,
   });
+  await recomputeBoxAllocationsLogged('updateReceivedGiftLineItems', { giftInviteId });
   return { ok: true, lineItems };
 });
 
@@ -2311,6 +2338,11 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
     const configData = configSnap.data() ?? {};
     const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
     const skipShipStation = request.data?.skipShipStation === true;
+    if (!skipShipStation) {
+      await assertBoxLinesWithinInventory(db, lineItems, {
+        creditLines: await heldReceivedGiftLines(db, householdId, giftInviteId, gift.lineItems),
+      });
+    }
 
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     const now = new Date().toISOString();
@@ -2342,6 +2374,12 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
       updatedAt: now,
       checkoutOrderId: orderRef.id,
     });
+    if (!skipShipStation) {
+      await recomputeBoxAllocationsLogged('createReceivedGiftCheckout', {
+        orderId: orderRef.id,
+        giftInviteId,
+      });
+    }
 
     if (creditApplied > 0) {
       await db.doc(`households/${householdId}`).update({
@@ -2449,6 +2487,7 @@ export const convertReceivedGiftToCredit = onCall(async (request) => {
     tx.update(giftRef, { status: 'converted_to_credit', convertedAt: now, updatedAt: now });
     tx.update(hhRef, { giftCreditCents: currentGift + creditCents, updatedAt: now });
   });
+  await recomputeBoxAllocationsLogged('convertReceivedGiftToCredit', { giftInviteId });
 
   return { ok: true, creditCentsAdded: creditCents };
 });
