@@ -94,7 +94,9 @@ function formatCatalogRow(row, detail) {
         : row.directSaleCapBeforeLock != null && row.directSaleCapBeforeLock > 0
             ? ` avail=direct_cap=${row.directSaleCapBeforeLock}`
             : ' avail=box_only';
-    const head = `${row.id} (${row.slotId}): ${row.name}${ages}${cat}${brand}${rails}${tier}${price}${avail}${swaps}`;
+    const left = isBook ? null : (0, boxRules_1.rowStockLeft)(row);
+    const stock = left == null ? '' : ` left=${left}${(0, boxRules_1.isDefaultEligible)(row) ? '' : ' low'}`;
+    const head = `${row.id} (${row.slotId}): ${row.name}${ages}${cat}${brand}${rails}${tier}${price}${avail}${stock}${swaps}`;
     if (!detail)
         return head;
     const extras = [];
@@ -143,16 +145,28 @@ function scoreRow(row, priority, focusCategory) {
 }
 /** Load catalog/hanukkah/items once for catalog + box-rules context. */
 async function loadCatalogRows() {
+    var _a;
     const db = (0, firestore_1.getFirestore)();
-    const snap = await db
-        .collection('catalog')
-        .doc(CATALOG_HOLIDAY)
-        .collection('items')
-        .limit(200)
-        .get();
+    const catalogDoc = db.collection('catalog').doc(CATALOG_HOLIDAY);
+    const [snap, invSnap] = await Promise.all([
+        catalogDoc.collection('items').limit(200).get(),
+        catalogDoc.collection('inventory').get().catch(() => null),
+    ]);
     if (snap.empty)
         return [];
-    return snap.docs.map((d) => docToRow(d.id, d.data()));
+    const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+    const committed = new Map();
+    for (const d of (_a = invSnap === null || invSnap === void 0 ? void 0 : invSnap.docs) !== null && _a !== void 0 ? _a : []) {
+        const c = d.data();
+        committed.set(d.id, n(c.boxAllocatedQty) + n(c.directReservedQty) + n(c.directSoldQty));
+    }
+    return snap.docs.map((d) => {
+        var _a;
+        const row = docToRow(d.id, d.data());
+        if (row.inventory == null)
+            return row;
+        return Object.assign(Object.assign({}, row), { stockLeft: Math.max(0, Math.floor(row.inventory) - ((_a = committed.get(d.id)) !== null && _a !== void 0 ? _a : 0)) });
+    });
 }
 function toBoxRulesRows(catalog) {
     return catalog.map((r) => ({
@@ -166,6 +180,7 @@ function toBoxRulesRows(catalog) {
         ageGroups: r.ageGroups,
         defaultFor: r.defaultFor,
         inventory: r.inventory,
+        stockLeft: r.stockLeft,
         holdInventory: r.holdInventory,
         wrappable: r.wrappable,
         memberPriceCents: r.memberPriceCents,

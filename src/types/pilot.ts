@@ -195,6 +195,11 @@ export type CatalogItem = {
   /** Airtable "Default gift ages" when synced. */
   defaultGiftAges?: Array<string | number>;
   inventory?: number | null;
+  /**
+   * Units still free for boxes: inventory − box allocations − direct sales
+   * (live counters). null when inventory is untracked.
+   */
+  boxStockLeft?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
   /**

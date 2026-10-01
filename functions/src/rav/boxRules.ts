@@ -76,6 +76,8 @@ export type DefaultBoxInputs = {
   adults?: number;
   /** How much this household currently does Hanukkah. Default minimal = traditional. */
   practice?: PracticeLevel;
+  /** Live catalog rows; when present, candles / food / gift defaults follow stock. */
+  catalog?: BoxRulesCatalogRow[];
 };
 
 export type GeltSize = 'small' | 'medium' | 'party';
@@ -89,8 +91,8 @@ export type GeltPlan = {
 
 export type DreidelKind = 'wood-dreidel' | 'blank-dreidel' | 'airdry-dreidel';
 
-/** Candles practice default — diy-candles is an included swap, not a Default slot. */
-export type CandlesKind = 'candles' | 'diy-candles';
+/** Candles practice default — diy / electric are included swaps, not Default slots. */
+export type CandlesKind = 'candles' | 'diy-candles' | 'electric-candles';
 
 export type DreidelAssignment = {
   kidIndex: number;
@@ -153,6 +155,8 @@ export type BoxRulesCatalogRow = {
   ageGroups?: string[];
   defaultFor?: string[];
   inventory?: number | null;
+  /** Units still free for boxes (inventory − box allocations − direct sales). */
+  stockLeft?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
   memberPriceCents?: number;
@@ -209,6 +213,11 @@ export const WRAP_POLICY = {
 export const STOCK_POLICY = {
   /** Prefer gifts with Inventory ≥ 2; never assign the last unit. */
   minInventoryToAssign: 2,
+  /**
+   * Share of starting inventory held back from defaults so the item stays
+   * available as a swap for shoppers who ask for it.
+   */
+  swapReserveFraction: 0.15,
   /** Books: infinite / no hold (Hold inventory unchecked). */
   booksHoldInventory: false,
   dualHomeBrowseOk: true,
@@ -294,6 +303,7 @@ export const SECTION_RULES: SectionRules[] = [
     title: 'Light Candles',
     notes: [
       'Default: candles only (not a menorah).',
+      'Beeswax candles default until near their swap reserve, then roll-your-own, then electric.',
       'Upsells are add-only; when added from this section they appear here.',
     ],
     slots: [
@@ -355,7 +365,7 @@ export const SECTION_RULES: SectionRules[] = [
     id: 'food',
     title: 'Eat & Drink',
     notes: [
-      'NO XOR: latke mix + sufganiyot mix both default together.',
+      'Latke mix + sufganiyot mix both default while kit stock covers every remaining box; when kits run short the default is one mix (whichever has more left).',
       'Latke and sufganiyot swap independently; box may end with no mixes.',
       'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
     ],
@@ -500,8 +510,24 @@ export function defaultGiftKindForAge(age: number): GiftKindId {
   return 'blank';
 }
 
-/** Preference order when stock blocks the primary pick (9+ and fallbacks). */
-export function giftKindFallbackOrder(age: number): GiftKindId[] {
+/**
+ * Gift kinds for this age, best first. With catalog rows: kinds whose best
+ * age-tagged row is above its swap reserve, ranked by stock headroom per
+ * eligible age; then low-stock kinds that can still spare a unit. Without
+ * catalog rows: the fixed age table.
+ */
+export function giftKindFallbackOrder(age: number, catalog?: BoxRulesCatalogRow[]): GiftKindId[] {
+  const legacy = legacyGiftKindOrder(age);
+  if (!catalog?.length) return legacy;
+  const ranked = rankGiftKindsForAge(catalog, age);
+  const rest = legacy.filter(
+    (k) => !ranked.includes(k) && giftKindHasAssignableRow(catalog, k, age)
+  );
+  const out = [...ranked, ...rest];
+  return out.length ? out : legacy;
+}
+
+function legacyGiftKindOrder(age: number): GiftKindId[] {
   const primary = defaultGiftKindForAge(age);
   if (age >= 9) {
     const older: GiftKindId[] = ['blank', 'diy-candles', 'lego-menorah', 'airdry', 'extra-book', 'stuffie', 'wood-toy-menorah'];
@@ -520,12 +546,188 @@ export function giftKindFallbackOrder(age: number): GiftKindId[] {
   return [...new Set(general)];
 }
 
-export function planGifts(inputs: DefaultBoxInputs): GiftAssignment[] {
-  return inputs.kids.map((kid, kidIndex) => ({
-    kidIndex,
-    age: kid.age,
-    kind: defaultGiftKindForAge(kid.age),
-  }));
+export function planGifts(
+  inputs: DefaultBoxInputs,
+  excludeKinds: ReadonlySet<GiftKindId> = new Set()
+): GiftAssignment[] {
+  if (!inputs.catalog?.length) {
+    return inputs.kids.map((kid, kidIndex) => ({
+      kidIndex,
+      age: kid.age,
+      kind: defaultGiftKindForAge(kid.age),
+    }));
+  }
+  const used = new Set<GiftKindId>();
+  return inputs.kids.map((kid, kidIndex) => {
+    const order = giftKindFallbackOrder(kid.age, inputs.catalog).filter((k) => !excludeKinds.has(k));
+    const kind = order.find((k) => !used.has(k)) ?? order[0] ?? defaultGiftKindForAge(kid.age);
+    used.add(kind);
+    return { kidIndex, age: kid.age, kind };
+  });
+}
+
+// —— Stock-aware defaults ————————————————————————————————————————————————
+
+/** Units left for boxes; null = untracked (books, unset inventory). */
+export function rowStockLeft(row: BoxRulesCatalogRow): number | null {
+  if (typeof row.stockLeft === 'number' && Number.isFinite(row.stockLeft)) {
+    return Math.max(0, Math.floor(row.stockLeft));
+  }
+  if (typeof row.inventory === 'number' && Number.isFinite(row.inventory)) {
+    return Math.max(0, Math.floor(row.inventory));
+  }
+  return null;
+}
+
+/** Units held back from defaults so the item stays available as a swap. */
+export function swapReserveUnits(row: BoxRulesCatalogRow): number {
+  const inventory =
+    typeof row.inventory === 'number' && Number.isFinite(row.inventory) ? Math.max(0, row.inventory) : 0;
+  return Math.max(
+    STOCK_POLICY.minInventoryToAssign,
+    Math.ceil(inventory * STOCK_POLICY.swapReserveFraction)
+  );
+}
+
+/** Above its swap reserve (or untracked) — OK to hand out as a default. */
+export function isDefaultEligible(row: BoxRulesCatalogRow): boolean {
+  const left = rowStockLeft(row);
+  return left == null || left > swapReserveUnits(row);
+}
+
+/** Can spare a unit without handing out the last one. */
+export function canAssignUnit(row: BoxRulesCatalogRow): boolean {
+  const left = rowStockLeft(row);
+  return left == null || left >= STOCK_POLICY.minInventoryToAssign;
+}
+
+function rowCoversGiftAge(row: BoxRulesCatalogRow, age: number): boolean {
+  return (row.defaultGiftAges ?? []).map(String).includes(String(Math.floor(age)));
+}
+
+/**
+ * Stock headroom above the swap reserve, spread over the ages the gift serves.
+ * A toddler-only gift with 100 left outranks an all-ages stuffie with 100 left.
+ */
+export function giftDefaultScore(row: BoxRulesCatalogRow): number {
+  const left = rowStockLeft(row);
+  if (left == null) return 0;
+  const ages = Math.max(1, (row.defaultGiftAges ?? []).length);
+  return (left - swapReserveUnits(row)) / ages;
+}
+
+function giftKindRows(
+  catalog: BoxRulesCatalogRow[],
+  kind: GiftKindId,
+  age?: number
+): BoxRulesCatalogRow[] {
+  const ageTagged = catalog.filter((r) => (r.defaultGiftAges ?? []).length > 0);
+  const pool = ageTagged.length ? ageTagged : catalog;
+  const patterns = GIFT_KIND_PATTERNS[kind];
+  const matches = pool.filter((r) => patterns.some((re) => re.test(haystack(r))));
+  if (age == null) return matches;
+  const covering = matches.filter((r) => rowCoversGiftAge(r, age));
+  return covering.length ? covering : matches;
+}
+
+function giftKindHasAssignableRow(catalog: BoxRulesCatalogRow[], kind: GiftKindId, age: number): boolean {
+  return giftKindRows(catalog, kind, age).some(canAssignUnit);
+}
+
+/** Kinds with a default-eligible row tagged for this age, best stock headroom first. */
+export function rankGiftKindsForAge(catalog: BoxRulesCatalogRow[], age: number): GiftKindId[] {
+  const legacy = legacyGiftKindOrder(age);
+  const scored: { kind: GiftKindId; score: number; tiebreak: number }[] = [];
+  for (const kind of Object.keys(GIFT_KIND_PATTERNS) as GiftKindId[]) {
+    const rows = giftKindRows(catalog, kind, age).filter(
+      (r) => rowCoversGiftAge(r, age) && isDefaultEligible(r)
+    );
+    if (!rows.length) continue;
+    const score = Math.max(...rows.map(giftDefaultScore));
+    const idx = legacy.indexOf(kind);
+    scored.push({ kind, score, tiebreak: idx < 0 ? legacy.length : idx });
+  }
+  scored.sort((a, b) => b.score - a.score || a.tiebreak - b.tiebreak);
+  return scored.map((s) => s.kind);
+}
+
+const ELECTRIC_CANDLES_RE = /electric.*candle|candle.*electric|led.*candle/i;
+
+/** Catalog row behind a candles kind (beeswax default, roll-your-own, electric). */
+export function resolveCandlesRow(
+  catalog: BoxRulesCatalogRow[] | undefined,
+  kind: CandlesKind
+): BoxRulesCatalogRow | undefined {
+  if (!catalog?.length) return undefined;
+  if (kind === 'diy-candles') return resolveGiftKind(catalog, 'diy-candles');
+  if (kind === 'electric-candles') return catalog.find((r) => ELECTRIC_CANDLES_RE.test(haystack(r)));
+  return resolveByDefaultSlot(catalog, 'candles');
+}
+
+const CANDLES_FALLBACK_ORDER: CandlesKind[] = ['candles', 'diy-candles', 'electric-candles'];
+
+/**
+ * Keep the preferred candles while it's above its swap reserve; then the next
+ * option in beeswax → roll-your-own → electric order that is; then anything
+ * that can still spare a unit.
+ */
+export function planCandlesDefault(
+  catalog: BoxRulesCatalogRow[] | undefined,
+  preferred: CandlesKind = 'candles'
+): CandlesKind {
+  if (!catalog?.length) return preferred;
+  const order = [preferred, ...CANDLES_FALLBACK_ORDER.filter((k) => k !== preferred)];
+  const options = order
+    .map((kind) => ({ kind, row: resolveCandlesRow(catalog, kind) }))
+    .filter((o): o is { kind: CandlesKind; row: BoxRulesCatalogRow } => !!o.row);
+  return (
+    options.find((o) => isDefaultEligible(o.row))?.kind ??
+    options.find((o) => canAssignUnit(o.row))?.kind ??
+    preferred
+  );
+}
+
+/**
+ * Every box takes exactly one candles option, so candles stock caps how many
+ * more boxes can sell. null when untracked.
+ */
+export function boxCapacityLeft(catalog: BoxRulesCatalogRow[] | undefined): number | null {
+  if (!catalog?.length) return null;
+  let total = 0;
+  let found = false;
+  for (const kind of CANDLES_FALLBACK_ORDER) {
+    const row = resolveCandlesRow(catalog, kind);
+    if (!row) continue;
+    const left = rowStockLeft(row);
+    if (left == null) return null;
+    total += left;
+    found = true;
+  }
+  return found ? total : null;
+}
+
+/**
+ * Both mixes while kit stock exceeds remaining box capacity (a second kit never
+ * leaves a later box without one); otherwise the single mix with more left.
+ */
+export function planFoodDefaults(catalog: BoxRulesCatalogRow[] | undefined): DefaultSlotId[] {
+  const both: DefaultSlotId[] = ['latke-mix', 'sufganiyot-mix'];
+  if (!catalog?.length) return both;
+  const options = both
+    .map((slot) => ({ slot, row: resolveByDefaultSlot(catalog, slot) }))
+    .filter((o): o is { slot: DefaultSlotId; row: BoxRulesCatalogRow } => !!o.row);
+  if (options.length < 2) return both;
+  const lefts = options.map((o) => rowStockLeft(o.row));
+  if (lefts.some((l) => l == null)) return both;
+  const foodLeft = (lefts as number[]).reduce((a, b) => a + b, 0);
+  const capacity = boxCapacityLeft(catalog);
+  if (options.every((o) => canAssignUnit(o.row)) && (capacity == null || foodLeft > capacity)) {
+    return both;
+  }
+  const single = options
+    .filter((o) => canAssignUnit(o.row))
+    .sort((a, b) => (rowStockLeft(b.row) ?? 0) - (rowStockLeft(a.row) ?? 0))[0];
+  return single ? [single.slot] : [];
 }
 
 /**
@@ -557,7 +759,11 @@ export function planKnowNothingOutline(inputs: DefaultBoxInputs = { kids: [{ age
   const adults = defaultAdults(inputs.adults);
   const gelt = planGelt(inputs);
   const dreidels = planDreidels(inputs);
-  const gifts = planGifts(inputs);
+  const candlesDefault = planCandlesDefault(inputs.catalog, 'candles');
+  const gifts = planGifts(
+    inputs,
+    new Set<GiftKindId>(candlesDefault === 'diy-candles' ? ['diy-candles'] : [])
+  );
   return {
     inputs: { kids: inputs.kids, adults },
     listCents: listBoxCentsForKids(inputs.kids.length),
@@ -566,9 +772,9 @@ export function planKnowNothingOutline(inputs: DefaultBoxInputs = { kids: [{ age
     gifts,
     booksPerKid: inputs.kids.length,
     presentsPerKid: inputs.kids.length,
-    foodDefaults: ['latke-mix', 'sufganiyot-mix'] as const,
+    foodDefaults: planFoodDefaults(inputs.catalog),
     wrapDefault: 'wrapping-paper' as const,
-    candlesDefault: 'candles' as CandlesKind,
+    candlesDefault,
   };
 }
 
@@ -623,10 +829,15 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
     return { ...base, practice, deviations: [] as PracticeDeviation[] };
   }
 
-  const candlesDefault: CandlesKind = practice === 'all-in' ? 'diy-candles' : 'candles';
+  const candlesDefault: CandlesKind =
+    practice === 'all-in' ? planCandlesDefault(inputs.catalog, 'diy-candles') : base.candlesDefault;
   // Dreidels stay on the know-nothing household wood set (never split for practice).
   const dreidels = planDreidels(inputs);
-  let gifts = planGifts(inputs).map((g) => ({ ...g }));
+  let gifts = base.gifts.map((g) => ({ ...g }));
+  const activityOrder = (age: number): GiftKindId[] =>
+    inputs.catalog?.length
+      ? giftKindFallbackOrder(age, inputs.catalog).filter((k) => ACTIVITY_GIFT_KINDS.includes(k))
+      : ACTIVITY_GIFT_KINDS;
 
   // all-in: tilt passive gifts (stuffie) toward activity kinds when possible.
   // Prefer distinct kinds across kids — never give every kid the same activity gift.
@@ -638,8 +849,8 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
     gifts = gifts.map((g) => {
       if (ACTIVITY_GIFT_KINDS.includes(g.kind)) return g;
       const tilted =
-        ACTIVITY_GIFT_KINDS.find((k) => k !== g.kind && !usedKinds.has(k)) ??
-        giftKindFallbackOrder(g.age).find(
+        activityOrder(g.age).find((k) => k !== g.kind && !usedKinds.has(k)) ??
+        giftKindFallbackOrder(g.age, inputs.catalog).find(
           (k) => ACTIVITY_GIFT_KINDS.includes(k) && k !== g.kind && !usedKinds.has(k)
         );
       if (tilted) {
@@ -659,7 +870,7 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
     const usedByOthers = new Set(
       gifts.filter((x) => x.kidIndex !== g.kidIndex).map((x) => x.kind)
     );
-    const alt = giftKindFallbackOrder(g.age).find(
+    const alt = giftKindFallbackOrder(g.age, inputs.catalog).find(
       (k) =>
         k !== g.kind &&
         !usedByOthers.has(k) &&
@@ -683,7 +894,9 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
           practiceKindsForKid(finalCandles, dreidels, g.kidIndex)
         )
     );
-    if (stillConflicts) finalCandles = 'candles';
+    if (stillConflicts) {
+      finalCandles = base.candlesDefault === 'diy-candles' ? 'candles' : base.candlesDefault;
+    }
   }
 
   // Re-assert distinct gift kinds across kids after practice conflict resolution.
@@ -695,7 +908,7 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
         return g;
       }
       const kinds = practiceKindsForKid(finalCandles, dreidels, g.kidIndex);
-      const alt = giftKindFallbackOrder(g.age).find(
+      const alt = giftKindFallbackOrder(g.age, inputs.catalog).find(
         (k) => k !== g.kind && !claimed.has(k) && !giftConflictsWithPractice(k, kinds)
       );
       if (!alt) return g;
@@ -705,15 +918,15 @@ export function planCuratedOutline(inputs: DefaultBoxInputs = { kids: [{ age: 5 
   }
 
   const traditionalDreidels = planDreidels(inputs);
-  const traditionalGifts = planGifts(inputs);
+  const traditionalGifts = base.gifts;
   const deviations: PracticeDeviation[] = [];
 
-  if (finalCandles === 'diy-candles') {
+  if (finalCandles !== base.candlesDefault) {
     deviations.push({
       section: 'candles',
       slotId: 'candles',
-      fromKind: 'candles',
-      toKind: 'diy-candles',
+      fromKind: base.candlesDefault,
+      toKind: finalCandles,
     });
   }
 
@@ -859,15 +1072,26 @@ export function resolveBookForAge(
   );
 }
 
+/**
+ * Catalog row for a gift kind. Several rows can share a kind (four stuffies,
+ * clay dreidel + clay menorah): prefer rows tagged for `age`, above their swap
+ * reserve, with the most stock headroom; catalog order breaks ties.
+ */
 export function resolveGiftKind(
   catalog: BoxRulesCatalogRow[] | undefined,
-  kind: GiftKindId
+  kind: GiftKindId,
+  age?: number
 ): BoxRulesCatalogRow | undefined {
   if (!catalog?.length) return undefined;
-  const ageTagged = catalog.filter((r) => (r.defaultGiftAges ?? []).length > 0);
-  const pool = ageTagged.length ? ageTagged : catalog;
-  const patterns = GIFT_KIND_PATTERNS[kind];
-  return pool.find((r) => patterns.some((re) => re.test(haystack(r))));
+  const candidates = giftKindRows(catalog, kind, age);
+  if (candidates.length <= 1) return candidates[0];
+  const assignable = candidates.filter(canAssignUnit);
+  const pool = assignable.length ? assignable : candidates;
+  return [...pool].sort(
+    (a, b) =>
+      Number(isDefaultEligible(b)) - Number(isDefaultEligible(a)) ||
+      giftDefaultScore(b) - giftDefaultScore(a)
+  )[0];
 }
 
 export function annotateSlot(
@@ -895,7 +1119,7 @@ function formatUpsell(u: UpsellOffer): string {
  * Optionally annotates default slots with live catalog ids when rows are provided.
  */
 export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
-  const example = planKnowNothingOutline({ kids: [{ age: 5 }] });
+  const example = planKnowNothingOutline({ kids: [{ age: 5 }], catalog });
   const geltEx = example.gelt;
   const giftEx = example.gifts[0];
 
@@ -921,6 +1145,11 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     const stuffie = resolveGiftKind(catalog, 'stuffie');
     if (stuffie) catalogHints.push(`gift-stuffie≈${stuffie.id}`);
   }
+  const exampleCandles = resolveCandlesRow(catalog, example.candlesDefault);
+  const exampleFood = example.foodDefaults.length
+    ? example.foodDefaults.map((slot) => annotateSlot(catalog, slot)).join(' + ')
+    : '(no mixes left)';
+  const exampleGift = resolveGiftKind(catalog, giftEx.kind, giftEx.age);
 
   const sectionBlocks = SECTION_RULES.map((sec) => {
     const slotLines = sec.slots.map((slot) => {
@@ -941,11 +1170,11 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     '- Instruction booklet: never listed / never mutable — physical insert only.',
     '',
     'Simple default (know-nothing, 1 kid age 5):',
-    `- Light Candles: ${annotateSlot(catalog, 'candles')} (not menorah)`,
+    `- Light Candles: ${example.candlesDefault}${exampleCandles ? `→${exampleCandles.id}` : ''} (not menorah)`,
     `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
-    `- Eat & Drink: ${annotateSlot(catalog, 'latke-mix')} + ${annotateSlot(catalog, 'sufganiyot-mix')} (NO XOR — both mixes default; latke kit includes applesauce spice mix)`,
+    `- Eat & Drink: ${exampleFood} (both mixes while kit stock lasts, else one; latke kit includes applesauce spice mix)`,
     `- Tell the Story: 1 age-default book for the 5yo${resolveBookForAge(catalog, 5) ? ` (${resolveBookForAge(catalog, 5)!.id})` : ''}`,
-    `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${resolveGiftKind(catalog, giftEx.kind) ? `≈${resolveGiftKind(catalog, giftEx.kind)!.id}` : ''}`,
+    `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${exampleGift ? `≈${exampleGift.id}` : ''}`,
     '',
     'Section swap graphs:',
     sectionBlocks,
@@ -959,8 +1188,10 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     '- 1 book + 1 present + 1 dreidel per kid; gelt as above',
     '- 5+ kids dreidels: mix wood/airdry/blank by age (older → activity); no consolidation',
     '',
-    'Gift-by-age defaults (prefer distinct across kids; stock-aware Inventory≥2, never last unit; books infinite/no hold):',
-    '- 0 stuffie, 1 wood-toy-menorah, 2 stuffie, 3 stuffie, 4 airdry, 5 stuffie, 6 lego-menorah, 7 blank, 8 DIY-candles; 9+ bias blank/DIY/lego/airdry/books',
+    'Gift defaults (prefer distinct across kids; never last unit; books infinite/no hold):',
+    `- Stock-led: among gifts tagged for the kid's age, default to the one with the most stock left per age it serves (big-stock items like airdry clay and toddler menorahs go first). Items within ~${Math.round(STOCK_POLICY.swapReserveFraction * 100)}% of their starting inventory stop being defaults but stay available as swaps.`,
+    '- Fallback age table when stock is unknown: 0 stuffie, 1 wood-toy-menorah, 2 stuffie, 3 stuffie, 4 airdry, 5 stuffie, 6 lego-menorah, 7 blank, 8 DIY-candles; 9+ bias blank/DIY/lego/airdry/books',
+    '- When suggesting gifts, swaps, or add-ons, lean toward items with plenty left (Catalog left=N). Items marked low: offer only when the shopper asks for that item.',
     '- Dual-home browse OK; same catalog id twice → confirm in UX (not a hard block)',
     '',
     'Practice level policy (onboarding slider — current practice intensity, NOT knowledge):',

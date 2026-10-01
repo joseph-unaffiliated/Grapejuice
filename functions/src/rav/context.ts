@@ -1,6 +1,11 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import type { AskPilotRavData, LineItem } from './types';
-import { renderBoxRulesContext, type BoxRulesCatalogRow } from './boxRules';
+import {
+  isDefaultEligible,
+  renderBoxRulesContext,
+  rowStockLeft,
+  type BoxRulesCatalogRow,
+} from './boxRules';
 
 const HOLIDAY_ID = 'hanukkah-2026';
 /** Firestore catalog path: catalog/{CATALOG_HOLIDAY}/items/{id} (Airtable sync + app client). */
@@ -35,6 +40,8 @@ type CatalogRow = {
   /** Age bands this item is a default for (legacy / books sync). */
   defaultFor?: string[];
   inventory?: number | null;
+  /** inventory − box allocations − direct sales (live counters). */
+  stockLeft?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
   directSaleCapBeforeLock?: number | null;
@@ -123,7 +130,9 @@ function formatCatalogRow(row: CatalogRow, detail: boolean): string {
     : row.directSaleCapBeforeLock != null && row.directSaleCapBeforeLock > 0
       ? ` avail=direct_cap=${row.directSaleCapBeforeLock}`
       : ' avail=box_only';
-  const head = `${row.id} (${row.slotId}): ${row.name}${ages}${cat}${brand}${rails}${tier}${price}${avail}${swaps}`;
+  const left = isBook ? null : rowStockLeft(row);
+  const stock = left == null ? '' : ` left=${left}${isDefaultEligible(row) ? '' : ' low'}`;
+  const head = `${row.id} (${row.slotId}): ${row.name}${ages}${cat}${brand}${rails}${tier}${price}${avail}${stock}${swaps}`;
   if (!detail) return head;
   const extras: string[] = [];
   if (row.description) extras.push(truncate(row.description, DESC_MAX));
@@ -166,14 +175,23 @@ function scoreRow(row: CatalogRow, priority: Set<string>, focusCategory?: string
 /** Load catalog/hanukkah/items once for catalog + box-rules context. */
 export async function loadCatalogRows(): Promise<CatalogRow[]> {
   const db = getFirestore();
-  const snap = await db
-    .collection('catalog')
-    .doc(CATALOG_HOLIDAY)
-    .collection('items')
-    .limit(200)
-    .get();
+  const catalogDoc = db.collection('catalog').doc(CATALOG_HOLIDAY);
+  const [snap, invSnap] = await Promise.all([
+    catalogDoc.collection('items').limit(200).get(),
+    catalogDoc.collection('inventory').get().catch(() => null),
+  ]);
   if (snap.empty) return [];
-  return snap.docs.map((d) => docToRow(d.id, d.data() as Record<string, unknown>));
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+  const committed = new Map<string, number>();
+  for (const d of invSnap?.docs ?? []) {
+    const c = d.data();
+    committed.set(d.id, n(c.boxAllocatedQty) + n(c.directReservedQty) + n(c.directSoldQty));
+  }
+  return snap.docs.map((d) => {
+    const row = docToRow(d.id, d.data() as Record<string, unknown>);
+    if (row.inventory == null) return row;
+    return { ...row, stockLeft: Math.max(0, Math.floor(row.inventory) - (committed.get(d.id) ?? 0)) };
+  });
 }
 
 function toBoxRulesRows(catalog: CatalogRow[]): BoxRulesCatalogRow[] {
@@ -188,6 +206,7 @@ function toBoxRulesRows(catalog: CatalogRow[]): BoxRulesCatalogRow[] {
     ageGroups: r.ageGroups,
     defaultFor: r.defaultFor,
     inventory: r.inventory,
+    stockLeft: r.stockLeft,
     holdInventory: r.holdInventory,
     wrappable: r.wrappable,
     memberPriceCents: r.memberPriceCents,

@@ -2,7 +2,8 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import type { BoxLineItem, FamiliarityLevel, RavDraftAction } from '../../types/pilot';
 import type { CatalogItem } from '../../types/pilot';
-import type { ResolvedDeviation } from '../box/buildDefaultBox';
+import { toRulesRow, type ResolvedDeviation } from '../box/buildDefaultBox';
+import { isDefaultEligible } from '../box/boxRules';
 import {
   resolveFreeSlotAddOptions,
   resolveFreeSwapUnitCents,
@@ -67,9 +68,14 @@ export function buildAllowedSwapsForBox(
 ): AllowedSwap[] {
   const bySlot = new Map<string, Set<string>>();
 
+  // Rav never swaps in items near their swap reserve; shoppers can still pick them.
+  const wellStocked = (id: string) => {
+    const item = catalog.find((c) => c.id === id);
+    return !!item && isDefaultEligible(toRulesRow(item));
+  };
   const add = (slotId: string, ids: string[]) => {
     const set = bySlot.get(slotId) ?? new Set<string>();
-    for (const id of ids) set.add(id);
+    for (const id of ids) if (wellStocked(id)) set.add(id);
     bySlot.set(slotId, set);
   };
 

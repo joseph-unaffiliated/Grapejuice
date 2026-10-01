@@ -181,14 +181,46 @@ function sortItems(items: CatalogItem[]): CatalogItem[] {
   return [...items].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function inventoryCountersCollection() {
+  if (!db) return null;
+  return collection(doc(db, 'catalog', CATALOG_HOLIDAY), 'inventory');
+}
+
+/** Units committed per item from live counters (box allocations + direct sales). */
+type CommittedById = Map<string, number>;
+
+function committedFromSnap(docs: Array<{ id: string; data: () => Record<string, unknown> }>): CommittedById {
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+  const out: CommittedById = new Map();
+  for (const d of docs) {
+    const data = d.data();
+    out.set(d.id, n(data.boxAllocatedQty) + n(data.directReservedQty) + n(data.directSoldQty));
+  }
+  return out;
+}
+
+function withBoxStockLeft(items: CatalogItem[], committed: CommittedById): CatalogItem[] {
+  return items.map((item) => {
+    if (item.inventory == null || !Number.isFinite(item.inventory)) {
+      return { ...item, boxStockLeft: null };
+    }
+    const used = committed.get(item.id) ?? 0;
+    return { ...item, boxStockLeft: Math.max(0, Math.floor(item.inventory) - used) };
+  });
+}
+
 export const catalogService = {
   async getAll(): Promise<CatalogItem[]> {
     const col = itemsCollection();
     if (!col) return [];
-    const snap = await getDocs(col);
-    return sortItems(
-      snap.docs.map((d) => toItem(d.id, d.data() as Record<string, unknown>))
-    );
+    const invCol = inventoryCountersCollection();
+    const [snap, invSnap] = await Promise.all([
+      getDocs(col),
+      invCol ? getDocs(invCol).catch(() => null) : Promise.resolve(null),
+    ]);
+    const items = snap.docs.map((d) => toItem(d.id, d.data() as Record<string, unknown>));
+    const committed = committedFromSnap(invSnap?.docs ?? []);
+    return sortItems(withBoxStockLeft(items, committed));
   },
 
   /**
@@ -204,17 +236,35 @@ export const catalogService = {
       onChange([]);
       return () => undefined;
     }
-    return onSnapshot(
+    let items: CatalogItem[] | null = null;
+    let committed: CommittedById = new Map();
+    const emit = () => {
+      if (items) onChange(sortItems(withBoxStockLeft(items, committed)));
+    };
+    const unsubItems = onSnapshot(
       col,
       (snap) => {
-        onChange(
-          sortItems(
-            snap.docs.map((d) => toItem(d.id, d.data() as Record<string, unknown>))
-          )
-        );
+        items = snap.docs.map((d) => toItem(d.id, d.data() as Record<string, unknown>));
+        emit();
       },
       (err) => onError?.(err)
     );
+    const invCol = inventoryCountersCollection();
+    const unsubInv = invCol
+      ? onSnapshot(
+          invCol,
+          (snap) => {
+            committed = committedFromSnap(snap.docs);
+            emit();
+          },
+          // Counters are advisory for defaults; keep serving the catalog without them.
+          () => undefined
+        )
+      : () => undefined;
+    return () => {
+      unsubItems();
+      unsubInv();
+    };
   },
 
   async getById(itemId: string): Promise<CatalogItem | null> {

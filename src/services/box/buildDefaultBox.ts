@@ -17,6 +17,7 @@ import {
   representativeAgeForBand,
   resolveBookForAge,
   resolveByDefaultSlot,
+  resolveCandlesRow,
   resolveGiftKind,
   type BoxRulesCatalogRow,
   type CandlesKind,
@@ -27,7 +28,7 @@ import {
   type PracticeDeviation,
 } from './boxRules';
 
-function toRulesRow(item: CatalogItem): BoxRulesCatalogRow {
+export function toRulesRow(item: CatalogItem): BoxRulesCatalogRow {
   return {
     id: item.id,
     name: item.name,
@@ -39,6 +40,7 @@ function toRulesRow(item: CatalogItem): BoxRulesCatalogRow {
     ageGroups: item.ageGroups,
     defaultFor: item.defaultFor,
     inventory: item.inventory ?? null,
+    stockLeft: item.boxStockLeft ?? null,
     holdInventory: item.holdInventory ?? null,
     wrappable: item.wrappable ?? null,
     memberPriceCents: item.memberPriceCents,
@@ -87,11 +89,8 @@ function resolveCandlesItem(
   rows: BoxRulesCatalogRow[],
   kind: CandlesKind
 ): CatalogItem | undefined {
-  if (kind === 'diy-candles') {
-    const row = resolveGiftKind(rows, 'diy-candles');
-    return findById(catalog, row?.id);
-  }
-  return resolveSlotItem(catalog, rows, 'candles');
+  if (kind === 'candles') return resolveSlotItem(catalog, rows, 'candles');
+  return findById(catalog, resolveCandlesRow(rows, kind)?.id);
 }
 
 function resolveDreidelKindItem(
@@ -169,12 +168,13 @@ export function buildCuratedBox(
   if (!catalog.length) return { lineItems, deviations: [], practice };
 
   const paired = kidsFromChildren(children);
+  const rows = catalog.map(toRulesRow);
   const outline = planCuratedOutline({
     kids: paired.map((p) => ({ age: p.age })),
     adults: options.adults,
     practice,
+    catalog: rows,
   });
-  const rows = catalog.map(toRulesRow);
 
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
     console.log('[box] curated outline', {
@@ -254,13 +254,12 @@ export function buildCuratedBox(
   if (wrap) pushLineItem(lineItems, outline.wrapDefault, wrap);
 
   for (const g of outline.gifts) {
-    const giftRow = resolveGiftKind(rows, g.kind);
+    const giftRow = resolveGiftKind(rows, g.kind, g.age);
     const gift = findById(catalog, giftRow?.id);
     const child = paired[g.kidIndex]?.child;
     if (gift && child) pushLineItem(lineItems, 'gift', gift, child.id);
   }
 
-  const traditionalCandles = resolveCandlesItem(catalog, rows, 'candles');
   const traditionalWood = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
 
   const deviations: ResolvedDeviation[] = [];
@@ -272,7 +271,7 @@ export function buildCuratedBox(
 
     if (d.section === 'candles') {
       toItem = resolveCandlesItem(catalog, rows, d.toKind as CandlesKind);
-      fromItemId = traditionalCandles?.id;
+      fromItemId = resolveCandlesItem(catalog, rows, d.fromKind as CandlesKind)?.id;
       slotId = 'candles';
     } else if (d.section === 'dreidel') {
       toItem = resolveDreidelKindItem(catalog, rows, d.toKind as DreidelKind);
@@ -284,8 +283,9 @@ export function buildCuratedBox(
       childId = child?.id;
       slotId = childId ? `${d.toKind}-${childId}` : d.toKind;
     } else if (d.section === 'presents') {
-      toItem = findById(catalog, resolveGiftKind(rows, d.toKind as GiftKindId)?.id);
-      fromItemId = resolveGiftKind(rows, d.fromKind as GiftKindId)?.id;
+      const age = d.kidIndex != null ? paired[d.kidIndex]?.age : undefined;
+      toItem = findById(catalog, resolveGiftKind(rows, d.toKind as GiftKindId, age)?.id);
+      fromItemId = resolveGiftKind(rows, d.fromKind as GiftKindId, age)?.id;
       const child = d.kidIndex != null ? paired[d.kidIndex]?.child : undefined;
       childId = child?.id;
       slotId = childId ? `gift-${childId}` : 'gift';
