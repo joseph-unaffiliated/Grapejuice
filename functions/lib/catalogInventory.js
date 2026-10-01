@@ -9,6 +9,10 @@ exports.releaseMarketplaceReservations = releaseMarketplaceReservations;
 exports.reservedLinesFromOrder = reservedLinesFromOrder;
 exports.aggregateLineQuantities = aggregateLineQuantities;
 exports.assertBoxLinesWithinInventory = assertBoxLinesWithinInventory;
+exports.createdAtMs = createdAtMs;
+exports.receivedGiftOrderHoldsStock = receivedGiftOrderHoldsStock;
+exports.receivedGiftKey = receivedGiftKey;
+exports.heldReceivedGiftLines = heldReceivedGiftLines;
 exports.recomputeBoxAllocations = recomputeBoxAllocations;
 exports.releaseStaleMarketplaceReservations = releaseStaleMarketplaceReservations;
 /**
@@ -185,19 +189,133 @@ async function assertBoxLinesWithinInventory(db, proposedLines, options) {
         }
     }
 }
+const BOX_ALLOCATION_STATUSES = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
+function addLines(totals, lines) {
+    var _a;
+    if (!Array.isArray(lines))
+        return;
+    for (const [id, q] of aggregateLineQuantities(lines)) {
+        totals.set(id, ((_a = totals.get(id)) !== null && _a !== void 0 ? _a : 0) + q);
+    }
+}
+function createdAtMs(data) {
+    const ts = data === null || data === void 0 ? void 0 : data.createdAt;
+    if (ts && typeof ts === 'object' && typeof ts.toMillis === 'function')
+        return ts.toMillis();
+    if (typeof ts === 'string') {
+        const ms = Date.parse(ts);
+        return Number.isFinite(ms) ? ms : null;
+    }
+    return null;
+}
+/**
+ * Unpaid recipient gift checkouts stop holding stock after the marketplace TTL; the
+ * gift box itself keeps its reservation until checkout or conversion to credit.
+ */
+function receivedGiftOrderHoldsStock(order, nowMs = Date.now()) {
+    if (order.status !== 'pending')
+        return true;
+    const created = createdAtMs(order);
+    return created == null || nowMs - created < exports.MARKETPLACE_RESERVATION_TTL_MS;
+}
+function receivedGiftKey(householdId, giftInviteId) {
+    return `${householdId}/${giftInviteId}`;
+}
+/**
+ * Lines one received gift currently holds in boxAllocatedQty: its latest live checkout
+ * order, else the gift box itself. Pass as creditLines when re-checking that gift.
+ */
+async function heldReceivedGiftLines(db, householdId, giftInviteId, giftLines) {
+    var _a;
+    const snap = await db
+        .collection(`households/${householdId}/orders`)
+        .where('giftInviteId', '==', giftInviteId)
+        .get();
+    const nowMs = Date.now();
+    let latest = null;
+    for (const doc of snap.docs) {
+        const order = doc.data();
+        if (order.orderType !== 'received_gift' || order.playthrough === true)
+            continue;
+        if (!BOX_ALLOCATION_STATUSES.includes(String(order.status)))
+            continue;
+        if (!receivedGiftOrderHoldsStock(order, nowMs))
+            continue;
+        const createdMs = (_a = createdAtMs(order)) !== null && _a !== void 0 ? _a : nowMs;
+        if (!latest || createdMs > latest.createdMs)
+            latest = { createdMs, lines: order.lineItems };
+    }
+    const lines = latest ? latest.lines : giftLines;
+    return Array.isArray(lines) ? lines : [];
+}
+function isBoxGiftInvite(invite) {
+    if (invite.kind === 'box' || invite.kind === 'credit')
+        return invite.kind === 'box';
+    return Array.isArray(invite.lineItems) && invite.lineItems.length > 0;
+}
+function isPaidGiftInvite(invite) {
+    if (invite.paymentStatus === 'paid')
+        return true;
+    return invite.paymentStatus == null && Boolean(invite.claimEmailSentAt);
+}
+/**
+ * Paid gift boxes hold their lines from purchase until the recipient checks out
+ * (then the received_gift order holds them) or converts the gift to credit.
+ */
+async function addOutstandingGiftBoxes(db, totals, checkedOut) {
+    const snap = await db.collection('giftInvites').get();
+    const claimed = [];
+    let held = 0;
+    for (const doc of snap.docs) {
+        const invite = doc.data();
+        if (invite.playthrough === true)
+            continue;
+        if (!isBoxGiftInvite(invite) || !isPaidGiftInvite(invite))
+            continue;
+        const householdId = typeof invite.claimedByHouseholdId === 'string' ? invite.claimedByHouseholdId : '';
+        if (invite.status !== 'pending' && invite.status !== 'claimed')
+            continue;
+        if (invite.status === 'pending' || !householdId) {
+            addLines(totals, invite.lineItems);
+            held += 1;
+            continue;
+        }
+        if (checkedOut.has(receivedGiftKey(householdId, doc.id)))
+            continue;
+        claimed.push({
+            ref: db.doc(`households/${householdId}/receivedGifts/${doc.id}`),
+            inviteLines: invite.lineItems,
+        });
+    }
+    for (let i = 0; i < claimed.length; i += 200) {
+        const chunk = claimed.slice(i, i + 200);
+        const snaps = await db.getAll(...chunk.map((c) => c.ref));
+        snaps.forEach((giftSnap, j) => {
+            const gift = giftSnap.data();
+            if ((gift === null || gift === void 0 ? void 0 : gift.status) === 'converted_to_credit')
+                return;
+            addLines(totals, Array.isArray(gift === null || gift === void 0 ? void 0 : gift.lineItems) ? gift.lineItems : chunk[j].inviteLines);
+            held += 1;
+        });
+    }
+    return held;
+}
 /**
  * Recompute boxAllocatedQty from pending/committed/confirmed/shipped/delivered
- * Hanukkah box orders. Idempotent full replace. Visitor playthrough orders excluded.
+ * Hanukkah box orders, recipient gift-box checkouts, and paid gift boxes not yet
+ * checked out. Idempotent full replace. Visitor playthrough orders excluded.
  * Runs before and after lock so unpaid committed boxes reserve stock immediately.
  */
 async function recomputeBoxAllocations(db, _options) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const configSnap = await db.doc(`config/${exports.HOLIDAY_ID}`).get();
     const lockAt = (_b = (_a = configSnap.data()) === null || _a === void 0 ? void 0 : _a.lockAt) !== null && _b !== void 0 ? _b : null;
     const locked = Boolean(lockAt) && Date.now() >= new Date(lockAt).getTime();
-    const statuses = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
     const totals = new Map();
-    for (const status of statuses) {
+    const nowMs = Date.now();
+    // A recipient can retry checkout; only the latest live order per gift counts.
+    const giftOrders = new Map();
+    for (const status of BOX_ALLOCATION_STATUSES) {
         const snap = await db
             .collectionGroup('orders')
             .where('holidayId', '==', exports.HOLIDAY_ID)
@@ -205,20 +323,28 @@ async function recomputeBoxAllocations(db, _options) {
             .get();
         for (const doc of snap.docs) {
             const order = doc.data();
-            if (order.orderType === 'marketplace' || order.orderType === 'received_gift')
+            if (order.orderType === 'marketplace')
                 continue;
             if (order.playthrough === true)
                 continue;
-            const lines = (_c = order.lineItems) !== null && _c !== void 0 ? _c : [];
-            for (const li of lines) {
-                const id = String((_d = li.itemId) !== null && _d !== void 0 ? _d : '').trim();
-                if (!id)
+            if (order.orderType === 'received_gift') {
+                if (!receivedGiftOrderHoldsStock(order, nowMs))
                     continue;
-                const q = Math.max(1, Math.floor(Number(li.quantity) || 1));
-                totals.set(id, ((_e = totals.get(id)) !== null && _e !== void 0 ? _e : 0) + q);
+                const householdId = (_d = (_c = doc.ref.parent.parent) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : '';
+                const key = receivedGiftKey(householdId, String((_e = order.giftInviteId) !== null && _e !== void 0 ? _e : doc.id));
+                const createdMs = (_f = createdAtMs(order)) !== null && _f !== void 0 ? _f : nowMs;
+                const prev = giftOrders.get(key);
+                if (!prev || createdMs > prev.createdMs) {
+                    giftOrders.set(key, { createdMs, lines: order.lineItems });
+                }
+                continue;
             }
+            addLines(totals, order.lineItems);
         }
     }
+    for (const { lines } of giftOrders.values())
+        addLines(totals, lines);
+    const giftBoxesHeld = await addOutstandingGiftBoxes(db, totals, new Set(giftOrders.keys()));
     // Also zero prior allocations for items no longer in any box (read existing inventory docs).
     const invSnap = await db.collection(`catalog/${exports.CATALOG_HOLIDAY}/inventory`).get();
     const nowIso = new Date().toISOString();
@@ -229,7 +355,7 @@ async function recomputeBoxAllocations(db, _options) {
         const chunk = ids.slice(i, i + 400);
         const batch = db.batch();
         for (const id of chunk) {
-            const qty = (_f = totals.get(id)) !== null && _f !== void 0 ? _f : 0;
+            const qty = (_g = totals.get(id)) !== null && _g !== void 0 ? _g : 0;
             batch.set(inventoryDocRef(db, id), {
                 boxAllocatedQty: qty,
                 boxAllocatedAt: nowIso,
@@ -239,7 +365,7 @@ async function recomputeBoxAllocations(db, _options) {
         }
         await batch.commit();
     }
-    return { itemsUpdated: updated, locked };
+    return { itemsUpdated: updated, locked, giftBoxesHeld };
 }
 /**
  * Release reservations on pending marketplace orders older than TTL.

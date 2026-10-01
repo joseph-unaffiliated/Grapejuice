@@ -6,6 +6,7 @@ const logger = require("firebase-functions/logger");
 const stripe_1 = require("./stripe");
 const email_1 = require("./email");
 const metaCapi_1 = require("./metaCapi");
+const catalogInventory_1 = require("./catalogInventory");
 /** Prefer stored kind; fall back to lineItems for older invites. */
 function resolveGiftInviteKind(invite) {
     if (invite.kind === 'box' || invite.kind === 'credit')
@@ -67,6 +68,15 @@ fallbackMetaContext) {
         return true;
     });
     if (shouldSendEmail) {
+        if (resolveGiftInviteKind(invite) === 'box') {
+            try {
+                const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);
+                logger.info('Gift box paid — box allocations', Object.assign({ giftInviteId }, alloc));
+            }
+            catch (allocErr) {
+                logger.error('Gift box paid — recomputeBoxAllocations failed', { giftInviteId, allocErr });
+            }
+        }
         // Same transaction claim as the email, so client finalize + webhook send one Purchase.
         await (0, metaCapi_1.sendMetaEvent)({
             eventName: 'Purchase',

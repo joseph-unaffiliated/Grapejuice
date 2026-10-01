@@ -200,6 +200,16 @@ async function resolveMarketplaceLineItems(raw) {
     }
     return normalized;
 }
+/** Stock totals are a best-effort refresh; never fail the caller's write over them. */
+async function recomputeBoxAllocationsLogged(context, extra = {}) {
+    try {
+        const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);
+        logger.info(`${context} box allocations`, Object.assign(Object.assign({}, extra), alloc));
+    }
+    catch (allocErr) {
+        logger.error(`${context} recomputeBoxAllocations failed`, Object.assign(Object.assign({}, extra), { allocErr }));
+    }
+}
 async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStation) {
     var _a, _b, _c, _d, _e, _f, _g;
     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
@@ -1107,6 +1117,12 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
                                         updatedAt: new Date().toISOString(),
                                     });
                                 }
+                                if (fresh.playthrough !== true) {
+                                    await recomputeBoxAllocationsLogged('received_gift payment', {
+                                        orderId,
+                                        giftInviteId,
+                                    });
+                                }
                             }
                         }
                         else if (giftType === 'hanukkah_box' ||
@@ -1363,6 +1379,9 @@ exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
     const childAgeGroups = Array.isArray((_m = request.data) === null || _m === void 0 ? void 0 : _m.childAgeGroups) ? request.data.childAgeGroups : undefined;
     if (!isValidEmail(recipientEmail)) {
         throw new https_1.HttpsError('invalid-argument', 'A valid recipient email is required.');
+    }
+    if (giftKind === 'box' && (lineItems === null || lineItems === void 0 ? void 0 : lineItems.length)) {
+        await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const giverEmail = String((_p = (_o = userSnap.data()) === null || _o === void 0 ? void 0 : _o.email) !== null && _p !== void 0 ? _p : '').trim().toLowerCase();
@@ -1787,6 +1806,9 @@ exports.updateReceivedGiftLineItems = (0, https_1.onCall)(async (request) => {
     const lineItems = normalizeGiftLineItems((Array.isArray((_f = request.data) === null || _f === void 0 ? void 0 : _f.lineItems) ? request.data.lineItems : []));
     const now = new Date().toISOString();
     const existingLines = (_g = gift.lineItems) !== null && _g !== void 0 ? _g : [];
+    await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems, {
+        creditLines: await (0, catalogInventory_1.heldReceivedGiftLines)(db, householdId, giftInviteId, existingLines),
+    });
     const prepaidAddOnCents = typeof gift.prepaidAddOnCents === 'number' && Number.isFinite(gift.prepaidAddOnCents)
         ? Math.max(0, Math.round(gift.prepaidAddOnCents))
         : chargeableLineTotal(existingLines);
@@ -1796,6 +1818,7 @@ exports.updateReceivedGiftLineItems = (0, https_1.onCall)(async (request) => {
         viewedAt: (_h = gift.viewedAt) !== null && _h !== void 0 ? _h : now,
         updatedAt: now,
     });
+    await recomputeBoxAllocationsLogged('updateReceivedGiftLineItems', { giftInviteId });
     return { ok: true, lineItems };
 });
 /**
@@ -1855,6 +1878,11 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         const configData = (_l = configSnap.data()) !== null && _l !== void 0 ? _l : {};
         const estimatedDelivery = (_m = configData.estimatedDeliveryBy) !== null && _m !== void 0 ? _m : '2026-11-24';
         const skipShipStation = ((_o = request.data) === null || _o === void 0 ? void 0 : _o.skipShipStation) === true;
+        if (!skipShipStation) {
+            await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems, {
+                creditLines: await (0, catalogInventory_1.heldReceivedGiftLines)(db, householdId, giftInviteId, gift.lineItems),
+            });
+        }
         const orderRef = db.collection(`households/${householdId}/orders`).doc();
         const now = new Date().toISOString();
         const orderPayload = {
@@ -1886,6 +1914,12 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
             updatedAt: now,
             checkoutOrderId: orderRef.id,
         });
+        if (!skipShipStation) {
+            await recomputeBoxAllocationsLogged('createReceivedGiftCheckout', {
+                orderId: orderRef.id,
+                giftInviteId,
+            });
+        }
         if (creditApplied > 0) {
             await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0
                 ? { platformCreditCents: platformCreditCents - platformCreditApplied }
@@ -1976,6 +2010,7 @@ exports.convertReceivedGiftToCredit = (0, https_1.onCall)(async (request) => {
         tx.update(giftRef, { status: 'converted_to_credit', convertedAt: now, updatedAt: now });
         tx.update(hhRef, { giftCreditCents: currentGift + creditCents, updatedAt: now });
     });
+    await recomputeBoxAllocationsLogged('convertReceivedGiftToCredit', { giftInviteId });
     return { ok: true, creditCentsAdded: creditCents };
 });
 /** Mark a received gift box as accepted (recipient is opening the gift box flow). */
