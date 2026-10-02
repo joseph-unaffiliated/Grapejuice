@@ -26,24 +26,26 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 
 **Images** are in `/Untraditional/Ads/` as `ads_v1_NN.png`. Each ad uses a square (1080x1080) for Feed and a vertical (1080x1920) for Stories and Reels. The 1116x628 landscapes are 16:9 rather than Meta's 1.91:1, and the square covers those placements better, so they're unused. Proposed mapping below; swap freely.
 
+**Built in Meta (Oct 1).** Each ad uses its angle's copy below, with both primary-text options; v2/v3 ads reuse the v1 copy.
+
 | Ad | Square | Vertical | Image text |
 | --- | --- | --- | --- |
 | convenient-v1 | 34 | 35 | Hanukkah, at your doorstep. |
+| convenient-v2 | 01 | 02 | Hanukkah's coming early this year. It's Dec 4 |
 | affordable-v1 | 22 | 23 | Should not cost an arm and a leg. |
-| customizable-v1 | 31 | 32 | Hanukkah, your way |
+| customizable-v1 | 05 | 06 | Hanukkah, your way (kid with latke stuffie) |
 | beautiful-v1 | 08 | 09 | Too pretty to put away. |
+| beautiful-v2 | 28 | 29 | Affordable. Jewish. Luxury. |
 | no-fluency-v1 | 25 | 26 | Hanukkah for all. $18 |
 | conversation-v1 | 13 | 14 | Eight nights of memories. |
 | activity-v1 | 16 | 17 | Screens off. Candles on. |
+| activity-v2 | 03 | 04 | Made it out of clay. |
 | grandparent-gift-v1 | 19 | 20 | Gelt. Not guilt. (older hand next to a kid's) |
 
-**Held for week 2** (swap in when an angle's first image tires out, rather than launching more ads now):
+**Not built yet:**
 
-- 01 / 02 "Hanukkah's coming early this year. It's Dec 4" (menorah stuffie): convenient-v2; pairs with convenient Option B.
-- 03 / 04 "Made it out of clay": activity-v2 (the clay dreidel is a free swap in the box).
-- 05 / 06 "Hanukkah, your way" (kid with latke stuffie): customizable-v2.
-- 10 / 11 "It all starts in the kitchen": activity-v3. **Typo in 10:** it says "alll." 11 is correct.
-- 27 / 28 / 29 "Affordable. Jewish. Luxury." (Arch menorah, $80 add-on): beautiful-v2.
+- activity-v3, 10 / 11 "It all starts in the kitchen": waiting on a fixed 10, which says "alll." 11 is correct.
+- 30 / 31 / 32 (stirring the latke mix): not used, by your call.
 
 **Add-ons shown in images** (fine to show, but the copy shouldn't imply they're in the box):
 
@@ -114,7 +116,7 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 - **Angle:** It's customizable
 - **For:** people with ideological sensitivity who want control over what comes into the house
 - **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
-- **Image:** ads_v1_31.png (square), ads_v1_32.png (vertical)
+- **Image:** ads_v1_05.png (square), ads_v1_06.png (vertical)
 - **CTA button:** Shop now
 
 **Primary text, Option A**
@@ -146,7 +148,7 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 
 **Primary text, Option A**
 
-> Hanukkah pieces you'd want to leave on display year round. Wood dreidels, beeswax candles, and elegant tchachkes that look at home on any mantel.
+> Hanukkah pieces you'd want to leave on display year round. Wood dreidels, beeswax candles, and elegant tchotchkes that look at home on any mantel.
 >
 > Free shipping, arrives by Nov 21.
 
