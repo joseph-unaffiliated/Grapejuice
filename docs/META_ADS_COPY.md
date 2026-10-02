@@ -26,7 +26,7 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 
 **Images** are in `/Untraditional/Ads/` as `ads_v1_NN.png`. Each ad uses a square (1080x1080) for Feed and a vertical (1080x1920) for Stories and Reels. The 1116x628 landscapes are 16:9 rather than Meta's 1.91:1, and the square covers those placements better, so they're unused. Proposed mapping below; swap freely.
 
-**Built in Meta (Oct 1).** Each ad uses its angle's copy below, with both primary-text options; v2/v3 ads reuse the v1 copy.
+**Built in Meta (Oct 1).** Each ad uses its angle's copy below with **Option A** primary text only (Meta's square/vertical placement setup allows one text per ad); v2/v3 ads reuse the v1 copy. Square shows in feeds, vertical in Stories and Reels.
 
 | Ad | Square | Vertical | Image text |
 | --- | --- | --- | --- |
