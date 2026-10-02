@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_BOX_PRICE_CENTS = exports.HOLIDAY_ID = void 0;
+exports.boxPriceCentsForKids = boxPriceCentsForKids;
+exports.boxPriceForUser = boxPriceForUser;
 exports.checkoutTotalsAfterCredit = checkoutTotalsAfterCredit;
 exports.computeCommittedBoxTotals = computeCommittedBoxTotals;
 exports.notifyHanukkahBoxChargeFailed = notifyHanukkahBoxChargeFailed;
@@ -14,8 +16,20 @@ const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const shipstation_1 = require("./shipstation");
 const email_1 = require("./email");
+const boxRules_1 = require("./rav/boxRules");
 exports.HOLIDAY_ID = 'hanukkah-2026';
 exports.DEFAULT_BOX_PRICE_CENTS = 8000;
+/** First kid is in the list price; each extra kid adds a fee, even if that kid's lines are donated. */
+function boxPriceCentsForKids(kidCount, listCents = exports.DEFAULT_BOX_PRICE_CENTS) {
+    return listCents + Math.max(0, kidCount - 1) * boxRules_1.PRICING_POLICY.perExtraKidCents;
+}
+/** Kid count matches My Box: the box owner's `users/{uid}/children`, minimum 1. */
+async function boxPriceForUser(db, userId, configData) {
+    const listCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : exports.DEFAULT_BOX_PRICE_CENTS;
+    const kids = userId ? (await db.collection(`users/${userId}/children`).get()).size : 0;
+    const kidCount = Math.max(1, kids);
+    return { boxPriceCents: boxPriceCentsForKids(kidCount, listCents), kidCount };
+}
 const SHIPPING_FLAT_CENTS = 0;
 const EXPEDITED_SHIPPING_CENTS = 1500;
 const CHECKOUT_TAX_RATE = 0.075;
@@ -265,7 +279,7 @@ async function chargeSinglePilotBoxOrder(db, stripe, householdId, orderId, optio
     const draftLineItems = (_e = (_d = (_c = draftSnap.data()) === null || _c === void 0 ? void 0 : _c.lineItems) !== null && _d !== void 0 ? _d : order.lineItems) !== null && _e !== void 0 ? _e : [];
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = (_f = configSnap.data()) !== null && _f !== void 0 ? _f : {};
-    const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : exports.DEFAULT_BOX_PRICE_CENTS;
+    const { boxPriceCents } = await boxPriceForUser(db, typeof order.userId === 'string' ? order.userId : null, configData);
     const giftCreditApplied = typeof order.giftCreditAppliedCents === 'number' ? order.giftCreditAppliedCents : 0;
     const platformCreditApplied = typeof order.platformCreditAppliedCents === 'number' ? order.platformCreditAppliedCents : 0;
     const expeditedShipping = order.expeditedShipping === true;

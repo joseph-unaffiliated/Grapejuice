@@ -4,9 +4,28 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 import { exportOrderToShipStation } from './shipstation';
 import { sendEmail } from './email';
+import { PRICING_POLICY } from './rav/boxRules';
 
 export const HOLIDAY_ID = 'hanukkah-2026';
 export const DEFAULT_BOX_PRICE_CENTS = 8000;
+
+/** First kid is in the list price; each extra kid adds a fee, even if that kid's lines are donated. */
+export function boxPriceCentsForKids(kidCount: number, listCents: number = DEFAULT_BOX_PRICE_CENTS): number {
+  return listCents + Math.max(0, kidCount - 1) * PRICING_POLICY.perExtraKidCents;
+}
+
+/** Kid count matches My Box: the box owner's `users/{uid}/children`, minimum 1. */
+export async function boxPriceForUser(
+  db: Firestore,
+  userId: string | null | undefined,
+  configData: FirebaseFirestore.DocumentData
+): Promise<{ boxPriceCents: number; kidCount: number }> {
+  const listCents =
+    typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const kids = userId ? (await db.collection(`users/${userId}/children`).get()).size : 0;
+  const kidCount = Math.max(1, kids);
+  return { boxPriceCents: boxPriceCentsForKids(kidCount, listCents), kidCount };
+}
 const SHIPPING_FLAT_CENTS = 0;
 const EXPEDITED_SHIPPING_CENTS = 1500;
 const CHECKOUT_TAX_RATE = 0.075;
@@ -353,8 +372,11 @@ export async function chargeSinglePilotBoxOrder(
 
   const configSnap = await db.doc('config/hanukkah-2026').get();
   const configData = configSnap.data() ?? {};
-  const boxPriceCents =
-    typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const { boxPriceCents } = await boxPriceForUser(
+    db,
+    typeof order.userId === 'string' ? order.userId : null,
+    configData
+  );
 
   const giftCreditApplied =
     typeof order.giftCreditAppliedCents === 'number' ? order.giftCreditAppliedCents : 0;

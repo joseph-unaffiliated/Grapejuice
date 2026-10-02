@@ -5,12 +5,14 @@ import { useGuestSessionStore } from '../../../stores/guestSessionStore';
 import { useSession } from '../../../hooks/useSession';
 import { boxDraftService } from '../../../services/firestore/boxDraft';
 import { catalogService } from '../../../services/firestore/catalog';
+import { childrenService } from '../../../services/firestore/children';
 import { getHanukkahConfig, isBoxLocked, effectiveLockAt } from '../../../services/firestore/config';
 import {
   totalCents,
   DEFAULT_BOX_PRICE_CENTS,
   SHIPPING_FLAT_CENTS,
 } from '../../../services/box/buildDefaultBox';
+import { listBoxCentsForKids } from '../../../services/box/boxRules';
 import { checkoutTotalsAfterCredit } from '../../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../../types/pilot';
 import { validateShippingAddress } from '../../../utils/formValidation';
@@ -60,8 +62,10 @@ export function clearStoredCheckoutAddress(): void {
 
 export function useCheckoutDraft(householdId: string | undefined) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const userId = useAuthStore((s) => s.user?.uid);
   const { household } = useSession();
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
+  const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
 
   const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -77,10 +81,17 @@ export function useCheckoutDraft(householdId: string | undefined) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [config, items] = await Promise.all([getHanukkahConfig(), catalogService.getAll()]);
+    const [config, items, kids] = await Promise.all([
+      getHanukkahConfig(),
+      catalogService.getAll(),
+      isAuthenticated && userId ? childrenService.list(userId) : Promise.resolve(null),
+    ]);
     setHanukkahConfig(config);
     setCatalog(items);
-    setBoxPriceCents(config.boxPriceCents ?? DEFAULT_BOX_PRICE_CENTS);
+    const kidCount = kids
+      ? kids.length
+      : guestDrafts.filter((d) => d.role !== 'adult').length;
+    setBoxPriceCents(listBoxCentsForKids(Math.max(1, kidCount)));
     setLocked(isBoxLocked(effectiveLockAt(config, false)));
 
     if (!isAuthenticated) {
@@ -98,7 +109,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
     const draft = await boxDraftService.get(householdId);
     setLineItems(draft?.lineItems ?? []);
     setLoading(false);
-  }, [householdId, isAuthenticated, guestLineItems]);
+  }, [householdId, isAuthenticated, userId, guestLineItems, guestDrafts]);
 
   useEffect(() => {
     if (!hanukkahConfig) return;

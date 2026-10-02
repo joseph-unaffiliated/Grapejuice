@@ -432,7 +432,7 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
     const lineItems = (_c = draft.lineItems) !== null && _c !== void 0 ? _c : [];
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = (_d = configSnap.data()) !== null && _d !== void 0 ? _d : {};
-    const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+    const { boxPriceCents, kidCount } = await (0, chargePilotBox_1.boxPriceForUser)(db, request.auth.uid, configData);
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
     const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
@@ -445,6 +445,8 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
     await orderRef.set({
         status: 'pending',
         lineItems,
+        boxPriceCents,
+        kidCount,
         subtotalCents,
         shippingCents,
         taxCents,
@@ -697,7 +699,7 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const lineItems = (_d = draft.lineItems) !== null && _d !== void 0 ? _d : [];
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = (_e = configSnap.data()) !== null && _e !== void 0 ? _e : {};
-    const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+    const { boxPriceCents, kidCount } = await (0, chargePilotBox_1.boxPriceForUser)(db, request.auth.uid, configData);
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
     const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents);
@@ -720,6 +722,8 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     const orderPayload = Object.assign(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
+        boxPriceCents,
+        kidCount,
         subtotalCents,
         shippingCents,
         taxCents,
@@ -795,7 +799,7 @@ exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     }
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = (_h = configSnap.data()) !== null && _h !== void 0 ? _h : {};
-    const boxPriceCents = typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+    const { boxPriceCents, kidCount } = await (0, chargePilotBox_1.boxPriceForUser)(db, typeof order.userId === 'string' ? order.userId : request.auth.uid, configData);
     const expeditedShipping = order.expeditedShipping === true;
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = typeof order.shippingCents === 'number'
@@ -812,6 +816,8 @@ exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     }
     await orderRef.update({
         lineItems,
+        boxPriceCents,
+        kidCount,
         subtotalCents,
         shippingCents,
         taxCents,

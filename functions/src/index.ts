@@ -21,6 +21,7 @@ import {
   runAirtableCatalogReplaceSync,
 } from './airtableCatalogSync';
 import {
+  boxPriceForUser,
   chargePilotBoxOrderForUser,
   checkoutTotalsAfterCredit,
   fulfillHanukkahBoxOrder,
@@ -593,8 +594,7 @@ export const createPilotCheckout = onCall(async (request) => {
   const lineItems = (draft.lineItems as Array<Record<string, unknown>>) ?? [];
   const configSnap = await db.doc('config/hanukkah-2026').get();
   const configData = configSnap.data() ?? {};
-  const boxPriceCents =
-    typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const { boxPriceCents, kidCount } = await boxPriceForUser(db, request.auth.uid, configData);
   const subtotalCents = orderTotalCents(
     lineItems as Array<{ unitCents?: number; quantity?: number; slotId?: string }>,
     boxPriceCents
@@ -612,6 +612,8 @@ export const createPilotCheckout = onCall(async (request) => {
   await orderRef.set({
     status: 'pending',
     lineItems,
+    boxPriceCents,
+    kidCount,
     subtotalCents,
     shippingCents,
     taxCents,
@@ -949,8 +951,7 @@ export const commitPilotBox = onCall(async (request) => {
   const lineItems = (draft.lineItems as Array<Record<string, unknown>>) ?? [];
   const configSnap = await db.doc('config/hanukkah-2026').get();
   const configData = configSnap.data() ?? {};
-  const boxPriceCents =
-    typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const { boxPriceCents, kidCount } = await boxPriceForUser(db, request.auth.uid, configData);
   const subtotalCents = orderTotalCents(
     lineItems as Array<{ unitCents?: number; quantity?: number; slotId?: string }>,
     boxPriceCents
@@ -987,6 +988,8 @@ export const commitPilotBox = onCall(async (request) => {
     status: 'committed',
     orderType: 'hanukkah_box',
     lineItems,
+    boxPriceCents,
+    kidCount,
     subtotalCents,
     shippingCents,
     taxCents,
@@ -1107,8 +1110,11 @@ export const updatePilotBoxOrder = onCall(async (request) => {
 
   const configSnap = await db.doc('config/hanukkah-2026').get();
   const configData = configSnap.data() ?? {};
-  const boxPriceCents =
-    typeof configData.boxPriceCents === 'number' ? configData.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const { boxPriceCents, kidCount } = await boxPriceForUser(
+    db,
+    typeof order.userId === 'string' ? order.userId : request.auth.uid,
+    configData
+  );
   const expeditedShipping = order.expeditedShipping === true;
   const subtotalCents = orderTotalCents(
     lineItems as Array<{ unitCents?: number; quantity?: number; slotId?: string }>,
@@ -1139,6 +1145,8 @@ export const updatePilotBoxOrder = onCall(async (request) => {
 
   await orderRef.update({
     lineItems,
+    boxPriceCents,
+    kidCount,
     subtotalCents,
     shippingCents,
     taxCents,
