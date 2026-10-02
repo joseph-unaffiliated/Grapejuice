@@ -43,6 +43,8 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 | activity-v3 | 10 | 11 | It all starts in the kitchen. |
 | grandparent-gift-v1 | 19 | 20 | Gelt. Not guilt. (older hand next to a kid's) |
 
+**Ad sets:** "Grapejuice Co - Broad" runs every ad except the gift one, ages 25–50 (hard limit, Advantage+ audience off). "Grapejuice Co - Grandparent Gift 50+" runs only the gift ad (as `grandparent-gift-50plus`), ages 50–65+, capped at $5/day for the Friday test. Both are US residents only and exclude newsletter subscribers and past purchasers.
+
 **Not used:**
 
 - 30 / 31 / 32 (stirring the latke mix): not used, by your call.
