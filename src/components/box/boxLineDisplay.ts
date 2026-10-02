@@ -910,6 +910,42 @@ export function transferIncludedBaselineOnSwap(
   }
 }
 
+/**
+ * Claiming an included gift for `childId` replaces whatever gift they had — including
+ * one that was donated. Move that gift's included allotment onto `newItemId` so it
+ * stops counting as Donated. Call with the lines *before* the claim is applied.
+ *
+ * `donatedGiftHint` is the itemId known to have been this kid's gift (e.g. from a
+ * removal snapshot); otherwise the first donated SKU in `giftItemIds` is used.
+ * Returns the itemId whose donation was cancelled, if any.
+ */
+export function cancelDonatedGiftOnClaim(
+  baselines: Map<string, number>,
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[],
+  childId: string,
+  newItemId: string,
+  giftItemIds: ReadonlySet<string>,
+  donatedGiftHint?: string
+): string | undefined {
+  const existingGift = lineItems.find(
+    (li) =>
+      isGiftSlotLine(li) && (li.childId === childId || childIdFromSlot(li.slotId) === childId)
+  );
+  if (existingGift) {
+    transferIncludedBaselineOnSwap(baselines, existingGift.itemId, newItemId, 1, 0);
+    return undefined;
+  }
+  const donatedIds = donatedItemQuantities(lineItems, catalog, baselines).map((d) => d.item.id);
+  const fromItemId =
+    (donatedGiftHint && donatedIds.includes(donatedGiftHint) ? donatedGiftHint : undefined) ??
+    (donatedIds.includes(newItemId) && giftItemIds.has(newItemId) ? newItemId : undefined) ??
+    donatedIds.find((id) => giftItemIds.has(id));
+  if (!fromItemId) return undefined;
+  transferIncludedBaselineOnSwap(baselines, fromItemId, newItemId, 1, 0);
+  return fromItemId;
+}
+
 /** My Box / gift customize register their live baseline map so PDP swaps can transfer too. */
 let liveIncludedBaselines: Map<string, number> | null = null;
 

@@ -91,6 +91,7 @@ import {
   removeCoalescedGroup,
   resolveBoxItemAttributionKind,
   seedIncludedBaselines,
+  cancelDonatedGiftOnClaim,
   transferIncludedBaselineOnSwap,
   setLiveIncludedBaselines,
   includedPracticeSlotVacant,
@@ -1051,6 +1052,31 @@ export function MyBoxScreen() {
     opts?: { reveal?: boolean }
   ) => {
     if (locked) return;
+    const isThisKidsGift = (li: BoxLineItem) =>
+      isGiftSlotLine(li) && (li.childId === childId || li.slotId === `gift-${childId}`);
+    let snapshotHint: string | undefined;
+    for (const [itemId, lines] of donatedLineSnapshots.current) {
+      if (lines.some(isThisKidsGift)) {
+        snapshotHint = itemId;
+        break;
+      }
+    }
+    const cancelled = cancelDonatedGiftOnClaim(
+      includedBaselineByItemId.current,
+      lineItems,
+      catalog,
+      childId,
+      item.id,
+      includedGiftIds,
+      snapshotHint
+    );
+    if (cancelled) {
+      const rest = (donatedLineSnapshots.current.get(cancelled) ?? []).filter(
+        (li) => !isThisKidsGift(li)
+      );
+      if (rest.length) donatedLineSnapshots.current.set(cancelled, rest);
+      else donatedLineSnapshots.current.delete(cancelled);
+    }
     await persist(assignKidGiftLines(lineItems, childId, item));
     if (!opts?.reveal) return;
     const target = displaySectionForCatalogItem(item);

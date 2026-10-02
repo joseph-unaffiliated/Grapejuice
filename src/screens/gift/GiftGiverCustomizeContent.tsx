@@ -64,6 +64,7 @@ import {
   resolveBoxItemAttributionKind,
   seedIncludedBaselines,
   transferIncludedBaselineOnSwap,
+  cancelDonatedGiftOnClaim,
   setLiveIncludedBaselines,
   includedPracticeSlotVacant,
   wrappableLinesInBox,
@@ -261,7 +262,7 @@ export function GiftGiverCustomizeContent({
     useBoxDetailScroll({ visibleSectionIds });
 
   const assignKidGiftAndReveal = (childId: string, item: CatalogItem) => {
-    setKidGift(childId, item);
+    claimKidGift(childId, item);
     const target = displaySectionForCatalogItem(item);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => scrollToSection(target));
@@ -329,6 +330,18 @@ export function GiftGiverCustomizeContent({
     () => new Set(includedGiftOptions.map((i) => i.id)),
     [includedGiftOptions]
   );
+
+  const claimKidGift = (childId: string, item: CatalogItem) => {
+    cancelDonatedGiftOnClaim(
+      includedBaselineByItemId.current,
+      lineItems,
+      catalog,
+      childId,
+      item.id,
+      includedGiftIds
+    );
+    setKidGift(childId, item);
+  };
 
   const chargeableExtras = useMemo(
     () =>
@@ -498,7 +511,7 @@ export function GiftGiverCustomizeContent({
             claimGiftNeeds.length
               ? claimGiftNeeds.map(({ child }) => ({
                   label: `Make this ${kidLabel(child)}’s included gift`,
-                  onPress: () => setKidGift(child.id, item),
+                  onPress: () => claimKidGift(child.id, item),
                 }))
               : undefined;
           const claimBookChips =
