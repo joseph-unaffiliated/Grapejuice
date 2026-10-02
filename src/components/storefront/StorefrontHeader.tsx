@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -66,6 +66,17 @@ const SIDE_MIN_LEFT = 148;
 const SIDE_MIN_RIGHT = 36 + spacing.sm + 36;
 const SEARCH_CLUSTER_MIN = SEARCH_MIN_WIDTH + RAV_BTN + spacing.sm;
 const SEARCH_CLUSTER_MAX = SIDE_COL + RAV_BTN + spacing.sm;
+/** Mobile row: below this width the logo mark yields its space to search. */
+const MOBILE_HIDE_MARK_BELOW = 350;
+/** One-row phone header: tighter gaps and pill padding so "Search" fits beside five icons. */
+const MOBILE_ROW_GAP = 6;
+const MOBILE_SEARCH_GUTTER = 12;
+const MOBILE_SEARCH_GUTTER_NARROW = 8;
+/**
+ * Mobile: hold the expanded search briefly after blur so a tap on the search
+ * arrow (or Rav) lands before the side icons slide back and shift the row.
+ */
+const SEARCH_COLLAPSE_DELAY_MS = 180;
 
 function canFitDesktopSearch(windowWidth: number): boolean {
   const contentW = windowWidth - MOBILE_GUTTER * 2;
@@ -74,8 +85,8 @@ function canFitDesktopSearch(windowWidth: number): boolean {
 
 /**
  * Desktop: logo left, centered SearchPill + Rav, account menu right.
- * Mobile: menu + mark | account; full-width search + Rav below.
- * Sticky mobile: menu · search · account · cart.
+ * Mobile (in-flow and sticky): one row — menu · mark · search · Rav · account · cart.
+ * Focusing search slides the side icons away so search + Rav span the row.
  * Sticky desktop: same as desktop in-flow header row (no hamburger).
  */
 export function StorefrontHeader({
@@ -90,9 +101,32 @@ export function StorefrontHeader({
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [navOpen, setNavOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { width, isCompact } = useLayoutBreakpoint();
   // Collapse to hamburger only on narrow viewports (not when search merely compresses).
   const compact = isCompact || !canFitDesktopSearch(width);
+
+  useEffect(
+    () => () => {
+      if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    },
+    []
+  );
+
+  const onSearchFocus = () => {
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    collapseTimer.current = null;
+    setSearchFocused(true);
+  };
+
+  const onSearchBlur = () => {
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    collapseTimer.current = setTimeout(() => {
+      collapseTimer.current = null;
+      setSearchFocused(false);
+    }, SEARCH_COLLAPSE_DELAY_MS);
+  };
 
   const safeTopPad = padTopSafeArea
     ? Platform.OS === 'web'
@@ -147,6 +181,8 @@ export function StorefrontHeader({
       value={query}
       onChangeText={setQuery}
       onSubmitEditing={submitSearch}
+      onFocus={compact ? onSearchFocus : undefined}
+      onBlur={compact ? onSearchBlur : undefined}
       placeholder="Search"
       animatePlaceholder={false}
       textAlign="left"
@@ -155,12 +191,19 @@ export function StorefrontHeader({
       leadingWidth={SEARCH_LEADING_WIDTH}
       trailing={searchGo}
       trailingWidth={SEARCH_TRAILING_WIDTH}
+      gutter={
+        !compact
+          ? undefined
+          : width < MOBILE_HIDE_MARK_BELOW
+            ? MOBILE_SEARCH_GUTTER_NARROW
+            : MOBILE_SEARCH_GUTTER
+      }
     />
   );
 
   const searchCluster = (
-    <View style={compact ? styles.searchClusterMobile : styles.searchClusterDesktop}>
-      <View style={compact ? styles.searchWrapMobile : styles.searchWrapDesktop}>{searchPill}</View>
+    <View style={styles.searchClusterDesktop}>
+      <View style={styles.searchWrapDesktop}>{searchPill}</View>
       {ravButton}
     </View>
   );
@@ -197,40 +240,33 @@ export function StorefrontHeader({
     </TouchableOpacity>
   );
 
-  if (variant === 'sticky') {
-    // Desktop sticky: same logo · search · account row as the in-flow header —
-    // never the mobile hamburger mini-bar.
-    if (!compact) {
-      return (
-        <View style={[styles.root, styles.stickyRoot, { paddingTop: stickySafeTop }]}>
-          <View style={styles.row}>
-            <View style={styles.sideLeft}>{desktopLogo}</View>
-            <View style={styles.searchMiddle} pointerEvents="box-none">
-              {searchCluster}
-            </View>
-            {account}
-          </View>
-        </View>
-      );
-    }
+  if (variant === 'sticky' && !compact) {
+    // Desktop sticky: same logo · search · account row as the in-flow header.
     return (
-      <View style={[styles.root, styles.rootMobile, styles.stickyRoot, { paddingTop: stickySafeTop }]}>
-        <View style={styles.stickyRow}>
-          {menuButton}
-          <View style={styles.stickySearch}>{searchPill}</View>
+      <View style={[styles.root, styles.stickyRoot, { paddingTop: stickySafeTop }]}>
+        <View style={styles.row}>
+          <View style={styles.sideLeft}>{desktopLogo}</View>
+          <View style={styles.searchMiddle} pointerEvents="box-none">
+            {searchCluster}
+          </View>
           {account}
         </View>
-        <StorefrontMobileNav visible={navOpen} onClose={() => setNavOpen(false)} />
       </View>
     );
   }
 
   if (compact) {
-    return (
-      <View style={[styles.root, styles.rootMobile, safeTopPad != null ? { paddingTop: safeTopPad } : null]}>
-        <View style={styles.mobileTop}>
-          <View style={styles.mobileLeft}>
-            {menuButton}
+    const showSearch = !hideSearchAndRav;
+    const expanded = showSearch && searchFocused;
+    const mobileRow = (
+      <View style={styles.mobileRow}>
+        <View
+          style={[styles.mobileSide, styles.mobileSideLeft, expanded && styles.mobileSideLeftHidden]}
+          pointerEvents={expanded ? 'none' : 'auto'}
+          accessibilityElementsHidden={expanded}
+        >
+          {menuButton}
+          {width >= MOBILE_HIDE_MARK_BELOW ? (
             <TouchableOpacity
               style={styles.markHit}
               onPress={onLogoPress}
@@ -239,10 +275,40 @@ export function StorefrontHeader({
             >
               <GrapejuiceBrandMark markOnly compact color={semanticColors.logoDark} decorative />
             </TouchableOpacity>
-          </View>
+          ) : null}
+        </View>
+        {showSearch ? (
+          <>
+            <View style={styles.mobileSearch}>{searchPill}</View>
+            {ravButton}
+          </>
+        ) : (
+          <View style={styles.mobileSpacer} />
+        )}
+        <View
+          style={[styles.mobileSide, styles.mobileSideRight, expanded && styles.mobileSideRightHidden]}
+          pointerEvents={expanded ? 'none' : 'auto'}
+          accessibilityElementsHidden={expanded}
+        >
           {account}
         </View>
-        {hideSearchAndRav ? null : searchCluster}
+      </View>
+    );
+    const sticky = variant === 'sticky';
+    return (
+      <View
+        style={[
+          styles.root,
+          styles.rootMobile,
+          sticky && styles.stickyRoot,
+          sticky
+            ? { paddingTop: stickySafeTop }
+            : safeTopPad != null
+              ? { paddingTop: safeTopPad }
+              : null,
+        ]}
+      >
+        {mobileRow}
         <StorefrontMobileNav visible={navOpen} onClose={() => setNavOpen(false)} />
       </View>
     );
@@ -277,17 +343,6 @@ const styles = StyleSheet.create({
     gap: 0,
     backgroundColor: semanticColors.bgPrimary,
   },
-  stickyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    minHeight: 44,
-    gap: spacing.sm,
-  },
-  stickySearch: {
-    flex: 1,
-    minWidth: 0,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -296,20 +351,55 @@ const styles = StyleSheet.create({
     minHeight: 44,
     gap: spacing.sm,
   },
-  mobileTop: {
+  mobileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     width: '100%',
-    minHeight: 40,
-    gap: spacing.sm,
+    minHeight: 44,
+    gap: MOBILE_ROW_GAP,
   },
-  mobileLeft: {
+  /** Side icon clusters — collapse to zero width while search is focused. */
+  mobileSide: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 1,
+    gap: MOBILE_ROW_GAP,
+    flexShrink: 0,
+    maxWidth: 160,
+    opacity: 1,
+    ...(Platform.OS === 'web'
+      ? ({
+          transitionProperty: 'max-width, opacity, margin',
+          transitionDuration: '160ms',
+          transitionTimingFunction: 'ease-out',
+        } as object)
+      : null),
+  },
+  mobileSideLeft: {
+    marginRight: 0,
+  },
+  mobileSideRight: {
+    marginLeft: 0,
+  },
+  // Negative margin cancels the row gap so a hidden cluster leaves no space.
+  // Clip only while hidden — the cart badge overhangs its button when shown.
+  mobileSideLeftHidden: {
+    maxWidth: 0,
+    opacity: 0,
+    marginRight: -MOBILE_ROW_GAP,
+    overflow: 'hidden',
+  },
+  mobileSideRightHidden: {
+    maxWidth: 0,
+    opacity: 0,
+    marginLeft: -MOBILE_ROW_GAP,
+    overflow: 'hidden',
+  },
+  mobileSearch: {
+    flex: 1,
     minWidth: 0,
+  },
+  mobileSpacer: {
+    flex: 1,
   },
   menuHit: {
     width: 36,
@@ -347,8 +437,9 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     flexBasis: 'auto',
-    minWidth: undefined,
+    minWidth: 0,
     maxWidth: undefined,
+    gap: MOBILE_ROW_GAP,
   },
   searchMiddle: {
     flexGrow: 1,
@@ -366,19 +457,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     width: '100%',
   },
-  searchClusterMobile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    width: '100%',
-  },
   searchWrapDesktop: {
     flex: 1,
     minWidth: SEARCH_MIN_WIDTH,
-  },
-  searchWrapMobile: {
-    flex: 1,
-    minWidth: 0,
   },
   searchGo: {
     width: SEARCH_GO_SIZE,

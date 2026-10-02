@@ -82,6 +82,8 @@ type Props = {
    * Prefer this over mounting/unmounting `trailing` on focus — remounts can steal web focus.
    */
   contentInsetRight?: number;
+  /** Horizontal padding inside the pill. Default MOBILE_GUTTER; tighter for narrow header rows. */
+  gutter?: number;
 };
 
 function pickPromptBatch(
@@ -129,6 +131,7 @@ export function SearchPill({
   trailing = null,
   trailingWidth = 40,
   contentInsetRight = 0,
+  gutter = MOBILE_GUTTER,
 }: Props) {
   const { colors } = useThemeMode();
   const { isCompact: compact } = useLayoutBreakpoint();
@@ -323,6 +326,7 @@ export function SearchPill({
     styles.pill,
     expanded ? styles.pillExpanded : styles.pillCollapsed,
     expanded ? { paddingVertical: verticalPad } : null,
+    gutter !== MOBILE_GUTTER ? { paddingHorizontal: gutter } : null,
     { backgroundColor: colors.bgPrimary },
     Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm, cursor: 'text' } : shadows.goldGlow,
   ];
@@ -350,8 +354,9 @@ export function SearchPill({
               opacity: isDemo ? DEMO_OPACITY : 1,
             },
             alignLeft ? styles.fauxLeft : null,
-            leftInset > 0 ? { paddingLeft: MOBILE_GUTTER + leftInset } : null,
-            rightInset > 0 ? { paddingRight: MOBILE_GUTTER + rightInset } : null,
+            gutter !== MOBILE_GUTTER ? { paddingHorizontal: gutter } : null,
+            leftInset > 0 ? { paddingLeft: gutter + leftInset } : null,
+            rightInset > 0 ? { paddingRight: gutter + rightInset } : null,
           ]}
           numberOfLines={1}
           pointerEvents="none"

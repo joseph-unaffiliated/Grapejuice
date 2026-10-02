@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -21,6 +22,8 @@ import {
 } from 'react-native';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { useNavigation, useIsFocused, useRoute } from '@react-navigation/native';
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
+import { StorefrontViewportDebug, useViewportPinnedHeight } from './storefrontViewport';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontPromoStrip, usePromoStripVisible } from './StorefrontPromoStrip';
 import { StorefrontHeader } from './StorefrontHeader';
@@ -226,6 +229,10 @@ function StorefrontChromeInner({
   const { refresh } = useSession();
   const { width: windowWidth, isCompact: compact, isDesktop } = useLayoutBreakpoint();
   const fillBody = bodyMode === 'fill';
+  const hostRef = useRef<View>(null);
+  // Inside a tab layout the tab bar owns the bottom; keep the flex height there.
+  const inTabLayout = useContext(BottomTabBarHeightContext) !== undefined;
+  const pinnedHostHeight = useViewportPinnedHeight(hostRef, !inTabLayout);
   /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
   const showPromoStrip =
     !compact || route.name === 'Home' || route.name === 'StorefrontHome';
@@ -969,7 +976,17 @@ function StorefrontChromeInner({
   );
 
   return (
-    <View style={styles.root} testID="storefront-scroll-host">
+    <View
+      ref={hostRef}
+      style={[
+        styles.root,
+        pinnedHostHeight != null
+          ? { height: pinnedHostHeight, maxHeight: pinnedHostHeight }
+          : null,
+      ]}
+      testID="storefront-scroll-host"
+    >
+      <StorefrontViewportDebug pinnedHeight={pinnedHostHeight} />
       {ravDockedLayout ? (
         <Animated.View
           style={[

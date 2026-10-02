@@ -251,11 +251,10 @@
         touch-action: none;
       }
       /* Storefront: one vertical scrollport; chrome/footer live in the page flow.
-         Use svh (small viewport) so iOS URL-bar show/hide doesn't leave a dead bottom gap. */
+         Height comes from StorefrontChrome (pinned to window.innerHeight outside tab
+         layouts) — no !important height here or the JS pin can't win on iOS. */
       #root [data-testid="storefront-scroll-host"] {
         overflow: hidden !important;
-        height: 100% !important;
-        max-height: 100svh !important;
         display: flex !important;
         flex-direction: column !important;
       }

@@ -172,7 +172,7 @@ export function StorefrontHero({
   // Tall plate, leave a peek of what’s below. Do NOT shrink this when the
   // journey banner mounts — that post-config resize was a visible jump.
   // The banner sits under the hero without changing the hero plate height.
-  const chromeApprox = compact ? 176 : 220;
+  const chromeApprox = compact ? 132 : 220;
   const belowPeek = compact ? 64 : 72;
   const heroHeight = Math.min(
     Math.max(height - chromeApprox - belowPeek, compact ? 400 : 440),
