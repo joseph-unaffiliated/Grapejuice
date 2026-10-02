@@ -85,7 +85,7 @@ function canFitDesktopSearch(windowWidth: number): boolean {
 
 /**
  * Desktop: logo left, centered SearchPill + Rav, account menu right.
- * Mobile (in-flow and sticky): one row — menu · mark · search · Rav · account · cart.
+ * Mobile (in-flow and sticky): one row — mark · menu · search · Rav · account · cart.
  * Focusing search slides the side icons away so search + Rav span the row.
  * Sticky desktop: same as desktop in-flow header row (no hamburger).
  */
@@ -265,7 +265,6 @@ export function StorefrontHeader({
           pointerEvents={expanded ? 'none' : 'auto'}
           accessibilityElementsHidden={expanded}
         >
-          {menuButton}
           {width >= MOBILE_HIDE_MARK_BELOW ? (
             <TouchableOpacity
               style={styles.markHit}
@@ -276,6 +275,7 @@ export function StorefrontHeader({
               <GrapejuiceBrandMark markOnly compact color={semanticColors.logoDark} decorative />
             </TouchableOpacity>
           ) : null}
+          {menuButton}
         </View>
         {showSearch ? (
           <>
