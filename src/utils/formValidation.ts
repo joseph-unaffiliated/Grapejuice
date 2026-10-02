@@ -25,8 +25,8 @@ const REQUIRED_SHIPPING: { key: ShippingRequiredField; label: string }[] = [
   { key: 'name', label: 'Full name' },
   { key: 'line1', label: 'Address line 1' },
   { key: 'city', label: 'City' },
-  { key: 'stateProvince', label: 'State / Province' },
-  { key: 'postalCode', label: 'Postal code' },
+  { key: 'stateProvince', label: 'State' },
+  { key: 'postalCode', label: 'Zip code' },
 ];
 
 export function validateShippingAddress(address: ShippingAddress): ShippingAddressValidation {

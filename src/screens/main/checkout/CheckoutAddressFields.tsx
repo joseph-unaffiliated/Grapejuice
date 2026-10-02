@@ -88,28 +88,28 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
 
       <View style={styles.row2}>
         <View style={styles.half}>
-          <FieldLabel label="State / Province" required styles={styles} />
+          <FieldLabel label="State" required styles={styles} />
           <TextInput
             style={inputStyle('stateProvince')}
             value={address.stateProvince}
             onChangeText={(v) => onChange({ stateProvince: v })}
             placeholderTextColor={semanticColors.textTertiary}
             autoComplete="postal-address-region"
-            accessibilityLabel="State or province, required"
+            accessibilityLabel="State, required"
           />
           {fieldErrors?.stateProvince ? (
             <Text style={styles.fieldError}>{fieldErrors.stateProvince}</Text>
           ) : null}
         </View>
         <View style={styles.half}>
-          <FieldLabel label="Postal code" required styles={styles} />
+          <FieldLabel label="Zip Code" required styles={styles} />
           <TextInput
             style={inputStyle('postalCode')}
             value={address.postalCode}
             onChangeText={(v) => onChange({ postalCode: v })}
             placeholderTextColor={semanticColors.textTertiary}
             autoComplete="postal-code"
-            accessibilityLabel="Postal code, required"
+            accessibilityLabel="Zip code, required"
           />
           {fieldErrors?.postalCode ? (
             <Text style={styles.fieldError}>{fieldErrors.postalCode}</Text>
