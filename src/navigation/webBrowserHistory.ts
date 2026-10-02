@@ -24,7 +24,8 @@ import { useAuthStore } from '../stores/authStore';
 import { openBoxSurface } from './boxEntry';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 import { retentionPage } from '../services/analytics/retention';
-import { trackMeta } from '../services/analytics/metaPixel';
+import { metaTrackingSuppressed, trackMeta } from '../services/analytics/metaPixel';
+import { setGaDisabled } from '../services/analytics/googleAnalytics';
 
 type GjHistoryState = { gjNav: true; idx: number };
 
@@ -263,6 +264,8 @@ function restoreFromPath(pathname: string, search: string): boolean {
 /** Push a browser history entry when in-app navigation moves forward. */
 export function onWebNavigationStateChange(state?: NavigationState): void {
   if (Platform.OS !== 'web' || !state || suppressHistoryPush) return;
+  // GA's automatic page_view fires on the history change below.
+  setGaDisabled(metaTrackingSuppressed());
 
   const fingerprint = stateFingerprint(state);
   const nextPath = browserPathForNavigationState(state);
@@ -318,6 +321,7 @@ export function installWebBrowserHistory(): () => void {
 
   const onPopState = (event: PopStateEvent) => {
     if (!navigationRef.isReady()) return;
+    setGaDisabled(metaTrackingSuppressed());
 
     const nextIdx =
       event.state && typeof (event.state as GjHistoryState).idx === 'number'

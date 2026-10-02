@@ -10,6 +10,7 @@ import {
   readFbp,
   type AttributionSnapshot,
 } from '../../stores/entryContextStore';
+import { setGaDisabled, trackGaForMetaEvent } from './googleAnalytics';
 
 /** "Unaffiliated" dataset. Keep in sync with public/index.html and functions/src/metaCapi.ts. */
 export const META_PIXEL_ID = '809409995127436';
@@ -109,7 +110,10 @@ function send(
   params: MetaEventParams | undefined,
   eventId: string
 ): string | null {
-  if (metaTrackingSuppressed()) return null;
+  const suppressed = metaTrackingSuppressed();
+  setGaDisabled(suppressed);
+  if (suppressed) return null;
+  trackGaForMetaEvent(eventName as MetaStandardEvent | MetaCustomEvent, params);
   const fbq = window.fbq;
   if (typeof fbq !== 'function') return null;
   try {
