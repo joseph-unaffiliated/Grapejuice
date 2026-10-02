@@ -40,11 +40,11 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 | conversation-v1 | 13 | 14 | Eight nights of memories. |
 | activity-v1 | 16 | 17 | Screens off. Candles on. |
 | activity-v2 | 03 | 04 | Made it out of clay. |
+| activity-v3 | 10 | 11 | It all starts in the kitchen. |
 | grandparent-gift-v1 | 19 | 20 | Gelt. Not guilt. (older hand next to a kid's) |
 
-**Not built yet:**
+**Not used:**
 
-- activity-v3, 10 / 11 "It all starts in the kitchen": waiting on a fixed 10, which says "alll." 11 is correct.
 - 30 / 31 / 32 (stirring the latke mix): not used, by your call.
 
 **Add-ons shown in images** (fine to show, but the copy shouldn't imply they're in the box):
