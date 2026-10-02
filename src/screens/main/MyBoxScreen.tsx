@@ -2312,12 +2312,13 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   summaryCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    // Mobile: CTAs wrap onto their own line under the price — center them there.
+    justifyContent: isDesktop ? 'flex-end' : 'center',
     gap: spacing.sm,
     flexShrink: 1,
     flexGrow: 1,
     flexWrap: 'wrap',
-    marginLeft: 'auto',
+    marginLeft: isDesktop ? 'auto' : 0,
     minWidth: 0,
   },
   orderSaveStatus: {

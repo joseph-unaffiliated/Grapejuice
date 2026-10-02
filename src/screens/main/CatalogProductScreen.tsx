@@ -68,7 +68,7 @@ import {
 } from '../../components/storefront/StorefrontChrome';
 import {
   SwapIntoBoxModal,
-  swapOutTitleForItem,
+  swapOutTitleForSources,
   swapTitleForItem,
 } from '../../components/storefront/SwapIntoBoxModal';
 import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
@@ -839,7 +839,12 @@ export function CatalogProductScreen() {
             ? swapTitleForItem(item, {
                 giftSlot: inBoxPrimary ? isGiftSlotLine(inBoxPrimary) : false,
               })
-            : swapOutTitleForItem(item)
+            : swapOutTitleForSources(
+                swapSources.map((li) => ({
+                  item: catalog.find((c) => c.id === li.itemId),
+                  giftSlot: isGiftSlotLine(li),
+                }))
+              )
         }
       />
     </StorefrontChrome>

@@ -97,6 +97,14 @@ const SLOT_TO_DISPLAY: Record<string, BoxDisplaySectionId> = {
   'pet-gift-hanukkah': 'presents',
 };
 
+const CATEGORY_TO_DISPLAY: Record<string, BoxDisplaySectionId> = {
+  Gelt: 'dreidel',
+  Dreidel: 'dreidel',
+  Food: 'food',
+  Menorah: 'candles',
+  Candles: 'candles',
+};
+
 /** Prefer natural practice homes for gift SKUs (never dump solely because slot is gift-*). */
 const GIFT_ITEM_SECTION: Record<string, BoxDisplaySectionId> = {
   'plush-dreidel': 'dreidel',
@@ -160,6 +168,12 @@ export function inferDisplaySectionForCatalogItem(item: CatalogItem): BoxDisplay
   if (fromAirtable) return fromAirtable;
 
   const base = catalogSlotId(item.slotId);
+  // `decor` is a catch-all catalog slot (gelt, cookie cutters, stuffies…), so it
+  // says nothing about the practice — a practice category wins over it.
+  if (base === 'decor') {
+    const byCategory = CATEGORY_TO_DISPLAY[(item.category ?? '').trim()];
+    if (byCategory) return byCategory;
+  }
   if (SLOT_TO_DISPLAY[base]) return SLOT_TO_DISPLAY[base];
   if (base.startsWith('story')) return 'story';
 

@@ -42,7 +42,7 @@ import { trackMetaProduct } from '../../services/analytics/metaPixel';
 import { navigateMainStack, navigateMainTab } from '../../navigation/mainStackNavigation';
 import {
   SwapIntoBoxModal,
-  swapOutTitleForItem,
+  swapOutTitleForSources,
   swapTitleForItem,
 } from '../storefront/SwapIntoBoxModal';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
@@ -610,7 +610,12 @@ export function BoxProductModal({
             ? swapTitleForItem(item, {
                 giftSlot: inBoxPrimary ? isGiftSlotLine(inBoxPrimary) : false,
               })
-            : swapOutTitleForItem(item)
+            : swapOutTitleForSources(
+                swapSources.map((li) => ({
+                  item: catalog.find((c) => c.id === li.itemId),
+                  giftSlot: isGiftSlotLine(li),
+                }))
+              )
         }
       />
     </Modal>

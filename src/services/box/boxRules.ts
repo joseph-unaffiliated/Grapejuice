@@ -239,7 +239,7 @@ const DEFAULT_SLOT_PATTERNS: Record<DefaultSlotId, RegExp[]> = {
     /^draw-your-own-dreidel$/i,
   ],
   'airdry-dreidel': [
-    /air.?dry|clay.*dreidel|dreidel.*clay|airdry.*clay.*dreidel/i,
+    /air.?dry.*dreidel|clay.*dreidel|dreidel.*clay/i,
     /^airdry-dreidel$/i,
     /^airdry-clay-dreidel$/i,
   ],

@@ -62,12 +62,22 @@ export function swapTitleForItem(
   return kind ? `Swap for other ${kind}` : 'Swap for…';
 }
 
-/** Picking which box line an incoming product replaces — “Swap out which candles?”. */
-export function swapOutTitleForItem(
-  item: Pick<CatalogItem, 'id' | 'name' | 'category' | 'categories'> | null | undefined
+/**
+ * Picking which box line an incoming product replaces. Named after the lines on
+ * offer, not the incoming product: “Swap out which candles?” only when every option
+ * is candles, “…which gift?” for per-kid gifts, otherwise “…which item?”.
+ */
+export function swapOutTitleForSources(
+  sources: {
+    item: Pick<CatalogItem, 'id' | 'name' | 'category' | 'categories'> | null | undefined;
+    giftSlot: boolean;
+  }[]
 ): string {
-  const kind = item ? swapKindPlural(item) : null;
-  return kind ? `Swap out which ${kind}?` : 'Swap out which item?';
+  if (sources.length === 0) return 'Swap out which item?';
+  if (sources.every((s) => s.giftSlot)) return 'Swap out which gift?';
+  const kinds = new Set(sources.map((s) => (s.item ? swapKindPlural(s.item) : null)));
+  const [kind] = [...kinds];
+  return kinds.size === 1 && kind ? `Swap out which ${kind}?` : 'Swap out which item?';
 }
 
 /** Match expanded My Box upsell tiles. */

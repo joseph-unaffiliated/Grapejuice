@@ -791,10 +791,12 @@ function resolveSwapOptionsForItemGraph(
   const seen = new Set(out.map((i) => i.id));
 
   if (out.length < limit) {
-    for (const peer of sameSlotPeers(item, catalog, limit)) {
+    for (const peer of sameSlotPeers(item, catalog, catalog.length)) {
       if (out.length >= limit) break;
       if (seen.has(peer.id)) continue;
       if (isIncompatibleSwap(item, peer)) continue;
+      // Shared catalog slots (e.g. `decor`) span practices — gelt isn't a stuffie peer.
+      if (displaySectionForCatalogItem(peer) !== sectionId) continue;
       if (sectionId !== 'story' && isBookishCatalogItem(peer)) continue;
       seen.add(peer.id);
       out.push(peer);

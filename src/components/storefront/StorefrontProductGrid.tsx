@@ -15,8 +15,8 @@ import {
   StorefrontProductTile,
   type StorefrontTileBoxRelation,
 } from './StorefrontProductTile';
-import { SwapIntoBoxModal, swapOutTitleForItem } from './SwapIntoBoxModal';
-import { transferLiveIncludedBaselineOnSwap } from '../box/boxLineDisplay';
+import { SwapIntoBoxModal, swapOutTitleForSources } from './SwapIntoBoxModal';
+import { isGiftSlotLine, transferLiveIncludedBaselineOnSwap } from '../box/boxLineDisplay';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -283,7 +283,12 @@ export function StorefrontProductGrid({
       options={swapOptions}
       onSelect={confirmSwap}
       onCancel={() => setSwapIncoming(null)}
-      title={swapOutTitleForItem(swapIncoming)}
+      title={swapOutTitleForSources(
+        swapSources.map((li) => ({
+          item: catalogForSwap.find((c) => c.id === li.itemId),
+          giftSlot: isGiftSlotLine(li),
+        }))
+      )}
     />
   );
 
