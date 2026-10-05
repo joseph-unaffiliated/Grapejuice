@@ -98,7 +98,9 @@ export function resolveStorefrontHomeMode(args: {
  */
 export function useStorefrontHomeMode(
   lockAt: string | null,
-  startsOn: string | null = null
+  startsOn: string | null = null,
+  /** Resolve the household box state as if no gift flow were in progress. */
+  options: { ignoreGiftIntent?: boolean } = {}
 ): StorefrontHomeMode {
   const preview = useUserStatePreview();
   const authLoading = useAuthStore((s) => s.isLoading);
@@ -125,8 +127,8 @@ export function useStorefrontHomeMode(
     locked,
     canMutateBox,
     afterHanukkah,
-    giftStatus,
-    giftKind,
+    giftStatus: options.ignoreGiftIntent ? 'idle' : giftStatus,
+    giftKind: options.ignoreGiftIntent ? null : giftKind,
     openOrder,
   });
 

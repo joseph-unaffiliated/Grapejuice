@@ -99,6 +99,7 @@ export function StorefrontHomeScreen() {
   const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
   const [hanukkahConfigReady, setHanukkahConfigReady] = useState(false);
   const mode = useStorefrontHomeMode(lockAt, startsOn);
+  const boxMode = useStorefrontHomeMode(lockAt, startsOn, { ignoreGiftIntent: true });
   const giftDraft = useGiftIntentStore((s) => s.draft);
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);
 
@@ -257,9 +258,14 @@ export function StorefrontHomeScreen() {
 
   const strip = storefrontBuildBoxStripCopy(mode, passoverInterest.marked);
 
-  /** Bottom paper card: build before a box exists, confirm once started without payment. */
+  /**
+   * Bottom paper card: build before a box exists, confirm once started without payment.
+   * Mid-gift shoppers get the card for their own box state underneath the gift.
+   */
   const boxCta: { variant: StorefrontBoxCtaVariant; onPress: () => void } | null = (() => {
-    switch (mode) {
+    const giftIncomplete =
+      mode === 'gift_credit_incomplete' || mode === 'gift_customize_incomplete';
+    switch (giftIncomplete ? boxMode : mode) {
       case 'acquisition':
         return { variant: 'build', onPress: startBox };
       case 'gift_sent':

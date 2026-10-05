@@ -5,7 +5,10 @@
  * Keep in sync with docs/GUEST_BOX_RECOVERY.md when data flows change.
  */
 
-import type { LegalPageCopy } from '../components/storefront/StorefrontLegalPage';
+import {
+  legalSectionAnchor,
+  type LegalPageCopy,
+} from '../components/storefront/StorefrontLegalPage';
 import {
   NETWORK_PRIVACY_INTRO,
   NETWORK_PRIVACY_SECTIONS,
@@ -28,7 +31,9 @@ export const PRIVACY_COPY: LegalPageCopy = {
         ...NETWORK_PRIVACY_INTRO,
         'Grapejuice — grapejuice.co, the Grapejuice app and our Grapejuice emails — is one of our Sites and part of the Services. Grapejuice is made by Untraditional, an Unaffiliated brand. Section 12 describes additional practices that apply to Grapejuice.',
         [{ body: 'TABLE OF CONTENTS', weight: 'semibold' }],
-        ...toc.map((item, index) => `${index + 1}. ${item}`),
+        ...toc.map((item, index) => [
+          { body: `${index + 1}. ${item}`, href: `#${legalSectionAnchor(index + 1)}` },
+        ]),
       ],
     },
     ...NETWORK_PRIVACY_SECTIONS,

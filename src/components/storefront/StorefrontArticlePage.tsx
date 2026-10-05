@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Pressable,
   Platform,
+  Linking,
   useWindowDimensions,
   type ImageSourcePropType,
   type LayoutChangeEvent,
@@ -56,7 +57,18 @@ export type StorefrontArticleProseWeight = 'regular' | 'semibold' | 'bold';
 
 export type StorefrontArticleProseLine =
   | string
-  | { body: string; weight?: StorefrontArticleProseWeight };
+  | {
+      body: string;
+      weight?: StorefrontArticleProseWeight;
+      /** `mailto:` / `https:` opens externally; `#id` scrolls to a block with that `anchorId` (web). */
+      href?: string;
+    };
+
+type NormalizedProseLine = {
+  body: string;
+  weight: StorefrontArticleProseWeight;
+  href?: string;
+};
 
 /**
  * One paragraph: a plain/weighted line, or inline runs (weighted spans stay
@@ -103,6 +115,8 @@ export type StorefrontArticleBlock =
       headingVariant?: 'title';
       /** Left-align heading + body (long-form legal copy). Default center. */
       align?: 'left';
+      /** DOM id on web so prose `#anchorId` links can scroll here. */
+      anchorId?: string;
       /** Extra space above this block (e.g. after a denser section). */
       paddingTop?: number;
       /** Extra space below this block. */
@@ -253,33 +267,38 @@ function ArticleHairlineDivider() {
   );
 }
 
-function normalizeProseLine(
-  line: StorefrontArticleProseLine,
-): { body: string; weight: StorefrontArticleProseWeight } | null {
+function normalizeProseLine(line: StorefrontArticleProseLine): NormalizedProseLine | null {
       if (typeof line === 'string') {
         const text = line.trim();
     return text ? { body: text, weight: 'regular' } : null;
       }
       const text = line.body.trim();
       if (!text) return null;
-      return { body: text, weight: line.weight ?? 'regular' };
+      return { body: text, weight: line.weight ?? 'regular', href: line.href };
 }
 
 /** Top-level items become paragraphs; nested arrays stay as inline runs. */
 function normalizeProseParagraphs(
   body: string | readonly StorefrontArticleProseParagraph[],
-): { body: string; weight: StorefrontArticleProseWeight }[][] {
+): NormalizedProseLine[][] {
   const paragraphs = typeof body === 'string' ? [body] : body;
   return paragraphs
     .map((paragraph) => {
       const lines = Array.isArray(paragraph) ? paragraph : [paragraph];
       return lines
         .map((line) => normalizeProseLine(line as StorefrontArticleProseLine))
-        .filter(
-          (line): line is { body: string; weight: StorefrontArticleProseWeight } => line != null,
-        );
+        .filter((line): line is NormalizedProseLine => line != null);
     })
     .filter((lines) => lines.length > 0);
+}
+
+function openProseHref(href: string) {
+  if (href.startsWith('#')) {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.getElementById(href.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  void Linking.openURL(href);
 }
 
 function proseWeightStyle(weight: StorefrontArticleProseWeight) {
@@ -884,15 +903,29 @@ function runNeedsSpace(prev: string, next: string): boolean {
   return !/[“‘(\[]$/.test(prev) && !/^[”’),.;:!?\]]/.test(next);
 }
 
+function ProseRun({ line, text }: { line: NormalizedProseLine; text: string }) {
+  const { href } = line;
+  if (!href) return <Text style={proseWeightStyle(line.weight)}>{text}</Text>;
+  return (
+    <Text
+      style={[proseWeightStyle(line.weight), styles.proseLink]}
+      accessibilityRole="link"
+      onPress={() => openProseHref(href)}
+    >
+      {text}
+    </Text>
+  );
+}
+
 function ArticleProseParagraph({
   lines,
   left,
 }: {
-  lines: { body: string; weight: StorefrontArticleProseWeight }[];
+  lines: NormalizedProseLine[];
   left?: boolean;
 }) {
   const bodyStyle = [styles.blockBody, left ? styles.textLeft : null];
-  if (lines.length === 1) {
+  if (lines.length === 1 && !lines[0].href) {
     const line = lines[0];
     return (
       <Text style={[...bodyStyle, proseWeightStyle(line.weight)]}>
@@ -903,10 +936,13 @@ function ArticleProseParagraph({
   return (
     <Text style={bodyStyle}>
       {lines.map((line, index) => (
-        <Text key={index} style={proseWeightStyle(line.weight)}>
+        <React.Fragment key={index}>
           {index > 0 && runNeedsSpace(lines[index - 1].body, line.body) ? ' ' : ''}
-          {index === lines.length - 1 ? preventWidow(line.body) : line.body}
-        </Text>
+          <ProseRun
+            line={line}
+            text={index === lines.length - 1 ? preventWidow(line.body) : line.body}
+          />
+        </React.Fragment>
       ))}
     </Text>
   );
@@ -1081,7 +1117,11 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
             return (
               <View
                 key={key}
-                style={block.showDividerAfter ? styles.blockWithAfterDivider : undefined}
+                nativeID={block.anchorId}
+                style={[
+                  block.showDividerAfter ? styles.blockWithAfterDivider : null,
+                  block.anchorId ? styles.anchorTarget : null,
+                ]}
               >
                 <View
                   style={[
@@ -1661,6 +1701,12 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     alignItems: 'center',
     marginBottom: -spacing.xxl,
+  },
+  proseLink: {
+    textDecorationLine: 'underline',
+  },
+  anchorTarget: {
+    ...(Platform.OS === 'web' ? ({ scrollMarginTop: spacing.lg } as object) : null),
   },
   block: {
     maxWidth: COLUMN_MAX,

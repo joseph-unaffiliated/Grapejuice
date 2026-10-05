@@ -113,6 +113,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 400,
     alignSelf: 'center',
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   body: {
     ...typeface('regular'),
