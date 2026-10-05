@@ -130,7 +130,7 @@ async function sendDebriefAmazonFallbackEmail({ to, claimUrl, }) {
     });
 }
 /** Lock countdown — up to 2 reminder attempts before customization closes. */
-async function sendLockReminderEmail({ to, attempt, daysRemaining, myBoxUrl, }) {
+async function sendLockReminderEmail({ to, attempt, daysRemaining, myBoxUrl, checkoutUrl, lockDate, hasCard, items, itemsMore, }) {
     const template = 'lock-reminder';
     const transactionalMessageId = TEMPLATE_IDS[template];
     if (!transactionalMessageId || !getCustomerioAppApiKey()) {
@@ -140,7 +140,17 @@ async function sendLockReminderEmail({ to, attempt, daysRemaining, myBoxUrl, }) 
     await sendEmail({
         to,
         template,
-        data: { attempt, daysRemaining, myBoxUrl },
+        data: {
+            attempt,
+            daysRemaining,
+            myBoxUrl,
+            box_url: myBoxUrl,
+            checkout_url: checkoutUrl,
+            lock_date: lockDate,
+            has_card: hasCard,
+            items,
+            items_more: itemsMore,
+        },
     });
 }
 //# sourceMappingURL=email.js.map

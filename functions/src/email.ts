@@ -1,4 +1,5 @@
 import { defineSecret } from 'firebase-functions/params';
+import type { EmailItem } from './emailItems';
 
 /** Customer.io App API key — bind on every function that calls sendEmail / SMS. */
 export const customerioAppApiKey = defineSecret('CUSTOMERIO_APP_API_KEY');
@@ -164,11 +165,21 @@ export async function sendLockReminderEmail({
   attempt,
   daysRemaining,
   myBoxUrl,
+  checkoutUrl,
+  lockDate,
+  hasCard,
+  items,
+  itemsMore,
 }: {
   to: string;
   attempt: 1 | 2;
   daysRemaining: number;
   myBoxUrl: string;
+  checkoutUrl: string;
+  lockDate: string;
+  hasCard: boolean;
+  items: EmailItem[];
+  itemsMore: number;
 }): Promise<void> {
   const template = 'lock-reminder';
   const transactionalMessageId = TEMPLATE_IDS[template];
@@ -179,6 +190,16 @@ export async function sendLockReminderEmail({
   await sendEmail({
     to,
     template,
-    data: { attempt, daysRemaining, myBoxUrl },
+    data: {
+      attempt,
+      daysRemaining,
+      myBoxUrl,
+      box_url: myBoxUrl,
+      checkout_url: checkoutUrl,
+      lock_date: lockDate,
+      has_card: hasCard,
+      items,
+      items_more: itemsMore,
+    },
   });
 }

@@ -1,12 +1,14 @@
 "use strict";
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runLockReminderBatch = runLockReminderBatch;
 const logger = require("firebase-functions/logger");
 const email_1 = require("./email");
+const emailItems_1 = require("./emailItems");
+const guestSessions_1 = require("./guestSessions");
+const setupNudge_1 = require("./setupNudge");
 const sms_1 = require("./sms");
 const HOLIDAY_ID = 'hanukkah-2026';
-const APP_BASE = (_a = process.env.PILOT_APP_BASE_URL) !== null && _a !== void 0 ? _a : 'https://app.grapejuice.co';
+const UTM = 'utm_source=lifecycle&utm_medium=email&utm_campaign=lock_reminder';
 const MAX_ATTEMPTS = 2;
 /** Days before lock when we send attempt 1 and 2. */
 const REMINDER_DAYS_BEFORE_LOCK = [7, 3];
@@ -24,7 +26,7 @@ async function householdHasCommittedOrder(db, householdId) {
 }
 /** Lock countdown reminders — up to 2 email (+ optional SMS) attempts before box lock. */
 async function runLockReminderBatch(db, lockAt) {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const daysLeft = daysUntil(lockAt);
     const usersSnap = await db.collection('users').where('lockReminderEligible', '==', true).get();
     let sent = 0;
@@ -62,9 +64,25 @@ async function runLockReminderBatch(db, lockAt) {
             continue;
         }
         const daysRemaining = Math.max(1, Math.ceil(daysLeft));
-        const myBoxUrl = `${APP_BASE}/?preview=my-box`;
+        const myBoxUrl = `${(0, guestSessions_1.appOrigin)()}/box?${UTM}`;
+        const checkoutUrl = `${(0, guestSessions_1.appOrigin)()}/checkout?${UTM}`;
         try {
-            await (0, email_1.sendLockReminderEmail)({ to: email, attempt: nextAttempt, daysRemaining, myBoxUrl });
+            const [draftSnap, householdSnap] = await Promise.all([
+                db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get(),
+                db.doc(`households/${householdId}`).get(),
+            ]);
+            const { items, more } = await (0, emailItems_1.lineItemsEmailItems)(db, (_c = draftSnap.data()) === null || _c === void 0 ? void 0 : _c.lineItems, myBoxUrl);
+            await (0, email_1.sendLockReminderEmail)({
+                to: email,
+                attempt: nextAttempt,
+                daysRemaining,
+                myBoxUrl,
+                checkoutUrl,
+                lockDate: (0, setupNudge_1.lockDateLabel)(lockAt),
+                hasCard: Boolean((_d = householdSnap.data()) === null || _d === void 0 ? void 0 : _d.cardOnFileAt),
+                items,
+                itemsMore: more,
+            });
             if (user.smsOptIn && user.phone) {
                 await (0, sms_1.sendLockReminderSms)({ to: user.phone, attempt: nextAttempt, daysRemaining, myBoxUrl }).catch((err) => logger.warn('Lock SMS failed', { uid, err }));
             }

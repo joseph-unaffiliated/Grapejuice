@@ -1,10 +1,13 @@
 import * as logger from 'firebase-functions/logger';
 import type { Firestore } from 'firebase-admin/firestore';
 import { sendLockReminderEmail } from './email';
+import { lineItemsEmailItems } from './emailItems';
+import { appOrigin } from './guestSessions';
+import { lockDateLabel } from './setupNudge';
 import { sendLockReminderSms } from './sms';
 
 const HOLIDAY_ID = 'hanukkah-2026';
-const APP_BASE = process.env.PILOT_APP_BASE_URL ?? 'https://app.grapejuice.co';
+const UTM = 'utm_source=lifecycle&utm_medium=email&utm_campaign=lock_reminder';
 const MAX_ATTEMPTS = 2;
 /** Days before lock when we send attempt 1 and 2. */
 const REMINDER_DAYS_BEFORE_LOCK = [7, 3] as const;
@@ -78,10 +81,26 @@ export async function runLockReminderBatch(db: Firestore, lockAt: string): Promi
     }
 
     const daysRemaining = Math.max(1, Math.ceil(daysLeft));
-    const myBoxUrl = `${APP_BASE}/?preview=my-box`;
+    const myBoxUrl = `${appOrigin()}/box?${UTM}`;
+    const checkoutUrl = `${appOrigin()}/checkout?${UTM}`;
 
     try {
-      await sendLockReminderEmail({ to: email, attempt: nextAttempt, daysRemaining, myBoxUrl });
+      const [draftSnap, householdSnap] = await Promise.all([
+        db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get(),
+        db.doc(`households/${householdId}`).get(),
+      ]);
+      const { items, more } = await lineItemsEmailItems(db, draftSnap.data()?.lineItems, myBoxUrl);
+      await sendLockReminderEmail({
+        to: email,
+        attempt: nextAttempt,
+        daysRemaining,
+        myBoxUrl,
+        checkoutUrl,
+        lockDate: lockDateLabel(lockAt),
+        hasCard: Boolean(householdSnap.data()?.cardOnFileAt),
+        items,
+        itemsMore: more,
+      });
       if (user.smsOptIn && user.phone) {
         await sendLockReminderSms({ to: user.phone, attempt: nextAttempt, daysRemaining, myBoxUrl }).catch((err) =>
           logger.warn('Lock SMS failed', { uid, err })
