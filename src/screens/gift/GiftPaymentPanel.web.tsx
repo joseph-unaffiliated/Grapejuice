@@ -1,24 +1,16 @@
-/** Gift Stripe payment step — aligned with CheckoutScreen.web visual language. */
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
+/** Gift Stripe payment step — same Account-style chrome as the Payment page. */
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import {
   CURATED_GIFT_BOX_LABEL,
   giftCreditProductLabel,
 } from '../../constants/giftCopy';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
-import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-import type { SemanticColors } from '../../constants/themeMode';
-import { useWebLayout } from '../../hooks/useWebLayout';
+import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { checkoutUi } from '../main/checkout/checkoutUi';
 import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 
 /** Stripe Elements appearance — closer to Grapejuice checkout than default purple Stripe. */
@@ -45,7 +37,6 @@ type Props = {
   onPaid: (result: { claimUrl: string }) => void;
   onCancel: () => void;
   onError: (title: string, message: string) => void;
-  cancelLabel?: string;
   /** Small "Cancel gift" link under Pay — wipes the incomplete gift. */
   onCancelGift?: () => void;
   completePurchase: (giftInviteId: string) => Promise<{ claimUrl: string }>;
@@ -60,15 +51,11 @@ export function GiftPaymentPanel({
   onPaid,
   onCancel,
   onError,
-  cancelLabel = '← Back to box',
   onCancelGift,
   completePurchase,
 }: Props) {
   const stripe = useStripe();
   const elements = useElements();
-  const { colors } = useThemeMode();
-  const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const [paying, setPaying] = useState(false);
   const [elementState, setElementState] = useState<'loading' | 'slow' | 'ready' | 'error'>(
     'loading'
@@ -119,48 +106,50 @@ export function GiftPaymentPanel({
   const fromLabel = giverName?.trim() && !/^you$/i.test(giverName.trim()) ? giverName.trim() : 'You';
 
   return (
-    <View style={styles.root}>
-      <TouchableOpacity onPress={onCancel} style={styles.backRow} accessibilityRole="button">
-        <Text style={styles.backLink}>{cancelLabel}</Text>
+    <View>
+      <TouchableOpacity
+        onPress={onCancel}
+        style={styles.back}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
+        <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Payment</Text>
-      <Text style={styles.lead}>
+      <Text style={checkoutUi.title}>Payment</Text>
+      <Text style={checkoutUi.lead}>
         {customize
           ? `Pay now to send the box you picked. We'll email ${recipientEmail} a link to claim it.`
           : `Pay now to send credit. We'll email ${recipientEmail} a link to claim it.`}
       </Text>
 
-      <View
-        style={[
-          styles.summaryCard,
-          Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.sm } as object) : null,
-        ]}
-      >
-        <Text style={styles.summaryHeading}>Order summary</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>
-            {customize ? CURATED_GIFT_BOX_LABEL : giftCreditProductLabel(amountCents)}
-          </Text>
-          <Text style={styles.summaryValue}>{formatDollars(amountCents)}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>From</Text>
-          <Text style={styles.summaryValue}>{fromLabel}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Send claim to</Text>
-          <Text style={[styles.summaryValue, styles.summaryEmail]} numberOfLines={1}>
-            {recipientEmail}
-          </Text>
-        </View>
-        <View style={styles.summaryTotalRow}>
-          <Text style={styles.totalLabel}>Total due now</Text>
-          <Text style={styles.totalValue}>{formatDollars(amountCents)}</Text>
-        </View>
+      <View style={checkoutUi.divider} />
+
+      <Text style={styles.summaryHeading}>Order Summary</Text>
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryName}>
+          {customize ? CURATED_GIFT_BOX_LABEL : giftCreditProductLabel(amountCents)}
+        </Text>
+        <Text style={styles.summaryValue}>{formatDollars(amountCents)}</Text>
+      </View>
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryName}>From</Text>
+        <Text style={styles.summaryValue}>{fromLabel}</Text>
+      </View>
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryName}>Send claim to</Text>
+        <Text style={[styles.summaryValue, styles.summaryEmail]} numberOfLines={1}>
+          {recipientEmail}
+        </Text>
+      </View>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalText}>Total due now</Text>
+        <Text style={styles.totalText}>{formatDollars(amountCents)}</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Payment method</Text>
+      <View style={checkoutUi.divider} />
+
+      <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
       <View style={styles.paymentElementWrap}>
         <PaymentElement
           options={{ layout: 'tabs' }}
@@ -172,10 +161,10 @@ export function GiftPaymentPanel({
           }}
         />
         {elementState === 'loading' ? (
-          <Text style={styles.elementNote}>Loading secure payment form…</Text>
+          <Text style={[checkoutUi.hint, styles.elementNote]}>Loading secure payment form…</Text>
         ) : null}
         {elementState === 'error' || elementState === 'slow' ? (
-          <Text style={[styles.elementNote, styles.elementError]}>
+          <Text style={[checkoutUi.fieldError, styles.elementNote]}>
             {elementState === 'error'
               ? `The payment form couldn't load${elementError ? ` (${elementError})` : ''}. Refresh the page or try another browser.`
               : 'The payment form is taking a while. If it doesn’t appear, refresh the page or turn off content blockers for this site.'}
@@ -183,21 +172,16 @@ export function GiftPaymentPanel({
         ) : null}
       </View>
 
-      <TouchableOpacity
-        style={[styles.cta, (paying || elementState !== 'ready') && styles.ctaDisabled]}
+      <GrapejuiceButton
+        label={`Pay ${formatDollars(amountCents)} & send gift`}
+        variant="filled"
         onPress={() => void pay()}
-        disabled={paying || elementState !== 'ready'}
-        activeOpacity={0.85}
-        accessibilityRole="button"
+        loading={paying}
+        disabled={elementState !== 'ready'}
         accessibilityLabel={`Pay ${formatDollars(amountCents)} and send`}
-      >
-        <ButtonLoadingLabel
-          label={`Pay ${formatDollars(amountCents)} & send gift`}
-          loading={paying}
-          loaderColor={colors.goldMuted}
-          labelStyle={styles.ctaText}
-        />
-      </TouchableOpacity>
+        style={[checkoutUi.button, styles.ctaSpacing]}
+        textStyle={checkoutUi.buttonText}
+      />
       {onCancelGift ? (
         <TouchableOpacity
           onPress={onCancelGift}
@@ -214,132 +198,60 @@ export function GiftPaymentPanel({
   );
 }
 
-function createStyles(colors: SemanticColors, isDesktop: boolean) {
-  return StyleSheet.create({
-    root: {
-      width: '100%',
-      maxWidth: 480,
-      alignSelf: 'center',
-      paddingTop: isDesktop ? spacing.sm : 0,
-    },
-    backRow: { marginBottom: spacing.md, alignSelf: 'flex-start' },
-    backLink: {
-      color: colors.brand,
-      fontSize: typography.md,
-      ...typeface('medium'),
-    },
-    title: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
-      marginBottom: spacing.sm,
-      ...typeface('regular'),
-    },
-    lead: {
-      fontSize: typography.md,
-      lineHeight: typography.md * 1.45,
-      color: colors.textSecondary,
-      marginBottom: spacing.lg,
-      ...typeface('regular'),
-    },
-    summaryCard: {
-      backgroundColor: isDesktop ? colors.bgElevated : colors.accentCream,
-      borderRadius: 16,
-      padding: spacing.lg,
-      marginBottom: spacing.lg,
-    },
-    summaryHeading: {
-      fontSize: typography.sm,
-      color: colors.goldMuted,
-      marginBottom: spacing.md,
-      letterSpacing: 0.4,
-      textTransform: 'uppercase',
-      ...typeface('medium'),
-    },
-    summaryRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: spacing.md,
-      marginBottom: spacing.sm,
-    },
-    summaryLabel: {
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      flexShrink: 0,
-      ...typeface('regular'),
-    },
-    summaryValue: {
-      fontSize: typography.md,
-      color: colors.textPrimary,
-      textAlign: 'right',
-      flex: 1,
-      ...typeface('medium'),
-    },
-    summaryEmail: {
-      ...typeface('regular'),
-    },
-    summaryTotalRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginTop: spacing.sm,
-      paddingTop: spacing.md,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-    },
-    totalLabel: {
-      fontSize: typography.md,
-      color: colors.textPrimary,
-      ...typeface('medium'),
-    },
-    totalValue: {
-      fontSize: typography.lg,
-      color: colors.logoDark,
-      ...typeface('bold'),
-    },
-    sectionTitle: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
-      marginBottom: spacing.sm,
-      ...typeface('medium'),
-    },
-    paymentElementWrap: {
-      minHeight: 120,
-      marginBottom: spacing.md,
-    },
-    elementNote: {
-      marginTop: spacing.sm,
-      fontSize: typography.sm,
-      color: colors.textSecondary,
-      ...typeface('regular'),
-    },
-    elementError: { color: colors.error },
-    cta: {
-      backgroundColor: colors.textPrimary,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: spacing.md,
-      alignSelf: 'stretch',
-      minHeight: 52,
-    },
-    ctaDisabled: { opacity: 0.5 },
-    ctaText: {
-      color: colors.goldMuted,
-      fontWeight: '700',
-      fontSize: typography.md,
-    },
-    cancelGift: {
-      alignSelf: 'center',
-      marginTop: spacing.md,
-    },
-    cancelGiftText: {
-      color: colors.textTertiary,
-      fontSize: typography.sm,
-      textDecorationLine: 'underline',
-    },
-  });
-}
+const styles = StyleSheet.create({
+  back: { marginBottom: spacing.md, alignSelf: 'flex-start' },
+  backText: {
+    ...typeface('regular'),
+    fontSize: typography.lg,
+    color: semanticColors.goldMuted,
+  },
+  summaryHeading: { ...checkoutUi.sectionHeading, marginBottom: spacing.xs },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: spacing.sm,
+    gap: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: semanticColors.border,
+  },
+  summaryName: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    lineHeight: 20,
+    color: semanticColors.textPrimary,
+    flexShrink: 0,
+  },
+  summaryValue: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    lineHeight: 20,
+    color: semanticColors.textPrimary,
+    textAlign: 'right',
+    flex: 1,
+  },
+  summaryEmail: { ...typeface('regular') },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  totalText: {
+    ...typeface('medium'),
+    fontSize: 18,
+    letterSpacing: -0.3,
+    color: semanticColors.logoDark,
+  },
+  paymentElementWrap: { minHeight: 120, marginTop: spacing.xs },
+  elementNote: { marginTop: spacing.sm },
+  ctaSpacing: { marginTop: spacing.xl },
+  cancelGift: { alignSelf: 'center', marginTop: spacing.md },
+  cancelGiftText: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.textTertiary,
+    textDecorationLine: 'underline',
+  },
+});

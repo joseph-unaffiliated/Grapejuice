@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
+import { checkoutUi } from '../main/checkout/checkoutUi';
 import type { GiftChildDraft } from './giftGiveTypes';
 import { giftChildFromAge } from './giftGiveTypes';
 import {
@@ -50,9 +51,9 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
   };
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.heading}>Kids&apos; ages (for curation)</Text>
-      <Text style={styles.hint}>
+    <View>
+      <Text style={checkoutUi.sectionHeading}>Kids&apos; Ages</Text>
+      <Text style={[checkoutUi.hint, styles.hint]}>
         Same ages as box onboarding — we use them for books and presents.
       </Text>
 
@@ -101,20 +102,7 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
 
 function createStyles() {
   return StyleSheet.create({
-    wrap: { marginTop: spacing.md },
-    heading: {
-      fontSize: typography.lg,
-      color: semanticColors.textPrimary,
-      marginBottom: spacing.xs,
-      ...typeface('bold'),
-    },
-    hint: {
-      fontSize: typography.md,
-      color: semanticColors.textSecondary,
-      marginBottom: spacing.md,
-      lineHeight: typography.md * 1.4,
-      ...typeface('regular'),
-    },
+    hint: { marginBottom: spacing.md },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -123,8 +111,9 @@ function createStyles() {
     },
     label: {
       fontSize: typography.md,
+      letterSpacing: -0.22,
       color: semanticColors.textPrimary,
-      ...typeface('medium'),
+      ...typeface('regular'),
     },
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     stepBtn: {
@@ -140,14 +129,14 @@ function createStyles() {
     stepBtnText: {
       fontSize: typography.lg,
       color: semanticColors.textPrimary,
-      ...typeface('medium'),
+      ...typeface('regular'),
     },
     count: {
       fontSize: typography.xl,
       color: semanticColors.textPrimary,
       minWidth: 24,
       textAlign: 'center',
-      ...typeface('bold'),
+      ...typeface('medium'),
     },
     kidBlock: {
       alignSelf: 'stretch',
@@ -167,10 +156,11 @@ function createStyles() {
     },
     fieldLabel: {
       width: 48,
-      marginTop: 12,
+      marginTop: 4,
       fontSize: typography.sm,
-      color: semanticColors.textPrimary,
-      ...typeface('medium'),
+      letterSpacing: -0.22,
+      color: semanticColors.textSecondary,
+      ...typeface('regular'),
     },
   });
 }

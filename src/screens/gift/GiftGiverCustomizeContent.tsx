@@ -74,6 +74,7 @@ import {
 import { BoxSummaryDonated } from '../../components/box/BoxSummaryDonated';
 import { createBoxDetailStyles, BOX_SUMMARY_SCROLL_INSET } from '../../components/box/boxDetailLayout';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { SystemPage } from '../../components/layout/SystemPage';
 import {
   BOX_DISPLAY_SECTIONS,
   displaySectionForCatalogItem,
@@ -622,24 +623,7 @@ export function GiftGiverCustomizeContent({
   }
 
   if (paymentSlot) {
-    return (
-      <View style={styles.pageRoot}>
-        <WebContentPanel flush centerDesktop omitDesktopTopPadding gutter={!isDesktop} style={styles.panel}>
-          <ScrollView
-            contentContainerStyle={[
-              styles.paymentScroll,
-              isDesktop && styles.paymentScrollDesktop,
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.paymentShell}>
-              {breadcrumb}
-              {paymentSlot}
-            </View>
-          </ScrollView>
-        </WebContentPanel>
-      </View>
-    );
+    return <SystemPage narrow>{paymentSlot}</SystemPage>;
   }
 
   /** Desktop: float above the home indicator. Mobile: flush + 1px overhang to kill hairline seams. */
@@ -954,21 +938,6 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       alignSelf: 'center',
       paddingTop: 0,
       ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
-    },
-    paymentScroll: {
-      paddingHorizontal: isDesktop ? 0 : MOBILE_GUTTER,
-      paddingTop: spacing.lg,
-      paddingBottom: spacing.xxl,
-      flexGrow: 1,
-    },
-    paymentScrollDesktop: {
-      paddingTop: spacing.xl,
-      alignItems: 'center',
-    },
-    paymentShell: {
-      width: '100%',
-      maxWidth: 560,
-      alignSelf: 'center',
     },
     breadcrumb: {
       flexDirection: 'row',

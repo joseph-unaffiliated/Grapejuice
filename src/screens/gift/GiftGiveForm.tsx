@@ -1,12 +1,11 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { CURATED_GIFT_BOX_LABEL } from '../../constants/giftCopy';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
-import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-import type { SemanticColors } from '../../constants/themeMode';
+import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { checkoutUi } from '../main/checkout/checkoutUi';
 import { GiftGiverChildrenFields } from './GiftGiverChildrenFields';
 import type { GiftChildDraft, GiftGiveFormValues, GiftPath } from './giftGiveTypes';
 
@@ -42,8 +41,6 @@ export function GiftGiveForm({
   onCancelGift,
   children,
 }: Props) {
-  const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const creditOnly = values.giftPath === 'credit_only';
   const customize = values.giftPath === 'customize';
   const pathChosen = values.giftPath != null;
@@ -65,15 +62,22 @@ export function GiftGiveForm({
   return (
     <View>
       {!hideBack && onBack ? (
-        <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel="Back">
-          <Text style={styles.back}>← Back</Text>
+        <TouchableOpacity
+          onPress={onBack}
+          style={styles.back}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
       ) : null}
 
-      <Text style={styles.title}>Send a Hanukkah gift</Text>
-      <Text style={styles.lead}>{lead}</Text>
+      <Text style={checkoutUi.title}>Send a Gift</Text>
+      <Text style={checkoutUi.lead}>{lead}</Text>
 
-      <Text style={styles.pathHeading}>How should this gift work?</Text>
+      <View style={checkoutUi.divider} />
+
+      <Text style={checkoutUi.sectionHeading}>Gift Type</Text>
       <TouchableOpacity
         style={[styles.pathCard, creditOnly && styles.pathCardOn]}
         onPress={() => setPath('credit_only')}
@@ -102,53 +106,61 @@ export function GiftGiveForm({
 
       {pathChosen ? (
         <>
-          <Text style={styles.label}>
+          <View style={checkoutUi.divider} />
+
+          <Text style={checkoutUi.sectionHeading}>Gift Details</Text>
+          <Text style={[checkoutUi.hint, styles.requiredHint]}>Fields marked * are required</Text>
+
+          <Text style={checkoutUi.label}>
             Recipient email
             <Text style={styles.requiredMark}> *</Text>
           </Text>
           <TextInput
-            style={[styles.input, error ? styles.inputError : null]}
+            style={[checkoutUi.input, error ? checkoutUi.inputError : null]}
             value={values.recipientEmail}
             onChangeText={(recipientEmail) => onChange({ recipientEmail })}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="parent@example.com"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={semanticColors.textTertiary}
             editable={!submitting}
             accessibilityLabel="Recipient email, required"
           />
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <Text style={checkoutUi.fieldError}>{error}</Text> : null}
 
-          <Text style={styles.label}>Your name (on the gift)</Text>
+          <Text style={checkoutUi.label}>Your name (on the gift)</Text>
           <TextInput
-            style={styles.input}
+            style={checkoutUi.input}
             value={values.giverName}
             onChangeText={(giverName) => onChange({ giverName })}
             placeholder="Grandma"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={semanticColors.textTertiary}
             editable={!submitting}
             accessibilityLabel="Your name on the gift"
           />
 
-          <Text style={styles.label}>Short message (optional)</Text>
+          <Text style={checkoutUi.label}>Short message (optional)</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[checkoutUi.input, styles.textArea]}
             value={values.message}
             onChangeText={(message) => onChange({ message })}
             multiline
             placeholder="Happy Hanukkah!"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={semanticColors.textTertiary}
             editable={!submitting}
             accessibilityLabel="Gift message"
           />
 
           {customize ? (
-            <GiftGiverChildrenFields
-              children={childDrafts}
-              onChange={onChildDraftsChange}
-              disabled={submitting}
-            />
+            <>
+              <View style={checkoutUi.divider} />
+              <GiftGiverChildrenFields
+                children={childDrafts}
+                onChange={onChildDraftsChange}
+                disabled={submitting}
+              />
+            </>
           ) : null}
 
           <GrapejuiceButton
@@ -157,7 +169,8 @@ export function GiftGiveForm({
             variant="filled"
             loading={submitting}
             disabled={submitting}
-            style={styles.cta}
+            style={[checkoutUi.button, styles.ctaSpacing]}
+            textStyle={checkoutUi.buttonText}
           />
 
           {onCancelGift ? (
@@ -176,128 +189,72 @@ export function GiftGiveForm({
           {children}
         </>
       ) : (
-        <Text style={styles.pathHint}>Select a path above to continue.</Text>
+        <Text style={[checkoutUi.hint, styles.pathHint]}>Select a gift type to continue.</Text>
       )}
     </View>
   );
 }
 
-function createStyles(colors: SemanticColors) {
-  return StyleSheet.create({
-    back: {
-      color: colors.brand,
-      fontSize: typography.md,
-      marginBottom: spacing.md,
-      ...typeface('medium'),
-    },
-    title: {
-      fontSize: 28,
-      letterSpacing: -0.6,
-      color: colors.textPrimary,
-      marginBottom: spacing.sm,
-      ...typeface('medium'),
-    },
-    lead: {
-      fontSize: typography.md,
-      lineHeight: typography.md * 1.45,
-      color: colors.textSecondary,
-      marginBottom: spacing.lg,
-      ...typeface('regular'),
-    },
-    label: {
-      fontSize: typography.sm,
-      color: colors.textPrimary,
-      marginBottom: spacing.xs,
-      marginTop: spacing.md,
-      ...typeface('medium'),
-    },
-    requiredMark: {
-      color: '#B42318',
-      ...typeface('medium'),
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      fontSize: typography.lg,
-      color: colors.textPrimary,
-      backgroundColor: colors.bgPrimary,
-      ...typeface('regular'),
-    },
-    inputError: {
-      borderColor: '#B42318',
-    },
-    textArea: {
-      minHeight: 88,
-      textAlignVertical: 'top',
-      paddingTop: spacing.sm,
-    },
-    errorText: {
-      marginTop: spacing.xs,
-      fontSize: typography.sm,
-      color: '#B42318',
-      ...typeface('medium'),
-    },
-    pathHeading: {
-      fontSize: typography.lg,
-      color: colors.textPrimary,
-      marginTop: spacing.sm,
-      marginBottom: spacing.sm,
-      ...typeface('bold'),
-    },
-    pathHint: {
-      marginTop: spacing.md,
-      fontSize: typography.md,
-      color: colors.textTertiary,
-      ...typeface('regular'),
-    },
-    pathCard: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.brand,
-      borderRadius: borderRadius.md,
-      padding: spacing.md,
-      marginBottom: spacing.sm,
-      backgroundColor: colors.bgPrimary,
-    },
-    pathCardOn: {
-      backgroundColor: '#000000',
-      borderColor: '#000000',
-    },
-    pathTitle: {
-      fontSize: typography.lg,
-      color: colors.textPrimary,
-      marginBottom: spacing.xs,
-      ...typeface('bold'),
-    },
-    pathTitleOn: {
-      color: '#FFFFFF',
-    },
-    pathBody: {
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      lineHeight: typography.md * 1.4,
-      ...typeface('regular'),
-    },
-    pathBodyOn: {
-      color: 'rgba(255,255,255,0.78)',
-    },
-    cta: {
-      alignSelf: 'stretch',
-      width: '100%',
-      minWidth: 0,
-      marginTop: spacing.xl,
-    },
-    cancelGift: {
-      alignSelf: 'center',
-      marginTop: spacing.md,
-    },
-    cancelGiftText: {
-      fontSize: typography.sm,
-      color: colors.textTertiary,
-      textDecorationLine: 'underline',
-      ...typeface('regular'),
-    },
-  });
-}
+const styles = StyleSheet.create({
+  back: { marginBottom: spacing.md, alignSelf: 'flex-start' },
+  backText: {
+    ...typeface('regular'),
+    fontSize: typography.lg,
+    color: semanticColors.goldMuted,
+  },
+  requiredHint: { marginBottom: spacing.xs },
+  requiredMark: {
+    color: semanticColors.error,
+    ...typeface('regular'),
+  },
+  textArea: {
+    minHeight: 88,
+    textAlignVertical: 'top',
+    paddingTop: spacing.sm,
+  },
+  pathHint: { marginTop: spacing.md },
+  pathCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    borderRadius: borderRadius.xl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: semanticColors.bgPrimary,
+  },
+  pathCardOn: {
+    backgroundColor: semanticColors.logoDark,
+    borderColor: semanticColors.logoDark,
+  },
+  pathTitle: {
+    ...typeface('medium'),
+    fontSize: typography.lg,
+    letterSpacing: -0.26,
+    color: semanticColors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  pathTitleOn: {
+    color: semanticColors.textInverse,
+  },
+  pathBody: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    letterSpacing: -0.22,
+    lineHeight: 18,
+    color: semanticColors.textSecondary,
+  },
+  pathBodyOn: {
+    color: 'rgba(255,255,255,0.78)',
+  },
+  ctaSpacing: { marginTop: spacing.xl },
+  cancelGift: {
+    alignSelf: 'center',
+    marginTop: spacing.md,
+  },
+  cancelGiftText: {
+    ...typeface('regular'),
+    fontSize: typography.sm,
+    color: semanticColors.textTertiary,
+    textDecorationLine: 'underline',
+  },
+});

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Alert, View, Text, Platform, TouchableOpacity } from 'react-native';
+import { StyleSheet, Alert, Text, Platform, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -8,15 +8,17 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
-import { MOBILE_GUTTER, spacing, typography, typeface, semanticColors } from '../../constants/theme';
+import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import { SystemPage } from '../../components/layout/SystemPage';
+import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiveForm } from './GiftGiveForm';
 import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from './giftGiveTypes';
 import type { GiftChildDraft } from './giftGiveTypes';
-import { GiftPaymentPanel, GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
+import { GiftPaymentPanel } from './GiftPaymentPanel.web';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 import { isValidEmail } from '../../utils/formValidation';
 import { trackGiftStep } from '../../services/analytics/giftFunnel';
@@ -194,108 +196,67 @@ function GiftGiveBody() {
     onCancelGift: cancelGift,
   };
 
+  const paying = Boolean(paymentSecret && stripePromise && giftInviteId);
   return (
-    <View style={styles.page}>
-      <View style={styles.breadcrumb}>
-        <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-          Store
-        </Text>
-        <Text style={styles.crumbSep}> / </Text>
-        <Text style={styles.crumbCurrent}>Send a gift</Text>
-      </View>
-
-      <View style={styles.shell}>
-        {paymentSecret && stripePromise && giftInviteId ? (
-          <Elements
-            stripe={stripePromise}
-            options={{ clientSecret: paymentSecret, appearance: GIFT_STRIPE_APPEARANCE }}
-          >
-            <GiftPaymentPanel
-              giftInviteId={giftInviteId}
-              recipientEmail={values.recipientEmail.trim()}
-              giverName={values.giverName}
-              customize={false}
-              onPaid={({ claimUrl }) => {
-                useGiftIntentStore.getState().markSent(values.recipientEmail.trim(), 'credit_only');
-                navigation.replace('GiftSentConfirmation', {
-                  recipientEmail: values.recipientEmail.trim(),
-                  customize: false,
-                  giverName: values.giverName.trim() || undefined,
-                  amountCents: DEFAULT_BOX_PRICE_CENTS,
-                  claimUrl,
-                });
-              }}
-              onCancel={resetPayment}
-              onCancelGift={cancelGift}
-              onError={notify}
-              cancelLabel="← Back to gift details"
-              completePurchase={completeGiftPurchase}
-            />
-          </Elements>
-        ) : (
-          <GiftGiveForm
-            {...formProps}
-            onSubmit={() => void preparePayment()}
-            submitting={submitting}
-            submitLabel={submitLabel}
-          >
-            {creditOnly && !isAuthenticated ? (
-              <TouchableOpacity
-                onPress={() => requireAuth('signin')}
-                accessibilityRole="button"
-                hitSlop={8}
-                style={styles.signInLink}
-              >
-                <Text style={styles.signInText}>Already have an account? Sign in</Text>
-              </TouchableOpacity>
-            ) : null}
-          </GiftGiveForm>
-        )}
-      </View>
-    </View>
+    <SystemPage narrow onBack={paying ? undefined : goHome}>
+      {paymentSecret && stripePromise && giftInviteId ? (
+        <Elements
+          stripe={stripePromise}
+          options={{ clientSecret: paymentSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}
+        >
+          <GiftPaymentPanel
+            giftInviteId={giftInviteId}
+            recipientEmail={values.recipientEmail.trim()}
+            giverName={values.giverName}
+            customize={false}
+            onPaid={({ claimUrl }) => {
+              useGiftIntentStore.getState().markSent(values.recipientEmail.trim(), 'credit_only');
+              navigation.replace('GiftSentConfirmation', {
+                recipientEmail: values.recipientEmail.trim(),
+                customize: false,
+                giverName: values.giverName.trim() || undefined,
+                amountCents: DEFAULT_BOX_PRICE_CENTS,
+                claimUrl,
+              });
+            }}
+            onCancel={resetPayment}
+            onCancelGift={cancelGift}
+            onError={notify}
+            completePurchase={completeGiftPurchase}
+          />
+        </Elements>
+      ) : (
+        <GiftGiveForm
+          {...formProps}
+          onSubmit={() => void preparePayment()}
+          submitting={submitting}
+          submitLabel={submitLabel}
+        >
+          {creditOnly && !isAuthenticated ? (
+            <TouchableOpacity
+              onPress={() => requireAuth('signin')}
+              accessibilityRole="button"
+              hitSlop={8}
+              style={styles.signInLink}
+            >
+              <Text style={styles.signInText}>Already have an account? Sign in</Text>
+            </TouchableOpacity>
+          ) : null}
+        </GiftGiveForm>
+      )}
+    </SystemPage>
   );
 }
 
 export function GiftGiveScreen() {
   return (
-    <StorefrontChrome hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav>
       <GiftGiveBody />
     </StorefrontChrome>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
-    paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  breadcrumb: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  crumbLink: {
-    ...typeface('regular'),
-    fontSize: typography.md,
-    color: semanticColors.goldMuted,
-  },
-  crumbSep: {
-    ...typeface('regular'),
-    fontSize: typography.md,
-    color: semanticColors.goldMuted,
-  },
-  crumbCurrent: {
-    ...typeface('medium'),
-    fontSize: typography.md,
-    color: semanticColors.logoDark,
-  },
-  shell: {
-    width: '100%',
-    maxWidth: 560,
-    alignSelf: 'center',
-  },
   signInLink: {
     marginTop: spacing.md,
     alignSelf: 'center',

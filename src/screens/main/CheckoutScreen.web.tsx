@@ -10,7 +10,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
-import { loadStripe, type Appearance, type CssFontSource } from '@stripe/stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
@@ -21,16 +21,10 @@ import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 import type { MainStackParamList } from '../../navigation/types';
 import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
-import {
-  WEB_FONT_FAMILY,
-  spacing,
-  typography,
-  borderRadius,
-  typeface,
-  semanticColors,
-} from '../../constants/theme';
+import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from './checkout/checkoutUi';
+import { STRIPE_APPEARANCE, STRIPE_FONTS } from './checkout/stripeAppearance';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useCheckoutDraft';
@@ -47,32 +41,6 @@ import { pushBrowserPath, replaceBrowserPath } from '../../navigation/webBrowser
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 
 const SHIPPING_CONFIRMED_KEY = 'gj.checkout.shippingConfirmed';
-
-/** Stripe's card form runs in an iframe, so the Account input style is passed in here. */
-const STRIPE_APPEARANCE: Appearance = {
-  theme: 'stripe',
-  variables: {
-    fontFamily: `"${WEB_FONT_FAMILY}", system-ui, sans-serif`,
-    fontSizeBase: '14px',
-    borderRadius: `${borderRadius.xl}px`,
-    colorPrimary: semanticColors.goldMuted,
-    colorText: semanticColors.textPrimary,
-    colorTextSecondary: semanticColors.textSecondary,
-    colorTextPlaceholder: semanticColors.textTertiary,
-    colorDanger: semanticColors.error,
-  },
-  rules: {
-    '.Input': { border: `1px solid ${semanticColors.brand}`, boxShadow: 'none' },
-    '.Input:focus': { borderColor: semanticColors.goldMuted, boxShadow: 'none' },
-    '.Tab': { border: `1px solid ${semanticColors.brand}`, boxShadow: 'none' },
-    '.Tab--selected': { borderColor: semanticColors.goldMuted, boxShadow: 'none' },
-    '.Label': { fontSize: '12px', color: semanticColors.textSecondary },
-  },
-};
-
-const STRIPE_FONTS: CssFontSource[] = [
-  { cssSrc: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap' },
-];
 
 function savedCardReplaced(
   hh: { cardOnFileAt?: string; stripeDefaultPaymentMethodId?: string } | null | undefined,

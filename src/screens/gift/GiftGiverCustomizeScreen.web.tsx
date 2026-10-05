@@ -16,7 +16,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
-import { GiftPaymentPanel, GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
+import { GiftPaymentPanel } from './GiftPaymentPanel.web';
+import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 import { trackGiftStep } from '../../services/analytics/giftFunnel';
 
@@ -174,7 +175,7 @@ export function GiftGiverCustomizeScreen() {
     paymentSecret && stripePromise && giftInviteId ? (
       <Elements
         stripe={stripePromise}
-        options={{ clientSecret: paymentSecret, appearance: GIFT_STRIPE_APPEARANCE }}
+        options={{ clientSecret: paymentSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}
       >
         <GiftPaymentPanel
           giftInviteId={giftInviteId}
