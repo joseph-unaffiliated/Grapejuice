@@ -879,6 +879,11 @@ function BeliefsContent({
   return null;
 }
 
+/** Runs are trimmed; re-join with a space except inside quotes/brackets or before punctuation. */
+function runNeedsSpace(prev: string, next: string): boolean {
+  return !/[“‘(\[]$/.test(prev) && !/^[”’),.;:!?\]]/.test(next);
+}
+
 function ArticleProseParagraph({
   lines,
   left,
@@ -899,7 +904,7 @@ function ArticleProseParagraph({
     <Text style={bodyStyle}>
       {lines.map((line, index) => (
         <Text key={index} style={proseWeightStyle(line.weight)}>
-          {index > 0 ? ' ' : ''}
+          {index > 0 && runNeedsSpace(lines[index - 1].body, line.body) ? ' ' : ''}
           {index === lines.length - 1 ? preventWidow(line.body) : line.body}
         </Text>
       ))}
