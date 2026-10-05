@@ -3,7 +3,11 @@ import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { usersService } from '../services/firestore/users';
 import { householdsService } from '../services/firestore/households';
-import { authReturnSkipsBoxOnboarding, useAuthFlowStore } from '../stores/authFlowStore';
+import {
+  authReturnSkipsBoxOnboarding,
+  parseAuthReturnRoute,
+  useAuthFlowStore,
+} from '../stores/authFlowStore';
 import { peekPendingAuthReturn } from '../services/auth/auth';
 import type { Household, UserProfile } from '../types/pilot';
 
@@ -66,7 +70,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // Nav / checkout / gift handoffs — past onboarding gates without starting a box.
       // sessionStorage fallback covers a Google redirect, which clears the store.
       const pendingNow =
-        useAuthFlowStore.getState().pendingReturn ?? peekPendingAuthReturn();
+        useAuthFlowStore.getState().pendingReturn ??
+        parseAuthReturnRoute(peekPendingAuthReturn());
       const skipBoxOnboardingNow =
         giftResumeNow || authReturnSkipsBoxOnboarding(pendingNow);
       if (!prof) {

@@ -111,7 +111,7 @@ export function SwapIntoBoxModal({
           onPress={onCancel}
           accessibilityLabel="Dismiss swap options"
         />
-        <View style={styles.sheet} accessibilityRole="dialog" accessibilityLabel={title}>
+        <View style={styles.sheet} role="dialog" accessibilityLabel={title}>
           <Text style={styles.title}>{title}</Text>
           <ScrollView
             horizontal

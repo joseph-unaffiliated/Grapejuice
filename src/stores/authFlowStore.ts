@@ -6,21 +6,31 @@ import {
   persistGiftClaimToken,
 } from '../navigation/giftClaimLink';
 
-export type AuthReturnRoute =
+const AUTH_RETURN_ROUTES = [
   /** Sign in/up from nav — stay on the current screen, just authenticated. */
-  | 'Stay'
-  | 'Checkout'
-  | 'MarketplaceCheckout'
-  | 'Rav'
-  | 'Account'
-  | 'Orders'
-  | 'MyGifts'
-  | 'Profiles'
-  | 'MyBox'
-  | 'GiftClaim'
-  | 'GiftGive'
-  | 'GiftGiverCustomize'
-  | 'History';
+  'Stay',
+  'Checkout',
+  'MarketplaceCheckout',
+  'Rav',
+  'Account',
+  'Orders',
+  'MyGifts',
+  'Profiles',
+  'MyBox',
+  'GiftClaim',
+  'GiftGive',
+  'GiftGiverCustomize',
+  'History',
+] as const;
+
+export type AuthReturnRoute = (typeof AUTH_RETURN_ROUTES)[number];
+
+/** Narrow a stashed return target (sessionStorage across a Google redirect) to a known route. */
+export function parseAuthReturnRoute(raw: string | null | undefined): AuthReturnRoute | null {
+  return raw != null && (AUTH_RETURN_ROUTES as readonly string[]).includes(raw)
+    ? (raw as AuthReturnRoute)
+    : null;
+}
 
 /**
  * Auth handoffs that must NOT dump the user into Build-a-Box / onboarding.

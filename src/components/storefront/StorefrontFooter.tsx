@@ -214,7 +214,7 @@ export function StorefrontFooter() {
   return (
     <View
       style={[styles.root, compact && styles.rootCompact]}
-      accessibilityRole="contentinfo"
+      role="contentinfo"
     >      <View style={styles.shell} onLayout={onShellLayout}>
         <View style={[styles.inner, compact && styles.innerCompact]}>
           <TouchableOpacity

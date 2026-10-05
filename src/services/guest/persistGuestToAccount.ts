@@ -1,5 +1,9 @@
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
-import { useAuthFlowStore, authReturnSkipsBoxOnboarding } from '../../stores/authFlowStore';
+import {
+  useAuthFlowStore,
+  authReturnSkipsBoxOnboarding,
+  parseAuthReturnRoute,
+} from '../../stores/authFlowStore';
 import { childrenService } from '../firestore/children';
 import { usersService } from '../firestore/users';
 import { householdsService } from '../firestore/households';
@@ -105,7 +109,8 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   // A Google redirect reloads the page, so the store is empty here — fall back to
   // the value stashed in sessionStorage before the redirect.
   const pendingAtStart =
-    useAuthFlowStore.getState().pendingReturn ?? peekPendingAuthReturn();
+    useAuthFlowStore.getState().pendingReturn ??
+    parseAuthReturnRoute(peekPendingAuthReturn());
   const giftDraftAtStart = useAuthFlowStore.getState().pendingGiftCustomize;
   const giftGiveAtStart = useAuthFlowStore.getState().pendingGiftGive;
   const giftCustomizeResume = pendingAtStart === 'GiftGiverCustomize' && !!giftDraftAtStart;
@@ -127,7 +132,7 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
       params: {
         form: giftGiveAtStart.form,
         childDrafts: giftGiveAtStart.childDrafts,
-        initialGiftPath: giftGiveAtStart.form.giftPath,
+        initialGiftPath: giftGiveAtStart.form.giftPath ?? undefined,
         autoStartPayment: true,
       },
     });

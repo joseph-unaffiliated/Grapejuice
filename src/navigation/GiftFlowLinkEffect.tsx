@@ -5,6 +5,7 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 import { navigationRef } from './navigationRef';
+import type { MainStackParamList } from './types';
 import {
   readGiftCustomizePathFromWindow,
   readGiftGivePathFromWindow,
@@ -22,7 +23,7 @@ function ensureGuestCanMountMain(): void {
   }
 }
 
-function navigateGiftGive(params?: object): void {
+function navigateGiftGive(params?: MainStackParamList['GiftGive']): void {
   if (!navigationRef.isReady()) return;
   navigationRef.navigate('Main', {
     screen: 'GiftGive',
@@ -30,7 +31,7 @@ function navigateGiftGive(params?: object): void {
   });
 }
 
-function navigateGiftCustomize(params: object): void {
+function navigateGiftCustomize(params: MainStackParamList['GiftGiverCustomize']): void {
   if (!navigationRef.isReady()) return;
   navigationRef.navigate('Main', {
     screen: 'GiftGiverCustomize',

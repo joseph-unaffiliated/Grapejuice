@@ -173,7 +173,7 @@ function createNavStyles(
       borderBottomWidth: 0,
       zIndex: 10,
       ...(Platform.OS === 'web' && !services
-        ? { position: 'sticky' as const, top: 0 }
+        ? ({ position: 'sticky' as const, top: 0 } as object)
         : {}),
     },
     scrollContent: {

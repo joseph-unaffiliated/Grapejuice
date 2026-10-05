@@ -97,14 +97,14 @@ function ReflectionFlowBody() {
       {step === 2 ? (
         <>
           <Text style={styles.prompt}>What hit? What missed?</Text>
-          <TextInput style={styles.input} value={wins} onChangeText={setWins} placeholder="What worked" multiline fontSize={16} />
-          <TextInput style={styles.input} value={hardMoments} onChangeText={setHardMoments} placeholder="What was hard" multiline fontSize={16} />
+          <TextInput style={styles.input} value={wins} onChangeText={setWins} placeholder="What worked" multiline />
+          <TextInput style={styles.input} value={hardMoments} onChangeText={setHardMoments} placeholder="What was hard" multiline />
         </>
       ) : null}
       {step === 3 ? (
         <>
           <Text style={styles.prompt}>One word for how it felt.</Text>
-          <TextInput style={styles.input} value={oneWord} onChangeText={setOneWord} placeholder="Cozy, chaotic, enough…" fontSize={16} />
+          <TextInput style={styles.input} value={oneWord} onChangeText={setOneWord} placeholder="Cozy, chaotic, enough…" />
         </>
       ) : null}
       {step === 4 ? (
@@ -158,6 +158,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     minHeight: 80,
     textAlignVertical: 'top',
+    fontSize: 16,
   },
   choice: { padding: spacing.md, borderWidth: 1, borderColor: semanticColors.border, borderRadius: borderRadius.md, marginBottom: spacing.sm },
   choiceOn: { borderColor: semanticColors.brand, backgroundColor: semanticColors.brandLight },

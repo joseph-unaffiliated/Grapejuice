@@ -24,9 +24,9 @@ const HEADER_DESKTOP_BOTTOM_PAD = 48;
 const HEADER_BOTTOM_PAD = 16;
 const CHIP_ROW_HEIGHT = 36;
 
-type Chip = { id: string; label: string };
+type Chip<Id extends string = string> = { id: Id; label: string };
 
-type Props = {
+type Props<Id extends string> = {
   collapseProgress: Animated.Value | Animated.AnimatedInterpolation<number>;
   isDesktop: boolean;
   contentWidth: number;
@@ -34,14 +34,14 @@ type Props = {
   searchQuery: string;
   onChangeSearch: (text: string) => void;
   onSubmitSearch: () => void;
-  chips: readonly Chip[];
-  onChipPress: (id: Chip['id']) => void;
+  chips: readonly Chip<Id>[];
+  onChipPress: (id: Id) => void;
   headerShadow?: object;
   /** Typewriter placeholder only when header is fully expanded at top of page. */
   animatePlaceholder?: boolean;
 };
 
-export function HomeStickySearchHeader({
+export function HomeStickySearchHeader<Id extends string>({
   collapseProgress,
   isDesktop,
   contentWidth,
@@ -53,7 +53,7 @@ export function HomeStickySearchHeader({
   onChipPress,
   headerShadow,
   animatePlaceholder = false,
-}: Props) {
+}: Props<Id>) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
 

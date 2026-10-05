@@ -23,7 +23,7 @@ export function CheckoutLinkEffect() {
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
       clearInterval(id);
-      pending.current = null;
+      pending.current = false;
       if (!isAuthenticated) {
         startAuthFromGuest('Checkout', 'signin', 'SignInEmail');
         return;

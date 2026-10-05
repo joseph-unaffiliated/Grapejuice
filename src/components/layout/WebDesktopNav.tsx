@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated, Easing } from 'react-native';
-import { useNavigationState } from '@react-navigation/native';
+import {
+  useNavigationState,
+  type NavigationState,
+  type PartialState,
+} from '@react-navigation/native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
@@ -71,14 +75,16 @@ function childNav(ravEnabled: boolean): NavItem[] {
   return items;
 }
 
-function resolveActiveTab(state: ReturnType<typeof useNavigationState> | undefined): TabName | null {
+type NavStateNode = NavigationState | PartialState<NavigationState>;
+
+function resolveActiveTab(state: NavStateNode | undefined): TabName | null {
   if (!state) return 'Home';
 
-  let current = state;
+  let current: NavStateNode = state;
   let deepestName: string | null = null;
 
   while (current) {
-    const route = current.routes[current.index ?? 0];
+    const route: NavStateNode['routes'][number] = current.routes[current.index ?? 0];
     deepestName = route.name;
     if (
       route.name === 'Home' ||
@@ -89,7 +95,7 @@ function resolveActiveTab(state: ReturnType<typeof useNavigationState> | undefin
       return route.name as TabName;
     }
     if (route.state) {
-      current = route.state as typeof state;
+      current = route.state;
       continue;
     }
     break;

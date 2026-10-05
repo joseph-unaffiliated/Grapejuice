@@ -89,7 +89,6 @@ export function StorefrontAskRavStrip({
       style={[styles.askGo, !hasText && styles.askGoHidden]}
       onPress={submit}
       disabled={!hasText}
-      pointerEvents={hasText ? 'auto' : 'none'}
       accessibilityRole="button"
       accessibilityLabel="Ask Rav"
       hitSlop={8}
@@ -244,5 +243,6 @@ const styles = StyleSheet.create({
   },
   askGoHidden: {
     opacity: 0,
+    pointerEvents: 'none',
   },
 });

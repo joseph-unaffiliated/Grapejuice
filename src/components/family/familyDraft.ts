@@ -100,7 +100,7 @@ export function ensureAdultLead(members: ChildDraft[], defaultName?: string): Ch
   return [makeAdultDraft(adultName), ...normalized];
 }
 
-export function defaultFamilyMembers(defaultName?: string): ChildDraft[] {
+export function defaultFamilyMembers(defaultName?: string | null): ChildDraft[] {
   const adultName = firstNameFromDisplayName(defaultName) || 'Joseph';
   return [makeAdultDraft(adultName), makeKidDraft('Sam', 5)];
 }

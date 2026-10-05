@@ -1,11 +1,11 @@
 import React, { type ReactNode } from 'react';
-import { View, StyleSheet, Platform, type ViewStyle } from 'react-native';
+import { View, StyleSheet, Platform, type StyleProp, type ViewStyle } from 'react-native';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { spacing, MOBILE_GUTTER, LAYOUT } from '../../constants/theme';
 
 type Props = {
   children: ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   /** Use the wider panel (My Box, checkout). */
   wide?: boolean;
   /** Skip horizontal padding (e.g. full-bleed carousels inside). */

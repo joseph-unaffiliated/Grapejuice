@@ -376,7 +376,7 @@ export function isHouseholdPracticeCatalogItem(item: {
   id: string;
   name?: string;
   slotId?: string;
-  defaultSlot?: string;
+  defaultSlot?: string | null;
 }): boolean {
   const slot = `${item.defaultSlot ?? ''} ${item.slotId ?? ''} ${item.id} ${item.name ?? ''}`.toLowerCase();
   return (

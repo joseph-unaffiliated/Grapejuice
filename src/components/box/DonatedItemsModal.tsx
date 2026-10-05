@@ -80,7 +80,7 @@ export function DonatedItemsModal({
           onPress={commitAndClose}
           accessibilityLabel="Close donated items"
         />
-        <View style={styles.sheet} accessibilityRole="dialog" accessibilityLabel="Your donated items">
+        <View style={styles.sheet} role="dialog" accessibilityLabel="Your donated items">
           <Text style={styles.title}>Your donated items</Text>
           <Text style={styles.blurb}>{DONATION_TOOLTIP}</Text>
 

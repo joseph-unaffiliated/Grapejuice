@@ -30,7 +30,7 @@ export function HomeLinkEffect() {
     if (authLoading) return;
 
     if (guestBoxRevealComplete) {
-      pending.current = null;
+      pending.current = false;
       return;
     }
 
@@ -46,7 +46,7 @@ export function HomeLinkEffect() {
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
       clearInterval(id);
-      pending.current = null;
+      pending.current = false;
       navigateToStorefront();
     }, 50);
     return () => clearInterval(id);

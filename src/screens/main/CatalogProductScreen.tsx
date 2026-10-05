@@ -917,10 +917,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   galleryColSticky: {
-    position: 'sticky' as const,
-    top: spacing.md,
     alignSelf: 'flex-start',
     zIndex: 2,
+    ...({ position: 'sticky', top: spacing.md } as object),
   },
   buy: {
     width: '100%',

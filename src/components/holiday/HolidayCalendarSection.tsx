@@ -112,7 +112,6 @@ export function HolidayCalendarSection({
                       placeholder="you@example.com"
                       keyboardType="email-address"
                       autoCapitalize="none"
-                      fontSize={16}
                     />
                   </>
                 ) : null}

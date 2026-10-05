@@ -17,6 +17,7 @@ import {
 } from '../services/auth/auth';
 import { persistGuestToAccount } from '../services/guest/persistGuestToAccount';
 import { useGuestSessionStore } from './guestSessionStore';
+import type { AuthReturnRoute } from './authFlowStore';
 
 let guestMergeInFlight: Promise<boolean> | null = null;
 let guestMergeUid: string | null = null;
@@ -117,15 +118,8 @@ function getErrorMessage(error: unknown): string {
   return 'An unexpected error occurred';
 }
 
-export type GoogleSignInReturnTo =
-  | 'Stay'
-  | 'Checkout'
-  | 'Rav'
-  | 'Account'
-  | 'Profiles'
-  | 'MyBox'
-  | 'GiftClaim'
-  | 'History';
+/** Any auth return — RootNavigator restores the same set after the redirect. */
+export type GoogleSignInReturnTo = AuthReturnRoute;
 
 interface AuthState {
   user: AuthUser | null;

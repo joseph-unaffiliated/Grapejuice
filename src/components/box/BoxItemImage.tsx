@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Image, StyleSheet, Platform, type ViewStyle } from 'react-native';
+import { View, Image, StyleSheet, Platform, type ImageStyle } from 'react-native';
 import { semanticColors, borderRadius } from '../../constants/theme';
 import { resolveCatalogImage } from '../../constants/catalogImages';
 
@@ -7,7 +7,7 @@ type Props = {
   size?: number;
   imageUrl?: string | null;
   itemId?: string | null;
-  style?: ViewStyle;
+  style?: ImageStyle;
 };
 
 export function BoxItemImage({ size = 72, imageUrl, itemId, style }: Props) {

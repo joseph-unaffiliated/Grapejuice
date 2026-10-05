@@ -372,7 +372,7 @@ export function StorefrontHomeScreen() {
         }
       >
         {showJourneyBanner && journey ? (
-          <View style={styles.journeyBanner} accessibilityRole="region">
+          <View style={styles.journeyBanner} role="region">
             <StorefrontHeroJourneyTimeline journey={journey} variant="banner" />
           </View>
         ) : reserveJourneyBanner ? (

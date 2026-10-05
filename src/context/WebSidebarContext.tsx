@@ -21,7 +21,7 @@ const WebSidebarContext = createContext<WebSidebarContextValue | null>(null);
 
 export function WebSidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(true);
-  const [layoutSidebarWidth, setLayoutSidebarWidth] = useState(LAYOUT.WEB_SIDEBAR_COLLAPSED_WIDTH);
+  const [layoutSidebarWidth, setLayoutSidebarWidth] = useState<number>(LAYOUT.WEB_SIDEBAR_COLLAPSED_WIDTH);
   const [ravSubnav, setRavSubnav] = useState<RavSubnav>(null);
   const toggleCollapsed = useCallback(() => setCollapsed((v) => !v), []);
 

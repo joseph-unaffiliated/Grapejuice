@@ -258,7 +258,7 @@ export function StorefrontHeroJourneyTimeline({
   const pinIndex = progress * (milestones.length - 1);
   const dateHiddenByPin = (index: number) => Math.abs(pinIndex - index) < 0.3;
   /** Inset so the rail runs marker-center → marker-center (equal-width columns). */
-  const trackInset = `${50 / milestones.length}%`;
+  const trackInset = `${50 / milestones.length}%` as const;
   /**
    * Dense dot-dash between first and last markers. Count is high enough that
    * space-between keeps ~8–12px gaps on banner (max ~720) and overlay widths.

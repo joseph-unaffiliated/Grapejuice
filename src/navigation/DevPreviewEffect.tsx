@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { navigationRef } from './navigationRef';
 import { applyDevPreview, readDevPreviewFromWindow } from './devPreview';
+import { navigateMainStack, navigateMainTab } from './mainStackNavigation';
 
 export function DevPreviewEffect() {
   const enabled = useDevPreviewStore((s) => s.enabled);
@@ -39,20 +40,11 @@ export function DevPreviewEffect() {
       clearInterval(id);
 
       if (nav.tab) {
-        navigationRef.navigate('Main', {
-          screen: 'MainTabs',
-          params: {
-            screen: nav.tab,
-            params: nav.tabParams,
-          },
-        });
+        navigateMainTab(nav.tab, nav.tabParams);
         return;
       }
 
-      navigationRef.navigate('Main', {
-        screen: nav.screen,
-        params: nav.params,
-      });
+      navigateMainStack(nav.screen, nav.params);
     }, 50);
 
     return () => clearInterval(id);

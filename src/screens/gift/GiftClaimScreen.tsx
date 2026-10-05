@@ -140,7 +140,7 @@ function GiftClaimBody() {
           return;
         }
         setGiverName(peek.giverName ?? null);
-        setGiftKind(peek.giftKind ?? (peek.hasGiverDraft ? 'box' : 'credit'));
+        setGiftKind(peek.giftKind);
         setCreditCents(peek.creditCents ?? 0);
         setSurface('claimable');
       } catch (e) {

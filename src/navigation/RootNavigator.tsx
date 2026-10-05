@@ -14,8 +14,11 @@ import { MainStack } from './MainStack';
 import { ThemeProvider } from '../context/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
-import { useAuthFlowStore, authReturnSkipsBoxOnboarding } from '../stores/authFlowStore';
-import type { AuthReturnRoute } from '../stores/authFlowStore';
+import {
+  useAuthFlowStore,
+  authReturnSkipsBoxOnboarding,
+  parseAuthReturnRoute,
+} from '../stores/authFlowStore';
 import { SessionProvider, useSession } from '../context/SessionContext';
 import { ActiveProfileProvider, useActiveProfile } from '../context/ActiveProfileContext';
 import { PILOT_PARENT_ONLY } from '../constants/pilotFeatures';
@@ -293,7 +296,6 @@ function RootRoutes() {
       guestLineItems.length > 0 || guestBoxRevealComplete || guestOnboardingComplete;
     const resumeMainAfterAuth =
       giftResume ||
-      pendingAuth === 'GiftClaim' ||
       // Checkout / account / nav — stay on the page they were on, never open the box builder.
       authReturnSkipsBoxOnboarding(pendingAuth) ||
       (guestHasBox && pendingAuth != null);
@@ -393,23 +395,9 @@ export function RootNavigator() {
     const raw = consumePendingAuthReturn();
     if (!raw) return;
     if (!isAuthenticated) return;
-    const allowed: AuthReturnRoute[] = [
-      'Stay',
-      'Checkout',
-      'MarketplaceCheckout',
-      'Rav',
-      'Account',
-      'Orders',
-      'MyGifts',
-      'Profiles',
-      'MyBox',
-      'GiftClaim',
-      'GiftGive',
-      'GiftGiverCustomize',
-      'History',
-    ];
-    if (!allowed.includes(raw as AuthReturnRoute)) return;
-    useAuthFlowStore.setState({ pendingReturn: raw as AuthReturnRoute });
+    const route = parseAuthReturnRoute(raw);
+    if (!route) return;
+    useAuthFlowStore.setState({ pendingReturn: route });
   }, [authLoading, isAuthenticated]);
 
   return (

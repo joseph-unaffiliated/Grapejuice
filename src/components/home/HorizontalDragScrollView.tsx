@@ -20,7 +20,10 @@ function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
  * - web touch axis lock (vertical pans pass to the page until the swipe is clearly horizontal)
  * - native directionalLockEnabled so iOS prefers the dominant axis
  */
-export const HorizontalDragScrollView = forwardRef<ScrollView, ScrollViewProps>(
+/** `className` is web-only (react-native-web forwards it to the DOM node). */
+type Props = ScrollViewProps & { className?: string };
+
+export const HorizontalDragScrollView = forwardRef<ScrollView, Props>(
   function HorizontalDragScrollView(
     { className, directionalLockEnabled, nestedScrollEnabled, ...props },
     forwardedRef

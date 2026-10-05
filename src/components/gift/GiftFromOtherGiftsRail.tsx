@@ -40,7 +40,6 @@ export function GiftFromOtherGiftsRail({ tiles, onAdd }: Props) {
         showsHorizontalScrollIndicator={false}
         style={styles.scroller}
         contentContainerStyle={styles.scrollerContent}
-        // @ts-expect-error web className
         className={Platform.OS === 'web' ? HORIZONTAL_RAIL_SCROLL_CLASS : undefined}
       >
         {tiles.map((tile) => {

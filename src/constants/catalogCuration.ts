@@ -53,7 +53,7 @@ export function similarCatalogItems(
   catalog: CatalogItem[],
   limit = 12
 ): CatalogItem[] {
-  const tags = new Set(getCurationTags(item).filter((t) => t !== 'collection'));
+  const tags = new Set<CatalogCurationTag>(getCurationTags(item).filter((t) => t !== 'collection'));
   const scored = catalog
     .filter((c) => c.id !== item.id)
     .map((c) => {

@@ -92,7 +92,6 @@ function ProductRail({
           onLayout={edges.onLayout}
           onContentSizeChange={edges.onContentSizeChange}
           scrollEventThrottle={16}
-          // @ts-expect-error web className
           className={Platform.OS === 'web' ? HORIZONTAL_RAIL_SCROLL_CLASS : undefined}
         >
           {items.map((item) => {

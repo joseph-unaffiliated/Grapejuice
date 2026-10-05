@@ -5,13 +5,22 @@ import type { GiftPath } from '../screens/gift/giftGiveTypes';
 type TabName = keyof MainTabsParamList;
 type StackName = keyof MainStackParamList;
 
-export function navigateMainTab(tab: TabName, params?: MainTabsParamList[TabName]) {
+/**
+ * React Navigation can only type nested `navigate` for a literal screen name, not
+ * a runtime-chosen one (a union of screen/params pairs). The helpers below check
+ * the screen/params pairing in their own signatures instead.
+ */
+function navigateMain(params: object) {
+  (navigationRef.navigate as (name: 'Main', params: object) => void)('Main', params);
+}
+
+export function navigateMainTab<T extends TabName>(tab: T, params?: MainTabsParamList[T]) {
   if (!navigationRef.isReady()) return;
   if (params !== undefined) {
-    navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: tab, params } });
+    navigateMain({ screen: 'MainTabs', params: { screen: tab, params } });
     return;
   }
-  navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: tab } });
+  navigateMain({ screen: 'MainTabs', params: { screen: tab } });
 }
 
 export function navigateMainStack<S extends StackName>(
@@ -20,14 +29,10 @@ export function navigateMainStack<S extends StackName>(
 ) {
   if (!navigationRef.isReady()) return;
   if (params !== undefined) {
-    // React Navigation nested navigate typing is overly strict for optional params.
-    (navigationRef.navigate as (name: 'Main', params: object) => void)('Main', {
-      screen,
-      params,
-    });
+    navigateMain({ screen, params });
     return;
   }
-  navigationRef.navigate('Main', { screen });
+  navigateMain({ screen });
 }
 
 /** Open a marketing landing (gift keeps its dedicated screen + optional ?path). */

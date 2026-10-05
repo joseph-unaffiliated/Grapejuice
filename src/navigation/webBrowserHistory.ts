@@ -42,8 +42,9 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
   const parts: string[] = [];
   let current: NavigationState | PartialState<NavigationState> | undefined = state;
   while (current) {
-    const index = current.index ?? 0;
-    const route = current.routes[index];
+    const index: number = current.index ?? 0;
+    const route: (NavigationState | PartialState<NavigationState>)['routes'][number] =
+      current.routes[index];
     parts.push(`${route.name}:${index}`);
     if (route.name === 'CatalogProduct') {
       const params = route.params as { slug?: string; itemId?: string } | undefined;

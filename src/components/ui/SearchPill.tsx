@@ -328,7 +328,9 @@ export function SearchPill({
     expanded ? { paddingVertical: verticalPad } : null,
     gutter !== MOBILE_GUTTER ? { paddingHorizontal: gutter } : null,
     { backgroundColor: colors.bgPrimary },
-    Platform.OS === 'web' ? { boxShadow: shadowsWeb.goldGlowSm, cursor: 'text' } : shadows.goldGlow,
+    Platform.OS === 'web'
+      ? ({ boxShadow: shadowsWeb.goldGlowSm, cursor: 'text' } as object)
+      : shadows.goldGlow,
   ];
 
   return (

@@ -24,7 +24,7 @@ export function AccountLinkEffect() {
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
       clearInterval(id);
-      pending.current = null;
+      pending.current = false;
       if (!isAuthenticated) {
         navigationRef.navigate('Main', { screen: 'StorefrontHome' });
         return;
