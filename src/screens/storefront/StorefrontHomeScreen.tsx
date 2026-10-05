@@ -21,7 +21,10 @@ import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontB
 import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
 import { StorefrontOurStoryStrip } from '../../components/storefront/StorefrontOurStoryStrip';
-import { StorefrontPassoverStrip } from '../../components/storefront/StorefrontPassoverStrip';
+import {
+  StorefrontBoxCtaStrip,
+  type StorefrontBoxCtaVariant,
+} from '../../components/storefront/StorefrontBoxCtaStrip';
 import { StorefrontCategoryRail } from '../../components/storefront/StorefrontCategoryRail';
 import {
   DREIDELS_LIFESTYLE_HOTSPOTS,
@@ -52,7 +55,6 @@ import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
 import {
   PASSOVER_NOTIFY_INTEREST,
   PRE_REGISTERED_CTA_LABEL,
-  PRE_REGISTERED_NOTE,
 } from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
@@ -254,8 +256,21 @@ export function StorefrontHomeScreen() {
   };
 
   const strip = storefrontBuildBoxStripCopy(mode, passoverInterest.marked);
-  /** Locked / after Hanukkah, the build-box strip already pitches Passover pre-registration. */
-  const showPassoverStrip = mode !== 'locked' && mode !== 'passover';
+
+  /** Bottom paper card: build before a box exists, confirm once started without payment. */
+  const boxCta: { variant: StorefrontBoxCtaVariant; onPress: () => void } | null = (() => {
+    switch (mode) {
+      case 'acquisition':
+        return { variant: 'build', onPress: startBox };
+      case 'gift_sent':
+        return { variant: 'build', onPress: startOwnBox };
+      case 'guest_box':
+      case 'needs_payment':
+        return { variant: 'confirm', onPress: goCheckout };
+      default:
+        return null;
+    }
+  })();
 
   usePublishRavSurface({ type: 'home', id: 'store', label: 'Store home' });
 
@@ -550,14 +565,8 @@ export function StorefrontHomeScreen() {
             </>
           ) : null}
 
-          {showPassoverStrip ? (
-            <StorefrontPassoverStrip
-              onPreRegister={passoverInterest.toggle}
-              primaryLabel={
-                passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined
-              }
-              note={passoverInterest.marked ? PRE_REGISTERED_NOTE : undefined}
-            />
+          {boxCta ? (
+            <StorefrontBoxCtaStrip variant={boxCta.variant} onPress={boxCta.onPress} />
           ) : null}
         </LazyMount>
     </StorefrontChrome>
