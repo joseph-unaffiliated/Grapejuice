@@ -16,6 +16,7 @@ const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const shipstation_1 = require("./shipstation");
 const email_1 = require("./email");
+const untraditionalCio_1 = require("./untraditionalCio");
 const boxRules_1 = require("./rav/boxRules");
 exports.HOLIDAY_ID = 'hanukkah-2026';
 exports.DEFAULT_BOX_PRICE_CENTS = 8000;
@@ -192,6 +193,11 @@ async function fulfillHanukkahBoxOrder(db, householdId, orderId, orderInput) {
             catch (emailErr) {
                 logger.error('Hanukkah box order confirmation email failed', { orderId, emailErr });
             }
+            // Exit signal for the guest-box recovery campaigns (Untraditional workspace).
+            await (0, untraditionalCio_1.untraditionalMarkSafe)(email, {
+                grapejuice_order_placed: true,
+                grapejuice_order_placed_at: new Date().toISOString(),
+            });
         }
     }
     if (order.playthrough === true) {
