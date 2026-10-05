@@ -2390,9 +2390,11 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   checkoutCtaHover: {
     backgroundColor: colors.brand,
   },
+  /** Desktop: note sits left of the button (row-reverse keeps JSX order button → note). */
   checkoutCtaStack: {
-    alignItems: isDesktop ? 'flex-end' : 'center',
-    gap: spacing.xs,
+    flexDirection: isDesktop ? 'row-reverse' : 'column',
+    alignItems: 'center',
+    gap: isDesktop ? spacing.sm : spacing.xs,
     flexShrink: 1,
     minWidth: 0,
   },
@@ -2402,6 +2404,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     ...typeface('light'),
     letterSpacing: -0.1,
     textAlign: isDesktop ? 'right' : 'center',
+    flexShrink: 1,
   },
   checkoutCtaDisabled: { opacity: 0.5 },
   checkoutText: {

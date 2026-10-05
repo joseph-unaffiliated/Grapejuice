@@ -145,11 +145,13 @@ function SetupCardStep({
   colors,
   styles,
   replacing,
+  note,
 }: {
   onSaved: () => void;
   colors: SemanticColors;
   styles: ReturnType<typeof createCheckoutStyles>;
   replacing?: boolean;
+  note?: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -190,6 +192,7 @@ function SetupCardStep({
         onPress={() => void handleSave()}
         loading={saving}
         disabled={saving}
+        note={note}
         colors={colors}
         styles={styles}
       />
@@ -506,6 +509,7 @@ function CheckoutScreenBody() {
         colors={colors}
         styles={styles}
         replacing={cardOnFile}
+        note={locked ? undefined : editUntilLockNote(lockAt)}
         onSaved={() => void onCardSaved()}
       />
     </Elements>
@@ -627,12 +631,12 @@ function CheckoutScreenBody() {
       <Text style={page.title}>
         {onPaymentStep ? 'Payment' : commitOnly ? 'Commit' : 'Shipping'}
       </Text>
-      <Text style={page.lead}>You won&apos;t be charged until your box ships.</Text>
-      {!cardOnFile && !commitOnly ? (
-        <Text style={page.sectionLead}>
-          Your box will not ship until you add payment information and a shipping address.
-        </Text>
-      ) : null}
+      <Text style={page.lead}>
+        You won&apos;t be charged until your box ships.
+        {!cardOnFile && !commitOnly
+          ? ' Your box will not ship until you add payment information and a shipping address.'
+          : null}
+      </Text>
       {locked ? (
         <Text style={page.errorText}>Box customization is locked. Checkout is unavailable.</Text>
       ) : null}
