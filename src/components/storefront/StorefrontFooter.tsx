@@ -176,9 +176,7 @@ export function StorefrontFooter() {
           },
           {
             label: 'Terms',
-            onPress: () => {
-              void Linking.openURL('https://unaffiliated.co/terms/network');
-            },
+            onPress: () => navigation.navigate('StorefrontTerms'),
           },
           {
             label: 'Privacy',

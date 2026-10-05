@@ -64,6 +64,8 @@ function inferFocusedFromRoute(
       };
     case 'StorefrontPrivacy':
       return { type: 'content', id: 'privacy', label: 'Privacy Policy' };
+    case 'StorefrontTerms':
+      return { type: 'content', id: 'terms', label: 'Terms of Use and Sale' };
     case 'GiftLanding':
       return { type: 'content', id: 'landing-gift', label: 'Gift landing' };
     case 'CulturalLanding':

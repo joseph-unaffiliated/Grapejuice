@@ -17,6 +17,7 @@ import { StorefrontPassoverScreen } from '../screens/storefront/StorefrontPassov
 import { StorefrontHowToPlayDreidelScreen } from '../screens/storefront/StorefrontHowToPlayDreidelScreen';
 import { StorefrontHowToLightCandlesScreen } from '../screens/storefront/StorefrontHowToLightCandlesScreen';
 import { StorefrontPrivacyScreen } from '../screens/storefront/StorefrontPrivacyScreen';
+import { StorefrontTermsScreen } from '../screens/storefront/StorefrontTermsScreen';
 import { StorefrontCartScreen } from '../screens/storefront/StorefrontCartScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
@@ -491,6 +492,11 @@ export function MainStack() {
           name="StorefrontPrivacy"
           component={StorefrontPrivacyScreen}
           options={{ title: 'Privacy Policy' }}
+        />
+        <Stack.Screen
+          name="StorefrontTerms"
+          component={StorefrontTermsScreen}
+          options={{ title: 'Terms of Use and Sale' }}
         />
         <Stack.Screen
           name="CatalogProduct"

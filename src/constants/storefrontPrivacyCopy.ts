@@ -4,9 +4,11 @@
  * Keep in sync with docs/GUEST_BOX_RECOVERY.md when data flows change.
  */
 
+import type { LegalPageCopy } from '../components/storefront/StorefrontLegalPage';
+
 export const PRIVACY_EMAIL = 'privacy@unaffiliated.co';
 
-export const PRIVACY_COPY = {
+export const PRIVACY_COPY: LegalPageCopy = {
   eyebrow: 'Legal',
   title: 'Privacy Policy',
   lead: [
@@ -98,4 +100,4 @@ export const PRIVACY_COPY = {
       ],
     },
   ],
-} as const;
+};

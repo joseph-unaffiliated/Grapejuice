@@ -8,13 +8,15 @@ export const PASSOVER_PATH = '/passover';
 export const HOW_TO_PLAY_DREIDEL_PATH = '/how-to/play-dreidel';
 export const HOW_TO_LIGHT_CANDLES_PATH = '/how-to/light-candles';
 export const PRIVACY_PATH = '/privacy';
+export const TERMS_PATH = '/terms';
 
 export type StorefrontContentRoute =
   | 'StorefrontOurStory'
   | 'StorefrontPassover'
   | 'StorefrontHowToPlayDreidel'
   | 'StorefrontHowToLightCandles'
-  | 'StorefrontPrivacy';
+  | 'StorefrontPrivacy'
+  | 'StorefrontTerms';
 
 const PATH_BY_ROUTE: Record<StorefrontContentRoute, string> = {
   StorefrontOurStory: STORY_PATH,
@@ -22,6 +24,7 @@ const PATH_BY_ROUTE: Record<StorefrontContentRoute, string> = {
   StorefrontHowToPlayDreidel: HOW_TO_PLAY_DREIDEL_PATH,
   StorefrontHowToLightCandles: HOW_TO_LIGHT_CANDLES_PATH,
   StorefrontPrivacy: PRIVACY_PATH,
+  StorefrontTerms: TERMS_PATH,
 };
 
 const ROUTE_BY_PATH: Record<string, StorefrontContentRoute> = {
@@ -31,6 +34,7 @@ const ROUTE_BY_PATH: Record<string, StorefrontContentRoute> = {
   [HOW_TO_LIGHT_CANDLES_PATH]: 'StorefrontHowToLightCandles',
   [PRIVACY_PATH]: 'StorefrontPrivacy',
   '/privacy-policy': 'StorefrontPrivacy',
+  [TERMS_PATH]: 'StorefrontTerms',
 };
 
 const UNPUBLISHED_HOW_TO_ROUTES = new Set<StorefrontContentRoute>([
