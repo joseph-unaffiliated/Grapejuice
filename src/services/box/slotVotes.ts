@@ -1,4 +1,4 @@
-import type { ActiveProfile, SlotVoteEntry, SlotVotes } from '../types/pilot';
+import type { ActiveProfile, SlotVoteEntry, SlotVotes } from '../../types/pilot';
 
 export function emptySlotVotes(): SlotVotes {
   return {};

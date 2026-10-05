@@ -26,7 +26,8 @@ import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 const HUB_COLUMN = 560;
 
 type PageProps = {
-  children: ReactNode;
+  /** Omitted for `loading` pages, which render only the spinner. */
+  children?: ReactNode;
   /** Gold back link, same as History. Omit on tab roots like Account. */
   onBack?: () => void;
   /**
