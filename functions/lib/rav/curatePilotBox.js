@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.curatePilotBox = void 0;
 exports.explicitlyAskedFor = explicitlyAskedFor;
-const logger = require("firebase-functions/logger");
-const https_1 = require("firebase-functions/v2/https");
+const logger = require("../logger");
+const sentry_1 = require("../sentry");
 const params_1 = require("firebase-functions/params");
 const sdk_1 = require("@anthropic-ai/sdk");
 const presence_1 = require("./presence");
@@ -242,12 +242,12 @@ function buildUserMessage(data) {
         'Write a warm, personal reason per deviation (no scores, no rule jargon). Optionally up to two included-price swaps with reasons.',
     ].join('\n');
 }
-exports.curatePilotBox = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInstances: 10 }, async (request) => {
+exports.curatePilotBox = (0, sentry_1.onCall)({ secrets: [anthropicApiKey], maxInstances: 10 }, async (request) => {
     var _a, _b;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const apiKey = (_b = anthropicApiKey.value()) === null || _b === void 0 ? void 0 : _b.trim();
     if (!apiKey) {
-        throw new https_1.HttpsError('failed-precondition', 'AI is not configured. Set ANTHROPIC_API_KEY on Functions.');
+        throw new sentry_1.HttpsError('failed-precondition', 'AI is not configured. Set ANTHROPIC_API_KEY on Functions.');
     }
     const catalogRows = await (0, context_1.loadCatalogRows)();
     const boxRulesContext = await (0, context_1.buildBoxRulesContext)(catalogRows);
@@ -269,7 +269,7 @@ exports.curatePilotBox = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxIn
         const errMessage = err instanceof Error ? err.message : String(err);
         logger.error('curatePilotBox Anthropic error', errMessage);
         if (errMessage.includes('authentication_error') || errMessage.includes('invalid x-api-key')) {
-            throw new https_1.HttpsError('failed-precondition', 'AI authentication failed. Check ANTHROPIC_API_KEY.');
+            throw new sentry_1.HttpsError('failed-precondition', 'AI authentication failed. Check ANTHROPIC_API_KEY.');
         }
         // Fail soft for the caller — return empty so onboarding keeps the deterministic box.
         return { notes: [], actions: [] };

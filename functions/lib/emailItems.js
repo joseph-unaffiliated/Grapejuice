@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.boxEmailItems = boxEmailItems;
 exports.lineItemsEmailItems = lineItemsEmailItems;
 exports.pickEmailItems = pickEmailItems;
-const logger = require("firebase-functions/logger");
+const logger = require("./logger");
 const storage_1 = require("firebase-admin/storage");
 const crypto_1 = require("crypto");
 const sharp = require("sharp");

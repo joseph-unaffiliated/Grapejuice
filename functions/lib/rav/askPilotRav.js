@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.askPilotRav = void 0;
-const logger = require("firebase-functions/logger");
-const https_1 = require("firebase-functions/v2/https");
+const logger = require("../logger");
+const sentry_1 = require("../sentry");
 const params_1 = require("firebase-functions/params");
 const sdk_1 = require("@anthropic-ai/sdk");
 const presence_1 = require("./presence");
@@ -112,21 +112,21 @@ function parseRavResponse(raw) {
     }
     return null;
 }
-exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInstances: 10 }, async (request) => {
+exports.askPilotRav = (0, sentry_1.onCall)({ secrets: [anthropicApiKey], maxInstances: 10 }, async (request) => {
     var _a, _b, _c, _d, _e, _f, _g;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const message = typeof data.message === 'string' ? data.message.trim() : '';
     if (!message)
-        throw new https_1.HttpsError('invalid-argument', 'message is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'message is required.');
     const apiKey = (_b = anthropicApiKey.value()) === null || _b === void 0 ? void 0 : _b.trim();
     if (!apiKey) {
-        throw new https_1.HttpsError('failed-precondition', 'AI is not configured. Set ANTHROPIC_API_KEY on Functions (firebase functions:secrets:set ANTHROPIC_API_KEY).');
+        throw new sentry_1.HttpsError('failed-precondition', 'AI is not configured. Set ANTHROPIC_API_KEY on Functions (firebase functions:secrets:set ANTHROPIC_API_KEY).');
     }
     const modeName = data.mode === 'facilitator_kid' ? 'facilitator_kid' : data.mode;
     let kidChildName;
     if (modeName === 'facilitator_kid') {
         if (!((_c = request.auth) === null || _c === void 0 ? void 0 : _c.uid)) {
-            throw new https_1.HttpsError('unauthenticated', 'Sign in required for kid Rav.');
+            throw new sentry_1.HttpsError('unauthenticated', 'Sign in required for kid Rav.');
         }
         const { childName } = await (0, kidRavGuard_1.assertKidRavAllowed)(request.auth.uid, data.childId);
         kidChildName = childName;
@@ -216,9 +216,9 @@ exports.askPilotRav = (0, https_1.onCall)({ secrets: [anthropicApiKey], maxInsta
         const errMessage = err instanceof Error ? err.message : String(err);
         logger.error('askPilotRav Anthropic error', errMessage);
         if (errMessage.includes('authentication_error') || errMessage.includes('invalid x-api-key')) {
-            throw new https_1.HttpsError('failed-precondition', 'AI authentication failed. Check ANTHROPIC_API_KEY.');
+            throw new sentry_1.HttpsError('failed-precondition', 'AI authentication failed. Check ANTHROPIC_API_KEY.');
         }
-        throw new https_1.HttpsError('internal', 'Rav is temporarily unavailable. Try again in a moment.');
+        throw new sentry_1.HttpsError('internal', 'Rav is temporarily unavailable. Try again in a moment.');
     }
 });
 //# sourceMappingURL=askPilotRav.js.map

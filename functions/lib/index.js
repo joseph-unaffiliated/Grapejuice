@@ -1,9 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.retentionLead = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
-const logger = require("firebase-functions/logger");
-const https_1 = require("firebase-functions/v2/https");
-const scheduler_1 = require("firebase-functions/v2/scheduler");
+const logger = require("./logger");
+const sentry_1 = require("./sentry");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const stripe_1 = require("./stripe");
@@ -66,10 +65,10 @@ async function assertHouseholdMember(uid, householdId) {
     var _a, _b;
     const snap = await db.doc(`households/${householdId}`).get();
     if (!snap.exists)
-        throw new https_1.HttpsError('not-found', 'Household not found.');
+        throw new sentry_1.HttpsError('not-found', 'Household not found.');
     const memberIds = (_b = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.memberIds) !== null && _b !== void 0 ? _b : [];
     if (!memberIds.includes(uid)) {
-        throw new https_1.HttpsError('permission-denied', 'Not a member of this household.');
+        throw new sentry_1.HttpsError('permission-denied', 'Not a member of this household.');
     }
     return snap;
 }
@@ -81,7 +80,7 @@ async function getOrCreateStripeCustomer(householdId, uid, email) {
     if (existing)
         return existing;
     if (!stripe_1.stripe)
-        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Stripe is not configured.');
     const customer = await stripe_1.stripe.customers.create({
         email: email || undefined,
         metadata: { householdId, userId: uid },
@@ -182,24 +181,24 @@ function catalogCents(value) {
 async function resolveMarketplaceLineItems(raw) {
     var _a, _b, _c, _d;
     if (!raw.length) {
-        throw new https_1.HttpsError('invalid-argument', 'Cart is empty.');
+        throw new sentry_1.HttpsError('invalid-argument', 'Cart is empty.');
     }
     const normalized = [];
     for (const li of raw) {
         const itemId = String((_a = li.itemId) !== null && _a !== void 0 ? _a : '').trim();
         if (!itemId) {
-            throw new https_1.HttpsError('invalid-argument', 'Each line item needs an itemId.');
+            throw new sentry_1.HttpsError('invalid-argument', 'Each line item needs an itemId.');
         }
         const snap = await db.doc(`catalog/hanukkah/items/${itemId}`).get();
         if (!snap.exists) {
-            throw new https_1.HttpsError('invalid-argument', `Unknown product: ${itemId}`);
+            throw new sentry_1.HttpsError('invalid-argument', `Unknown product: ${itemId}`);
         }
         const cat = (_b = snap.data()) !== null && _b !== void 0 ? _b : {};
         const unitCents = catalogCents(cat.nonMemberPriceCents) ||
             catalogCents(cat.dollarCostCents) ||
             catalogCents(cat.memberPriceCents);
         if (unitCents <= 0) {
-            throw new https_1.HttpsError('invalid-argument', `Product is not available à la carte: ${itemId}`);
+            throw new sentry_1.HttpsError('invalid-argument', `Product is not available à la carte: ${itemId}`);
         }
         normalized.push({
             slotId: String((_c = cat.slotId) !== null && _c !== void 0 ? _c : 'addon'),
@@ -416,28 +415,28 @@ async function retryFailedMarketplaceCharges(householdId) {
         await chargeSingleMarketplaceOrder(householdId, doc.id, data);
     }
 }
-exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
+exports.createPilotCheckout = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     if (!stripe_1.stripe) {
-        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
     }
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     const householdId = data.householdId;
     const shippingAddress = data.shippingAddress;
     if (!householdId || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.line1) || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.city)) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
     }
     await assertHouseholdMember(request.auth.uid, householdId);
     const lockAt = await getLockAt();
     if (isLocked(lockAt)) {
-        throw new https_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
+        throw new sentry_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
     if (!draftSnap.exists) {
-        throw new https_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
     }
     const draft = draftSnap.data();
     const lineItems = (_c = draft.lineItems) !== null && _c !== void 0 ? _c : [];
@@ -449,7 +448,7 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
     const taxCents = Math.round((subtotalCents + shippingCents) * CHECKOUT_TAX_RATE);
     const totalCents = subtotalCents + shippingCents + taxCents;
     if (totalCents < 50) {
-        throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
+        throw new sentry_1.HttpsError('invalid-argument', 'Order total is too small.');
     }
     const estimatedDelivery = (_e = configData.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-11-24';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
@@ -488,16 +487,16 @@ exports.createPilotCheckout = (0, https_1.onCall)(async (request) => {
     };
 });
 /** À la carte checkout. Saves a card and charges when Hanukkah boxes lock. Guests need an email; a box still requires an account. */
-exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
+exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     try {
         const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
         const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
         if (!((_b = data.shippingAddress) === null || _b === void 0 ? void 0 : _b.line1) || !((_c = data.shippingAddress) === null || _c === void 0 ? void 0 : _c.city)) {
-            throw new https_1.HttpsError('invalid-argument', 'shippingAddress is required.');
+            throw new sentry_1.HttpsError('invalid-argument', 'shippingAddress is required.');
         }
         if (!shippingAddress.name || !shippingAddress.stateProvince || !shippingAddress.postalCode) {
-            throw new https_1.HttpsError('invalid-argument', 'Please enter name, street, city, state/province, and postal code.');
+            throw new sentry_1.HttpsError('invalid-argument', 'Please enter name, street, city, state/province, and postal code.');
         }
         const authedUid = (_d = request.auth) === null || _d === void 0 ? void 0 : _d.uid;
         let householdId = '';
@@ -506,7 +505,7 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
         if (authedUid) {
             householdId = String((_e = data.householdId) !== null && _e !== void 0 ? _e : '').trim();
             if (!householdId) {
-                throw new https_1.HttpsError('invalid-argument', 'householdId is required.');
+                throw new sentry_1.HttpsError('invalid-argument', 'householdId is required.');
             }
             const hhSnap = await assertHouseholdMember(authedUid, householdId);
             hhData = (_f = hhSnap.data()) !== null && _f !== void 0 ? _f : {};
@@ -514,7 +513,7 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
         else {
             guestEmail = String((_g = data.email) !== null && _g !== void 0 ? _g : '').trim().toLowerCase();
             if (!guestEmail.includes('@')) {
-                throw new https_1.HttpsError('invalid-argument', 'Enter an email so we can send your receipt.');
+                throw new sentry_1.HttpsError('invalid-argument', 'Enter an email so we can send your receipt.');
             }
             householdId = guestHouseholdId(guestEmail);
             const hhRef = db.doc(`households/${householdId}`);
@@ -535,13 +534,13 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
         const lineItems = await resolveMarketplaceLineItems((_j = data.lineItems) !== null && _j !== void 0 ? _j : []);
         const subtotalCents = chargeableLineTotal(lineItems);
         if (subtotalCents < 1) {
-            throw new https_1.HttpsError('invalid-argument', 'Cart total is too small.');
+            throw new sentry_1.HttpsError('invalid-argument', 'Cart total is too small.');
         }
         const shippingCents = SHIPPING_FLAT_CENTS;
         const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents);
         const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
         if (totalCents > 0 && totalCents < 50) {
-            throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
+            throw new sentry_1.HttpsError('invalid-argument', 'Order total is too small.');
         }
         const configSnap = await db.doc('config/hanukkah-2026').get();
         const configData = (_k = configSnap.data()) !== null && _k !== void 0 ? _k : {};
@@ -587,7 +586,7 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
                 };
             }
             if (!stripe_1.stripe) {
-                throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+                throw new sentry_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
             }
             let customerId = typeof hhData.stripeCustomerId === 'string' ? hhData.stripeCustomerId : '';
             if (!customerId) {
@@ -604,7 +603,7 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
                 metadata: Object.assign(Object.assign({ householdId, orderId: orderRef.id, type: 'marketplace' }, (authedUid ? { userId: authedUid } : {})), (0, metaCapi_1.metaContextToStripeMetadata)(metaCtx)),
             });
             if (!setupIntent.client_secret) {
-                throw new https_1.HttpsError('internal', 'SetupIntent missing client secret.');
+                throw new sentry_1.HttpsError('internal', 'SetupIntent missing client secret.');
             }
             return {
                 clientSecret: setupIntent.client_secret,
@@ -644,25 +643,25 @@ exports.createMarketplaceCheckout = (0, https_1.onCall)(async (request) => {
         }
     }
     catch (err) {
-        if (err instanceof https_1.HttpsError)
+        if (err instanceof sentry_1.HttpsError)
             throw err;
         const msg = err instanceof Error ? err.message : String(err);
         logger.error('createMarketplaceCheckout failed', { err, message: msg });
-        throw new https_1.HttpsError('internal', msg || 'Checkout failed. Please try again.');
+        throw new sentry_1.HttpsError('internal', msg || 'Checkout failed. Please try again.');
     }
 });
-exports.createPilotSetupIntent = (0, https_1.onCall)(async (request) => {
+exports.createPilotSetupIntent = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     if (!stripe_1.stripe) {
-        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
     }
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     const householdId = data.householdId;
     if (!householdId) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId is required.');
     }
     await assertHouseholdMember(request.auth.uid, householdId);
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
@@ -674,7 +673,7 @@ exports.createPilotSetupIntent = (0, https_1.onCall)(async (request) => {
         metadata: Object.assign({ householdId, userId: request.auth.uid }, (0, metaCapi_1.metaContextToStripeMetadata)((0, metaCapi_1.metaContextFromCallable)(request))),
     });
     if (!setupIntent.client_secret) {
-        throw new https_1.HttpsError('internal', 'SetupIntent missing client secret.');
+        throw new sentry_1.HttpsError('internal', 'SetupIntent missing client secret.');
     }
     return { clientSecret: setupIntent.client_secret, customerId };
 });
@@ -682,16 +681,16 @@ exports.createPilotSetupIntent = (0, https_1.onCall)(async (request) => {
  * Save card (SetupIntent, before this call) + commit address/shipping tier.
  * No PaymentIntent here — one off-session charge at lock/ship (see charge-once-at-ship).
  */
-exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
+exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     const householdId = data.householdId;
     const shippingAddress = data.shippingAddress;
     if (!householdId || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.line1) || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.city)) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
     }
     const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);
     const hhData = (_c = hhSnap.data()) !== null && _c !== void 0 ? _c : {};
@@ -700,11 +699,11 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
     const lockAt = await getLockAt(false);
     if (isLocked(lockAt)) {
-        throw new https_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
+        throw new sentry_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
     if (!draftSnap.exists) {
-        throw new https_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
     }
     const draft = draftSnap.data();
     const lineItems = (_d = draft.lineItems) !== null && _d !== void 0 ? _d : [];
@@ -717,13 +716,13 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
     const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
     const totalAvailableCredit = giftCreditCents + platformCreditCents;
     if (!cardOnFile && totalAvailableCredit < boxPriceCents) {
-        throw new https_1.HttpsError('failed-precondition', 'Save a payment method before committing your box.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Save a payment method before committing your box.');
     }
     if (totalCents > 0 && !cardOnFile) {
-        throw new https_1.HttpsError('failed-precondition', 'Save a payment method for add-ons and shipping.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Save a payment method for add-ons and shipping.');
     }
     if (totalCents < 0) {
-        throw new https_1.HttpsError('invalid-argument', 'Order total is invalid.');
+        throw new sentry_1.HttpsError('invalid-argument', 'Order total is invalid.');
     }
     const isPlaythrough = data.skipShipStation === true;
     if (!isPlaythrough) {
@@ -783,38 +782,38 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
  * after commit). Recalculates merchandise + tax; keeps shipping address,
  * expedited flag, and already-applied credits from the order.
  */
-exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
+exports.updatePilotBoxOrder = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     const householdId = (_b = request.data) === null || _b === void 0 ? void 0 : _b.householdId;
     const orderId = (_c = request.data) === null || _c === void 0 ? void 0 : _c.orderId;
     if (!householdId || !orderId) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId and orderId are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId and orderId are required.');
     }
     await assertHouseholdMember(request.auth.uid, householdId);
     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
     const orderSnap = await orderRef.get();
     if (!orderSnap.exists) {
-        throw new https_1.HttpsError('not-found', 'Order not found.');
+        throw new sentry_1.HttpsError('not-found', 'Order not found.');
     }
     const order = (_d = orderSnap.data()) !== null && _d !== void 0 ? _d : {};
     const status = order.status;
     if (status !== 'committed' && status !== 'pending') {
-        throw new https_1.HttpsError('failed-precondition', 'This order can no longer be updated. Contact support if you need changes.');
+        throw new sentry_1.HttpsError('failed-precondition', 'This order can no longer be updated. Contact support if you need changes.');
     }
     const lockAt = (_e = (typeof order.lockAt === 'string' ? order.lockAt : null)) !== null && _e !== void 0 ? _e : (await getLockAt(order.expeditedShipping === true));
     if (isLocked(lockAt)) {
-        throw new https_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
+        throw new sentry_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
     if (!draftSnap.exists) {
-        throw new https_1.HttpsError('failed-precondition', 'No box draft found.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No box draft found.');
     }
     const lineItems = (_g = (_f = draftSnap.data()) === null || _f === void 0 ? void 0 : _f.lineItems) !== null && _g !== void 0 ? _g : [];
     if (!lineItems.length) {
-        throw new https_1.HttpsError('failed-precondition', 'Your box is empty. Add items before updating the order.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Your box is empty. Add items before updating the order.');
     }
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = (_h = configSnap.data()) !== null && _h !== void 0 ? _h : {};
@@ -862,38 +861,38 @@ exports.updatePilotBoxOrder = (0, https_1.onCall)(async (request) => {
     };
 });
 /** Void a pre-ship committed/pending order; restore credits; keep card on file. */
-exports.cancelPilotBoxOrder = (0, https_1.onCall)(async (request) => {
+exports.cancelPilotBoxOrder = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     const householdId = (_b = request.data) === null || _b === void 0 ? void 0 : _b.householdId;
     const orderId = (_c = request.data) === null || _c === void 0 ? void 0 : _c.orderId;
     if (!householdId || !orderId) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId and orderId are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId and orderId are required.');
     }
     await assertHouseholdMember(request.auth.uid, householdId);
     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
     const orderSnap = await orderRef.get();
     if (!orderSnap.exists) {
-        throw new https_1.HttpsError('not-found', 'Order not found.');
+        throw new sentry_1.HttpsError('not-found', 'Order not found.');
     }
     const order = (_d = orderSnap.data()) !== null && _d !== void 0 ? _d : {};
     const status = order.status;
     if (status !== 'committed' && status !== 'pending') {
         if (status === 'cancelled') {
-            throw new https_1.HttpsError('failed-precondition', 'This order is already cancelled.');
+            throw new sentry_1.HttpsError('failed-precondition', 'This order is already cancelled.');
         }
         if (status === 'shipped' || status === 'delivered') {
-            throw new https_1.HttpsError('failed-precondition', 'This box has already shipped. Contact support for help.');
+            throw new sentry_1.HttpsError('failed-precondition', 'This box has already shipped. Contact support for help.');
         }
-        throw new https_1.HttpsError('failed-precondition', 'This order can no longer be cancelled in the app. Contact support.');
+        throw new sentry_1.HttpsError('failed-precondition', 'This order can no longer be cancelled in the app. Contact support.');
     }
     const piId = typeof order.stripePaymentIntentId === 'string' ? order.stripePaymentIntentId : undefined;
     if (piId) {
         // Legacy orders: commit used to create a manual-capture PI before charge-at-ship refactor.
         if (!stripe_1.stripe) {
-            throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured.');
+            throw new sentry_1.HttpsError('failed-precondition', 'Stripe is not configured.');
         }
         try {
             await stripe_1.stripe.paymentIntents.cancel(piId);
@@ -903,7 +902,7 @@ exports.cancelPilotBoxOrder = (0, https_1.onCall)(async (request) => {
             const alreadyCanceled = /already.*(cancel|cancell)/i.test(msg);
             if (!alreadyCanceled) {
                 logger.error('Failed to cancel PaymentIntent', { piId, err });
-                throw new https_1.HttpsError('internal', 'Could not release the payment hold. Try again or contact support.');
+                throw new sentry_1.HttpsError('internal', 'Could not release the payment hold. Try again or contact support.');
             }
         }
     }
@@ -914,7 +913,7 @@ exports.cancelPilotBoxOrder = (0, https_1.onCall)(async (request) => {
         const fresh = await tx.get(orderRef);
         const freshStatus = (_a = fresh.data()) === null || _a === void 0 ? void 0 : _a.status;
         if (freshStatus !== 'committed' && freshStatus !== 'pending') {
-            throw new https_1.HttpsError('failed-precondition', 'Order status changed. Refresh and try again.');
+            throw new sentry_1.HttpsError('failed-precondition', 'Order status changed. Refresh and try again.');
         }
         tx.update(orderRef, {
             status: 'cancelled',
@@ -944,20 +943,20 @@ exports.cancelPilotBoxOrder = (0, https_1.onCall)(async (request) => {
  * QA / ops: charge one committed Hanukkah box order (normally runs on schedule after lock).
  * Pass force=true to charge before lockAt.
  */
-exports.chargePilotBoxOrder = (0, https_1.onCall)(async (request) => {
+exports.chargePilotBoxOrder = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     const householdId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.householdId) !== null && _c !== void 0 ? _c : '').trim();
     const orderId = String((_e = (_d = request.data) === null || _d === void 0 ? void 0 : _d.orderId) !== null && _e !== void 0 ? _e : '').trim();
     const force = ((_f = request.data) === null || _f === void 0 ? void 0 : _f.force) === true;
     if (!householdId || !orderId) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId and orderId are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId and orderId are required.');
     }
     return (0, chargePilotBox_1.chargePilotBoxOrderForUser)(db, stripe_1.stripe, request.auth.uid, householdId, orderId, force);
 });
-exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
+exports.stripeWebhook = (0, sentry_1.onRequest)({ cors: false }, async (req, res) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
@@ -1269,20 +1268,20 @@ exports.stripeWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         res.status(500).send('Webhook handler failed');
     }
 });
-exports.createPartnerInvite = (0, https_1.onCall)(async (request) => {
+exports.createPartnerInvite = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const householdId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.householdId) !== null && _c !== void 0 ? _c : '');
     const email = String((_e = (_d = request.data) === null || _d === void 0 ? void 0 : _d.email) !== null && _e !== void 0 ? _e : '').trim().toLowerCase();
     const invitedByName = String((_g = (_f = request.data) === null || _f === void 0 ? void 0 : _f.invitedByName) !== null && _g !== void 0 ? _g : 'Partner');
     if (!householdId || !email.includes('@')) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId and a valid email are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId and a valid email are required.');
     }
     await assertHouseholdMember(request.auth.uid, householdId);
     const hhSnap = await db.doc(`households/${householdId}`).get();
     if (!hhSnap.exists)
-        throw new https_1.HttpsError('not-found', 'Household not found.');
+        throw new sentry_1.HttpsError('not-found', 'Household not found.');
     const householdName = String((_j = (_h = hhSnap.data()) === null || _h === void 0 ? void 0 : _h.name) !== null && _j !== void 0 ? _j : 'Our household');
     const inviteRef = db.collection(`households/${householdId}/partnerInvites`).doc();
     const payload = {
@@ -1306,32 +1305,32 @@ exports.createPartnerInvite = (0, https_1.onCall)(async (request) => {
     }).catch((err) => logger.error('Partner invite email failed', err));
     return Object.assign({ id: inviteRef.id }, payload);
 });
-exports.listPartnerInvites = (0, https_1.onCall)(async (request) => {
+exports.listPartnerInvites = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const householdId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.householdId) !== null && _c !== void 0 ? _c : '');
     if (!householdId)
-        throw new https_1.HttpsError('invalid-argument', 'householdId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId is required.');
     await assertHouseholdMember(request.auth.uid, householdId);
     const snap = await db.collection(`households/${householdId}/partnerInvites`).orderBy('createdAt', 'desc').get();
     return snap.docs.map((d) => (Object.assign({ id: d.id }, d.data())));
 });
-exports.acceptPartnerInvite = (0, https_1.onCall)(async (request) => {
+exports.acceptPartnerInvite = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const inviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.inviteId) !== null && _c !== void 0 ? _c : '');
     if (!inviteId)
-        throw new https_1.HttpsError('invalid-argument', 'inviteId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'inviteId is required.');
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const userEmail = String((_e = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.email) !== null && _e !== void 0 ? _e : '').trim().toLowerCase();
     if (!userEmail)
-        throw new https_1.HttpsError('failed-precondition', 'Account email is missing.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Account email is missing.');
     const groups = await db.collectionGroup('partnerInvites').where('invitedEmail', '==', userEmail).where('status', '==', 'pending').get();
     const inviteDoc = groups.docs.find((d) => d.id === inviteId);
     if (!inviteDoc)
-        throw new https_1.HttpsError('not-found', 'Invite not found.');
+        throw new sentry_1.HttpsError('not-found', 'Invite not found.');
     const invite = inviteDoc.data();
     await db.doc(`households/${invite.householdId}`).update({
         memberIds: firestore_1.FieldValue.arrayUnion(request.auth.uid),
@@ -1344,16 +1343,16 @@ exports.acceptPartnerInvite = (0, https_1.onCall)(async (request) => {
     });
     return { ok: true };
 });
-exports.writeOrderTracking = (0, https_1.onCall)(async (request) => {
+exports.writeOrderTracking = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const householdId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.householdId) !== null && _c !== void 0 ? _c : '');
     const orderId = String((_e = (_d = request.data) === null || _d === void 0 ? void 0 : _d.orderId) !== null && _e !== void 0 ? _e : '');
     const trackingNumber = String((_g = (_f = request.data) === null || _f === void 0 ? void 0 : _f.trackingNumber) !== null && _g !== void 0 ? _g : '').trim();
     const carrier = String((_j = (_h = request.data) === null || _h === void 0 ? void 0 : _h.carrier) !== null && _j !== void 0 ? _j : 'USPS').trim();
     if (!householdId || !orderId || !trackingNumber) {
-        throw new https_1.HttpsError('invalid-argument', 'householdId, orderId, and trackingNumber are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'householdId, orderId, and trackingNumber are required.');
     }
     await assertHouseholdMember(request.auth.uid, householdId);
     await (0, shipstation_1.applyShipStationTracking)(db, householdId, orderId, { trackingNumber, carrier });
@@ -1365,7 +1364,7 @@ exports.writeOrderTracking = (0, https_1.onCall)(async (request) => {
  * SHIP_NOTIFY (label created) and FULFILLMENT_SHIPPED (Mark as Shipped).
  * URL: https://<region>-<project>.cloudfunctions.net/shipStationWebhook?key=<SHIPSTATION_WEBHOOK_SECRET>
  */
-exports.shipStationWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
+exports.shipStationWebhook = (0, sentry_1.onRequest)({ cors: false }, async (req, res) => {
     var _a;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
@@ -1387,12 +1386,12 @@ exports.shipStationWebhook = (0, https_1.onRequest)({ cors: false }, async (req,
         res.status(500).send('Webhook Error');
     }
 });
-exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
+exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     if (!stripe_1.stripe)
-        throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Stripe is not configured.');
     const recipientEmail = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.recipientEmail) !== null && _c !== void 0 ? _c : '').trim().toLowerCase();
     const giverName = String((_e = (_d = request.data) === null || _d === void 0 ? void 0 : _d.giverName) !== null && _e !== void 0 ? _e : 'Someone who loves you').trim();
     const message = String((_g = (_f = request.data) === null || _f === void 0 ? void 0 : _f.message) !== null && _g !== void 0 ? _g : '').trim();
@@ -1403,7 +1402,7 @@ exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
     const childInterests = Array.isArray((_l = request.data) === null || _l === void 0 ? void 0 : _l.childInterests) ? request.data.childInterests : undefined;
     const childAgeGroups = Array.isArray((_m = request.data) === null || _m === void 0 ? void 0 : _m.childAgeGroups) ? request.data.childAgeGroups : undefined;
     if (!isValidEmail(recipientEmail)) {
-        throw new https_1.HttpsError('invalid-argument', 'A valid recipient email is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'A valid recipient email is required.');
     }
     if (giftKind === 'box' && (lineItems === null || lineItems === void 0 ? void 0 : lineItems.length)) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
@@ -1435,19 +1434,19 @@ exports.purchasePilotGift = (0, https_1.onCall)(async (request) => {
         claimUrl,
     };
 });
-exports.finalizePilotGiftPayment = (0, https_1.onCall)(async (request) => {
+exports.finalizePilotGiftPayment = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
     if (!giftInviteId)
-        throw new https_1.HttpsError('invalid-argument', 'giftInviteId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'giftInviteId is required.');
     const inviteSnap = await db.collection('giftInvites').doc(giftInviteId).get();
     if (!inviteSnap.exists)
-        throw new https_1.HttpsError('not-found', 'Gift invite not found.');
+        throw new sentry_1.HttpsError('not-found', 'Gift invite not found.');
     const invite = inviteSnap.data();
     if (invite.giverUid !== request.auth.uid) {
-        throw new https_1.HttpsError('permission-denied', 'Only the giver can finalize this gift.');
+        throw new sentry_1.HttpsError('permission-denied', 'Only the giver can finalize this gift.');
     }
     try {
         const result = await (0, giftPayment_1.finalizeGiftInvitePayment)(db, giftInviteId, (0, metaCapi_1.metaContextFromCallable)(request));
@@ -1455,18 +1454,18 @@ exports.finalizePilotGiftPayment = (0, https_1.onCall)(async (request) => {
     }
     catch (err) {
         const message = err instanceof Error ? err.message : 'Payment not completed';
-        throw new https_1.HttpsError('failed-precondition', message);
+        throw new sentry_1.HttpsError('failed-precondition', message);
     }
 });
 /**
  * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
  * per account (`reg_<uid>`); PreRegister reuses the browser's event id for dedupe.
  */
-exports.trackMetaEvent = (0, https_1.onCall)(async (request) => {
+exports.trackMetaEvent = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f;
     const eventName = (_a = request.data) === null || _a === void 0 ? void 0 : _a.eventName;
     if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister') {
-        throw new https_1.HttpsError('invalid-argument', 'Unsupported event.');
+        throw new sentry_1.HttpsError('invalid-argument', 'Unsupported event.');
     }
     const context = (0, metaCapi_1.metaContextFromCallable)(request);
     if (context.skip)
@@ -1475,7 +1474,7 @@ exports.trackMetaEvent = (0, https_1.onCall)(async (request) => {
     const email = uid ? await emailForMeta(uid, (_d = request.auth) === null || _d === void 0 ? void 0 : _d.token.email) : null;
     if (eventName === 'CompleteRegistration') {
         if (!uid)
-            throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+            throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
         const userRef = db.doc(`users/${uid}`);
         const firstSend = await db.runTransaction(async (tx) => {
             var _a;
@@ -1501,10 +1500,10 @@ exports.trackMetaEvent = (0, https_1.onCall)(async (request) => {
     return { ok: true };
 });
 /** Gifts the signed-in user has purchased (giver side). */
-exports.listMyGiftInvites = (0, https_1.onCall)(async (request) => {
+exports.listMyGiftInvites = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const uid = request.auth.uid;
     const userSnap = await db.doc(`users/${uid}`).get();
     const giverEmail = String((_d = (_c = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.email) !== null && _c !== void 0 ? _c : request.auth.token.email) !== null && _d !== void 0 ? _d : '')
@@ -1555,11 +1554,11 @@ exports.listMyGiftInvites = (0, https_1.onCall)(async (request) => {
  * Public peek — validate a claim link before signup.
  * Returns status only (no PII beyond giver display name).
  */
-exports.peekGiftInvite = (0, https_1.onCall)(async (request) => {
+exports.peekGiftInvite = (0, sentry_1.onCall)(async (request) => {
     var _a, _b;
     const token = String((_b = (_a = request.data) === null || _a === void 0 ? void 0 : _a.token) !== null && _b !== void 0 ? _b : '').trim();
     if (!token)
-        throw new https_1.HttpsError('invalid-argument', 'token is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'token is required.');
     const snap = await db.collection('giftInvites').where('claimToken', '==', token).limit(1).get();
     if (snap.empty) {
         return { status: 'not_found' };
@@ -1585,23 +1584,23 @@ exports.peekGiftInvite = (0, https_1.onCall)(async (request) => {
         giftKind,
     };
 });
-exports.claimGiftInvite = (0, https_1.onCall)(async (request) => {
+exports.claimGiftInvite = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const token = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.token) !== null && _c !== void 0 ? _c : '').trim();
     if (!token)
-        throw new https_1.HttpsError('invalid-argument', 'token is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'token is required.');
     const snap = await db.collection('giftInvites').where('claimToken', '==', token).limit(1).get();
     if (snap.empty)
-        throw new https_1.HttpsError('not-found', 'Gift invite not found.');
+        throw new sentry_1.HttpsError('not-found', 'Gift invite not found.');
     const inviteDoc = snap.docs[0];
     const invite = inviteDoc.data();
     if (invite.status === 'claimed') {
-        throw new https_1.HttpsError('failed-precondition', 'This gift has already been claimed.');
+        throw new sentry_1.HttpsError('failed-precondition', 'This gift has already been claimed.');
     }
     if (invite.paymentStatus === 'pending') {
-        throw new https_1.HttpsError('failed-precondition', 'This gift has not been paid for yet.');
+        throw new sentry_1.HttpsError('failed-precondition', 'This gift has not been paid for yet.');
     }
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     let householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
@@ -1748,19 +1747,19 @@ async function ensureReceivedGiftDoc(householdId, giftInviteId) {
         return giftSnap;
     const inviteSnap = await db.doc(`giftInvites/${giftInviteId}`).get();
     if (!inviteSnap.exists)
-        throw new https_1.HttpsError('not-found', 'Gift not found.');
+        throw new sentry_1.HttpsError('not-found', 'Gift not found.');
     const invite = inviteSnap.data();
     if (invite.claimedByHouseholdId !== householdId || invite.status !== 'claimed') {
-        throw new https_1.HttpsError('not-found', 'Gift not found.');
+        throw new sentry_1.HttpsError('not-found', 'Gift not found.');
     }
     await backfillReceivedGiftFromInvite(householdId, giftInviteId, invite);
     return giftRef.get();
 }
 /** Gifts this household has claimed (recipient side). */
-exports.listMyReceivedGifts = (0, https_1.onCall)(async (request) => {
+exports.listMyReceivedGifts = (0, sentry_1.onCall)(async (request) => {
     var _a, _b;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const householdId = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.householdId;
     if (!householdId)
@@ -1770,17 +1769,17 @@ exports.listMyReceivedGifts = (0, https_1.onCall)(async (request) => {
     return { gifts };
 });
 /** Mark a received gift box as viewed (does not accept or convert). */
-exports.markReceivedGiftViewed = (0, https_1.onCall)(async (request) => {
+exports.markReceivedGiftViewed = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
     if (!giftInviteId)
-        throw new https_1.HttpsError('invalid-argument', 'giftInviteId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'giftInviteId is required.');
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
     if (!householdId)
-        throw new https_1.HttpsError('failed-precondition', 'No household.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No household.');
     await assertHouseholdMember(request.auth.uid, householdId);
     const giftRef = db.doc(`households/${householdId}/receivedGifts/${giftInviteId}`);
     await ensureReceivedGiftDoc(householdId, giftInviteId);
@@ -1790,13 +1789,13 @@ exports.markReceivedGiftViewed = (0, https_1.onCall)(async (request) => {
 });
 function normalizeGiftLineItems(raw) {
     if (!Array.isArray(raw) || !raw.length) {
-        throw new https_1.HttpsError('invalid-argument', 'lineItems are required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'lineItems are required.');
     }
     return raw.map((li, i) => {
         var _a, _b, _c;
         const itemId = String((_a = li.itemId) !== null && _a !== void 0 ? _a : '').trim();
         if (!itemId)
-            throw new https_1.HttpsError('invalid-argument', `lineItems[${i}].itemId is required.`);
+            throw new sentry_1.HttpsError('invalid-argument', `lineItems[${i}].itemId is required.`);
         return {
             slotId: String((_b = li.slotId) !== null && _b !== void 0 ? _b : 'addon'),
             itemId,
@@ -1807,26 +1806,26 @@ function normalizeGiftLineItems(raw) {
     });
 }
 /** Persist curated / add-on line items on a received gift box (status must stay available). */
-exports.updateReceivedGiftLineItems = (0, https_1.onCall)(async (request) => {
+exports.updateReceivedGiftLineItems = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
     if (!giftInviteId)
-        throw new https_1.HttpsError('invalid-argument', 'giftInviteId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'giftInviteId is required.');
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
     if (!householdId)
-        throw new https_1.HttpsError('failed-precondition', 'No household.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No household.');
     await assertHouseholdMember(request.auth.uid, householdId);
     const giftRef = db.doc(`households/${householdId}/receivedGifts/${giftInviteId}`);
     const giftSnap = await ensureReceivedGiftDoc(householdId, giftInviteId);
     const gift = (_e = giftSnap.data()) !== null && _e !== void 0 ? _e : {};
     if (gift.kind !== 'box') {
-        throw new https_1.HttpsError('failed-precondition', 'Only gift boxes can be edited.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Only gift boxes can be edited.');
     }
     if (gift.status !== 'available') {
-        throw new https_1.HttpsError('failed-precondition', 'This gift can no longer be edited.');
+        throw new sentry_1.HttpsError('failed-precondition', 'This gift can no longer be edited.');
     }
     const lineItems = normalizeGiftLineItems((Array.isArray((_f = request.data) === null || _f === void 0 ? void 0 : _f.lineItems) ? request.data.lineItems : []));
     const now = new Date().toISOString();
@@ -1850,24 +1849,24 @@ exports.updateReceivedGiftLineItems = (0, https_1.onCall)(async (request) => {
  * Checkout paid add-ons on a received gift box (giver already paid the box base).
  * Applies household gift/platform credit; charges remainder via PaymentIntent.
  */
-exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
+exports.createReceivedGiftCheckout = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     try {
         const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
         const shippingAddressRaw = (_d = request.data) === null || _d === void 0 ? void 0 : _d.shippingAddress;
         if (!giftInviteId || !(shippingAddressRaw === null || shippingAddressRaw === void 0 ? void 0 : shippingAddressRaw.line1) || !(shippingAddressRaw === null || shippingAddressRaw === void 0 ? void 0 : shippingAddressRaw.city)) {
-            throw new https_1.HttpsError('invalid-argument', 'giftInviteId and shippingAddress are required.');
+            throw new sentry_1.HttpsError('invalid-argument', 'giftInviteId and shippingAddress are required.');
         }
         const shippingAddress = sanitizeShippingAddress(shippingAddressRaw);
         if (!shippingAddress.name || !shippingAddress.stateProvince || !shippingAddress.postalCode) {
-            throw new https_1.HttpsError('invalid-argument', 'Please enter name, street, city, state/province, and postal code.');
+            throw new sentry_1.HttpsError('invalid-argument', 'Please enter name, street, city, state/province, and postal code.');
         }
         const userSnap = await db.doc(`users/${request.auth.uid}`).get();
         const householdId = (_e = userSnap.data()) === null || _e === void 0 ? void 0 : _e.householdId;
         if (!householdId)
-            throw new https_1.HttpsError('failed-precondition', 'No household.');
+            throw new sentry_1.HttpsError('failed-precondition', 'No household.');
         const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);
         const hhData = (_f = hhSnap.data()) !== null && _f !== void 0 ? _f : {};
         const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
@@ -1876,10 +1875,10 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         const giftSnap = await ensureReceivedGiftDoc(householdId, giftInviteId);
         const gift = (_g = giftSnap.data()) !== null && _g !== void 0 ? _g : {};
         if (gift.kind !== 'box') {
-            throw new https_1.HttpsError('failed-precondition', 'Only gift boxes can be checked out.');
+            throw new sentry_1.HttpsError('failed-precondition', 'Only gift boxes can be checked out.');
         }
         if (gift.status !== 'available') {
-            throw new https_1.HttpsError('failed-precondition', 'This gift was already used or converted.');
+            throw new sentry_1.HttpsError('failed-precondition', 'This gift was already used or converted.');
         }
         const lineItems = Array.isArray((_h = request.data) === null || _h === void 0 ? void 0 : _h.lineItems) && request.data.lineItems.length
             ? normalizeGiftLineItems(request.data.lineItems)
@@ -1897,7 +1896,7 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents);
         const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
         if (totalCents > 0 && totalCents < 50) {
-            throw new https_1.HttpsError('invalid-argument', 'Order total is too small.');
+            throw new sentry_1.HttpsError('invalid-argument', 'Order total is too small.');
         }
         const configSnap = await db.doc('config/hanukkah-2026').get();
         const configData = (_l = configSnap.data()) !== null && _l !== void 0 ? _l : {};
@@ -1966,7 +1965,7 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
             };
         }
         if (!stripe_1.stripe) {
-            throw new https_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
+            throw new sentry_1.HttpsError('failed-precondition', 'Stripe is not configured. Set STRIPE_SECRET_KEY on Functions.');
         }
         const paymentIntent = await stripe_1.stripe.paymentIntents.create({
             amount: totalCents,
@@ -1981,7 +1980,7 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
             automatic_payment_methods: { enabled: true },
         });
         if (!paymentIntent.client_secret) {
-            throw new https_1.HttpsError('internal', 'PaymentIntent missing client secret.');
+            throw new sentry_1.HttpsError('internal', 'PaymentIntent missing client secret.');
         }
         await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
         return {
@@ -1992,34 +1991,34 @@ exports.createReceivedGiftCheckout = (0, https_1.onCall)(async (request) => {
         };
     }
     catch (err) {
-        if (err instanceof https_1.HttpsError)
+        if (err instanceof sentry_1.HttpsError)
             throw err;
         const msg = err instanceof Error ? err.message : String(err);
         logger.error('createReceivedGiftCheckout failed', { err, message: msg });
-        throw new https_1.HttpsError('internal', msg || 'Checkout failed. Please try again.');
+        throw new sentry_1.HttpsError('internal', msg || 'Checkout failed. Please try again.');
     }
 });
 /** Convert a received gift box to spendable gift credit after viewing items. */
-exports.convertReceivedGiftToCredit = (0, https_1.onCall)(async (request) => {
+exports.convertReceivedGiftToCredit = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
     if (!giftInviteId)
-        throw new https_1.HttpsError('invalid-argument', 'giftInviteId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'giftInviteId is required.');
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
     if (!householdId)
-        throw new https_1.HttpsError('failed-precondition', 'No household.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No household.');
     await assertHouseholdMember(request.auth.uid, householdId);
     const giftRef = db.doc(`households/${householdId}/receivedGifts/${giftInviteId}`);
     const giftSnap = await ensureReceivedGiftDoc(householdId, giftInviteId);
     const gift = giftSnap.data();
     if (gift.kind !== 'box') {
-        throw new https_1.HttpsError('failed-precondition', 'Only gift boxes can be converted to credit.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Only gift boxes can be converted to credit.');
     }
     if (gift.status !== 'available') {
-        throw new https_1.HttpsError('failed-precondition', 'This gift was already used or converted.');
+        throw new sentry_1.HttpsError('failed-precondition', 'This gift was already used or converted.');
     }
     const creditCents = typeof gift.creditCents === 'number' ? gift.creditCents : DEFAULT_GIFT_CREDIT_CENTS;
     const now = new Date().toISOString();
@@ -2030,7 +2029,7 @@ exports.convertReceivedGiftToCredit = (0, https_1.onCall)(async (request) => {
         var _a;
         const fresh = await tx.get(giftRef);
         if (!fresh.exists || ((_a = fresh.data()) === null || _a === void 0 ? void 0 : _a.status) !== 'available') {
-            throw new https_1.HttpsError('failed-precondition', 'Gift already converted.');
+            throw new sentry_1.HttpsError('failed-precondition', 'Gift already converted.');
         }
         tx.update(giftRef, { status: 'converted_to_credit', convertedAt: now, updatedAt: now });
         tx.update(hhRef, { giftCreditCents: currentGift + creditCents, updatedAt: now });
@@ -2039,26 +2038,26 @@ exports.convertReceivedGiftToCredit = (0, https_1.onCall)(async (request) => {
     return { ok: true, creditCentsAdded: creditCents };
 });
 /** Mark a received gift box as accepted (recipient is opening the gift box flow). */
-exports.acceptReceivedGiftBox = (0, https_1.onCall)(async (request) => {
+exports.acceptReceivedGiftBox = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
     if (!giftInviteId)
-        throw new https_1.HttpsError('invalid-argument', 'giftInviteId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'giftInviteId is required.');
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
     if (!householdId)
-        throw new https_1.HttpsError('failed-precondition', 'No household.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No household.');
     await assertHouseholdMember(request.auth.uid, householdId);
     const giftRef = db.doc(`households/${householdId}/receivedGifts/${giftInviteId}`);
     const giftSnap = await ensureReceivedGiftDoc(householdId, giftInviteId);
     const gift = giftSnap.data();
     if (gift.kind !== 'box') {
-        throw new https_1.HttpsError('failed-precondition', 'Not a gift box.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Not a gift box.');
     }
     if (gift.status !== 'available') {
-        throw new https_1.HttpsError('failed-precondition', 'This gift is no longer available.');
+        throw new sentry_1.HttpsError('failed-precondition', 'This gift is no longer available.');
     }
     const now = new Date().toISOString();
     await giftRef.update({ status: 'accepted', acceptedAt: now, updatedAt: now });
@@ -2068,33 +2067,33 @@ exports.acceptReceivedGiftBox = (0, https_1.onCall)(async (request) => {
  * Undo accidental accept (e.g. old “Review” CTA) when no confirmed checkout exists,
  * so the recipient can manage / convert again.
  */
-exports.reopenReceivedGiftBox = (0, https_1.onCall)(async (request) => {
+exports.reopenReceivedGiftBox = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const giftInviteId = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.giftInviteId) !== null && _c !== void 0 ? _c : '').trim();
     if (!giftInviteId)
-        throw new https_1.HttpsError('invalid-argument', 'giftInviteId is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'giftInviteId is required.');
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
     if (!householdId)
-        throw new https_1.HttpsError('failed-precondition', 'No household.');
+        throw new sentry_1.HttpsError('failed-precondition', 'No household.');
     await assertHouseholdMember(request.auth.uid, householdId);
     const giftRef = db.doc(`households/${householdId}/receivedGifts/${giftInviteId}`);
     const giftSnap = await ensureReceivedGiftDoc(householdId, giftInviteId);
     const gift = (_e = giftSnap.data()) !== null && _e !== void 0 ? _e : {};
     if (gift.kind !== 'box') {
-        throw new https_1.HttpsError('failed-precondition', 'Not a gift box.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Not a gift box.');
     }
     if (gift.status !== 'accepted') {
-        throw new https_1.HttpsError('failed-precondition', 'Only accepted gifts can be reopened.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Only accepted gifts can be reopened.');
     }
     const checkoutOrderId = typeof gift.checkoutOrderId === 'string' ? gift.checkoutOrderId.trim() : '';
     if (checkoutOrderId) {
         const orderSnap = await db.doc(`households/${householdId}/orders/${checkoutOrderId}`).get();
         const orderStatus = orderSnap.exists ? String((_g = (_f = orderSnap.data()) === null || _f === void 0 ? void 0 : _f.status) !== null && _g !== void 0 ? _g : '') : '';
         if (orderStatus === 'confirmed' || orderStatus === 'shipped' || orderStatus === 'delivered') {
-            throw new https_1.HttpsError('failed-precondition', 'This gift already has a confirmed order and can’t be reopened.');
+            throw new sentry_1.HttpsError('failed-precondition', 'This gift already has a confirmed order and can’t be reopened.');
         }
     }
     const now = new Date().toISOString();
@@ -2107,31 +2106,31 @@ exports.reopenReceivedGiftBox = (0, https_1.onCall)(async (request) => {
     return { ok: true };
 });
 /** Manual trigger for ops — send debrief reminder to one email. */
-exports.sendDebriefReminders = (0, https_1.onCall)(async (request) => {
+exports.sendDebriefReminders = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const to = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.email) !== null && _c !== void 0 ? _c : '').trim();
     const attempt = ((_d = request.data) === null || _d === void 0 ? void 0 : _d.attempt) === 2 ? 2 : 1;
     if (!to.includes('@'))
-        throw new https_1.HttpsError('invalid-argument', 'email is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'email is required.');
     const claimUrl = `${(_e = process.env.PILOT_APP_BASE_URL) !== null && _e !== void 0 ? _e : 'https://app.grapejuice.co'}/?preview=debrief`;
     await (0, email_1.sendDebriefReminderEmail)({ to, attempt, claimUrl });
     return { ok: true, attempt };
 });
 /** Daily batch — eligible users who have not completed debrief (only after Hanukkah ends). */
-exports.scheduledDebriefReminders = (0, scheduler_1.onSchedule)('every day 10:00', async () => {
+exports.scheduledDebriefReminders = (0, sentry_1.onSchedule)('every day 10:00', async () => {
     await (0, debriefReminders_1.runDebriefReminderBatch)(db);
 });
 /** Daily batch — lock countdown for users with uncommitted box drafts. */
-exports.scheduledLockReminders = (0, scheduler_1.onSchedule)('every day 09:00', async () => {
+exports.scheduledLockReminders = (0, sentry_1.onSchedule)('every day 09:00', async () => {
     const lockAt = await getLockAt();
     if (!lockAt || isLocked(lockAt))
         return;
     await (0, lockReminders_1.runLockReminderBatch)(db, lockAt);
 });
 /** Daily batch — account holders with a box draft but no shipping/payment yet (Customer.io event). */
-exports.scheduledSetupNudges = (0, scheduler_1.onSchedule)('every day 08:00', async () => {
+exports.scheduledSetupNudges = (0, sentry_1.onSchedule)('every day 08:00', async () => {
     if (process.env.GJ_SETUP_NUDGE_ENABLED !== 'true') {
         logger.info('scheduledSetupNudges skipped — GJ_SETUP_NUDGE_ENABLED is not true');
         return;
@@ -2142,7 +2141,7 @@ exports.scheduledSetupNudges = (0, scheduler_1.onSchedule)('every day 08:00', as
     await (0, setupNudge_1.runSetupNudgeBatch)(db, lockAt);
 });
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */
-exports.scheduledChargePilotBoxes = (0, scheduler_1.onSchedule)('every 1 hours', async () => {
+exports.scheduledChargePilotBoxes = (0, sentry_1.onSchedule)('every 1 hours', async () => {
     if (!stripe_1.stripe) {
         logger.warn('scheduledChargePilotBoxes skipped — Stripe not configured');
     }
@@ -2159,19 +2158,19 @@ exports.scheduledChargePilotBoxes = (0, scheduler_1.onSchedule)('every 1 hours',
     }
 });
 /** Release stale marketplace inventory reservations (pending unpaid checkouts). */
-exports.scheduledReleaseStaleMarketplaceReservations = (0, scheduler_1.onSchedule)('every 1 hours', async () => {
+exports.scheduledReleaseStaleMarketplaceReservations = (0, sentry_1.onSchedule)('every 1 hours', async () => {
     const result = await (0, catalogInventory_1.releaseStaleMarketplaceReservations)(db);
     logger.info('scheduledReleaseStaleMarketplaceReservations', result);
 });
 /** Admin / QA: recompute boxAllocatedQty from active box orders (any time). */
-exports.recomputeCatalogBoxAllocations = (0, https_1.onCall)(async (request) => {
+exports.recomputeCatalogBoxAllocations = (0, sentry_1.onCall)(async (request) => {
     var _a, _b;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
-        throw new https_1.HttpsError('unauthenticated', 'Must be signed in.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     const email = (_b = request.auth.token.email) !== null && _b !== void 0 ? _b : '';
     if (!/^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email)) {
-        throw new https_1.HttpsError('permission-denied', 'Admin only.');
+        throw new sentry_1.HttpsError('permission-denied', 'Admin only.');
     }
     return (0, catalogInventory_1.recomputeBoxAllocations)(db);
 });
@@ -2180,7 +2179,7 @@ exports.recomputeCatalogBoxAllocations = (0, https_1.onCall)(async (request) => 
  * Auth: Authorization: Bearer $CATALOG_SYNC_SECRET
  * Also requires AIRTABLE_PAT (and optional AIRTABLE_BASE_ID).
  */
-exports.syncAirtableCatalog = (0, https_1.onRequest)({
+exports.syncAirtableCatalog = (0, sentry_1.onRequest)({
     cors: true,
     timeoutSeconds: 300,
     memory: '1GiB',
@@ -2205,7 +2204,7 @@ exports.syncAirtableCatalog = (0, https_1.onRequest)({
     }
 });
 /** Near-realtime safety net — full replace sync every 5 minutes when PAT is configured. */
-exports.scheduledAirtableCatalogSync = (0, scheduler_1.onSchedule)({ schedule: 'every 5 minutes', timeoutSeconds: 300, memory: '1GiB' }, async () => {
+exports.scheduledAirtableCatalogSync = (0, sentry_1.onSchedule)({ schedule: 'every 5 minutes', timeoutSeconds: 300, memory: '1GiB' }, async () => {
     var _a;
     if (!((_a = process.env.AIRTABLE_PAT) === null || _a === void 0 ? void 0 : _a.trim())) {
         logger.warn('Skipping scheduled catalog sync — AIRTABLE_PAT unset');
@@ -2218,7 +2217,7 @@ exports.scheduledAirtableCatalogSync = (0, scheduler_1.onSchedule)({ schedule: '
  * Attest community eligibility → generate a Hanukkah box discount code and email it.
  * Auth optional (guests can request with email); signed-in users also store code on household.
  */
-exports.requestBoxDiscountCode = (0, https_1.onCall)(async (request) => {
+exports.requestBoxDiscountCode = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     const email = String((_b = (_a = request.data) === null || _a === void 0 ? void 0 : _a.email) !== null && _b !== void 0 ? _b : '')
         .trim()
@@ -2226,14 +2225,14 @@ exports.requestBoxDiscountCode = (0, https_1.onCall)(async (request) => {
     const attestAllTrue = ((_c = request.data) === null || _c === void 0 ? void 0 : _c.attestAllTrue) === true;
     const statements = Array.isArray((_d = request.data) === null || _d === void 0 ? void 0 : _d.statements) ? request.data.statements : [];
     if (!email.includes('@')) {
-        throw new https_1.HttpsError('invalid-argument', 'A valid email is required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'A valid email is required.');
     }
     if (!attestAllTrue) {
-        throw new https_1.HttpsError('failed-precondition', 'Please attest that all statements are true.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Please attest that all statements are true.');
     }
     const allAffirmed = statements.every((s) => s && s.affirmed === true);
     if (!allAffirmed || statements.length < 1) {
-        throw new https_1.HttpsError('failed-precondition', 'Please confirm each eligibility statement.');
+        throw new sentry_1.HttpsError('failed-precondition', 'Please confirm each eligibility statement.');
     }
     const code = `GJ70-${(0, crypto_1.randomBytes)(3).toString('hex').toUpperCase()}`;
     const uid = (_f = (_e = request.auth) === null || _e === void 0 ? void 0 : _e.uid) !== null && _f !== void 0 ? _f : null;

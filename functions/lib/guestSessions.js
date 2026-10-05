@@ -14,9 +14,8 @@ exports.mintResumeToken = mintResumeToken;
 exports.resumeGuestSessionByToken = resumeGuestSessionByToken;
 exports.purgeExpiredGuestData = purgeExpiredGuestData;
 exports.isAdminEmail = isAdminEmail;
-const logger = require("firebase-functions/logger");
-const https_1 = require("firebase-functions/v2/https");
-const scheduler_1 = require("firebase-functions/v2/scheduler");
+const logger = require("./logger");
+const sentry_1 = require("./sentry");
 const firestore_1 = require("firebase-admin/firestore");
 const crypto_1 = require("crypto");
 const untraditionalCio_1 = require("./untraditionalCio");
@@ -79,36 +78,36 @@ function summarizeSnapshot(snapshot) {
 }
 function validateSnapshot(raw) {
     if (!isRecord(raw))
-        throw new https_1.HttpsError('invalid-argument', 'snapshot must be an object.');
+        throw new sentry_1.HttpsError('invalid-argument', 'snapshot must be an object.');
     for (const key of Object.keys(raw)) {
         if (!SNAPSHOT_TOP_LEVEL_KEYS.has(key)) {
-            throw new https_1.HttpsError('invalid-argument', `snapshot: unknown key "${key}".`);
+            throw new sentry_1.HttpsError('invalid-argument', `snapshot: unknown key "${key}".`);
         }
     }
     if (raw.v !== exports.GUEST_SESSION_SCHEMA_VERSION) {
-        throw new https_1.HttpsError('invalid-argument', 'snapshot: unsupported version.');
+        throw new sentry_1.HttpsError('invalid-argument', 'snapshot: unsupported version.');
     }
     if (raw.guest !== undefined && !isRecord(raw.guest)) {
-        throw new https_1.HttpsError('invalid-argument', 'snapshot.guest must be an object.');
+        throw new sentry_1.HttpsError('invalid-argument', 'snapshot.guest must be an object.');
     }
     if (raw.gift !== undefined && raw.gift !== null && !isRecord(raw.gift)) {
-        throw new https_1.HttpsError('invalid-argument', 'snapshot.gift must be an object or null.');
+        throw new sentry_1.HttpsError('invalid-argument', 'snapshot.gift must be an object or null.');
     }
     if (raw.entry !== undefined && raw.entry !== null && !isRecord(raw.entry)) {
-        throw new https_1.HttpsError('invalid-argument', 'snapshot.entry must be an object or null.');
+        throw new sentry_1.HttpsError('invalid-argument', 'snapshot.entry must be an object or null.');
     }
     if (raw.path !== undefined && typeof raw.path !== 'string') {
-        throw new https_1.HttpsError('invalid-argument', 'snapshot.path must be a string.');
+        throw new sentry_1.HttpsError('invalid-argument', 'snapshot.path must be a string.');
     }
     const bytes = Buffer.byteLength(JSON.stringify(raw), 'utf8');
     if (bytes > exports.SNAPSHOT_MAX_BYTES) {
-        throw new https_1.HttpsError('invalid-argument', `snapshot too large (${bytes} bytes).`);
+        throw new sentry_1.HttpsError('invalid-argument', `snapshot too large (${bytes} bytes).`);
     }
     return raw;
 }
 function validateVisitorId(raw) {
     if (typeof raw !== 'string' || !exports.VISITOR_ID_RE.test(raw)) {
-        throw new https_1.HttpsError('invalid-argument', 'Invalid visitorId.');
+        throw new sentry_1.HttpsError('invalid-argument', 'Invalid visitorId.');
     }
     return raw;
 }
@@ -134,7 +133,7 @@ async function saveGuestSessionRecord(db, visitorId, snapshot, now = new Date())
     return { ok: true };
 }
 /** Callable used by the debounced client sync (src/hooks/useGuestSessionSync.ts). Unauthenticated. */
-exports.saveGuestSession = (0, https_1.onCall)(async (request) => {
+exports.saveGuestSession = (0, sentry_1.onCall)(async (request) => {
     var _a;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const visitorId = validateVisitorId(data.visitorId);
@@ -153,7 +152,7 @@ const BEACON_ORIGINS = [
  * JSON (a "simple" request, so no CORS preflight is needed at pagehide). Same validation
  * as the callable; the client never reads the response.
  */
-exports.saveGuestSessionBeacon = (0, https_1.onRequest)({ cors: BEACON_ORIGINS }, async (req, res) => {
+exports.saveGuestSessionBeacon = (0, sentry_1.onRequest)({ cors: BEACON_ORIGINS }, async (req, res) => {
     var _a, _b;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
@@ -168,7 +167,7 @@ exports.saveGuestSessionBeacon = (0, https_1.onRequest)({ cors: BEACON_ORIGINS }
         res.status(204).send('');
     }
     catch (err) {
-        const code = err instanceof https_1.HttpsError ? 400 : 500;
+        const code = err instanceof sentry_1.HttpsError ? 400 : 500;
         if (code === 500)
             logger.error('saveGuestSessionBeacon failed', err);
         res.status(code).send('');
@@ -185,10 +184,10 @@ function scrubChildNames(snapshot) {
  * Called by persistGuestToAccount after sign-up: records the account so recovery emails stop,
  * and scrubs child names from the stored snapshot.
  */
-exports.markGuestSessionConverted = (0, https_1.onCall)(async (request) => {
+exports.markGuestSessionConverted = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
-        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     const visitorId = validateVisitorId(data.visitorId);
     const db = (0, firestore_1.getFirestore)();
@@ -254,11 +253,11 @@ async function resumeGuestSessionByToken(db, token, now = new Date()) {
 }
 /** `?resume=TOKEN` → saved snapshot (src/navigation/ResumeLinkEffect.tsx). Unauthenticated. */
 /** Kept warm: a cold start leaves an email click on the storefront for seconds before the box opens. */
-exports.resumeGuestSession = (0, https_1.onCall)({ minInstances: 1 }, async (request) => {
+exports.resumeGuestSession = (0, sentry_1.onCall)({ minInstances: 1 }, async (request) => {
     var _a;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     if (typeof data.token !== 'string')
-        throw new https_1.HttpsError('invalid-argument', 'token required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'token required.');
     return resumeGuestSessionByToken((0, firestore_1.getFirestore)(), data.token);
 });
 /**
@@ -284,7 +283,7 @@ async function purgeExpiredGuestData(db, now = new Date()) {
     }
     return counts;
 }
-exports.scheduledPurgeGuestSessions = (0, scheduler_1.onSchedule)('every day 04:00', async () => {
+exports.scheduledPurgeGuestSessions = (0, sentry_1.onSchedule)('every day 04:00', async () => {
     const counts = await purgeExpiredGuestData((0, firestore_1.getFirestore)());
     logger.info('scheduledPurgeGuestSessions', counts);
 });
@@ -298,14 +297,14 @@ function isAdminEmail(email) {
  * Data-rights path: remove everything we hold for a lead email — guest sessions linked to it,
  * resume tokens, lead events, and the Untraditional Customer.io person. Admin only.
  */
-exports.deleteGuestDataByEmail = (0, https_1.onCall)(async (request) => {
+exports.deleteGuestDataByEmail = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e;
     if (!isAdminEmail((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.email)) {
-        throw new https_1.HttpsError('permission-denied', 'Admin only.');
+        throw new sentry_1.HttpsError('permission-denied', 'Admin only.');
     }
     const data = ((_c = request.data) !== null && _c !== void 0 ? _c : {});
     if (typeof data.email !== 'string' || !data.email.includes('@')) {
-        throw new https_1.HttpsError('invalid-argument', 'email required.');
+        throw new sentry_1.HttpsError('invalid-argument', 'email required.');
     }
     const hash = emailHash(data.email);
     const db = (0, firestore_1.getFirestore)();

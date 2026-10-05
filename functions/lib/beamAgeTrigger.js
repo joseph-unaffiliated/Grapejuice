@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.scanBeamAgeTriggers = void 0;
-const logger = require("firebase-functions/logger");
-const scheduler_1 = require("firebase-functions/v2/scheduler");
+const logger = require("./logger");
+const sentry_1 = require("./sentry");
 const firestore_1 = require("firebase-admin/firestore");
 const TRIGGER_WINDOW_MONTHS = 6;
 function parseBirthdate(data) {
@@ -38,7 +38,7 @@ function findMilestone(birthdate, now) {
     return best;
 }
 /** Nightly scan of child birthdates — writes upcomingBeamMilestone (no UI yet). */
-exports.scanBeamAgeTriggers = (0, scheduler_1.onSchedule)({
+exports.scanBeamAgeTriggers = (0, sentry_1.onSchedule)({
     schedule: '0 6 * * *',
     timeZone: 'America/New_York',
 }, async () => {

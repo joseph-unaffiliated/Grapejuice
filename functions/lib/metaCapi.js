@@ -9,7 +9,7 @@ exports.metaContextForDoc = metaContextForDoc;
 exports.sanitizeAttribution = sanitizeAttribution;
 exports.sendMetaEvent = sendMetaEvent;
 const crypto_1 = require("crypto");
-const logger = require("firebase-functions/logger");
+const logger = require("./logger");
 /**
  * Meta Conversions API (server copy of browser pixel events).
  *

@@ -27,7 +27,7 @@ exports.assertCatalogSyncSecret = assertCatalogSyncSecret;
  *   AIRTABLE_BASE_ID — defaults to appQscrPCQUIj4shh
  *   CATALOG_SYNC_SECRET — shared secret for HTTP trigger (Authorization: Bearer …)
  */
-const logger = require("firebase-functions/logger");
+const logger = require("./logger");
 const firestore_1 = require("firebase-admin/firestore");
 const storage_1 = require("firebase-admin/storage");
 const crypto_1 = require("crypto");

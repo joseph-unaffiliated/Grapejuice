@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runLockReminderBatch = runLockReminderBatch;
-const logger = require("firebase-functions/logger");
+const logger = require("./logger");
 const email_1 = require("./email");
 const emailItems_1 = require("./emailItems");
 const guestSessions_1 = require("./guestSessions");

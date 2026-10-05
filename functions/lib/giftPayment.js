@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resolveGiftInviteKind = resolveGiftInviteKind;
 exports.finalizeGiftInvitePayment = finalizeGiftInvitePayment;
-const logger = require("firebase-functions/logger");
+const logger = require("./logger");
 const stripe_1 = require("./stripe");
 const email_1 = require("./email");
 const metaCapi_1 = require("./metaCapi");

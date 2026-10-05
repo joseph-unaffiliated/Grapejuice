@@ -6,7 +6,7 @@ exports.untraditionalIdentify = untraditionalIdentify;
 exports.untraditionalEvent = untraditionalEvent;
 exports.untraditionalDeletePerson = untraditionalDeletePerson;
 exports.untraditionalMarkSafe = untraditionalMarkSafe;
-const logger = require("firebase-functions/logger");
+const logger = require("./logger");
 /**
  * Customer.io *Track* API for the Untraditional workspace (208456).
  *

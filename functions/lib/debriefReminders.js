@@ -4,7 +4,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.firstDebriefSendDayIso = firstDebriefSendDayIso;
 exports.isAfterHanukkahSeason = isAfterHanukkahSeason;
 exports.runDebriefReminderBatch = runDebriefReminderBatch;
-const logger = require("firebase-functions/logger");
+const logger = require("./logger");
 const email_1 = require("./email");
 const sms_1 = require("./sms");
 const HOLIDAY_ID = 'hanukkah-2026';

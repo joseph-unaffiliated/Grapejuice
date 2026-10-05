@@ -7,8 +7,8 @@ exports.visitorIdFromLandingUrl = visitorIdFromLandingUrl;
 exports.parseClickedAt = parseClickedAt;
 exports.fallbackSessionForLead = fallbackSessionForLead;
 exports.processRetentionLead = processRetentionLead;
-const logger = require("firebase-functions/logger");
-const https_1 = require("firebase-functions/v2/https");
+const logger = require("./logger");
+const sentry_1 = require("./sentry");
 const firestore_1 = require("firebase-admin/firestore");
 const crypto_1 = require("crypto");
 const guestSessions_1 = require("./guestSessions");
@@ -265,7 +265,7 @@ async function processRetentionLead(db, payload, now = new Date()) {
     }, { merge: true });
     return { status: 'processed', linked, hasBox, eventSent };
 }
-exports.retentionLead = (0, https_1.onRequest)({ cors: false }, async (req, res) => {
+exports.retentionLead = (0, sentry_1.onRequest)({ cors: false }, async (req, res) => {
     var _a, _b, _c, _d;
     if (req.method !== 'POST') {
         res.status(405).json({ error: 'Method not allowed' });
