@@ -34,6 +34,15 @@ let suppressHistoryPush = false;
 let historyIdx = 0;
 const navHistory: string[] = [];
 
+/** Retention's installer test: ge.js reads ?vge=true from location.href whenever it finishes loading. */
+const RETENTION_TEST =
+  Platform.OS === 'web' && typeof window !== 'undefined' && /[?&]vge=true\b/.test(window.location.search);
+
+function withRetentionTest(path: string): string {
+  if (!RETENTION_TEST || /[?&]vge=true\b/.test(path)) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}vge=true`;
+}
+
 function stateFingerprint(state: NavigationState | PartialState<NavigationState>): string {
   const parts: string[] = [];
   let current: NavigationState | PartialState<NavigationState> | undefined = state;
@@ -77,7 +86,7 @@ function stateFingerprint(state: NavigationState | PartialState<NavigationState>
 }
 
 function syncBrowserUrl(state: NavigationState, mode: 'push' | 'replace'): void {
-  const nextPath = browserPathForNavigationState(state);
+  const nextPath = withRetentionTest(browserPathForNavigationState(state));
   const current = window.location.pathname + window.location.search;
   if (mode === 'replace') {
     window.history.replaceState({ gjNav: true, idx: historyIdx }, '', nextPath);
@@ -91,16 +100,17 @@ function syncBrowserUrl(state: NavigationState, mode: 'push' | 'replace'): void 
 /** Replace the current history entry (same idx) — e.g. leave a checkout step after success. */
 export function replaceBrowserPath(path: string): void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-  window.history.replaceState({ gjNav: true, idx: historyIdx }, '', path);
+  window.history.replaceState({ gjNav: true, idx: historyIdx }, '', withRetentionTest(path));
 }
 
 /** Push a new history entry — e.g. shipping → payment so Back returns to shipping. */
 export function pushBrowserPath(path: string): void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   const current = window.location.pathname + window.location.search;
-  if (current === path) return;
+  const nextPath = withRetentionTest(path);
+  if (current === nextPath) return;
   historyIdx += 1;
-  window.history.pushState({ gjNav: true, idx: historyIdx }, '', path);
+  window.history.pushState({ gjNav: true, idx: historyIdx }, '', nextPath);
 }
 
 /**
@@ -268,17 +278,13 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
   setGaDisabled(metaTrackingSuppressed());
 
   const fingerprint = stateFingerprint(state);
-  const nextPath = browserPathForNavigationState(state);
+  const nextPath = withRetentionTest(browserPathForNavigationState(state));
   const current = window.location.pathname + window.location.search;
   const previousIndex = navHistory.indexOf(fingerprint);
 
   if (navHistory.length === 0) {
     navHistory.push(fingerprint);
     syncBrowserUrl(state, 'replace');
-    // Retention's installer test: ge.js loads after this and reads ?vge=true from location.href.
-    if (/[?&]vge=true\b/.test(current)) {
-      replaceBrowserPath(`${nextPath}${nextPath.includes('?') ? '&' : '?'}vge=true`);
-    }
     // index.html already fired the landing PageView.
     lastMetaPageViewPath = window.location.pathname;
     return;
