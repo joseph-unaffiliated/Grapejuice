@@ -13,6 +13,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const crypto_1 = require("crypto");
 const guestSessions_1 = require("./guestSessions");
 const untraditionalCio_1 = require("./untraditionalCio");
+const emailItems_1 = require("./emailItems");
 /**
  * Receives grapejuice.co leads forwarded by subscription-functions' /api/retention-webhook
  * (lib/grapejuice-lead.js), links them to a saved guest box, and hands them to the
@@ -202,6 +203,19 @@ async function processRetentionLead(db, payload, now = new Date()) {
     else {
         resumeUrl = `${(0, guestSessions_1.appOrigin)()}/box?utm_source=retention&utm_medium=email&utm_campaign=guest_box_recovery`;
     }
+    let items = [];
+    let itemsMore = 0;
+    try {
+        if (session && hasBox) {
+            ({ items, more: itemsMore } = await (0, emailItems_1.boxEmailItems)(db, sessionData === null || sessionData === void 0 ? void 0 : sessionData.snapshot, resumeUrl));
+        }
+        else {
+            items = await (0, emailItems_1.pickEmailItems)(db, 'utm_source=retention&utm_medium=email&utm_campaign=guest_box_recovery');
+        }
+    }
+    catch (err) {
+        logger.warn('retentionLead: email items failed (sending without them)', { err: String(err) });
+    }
     if (session) {
         await session.ref.set({ lastLeadEmailHash: hash, lastLeadAt: firestore_1.Timestamp.fromDate(now) }, { merge: true });
     }
@@ -230,6 +244,8 @@ async function processRetentionLead(db, payload, now = new Date()) {
                 box_item_count: boxItemCount,
                 linked: linked !== null && linked !== void 0 ? linked : 'none',
                 landing_page_url: landingPageUrl,
+                items,
+                items_more: itemsMore,
             });
         }
     }

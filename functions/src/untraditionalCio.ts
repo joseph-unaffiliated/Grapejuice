@@ -49,8 +49,8 @@ async function trackRequest(method: 'PUT' | 'POST', path: string, body: unknown)
 
 type AttributeValue = string | number | boolean | null;
 
-function compact(input: Record<string, AttributeValue | undefined>): Record<string, AttributeValue> {
-  const out: Record<string, AttributeValue> = {};
+function compact<T>(input: Record<string, T | undefined>): Record<string, T> {
+  const out: Record<string, T> = {};
   for (const [k, v] of Object.entries(input)) {
     if (v !== undefined) out[k] = v;
   }
@@ -70,11 +70,11 @@ export async function untraditionalIdentify(
   });
 }
 
-/** Fire a campaign-trigger event for a person keyed by email. */
+/** Fire a campaign-trigger event for a person keyed by email. Data may nest (Liquid `event.items`). */
 export async function untraditionalEvent(
   email: string,
   name: string,
-  data: Record<string, AttributeValue | undefined>
+  data: Record<string, unknown>
 ): Promise<boolean> {
   const normalized = email.trim().toLowerCase();
   if (!normalized.includes('@')) return false;

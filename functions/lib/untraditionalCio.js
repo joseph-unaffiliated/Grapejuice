@@ -66,7 +66,7 @@ async function untraditionalIdentify(email, attributes) {
         return false;
     return trackRequest('PUT', `/customers/${encodeURIComponent(normalized)}`, Object.assign(Object.assign({}, compact(attributes)), { email: normalized }));
 }
-/** Fire a campaign-trigger event for a person keyed by email. */
+/** Fire a campaign-trigger event for a person keyed by email. Data may nest (Liquid `event.items`). */
 async function untraditionalEvent(email, name, data) {
     const normalized = email.trim().toLowerCase();
     if (!normalized.includes('@'))

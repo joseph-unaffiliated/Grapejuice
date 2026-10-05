@@ -10,6 +10,7 @@ import {
   VISITOR_ID_RE,
 } from './guestSessions';
 import { untraditionalEvent, untraditionalIdentify } from './untraditionalCio';
+import { boxEmailItems, pickEmailItems, type EmailItem } from './emailItems';
 
 /**
  * Receives grapejuice.co leads forwarded by subscription-functions' /api/retention-webhook
@@ -226,6 +227,18 @@ export async function processRetentionLead(
   } else {
     resumeUrl = `${appOrigin()}/box?utm_source=retention&utm_medium=email&utm_campaign=guest_box_recovery`;
   }
+  let items: EmailItem[] = [];
+  let itemsMore = 0;
+  try {
+    if (session && hasBox) {
+      ({ items, more: itemsMore } = await boxEmailItems(db, sessionData?.snapshot, resumeUrl));
+    } else {
+      items = await pickEmailItems(db, 'utm_source=retention&utm_medium=email&utm_campaign=guest_box_recovery');
+    }
+  } catch (err) {
+    logger.warn('retentionLead: email items failed (sending without them)', { err: String(err) });
+  }
+
   if (session) {
     await session.ref.set(
       { lastLeadEmailHash: hash, lastLeadAt: Timestamp.fromDate(now) },
@@ -258,6 +271,8 @@ export async function processRetentionLead(
         box_item_count: boxItemCount,
         linked: linked ?? 'none',
         landing_page_url: landingPageUrl,
+        items,
+        items_more: itemsMore,
       });
     }
   } catch (err) {
