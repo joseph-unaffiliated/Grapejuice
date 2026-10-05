@@ -18,6 +18,7 @@ import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
 import { GiftPaymentPanel, GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
+import { trackGiftStep } from '../../services/analytics/giftFunnel';
 
 type Route = RouteProp<MainStackParamList, 'GiftGiverCustomize'>;
 
@@ -56,7 +57,9 @@ export function GiftGiverCustomizeScreen() {
         initialGiftPath: 'credit_only',
         autoStartPayment: true,
       });
+      return;
     }
+    trackGiftStep('GiftCustomize', 'customize');
   }, [form, childDrafts, navigation]);
 
   const {
@@ -110,6 +113,7 @@ export function GiftGiverCustomizeScreen() {
 
   const requireAuth = (entry: 'signup' | 'signin') => {
     const draft = { form, childDrafts, lineItems };
+    trackGiftStep('GiftSignupPrompt', 'customize');
     useGiftIntentStore.getState().markIncomplete('customize', draft);
     startAuthForGiftCustomize(entry, draft);
   };

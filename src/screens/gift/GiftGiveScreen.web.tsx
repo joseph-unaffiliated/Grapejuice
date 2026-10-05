@@ -19,6 +19,7 @@ import type { GiftChildDraft } from './giftGiveTypes';
 import { GiftPaymentPanel, GIFT_STRIPE_APPEARANCE } from './GiftPaymentPanel.web';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 import { isValidEmail } from '../../utils/formValidation';
+import { trackGiftStep } from '../../services/analytics/giftFunnel';
 
 function notify(title: string, message: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -60,8 +61,15 @@ function GiftGiveBody() {
 
   const creditOnly = values.giftPath === 'credit_only';
 
+  useEffect(() => {
+    trackGiftStep('GiftStart');
+    if (values.giftPath) trackGiftStep('GiftPathChosen', values.giftPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- entry only; later picks go through patchValues
+  }, []);
+
   const patchValues = (patch: Partial<GiftGiveFormValues>) => {
     if (patch.recipientEmail !== undefined || patch.giftPath !== undefined) setFormError(null);
+    if (patch.giftPath) trackGiftStep('GiftPathChosen', patch.giftPath);
     setValues((current) => ({ ...current, ...patch }));
   };
 
@@ -79,6 +87,7 @@ function GiftGiveBody() {
       form: { ...values, recipientEmail: email, giftPath: 'credit_only' as const },
       childDrafts,
     };
+    trackGiftStep('GiftSignupPrompt', 'credit_only');
     useGiftIntentStore.getState().markIncomplete('credit_only', draft);
     startAuthForGiftGive(entry, draft);
   };
@@ -89,6 +98,7 @@ function GiftGiveBody() {
       setFormError('Enter a valid email (like name@example.com).');
       return;
     }
+    if (values.giftPath) trackGiftStep('GiftDetails', values.giftPath);
 
     // Credit-only first — never fall through into the box editor.
     if (values.giftPath === 'credit_only') {

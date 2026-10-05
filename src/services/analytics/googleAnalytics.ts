@@ -32,6 +32,12 @@ const GA_EVENT_FOR_META: Partial<Record<MetaStandardEvent | MetaCustomEvent, str
   PreRegister: 'generate_lead',
   /** Guest box restored from a Retention recovery email (ResumeLinkEffect). */
   ResumeBox: 'resume_box',
+  /** Gift funnel (giftFunnel.ts) — payment steps reuse begin_checkout / purchase. */
+  GiftStart: 'gift_start',
+  GiftPathChosen: 'gift_path_chosen',
+  GiftDetails: 'gift_details',
+  GiftSignupPrompt: 'gift_signup_prompt',
+  GiftCustomize: 'gift_customize',
 };
 
 function gaParamsFromMeta(params: MetaEventParams | undefined): Record<string, unknown> {

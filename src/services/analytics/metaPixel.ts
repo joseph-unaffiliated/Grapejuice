@@ -27,7 +27,14 @@ export type MetaStandardEvent =
   | 'AddPaymentInfo'
   | 'Purchase';
 
-export type MetaCustomEvent = 'PreRegister' | 'ResumeBox';
+export type GiftStepEvent =
+  | 'GiftStart'
+  | 'GiftPathChosen'
+  | 'GiftDetails'
+  | 'GiftSignupPrompt'
+  | 'GiftCustomize';
+
+export type MetaCustomEvent = 'PreRegister' | 'ResumeBox' | GiftStepEvent;
 
 export type MetaEventParams = {
   value?: number;
