@@ -127,6 +127,8 @@ export type MainStackParamList = {
   AdminCatalog: undefined;
   /** Ops: create or edit a catalog item. Omit itemId to create. */
   AdminCatalogItem: { itemId?: string };
+  /** Ops: live Hanukkah boxes, gifts and inventory dashboard (admin allowlist). */
+  AdminBoxes: undefined;
   /** Ops: list marketing landings (admin allowlist). */
   AdminLandings: undefined;
   /** Ops: edit one marketing landing's sections / copy. */

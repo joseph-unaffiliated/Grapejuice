@@ -597,11 +597,18 @@ function AccountScreenBody() {
           <>
             <View style={styles.sectionDivider} />
             <Text style={styles.section}>Ops</Text>
-            <Text style={styles.hint}>Add or edit Hanukkah catalog SKUs (books, menorahs, etc.).</Text>
+            <Text style={styles.hint}>Edit Hanukkah catalog SKUs, or see live boxes, gifts and inventory holds.</Text>
             <GrapejuiceButton
               label="Catalog admin"
               variant="filled"
               onPress={() => navigation.navigate('AdminCatalog')}
+              style={styles.actionBtn}
+              textStyle={styles.primaryBtnText}
+            />
+            <GrapejuiceButton
+              label="Boxes and gifts"
+              variant="filled"
+              onPress={() => navigation.navigate('AdminBoxes')}
               style={styles.actionBtn}
               textStyle={styles.primaryBtnText}
             />

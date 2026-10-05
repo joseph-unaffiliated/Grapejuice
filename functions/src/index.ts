@@ -51,6 +51,7 @@ import {
   type MetaUserInput,
 } from './metaCapi';
 import { randomBytes } from 'crypto';
+import { createAdminBoxesDashboard } from './adminDashboard';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
 export { sendWelcomeOnSignup } from './welcome';
@@ -66,6 +67,8 @@ export { retentionLead } from './retentionLead';
 
 initializeApp();
 const db = getFirestore();
+
+export const getAdminBoxesDashboard = createAdminBoxesDashboard(db);
 
 const HOLIDAY_ID = 'hanukkah-2026';
 const DEFAULT_BOX_PRICE_CENTS = 8000;

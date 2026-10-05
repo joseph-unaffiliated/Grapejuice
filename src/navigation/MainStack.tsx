@@ -50,6 +50,7 @@ import { ProfilesScreen } from '../screens/profiles/ProfilesScreen';
 import { GrapeWobblePreviewScreen } from '../screens/dev/GrapeWobblePreviewScreen';
 import { AdminCatalogScreen } from '../screens/admin/AdminCatalogScreen';
 import { AdminCatalogItemScreen } from '../screens/admin/AdminCatalogItemScreen';
+import { AdminBoxesScreen } from '../screens/admin/AdminBoxesScreen';
 import { AdminLandingsScreen } from '../screens/admin/AdminLandingsScreen';
 import { AdminLandingEditorScreen } from '../screens/admin/AdminLandingEditorScreen';
 import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFeatures';
@@ -642,6 +643,11 @@ export function MainStack() {
           name="AdminCatalogItem"
           component={AdminCatalogItemScreen}
           options={{ title: 'Edit catalog item' }}
+        />
+        <Stack.Screen
+          name="AdminBoxes"
+          component={AdminBoxesScreen}
+          options={{ title: 'Boxes and gifts' }}
         />
         <Stack.Screen
           name="AdminLandings"
