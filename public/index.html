@@ -30,10 +30,10 @@
         window.__gjRetentionLoaded = true;
         !function(){var geq=window.geq=window.geq||[];if(geq.initialize)return;if(geq.invoked){if(window.console&&console.error){console.error("GE snippet included twice.");}return;}geq.invoked=!0;geq.methods=["page","suppress","track","doNotTrack","trackOrder","identify","addToCart","callBack","event"];geq.factory=function(method){return function(){var args=Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq}};for(var i=0;i<geq.methods.length;i++){var key=geq.methods[i];geq[key]=geq.factory(key)}geq.load=function(key){var script=document.createElement("script");script.type="text/javascript";script.async=!0;if(location.href.indexOf("vge=true")!==-1){script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js?v="+Math.random()}else{script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js"}var first=document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script,first)};geq.SNIPPET_VERSION="1.6.1";geq.load("X2JHJ4WE");geq.page();}();
       };
-      window.__gjDeferMarketing = function () {
-        if (window.__gjMarketingLoaded) return;
-        window.__gjMarketingLoaded = true;
-        // OneTrust
+      /** OneTrust — loads alongside the Meta Pixel so consent is available as early as tracking. */
+      window.__gjLoadOneTrust = function () {
+        if (window.__gjOneTrustLoaded) return;
+        window.__gjOneTrustLoaded = true;
         var ot = document.createElement('script');
         ot.src = 'https://cdn.cookielaw.org/scripttemplates/otSDKStub.js';
         ot.type = 'text/javascript';
@@ -41,14 +41,25 @@
         ot.async = true;
         ot.setAttribute('data-domain-script', '01a0cfd2-da9c-7e6a-a312-7f370c33ab6c');
         document.head.appendChild(ot);
-        // Retention.com (no-op if already loaded for ?vge=true)
-        if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
-        // Meta Pixel library — the fbq queue stub below already holds init + events.
+      };
+      /** Meta Pixel library — the fbq queue stub below already holds init + events.
+       *  Retention's ge.js also holds its collection call until this has loaded, so it isn't deferred. */
+      window.__gjLoadMetaPixel = function () {
+        if (window.__gjMetaPixelLoaded) return;
+        window.__gjMetaPixelLoaded = true;
         var fb = document.createElement('script');
         fb.async = true;
         fb.src = 'https://connect.facebook.net/en_US/fbevents.js';
         var first = document.getElementsByTagName('script')[0];
         first.parentNode.insertBefore(fb, first);
+      };
+      window.__gjDeferMarketing = function () {
+        if (window.__gjMarketingLoaded) return;
+        window.__gjMarketingLoaded = true;
+        if (typeof window.__gjLoadOneTrust === 'function') window.__gjLoadOneTrust();
+        // Retention.com (no-op if already loaded for ?vge=true)
+        if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
+        if (typeof window.__gjLoadMetaPixel === 'function') window.__gjLoadMetaPixel();
         // Google tag (GA4) — the dataLayer stub below already holds js + config + events.
         var ga = document.createElement('script');
         ga.async = true;
@@ -66,7 +77,7 @@
       gtag('js', new Date());
       gtag('config', 'G-217ZZMLJSE');
       // Meta Pixel queue stub: app events (src/services/analytics/metaPixel.ts) queue
-      // here before the deferred fbevents.js load, then flush in order.
+      // here until fbevents.js loads, then flush in order.
       !function(f){if(f.fbq)return;var n=f.fbq=function(){n.callMethod?
       n.callMethod.apply(n,arguments):n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];}(window);
@@ -75,9 +86,11 @@
       fbq.disablePushState = true;
       fbq('init', '809409995127436');
       fbq('track', 'PageView', { content_category: 'grapejuice' });
-      // Retention collection: load immediately (verifier + SPA need geq.page in-source).
-      // OneTrust / Meta stay deferred so they don't contend with first paint.
+      // Retention collection, OneTrust and the Meta Pixel load immediately (verifier + SPA need
+      // geq.page in-source; ge.js waits on fbevents.js). GA stays deferred for first paint.
       if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
+      if (typeof window.__gjLoadOneTrust === 'function') window.__gjLoadOneTrust();
+      if (typeof window.__gjLoadMetaPixel === 'function') window.__gjLoadMetaPixel();
     </script>
     <noscript
       ><img
