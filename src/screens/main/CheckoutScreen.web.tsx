@@ -437,12 +437,15 @@ function CheckoutScreenBody() {
       setShippingConfirmed(false);
       return;
     }
-    if (shippingConfirmed && !setupClientSecret) {
-      // Post-payment commit step — let them revisit shipping if needed.
+    if (shippingConfirmed && (cardOnFile || awaitingCardOnFile) && !validateAddress().ok) {
+      // Post-payment commit step — reopen shipping when that actually changes the view.
       setShippingConfirmed(false);
       return;
     }
-    navigation.goBack();
+    setShippingConfirmed(false);
+    // Checkout is the stack root after a reload or direct link, so goBack would no-op.
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('MyBox');
   };
 
   const onCardSaved = async () => {
