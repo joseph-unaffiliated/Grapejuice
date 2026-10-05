@@ -53,6 +53,15 @@ import { randomBytes } from 'crypto';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
 export { sendWelcomeOnSignup } from './welcome';
+export {
+  saveGuestSession,
+  saveGuestSessionBeacon,
+  markGuestSessionConverted,
+  resumeGuestSession,
+  deleteGuestDataByEmail,
+  scheduledPurgeGuestSessions,
+} from './guestSessions';
+export { retentionLead } from './retentionLead';
 
 initializeApp();
 const db = getFirestore();

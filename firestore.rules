@@ -90,5 +90,16 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.giverUid == request.auth.uid;
       allow write: if false;
     }
+
+    /** Guest box recovery (functions/src/guestSessions.ts) — functions only, never clients. */
+    match /guestSessions/{visitorId} {
+      allow read, write: if false;
+    }
+    match /guestResumeTokens/{tokenHash} {
+      allow read, write: if false;
+    }
+    match /retentionLeadEvents/{eventId} {
+      allow read, write: if false;
+    }
   }
 }

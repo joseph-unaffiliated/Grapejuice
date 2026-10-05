@@ -4,6 +4,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 import { exportOrderToShipStation } from './shipstation';
 import { sendEmail } from './email';
+import { untraditionalMarkSafe } from './untraditionalCio';
 import { PRICING_POLICY } from './rav/boxRules';
 
 export const HOLIDAY_ID = 'hanukkah-2026';
@@ -249,6 +250,11 @@ export async function fulfillHanukkahBoxOrder(
       } catch (emailErr) {
         logger.error('Hanukkah box order confirmation email failed', { orderId, emailErr });
       }
+      // Exit signal for the guest-box recovery campaigns (Untraditional workspace).
+      await untraditionalMarkSafe(email, {
+        grapejuice_order_placed: true,
+        grapejuice_order_placed_at: new Date().toISOString(),
+      });
     }
   }
 

@@ -41,6 +41,8 @@ import { CheckoutLinkEffect } from './CheckoutLinkEffect';
 import { PendingInterestEffect } from './PendingInterestEffect';
 import { BoxLinkEffect } from './BoxLinkEffect';
 import { PasswordResetLinkEffect } from './PasswordResetLinkEffect';
+import { ResumeLinkEffect } from './ResumeLinkEffect';
+import { GuestSessionSyncEffect } from '../hooks/useGuestSessionSync';
 import { hydratePasswordResetFromBoot } from './passwordResetLink';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { consumePendingAuthReturn } from '../services/auth/auth';
@@ -442,6 +444,8 @@ export function RootNavigator() {
           <PendingInterestEffect />
           <BoxLinkEffect />
           <PasswordResetLinkEffect />
+          <ResumeLinkEffect />
+          <GuestSessionSyncEffect />
           <AuthResumeMainEffect />
           <DevPreviewEffect />
           <RootRoutes />

@@ -30,6 +30,8 @@ const GA_EVENT_FOR_META: Partial<Record<MetaStandardEvent | MetaCustomEvent, str
   Purchase: 'purchase',
   CompleteRegistration: 'sign_up',
   PreRegister: 'generate_lead',
+  /** Guest box restored from a Retention recovery email (ResumeLinkEffect). */
+  ResumeBox: 'resume_box',
 };
 
 function gaParamsFromMeta(params: MetaEventParams | undefined): Record<string, unknown> {

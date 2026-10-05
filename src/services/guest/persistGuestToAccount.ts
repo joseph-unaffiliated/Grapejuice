@@ -9,6 +9,20 @@ import { queuePendingMainNav } from '../../navigation/pendingMainNav';
 import { peekPendingAuthReturn, type AuthUser } from '../auth/auth';
 import type { BoxLineItem, ChildProfile } from '../../types/pilot';
 import type { ChildDraft } from '../../screens/onboarding/BoxIntroScreen';
+import { getVisitorId } from './visitorId';
+import { markGuestSessionConvertedRemote } from './guestSessionSync';
+
+/**
+ * Tell the server this visitor now has an account: stops guest-box recovery emails and scrubs
+ * child names from the saved guest session. Fire-and-forget — must never slow down sign-up.
+ */
+function markGuestSessionConverted(): void {
+  const visitorId = getVisitorId();
+  if (!visitorId) return;
+  markGuestSessionConvertedRemote(visitorId).catch(() => {
+    /* best effort */
+  });
+}
 
 /** Kids only — adult drafts must never enter `users/{uid}/children` or guest-N remap. */
 export function kidDraftsOnly(drafts: ChildDraft[]): ChildDraft[] {
@@ -87,6 +101,7 @@ async function ensureGiftResumeSkipsOnboarding(user: AuthUser): Promise<void> {
 
 export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   const guest = useGuestSessionStore.getState();
+  markGuestSessionConverted();
   // A Google redirect reloads the page, so the store is empty here — fall back to
   // the value stashed in sessionStorage before the redirect.
   const pendingAtStart =

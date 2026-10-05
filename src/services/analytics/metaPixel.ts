@@ -27,7 +27,7 @@ export type MetaStandardEvent =
   | 'AddPaymentInfo'
   | 'Purchase';
 
-export type MetaCustomEvent = 'PreRegister';
+export type MetaCustomEvent = 'PreRegister' | 'ResumeBox';
 
 export type MetaEventParams = {
   value?: number;

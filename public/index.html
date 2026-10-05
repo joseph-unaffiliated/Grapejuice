@@ -21,14 +21,63 @@
       - Google Analytics (GA4): G-217ZZMLJSE
     -->
     <script type="text/javascript">
+      /**
+       * Guest visitor id (gj.vid). Retention's lead webhook keeps the full landing_page_url,
+       * so carrying ?gjv=<id> lets a lead be linked back to this browser's saved guest box
+       * (functions/src/guestSessions.ts). Cookie first (survives localStorage loss in in-app
+       * browsers), then localStorage, then new. Our own id always overwrites an inbound ?gjv=
+       * so a shared link can never tie a visitor to someone else's box. webBrowserHistory.ts
+       * keeps the param on every in-app URL rewrite.
+       */
+      window.__gjVisitorId = (function () {
+        try {
+          var host = location.hostname;
+          if (host === 'localhost' || host === '127.0.0.1') return null;
+          var re = /^[A-Za-z0-9_-]{16,64}$/;
+          var m = document.cookie.match(/(?:^|;\s*)gj_vid=([A-Za-z0-9_-]{16,64})(?:;|$)/);
+          var id = m ? m[1] : null;
+          if (!id) {
+            try {
+              var ls = localStorage.getItem('gj.vid');
+              if (ls && re.test(ls)) id = ls;
+            } catch (e) {}
+          }
+          if (!id) {
+            if (window.crypto && typeof crypto.randomUUID === 'function') {
+              id = crypto.randomUUID().replace(/-/g, '');
+            } else {
+              var a = 'abcdefghijklmnopqrstuvwxyz0123456789';
+              id = '';
+              for (var i = 0; i < 32; i++) id += a[Math.floor(Math.random() * a.length)];
+            }
+          }
+          try { localStorage.setItem('gj.vid', id); } catch (e) {}
+          var dom = (host === 'grapejuice.co' || /\.grapejuice\.co$/.test(host)) ? '; domain=.grapejuice.co' : '';
+          document.cookie = 'gj_vid=' + id + '; max-age=31536000; path=/; SameSite=Lax' + dom;
+          var url = new URL(location.href);
+          if (url.searchParams.get('gjv') !== id) {
+            url.searchParams.set('gjv', id);
+            history.replaceState(history.state, '', url.toString());
+          }
+          return id;
+        } catch (e) {
+          return null;
+        }
+      })();
+    </script>
+    <!-- Retention.com collection (site id X2JHJ4WE) — verbatim from the dashboard, followed by
+         geq.page() in its own tag, exactly as their installer shows it. Loads immediately so the
+         ?vge=true installer test and the first-paint URL (with ?gjv=) are both seen by ge.js. -->
+    <script type="text/javascript">
+!function(){var geq=window.geq=window.geq||[];if(geq.initialize) return;if (geq.invoked){if (window.console && console.error) {console.error("GE snippet included twice.");}return;}geq.invoked = true;geq.methods = ["page", "suppress", "track", "doNotTrack", "trackOrder", "identify", "addToCart", "callBack", "event"];geq.factory = function(method){return function(){var args = Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq;};};for (var i = 0; i < geq.methods.length; i++) {var key = geq.methods[i];geq[key] = geq.factory(key);} geq.load = function(key){var script = document.createElement("script");script.type = "text/javascript";script.async = true; if (location.href.includes("vge=true")) {script.src = "https://s3-us-west-2.amazonaws.com/jsstore/a/" + key + "/ge.js?v=" + Math.random();} else {script.src = "https://s3-us-west-2.amazonaws.com/jsstore/a/" + key + "/ge.js";} var first = document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script, first);};geq.SNIPPET_VERSION = "1.6.1";
+geq.load("X2JHJ4WE");}();
+    </script>
+    <script>geq.page()</script>
+    <script type="text/javascript">
       function OptanonWrapper() {}
-      /** Retention.com collection loader (site id X2JHJ4WE).
-       *  Base stub + geq.load + geq.page() — Retention's verifier Ctrl+F's for "geq.page".
-       *  Honors ?vge=true cache-bust for their installer test. */
+      /** Retention.com is loaded verbatim above; kept as a no-op so __gjDeferMarketing's call order is unchanged. */
       window.__gjLoadRetention = function () {
-        if (window.__gjRetentionLoaded) return;
         window.__gjRetentionLoaded = true;
-        !function(){var geq=window.geq=window.geq||[];if(geq.initialize)return;if(geq.invoked){if(window.console&&console.error){console.error("GE snippet included twice.");}return;}geq.invoked=!0;geq.methods=["page","suppress","track","doNotTrack","trackOrder","identify","addToCart","callBack","event"];geq.factory=function(method){return function(){var args=Array.prototype.slice.call(arguments);args.unshift(method);geq.push(args);return geq}};for(var i=0;i<geq.methods.length;i++){var key=geq.methods[i];geq[key]=geq.factory(key)}geq.load=function(key){var script=document.createElement("script");script.type="text/javascript";script.async=!0;if(location.href.indexOf("vge=true")!==-1){script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js?v="+Math.random()}else{script.src="https://s3-us-west-2.amazonaws.com/jsstore/a/"+key+"/ge.js"}var first=document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script,first)};geq.SNIPPET_VERSION="1.6.1";geq.load("X2JHJ4WE");geq.page();}();
       };
       /** OneTrust — loads alongside the Meta Pixel so consent is available as early as tracking. */
       window.__gjLoadOneTrust = function () {
@@ -43,7 +92,7 @@
         document.head.appendChild(ot);
       };
       /** Meta Pixel library — the fbq queue stub below already holds init + events.
-       *  Retention's ge.js also holds its collection call until this has loaded, so it isn't deferred. */
+       *  Loaded immediately so the landing PageView reaches Meta before a quick bounce. */
       window.__gjLoadMetaPixel = function () {
         if (window.__gjMetaPixelLoaded) return;
         window.__gjMetaPixelLoaded = true;
@@ -86,9 +135,8 @@
       fbq.disablePushState = true;
       fbq('init', '809409995127436');
       fbq('track', 'PageView', { content_category: 'grapejuice' });
-      // Retention collection, OneTrust and the Meta Pixel load immediately (verifier + SPA need
-      // geq.page in-source; ge.js waits on fbevents.js). GA stays deferred for first paint.
-      if (typeof window.__gjLoadRetention === 'function') window.__gjLoadRetention();
+      // OneTrust and the Meta Pixel load immediately (Retention already loaded above).
+      // GA stays deferred for first paint.
       if (typeof window.__gjLoadOneTrust === 'function') window.__gjLoadOneTrust();
       if (typeof window.__gjLoadMetaPixel === 'function') window.__gjLoadMetaPixel();
     </script>
