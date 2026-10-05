@@ -275,6 +275,10 @@ export function onWebNavigationStateChange(state?: NavigationState): void {
   if (navHistory.length === 0) {
     navHistory.push(fingerprint);
     syncBrowserUrl(state, 'replace');
+    // Retention's installer test: ge.js loads after this and reads ?vge=true from location.href.
+    if (/[?&]vge=true\b/.test(current)) {
+      replaceBrowserPath(`${nextPath}${nextPath.includes('?') ? '&' : '?'}vge=true`);
+    }
     // index.html already fired the landing PageView.
     lastMetaPageViewPath = window.location.pathname;
     return;
