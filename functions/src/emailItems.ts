@@ -90,7 +90,16 @@ export async function boxEmailItems(
   resumeUrl: string
 ): Promise<{ items: EmailItem[]; more: number }> {
   const guest = isRecord(snapshot) && isRecord(snapshot.guest) ? snapshot.guest : {};
-  const lines = Array.isArray(guest.lineItems) ? guest.lineItems : [];
+  return lineItemsEmailItems(db, guest.lineItems, resumeUrl);
+}
+
+/** Up to six distinct items from box `lineItems` (guest snapshot or household draft); every card links to `url`. */
+export async function lineItemsEmailItems(
+  db: FirebaseFirestore.Firestore,
+  lineItems: unknown,
+  url: string
+): Promise<{ items: EmailItem[]; more: number }> {
+  const lines = Array.isArray(lineItems) ? lineItems : [];
   const quantities = new Map<string, number>();
   for (const line of lines) {
     if (!isRecord(line) || typeof line.itemId !== 'string') continue;
@@ -109,7 +118,7 @@ export async function boxEmailItems(
     if (items.length >= MAX_BOX_ITEMS) continue;
     const item = await toEmailItem(snap.id, snap.data() ?? {}, {
       quantity: quantities.get(snap.id) ?? 1,
-      url: resumeUrl,
+      url,
       withPrice: false,
     });
     if (item) items.push(item);

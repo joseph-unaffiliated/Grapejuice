@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.retentionLead = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.retentionLead = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
 const logger = require("firebase-functions/logger");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -17,6 +17,8 @@ const shipstation_1 = require("./shipstation");
 const giftPayment_1 = require("./giftPayment");
 const debriefReminders_1 = require("./debriefReminders");
 const lockReminders_1 = require("./lockReminders");
+const setupNudge_1 = require("./setupNudge");
+const untraditionalCio_1 = require("./untraditionalCio");
 const airtableCatalogSync_1 = require("./airtableCatalogSync");
 const chargePilotBox_1 = require("./chargePilotBox");
 const catalogInventory_1 = require("./catalogInventory");
@@ -743,6 +745,14 @@ exports.commitPilotBox = (0, https_1.onCall)(async (request) => {
         await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
     }
     await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_g = data.contactPhone) === null || _g === void 0 ? void 0 : _g.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
+    // Exit signal for the account setup nudge (Untraditional workspace).
+    const commitEmail = typeof request.auth.token.email === 'string' ? request.auth.token.email : '';
+    if (commitEmail) {
+        await (0, untraditionalCio_1.untraditionalMarkSafe)(commitEmail, {
+            grapejuice_setup_complete: true,
+            grapejuice_setup_complete_at: new Date().toISOString(),
+        });
+    }
     if (!isPlaythrough) {
         try {
             const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);
@@ -2119,6 +2129,17 @@ exports.scheduledLockReminders = (0, scheduler_1.onSchedule)('every day 09:00', 
     if (!lockAt || isLocked(lockAt))
         return;
     await (0, lockReminders_1.runLockReminderBatch)(db, lockAt);
+});
+/** Daily batch — account holders with a box draft but no shipping/payment yet (Customer.io event). */
+exports.scheduledSetupNudges = (0, scheduler_1.onSchedule)('every day 08:00', async () => {
+    if (process.env.GJ_SETUP_NUDGE_ENABLED !== 'true') {
+        logger.info('scheduledSetupNudges skipped — GJ_SETUP_NUDGE_ENABLED is not true');
+        return;
+    }
+    const lockAt = await getLockAt();
+    if (!lockAt || isLocked(lockAt))
+        return;
+    await (0, setupNudge_1.runSetupNudgeBatch)(db, lockAt);
 });
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */
 exports.scheduledChargePilotBoxes = (0, scheduler_1.onSchedule)('every 1 hours', async () => {

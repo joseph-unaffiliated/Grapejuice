@@ -16,6 +16,8 @@ import {
 import { finalizeGiftInvitePayment, resolveGiftInviteKind, type GiftInviteRecord } from './giftPayment';
 import { runDebriefReminderBatch } from './debriefReminders';
 import { runLockReminderBatch } from './lockReminders';
+import { runSetupNudgeBatch } from './setupNudge';
+import { untraditionalMarkSafe } from './untraditionalCio';
 import {
   assertCatalogSyncSecret,
   runAirtableCatalogReplaceSync,
@@ -1038,6 +1040,15 @@ export const commitPilotBox = onCall(async (request) => {
     },
     { merge: true }
   );
+
+  // Exit signal for the account setup nudge (Untraditional workspace).
+  const commitEmail = typeof request.auth.token.email === 'string' ? request.auth.token.email : '';
+  if (commitEmail) {
+    await untraditionalMarkSafe(commitEmail, {
+      grapejuice_setup_complete: true,
+      grapejuice_setup_complete_at: new Date().toISOString(),
+    });
+  }
 
   if (!isPlaythrough) {
     try {
@@ -2603,6 +2614,17 @@ export const scheduledLockReminders = onSchedule('every day 09:00', async () => 
   const lockAt = await getLockAt();
   if (!lockAt || isLocked(lockAt)) return;
   await runLockReminderBatch(db, lockAt);
+});
+
+/** Daily batch — account holders with a box draft but no shipping/payment yet (Customer.io event). */
+export const scheduledSetupNudges = onSchedule('every day 08:00', async () => {
+  if (process.env.GJ_SETUP_NUDGE_ENABLED !== 'true') {
+    logger.info('scheduledSetupNudges skipped — GJ_SETUP_NUDGE_ENABLED is not true');
+    return;
+  }
+  const lockAt = await getLockAt();
+  if (!lockAt || isLocked(lockAt)) return;
+  await runSetupNudgeBatch(db, lockAt);
 });
 
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */

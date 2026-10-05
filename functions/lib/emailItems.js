@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.boxEmailItems = boxEmailItems;
+exports.lineItemsEmailItems = lineItemsEmailItems;
 exports.pickEmailItems = pickEmailItems;
 const logger = require("firebase-functions/logger");
 const storage_1 = require("firebase-admin/storage");
@@ -65,9 +66,13 @@ async function toEmailItem(id, cat, opts) {
 }
 /** Up to six distinct items from a saved guest box, in box order; every card links to the resume URL. */
 async function boxEmailItems(db, snapshot, resumeUrl) {
-    var _a, _b, _c;
     const guest = isRecord(snapshot) && isRecord(snapshot.guest) ? snapshot.guest : {};
-    const lines = Array.isArray(guest.lineItems) ? guest.lineItems : [];
+    return lineItemsEmailItems(db, guest.lineItems, resumeUrl);
+}
+/** Up to six distinct items from box `lineItems` (guest snapshot or household draft); every card links to `url`. */
+async function lineItemsEmailItems(db, lineItems, url) {
+    var _a, _b, _c;
+    const lines = Array.isArray(lineItems) ? lineItems : [];
     const quantities = new Map();
     for (const line of lines) {
         if (!isRecord(line) || typeof line.itemId !== 'string')
@@ -91,7 +96,7 @@ async function boxEmailItems(db, snapshot, resumeUrl) {
             continue;
         const item = await toEmailItem(snap.id, (_b = snap.data()) !== null && _b !== void 0 ? _b : {}, {
             quantity: (_c = quantities.get(snap.id)) !== null && _c !== void 0 ? _c : 1,
-            url: resumeUrl,
+            url,
             withPrice: false,
         });
         if (item)
