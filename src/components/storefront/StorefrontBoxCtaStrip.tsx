@@ -34,7 +34,7 @@ export function StorefrontBoxCtaStrip({ variant, onPress, lockAt = null }: Props
       headline={copy.headline}
       body={copy.body}
       primaryCta={{ label: copy.label, onPress }}
-      note={variant === 'confirm' ? editUntilLockNote(lockAt) : undefined}
+      note={variant === 'confirm' ? editUntilLockNote(lockAt, { twoLines: true }) : undefined}
       style={styles.outer}
     />
   );

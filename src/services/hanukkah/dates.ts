@@ -96,8 +96,8 @@ export function formatShortDate(date: Date): string {
 }
 
 /** Subtext under payment/shipping CTAs. Lock is midnight Eastern, so format in ET or Pacific shows the day before. */
-export function editUntilLockNote(lockAt: string | null): string {
-  const base = 'You’ll still be able to edit your box until the lock date';
+export function editUntilLockNote(lockAt: string | null, options: { twoLines?: boolean } = {}): string {
+  const base = `You’ll still be able to edit your box${options.twoLines ? '\n' : ' '}until the lock date`;
   if (!lockAt) return base;
   const date = new Date(lockAt).toLocaleDateString('en-US', {
     month: 'short',

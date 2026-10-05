@@ -1890,7 +1890,7 @@ export function MyBoxScreen() {
                   )}
                 </Pressable>
                 {!cardOnFile && !locked ? (
-                  <Text style={styles.checkoutCtaNote}>{editUntilLockNote(lockAt)}</Text>
+                  <Text style={styles.checkoutCtaNote}>{editUntilLockNote(lockAt, { twoLines: true })}</Text>
                 ) : null}
               </View>
             </View>
