@@ -253,7 +253,8 @@ async function resumeGuestSessionByToken(db, token, now = new Date()) {
     };
 }
 /** `?resume=TOKEN` → saved snapshot (src/navigation/ResumeLinkEffect.tsx). Unauthenticated. */
-exports.resumeGuestSession = (0, https_1.onCall)(async (request) => {
+/** Kept warm: a cold start leaves an email click on the storefront for seconds before the box opens. */
+exports.resumeGuestSession = (0, https_1.onCall)({ minInstances: 1 }, async (request) => {
     var _a;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     if (typeof data.token !== 'string')

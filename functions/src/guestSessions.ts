@@ -312,7 +312,8 @@ export async function resumeGuestSessionByToken(
 }
 
 /** `?resume=TOKEN` → saved snapshot (src/navigation/ResumeLinkEffect.tsx). Unauthenticated. */
-export const resumeGuestSession = onCall(async (request) => {
+/** Kept warm: a cold start leaves an email click on the storefront for seconds before the box opens. */
+export const resumeGuestSession = onCall({ minInstances: 1 }, async (request) => {
   const data = (request.data ?? {}) as { token?: unknown };
   if (typeof data.token !== 'string') throw new HttpsError('invalid-argument', 'token required.');
   return resumeGuestSessionByToken(getFirestore(), data.token);
