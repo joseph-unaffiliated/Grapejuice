@@ -502,6 +502,11 @@ export function MainStack() {
           name="CatalogProduct"
           component={CatalogProductScreen}
           options={{ title: 'Product' }}
+          initialParams={
+            initialRouteName === 'CatalogProduct'
+              ? (initialParams as MainStackParamList['CatalogProduct'] | undefined)
+              : undefined
+          }
         />
         <Stack.Screen
           name="BoxDiscountEligibility"
@@ -526,7 +531,16 @@ export function MainStack() {
         />
         <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'Orders' }} />
         <Stack.Screen name="MyGifts" component={MyGiftsScreen} options={{ title: 'My Gifts' }} />
-        <Stack.Screen name="GiftBox" component={GiftBoxScreen} options={{ title: 'Gift box' }} />
+        <Stack.Screen
+          name="GiftBox"
+          component={GiftBoxScreen}
+          options={{ title: 'Gift box' }}
+          initialParams={
+            initialRouteName === 'GiftBox'
+              ? (initialParams as MainStackParamList['GiftBox'] | undefined)
+              : undefined
+          }
+        />
         <Stack.Screen
           name="GiftBoxCheckout"
           component={GiftBoxCheckoutScreen}

@@ -18,9 +18,12 @@ import { contentRouteFromPath } from './contentLink';
 import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
 import { DEFAULT_STOREFRONT_CATEGORY, resolveStorefrontCategorySlug } from '../constants/storefrontCategories';
-import { navigateMainStack, navigateMainTab, navigateToLanding } from './mainStackNavigation';
+import { navigateMainStack, navigateMainTab } from './mainStackNavigation';
+import { queuePendingMainNav, type PendingMainNav } from './pendingMainNav';
+import type { MainStackParamList } from './types';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
 import { useAuthStore } from '../stores/authStore';
+import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { openBoxSurface } from './boxEntry';
 import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 import { retentionPage } from '../services/analytics/retention';
@@ -141,55 +144,65 @@ export function navigateToAppPath(rawPath: string): boolean {
   return restoreFromPath(path, query ? `?${query}` : '');
 }
 
-function restoreFromPath(pathname: string, search: string): boolean {
+type OpenMainScreen = <S extends keyof MainStackParamList>(
+  screen: S,
+  params?: MainStackParamList[S]
+) => void;
+
+function restoreFromPath(
+  pathname: string,
+  search: string,
+  open: OpenMainScreen = navigateMainStack,
+  openAccount: () => void = () => navigateMainTab('Account')
+): boolean {
   const path = pathname.replace(/\/$/, '') || '/';
 
   if (path === CHECKOUT_PATH) {
-    navigateMainStack('Checkout');
+    open('Checkout');
     return true;
   }
   if (path === BOX_PATH || path === '/my-box') {
-    navigateMainStack('MyBox');
+    open('MyBox');
     return true;
   }
   if (path === ORDERS_PATH) {
-    navigateMainStack('Orders');
+    open('Orders');
     return true;
   }
   if (path === MY_GIFTS_PATH) {
-    navigateMainStack('MyGifts');
+    open('MyGifts');
     return true;
   }
   const giftBoxId = readGiftBoxIdFromPath(path);
   if (giftBoxId) {
-    navigateMainStack('GiftBox', { giftInviteId: giftBoxId });
+    open('GiftBox', { giftInviteId: giftBoxId });
     return true;
   }
   const giftRevealId = readGiftRevealIdFromPath(path);
   if (giftRevealId) {
     // Reveal is transitional — land on the editable gift box.
-    navigateMainStack('GiftBox', { giftInviteId: giftRevealId });
+    open('GiftBox', { giftInviteId: giftRevealId });
     return true;
   }
   if (path === ACCOUNT_PATH) {
-    navigateMainTab('Account');
+    openAccount();
     return true;
   }
   if (path === GIFT_LANDING_PATH) {
-    navigateToLanding('gift');
+    open('GiftLanding');
     return true;
   }
   if (path === GIFT_CUSTOMIZE_PATH) {
     const intent = useGiftIntentStore.getState();
     const draft = intent.status === 'incomplete' ? intent.draft : null;
     if (draft?.form && draft.childDrafts?.length) {
-      navigateMainStack('GiftGiverCustomize', {
+      open('GiftGiverCustomize', {
         form: { ...draft.form, giftPath: 'customize' as const },
         childDrafts: draft.childDrafts,
         lineItems: draft.lineItems,
       });
     } else {
-      navigateMainStack('GiftGive', {
+      open('GiftGive', {
         form: {
           recipientEmail: '',
           giverName: '',
@@ -206,13 +219,13 @@ function restoreFromPath(pathname: string, search: string): boolean {
     const intent = useGiftIntentStore.getState();
     const draft = intent.status === 'incomplete' ? intent.draft : null;
     if (draft?.form) {
-      navigateMainStack('GiftGive', {
+      open('GiftGive', {
         form: draft.form,
         childDrafts: draft.childDrafts?.length ? draft.childDrafts : DEFAULT_GIFT_CHILDREN,
         initialGiftPath: draft.form.giftPath ?? undefined,
       });
     } else {
-      navigateMainStack('GiftGive');
+      open('GiftGive');
     }
     return true;
   }
@@ -225,28 +238,28 @@ function restoreFromPath(pathname: string, search: string): boolean {
       slug = raw.trim();
     }
     if (slug) {
-      navigateMainStack('CatalogProduct', { slug });
+      open('CatalogProduct', { slug });
       return true;
     }
   }
 
   const contentRoute = contentRouteFromPath(path);
   if (contentRoute) {
-    navigateMainStack(contentRoute);
+    open(contentRoute);
     return true;
   }
 
   const store = readStorePathFromPathname(path, search);
   if (store) {
     if (store.kind === 'home') {
-      navigateMainStack('StorefrontHome');
+      open('StorefrontHome');
       return true;
     }
     if (store.category === 'favorites') {
-      navigateMainStack('StorefrontFavorites');
+      open('StorefrontFavorites');
       return true;
     }
-    navigateMainStack('StorefrontCategory', {
+    open('StorefrontCategory', {
       category: resolveStorefrontCategorySlug(store.category || DEFAULT_STOREFRONT_CATEGORY),
       ...(store.q ? { q: store.q } : null),
       ...(store.avail ? { avail: store.avail } : null),
@@ -257,10 +270,48 @@ function restoreFromPath(pathname: string, search: string): boolean {
 
   const audience = landingAudienceFromPath(normalizeLandingPath(path));
   if (audience) {
-    navigateToLanding(audience.id);
+    if (audience.id === 'gift') open('GiftLanding');
+    else open('DynamicLanding', { landingId: audience.id });
     return true;
   }
   return false;
+}
+
+/**
+ * Guest "build my box" swaps the Main gate for Onboarding, so the page they came
+ * from (e.g. a product's "Buy with a box") is unmounted and goBack has nothing to
+ * pop. Close the builder and remount Main on the screen the browser went back to.
+ */
+function leaveGuestBoxBuilder(): boolean {
+  const root = navigationRef.getRootState();
+  if (root?.routes[root.index]?.name !== 'Onboarding') return false;
+  if (useAuthStore.getState().isAuthenticated) return false;
+  const guest = useGuestSessionStore.getState();
+  if (!guest.buildBoxPath || guest.boxRevealComplete) return false;
+
+  let target: PendingMainNav = { screen: 'StorefrontHome' };
+  restoreFromPath(
+    window.location.pathname,
+    window.location.search,
+    (screen, params) => {
+      target = { screen, params };
+    },
+    () => {
+      target = { screen: 'MainTabs', tab: 'Account' };
+    }
+  );
+  // Leaving for My Box would only reopen the builder.
+  if (target.screen === 'MyBox') target = { screen: 'StorefrontHome' };
+  queuePendingMainNav(target);
+  useGuestSessionStore.setState({
+    buildBoxPath: false,
+    onboardingStep: null,
+    exploreStarted: true,
+    // No box was built yet, so drop the item the product page seeded — otherwise
+    // the store treats one line item as a started box.
+    ...(guest.onboardingComplete ? null : { lineItems: [] }),
+  });
+  return true;
 }
 
 /** Push a browser history entry when in-app navigation moves forward. */
@@ -339,6 +390,7 @@ export function installWebBrowserHistory(): () => void {
       const goingBack = nextIdx < historyIdx;
       historyIdx = nextIdx;
       if (goingBack) {
+        if (leaveGuestBoxBuilder()) return;
         // In-screen history (e.g. /checkout?step=payment → /checkout): the screen
         // owns the step via popstate. Do not pop the React Navigation route.
         const browserPath =
@@ -347,7 +399,9 @@ export function installWebBrowserHistory(): () => void {
         if (screenPath && screenPath === browserPath) {
           return;
         }
+        // Nothing to pop after a reload or a gate remount — open the URL's screen instead.
         if (navigationRef.canGoBack()) navigationRef.goBack();
+        else restoreFromBrowserUrl();
         return;
       }
       restoreFromBrowserUrl();
