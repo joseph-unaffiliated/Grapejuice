@@ -10,10 +10,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
-import { loadStripe } from '@stripe/stripe-js';
+import { loadStripe, type Appearance, type CssFontSource } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useSession } from '../../hooks/useSession';
-import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthStore } from '../../stores/authStore';
 import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
@@ -22,8 +21,16 @@ import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 import type { MainStackParamList } from '../../navigation/types';
 import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
-import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
-import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
+import {
+  WEB_FONT_FAMILY,
+  spacing,
+  typography,
+  borderRadius,
+  typeface,
+  semanticColors,
+} from '../../constants/theme';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { checkoutUi } from './checkout/checkoutUi';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useCheckoutDraft';
@@ -40,6 +47,32 @@ import { pushBrowserPath, replaceBrowserPath } from '../../navigation/webBrowser
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 
 const SHIPPING_CONFIRMED_KEY = 'gj.checkout.shippingConfirmed';
+
+/** Stripe's card form runs in an iframe, so the Account input style is passed in here. */
+const STRIPE_APPEARANCE: Appearance = {
+  theme: 'stripe',
+  variables: {
+    fontFamily: `"${WEB_FONT_FAMILY}", system-ui, sans-serif`,
+    fontSizeBase: '14px',
+    borderRadius: `${borderRadius.xl}px`,
+    colorPrimary: semanticColors.goldMuted,
+    colorText: semanticColors.textPrimary,
+    colorTextSecondary: semanticColors.textSecondary,
+    colorTextPlaceholder: semanticColors.textTertiary,
+    colorDanger: semanticColors.error,
+  },
+  rules: {
+    '.Input': { border: `1px solid ${semanticColors.brand}`, boxShadow: 'none' },
+    '.Input:focus': { borderColor: semanticColors.goldMuted, boxShadow: 'none' },
+    '.Tab': { border: `1px solid ${semanticColors.brand}`, boxShadow: 'none' },
+    '.Tab--selected': { borderColor: semanticColors.goldMuted, boxShadow: 'none' },
+    '.Label': { fontSize: '12px', color: semanticColors.textSecondary },
+  },
+};
+
+const STRIPE_FONTS: CssFontSource[] = [
+  { cssSrc: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap' },
+];
 
 function savedCardReplaced(
   hh: { cardOnFileAt?: string; stripeDefaultPaymentMethodId?: string } | null | undefined,
@@ -99,14 +132,13 @@ function checkoutReturnUrl(): string | undefined {
   return `${window.location.origin}${CHECKOUT_PATH}`;
 }
 
-/** Same dark pill CTA as My Box cart summary. */
+/** Filled gold button, same as Account page actions. */
 function CheckoutCta({
   label,
   onPress,
   loading,
   disabled,
   note,
-  colors,
   styles,
 }: {
   label: string;
@@ -120,21 +152,15 @@ function CheckoutCta({
 }) {
   return (
     <>
-      <TouchableOpacity
-        style={[styles.cta, (disabled || loading) && styles.ctaDisabled]}
+      <GrapejuiceButton
+        label={label}
+        variant="filled"
         onPress={onPress}
-        disabled={disabled || loading}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-      >
-        <ButtonLoadingLabel
-          label={label}
-          loading={loading}
-          loaderColor={semanticColors.textInverse}
-          labelStyle={styles.ctaText}
-        />
-      </TouchableOpacity>
+        loading={loading}
+        disabled={disabled}
+        style={[checkoutUi.button, styles.ctaSpacing]}
+        textStyle={checkoutUi.buttonText}
+      />
       {note ? <Text style={styles.ctaNote}>{note}</Text> : null}
     </>
   );
@@ -182,8 +208,8 @@ function SetupCardStep({
   };
 
   return (
-    <View style={styles.paymentBlock}>
-      <Text style={styles.sectionTitle}>Payment method</Text>
+    <View>
+      <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
       <View style={styles.paymentElementWrap}>
         <PaymentElement options={{ layout: 'tabs' }} />
       </View>
@@ -205,7 +231,6 @@ function CheckoutScreenBody() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, refresh: refreshSession } = useSession();
-  const { isDesktop } = useWebLayout();
   const { colors } = useThemeMode();
   const styles = useMemo(() => createCheckoutStyles(), []);
   const {
@@ -475,21 +500,18 @@ function CheckoutScreenBody() {
     })();
   }, [household?.id, refreshSession]);
 
-  const summaryCard = (
-    <View style={styles.summaryCard}>
-      <CheckoutOrderSummary
-        lineItems={lineItems}
-        total={total}
-        subtotal={subtotal}
-        shippingCents={shippingCents}
-        taxCents={taxCents}
-        boxPriceCents={boxPriceCents}
-        catalog={catalog}
-        giftCreditApplied={giftCreditApplied}
-        platformCreditApplied={platformCreditApplied}
-        compact
-      />
-    </View>
+  const orderSummary = (
+    <CheckoutOrderSummary
+      lineItems={lineItems}
+      total={total}
+      subtotal={subtotal}
+      shippingCents={shippingCents}
+      taxCents={taxCents}
+      boxPriceCents={boxPriceCents}
+      catalog={catalog}
+      giftCreditApplied={giftCreditApplied}
+      platformCreditApplied={platformCreditApplied}
+    />
   );
 
   const cardReady = cardOnFile || awaitingCardOnFile;
@@ -503,7 +525,7 @@ function CheckoutScreenBody() {
   const checkoutForm = setupClientSecret && stripePromise ? (
     <Elements
       stripe={stripePromise}
-      options={{ clientSecret: setupClientSecret, appearance: { theme: 'stripe' } }}
+      options={{ clientSecret: setupClientSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}
     >
       <SetupCardStep
         colors={colors}
@@ -522,16 +544,18 @@ function CheckoutScreenBody() {
         </View>
       ) : (
         <>
-          <Text style={styles.cardSavedCopy}>Card saved. Commit when you&apos;re ready.</Text>
+          <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
+          <Text style={checkoutUi.hint}>Card saved. Commit when you&apos;re ready.</Text>
           <TouchableOpacity
             onPress={() => void startSetup()}
             disabled={preparing || locked}
             accessibilityRole="button"
             accessibilityLabel="Change card"
+            style={styles.changeCard}
           >
             <Text style={page.link}>Change card</Text>
           </TouchableOpacity>
-          {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
+          {addressFormError ? <Text style={checkoutUi.fieldError}>{addressFormError}</Text> : null}
         </>
       )}
       <CheckoutCta
@@ -545,21 +569,25 @@ function CheckoutScreenBody() {
     </>
   ) : shippingThenCommit ? (
     <>
-      <Text style={styles.cardSavedCopy}>Card on file — add shipping and commit.</Text>
+      <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
+      <Text style={checkoutUi.hint}>Card on file — add shipping and commit.</Text>
       <TouchableOpacity
         onPress={() => void startSetup()}
         disabled={preparing || locked}
         accessibilityRole="button"
         accessibilityLabel="Change card"
+        style={styles.changeCard}
       >
         <Text style={page.link}>Change card</Text>
       </TouchableOpacity>
+      <View style={checkoutUi.divider} />
       <CheckoutAddressFields
         address={address}
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
       />
-      {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
+      {addressFormError ? <Text style={checkoutUi.fieldError}>{addressFormError}</Text> : null}
+      <View style={checkoutUi.divider} />
       <CheckoutSmsOptIn
         phone={contactPhone}
         smsOptIn={smsOptIn}
@@ -586,7 +614,8 @@ function CheckoutScreenBody() {
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
       />
-      {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
+      {addressFormError ? <Text style={checkoutUi.fieldError}>{addressFormError}</Text> : null}
+      <View style={checkoutUi.divider} />
       <CheckoutSmsOptIn
         phone={contactPhone}
         smsOptIn={smsOptIn}
@@ -613,44 +642,41 @@ function CheckoutScreenBody() {
 
   if (loading || ordersLoading) {
     return (
-      <SystemPage wide loading onBack={onBack} />
+      <SystemPage narrow loading onBack={onBack} />
     );
   }
 
   if (!lineItems.length) {
     return (
-      <SystemPage wide onBack={onBack}>
-        <Text style={page.title}>Shipping</Text>
-        <Text style={page.lead}>Your box is empty. Finish onboarding or add items in My Box.</Text>
+      <SystemPage narrow onBack={onBack}>
+        <Text style={checkoutUi.title}>Shipping</Text>
+        <Text style={checkoutUi.lead}>
+          Your box is empty. Finish onboarding or add items in My Box.
+        </Text>
       </SystemPage>
     );
   }
 
   return (
-    <SystemPage wide onBack={onBack}>
-      <Text style={page.title}>
+    <SystemPage narrow onBack={onBack}>
+      <Text style={checkoutUi.title}>
         {onPaymentStep ? 'Payment' : commitOnly ? 'Commit' : 'Shipping'}
       </Text>
-      <Text style={page.lead}>
+      <Text style={checkoutUi.lead}>
         You won&apos;t be charged until your box ships.
         {!cardOnFile && !commitOnly
           ? ' Your box will not ship until you add payment information and a shipping address.'
           : null}
       </Text>
       {locked ? (
-        <Text style={page.errorText}>Box customization is locked. Checkout is unavailable.</Text>
+        <Text style={[page.errorText, styles.centeredText]}>
+          Box customization is locked. Checkout is unavailable.
+        </Text>
       ) : null}
-      {isDesktop ? (
-        <View style={styles.columns}>
-          <View style={styles.formColumn}>{checkoutForm}</View>
-          <View style={styles.summaryColumn}>{summaryCard}</View>
-        </View>
-      ) : (
-        <>
-          {checkoutForm}
-          {summaryCard}
-        </>
-      )}
+      <View style={checkoutUi.divider} />
+      {orderSummary}
+      <View style={checkoutUi.divider} />
+      {checkoutForm}
     </SystemPage>
   );
 }
@@ -665,38 +691,7 @@ export function CheckoutScreen() {
 
 function createCheckoutStyles() {
   return StyleSheet.create({
-    summaryCard: {
-      borderWidth: 1,
-      borderColor: semanticColors.border,
-      borderRadius: borderRadius.md,
-      padding: spacing.lg,
-    },
-    columns: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: spacing.xl,
-    },
-    formColumn: {
-      flex: 1,
-      minWidth: 0,
-    },
-    summaryColumn: {
-      width: 400,
-      flexShrink: 0,
-      alignSelf: 'flex-start',
-      ...(Platform.OS === 'web'
-        ? ({ position: 'sticky' as const, top: spacing.lg } as object)
-        : null),
-    },
-    sectionTitle: {
-      ...typeface('bold'),
-      fontSize: typography.xl,
-      color: semanticColors.textPrimary,
-      marginTop: spacing.lg,
-      marginBottom: spacing.sm,
-    },
-    paymentBlock: { marginTop: spacing.md },
-    paymentElementWrap: { minHeight: 120, marginBottom: spacing.md },
+    paymentElementWrap: { minHeight: 120, marginTop: spacing.xs },
     savingCardRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -709,40 +704,9 @@ function createCheckoutStyles() {
       fontSize: typography.md,
       color: semanticColors.textSecondary,
     },
-    cardSavedCopy: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: semanticColors.textSecondary,
-      marginTop: spacing.md,
-      marginBottom: spacing.sm,
-      lineHeight: 22,
-    },
-    addressFormError: {
-      marginTop: spacing.sm,
-      fontSize: typography.sm,
-      color: semanticColors.error,
-      ...typeface('medium'),
-    },
-    cta: {
-      alignSelf: 'stretch',
-      width: '100%',
-      marginTop: spacing.lg,
-      minHeight: 40,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm,
-      borderRadius: borderRadius.md,
-      backgroundColor: semanticColors.logoDark,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null),
-    },
-    ctaDisabled: { opacity: 0.5 },
-    ctaText: {
-      ...typeface('medium'),
-      fontSize: typography.md,
-      color: semanticColors.textInverse,
-      letterSpacing: -0.2,
-    },
+    changeCard: { alignSelf: 'flex-start', marginTop: spacing.xs },
+    centeredText: { textAlign: 'center' },
+    ctaSpacing: { marginTop: spacing.xl },
     ctaNote: {
       ...typeface('regular'),
       fontSize: 12,

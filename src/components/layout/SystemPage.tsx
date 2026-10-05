@@ -34,6 +34,8 @@ type PageProps = {
    * Checkout needs the extra width for a form beside the summary.
    */
   wide?: boolean;
+  /** Account-width 560px column, keeping the back link (checkout). */
+  narrow?: boolean;
   /** Centered grape loader. Replaces the page body while data is loading. */
   loading?: boolean;
   /**
@@ -48,9 +50,16 @@ type PageProps = {
  * History is the reference: column width, type scale, and button styles live here
  * so a later pass can change all four at once.
  */
-export function SystemPage({ children, onBack, wide = false, loading = false, hub }: PageProps) {
+export function SystemPage({
+  children,
+  onBack,
+  wide = false,
+  narrow = false,
+  loading = false,
+  hub,
+}: PageProps) {
   const { isDesktop, layoutWidth, widePanelMaxWidth } = useWebLayout();
-  const columnWidth = hub ? HUB_COLUMN : wide ? widePanelMaxWidth : layoutWidth;
+  const columnWidth = hub || narrow ? HUB_COLUMN : wide ? widePanelMaxWidth : layoutWidth;
 
   if (loading) {
     return (
@@ -108,7 +117,9 @@ export function SystemPage({ children, onBack, wide = false, loading = false, hu
       >
         <ScrollView
           style={styles.root}
-          contentContainerStyle={hub ? styles.hubScrollContent : styles.scrollContent}
+          contentContainerStyle={
+            hub ? styles.hubScrollContent : narrow ? styles.narrowScrollContent : styles.scrollContent
+          }
           showsVerticalScrollIndicator={false}
         >
           {isDesktop ? (
@@ -289,6 +300,11 @@ const styles = StyleSheet.create({
   },
   hubScrollContent: {
     paddingTop: spacing.xxl + spacing.md,
+    paddingBottom: 120,
+    width: '100%',
+  },
+  narrowScrollContent: {
+    paddingTop: spacing.lg,
     paddingBottom: 120,
     width: '100%',
   },

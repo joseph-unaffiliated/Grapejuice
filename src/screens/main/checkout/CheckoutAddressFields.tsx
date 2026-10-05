@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import type { ShippingAddress } from '../../../types/pilot';
 import type { ShippingAddressFieldErrors, ShippingRequiredField } from '../../../utils/formValidation';
-import { spacing, typography, borderRadius, typeface, semanticColors } from '../../../constants/theme';
+import { spacing, semanticColors, typeface } from '../../../constants/theme';
+import { checkoutUi } from './checkoutUi';
 
 type Props = {
   address: ShippingAddress;
@@ -11,17 +12,9 @@ type Props = {
   fieldErrors?: ShippingAddressFieldErrors;
 };
 
-function FieldLabel({
-  label,
-  required,
-  styles,
-}: {
-  label: string;
-  required?: boolean;
-  styles: ReturnType<typeof createStyles>;
-}) {
+function FieldLabel({ label, required }: { label: string; required?: boolean }) {
   return (
-    <Text style={styles.label}>
+    <Text style={checkoutUi.label}>
       {label}
       {required ? <Text style={styles.requiredMark}> *</Text> : null}
     </Text>
@@ -29,19 +22,17 @@ function FieldLabel({
 }
 
 export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props) {
-  const styles = useMemo(() => createStyles(), []);
-
   const inputStyle = (key: ShippingRequiredField) => [
-    styles.input,
-    fieldErrors?.[key] ? styles.inputError : null,
+    checkoutUi.input,
+    fieldErrors?.[key] ? checkoutUi.inputError : null,
   ];
 
   return (
     <>
-      <Text style={styles.sectionTitle}>Shipping address</Text>
-      <Text style={styles.requiredHint}>Fields marked * are required</Text>
+      <Text style={checkoutUi.sectionHeading}>Shipping Address</Text>
+      <Text style={[checkoutUi.hint, styles.requiredHint]}>Fields marked * are required</Text>
 
-      <FieldLabel label="Full name" required styles={styles} />
+      <FieldLabel label="Full name" required />
       <TextInput
         style={inputStyle('name')}
         value={address.name}
@@ -51,9 +42,9 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         autoComplete="name"
         accessibilityLabel="Full name, required"
       />
-      {fieldErrors?.name ? <Text style={styles.fieldError}>{fieldErrors.name}</Text> : null}
+      {fieldErrors?.name ? <Text style={checkoutUi.fieldError}>{fieldErrors.name}</Text> : null}
 
-      <FieldLabel label="Address line 1" required styles={styles} />
+      <FieldLabel label="Address line 1" required />
       <TextInput
         style={inputStyle('line1')}
         value={address.line1}
@@ -63,11 +54,11 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         autoComplete="street-address"
         accessibilityLabel="Address line 1, required"
       />
-      {fieldErrors?.line1 ? <Text style={styles.fieldError}>{fieldErrors.line1}</Text> : null}
+      {fieldErrors?.line1 ? <Text style={checkoutUi.fieldError}>{fieldErrors.line1}</Text> : null}
 
-      <FieldLabel label="Address line 2" styles={styles} />
+      <FieldLabel label="Address line 2" />
       <TextInput
-        style={styles.input}
+        style={checkoutUi.input}
         value={address.line2 ?? ''}
         onChangeText={(v) => onChange({ line2: v })}
         placeholder="Apt 4"
@@ -75,7 +66,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         accessibilityLabel="Address line 2, optional"
       />
 
-      <FieldLabel label="City" required styles={styles} />
+      <FieldLabel label="City" required />
       <TextInput
         style={inputStyle('city')}
         value={address.city}
@@ -84,11 +75,11 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
         autoComplete="postal-address-locality"
         accessibilityLabel="City, required"
       />
-      {fieldErrors?.city ? <Text style={styles.fieldError}>{fieldErrors.city}</Text> : null}
+      {fieldErrors?.city ? <Text style={checkoutUi.fieldError}>{fieldErrors.city}</Text> : null}
 
       <View style={styles.row2}>
         <View style={styles.half}>
-          <FieldLabel label="State" required styles={styles} />
+          <FieldLabel label="State" required />
           <TextInput
             style={inputStyle('stateProvince')}
             value={address.stateProvince}
@@ -98,11 +89,11 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
             accessibilityLabel="State, required"
           />
           {fieldErrors?.stateProvince ? (
-            <Text style={styles.fieldError}>{fieldErrors.stateProvince}</Text>
+            <Text style={checkoutUi.fieldError}>{fieldErrors.stateProvince}</Text>
           ) : null}
         </View>
         <View style={styles.half}>
-          <FieldLabel label="Zip Code" required styles={styles} />
+          <FieldLabel label="Zip Code" required />
           <TextInput
             style={inputStyle('postalCode')}
             value={address.postalCode}
@@ -112,7 +103,7 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
             accessibilityLabel="Zip code, required"
           />
           {fieldErrors?.postalCode ? (
-            <Text style={styles.fieldError}>{fieldErrors.postalCode}</Text>
+            <Text style={checkoutUi.fieldError}>{fieldErrors.postalCode}</Text>
           ) : null}
         </View>
       </View>
@@ -120,52 +111,12 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
   );
 }
 
-function createStyles() {
-  return StyleSheet.create({
-    sectionTitle: {
-      ...typeface('bold'),
-      fontSize: typography.xl,
-      color: semanticColors.textPrimary,
-      marginTop: spacing.lg,
-      marginBottom: spacing.xs,
-    },
-    requiredHint: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: semanticColors.textTertiary,
-      marginBottom: spacing.sm,
-    },
-    label: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      color: semanticColors.textSecondary,
-      marginTop: spacing.sm,
-      marginBottom: 4,
-    },
-    requiredMark: {
-      color: semanticColors.error,
-      ...typeface('medium'),
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: semanticColors.border,
-      borderRadius: borderRadius.md,
-      padding: spacing.sm,
-      fontSize: typography.md,
-      color: semanticColors.textPrimary,
-      backgroundColor: semanticColors.bgPrimary,
-      ...typeface('regular'),
-    },
-    inputError: {
-      borderColor: semanticColors.error,
-    },
-    fieldError: {
-      marginTop: 4,
-      fontSize: typography.sm,
-      color: semanticColors.error,
-      ...typeface('medium'),
-    },
-    row2: { flexDirection: 'row', gap: spacing.sm, minWidth: 0 },
-    half: { flex: 1, minWidth: 0 },
-  });
-}
+const styles = StyleSheet.create({
+  requiredHint: { marginBottom: spacing.xs },
+  requiredMark: {
+    color: semanticColors.error,
+    ...typeface('regular'),
+  },
+  row2: { flexDirection: 'row', gap: spacing.sm, minWidth: 0 },
+  half: { flex: 1, minWidth: 0 },
+});

@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../../constants/theme';
+import { checkoutUi } from './checkoutUi';
 
 type Props = {
   phone: string;
@@ -10,15 +11,15 @@ type Props = {
 };
 
 export function CheckoutSmsOptIn({ phone, smsOptIn, onPhoneChange, onSmsOptInChange }: Props) {
-  const styles = useMemo(() => createStyles(), []);
-
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.sectionTitle}>Text reminders (optional)</Text>
-      <Text style={styles.hint}>Get a nudge before the box lock date with a link to My Box.</Text>
-      <Text style={styles.label}>Mobile number</Text>
+    <View>
+      <Text style={checkoutUi.sectionHeading}>Text Reminders</Text>
+      <Text style={checkoutUi.hint}>
+        Optional. Get a nudge before the box lock date with a link to My Box.
+      </Text>
+      <Text style={checkoutUi.label}>Mobile number</Text>
       <TextInput
-        style={styles.input}
+        style={checkoutUi.input}
         value={phone}
         onChangeText={onPhoneChange}
         placeholder="+1 647 555 1234"
@@ -26,7 +27,12 @@ export function CheckoutSmsOptIn({ phone, smsOptIn, onPhoneChange, onSmsOptInCha
         keyboardType="phone-pad"
         autoComplete="tel"
       />
-      <TouchableOpacity style={styles.row} onPress={() => onSmsOptInChange(!smsOptIn)}>
+      <TouchableOpacity
+        style={styles.row}
+        onPress={() => onSmsOptInChange(!smsOptIn)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: smsOptIn }}
+      >
         <View style={[styles.checkbox, smsOptIn && styles.checkboxOn]} />
         <Text style={styles.checkboxLabel}>Text me lock reminders</Text>
       </TouchableOpacity>
@@ -34,54 +40,22 @@ export function CheckoutSmsOptIn({ phone, smsOptIn, onPhoneChange, onSmsOptInCha
   );
 }
 
-function createStyles() {
-  return StyleSheet.create({
-    wrap: { marginTop: spacing.lg },
-    sectionTitle: {
-      ...typeface('bold'),
-      fontSize: typography.xl,
-      color: semanticColors.textPrimary,
-      marginBottom: spacing.xs,
-    },
-    hint: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: semanticColors.textSecondary,
-      marginBottom: spacing.md,
-      lineHeight: 20,
-    },
-    label: {
-      ...typeface('medium'),
-      fontSize: typography.sm,
-      color: semanticColors.textSecondary,
-      marginBottom: spacing.xs,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: semanticColors.border,
-      borderRadius: borderRadius.md,
-      padding: spacing.sm,
-      fontSize: typography.md,
-      color: semanticColors.textPrimary,
-      backgroundColor: semanticColors.bgPrimary,
-      marginBottom: spacing.md,
-      ...typeface('regular'),
-    },
-    row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: 4,
-      borderWidth: 1,
-      borderColor: semanticColors.borderDark,
-      backgroundColor: semanticColors.bgPrimary,
-    },
-    checkboxOn: { backgroundColor: semanticColors.brand, borderColor: semanticColors.brand },
-    checkboxLabel: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      flex: 1,
-      color: semanticColors.textPrimary,
-    },
-  });
-}
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.bgPrimary,
+  },
+  checkboxOn: { backgroundColor: semanticColors.brand },
+  checkboxLabel: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    letterSpacing: -0.22,
+    flex: 1,
+    color: semanticColors.textPrimary,
+  },
+});

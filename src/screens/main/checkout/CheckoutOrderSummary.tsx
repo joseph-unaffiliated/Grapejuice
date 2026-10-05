@@ -57,7 +57,7 @@ export function CheckoutOrderSummary({
 
   return (
     <>
-      <Text style={styles.sectionTitle}>Order summary</Text>
+      <Text style={styles.sectionTitle}>Order Summary</Text>
       {!marketplaceOnly ? (
         <View style={styles.itemRow}>
           {boxPreview.length > 0 ? (
@@ -123,11 +123,13 @@ export function CheckoutOrderSummary({
 function createStyles(compact: boolean) {
   return StyleSheet.create({
     sectionTitle: {
-      ...typeface('bold'),
-      fontSize: typography.xl,
-      color: semanticColors.textPrimary,
-      marginTop: compact ? 0 : spacing.lg,
-      marginBottom: spacing.sm,
+      ...typeface('medium'),
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      color: semanticColors.logoDark,
+      marginTop: compact ? 0 : spacing.md,
+      marginBottom: spacing.xs,
     },
     itemRow: {
       flexDirection: 'row',
@@ -174,12 +176,14 @@ function createStyles(compact: boolean) {
     totalLabel: {
       ...typeface('medium'),
       fontSize: 18,
-      color: semanticColors.textPrimary,
+      letterSpacing: -0.3,
+      color: semanticColors.logoDark,
     },
     totalValue: {
-      ...typeface('bold'),
+      ...typeface('medium'),
       fontSize: 18,
-      color: semanticColors.textPrimary,
+      letterSpacing: -0.3,
+      color: semanticColors.logoDark,
     },
   });
 }
