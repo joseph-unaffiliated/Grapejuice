@@ -57,6 +57,7 @@ export type MainStackParamList = {
   StorefrontPassover: undefined;
   StorefrontHowToPlayDreidel: undefined;
   StorefrontHowToLightCandles: undefined;
+  StorefrontPrivacy: undefined;
   CatalogProduct: { slug: string };
   BoxDiscountEligibility: undefined;
   Checkout: undefined;

@@ -182,9 +182,7 @@ export function StorefrontFooter() {
           },
           {
             label: 'Privacy',
-            onPress: () => {
-              void Linking.openURL('https://unaffiliated.co/privacy/network');
-            },
+            onPress: () => navigation.navigate('StorefrontPrivacy'),
           },
         ],
       },

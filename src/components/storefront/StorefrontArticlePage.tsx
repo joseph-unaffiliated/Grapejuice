@@ -101,6 +101,8 @@ export type StorefrontArticleBlock =
       maxWidth?: number;
       /** Match hero `title` type (32 / medium) instead of blockHeading 22. */
       headingVariant?: 'title';
+      /** Left-align heading + body (long-form legal copy). Default center. */
+      align?: 'left';
       /** Extra space above this block (e.g. after a denser section). */
       paddingTop?: number;
       /** Extra space below this block. */
@@ -879,19 +881,22 @@ function BeliefsContent({
 
 function ArticleProseParagraph({
   lines,
+  left,
 }: {
   lines: { body: string; weight: StorefrontArticleProseWeight }[];
+  left?: boolean;
 }) {
+  const bodyStyle = [styles.blockBody, left ? styles.textLeft : null];
   if (lines.length === 1) {
     const line = lines[0];
     return (
-      <Text style={[styles.blockBody, proseWeightStyle(line.weight)]}>
+      <Text style={[...bodyStyle, proseWeightStyle(line.weight)]}>
         {preventWidow(line.body)}
       </Text>
     );
   }
   return (
-    <Text style={styles.blockBody}>
+    <Text style={bodyStyle}>
       {lines.map((line, index) => (
         <Text key={index} style={proseWeightStyle(line.weight)}>
           {index > 0 ? ' ' : ''}
@@ -904,18 +909,20 @@ function ArticleProseParagraph({
 
 function ArticleProseBody({
   body,
+  left,
 }: {
   body: string | readonly StorefrontArticleProseParagraph[];
+  left?: boolean;
 }) {
   const paragraphs = normalizeProseParagraphs(body);
   if (paragraphs.length === 0) return null;
   if (paragraphs.length === 1) {
-    return <ArticleProseParagraph lines={paragraphs[0]} />;
+    return <ArticleProseParagraph lines={paragraphs[0]} left={left} />;
   }
   return (
     <View style={styles.proseParagraphs}>
       {paragraphs.map((lines, index) => (
-        <ArticleProseParagraph key={index} lines={lines} />
+        <ArticleProseParagraph key={index} lines={lines} left={left} />
       ))}
     </View>
   );
@@ -1081,11 +1088,12 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                 >
                   {block.heading ? (
                     <Text
-                      style={
+                      style={[
                         block.headingVariant === 'title'
                           ? styles.blockHeadingTitle
-                          : styles.blockHeading
-                      }
+                          : styles.blockHeading,
+                        block.align === 'left' ? styles.textLeft : null,
+                      ]}
                     >
                       {block.heading}
                     </Text>
@@ -1104,7 +1112,7 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                       ))}
                     </View>
                   ) : null}
-                  <ArticleProseBody body={block.body} />
+                  <ArticleProseBody body={block.body} left={block.align === 'left'} />
                 </View>
                 {block.showDividerAfter ? <ArticleHairlineDivider /> : null}
               </View>
@@ -1744,6 +1752,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: '100%',
     ...(Platform.OS === 'web' ? ({ textWrap: 'pretty' } as object) : null),
+  },
+  textLeft: {
+    textAlign: 'left',
   },
   /** Medium / semibold (~500–600) — not bold 700. */
   blockBodySemibold: {

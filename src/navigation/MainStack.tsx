@@ -16,6 +16,7 @@ import { StorefrontOurStoryScreen } from '../screens/storefront/StorefrontOurSto
 import { StorefrontPassoverScreen } from '../screens/storefront/StorefrontPassoverScreen';
 import { StorefrontHowToPlayDreidelScreen } from '../screens/storefront/StorefrontHowToPlayDreidelScreen';
 import { StorefrontHowToLightCandlesScreen } from '../screens/storefront/StorefrontHowToLightCandlesScreen';
+import { StorefrontPrivacyScreen } from '../screens/storefront/StorefrontPrivacyScreen';
 import { StorefrontCartScreen } from '../screens/storefront/StorefrontCartScreen';
 import { BoxDiscountEligibilityScreen } from '../screens/main/BoxDiscountEligibilityScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
@@ -485,6 +486,11 @@ export function MainStack() {
           name="StorefrontHowToLightCandles"
           component={StorefrontHowToLightCandlesScreen}
           options={{ title: 'How to light candles' }}
+        />
+        <Stack.Screen
+          name="StorefrontPrivacy"
+          component={StorefrontPrivacyScreen}
+          options={{ title: 'Privacy Policy' }}
         />
         <Stack.Screen
           name="CatalogProduct"

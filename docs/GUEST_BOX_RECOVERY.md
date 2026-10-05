@@ -127,7 +127,7 @@ Event data available in Liquid: `event.has_box`, `event.resume_url`, `event.kid_
    >
    > — Grapejuice
    >
-   > <small>You're receiving this because you visited grapejuice.co. [Unsubscribe]({% unsubscribe_url %}) · [Privacy](https://unaffiliated.co/privacy/network)</small>
+   > <small>You're receiving this because you visited grapejuice.co. [Unsubscribe]({% unsubscribe_url %}) · [Privacy](https://grapejuice.co/privacy)</small>
 
 3. Wait 3 days; **if the first email was not clicked**, email — subject:
    **Still thinking about it? Your box is waiting**
@@ -141,7 +141,7 @@ Event data available in Liquid: `event.has_box`, `event.resume_url`, `event.kid_
    >
    > — Grapejuice
    >
-   > <small>[Unsubscribe]({% unsubscribe_url %}) · [Privacy](https://unaffiliated.co/privacy/network)</small>
+   > <small>[Unsubscribe]({% unsubscribe_url %}) · [Privacy](https://grapejuice.co/privacy)</small>
 
 ### B. "Come build your box" — event filter `has_box = false`
 
@@ -161,11 +161,12 @@ Event data available in Liquid: `event.has_box`, `event.resume_url`, `event.kid_
    >
    > — Grapejuice
    >
-   > <small>You're receiving this because you visited grapejuice.co. [Unsubscribe]({% unsubscribe_url %}) · [Privacy](https://unaffiliated.co/privacy/network)</small>
+   > <small>You're receiving this because you visited grapejuice.co. [Unsubscribe]({% unsubscribe_url %}) · [Privacy](https://grapejuice.co/privacy)</small>
 
-## Privacy policy language (for https://unaffiliated.co/privacy/network)
+## Privacy policy language
 
-Suggested additions under the Grapejuice / Untraditional section:
+Live at https://grapejuice.co/privacy (copy in `src/constants/storefrontPrivacyCopy.ts`).
+The three disclosures below appear there verbatim, in sections 1, 2 and 5:
 
 > **Saved boxes for visitors without an account.** When you start building a Grapejuice box
 > without signing in, we save your progress — including the first names, ages and interests

@@ -62,6 +62,8 @@ function inferFocusedFromRoute(
         id: 'how-to-light-candles',
         label: 'How to light Hanukkah candles',
       };
+    case 'StorefrontPrivacy':
+      return { type: 'content', id: 'privacy', label: 'Privacy Policy' };
     case 'GiftLanding':
       return { type: 'content', id: 'landing-gift', label: 'Gift landing' };
     case 'CulturalLanding':
