@@ -27,6 +27,7 @@ import { spacing, typography, borderRadius, typeface, semanticColors } from '../
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useCheckoutDraft';
+import { editUntilLockNote } from '../../services/hanukkah/dates';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
@@ -104,6 +105,7 @@ function CheckoutCta({
   onPress,
   loading,
   disabled,
+  note,
   colors,
   styles,
 }: {
@@ -111,25 +113,30 @@ function CheckoutCta({
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
+  /** Small line under the button. */
+  note?: string;
   colors: SemanticColors;
   styles: ReturnType<typeof createCheckoutStyles>;
 }) {
   return (
-    <TouchableOpacity
-      style={[styles.cta, (disabled || loading) && styles.ctaDisabled]}
-      onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <ButtonLoadingLabel
-        label={label}
-        loading={loading}
-        loaderColor={semanticColors.textInverse}
-        labelStyle={styles.ctaText}
-      />
-    </TouchableOpacity>
+    <>
+      <TouchableOpacity
+        style={[styles.cta, (disabled || loading) && styles.ctaDisabled]}
+        onPress={onPress}
+        disabled={disabled || loading}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+      >
+        <ButtonLoadingLabel
+          label={label}
+          loading={loading}
+          loaderColor={semanticColors.textInverse}
+          labelStyle={styles.ctaText}
+        />
+      </TouchableOpacity>
+      {note ? <Text style={styles.ctaNote}>{note}</Text> : null}
+    </>
   );
 }
 
@@ -205,6 +212,7 @@ function CheckoutScreenBody() {
     updateAddress,
     loading,
     locked,
+    lockAt,
     boxPriceCents,
     total,
     validateAddress,
@@ -586,6 +594,7 @@ function CheckoutScreenBody() {
         onPress={() => void startSetup()}
         loading={preparing}
         disabled={preparing || locked}
+        note={locked ? undefined : editUntilLockNote(lockAt)}
         colors={colors}
         styles={styles}
       />
@@ -729,6 +738,14 @@ function createCheckoutStyles() {
       fontSize: typography.md,
       color: semanticColors.textInverse,
       letterSpacing: -0.2,
+    },
+    ctaNote: {
+      ...typeface('regular'),
+      fontSize: 12,
+      lineHeight: 17,
+      color: semanticColors.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing.sm,
     },
   });
 }

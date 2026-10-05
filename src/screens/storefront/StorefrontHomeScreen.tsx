@@ -572,7 +572,7 @@ export function StorefrontHomeScreen() {
           ) : null}
 
           {boxCta ? (
-            <StorefrontBoxCtaStrip variant={boxCta.variant} onPress={boxCta.onPress} />
+            <StorefrontBoxCtaStrip variant={boxCta.variant} onPress={boxCta.onPress} lockAt={lockAt} />
           ) : null}
         </LazyMount>
     </StorefrontChrome>

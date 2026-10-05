@@ -157,6 +157,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
     updateAddress,
     loading,
     locked,
+    lockAt: hanukkahConfig ? effectiveLockAt(hanukkahConfig, false) : null,
     boxPriceCents,
     total,
     subtotal,

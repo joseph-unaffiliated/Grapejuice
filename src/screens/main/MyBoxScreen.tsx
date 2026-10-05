@@ -21,6 +21,7 @@ import { useGuestBoxFlow } from '../../hooks/useGuestBoxFlow';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { getHanukkahConfig } from '../../services/firestore/config';
+import { editUntilLockNote } from '../../services/hanukkah/dates';
 import { useEffectiveBoxLocked, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import { startOwnBoxBuild } from '../../navigation/boxEntry';
@@ -1866,27 +1867,32 @@ export function MyBoxScreen() {
             </View>
           ) : (
             <View style={styles.summaryCtaRow}>
-              <Pressable
-                style={({ pressed, hovered }) => [
-                  styles.checkoutCta,
-                  (hovered || pressed) && styles.checkoutCtaHover,
-                  locked && styles.checkoutCtaDisabled,
-                ]}
-                onPress={goToCheckout}
-                disabled={locked || lineItems.length === 0}
-                accessibilityRole="button"
-              >
-                {({ pressed, hovered }) => (
-                  <Text
-                    style={[
-                      styles.checkoutText,
-                      (hovered || pressed) && styles.checkoutTextHover,
-                    ]}
-                  >
-                    {cardOnFile ? 'Review shipping' : 'Add payment & shipping'}
-                  </Text>
-                )}
-              </Pressable>
+              <View style={styles.checkoutCtaStack}>
+                <Pressable
+                  style={({ pressed, hovered }) => [
+                    styles.checkoutCta,
+                    (hovered || pressed) && styles.checkoutCtaHover,
+                    locked && styles.checkoutCtaDisabled,
+                  ]}
+                  onPress={goToCheckout}
+                  disabled={locked || lineItems.length === 0}
+                  accessibilityRole="button"
+                >
+                  {({ pressed, hovered }) => (
+                    <Text
+                      style={[
+                        styles.checkoutText,
+                        (hovered || pressed) && styles.checkoutTextHover,
+                      ]}
+                    >
+                      {cardOnFile ? 'Review shipping' : 'Add payment & shipping'}
+                    </Text>
+                  )}
+                </Pressable>
+                {!cardOnFile && !locked ? (
+                  <Text style={styles.checkoutCtaNote}>{editUntilLockNote(lockAt)}</Text>
+                ) : null}
+              </View>
             </View>
           )}
         </View>
@@ -2383,6 +2389,19 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   checkoutCtaHover: {
     backgroundColor: colors.brand,
+  },
+  checkoutCtaStack: {
+    alignItems: isDesktop ? 'flex-end' : 'center',
+    gap: spacing.xs,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  checkoutCtaNote: {
+    fontSize: typography.sm,
+    color: colors.goldMuted,
+    ...typeface('light'),
+    letterSpacing: -0.1,
+    textAlign: isDesktop ? 'right' : 'center',
   },
   checkoutCtaDisabled: { opacity: 0.5 },
   checkoutText: {

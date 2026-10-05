@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { spacing } from '../../constants/theme';
+import { editUntilLockNote } from '../../services/hanukkah/dates';
 import { StorefrontPaperCardStrip } from './StorefrontPaperCardStrip';
 
 export type StorefrontBoxCtaVariant = 'build' | 'confirm';
@@ -22,16 +23,18 @@ type Props = {
   /** `build` before a box exists; `confirm` once a box is started but has no payment. */
   variant: StorefrontBoxCtaVariant;
   onPress: () => void;
+  lockAt?: string | null;
 };
 
 /** Paper-texture box CTA near the bottom of store home (same shell as Our Story). */
-export function StorefrontBoxCtaStrip({ variant, onPress }: Props) {
+export function StorefrontBoxCtaStrip({ variant, onPress, lockAt = null }: Props) {
   const copy = COPY[variant];
   return (
     <StorefrontPaperCardStrip
       headline={copy.headline}
       body={copy.body}
       primaryCta={{ label: copy.label, onPress }}
+      note={variant === 'confirm' ? editUntilLockNote(lockAt) : undefined}
       style={styles.outer}
     />
   );

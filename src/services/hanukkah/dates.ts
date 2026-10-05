@@ -95,6 +95,18 @@ export function formatShortDate(date: Date): string {
   return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+/** Subtext under payment/shipping CTAs. Lock is midnight Eastern, so format in ET or Pacific shows the day before. */
+export function editUntilLockNote(lockAt: string | null): string {
+  const base = 'You’ll still be able to edit your box until the lock date';
+  if (!lockAt) return base;
+  const date = new Date(lockAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'America/New_York',
+  });
+  return `${base} (${date})`;
+}
+
 /** Welcome / Rav subtext — Hanukkah countdown, never Passover. */
 export function formatHanukkahWelcomeSubtext(startsOn: string | null, now = new Date()): string {
   const status = getHanukkahStatus(startsOn, now);
