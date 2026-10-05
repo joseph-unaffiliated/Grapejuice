@@ -9,7 +9,7 @@
  *   AIRTABLE_BASE_ID — defaults to appQscrPCQUIj4shh
  *   CATALOG_SYNC_SECRET — shared secret for HTTP trigger (Authorization: Bearer …)
  */
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { createHash } from 'crypto';

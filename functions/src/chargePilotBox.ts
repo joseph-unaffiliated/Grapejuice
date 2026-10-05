@@ -1,4 +1,4 @@
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';

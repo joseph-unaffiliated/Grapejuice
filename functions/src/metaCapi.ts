@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 
 /**
  * Meta Conversions API (server copy of browser pixel events).

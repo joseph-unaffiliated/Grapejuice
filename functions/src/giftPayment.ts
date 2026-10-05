@@ -1,4 +1,4 @@
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 import type { Firestore } from 'firebase-admin/firestore';
 import { stripe } from './stripe';
 import { sendGiftClaimEmail } from './email';

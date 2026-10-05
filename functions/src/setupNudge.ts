@@ -1,4 +1,4 @@
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 import { getAuth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 import { lineItemsEmailItems } from './emailItems';

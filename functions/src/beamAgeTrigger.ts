@@ -1,5 +1,5 @@
-import * as logger from 'firebase-functions/logger';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
+import * as logger from './logger';
+import { onSchedule } from './sentry';
 import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import type { BeamMilestoneType } from './rav/types';
 

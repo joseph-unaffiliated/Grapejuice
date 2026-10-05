@@ -1,4 +1,4 @@
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 import { getStorage } from 'firebase-admin/storage';
 import { createHash } from 'crypto';
 import sharp = require('sharp');

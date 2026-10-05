@@ -1,6 +1,5 @@
-import * as logger from 'firebase-functions/logger';
-import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
+import * as logger from './logger';
+import { onCall, onRequest, HttpsError, onSchedule } from './sentry';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'crypto';
 import { untraditionalDeletePerson } from './untraditionalCio';

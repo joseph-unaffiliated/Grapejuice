@@ -1,5 +1,5 @@
-import * as logger from 'firebase-functions/logger';
-import { onRequest } from 'firebase-functions/v2/https';
+import * as logger from './logger';
+import { onRequest } from './sentry';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { createHmac, timingSafeEqual } from 'crypto';
 import {

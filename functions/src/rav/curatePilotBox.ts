@@ -1,5 +1,5 @@
-import * as logger from 'firebase-functions/logger';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import * as logger from '../logger';
+import { onCall, HttpsError } from '../sentry';
 import { defineSecret } from 'firebase-functions/params';
 import Anthropic from '@anthropic-ai/sdk';
 import { PRESENCE_APPEND } from './presence';

@@ -1,13 +1,14 @@
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 import * as functions from 'firebase-functions/v1';
 import { customerioAppApiKey, sendEmail } from './email';
+import { withSentry } from './sentry';
 import { untraditionalMarkSafe } from './untraditionalCio';
 
 /** Welcome email on Firebase Auth account create (email, Google, or Apple). */
 export const sendWelcomeOnSignup = functions
   .runWith({ secrets: [customerioAppApiKey] })
   .auth.user()
-  .onCreate(async (user) => {
+  .onCreate(withSentry(async (user: functions.auth.UserRecord) => {
     const to = user.email;
     if (!to?.includes('@')) {
       logger.info('sendWelcomeOnSignup: no email, skipping', { uid: user.uid });
@@ -28,4 +29,4 @@ export const sendWelcomeOnSignup = functions
       grapejuice_account: true,
       grapejuice_account_at: new Date().toISOString(),
     });
-  });
+  }));

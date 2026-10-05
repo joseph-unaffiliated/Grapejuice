@@ -1,4 +1,4 @@
-import * as logger from 'firebase-functions/logger';
+import * as logger from './logger';
 
 /**
  * Customer.io *Track* API for the Untraditional workspace (208456).

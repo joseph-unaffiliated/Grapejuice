@@ -1,6 +1,5 @@
-import * as logger from 'firebase-functions/logger';
-import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
+import * as logger from './logger';
+import { onRequest, onCall, HttpsError, onSchedule } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { stripe, stripePublishableKey, verifyWebhook } from './stripe';
