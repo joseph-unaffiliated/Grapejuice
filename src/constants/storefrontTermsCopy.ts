@@ -28,7 +28,7 @@ export const TERMS_COPY: LegalPageCopy = {
       body: [
         'You can build and change a Hanukkah box for your family. Each season has a lock date, shown in the app; you can keep swapping items and adding extras until then. After the lock date we prepare your box and it can no longer be changed.',
         'Item suggestions, including those from Ask Rav, our AI shopping assistant, are suggestions only. They can be wrong. Please check that each item suits the children it is for, including age guidance and food allergens listed on product pages and packaging.',
-        'If an item becomes unavailable before your box ships, we may replace it with a comparable item of equal or greater value, or let you choose another.',
+        'If an item becomes unavailable before your box ships, we may replace it with a comparable item.',
       ],
     },
     {
@@ -61,7 +61,7 @@ export const TERMS_COPY: LegalPageCopy = {
     {
       heading: '7. Damaged, missing or wrong items',
       body: [
-        'Because each box is put together for your family, we do not accept returns of boxes or opened items. If anything arrives damaged, is missing, or is not what you chose, or if your package is lost, email hello@grapejuice.co within 30 days of delivery (with a photo if you can) and we will replace the item or refund it.',
+        'Because each box is put together for your family, we do not accept returns of boxes or opened items. If anything arrives damaged, is missing, or is not what you chose, or if your package is lost, email hello@grapejuice.co within 30 days of delivery (with a photo if you can) and we will refund it.',
         'Nothing in these terms limits rights you have under consumer protection laws that cannot be waived.',
       ],
     },
