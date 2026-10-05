@@ -171,8 +171,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: semanticColors.textSecondary,
     textAlign: 'center',
-    // Pulls up against innerGap so the note reads as attached to the buttons.
-    marginTop: -spacing.xs,
     maxWidth: 360,
     alignSelf: 'center',
   },
