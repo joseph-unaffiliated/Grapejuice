@@ -34,13 +34,23 @@ let suppressHistoryPush = false;
 let historyIdx = 0;
 const navHistory: string[] = [];
 
-/** Retention's installer test: ge.js reads ?vge=true from location.href whenever it finishes loading. */
-const RETENTION_TEST =
-  Platform.OS === 'web' && typeof window !== 'undefined' && /[?&]vge=true\b/.test(window.location.search);
+/**
+ * Retention's installer test opens `?vge=true&aid=<account>`; ge.js reads both from location.href
+ * whenever it finishes loading and reports them in its script beacon, so keep them in the URL.
+ */
+const RETENTION_TEST_QUERY = ((): string => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
+  const landing = new URLSearchParams(window.location.search);
+  if (landing.get('vge') !== 'true') return '';
+  const kept = new URLSearchParams({ vge: 'true' });
+  const aid = landing.get('aid');
+  if (aid) kept.set('aid', aid);
+  return kept.toString();
+})();
 
 function withRetentionTest(path: string): string {
-  if (!RETENTION_TEST || /[?&]vge=true\b/.test(path)) return path;
-  return `${path}${path.includes('?') ? '&' : '?'}vge=true`;
+  if (!RETENTION_TEST_QUERY || /[?&]vge=true\b/.test(path)) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}${RETENTION_TEST_QUERY}`;
 }
 
 function stateFingerprint(state: NavigationState | PartialState<NavigationState>): string {
