@@ -1,7 +1,14 @@
 import React, { useMemo, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemeMode } from '../../context/ThemeContext';
-import { borderRadius, shadows, shadowsWeb, spacing, typography } from '../../constants/theme';
+import {
+  borderRadius,
+  shadows,
+  shadowsWeb,
+  spacing,
+  typeface,
+  typography,
+} from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useWishlist } from '../../hooks/useWishlist';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
@@ -102,12 +109,13 @@ function createStyles(colors: SemanticColors) {
       gap: 2,
     },
     title: {
-      fontWeight: '700',
-      fontSize: typography.sm,
+      ...typeface('light'),
+      fontSize: typography.titleLg,
       color: colors.textInverse,
-      letterSpacing: -0.22,
+      letterSpacing: -0.32,
     },
     body: {
+      ...typeface('medium'),
       fontSize: typography.sm,
       lineHeight: 18,
       color: colors.goldMuted,
@@ -142,10 +150,10 @@ function createStyles(colors: SemanticColors) {
       backgroundColor: colors.brand,
     },
     primaryText: {
-      fontWeight: '700',
-      fontSize: typography.sm,
+      ...typeface('light'),
+      fontSize: typography.titleLg,
       color: colors.brand,
-      letterSpacing: -0.22,
+      letterSpacing: -0.32,
       ...(Platform.OS === 'web'
         ? ({
             transitionProperty: 'color',
@@ -156,9 +164,9 @@ function createStyles(colors: SemanticColors) {
     },
     primaryTextHover: { color: colors.logoDark },
     signIn: {
-      fontWeight: '600',
+      ...typeface('medium'),
       fontSize: typography.sm,
-      color: colors.brand,
+      color: colors.goldMuted,
       letterSpacing: -0.22,
     },
   });
