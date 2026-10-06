@@ -54,7 +54,13 @@ export function BoxDetailToolbar({
 
   return (
     <View>
-      <View style={[styles.toolbar, leftAlign && styles.toolbarLeft]}>
+      <View
+        style={[
+          styles.toolbar,
+          desktopTitle && !leftAlign && styles.toolbarTitleDesktopPad,
+          leftAlign && styles.toolbarLeft,
+        ]}
+      >
         {leftAlign ? null : (
           <View style={styles.toolbarSide}>
             {showBack ? (
