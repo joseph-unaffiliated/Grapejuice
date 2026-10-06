@@ -94,7 +94,9 @@ function SliderQuestion({
   return (
     <View style={[styles.section, last && styles.sectionLast]}>
       <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{question}</Text>
-      <FamiliaritySliderControl value={value} onChange={onChange} accessibilityLabel={question} hideSteps />
+      <View style={styles.sliderPullUp}>
+        <FamiliaritySliderControl value={value} onChange={onChange} accessibilityLabel={question} hideSteps />
+      </View>
       <View style={[styles.sliderLabels, styles.sliderLabelsBelow]}>
         <Text style={styles.sliderLabel}>{minLabel}</Text>
         <Text style={[styles.sliderLabel, styles.sliderLabelRight]}>{maxLabel}</Text>
@@ -279,6 +281,9 @@ const styles = StyleSheet.create({
   },
   sliderLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   /** Pull up into the slider's tall hit area so labels sit just under the track. */
+  sliderPullUp: {
+    marginTop: -spacing.md,
+  },
   sliderLabelsBelow: {
     marginTop: -(spacing.sm + spacing.md),
   },
@@ -309,9 +314,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
     borderRadius: borderRadius.md,
-    minHeight: 44,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    minHeight: 34,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -320,7 +325,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     ...typeface('light'),
-    fontSize: typography.xl,
+    fontSize: typography.lg,
     color: '#000000',
   },
   chipTextOn: {
