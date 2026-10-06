@@ -99,6 +99,11 @@ type Props = {
    * prompt). Adds scroll clearance so it can't sit on top of the footer.
    */
   floatingFooter?: ReactNode;
+  /**
+   * Fill mode, compact only: slide the pinned chrome up out of view (screen
+   * drives this from its own scroller — hide on scroll down, show on scroll up).
+   */
+  fillChromeHidden?: boolean;
 };
 
 type ChromeProps = {
@@ -220,6 +225,7 @@ function StorefrontChromeInner({
   hideSearchAndRav,
   servicesSlot,
   floatingFooter,
+  fillChromeHidden = false,
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
@@ -836,6 +842,26 @@ function StorefrontChromeInner({
 
   useEffect(() => () => clearTopFadeTimer(), [clearTopFadeTimer]);
 
+  const hideFillChrome = fillBody && compact && fillChromeHidden && !ravVisible;
+  const fillHideProgress = useRef(new Animated.Value(0)).current;
+  /** Clip only while hidden / animating so header dropdowns aren't cut off at rest. */
+  const [fillChromeClipped, setFillChromeClipped] = useState(false);
+  useEffect(() => {
+    if (hideFillChrome) setFillChromeClipped(true);
+    Animated.timing(fillHideProgress, {
+      toValue: hideFillChrome ? 1 : 0,
+      duration: 220,
+      // Drives layout (marginTop) so the body reclaims the space.
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished && !hideFillChrome) setFillChromeClipped(false);
+    });
+  }, [fillHideProgress, hideFillChrome]);
+  const fillChromeMarginTop = fillHideProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -(chromeH || STICKY_FALLBACK_CHROME_H)],
+  });
+
   const overlayHideOffset =
     stickyChromeH > 0 ? stickyChromeH : Math.min(chromeH || STICKY_FALLBACK_CHROME_H, 96);
   const overlayTranslateY = overlayProgress.interpolate({
@@ -1030,8 +1056,15 @@ function StorefrontChromeInner({
 
       {pinChromeAboveBody ? (
         <>
-          <View style={styles.chromeFill} onLayout={onChromeLayout} collapsable={false}>
-            <StorefrontChromeBlocks {...chromeProps} />
+          <View style={[styles.chromeFillHost, fillChromeClipped && styles.chromeFillClip]}>
+            <Animated.View
+              style={[styles.chromeFill, { marginTop: fillChromeMarginTop }]}
+              onLayout={onChromeLayout}
+              collapsable={false}
+              pointerEvents={hideFillChrome ? 'none' : 'auto'}
+            >
+              <StorefrontChromeBlocks {...chromeProps} />
+            </Animated.View>
           </View>
           <View style={styles.bodyRow}>
             <View style={styles.fillBody}>{children}</View>
@@ -1182,6 +1215,14 @@ const styles = StyleSheet.create({
           shadowOpacity: 0,
           elevation: 0,
         }),
+  },
+  chromeFillHost: {
+    zIndex: 20,
+    flexShrink: 0,
+  },
+  /** Clips fill chrome while it slides up so the body takes its height. */
+  chromeFillClip: {
+    overflow: 'hidden',
   },
   /** Fill-mode chrome above the body viewport (not inside a page scroller). */
   chromeFill: {

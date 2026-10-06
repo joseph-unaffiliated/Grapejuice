@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Pressable,
   Platform,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -143,6 +145,8 @@ import type { SemanticColors } from '../../constants/themeMode';
 
 /** Clearance under scroll content for the floating order-summary card. */
 const SUMMARY_FLOAT_CLEARANCE = 140;
+const CHROME_SCROLL_DIR_THRESHOLD = 8;
+const CHROME_REVEAL_TOP_Y = 40;
 
 /**
  * Slot suffix for paid "extra" units added beyond a card's included baseline via the
@@ -352,6 +356,22 @@ export function MyBoxScreen() {
     scrollToSection,
     scrollToItem,
   } = useBoxDetailScroll({ visibleSectionIds });
+
+  /** Mobile: hide pinned chrome on scroll down, bring it back on scroll up (like Home). */
+  const [chromeHidden, setChromeHidden] = useState(false);
+  const lastScrollY = useRef(0);
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      onScroll(e);
+      if (isDesktop) return;
+      const y = Math.max(0, e.nativeEvent.contentOffset.y);
+      const dy = y - lastScrollY.current;
+      lastScrollY.current = y;
+      if (y < CHROME_REVEAL_TOP_Y || dy < -CHROME_SCROLL_DIR_THRESHOLD) setChromeHidden(false);
+      else if (dy > CHROME_SCROLL_DIR_THRESHOLD) setChromeHidden(true);
+    },
+    [isDesktop, onScroll]
+  );
 
   /** Recompute when catalog/lines change — never cache empty results across loads. */
   const swapOptionsBySlot = useMemo(() => {
@@ -1691,18 +1711,11 @@ export function MyBoxScreen() {
       {guestViewOnly && !isDesktop ? (
         <View style={styles.guestSummaryStack}>
           <View style={styles.guestPriceLine}>
-            <Text style={styles.summaryLabel}>
-              {kidsCount === 1 ? 'Base box (1 kid)' : `Base box (${kidsCount} kids)`}
-            </Text>
+            <Text style={styles.summaryLabel}>Base box</Text>
             <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
             <Text style={styles.guestPriceSep}>|</Text>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
-            {retailValueCents > 0 ? (
-              <Text style={styles.summaryRetailValue}>
-                ({formatCatalogDollars(retailValueCents)} value)
-              </Text>
-            ) : null}
           </View>
           <GuestBoxAuthBanner centered />
           <View style={styles.guestCtaRow}>
@@ -1739,7 +1752,11 @@ export function MyBoxScreen() {
         <View style={styles.summaryBreakdown}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>
-              {kidsCount === 1 ? 'Base box (1 kid)' : `Base box (${kidsCount} kids)`}
+              {!isDesktop
+                ? 'Base box'
+                : kidsCount === 1
+                  ? 'Base box (1 kid)'
+                  : `Base box (${kidsCount} kids)`}
             </Text>
             <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
           </View>
@@ -1765,7 +1782,7 @@ export function MyBoxScreen() {
           <View style={styles.summaryTotalItem}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
-            {retailValueCents > 0 ? (
+            {retailValueCents > 0 && isDesktop ? (
               <Text style={styles.summaryRetailValue}>
                 ({formatCatalogDollars(retailValueCents)} value)
               </Text>
@@ -1880,7 +1897,7 @@ export function MyBoxScreen() {
                     </Text>
                   )}
                 </Pressable>
-                {!cardOnFile && !locked ? (
+                {!cardOnFile && !locked && isDesktop ? (
                   <Text style={styles.checkoutCtaNote}>{editUntilLockNote(lockAt, { twoLines: true })}</Text>
                 ) : null}
               </View>
@@ -1950,7 +1967,12 @@ export function MyBoxScreen() {
     ) : null;
 
   return (
-    <StorefrontChrome bodyMode="fill" hideSearchAndRav servicesSlot={servicesSlot}>
+    <StorefrontChrome
+      bodyMode="fill"
+      hideSearchAndRav
+      servicesSlot={servicesSlot}
+      fillChromeHidden={chromeHidden}
+    >
       <View style={styles.pageRoot}>
         <WebContentPanel
           flush
@@ -1982,7 +2004,7 @@ export function MyBoxScreen() {
                     }
                   : null,
               ]}
-              onScroll={onScroll}
+              onScroll={handleScroll}
               scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
               {...(Platform.OS === 'web'
@@ -2208,7 +2230,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   guestSummaryStack: {
     width: '100%',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   guestPriceLine: {
     flexDirection: 'row',
@@ -2230,6 +2252,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     justifyContent: 'center',
     gap: spacing.sm,
     width: '100%',
+    marginTop: spacing.xs,
   },
   summaryBreakdown: {
     flexDirection: 'row',

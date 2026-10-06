@@ -101,6 +101,34 @@ geq.load("X2JHJ4WE");}();
         ot.setAttribute('data-domain-script', '01a0cfd2-da9c-7e6a-a312-7f370c33ab6c');
         document.head.appendChild(ot);
       };
+      /** Mobile: any tap / swipe / scroll outside the cookie banner acts like its "Close Banner" button. */
+      (function () {
+        if (!window.matchMedia || !window.matchMedia('(max-width: 767px)').matches) return;
+        var events = ['pointerdown', 'touchmove', 'wheel'];
+        function bannerOpen(el) {
+          if (!el || !el.offsetHeight) return false;
+          var cs = window.getComputedStyle(el);
+          return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+        }
+        function stop() {
+          events.forEach(function (t) { document.removeEventListener(t, onInteract, true); });
+        }
+        function onInteract(e) {
+          var banner = document.getElementById('onetrust-banner-sdk');
+          if (!bannerOpen(banner)) {
+            if (document.cookie.indexOf('OptanonAlertBoxClosed=') !== -1) stop();
+            return;
+          }
+          var t = e.target;
+          if (t && t.closest && t.closest('#onetrust-banner-sdk, #onetrust-pc-sdk, #ot-sdk-btn-floating')) return;
+          var close = banner.querySelector('.onetrust-close-btn-handler');
+          if (close) close.click();
+          else if (window.OneTrust && typeof window.OneTrust.Close === 'function') window.OneTrust.Close();
+          else return;
+          stop();
+        }
+        events.forEach(function (t) { document.addEventListener(t, onInteract, { capture: true, passive: true }); });
+      })();
       /** Meta Pixel library — the fbq queue stub below already holds init + events.
        *  Loaded immediately so the landing PageView reaches Meta before a quick bounce. */
       window.__gjLoadMetaPixel = function () {

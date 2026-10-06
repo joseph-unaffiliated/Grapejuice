@@ -56,7 +56,7 @@ export function BoxDetailToolbar({
     // DM Sans regular averages ~0.44em per character; keep the title on one line.
     const available = windowWidth - spacing.md * 2 - (showBack ? 48 : 0);
     const fontSize = Math.round(
-      Math.min(56, Math.max(28, (available * 0.94) / (title.length * 0.44)))
+      Math.min(46, Math.max(28, (available * 0.78) / (title.length * 0.44)))
     );
     return {
       fontSize,

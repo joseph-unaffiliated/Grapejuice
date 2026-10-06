@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   Platform,
 } from 'react-native';
@@ -189,7 +190,8 @@ function QtyStepper({
   const atOne = quantity <= 1;
   const atOneLabel = decrementMode === 'donate' ? 'donate' : 'remove';
   return (
-    <View style={styles.qtyRow}>
+    // Swallows taps between − / + so they don't open the product from the card press.
+    <Pressable style={styles.qtyRow} onPress={() => {}} accessible={false}>
       <TouchableOpacity
         style={[styles.qtyBtn, atOne && styles.qtyBtnDonate]}
         onPress={() => onQuantityChange(-1)}
@@ -209,7 +211,7 @@ function QtyStepper({
       >
         <Text style={styles.qtyBtnText}>+</Text>
       </TouchableOpacity>
-    </View>
+    </Pressable>
   );
 }
 
@@ -295,7 +297,12 @@ export function BoxItemRow({
     const vertical = resolvedVariant === 'tile';
     return (
       <>
-        <View style={vertical ? styles.tileCard : styles.cardRow}>
+        {/* Whole card opens the product; swap / qty / claim chips handle their own taps. */}
+        <Pressable
+          style={vertical ? styles.tileCard : styles.cardRow}
+          onPress={openDetail}
+          accessible={false}
+        >
           <View style={vertical ? styles.tileImageWrap : styles.cardImageWrap}>
             <TouchableOpacity
               style={styles.imagePressFill}
@@ -401,7 +408,7 @@ export function BoxItemRow({
               )}
             </View>
           </View>
-        </View>
+        </Pressable>
 
         {shelfOpen && swappable && !onPrimarySwapAction ? (
           <SwapOptionsShelf
