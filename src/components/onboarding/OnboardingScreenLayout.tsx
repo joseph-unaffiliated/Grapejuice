@@ -36,6 +36,10 @@ type Props = {
    * under `children` in the same column.
    */
   aside?: ReactNode;
+  /** Desktop only: which side the `aside` column sits on. Default right. */
+  asideSide?: 'left' | 'right';
+  /** Desktop only: CTAs sit directly under `children` instead of pinned at the page bottom. */
+  inlineFooter?: boolean;
   /** When false, title/kicker sit above scrollable body without centering. Default true for intro-style screens. Desktop always left-aligns. */
   centerHeader?: boolean;
   primaryLabel?: string;
@@ -59,6 +63,8 @@ export function OnboardingScreenLayout({
   title,
   children,
   aside,
+  asideSide = 'right',
+  inlineFooter = false,
   centerHeader = true,
   primaryLabel,
   onPrimary,
@@ -90,8 +96,28 @@ export function OnboardingScreenLayout({
       : Math.max(insets.top, spacing.sm) + spacing.sm + 30 + spacing.lg;
 
   const showFooter = !hideFooter && !!primaryLabel && !!onPrimary;
+  const footerInline = isDesktopWeb && inlineFooter;
 
-  const footer = showFooter ? (
+  const ctas = showFooter ? (
+    <>
+      <OnboardingPrimaryButton
+        label={primaryLabel!}
+        onPress={onPrimary!}
+        loading={primaryLoading}
+        disabled={primaryDisabled}
+      />
+      {secondaryLabel && onSecondary ? (
+        <OnboardingSecondaryButton
+          label={secondaryLabel}
+          onPress={onSecondary}
+          disabled={secondaryDisabled}
+          style={styles.secondaryGap}
+        />
+      ) : null}
+    </>
+  ) : null;
+
+  const footer = showFooter && !footerInline ? (
     <View
       style={[
         styles.footer,
@@ -105,20 +131,7 @@ export function OnboardingScreenLayout({
           { alignSelf: isDesktopWeb || !leftAlignHeader ? 'center' : 'flex-start' },
         ]}
       >
-        <OnboardingPrimaryButton
-          label={primaryLabel!}
-          onPress={onPrimary!}
-          loading={primaryLoading}
-          disabled={primaryDisabled}
-        />
-        {secondaryLabel && onSecondary ? (
-          <OnboardingSecondaryButton
-            label={secondaryLabel}
-            onPress={onSecondary}
-            disabled={secondaryDisabled}
-            style={styles.secondaryGap}
-          />
-        ) : null}
+        {ctas}
       </View>
     </View>
   ) : null;
@@ -134,7 +147,11 @@ export function OnboardingScreenLayout({
       {kicker ? (
         <Text style={[styles.kicker, leftAlignHeader && styles.kickerLeft]}>{kicker}</Text>
       ) : null}
-      <Text style={[styles.title, !leftAlignHeader && styles.titleCentered]}>{title}</Text>
+      <Text
+        style={[styles.title, isDesktopWeb && styles.titleDesktop, !leftAlignHeader && styles.titleCentered]}
+      >
+        {title}
+      </Text>
     </View>
   );
 
@@ -142,13 +159,16 @@ export function OnboardingScreenLayout({
     <View style={[styles.body, isDesktopWeb && styles.bodyDesktop]}>{children}</View>
   ) : null;
 
+  const asideColumn = aside ? <View style={styles.column}>{aside}</View> : null;
   const content = isDesktopWeb ? (
     <View style={[styles.columns, aside ? styles.columnsTwo : styles.columnsOne]}>
+      {asideSide === 'left' ? asideColumn : null}
       <View style={styles.column}>
         {header}
         {body}
+        {footerInline && ctas ? <View style={styles.footerInline}>{ctas}</View> : null}
       </View>
-      {aside ? <View style={styles.column}>{aside}</View> : null}
+      {asideSide === 'right' ? asideColumn : null}
     </View>
   ) : (
     <>
@@ -262,6 +282,7 @@ const styles = StyleSheet.create({
   },
   headerDesktop: {
     paddingHorizontal: 0,
+    paddingBottom: 0,
   },
   headerCentered: {
     alignItems: 'center',
@@ -285,6 +306,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.72,
     lineHeight: 34,
   },
+  titleDesktop: {
+    fontSize: 38,
+    lineHeight: 44,
+    letterSpacing: -0.95,
+  },
   titleCentered: {
     textAlign: 'center',
   },
@@ -294,6 +320,7 @@ const styles = StyleSheet.create({
   },
   bodyDesktop: {
     paddingHorizontal: 0,
+    paddingTop: spacing.sm,
   },
   asideMobile: {
     paddingTop: spacing.sm,
@@ -323,6 +350,12 @@ const styles = StyleSheet.create({
           boxShadow: '0px -8px 24px rgba(255,255,255,0.92)',
         } as object)
       : null),
+  },
+  footerInline: {
+    width: '100%',
+    maxWidth: ONBOARDING_CTA_MAX_WIDTH,
+    marginTop: spacing.lg,
+    gap: 8,
   },
   footerCtaWrap: {
     width: '100%',

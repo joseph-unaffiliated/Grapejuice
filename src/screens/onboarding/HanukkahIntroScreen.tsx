@@ -21,11 +21,13 @@ export function HanukkahIntroScreen({ onContinue }: Props) {
       title="Eight nights. Your way."
       primaryLabel="Continue"
       onPrimary={onContinue}
+      asideSide="left"
+      inlineFooter
       aside={
         <View style={styles.copy}>
           <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{HANUKKAH_PRACTICES_INTRO}</Text>
           <View style={styles.practices}>
-            <HanukkahPracticesOverview layout="stack" compact showIntro={false} />
+            <HanukkahPracticesOverview layout="stack" divided showIntro={false} />
           </View>
         </View>
       }

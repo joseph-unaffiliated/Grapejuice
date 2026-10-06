@@ -44,8 +44,8 @@ const goldGlowStyle =
 
 type Props = {
   layout?: 'carousel' | 'stack';
-  /** Stack only: tighter rows so all five fit above the fold. */
-  compact?: boolean;
+  /** Stack only: plain rows separated by gold rules instead of cards. */
+  divided?: boolean;
   showIntro?: boolean;
   sectionTitle?: string;
 };
@@ -79,10 +79,10 @@ function PracticeCard({ practice }: { practice: HanukkahPractice }) {
   );
 }
 
-function PracticeStackRow({ practice, compact }: { practice: HanukkahPractice; compact?: boolean }) {
+function PracticeStackRow({ practice, divided }: { practice: HanukkahPractice; divided?: boolean }) {
   return (
-    <View style={[styles.stackRowOuter, goldGlowStyle]}>
-      <View style={[styles.stackRow, compact && styles.stackRowCompact]}>
+    <View style={divided ? null : [styles.stackRowOuter, goldGlowStyle]}>
+      <View style={divided ? styles.stackRowDivided : styles.stackRow}>
         <View style={styles.stackTitleRow}>
           <PracticeRowIcon practiceId={practice.id} />
           <Text style={styles.stackTitle}>{practice.title}</Text>
@@ -95,7 +95,7 @@ function PracticeStackRow({ practice, compact }: { practice: HanukkahPractice; c
 
 export function HanukkahPracticesOverview({
   layout = 'carousel',
-  compact = false,
+  divided = false,
   showIntro = true,
   sectionTitle = 'Hanukkah at home',
 }: Props) {
@@ -116,9 +116,12 @@ export function HanukkahPracticesOverview({
             <Text style={styles.intro}>{HANUKKAH_PRACTICES_INTRO}</Text>
           </>
         ) : null}
-        <View style={[styles.stackList, compact && styles.stackListCompact]}>
-          {HANUKKAH_PRACTICES.map((practice) => (
-            <PracticeStackRow key={practice.id} practice={practice} compact={compact} />
+        <View style={divided ? null : styles.stackList}>
+          {HANUKKAH_PRACTICES.map((practice, i) => (
+            <React.Fragment key={practice.id}>
+              {divided && i > 0 ? <View style={styles.goldRule} /> : null}
+              <PracticeStackRow practice={practice} divided={divided} />
+            </React.Fragment>
           ))}
         </View>
       </View>
@@ -220,8 +223,9 @@ const styles = StyleSheet.create({
   stackList: {
     gap: GRID_GAP,
   },
-  stackListCompact: {
-    gap: spacing.xs + 2,
+  goldRule: {
+    height: 1,
+    backgroundColor: semanticColors.brand,
   },
   stackRowOuter: {
     borderRadius: borderRadius.xl,
@@ -234,7 +238,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     gap: spacing.xs,
   },
-  stackRowCompact: {
+  stackRowDivided: {
     paddingVertical: spacing.sm,
     gap: 4,
   },
