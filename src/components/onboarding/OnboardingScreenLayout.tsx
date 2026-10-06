@@ -337,6 +337,7 @@ const styles = StyleSheet.create({
     color: '#000000',
     letterSpacing: -0.72,
     lineHeight: 34,
+    ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
   },
   titleDesktop: {
     fontSize: 38,
