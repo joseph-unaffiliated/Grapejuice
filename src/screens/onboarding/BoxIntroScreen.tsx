@@ -42,7 +42,6 @@ export function BoxIntroScreen({ onContinue, initialChildren, defaultName }: Pro
 
   return (
     <OnboardingScreenLayout
-      kicker="Your Family"
       title="Built for your family"
       centerHeader={false}
       primaryLabel="Continue"

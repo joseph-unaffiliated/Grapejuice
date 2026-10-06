@@ -17,7 +17,6 @@ type Props = {
 export function HanukkahIntroScreen({ onContinue }: Props) {
   return (
     <OnboardingScreenLayout
-      kicker="How it Works"
       title="Eight nights. Your way."
       primaryLabel="Continue"
       onPrimary={onContinue}

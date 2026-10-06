@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   },
   bodyDesktop: {
     paddingHorizontal: 0,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
   },
   asideMobile: {
     paddingTop: spacing.sm,

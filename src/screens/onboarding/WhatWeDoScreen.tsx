@@ -227,7 +227,6 @@ export function WhatWeDoScreen({
 
   return (
     <OnboardingScreenLayout
-      kicker="What We Do"
       title="Tell us a bit about you"
       centerHeader={false}
       primaryLabel="Continue"

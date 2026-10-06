@@ -32,7 +32,6 @@ export function RavOpenQuestionScreen({
 
   return (
     <OnboardingScreenLayout
-      kicker="Notes"
       title="Anything else we should know?"
       centerHeader={false}
       primaryLabel={building ? 'Building your box…' : 'Show me my box!'}
