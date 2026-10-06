@@ -122,9 +122,10 @@ export function SystemPage({
       >
         <ScrollView
           style={styles.root}
-          contentContainerStyle={
-            hub ? styles.hubScrollContent : narrow ? styles.narrowScrollContent : styles.scrollContent
-          }
+          contentContainerStyle={[
+            hub ? styles.hubScrollContent : narrow ? styles.narrowScrollContent : styles.scrollContent,
+            footer ? styles.scrollContentWithFooter : null,
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {isDesktop ? (
@@ -301,6 +302,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: semanticColors.bgPrimary },
   panel: { flex: 1, width: '100%', backgroundColor: semanticColors.bgPrimary },
   panelNoSidePad: { paddingHorizontal: 0 },
+  scrollContentWithFooter: { paddingBottom: 0 },
   mobileGutter: { paddingHorizontal: MOBILE_GUTTER },
   root: { flex: 1, backgroundColor: semanticColors.bgPrimary, width: '100%' },
   scrollContent: {

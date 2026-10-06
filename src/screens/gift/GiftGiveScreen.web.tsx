@@ -8,7 +8,9 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import type { MainStackParamList } from '../../navigation/types';
-import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
+import { MOBILE_GUTTER, spacing, typography, typeface, semanticColors } from '../../constants/theme';
+import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
+import { StorefrontFooter } from '../../components/storefront/StorefrontFooter';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { SystemPage } from '../../components/layout/SystemPage';
 import { StorefrontCategoryRail } from '../../components/storefront/StorefrontCategoryRail';
@@ -37,11 +39,13 @@ function GiftGiveBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'GiftGive'>>();
   const { goHome, goCategory } = useStorefrontActions();
+  const { isCompact: compact } = useLayoutBreakpoint();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const startAuthForGiftGive = useAuthFlowStore((s) => s.startAuthForGiftGive);
   const restored = route.params?.form;
+  const entryGiftPath = route.params?.initialGiftPath ?? restored?.giftPath ?? null;
   const [values, setValues] = useState<GiftGiveFormValues>(() => {
-    const path = route.params?.initialGiftPath ?? restored?.giftPath ?? null;
+    const path = entryGiftPath ?? 'credit_only';
     if (restored) return { ...restored, giftPath: path };
     return { recipientEmail: '', giverName: '', message: '', giftPath: path };
   });
@@ -67,7 +71,8 @@ function GiftGiveBody() {
 
   useEffect(() => {
     trackGiftStep('GiftStart');
-    if (values.giftPath) trackGiftStep('GiftPathChosen', values.giftPath);
+    // The default selection isn't a choice; only count paths the visitor arrived with.
+    if (entryGiftPath) trackGiftStep('GiftPathChosen', entryGiftPath);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- entry only; later picks go through patchValues
   }, []);
 
@@ -102,7 +107,10 @@ function GiftGiveBody() {
       setFormError('Enter a valid email (like name@example.com).');
       return;
     }
-    if (values.giftPath) trackGiftStep('GiftDetails', values.giftPath);
+    if (values.giftPath) {
+      trackGiftStep('GiftPathChosen', values.giftPath);
+      trackGiftStep('GiftDetails', values.giftPath);
+    }
 
     // Credit-only first — never fall through into the box editor.
     if (values.giftPath === 'credit_only') {
@@ -174,7 +182,7 @@ function GiftGiveBody() {
     useGiftIntentStore.getState().clear();
     resetPayment();
     setFormError(null);
-    setValues({ recipientEmail: '', giverName: '', message: '', giftPath: null });
+    setValues({ recipientEmail: '', giverName: '', message: '', giftPath: 'credit_only' });
     setChildDrafts(DEFAULT_GIFT_CHILDREN);
     goHome();
   };
@@ -183,7 +191,7 @@ function GiftGiveBody() {
     values.giftPath == null
       ? 'Choose how this gift works'
       : !creditOnly
-        ? 'Pick their box'
+        ? 'Curate what goes in their box'
         : !isAuthenticated
           ? 'Sign up to continue'
           : 'Continue to payment';
@@ -204,15 +212,21 @@ function GiftGiveBody() {
       narrow
       onBack={paying ? undefined : goHome}
       footer={
-        paying ? undefined : (
-          <View style={styles.aisleRail}>
-            <StorefrontCategoryRail
-              heading={null}
-              cards={STOREFRONT_HOME_AISLE_CARDS}
-              onCategoryPress={(category) => goCategory(category)}
-            />
-          </View>
-        )
+        <>
+          {paying ? null : (
+            <View style={styles.catalog}>
+              <Text style={[styles.catalogTitle, compact && styles.catalogTitleCompact]}>
+                Browse the Catalog
+              </Text>
+              <StorefrontCategoryRail
+                heading={null}
+                cards={STOREFRONT_HOME_AISLE_CARDS}
+                onCategoryPress={(category) => goCategory(category)}
+              />
+            </View>
+          )}
+          <StorefrontFooter />
+        </>
       }
     >
       {paymentSecret && stripePromise && giftInviteId ? (
@@ -273,8 +287,24 @@ export function GiftGiveScreen() {
 }
 
 const styles = StyleSheet.create({
-  aisleRail: {
-    marginTop: spacing.xxl,
+  catalog: {
+    marginTop: spacing.xxl * 2,
+    marginBottom: spacing.xxl,
+  },
+  catalogTitle: {
+    ...typeface('medium'),
+    fontSize: 40,
+    lineHeight: 38,
+    letterSpacing: -0.2,
+    color: semanticColors.logoDark,
+    textAlign: 'center',
+    paddingHorizontal: MOBILE_GUTTER,
+    marginBottom: 32,
+  },
+  catalogTitleCompact: {
+    fontSize: 30,
+    lineHeight: 32,
+    marginBottom: spacing.lg,
   },
   signInLink: {
     marginTop: spacing.md,

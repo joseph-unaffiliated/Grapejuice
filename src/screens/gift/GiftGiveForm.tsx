@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { CURATED_GIFT_BOX_LABEL } from '../../constants/giftCopy';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
@@ -49,15 +49,15 @@ export function GiftGiveForm({
     ? 'Choose how this gift works'
     : creditOnly
       ? 'Continue to payment'
-      : 'Pick their box';
+      : 'Curate what goes in their box';
 
   const setPath = (giftPath: GiftPath) => onChange({ giftPath });
 
   const lead = !pathChosen
-    ? `Pay ${formatDollars(DEFAULT_BOX_PRICE_CENTS)}. Two different gifts — pick one below.`
+    ? `Pay ${formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)}. Two different gifts — pick one below.`
     : creditOnly
-      ? `Send ${formatDollars(DEFAULT_BOX_PRICE_CENTS)} as gift credit — spendable in the store or toward a Hanukkah box. You won’t pick items for them; they choose how to spend it after claiming.`
-      : `You’ll preview a ${CURATED_GIFT_BOX_LABEL.toLowerCase()}, swap items if you want, then pay ${formatDollars(DEFAULT_BOX_PRICE_CENTS)}. They’ll see what you picked.`;
+      ? `Send ${formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)} as gift credit — spendable in the store or toward a Hanukkah box. You won’t pick items for them; they choose how to spend it after claiming.`
+      : `You’ll preview a ${CURATED_GIFT_BOX_LABEL.toLowerCase()}, swap items if you want, then pay ${formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)}. They’ll see what you picked.`;
 
   return (
     <View>
@@ -87,7 +87,7 @@ export function GiftGiveForm({
       >
         <Text style={[styles.pathTitle, creditOnly && styles.pathTitleOn]}>Let them choose</Text>
         <Text style={[styles.pathBody, creditOnly && styles.pathBodyOn]}>
-          {formatDollars(DEFAULT_BOX_PRICE_CENTS)} gift credit — no box for you to review. They can
+          {formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)} gift credit — no box for you to review. They can
           shop à la carte or put it toward their own Hanukkah box after claiming.
         </Text>
       </TouchableOpacity>

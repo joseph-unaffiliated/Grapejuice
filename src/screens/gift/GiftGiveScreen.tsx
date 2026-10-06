@@ -176,7 +176,7 @@ function GiftGiveScreenBody() {
     values.giftPath == null
       ? 'Choose how this gift works'
       : !creditOnly
-        ? 'Pick their box'
+        ? 'Curate what goes in their box'
         : !isAuthenticated
           ? 'Sign up to continue'
           : 'Continue to payment';
