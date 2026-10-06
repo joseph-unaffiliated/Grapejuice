@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   },
   bodyDesktop: {
     paddingHorizontal: 0,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
   },
   asideMobile: {
     paddingTop: spacing.sm,
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
   footerInline: {
     width: '100%',
     maxWidth: ONBOARDING_CTA_MAX_WIDTH,
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
     gap: 8,
   },
   footerCtaWrap: {

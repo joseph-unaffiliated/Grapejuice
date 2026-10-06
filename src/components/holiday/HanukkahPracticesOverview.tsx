@@ -223,9 +223,12 @@ const styles = StyleSheet.create({
   stackList: {
     gap: GRID_GAP,
   },
+  /** Starts at the text column so it doesn't run under the icons. */
   goldRule: {
     height: 1,
+    marginLeft: 14 + spacing.sm,
     backgroundColor: semanticColors.brand,
+    opacity: 0.5,
   },
   stackRowOuter: {
     borderRadius: borderRadius.xl,

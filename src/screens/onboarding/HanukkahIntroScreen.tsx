@@ -48,6 +48,7 @@ const styles = StyleSheet.create({
   copy: { paddingTop: 0, gap: spacing.sm },
   intro: {
     marginBottom: 0,
+    lineHeight: 28,
   },
   sectionLead: {
     ...typeface('medium'),
