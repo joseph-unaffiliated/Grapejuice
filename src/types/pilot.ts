@@ -76,6 +76,8 @@ export type LastBoxAnswers = {
   childInterests?: string[];
   familiarityScore?: number;
   familiarityLevel?: FamiliarityLevel;
+  /** 0–100: "Almost never" to "Every day" for Jewish practice in general. */
+  practiceFrequencyScore?: number;
   ravNotes?: string;
   savedAt?: string;
 };

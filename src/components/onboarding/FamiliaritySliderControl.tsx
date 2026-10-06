@@ -12,6 +12,9 @@ import { semanticColors, spacing } from '../../constants/theme';
 type Props = {
   value: number;
   onChange: (value: number) => void;
+  accessibilityLabel?: string;
+  /** Hide the 0/25/50/75/100 quick-pick dots under the track. */
+  hideSteps?: boolean;
 };
 
 const THUMB = 28;
@@ -24,7 +27,12 @@ const AXIS_LOCK_DX = 8;
  * gesture is clearly horizontal — avoids the iPhone scroll-vs-drag fight.
  * Click/tap anywhere on the hit strip jumps the thumb; drag still scrubbs.
  */
-export function FamiliaritySliderControl({ value, onChange }: Props) {
+export function FamiliaritySliderControl({
+  value,
+  onChange,
+  accessibilityLabel = 'Practice level',
+  hideSteps = false,
+}: Props) {
   const [trackWidth, setTrackWidth] = useState(0);
   const trackWidthRef = useRef(0);
   const trackLeftRef = useRef(0);
@@ -214,7 +222,7 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
         onLayout={onLayout}
         accessibilityRole="adjustable"
         accessibilityValue={{ min: 0, max: 100, now: value }}
-        accessibilityLabel="Practice level"
+        accessibilityLabel={accessibilityLabel}
         {...(Platform.OS === 'web' ? webProps : pan.panHandlers)}
       >
         <View style={styles.track} pointerEvents="none">
@@ -227,24 +235,26 @@ export function FamiliaritySliderControl({ value, onChange }: Props) {
           />
         </View>
       </View>
-      <View style={styles.stepRow}>
-        {[0, 25, 50, 75, 100].map((step) => (
-          <TouchableOpacity
-            key={step}
-            onPress={() => onChange(step)}
-            style={styles.stepBtn}
-            accessibilityRole="button"
-            accessibilityLabel={`Set practice level to ${step}`}
-          >
-            <View
-              style={[
-                styles.stepDot,
-                value >= step - 5 && value <= step + 5 && styles.stepDotOn,
-              ]}
-            />
-          </TouchableOpacity>
-        ))}
-      </View>
+      {hideSteps ? null : (
+        <View style={styles.stepRow}>
+          {[0, 25, 50, 75, 100].map((step) => (
+            <TouchableOpacity
+              key={step}
+              onPress={() => onChange(step)}
+              style={styles.stepBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Set practice level to ${step}`}
+            >
+              <View
+                style={[
+                  styles.stepDot,
+                  value >= step - 5 && value <= step + 5 && styles.stepDotOn,
+                ]}
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }

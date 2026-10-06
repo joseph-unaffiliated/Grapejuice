@@ -20,9 +20,11 @@ import type { ChildDraft } from './BoxIntroScreen';
 type Props = {
   family: ChildDraft[];
   initialScore?: number;
+  initialFrequency?: number;
   onContinue: (result: {
     level: FamiliarityLevel;
     score: number;
+    frequency: number;
     children: ChildDraft[];
     interests: string[];
   }) => void;
@@ -74,8 +76,41 @@ function InterestChip({
   );
 }
 
-export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onContinue }: Props) {
+function SliderQuestion({
+  question,
+  minLabel,
+  maxLabel,
+  value,
+  onChange,
+  last = false,
+}: {
+  question: string;
+  minLabel: string;
+  maxLabel: string;
+  value: number;
+  onChange: (value: number) => void;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.section, last && styles.sectionLast]}>
+      <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{question}</Text>
+      <FamiliaritySliderControl value={value} onChange={onChange} accessibilityLabel={question} hideSteps />
+      <View style={[styles.sliderLabels, styles.sliderLabelsBelow]}>
+        <Text style={styles.sliderLabel}>{minLabel}</Text>
+        <Text style={[styles.sliderLabel, styles.sliderLabelRight]}>{maxLabel}</Text>
+      </View>
+    </View>
+  );
+}
+
+export function WhatWeDoScreen({
+  family: initialChildren,
+  initialScore = 50,
+  initialFrequency = 50,
+  onContinue,
+}: Props) {
   const [score, setScore] = useState(initialScore);
+  const [frequency, setFrequency] = useState(initialFrequency);
   const [members, setMembers] = useState<ChildDraft[]>(() =>
     initialChildren.map((c) => ({
       ...c,
@@ -137,9 +172,6 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
     kids.length > 0 ? (
       <View style={styles.section}>
         <Text style={[onboardingBodyText.lead, styles.sectionLead]}>What do your kids enjoy?</Text>
-        <Text style={[onboardingBodyText.text, styles.bodyRoomy, styles.interestsIntro]}>
-          Pick any that fit — we use this to choose stories, crafts, and treats.
-        </Text>
 
         {members.map((member, index) => {
           if (member.role === 'adult') return null;
@@ -203,6 +235,7 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
         onContinue({
           level,
           score,
+          frequency,
           children: members,
           interests: flattenKidInterests(members),
         })
@@ -212,19 +245,21 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
       inlineFooter
       centerVertically
     >
-      <View style={[styles.section, styles.sectionLast]}>
-        <Text style={[onboardingBodyText.lead, styles.sectionLead]}>How has Hanukkah gone in past years?</Text>
-        <Text style={[onboardingBodyText.text, styles.bodyRoomy]}>
-          Slide to where you are now — not where you grew up or think you should be. This shapes your box and your guide.
-        </Text>
-
-        <View style={styles.sliderLabels}>
-          <Text style={styles.sliderLabel}>Our first Hanukkah</Text>
-          <Text style={[styles.sliderLabel, styles.sliderLabelRight]}>We do all eight nights</Text>
-        </View>
-
-        <FamiliaritySliderControl value={score} onChange={setScore} />
-      </View>
+      <SliderQuestion
+        question="How has Hanukkah looked in recent years?"
+        minLabel="We don’t really do it"
+        maxLabel="We do all eight nights"
+        value={score}
+        onChange={setScore}
+      />
+      <SliderQuestion
+        question="How often do you do Jewish stuff?"
+        minLabel="Almost never"
+        maxLabel="Every day"
+        value={frequency}
+        onChange={setFrequency}
+        last
+      />
     </OnboardingScreenLayout>
   );
 }
@@ -243,13 +278,11 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     marginBottom: 0,
   },
-  bodyRoomy: {
-    lineHeight: 28,
-  },
-  interestsIntro: {
-    marginBottom: spacing.sm,
-  },
   sliderLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  /** Pull up into the slider's tall hit area so labels sit just under the track. */
+  sliderLabelsBelow: {
+    marginTop: -(spacing.sm + spacing.md),
+  },
   sliderLabel: {
     ...typeface('light'),
     fontSize: typography.md,

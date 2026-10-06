@@ -100,6 +100,8 @@ export function OnboardingStack({
   const setGuestChildDrafts = useGuestSessionStore((s) => s.setChildDrafts);
   const setGuestChildInterests = useGuestSessionStore((s) => s.setChildInterests);
   const setGuestFamiliarityScore = useGuestSessionStore((s) => s.setFamiliarityScore);
+  const guestPracticeFrequencyScore = useGuestSessionStore((s) => s.practiceFrequencyScore);
+  const setGuestPracticeFrequencyScore = useGuestSessionStore((s) => s.setPracticeFrequencyScore);
   const setGuestRavNotes = useGuestSessionStore((s) => s.setRavNotes);
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
   const completeGuestOnboarding = useGuestSessionStore((s) => s.completeOnboarding);
@@ -579,7 +581,9 @@ export function OnboardingStack({
           key={`what-we-do-${seedVersion}`}
           family={childDrafts}
           initialScore={familiarityScore || familiarityLevelToScore(familiarity)}
-          onContinue={({ level, score, children: nextKids, interests }) => {
+          initialFrequency={guestPracticeFrequencyScore}
+          onContinue={({ level, score, frequency, children: nextKids, interests }) => {
+            setGuestPracticeFrequencyScore(frequency);
             setFamiliarity(level);
             setFamiliarityScore(score);
             setGuestFamiliarityScore(score);

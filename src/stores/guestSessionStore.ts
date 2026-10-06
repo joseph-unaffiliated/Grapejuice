@@ -39,6 +39,8 @@ type GuestSessionState = {
   childInterests: string[];
   familiarityScore: number;
   familiarityLevel: FamiliarityLevel;
+  /** 0–100: "Almost never" to "Every day" for Jewish practice in general. */
+  practiceFrequencyScore: number;
   lineItems: BoxLineItem[];
   /** Saved catalog favorites — Rav prioritizes these when building a box. */
   wishlistItemIds: string[];
@@ -60,6 +62,7 @@ type GuestSessionState = {
   setChildDrafts: (drafts: ChildDraft[]) => void;
   setChildInterests: (interests: string[]) => void;
   setFamiliarityScore: (score: number) => void;
+  setPracticeFrequencyScore: (score: number) => void;
   setRavNotes: (notes: string) => void;
   setLineItems: (items: BoxLineItem[]) => void;
   setWrapSelectedItemIds: (ids: string[]) => void;
@@ -86,6 +89,7 @@ const initialState = {
   childInterests: [] as string[],
   familiarityScore: 50,
   familiarityLevel: 'moderate' as FamiliarityLevel,
+  practiceFrequencyScore: 50,
   lineItems: [] as BoxLineItem[],
   wrapSelectedItemIds: [] as string[],
   wishlistItemIds: [] as string[],
@@ -117,6 +121,8 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         const clamped = Math.max(0, Math.min(100, score));
         set({ familiarityScore: clamped, familiarityLevel: familiarityScoreToLevel(clamped) });
       },
+      setPracticeFrequencyScore: (score) =>
+        set({ practiceFrequencyScore: Math.max(0, Math.min(100, score)) }),
       setRavNotes: (ravNotes) => set({ ravNotes }),
       setLineItems: (lineItems) => set({ lineItems }),
       setWrapSelectedItemIds: (wrapSelectedItemIds) => set({ wrapSelectedItemIds }),
@@ -181,6 +187,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         childInterests: state.childInterests,
         familiarityScore: state.familiarityScore,
         familiarityLevel: state.familiarityLevel,
+        practiceFrequencyScore: state.practiceFrequencyScore,
         lineItems: state.lineItems,
         wrapSelectedItemIds: state.wrapSelectedItemIds,
         wishlistItemIds: state.wishlistItemIds,

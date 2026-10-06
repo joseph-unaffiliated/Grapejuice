@@ -38,6 +38,7 @@ export async function saveLastBoxAnswers(
         childInterests: s.childInterests,
         familiarityScore: s.familiarityScore,
         familiarityLevel: s.familiarityLevel,
+        practiceFrequencyScore: s.practiceFrequencyScore,
         ravNotes: s.ravNotes,
       };
   const snapshot: LastBoxAnswers = {
@@ -78,6 +79,9 @@ export async function seedOnboardingFromAccount(
     store.setChildDrafts(drafts);
     if (last.childInterests) store.setChildInterests(last.childInterests);
     if (typeof score === 'number') store.setFamiliarityScore(score);
+    if (typeof last.practiceFrequencyScore === 'number') {
+      store.setPracticeFrequencyScore(last.practiceFrequencyScore);
+    }
     if (typeof last.ravNotes === 'string') store.setRavNotes(last.ravNotes);
     return true;
   }
