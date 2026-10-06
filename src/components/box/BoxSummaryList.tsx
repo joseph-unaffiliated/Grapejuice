@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Platform,
   type LayoutChangeEvent,
 } from 'react-native';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
@@ -173,6 +174,11 @@ export function BoxSummaryList({
       : tile;
   const tileSizeStyle = tileSize === tile ? null : { width: tileSize };
   const imageSizeStyle = tileSize === tile ? null : { width: tileSize, height: tileSize };
+  /** Web: keep every row inside the grid even if `gridWidth` is stale. */
+  const tileCapStyle =
+    Platform.OS === 'web'
+      ? ({ maxWidth: `calc((100% - ${GRID_COL_GAP * (cols - 1)}px) / ${cols})` } as object)
+      : null;
 
   if (rows.length === 0) return null;
 
@@ -187,7 +193,7 @@ export function BoxSummaryList({
           size={tileSize}
           imageUrl={row.imageUrl}
           itemId={row.itemId}
-          style={imageSizeStyle ? { ...styles.image, ...imageSizeStyle } : styles.image}
+          style={{ ...styles.image, ...imageSizeStyle, ...(tileCapStyle ? styles.fitParent : null) }}
         />
         {isJump ? null : <Text style={styles.price}>{price}</Text>}
         <Text style={styles.name} numberOfLines={2}>
@@ -204,7 +210,7 @@ export function BoxSummaryList({
       return (
         <TouchableOpacity
           key={row.key}
-          style={[styles.tile, tileSizeStyle]}
+          style={[styles.tile, tileSizeStyle, tileCapStyle]}
           onPress={() => onPressItem(row.itemId, row.sectionId, row.key)}
           activeOpacity={0.85}
           accessibilityRole="button"
@@ -217,7 +223,7 @@ export function BoxSummaryList({
     return (
       <View
         key={row.key}
-        style={[styles.tile, tileSizeStyle]}
+        style={[styles.tile, tileSizeStyle, tileCapStyle]}
         accessibilityRole="text"
         accessibilityLabel={a11y}
       >
@@ -308,6 +314,7 @@ function createStyles(colors: SemanticColors, tile: number) {
       paddingVertical: spacing.xs,
     },
     row: {
+      width: '100%',
       flexDirection: 'row',
       flexWrap: 'nowrap',
       justifyContent: 'center',
@@ -318,6 +325,9 @@ function createStyles(colors: SemanticColors, tile: number) {
       width: tile,
       gap: 4,
       flexShrink: 0,
+    },
+    fitParent: {
+      maxWidth: '100%',
     },
     image: {
       width: tile,

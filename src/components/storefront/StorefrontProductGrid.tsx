@@ -127,6 +127,10 @@ export function StorefrontProductGrid({
   const tileWidth = isRail
     ? Math.floor((layoutW - pad * 2 - gap / 2) / 1.8)
     : Math.floor((layoutW - pad * 2 - gap * (cols - 1)) / cols);
+  const tileMaxWidth =
+    Platform.OS === 'web' && !isRail
+      ? `calc((100% - ${gap * (cols - 1)}px) / ${cols})`
+      : undefined;
 
   const visible = useMemo(() => {
     const list = limit != null ? items.slice(0, limit) : items;
@@ -245,6 +249,7 @@ export function StorefrontProductGrid({
             }
             onToggleWishlist={() => void toggleWishlist(item.id)}
             flushBottom={isRail}
+            maxWidth={tileMaxWidth}
           />
         );
       })}

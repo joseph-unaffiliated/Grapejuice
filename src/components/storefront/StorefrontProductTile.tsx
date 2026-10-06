@@ -179,6 +179,11 @@ type Props = {
   onSwapPress?: () => void;
   /** Horizontal rails: omit bottom margin (grid uses it for row gap). */
   flushBottom?: boolean;
+  /**
+   * Web: CSS cap (e.g. `calc(...)`) so the tile never outgrows its grid cell when
+   * the measured `width` is stale or replayed at another viewport.
+   */
+  maxWidth?: string;
 };
 
 function firstSecondaryUrl(item: CatalogItem): string | null {
@@ -202,8 +207,11 @@ export function StorefrontProductTile({
   onBoxQtyChange,
   onSwapPress,
   flushBottom = false,
+  maxWidth,
 }: Props) {
   const imageSize = Math.max(120, width);
+  const capStyle = maxWidth ? ({ maxWidth } as object) : null;
+  const fitStyle = maxWidth ? styles.fitParent : null;
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const showMember =
     memberCents > 0 && nonMemberCents > 0 && memberCents < nonMemberCents;
@@ -260,8 +268,8 @@ export function StorefrontProductTile({
   };
 
   return (
-    <View style={[styles.root, flushBottom && styles.rootFlushBottom, { width }]}>
-      <View style={[styles.imageWrap, { width, height: imageSize }]}>
+    <View style={[styles.root, flushBottom && styles.rootFlushBottom, { width }, capStyle]}>
+      <View style={[styles.imageWrap, { width, height: imageSize }, fitStyle]}>
         <Pressable
           onPress={onPress}
           accessibilityRole="button"
@@ -418,6 +426,9 @@ const styles = StyleSheet.create({
   },
   rootFlushBottom: {
     marginBottom: 0,
+  },
+  fitParent: {
+    maxWidth: '100%',
   },
   imageWrap: {
     position: 'relative',
