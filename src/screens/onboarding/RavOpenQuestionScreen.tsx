@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, TextInput, Platform } from 'react-native';
+import { Text, StyleSheet, TextInput, Platform, View } from 'react-native';
 import {
   OnboardingScreenLayout,
   onboardingBodyText,
@@ -38,39 +38,45 @@ export function RavOpenQuestionScreen({
       onPrimary={() => onContinue(notes.trim())}
       primaryLoading={building}
       primaryDisabled={building}
+      aside={
+        <View>
+          <TextInput
+            style={[
+              styles.input,
+              { height: inputHeight },
+              atMax && styles.inputScrollable,
+            ]}
+            placeholder="e.g. My kid is nervous about fire. We are vegetarian."
+            placeholderTextColor={semanticColors.textTertiary}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            textAlignVertical="top"
+            scrollEnabled={atMax}
+            onContentSizeChange={(e) => {
+              const contentH = e.nativeEvent.contentSize.height;
+              const next = Math.min(INPUT_MAX_HEIGHT, Math.max(INPUT_MIN_HEIGHT, contentH + INPUT_PAD));
+              setInputHeight(next);
+            }}
+          />
+          {buildError ? <Text style={styles.error}>{buildError}</Text> : null}
+        </View>
+      }
+      asideSide="right"
+      inlineFooter
+      footerUnderAside
+      centerVertically
     >
       <Text style={[onboardingBodyText.lead, styles.subtitle]}>
         Worried about a picky eater? Never lit candles before? Tell us — or skip. We will use this to
-        personalize your guide{isAuthenticated ? ' (Rav can reference it in chat)' : ''}.
+        personalize your box{isAuthenticated ? ' (Rav can reference it in chat)' : ''}.
       </Text>
-
-      <TextInput
-        style={[
-          styles.input,
-          { height: inputHeight },
-          atMax && styles.inputScrollable,
-        ]}
-        placeholder="e.g. My kid is nervous about fire. We are vegetarian."
-        placeholderTextColor={semanticColors.textTertiary}
-        value={notes}
-        onChangeText={setNotes}
-        multiline
-        textAlignVertical="top"
-        scrollEnabled={atMax}
-        onContentSizeChange={(e) => {
-          const contentH = e.nativeEvent.contentSize.height;
-          const next = Math.min(INPUT_MAX_HEIGHT, Math.max(INPUT_MIN_HEIGHT, contentH + INPUT_PAD));
-          setInputHeight(next);
-        }}
-      />
-
-      {buildError ? <Text style={styles.error}>{buildError}</Text> : null}
     </OnboardingScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  subtitle: { marginBottom: spacing.md },
+  subtitle: { marginBottom: 0, lineHeight: 28 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,

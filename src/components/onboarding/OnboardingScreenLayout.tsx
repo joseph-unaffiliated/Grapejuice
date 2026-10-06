@@ -40,6 +40,8 @@ type Props = {
   asideSide?: 'left' | 'right';
   /** Desktop only: CTAs sit directly under `children` instead of pinned at the page bottom. */
   inlineFooter?: boolean;
+  /** Desktop only, with `inlineFooter`: CTAs sit under the `aside` column instead of `children`. */
+  footerUnderAside?: boolean;
   /** Desktop only: center the columns vertically when they fit; otherwise top-align and scroll. */
   centerVertically?: boolean;
   /** When false, title/kicker sit above scrollable body without centering. Default true for intro-style screens. Desktop always left-aligns. */
@@ -67,6 +69,7 @@ export function OnboardingScreenLayout({
   aside,
   asideSide = 'right',
   inlineFooter = false,
+  footerUnderAside = false,
   centerVertically = false,
   centerHeader = true,
   primaryLabel,
@@ -162,14 +165,21 @@ export function OnboardingScreenLayout({
     <View style={[styles.body, isDesktopWeb && styles.bodyDesktop]}>{children}</View>
   ) : null;
 
-  const asideColumn = aside ? <View style={styles.column}>{aside}</View> : null;
+  const inlineCtas = footerInline && ctas ? <View style={styles.footerInline}>{ctas}</View> : null;
+  const ctasUnderAside = !!aside && footerUnderAside;
+  const asideColumn = aside ? (
+    <View style={styles.column}>
+      {aside}
+      {ctasUnderAside ? inlineCtas : null}
+    </View>
+  ) : null;
   const content = isDesktopWeb ? (
     <View style={[styles.columns, aside ? styles.columnsTwo : styles.columnsOne]}>
       {asideSide === 'left' ? asideColumn : null}
       <View style={styles.column}>
         {header}
         {body}
-        {footerInline && ctas ? <View style={styles.footerInline}>{ctas}</View> : null}
+        {ctasUnderAside ? null : inlineCtas}
       </View>
       {asideSide === 'right' ? asideColumn : null}
     </View>
