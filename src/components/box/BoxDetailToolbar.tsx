@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Platform } from 'react-native';
 import { createBoxDetailStyles } from './boxDetailLayout';
 import { AddToCalendarMenu } from '../holiday/AddToCalendarMenu';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useWebLayout } from '../../hooks/useWebLayout';
 import {
   boxLockChipLabel,
   lockedBoxChipLabel,
@@ -43,6 +44,8 @@ export function BoxDetailToolbar({
     () => createBoxDetailStyles(colors, { desktop: align === 'left' }),
     [colors, align]
   );
+  const { tier } = useWebLayout();
+  const desktopTitle = Platform.OS === 'web' && tier === 'desktop-web';
   const leftAlign = align === 'left';
   const showBack = !!onBack && !hideBack;
   const lockLabel = isBoxLocked(lockAt, now)
@@ -73,7 +76,15 @@ export function BoxDetailToolbar({
               <Text style={styles.backText}>←</Text>
             </TouchableOpacity>
           ) : null}
-          <Text style={[styles.toolbarTitle, leftAlign && styles.toolbarTitleLeft]}>{title}</Text>
+          <Text
+            style={[
+              styles.toolbarTitle,
+              desktopTitle && !leftAlign && styles.toolbarTitleDesktop,
+              leftAlign && styles.toolbarTitleLeft,
+            ]}
+          >
+            {title}
+          </Text>
           <View style={[styles.lockChipRow, leftAlign && styles.lockChipRowLeft]}>
             <Text style={styles.lockChipText}>{lockLabel}</Text>
             {showCalendar ? (

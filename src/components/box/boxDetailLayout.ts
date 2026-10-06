@@ -85,12 +85,19 @@ export function createBoxDetailStyles(
     toolbarCenter: { flex: 1, alignItems: 'center', gap: spacing.xs },
     toolbarCenterLeft: { alignItems: 'flex-start' },
     toolbarBackInline: { marginBottom: spacing.xs },
+    /** Same scale as onboarding step titles. */
     toolbarTitle: {
       fontSize: 28,
-      ...typeface('medium'),
+      lineHeight: 34,
+      ...typeface('regular'),
       color: colors.textPrimary,
-      letterSpacing: -0.6,
+      letterSpacing: -0.72,
       textAlign: 'center',
+    },
+    toolbarTitleDesktop: {
+      fontSize: 38,
+      lineHeight: 44,
+      letterSpacing: -0.95,
     },
     toolbarTitleLeft: {
       textAlign: 'left',
