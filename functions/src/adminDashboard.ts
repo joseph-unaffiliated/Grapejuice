@@ -329,6 +329,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'resumeCount', 'saveCount')
         .get(),
     ]);
+  const guestDocs = guestSnap.docs.filter((d) => !d.id.startsWith('agenttest'));
   const config = configSnap.data() ?? {};
   const listCents = num(config.boxPriceCents) ?? DEFAULT_BOX_CENTS;
   const priceForKids = (k: number) => listCents + Math.max(0, k - 1) * PER_EXTRA_KID_CENTS;
@@ -529,7 +530,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     });
   }
 
-  const guests = buildGuestRows(guestSnap.docs, items, priceForKids);
+  const guests = buildGuestRows(guestDocs, items, priceForKids);
 
   const giftHeld = new Map<string, number>();
   for (const { lines } of giftOrders.values()) addLines(giftHeld, lines);
@@ -636,7 +637,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       orders: ordersSnap.size,
       giftInvites: invitesSnap.size,
       catalogItems: items.size,
-      guestSessions: guestSnap.size,
+      guestSessions: guestDocs.length,
     },
     mismatches,
     boxes,
