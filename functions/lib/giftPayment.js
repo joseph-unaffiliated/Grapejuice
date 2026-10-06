@@ -78,9 +78,7 @@ fallbackMetaContext) {
             }
         }
         // Same transaction claim as the email, so client finalize + webhook send one Purchase.
-        await (0, metaCapi_1.sendMetaEvent)({
-            eventName: 'Purchase',
-            eventId: `purchase_gift_${giftInviteId}`,
+        const metaEvent = {
             context: ((_d = (_c = invite.metaContext) !== null && _c !== void 0 ? _c : fallbackMetaContext) !== null && _d !== void 0 ? _d : {}),
             user: { email: invite.giverEmail || null, externalId: invite.giverUid },
             customData: {
@@ -91,7 +89,11 @@ fallbackMetaContext) {
                 content_type: 'product',
             },
             stripeBacked: true,
-        });
+        };
+        await Promise.all([
+            (0, metaCapi_1.sendMetaEvent)(Object.assign(Object.assign({}, metaEvent), { eventName: 'Purchase', eventId: `purchase_gift_${giftInviteId}` })),
+            (0, metaCapi_1.sendMetaEvent)(Object.assign(Object.assign({}, metaEvent), { eventName: 'GiftSent', eventId: `giftsent_${giftInviteId}` })),
+        ]);
         try {
             await (0, email_1.sendGiftClaimEmail)({
                 to: invite.recipientEmail,

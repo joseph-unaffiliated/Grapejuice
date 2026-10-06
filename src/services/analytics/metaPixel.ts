@@ -34,7 +34,7 @@ export type GiftStepEvent =
   | 'GiftSignupPrompt'
   | 'GiftCustomize';
 
-export type MetaCustomEvent = 'PreRegister' | 'ResumeBox' | 'BoxBuilt' | GiftStepEvent;
+export type MetaCustomEvent = 'PreRegister' | 'ResumeBox' | 'BoxBuilt' | 'GiftSent' | GiftStepEvent;
 
 export type MetaEventParams = {
   value?: number;
@@ -98,6 +98,7 @@ export function metaTrackingSuppressed(): boolean {
 export const metaEventIds = {
   purchase: (orderId: string) => `purchase_${orderId}`,
   giftPurchase: (giftInviteId: string) => `purchase_gift_${giftInviteId}`,
+  giftSent: (giftInviteId: string) => `giftsent_${giftInviteId}`,
   addPaymentInfo: (setupIntentId: string) => `payment_${setupIntentId}`,
 };
 

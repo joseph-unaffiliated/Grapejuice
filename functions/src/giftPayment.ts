@@ -113,9 +113,7 @@ export async function finalizeGiftInvitePayment(
       }
     }
     // Same transaction claim as the email, so client finalize + webhook send one Purchase.
-    await sendMetaEvent({
-      eventName: 'Purchase',
-      eventId: `purchase_gift_${giftInviteId}`,
+    const metaEvent = {
       context: (invite.metaContext ?? fallbackMetaContext ?? {}) as MetaClientContext,
       user: { email: invite.giverEmail || null, externalId: invite.giverUid },
       customData: {
@@ -123,10 +121,14 @@ export async function finalizeGiftInvitePayment(
         currency: (pi.currency || 'usd').toUpperCase(),
         order_id: giftInviteId,
         content_name: resolveGiftInviteKind(invite) === 'box' ? 'Gift box' : 'Gift credit',
-        content_type: 'product',
+        content_type: 'product' as const,
       },
       stripeBacked: true,
-    });
+    };
+    await Promise.all([
+      sendMetaEvent({ ...metaEvent, eventName: 'Purchase', eventId: `purchase_gift_${giftInviteId}` }),
+      sendMetaEvent({ ...metaEvent, eventName: 'GiftSent', eventId: `giftsent_${giftInviteId}` }),
+    ]);
     try {
       await sendGiftClaimEmail({
         to: invite.recipientEmail,

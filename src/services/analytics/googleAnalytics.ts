@@ -40,6 +40,8 @@ const GA_EVENT_FOR_META: Partial<Record<MetaStandardEvent | MetaCustomEvent, str
   GiftDetails: 'gift_details',
   GiftSignupPrompt: 'gift_signup_prompt',
   GiftCustomize: 'gift_customize',
+  /** Gift paid; fires alongside the gift Purchase so Meta can optimize on gifts only. */
+  GiftSent: 'gift_sent',
 };
 
 function gaParamsFromMeta(params: MetaEventParams | undefined): Record<string, unknown> {

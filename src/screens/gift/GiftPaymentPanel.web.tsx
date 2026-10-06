@@ -11,7 +11,7 @@ import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from '../main/checkout/checkoutUi';
-import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
+import { metaEventIds, trackMeta, trackMetaCustom } from '../../services/analytics/metaPixel';
 
 /** Stripe Elements appearance — closer to Grapejuice checkout than default purple Stripe. */
 export const GIFT_STRIPE_APPEARANCE = {
@@ -83,17 +83,15 @@ export function GiftPaymentPanel({
         onError('Payment failed', error.message ?? 'Please try again.');
         return;
       }
-      trackMeta(
-        'Purchase',
-        {
-          value: amountCents / 100,
-          currency: 'USD',
-          order_id: giftInviteId,
-          content_name: customize ? 'Gift box' : 'Gift credit',
-          content_type: 'product',
-        },
-        metaEventIds.giftPurchase(giftInviteId)
-      );
+      const giftParams = {
+        value: amountCents / 100,
+        currency: 'USD',
+        order_id: giftInviteId,
+        content_name: customize ? 'Gift box' : 'Gift credit',
+        content_type: 'product' as const,
+      };
+      trackMeta('Purchase', giftParams, metaEventIds.giftPurchase(giftInviteId));
+      trackMetaCustom('GiftSent', giftParams, metaEventIds.giftSent(giftInviteId));
       const result = await completePurchase(giftInviteId);
       onPaid(result);
     } catch (e) {
