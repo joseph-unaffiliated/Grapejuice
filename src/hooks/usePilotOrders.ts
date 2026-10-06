@@ -17,11 +17,14 @@ export function isOpenPilotOrder(order: PilotOrder): boolean {
 export function usePilotOrders(householdId: string | undefined) {
   const [orders, setOrders] = useState<PilotOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Household the current `orders` belong to — until it matches, we're still loading. */
+  const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     if (!householdId) {
       setOrders([]);
       setLoading(false);
+      setLoadedFor(null);
       return;
     }
     setLoading(true);
@@ -29,6 +32,7 @@ export function usePilotOrders(householdId: string | undefined) {
       setOrders(await ordersService.listForHousehold(householdId));
     } finally {
       setLoading(false);
+      setLoadedFor(householdId);
     }
   }, [householdId]);
 
@@ -37,6 +41,8 @@ export function usePilotOrders(householdId: string | undefined) {
   }, [refresh]);
 
   const openOrder = orders.find(isOpenPilotOrder) ?? null;
+  // The render where the household first appears precedes the fetch effect.
+  const stale = loadedFor !== (householdId ?? null);
 
-  return { orders, openOrder, loading, refresh };
+  return { orders, openOrder, loading: loading || stale, refresh };
 }

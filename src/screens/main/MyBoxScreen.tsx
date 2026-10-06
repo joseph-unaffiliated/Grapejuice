@@ -243,7 +243,7 @@ export function MyBoxScreen() {
   } | null>(null);
   const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
-  const { cardOnFile, openOrder, guardMutation, refreshOrders } = usePaymentGate();
+  const { cardOnFile, openOrder, ordersLoading, guardMutation, refreshOrders } = usePaymentGate();
 
   /** Flat $80 box (+ $10/extra kid list framing where applicable). */
   const boxPriceCents = useMemo(
@@ -277,6 +277,29 @@ export function MyBoxScreen() {
       startBuildBox();
     }
   }, [guestNeedsOnboarding, startBuildBox]);
+
+  // A box emptied on this screen (abandon / start fresh / removing everything) is not
+  // "arrived without a box" — those flows navigate themselves.
+  const hadBoxThisVisitRef = useRef(false);
+  if (lineItems.length > 0 || openOrder) hadBoxThisVisitRef.current = true;
+
+  // Signed-in with no box draft and no open box order (deep link, reload, Back, gift-only
+  // account) — same handoff: start the build instead of showing an empty My Box.
+  const signedInWithoutBox =
+    !hadBoxThisVisitRef.current &&
+    !!user &&
+    !guestViewOnly &&
+    !sessionLoading &&
+    !draftLoading &&
+    !ordersLoading &&
+    lineItems.length === 0 &&
+    !openOrder;
+  const startedOwnBuildRef = useRef(false);
+  useEffect(() => {
+    if (!signedInWithoutBox || startedOwnBuildRef.current) return;
+    startedOwnBuildRef.current = true;
+    void startOwnBoxBuild(refresh);
+  }, [signedInWithoutBox, refresh]);
 
   /** Re-price books/gifts that slipped in as free Add-more extras; keep wood included. */
   useEffect(() => {
@@ -1468,47 +1491,15 @@ export function MyBoxScreen() {
     );
   }
 
-  // Guest mid-handoff into onboarding — brief spinner while the root gate remounts.
-  if (guestNeedsOnboarding) {
+  // Mid-handoff into onboarding — brief spinner while the root gate remounts.
+  const awaitingBoxCheck =
+    !!user && !guestViewOnly && lineItems.length === 0 && !openOrder && ordersLoading;
+  if (guestNeedsOnboarding || signedInWithoutBox || awaitingBoxCheck) {
     return (
       <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
         <View style={styles.centered}>
           <BrandLoadingMark color={colors.brand} />
         </View>
-      </StorefrontChrome>
-    );
-  }
-
-  const hasOwnBox = lineItems.length > 0 || !!openOrder;
-  if (user && !guestViewOnly && !hasOwnBox) {
-    return (
-      <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
-        <WebContentPanel flush={isDesktop} centerDesktop={isDesktop} omitDesktopTopPadding={isDesktop}>
-          <View style={[styles.centered, styles.emptyOwnBox]}>
-            <Text style={styles.emptyOwnBoxTitle}>You don&apos;t have a box yet</Text>
-            <Text style={styles.emptyOwnBoxBody}>
-              Gifts you send live under Orders. Start here when you&apos;re ready to build a Hanukkah
-              box for your household.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyOwnBoxCta}
-              onPress={() => {
-                void startOwnBoxBuild(refresh);
-              }}
-            >
-              <Text style={styles.emptyOwnBoxCtaText}>Build your box</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.emptyOwnBoxLink}
-              onPress={() => navigation.navigate('StorefrontHome')}
-            >
-              <Text style={styles.emptyOwnBoxLinkText}>Browse the store</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.emptyOwnBoxLink} onPress={() => navigation.navigate('Orders')}>
-              <Text style={styles.emptyOwnBoxLinkText}>View your orders</Text>
-            </TouchableOpacity>
-          </View>
-        </WebContentPanel>
       </StorefrontChrome>
     );
   }
@@ -2160,42 +2151,6 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
   },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyOwnBox: {
-    padding: spacing.lg,
-    maxWidth: 420,
-    alignSelf: 'center',
-  },
-  emptyOwnBoxTitle: {
-    fontSize: typography.xxl,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  emptyOwnBoxBody: {
-    marginTop: spacing.sm,
-    fontSize: typography.md,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  emptyOwnBoxCta: {
-    marginTop: spacing.xl,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.logoDark,
-  },
-  emptyOwnBoxCtaText: {
-    color: colors.bgPrimary,
-    fontWeight: '700',
-    fontSize: typography.md,
-  },
-  emptyOwnBoxLink: { marginTop: spacing.md },
-  emptyOwnBoxLinkText: {
-    color: colors.brand,
-    fontWeight: '600',
-    fontSize: typography.md,
-  },
   pageHeader: { alignItems: 'center', marginBottom: spacing.sm },
   title: { fontSize: typography.titleLg, fontWeight: '600', textAlign: 'center' },
   headerMeta: { fontSize: typography.sm, color: colors.goldMuted, marginTop: 4, textAlign: 'center' },
