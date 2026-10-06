@@ -16,7 +16,7 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Light the Candles',
     tagline: 'One more candle each night.',
     description:
-      'Gather around the hanukkiah and grow the glow for eight nights. Your guide walks through lighting and blessings — no Hebrew required.',
+      'One more candle each night, until the whole window glows. Your guide walks you through the lighting and blessings, no Hebrew required.',
     boxItems: ['Hanukkah candles', '8-night parent guide', 'Blessing lyric sheet'],
   },
   {
@@ -24,7 +24,7 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Play Dreidel',
     tagline: 'Spin, win gelt, laugh.',
     description:
-      'A classic table game for mixed ages. Each kid gets a dreidel sized to them; chocolate gelt keeps the pot friendly.',
+      'A game of chance with a story hidden in its four letters. Each kid gets their own dreidel, and chocolate gelt keeps the stakes sweet.',
     boxItems: ['Per-kid dreidel', 'Chocolate gelt', 'How-to in your guide'],
   },
   {
@@ -32,7 +32,7 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Eat & Drink',
     tagline: 'Fried food is the tradition.',
     description:
-      'Oil is the theme: latkes and sufganiyot. We include both mixes (the latke kit comes with applesauce spice mix) so you can cook either, or both, without hunting the store.',
+      'Hanukkah celebrates oil, so fried food is practically required. We send latke and sufganiyot mixes (applesauce spice included) so you can make one or both without a trip to the store.',
     boxItems: ['Latke mix', 'Sufganiyot mix'],
   },
   {
@@ -40,7 +40,7 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Tell the Story',
     tagline: 'Kid-sized, not a sermon.',
     description:
-      'The Maccabees and the oil that lasted — a book matched to each kid’s age. Read a little each night or save the big book for night one.',
+      'The Maccabees, the oil that lasted, and what it means to stand up for what you believe. Each kid gets a book picked for their age, to read a little each night or all at once.',
     boxItems: ['Per-kid story book', 'Age-matched pick'],
   },
   {
@@ -48,7 +48,7 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Give Presents',
     tagline: 'Something to wrap and share.',
     description:
-      'A small gift for each kid plus wrapping so you can make it feel like a present. Swap gifts anytime in My Box before lock.',
+      'A small gift for each kid, plus wrapping paper so it feels like a real present. Swap gifts anytime in My Box before your box locks.',
     boxItems: ['Per-kid gift', 'Wrapping paper'],
   },
 ];
