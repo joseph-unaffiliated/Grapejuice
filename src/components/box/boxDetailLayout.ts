@@ -81,7 +81,7 @@ export function createBoxDetailStyles(
     toolbarLeft: {
       justifyContent: 'flex-start',
     },
-    toolbarTitleDesktopPad: {
+    toolbarTitlePad: {
       paddingTop: BOX_DETAIL_TOOLBAR_RHYTHM + spacing.md,
     },
     toolbarSide: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },

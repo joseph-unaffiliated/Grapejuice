@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
 import { createBoxDetailStyles } from './boxDetailLayout';
 import { AddToCalendarMenu } from '../holiday/AddToCalendarMenu';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { spacing } from '../../constants/theme';
 import {
   boxLockChipLabel,
   lockedBoxChipLabel,
@@ -45,9 +46,24 @@ export function BoxDetailToolbar({
     [colors, align]
   );
   const { tier } = useWebLayout();
+  const { width: windowWidth } = useWindowDimensions();
   const desktopTitle = Platform.OS === 'web' && tier === 'desktop-web';
   const leftAlign = align === 'left';
   const showBack = !!onBack && !hideBack;
+  const phoneTitle = !leftAlign && (tier === 'native' || tier === 'mobile-web');
+  const phoneTitleStyle = useMemo(() => {
+    if (!phoneTitle) return null;
+    // DM Sans regular averages ~0.44em per character; keep the title on one line.
+    const available = windowWidth - spacing.md * 2 - (showBack ? 48 : 0);
+    const fontSize = Math.round(
+      Math.min(56, Math.max(28, (available * 0.94) / (title.length * 0.44)))
+    );
+    return {
+      fontSize,
+      lineHeight: Math.round(fontSize * 1.16),
+      letterSpacing: -0.025 * fontSize,
+    };
+  }, [phoneTitle, windowWidth, showBack, title]);
   const lockLabel = isBoxLocked(lockAt, now)
     ? lockedBoxChipLabel(estimatedDeliveryBy, now)
     : boxLockChipLabel(now, lockAt);
@@ -57,11 +73,11 @@ export function BoxDetailToolbar({
       <View
         style={[
           styles.toolbar,
-          desktopTitle && !leftAlign && styles.toolbarTitleDesktopPad,
+          (desktopTitle || phoneTitle) && !leftAlign && styles.toolbarTitlePad,
           leftAlign && styles.toolbarLeft,
         ]}
       >
-        {leftAlign ? null : (
+        {leftAlign || (phoneTitle && !showBack) ? null : (
           <View style={styles.toolbarSide}>
             {showBack ? (
               <TouchableOpacity onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
@@ -87,6 +103,7 @@ export function BoxDetailToolbar({
               styles.toolbarTitle,
               desktopTitle && !leftAlign && styles.toolbarTitleDesktop,
               leftAlign && styles.toolbarTitleLeft,
+              phoneTitleStyle,
             ]}
           >
             {title}
@@ -105,7 +122,7 @@ export function BoxDetailToolbar({
             ) : null}
           </View>
         </View>
-        {leftAlign ? null : <View style={styles.toolbarSide} />}
+        {leftAlign || (phoneTitle && !showBack) ? null : <View style={styles.toolbarSide} />}
       </View>
     </View>
   );
