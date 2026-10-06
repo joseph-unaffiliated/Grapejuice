@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   stackRowDivided: {
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     gap: 4,
   },
   stackTitleRow: {

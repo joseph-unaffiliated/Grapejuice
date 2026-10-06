@@ -40,6 +40,8 @@ type Props = {
   asideSide?: 'left' | 'right';
   /** Desktop only: CTAs sit directly under `children` instead of pinned at the page bottom. */
   inlineFooter?: boolean;
+  /** Desktop only: center the columns vertically when they fit; otherwise top-align and scroll. */
+  centerVertically?: boolean;
   /** When false, title/kicker sit above scrollable body without centering. Default true for intro-style screens. Desktop always left-aligns. */
   centerHeader?: boolean;
   primaryLabel?: string;
@@ -65,6 +67,7 @@ export function OnboardingScreenLayout({
   aside,
   asideSide = 'right',
   inlineFooter = false,
+  centerVertically = false,
   centerHeader = true,
   primaryLabel,
   onPrimary,
@@ -193,6 +196,7 @@ export function OnboardingScreenLayout({
           contentContainerStyle={[
             styles.scrollContent,
             isDesktopWeb && styles.scrollContentDesktop,
+            isDesktopWeb && centerVertically && styles.scrollContentCentered,
             { paddingTop: topPad },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -256,6 +260,10 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     paddingHorizontal: DESKTOP_PAGE_PAD + SIDE_GLOW_BLEED,
     alignItems: 'center',
+  },
+  /** flexGrow content: centers when short, falls back to top padding + scroll when tall. */
+  scrollContentCentered: {
+    justifyContent: 'center',
   },
   /** Desktop: the column pair (or single column) centered on the page. */
   columns: {

@@ -54,4 +54,4 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
 ];
 
 export const HANUKKAH_PRACTICES_INTRO =
-  'Your box is built around five central Hanukkah traditions:';
+  'Your box is built around these five central Hanukkah traditions.';
