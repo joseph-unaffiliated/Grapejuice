@@ -42,7 +42,9 @@ export function MainTabs() {
     <Tab.Navigator
       initialRouteName="Home"
       backBehavior={Platform.OS === 'web' ? 'history' : 'firstRoute'}
-      tabBar={isDesktop ? EmptyTabBar : (props) => <TabBarWrapper {...props} />}
+      tabBar={
+        Platform.OS === 'web' ? EmptyTabBar : (props) => <TabBarWrapper {...props} />
+      }
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.textPrimary,

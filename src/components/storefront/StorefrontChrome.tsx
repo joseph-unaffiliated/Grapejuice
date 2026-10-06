@@ -230,8 +230,10 @@ function StorefrontChromeInner({
   const { width: windowWidth, isCompact: compact, isDesktop } = useLayoutBreakpoint();
   const fillBody = bodyMode === 'fill';
   const hostRef = useRef<View>(null);
-  // Inside a tab layout the tab bar owns the bottom; keep the flex height there.
-  const inTabLayout = useContext(BottomTabBarHeightContext) !== undefined;
+  // Inside a native tab layout the tab bar owns the bottom; keep the flex height there.
+  // Web renders no tab bar, so storefront pages pin to the viewport everywhere.
+  const tabBarHeight = useContext(BottomTabBarHeightContext);
+  const inTabLayout = Platform.OS !== 'web' && tabBarHeight !== undefined;
   const pinnedHostHeight = useViewportPinnedHeight(hostRef, !inTabLayout);
   /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
   const showPromoStrip =
