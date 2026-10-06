@@ -31,9 +31,11 @@ export function HanukkahIntroScreen({ onContinue }: Props) {
       }
     >
       <Text style={[onboardingBodyText.lead, styles.intro]}>
-        Hanukkah is a week of light at home — candles, food, games, small rituals. No Hebrew required. No
-        prior experience required. Just show up when you can. Grapejuice sends a curated box with what you
-        actually need to celebrate — not decorations that sit in a drawer until next year.
+        There’s no wrong way to do Hanukkah. Its traditions are there to bring some light to winter and
+        spark the big conversations, the ones where you pass down what matters to you. Tell us about your
+        family and we’ll send everything you need for all eight nights: a dreidel, book, and gift for each
+        kid, plus candles, gelt, latke and sufganiyot mixes, and a guide to walk you through it. Use what
+        fits, skip what doesn’t. Permission granted.
       </Text>
     </OnboardingScreenLayout>
   );
