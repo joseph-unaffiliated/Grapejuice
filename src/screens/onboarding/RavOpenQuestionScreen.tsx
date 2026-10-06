@@ -38,6 +38,7 @@ export function RavOpenQuestionScreen({
       onPrimary={() => onContinue(notes.trim())}
       primaryLoading={building}
       primaryDisabled={building}
+      primaryStyle={styles.primaryMatchInput}
       aside={
         <View>
           <TextInput
@@ -77,6 +78,7 @@ export function RavOpenQuestionScreen({
 
 const styles = StyleSheet.create({
   subtitle: { marginBottom: 0, lineHeight: 28 },
+  primaryMatchInput: { borderRadius: borderRadius.xl },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,

@@ -1,5 +1,13 @@
 import React, { type ReactNode } from 'react';
-import { View, Text, ScrollView, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Platform,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import {
@@ -50,6 +58,7 @@ type Props = {
   onPrimary?: () => void;
   primaryLoading?: boolean;
   primaryDisabled?: boolean;
+  primaryStyle?: StyleProp<ViewStyle>;
   secondaryLabel?: string;
   onSecondary?: () => void;
   secondaryDisabled?: boolean;
@@ -76,6 +85,7 @@ export function OnboardingScreenLayout({
   onPrimary,
   primaryLoading,
   primaryDisabled,
+  primaryStyle,
   secondaryLabel,
   onSecondary,
   secondaryDisabled,
@@ -111,6 +121,7 @@ export function OnboardingScreenLayout({
         onPress={onPrimary!}
         loading={primaryLoading}
         disabled={primaryDisabled}
+        style={primaryStyle}
       />
       {secondaryLabel && onSecondary ? (
         <OnboardingSecondaryButton
@@ -165,8 +176,11 @@ export function OnboardingScreenLayout({
     <View style={[styles.body, isDesktopWeb && styles.bodyDesktop]}>{children}</View>
   ) : null;
 
-  const inlineCtas = footerInline && ctas ? <View style={styles.footerInline}>{ctas}</View> : null;
   const ctasUnderAside = !!aside && footerUnderAside;
+  const inlineCtas =
+    footerInline && ctas ? (
+      <View style={[styles.footerInline, ctasUnderAside && styles.footerInlineFull]}>{ctas}</View>
+    ) : null;
   const asideColumn = aside ? (
     <View style={styles.column}>
       {aside}
@@ -374,6 +388,10 @@ const styles = StyleSheet.create({
     maxWidth: ONBOARDING_CTA_MAX_WIDTH,
     marginTop: spacing.xl,
     gap: 8,
+  },
+  /** Under the aside: match the width of the field above. */
+  footerInlineFull: {
+    maxWidth: '100%',
   },
   footerCtaWrap: {
     width: '100%',
