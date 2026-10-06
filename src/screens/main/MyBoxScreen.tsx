@@ -1956,7 +1956,6 @@ export function MyBoxScreen() {
           flush
           centerDesktop
           omitDesktopTopPadding
-          gutter={!isDesktop}
           style={styles.panel}
         >
           <View

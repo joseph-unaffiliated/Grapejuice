@@ -20,6 +20,7 @@ import {
 } from './boxLineDisplay';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { UPSELL_TILE_MEDIUM } from './BoxSectionUpsellStrip';
+import { BOX_DETAIL_SECTION_GUTTER } from './boxDetailLayout';
 import {
   displaySectionForLineItem,
   type BoxDisplaySectionId,
@@ -270,7 +271,7 @@ function createStyles(colors: SemanticColors, tile: number) {
     jumpRoot: {
       gap: spacing.lg,
       width: '100%',
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: BOX_DETAIL_SECTION_GUTTER,
     },
     jumpRule: {
       height: StyleSheet.hairlineWidth,
