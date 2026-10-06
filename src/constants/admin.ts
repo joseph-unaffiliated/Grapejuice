@@ -27,6 +27,15 @@ export function isAdminEmail(email?: string | null): boolean {
   return (ADMIN_EMAILS as readonly string[]).includes(canonicalEmail(email));
 }
 
+/** Placeholder-domain QA sign-ups (test@test.com, a@a.com). Not admins. Keep in sync with adminDashboard `isTest`. */
+const TEST_EMAIL_DOMAINS = ['a.com', 'test.com', 'example.com'];
+
+export function isTestEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const domain = email.trim().toLowerCase().split('@')[1];
+  return domain != null && TEST_EMAIL_DOMAINS.includes(domain);
+}
+
 /** True for allowlisted emails (any sign-in method / plus-alias) and in local __DEV__. */
 export function isOpsAdmin(user?: {
   email?: string | null;

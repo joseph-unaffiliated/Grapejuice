@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { auth } from '../../lib/firebase';
-import { isAdminEmail } from '../../constants/admin';
+import { isAdminEmail, isTestEmail } from '../../constants/admin';
 import { useUserStatePreviewStore } from '../../stores/userStatePreviewStore';
 import { useDevPreviewStore } from '../../stores/devPreviewStore';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
@@ -88,8 +88,8 @@ export function metaTrackingSuppressed(): boolean {
   if (host === 'localhost' || host === '127.0.0.1') return true;
   const user = auth?.currentUser;
   if (user) {
-    if (isAdminEmail(user.email)) return true;
-    if (user.providerData.some((p) => isAdminEmail(p.email))) return true;
+    if (isAdminEmail(user.email) || isTestEmail(user.email)) return true;
+    if (user.providerData.some((p) => isAdminEmail(p.email) || isTestEmail(p.email))) return true;
   }
   return false;
 }

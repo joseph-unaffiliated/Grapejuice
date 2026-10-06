@@ -1001,7 +1001,7 @@ export function AdminBoxesScreen() {
             <Stat value={String(openDrafts.length)} label={`Open drafts · ~${money(draftValue)} before ship/tax`} styles={styles} colors={colors} />
             <Stat
               value={String(guestBoxes.length)}
-              label={`Anonymous boxes (not signed up) · ${openGuests.length - guestBoxes.length} more started, ${guestLeads.length} gave an email`}
+              label={`Anonymous boxes (not signed up) · ${openGuests.length - guestBoxes.length} more started, ${guestLeads.length} identified by Retention.com`}
               styles={styles}
               colors={colors}
             />
