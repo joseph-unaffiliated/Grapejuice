@@ -137,7 +137,7 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
     kids.length > 0 ? (
       <View style={styles.section}>
         <Text style={[onboardingBodyText.lead, styles.sectionLead]}>What do your kids enjoy?</Text>
-        <Text style={[onboardingBodyText.text, styles.interestsIntro]}>
+        <Text style={[onboardingBodyText.text, styles.bodyRoomy, styles.interestsIntro]}>
           Pick any that fit — we use this to choose stories, crafts, and treats.
         </Text>
 
@@ -208,10 +208,13 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
         })
       }
       aside={kidsSection}
+      asideSide="left"
+      inlineFooter
+      centerVertically
     >
-      <View style={styles.section}>
+      <View style={[styles.section, styles.sectionLast]}>
         <Text style={[onboardingBodyText.lead, styles.sectionLead]}>How has Hanukkah gone in past years?</Text>
-        <Text style={onboardingBodyText.text}>
+        <Text style={[onboardingBodyText.text, styles.bodyRoomy]}>
           Slide to where you are now — not where you grew up or think you should be. This shapes your box and your guide.
         </Text>
 
@@ -233,9 +236,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     gap: spacing.sm,
   },
+  sectionLast: {
+    marginBottom: 0,
+  },
   sectionLead: {
     ...typeface('medium'),
     marginBottom: 0,
+  },
+  bodyRoomy: {
+    lineHeight: 28,
   },
   interestsIntro: {
     marginBottom: spacing.sm,
