@@ -44,6 +44,8 @@ const goldGlowStyle =
 
 type Props = {
   layout?: 'carousel' | 'stack';
+  /** Stack only: tighter rows so all five fit above the fold. */
+  compact?: boolean;
   showIntro?: boolean;
   sectionTitle?: string;
 };
@@ -77,10 +79,10 @@ function PracticeCard({ practice }: { practice: HanukkahPractice }) {
   );
 }
 
-function PracticeStackRow({ practice }: { practice: HanukkahPractice }) {
+function PracticeStackRow({ practice, compact }: { practice: HanukkahPractice; compact?: boolean }) {
   return (
     <View style={[styles.stackRowOuter, goldGlowStyle]}>
-      <View style={styles.stackRow}>
+      <View style={[styles.stackRow, compact && styles.stackRowCompact]}>
         <View style={styles.stackTitleRow}>
           <PracticeRowIcon practiceId={practice.id} />
           <Text style={styles.stackTitle}>{practice.title}</Text>
@@ -93,6 +95,7 @@ function PracticeStackRow({ practice }: { practice: HanukkahPractice }) {
 
 export function HanukkahPracticesOverview({
   layout = 'carousel',
+  compact = false,
   showIntro = true,
   sectionTitle = 'Hanukkah at home',
 }: Props) {
@@ -113,9 +116,9 @@ export function HanukkahPracticesOverview({
             <Text style={styles.intro}>{HANUKKAH_PRACTICES_INTRO}</Text>
           </>
         ) : null}
-        <View style={styles.stackList}>
+        <View style={[styles.stackList, compact && styles.stackListCompact]}>
           {HANUKKAH_PRACTICES.map((practice) => (
-            <PracticeStackRow key={practice.id} practice={practice} />
+            <PracticeStackRow key={practice.id} practice={practice} compact={compact} />
           ))}
         </View>
       </View>
@@ -217,6 +220,9 @@ const styles = StyleSheet.create({
   stackList: {
     gap: GRID_GAP,
   },
+  stackListCompact: {
+    gap: spacing.xs + 2,
+  },
   stackRowOuter: {
     borderRadius: borderRadius.xl,
     overflow: 'visible' as const,
@@ -227,6 +233,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     gap: spacing.xs,
+  },
+  stackRowCompact: {
+    paddingVertical: spacing.sm,
+    gap: 4,
   },
   stackTitleRow: {
     flexDirection: 'row',

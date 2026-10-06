@@ -82,7 +82,9 @@ export function OnboardingScreenLayout({
     : Math.max(insets.bottom, spacing.xs) + spacing.sm;
   /** Room below the corner logo; under storefront chrome the header already brands. */
   const topPad = underStorefrontChrome
-    ? spacing.xxl
+    ? isDesktopWeb
+      ? spacing.lg
+      : spacing.xxl
     : isDesktopWeb
       ? spacing.xxl + spacing.xl
       : Math.max(insets.top, spacing.sm) + spacing.sm + 30 + spacing.lg;
@@ -231,7 +233,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   scrollContentDesktop: {
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.sm,
     paddingHorizontal: DESKTOP_PAGE_PAD + SIDE_GLOW_BLEED,
     alignItems: 'center',
   },
@@ -313,7 +315,7 @@ const styles = StyleSheet.create({
   },
   footerDesktop: {
     paddingHorizontal: DESKTOP_CTA_INSET,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     flexShrink: 0,
     zIndex: 2,
     ...(Platform.OS === 'web'

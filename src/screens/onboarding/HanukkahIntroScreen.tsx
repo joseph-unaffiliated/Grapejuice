@@ -25,7 +25,7 @@ export function HanukkahIntroScreen({ onContinue }: Props) {
         <View style={styles.copy}>
           <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{HANUKKAH_PRACTICES_INTRO}</Text>
           <View style={styles.practices}>
-            <HanukkahPracticesOverview layout="stack" showIntro={false} />
+            <HanukkahPracticesOverview layout="stack" compact showIntro={false} />
           </View>
         </View>
       }
@@ -48,10 +48,9 @@ const styles = StyleSheet.create({
   },
   sectionLead: {
     ...typeface('medium'),
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   practices: {
-    marginBottom: spacing.sm,
+    marginBottom: 0,
   },
 });

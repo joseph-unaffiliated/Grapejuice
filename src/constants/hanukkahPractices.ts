@@ -32,7 +32,7 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Eat & Drink',
     tagline: 'Fried food is the tradition.',
     description:
-      'Hanukkah celebrates oil, so fried food is practically required. We send latke and sufganiyot mixes (applesauce spice included) so you can make one or both without a trip to the store.',
+      'Hanukkah celebrates oil, so fried food is practically required. We send latke and sufganiyot mixes, applesauce spice included.',
     boxItems: ['Latke mix', 'Sufganiyot mix'],
   },
   {
@@ -40,7 +40,7 @@ export const HANUKKAH_PRACTICES: HanukkahPractice[] = [
     title: 'Tell the Story',
     tagline: 'Kid-sized, not a sermon.',
     description:
-      'The Maccabees, the oil that lasted, and what it means to stand up for what you believe. Each kid gets a book picked for their age, to read a little each night or all at once.',
+      'The Maccabees, the oil that lasted, and standing up for what you believe. Each kid gets a book picked for their age.',
     boxItems: ['Per-kid story book', 'Age-matched pick'],
   },
   {
