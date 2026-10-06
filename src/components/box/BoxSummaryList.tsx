@@ -267,6 +267,7 @@ function createStyles(colors: SemanticColors, tile: number) {
       width: '100%',
       marginTop: spacing.xxl,
       paddingTop: spacing.xl,
+      paddingBottom: spacing.xxl,
     },
     jumpRoot: {
       gap: spacing.lg,
@@ -284,6 +285,7 @@ function createStyles(colors: SemanticColors, tile: number) {
       backgroundColor: colors.textPrimary,
       width: '100%',
       alignSelf: 'stretch',
+      marginBottom: spacing.lg,
     },
     headingBlock: {
       gap: spacing.xs,
