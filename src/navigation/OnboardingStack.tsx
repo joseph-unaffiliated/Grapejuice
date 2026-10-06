@@ -39,7 +39,13 @@ import {
   StorefrontChrome,
 } from '../components/storefront/StorefrontChrome';
 import type { StorefrontLeaveTarget } from '../components/storefront/storefrontLeaveContext';
-import { queuePendingMainNav } from './pendingMainNav';
+import { queuePendingMainNav, type PendingMainNav } from './pendingMainNav';
+import { consumeInboundBoxUrlPreserve } from './boxLink';
+import {
+  enterBoxBuilderStep,
+  pushBoxBuilderStep,
+  registerBoxBuilderHistory,
+} from './webBrowserHistory';
 import { DEFAULT_STOREFRONT_CATEGORY } from '../constants/storefrontCategories';
 import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
 
@@ -78,6 +84,11 @@ async function ensureHouseholdId(uid: string, householdId: string | null | undef
   const created = await householdsService.createForOwner(uid);
   await usersService.upsert(uid, { householdId: created.id });
   return created.id;
+}
+
+/** Wizard steps the browser can move between; building / reveal are transitional. */
+function isHistoryStep(step: OnboardingStep): boolean {
+  return step !== 'building' && step !== 'reveal' && wizardNavStepIndex(step) >= 0;
 }
 
 export function OnboardingStack({
@@ -140,6 +151,7 @@ export function OnboardingStack({
     (next: OnboardingStep) => {
       setStep(next);
       setGuestOnboardingStep(next);
+      if (isHistoryStep(next)) pushBoxBuilderStep(next);
     },
     [setGuestOnboardingStep]
   );
@@ -150,6 +162,27 @@ export function OnboardingStack({
       setMaxWizardIndex((prev) => Math.max(prev, idx));
     }
   }, [step]);
+
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const maxWizardIndexRef = useRef(maxWizardIndex);
+  maxWizardIndexRef.current = maxWizardIndex;
+  const leaveForHistoryRef = useRef<(target: PendingMainNav) => void>(() => {});
+
+  useEffect(() => {
+    if (isHistoryStep(stepRef.current)) enterBoxBuilderStep(stepRef.current);
+    return registerBoxBuilderHistory({
+      showStep: (raw) => {
+        const next = raw as OnboardingStep;
+        // Mid-build there is nothing to go back to; the build finishes on its own.
+        if (!isHistoryStep(stepRef.current) || !isHistoryStep(next)) return;
+        if (wizardNavStepIndex(next) > maxWizardIndexRef.current) return;
+        setStep(next);
+        setGuestOnboardingStep(next);
+      },
+      leave: (target) => leaveForHistoryRef.current(target),
+    });
+  }, [setGuestOnboardingStep]);
 
   const goToWizardNavStep = useCallback(
     (next: OnboardingWizardNavStepId) => {
@@ -454,6 +487,8 @@ export function OnboardingStack({
 
   const exitOnboarding = useCallback(async () => {
     clearDevPreview();
+    // Leaving answers an inbound `/box` visit; don't hold that URL over the next screen.
+    consumeInboundBoxUrlPreserve();
     if (guestMode) {
       exitGuestOnboarding();
       onComplete?.();
@@ -497,7 +532,12 @@ export function OnboardingStack({
           }
           queuePendingMainNav({ screen: 'StorefrontHome' });
           break;
+        case 'screen':
+          queuePendingMainNav(target.nav);
+          break;
         case 'service':
+          // The box link opens this builder — already here.
+          if (target.id === 'box') return;
           if (target.id === 'story') {
             queuePendingMainNav({ screen: 'StorefrontOurStory' });
           } else if (target.id === 'shop') {
@@ -517,6 +557,11 @@ export function OnboardingStack({
     },
     [completeReveal, exitOnboarding, lineItems.length]
   );
+
+  leaveForHistoryRef.current = (target) => {
+    queuePendingMainNav(target);
+    void exitOnboarding();
+  };
 
   const wrap = (content: React.ReactNode) => (
     <View style={styles.shell}>

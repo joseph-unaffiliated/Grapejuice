@@ -273,6 +273,9 @@ export function browserPathForNavigationState(
     return currentPath + search;
   }
   if (currentPath === BOX_PATH || currentPath === '/my-box') {
+    // A Main screen without its own URL (e.g. cart) after leaving the box builder.
+    const rootRoute = state?.routes?.[state.index ?? 0]?.name;
+    if (rootRoute === 'Main' && !shouldPreserveInboundBoxUrl()) return storePathHome() + search;
     return BOX_PATH + search;
   }
   if (currentPath === CHECKOUT_PATH) {

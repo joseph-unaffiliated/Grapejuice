@@ -21,6 +21,8 @@ import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
+import type { PendingMainNav } from '../../navigation/pendingMainNav';
+import { useStorefrontLeave } from './storefrontLeaveContext';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -51,6 +53,7 @@ const DRAWER_MAX_WIDTH = 320;
  */
 export function StorefrontAccountMenu() {
   const navigation = useNavigation<Nav>();
+  const leave = useStorefrontLeave();
   const { ids } = useWishlist();
   const { gifts } = useReceivedGifts();
   const logout = useAuthStore((s) => s.logout);
@@ -116,37 +119,50 @@ export function StorefrontAccountMenu() {
     });
   }, [open, compact, drawerMounted, slide]);
 
+  /** Inside the box builder the Main stack isn't mounted — leave the builder first. */
+  const go = (nav: PendingMainNav, direct: () => void) => () => {
+    if (leave) {
+      leave({ type: 'screen', nav });
+      return;
+    }
+    direct();
+  };
+
   const items: MenuItem[] = isAuthenticated
     ? [
         {
           key: 'account',
           label: 'Account',
           icon: icons.user,
-          onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
+          onPress: go({ screen: 'MainTabs', tab: 'Account' }, () =>
+            navigation.navigate('MainTabs', { screen: 'Account' })
+          ),
         },
         {
           key: 'orders',
           label: 'Orders',
           icon: icons.boxOpen,
-          onPress: () => navigation.navigate('Orders'),
+          onPress: go({ screen: 'Orders' }, () => navigation.navigate('Orders')),
         },
         {
           key: 'my-gifts',
           label: gifts.length > 0 ? `My Gifts (${gifts.length})` : 'My Gifts',
           icon: icons.gift,
-          onPress: () => navigation.navigate('MyGifts'),
+          onPress: go({ screen: 'MyGifts' }, () => navigation.navigate('MyGifts')),
         },
         {
           key: 'history',
           label: 'History',
           icon: icons.clockHistory,
-          onPress: () => navigation.navigate('History'),
+          onPress: go({ screen: 'History' }, () => navigation.navigate('History')),
         },
         {
           key: 'favorites',
           label: `Favorites (${ids.length})`,
           icon: icons.heart,
-          onPress: () => navigation.navigate('StorefrontFavorites'),
+          onPress: go({ screen: 'StorefrontFavorites' }, () =>
+            navigation.navigate('StorefrontFavorites')
+          ),
         },
       ]
     : [];

@@ -22,6 +22,16 @@ export function BoxLinkEffect() {
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const pending = useRef(readBoxPathFromBoot());
+  /** The builder answered this `/box` visit — leaving it must not reopen My Box (and the builder). */
+  const builderShown = useRef(useGuestSessionStore.getState().buildBoxPath);
+
+  useEffect(
+    () =>
+      useGuestSessionStore.subscribe((s) => {
+        if (s.buildBoxPath && pending.current) builderShown.current = true;
+      }),
+    []
+  );
 
   useEffect(() => {
     if (!pending.current) return;
@@ -41,7 +51,7 @@ export function BoxLinkEffect() {
       if (useGuestSessionStore.getState().buildBoxPath) return;
       clearInterval(id);
       pending.current = false;
-      navigateToMyBox();
+      if (!builderShown.current) navigateToMyBox();
     }, 50);
     return () => clearInterval(id);
   }, [

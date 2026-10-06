@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { browserPathForNavigationState, PRODUCT_PATH_PREFIX } from './productLink';
-import { BOX_PATH } from './boxLink';
+import { BOX_PATH, consumeInboundBoxUrlPreserve } from './boxLink';
 import { CHECKOUT_PATH } from './checkoutLink';
 import { ACCOUNT_PATH } from './accountLink';
 import { ORDERS_PATH } from './ordersLink';
@@ -31,7 +31,7 @@ import { metaTrackingSuppressed, trackMeta } from '../services/analytics/metaPix
 import { setGaDisabled } from '../services/analytics/googleAnalytics';
 import { withStickyQuery } from './stickyQuery';
 
-type GjHistoryState = { gjNav: true; idx: number };
+type GjHistoryState = { gjNav: true; idx: number; builderStep?: string };
 
 let suppressHistoryPush = false;
 /** Mirrors `history.state.idx` for the entry we're currently showing. */
@@ -85,7 +85,14 @@ function syncBrowserUrl(state: NavigationState, mode: 'push' | 'replace'): void 
   const nextPath = withStickyQuery(browserPathForNavigationState(state));
   const current = window.location.pathname + window.location.search;
   if (mode === 'replace') {
-    window.history.replaceState({ gjNav: true, idx: historyIdx }, '', nextPath);
+    const builderStep = onboardingIsRoot()
+      ? (window.history.state as GjHistoryState | null)?.builderStep
+      : undefined;
+    window.history.replaceState(
+      { gjNav: true, idx: historyIdx, ...(builderStep ? { builderStep } : null) },
+      '',
+      nextPath
+    );
     return;
   }
   if (current === nextPath) return;
@@ -278,18 +285,13 @@ function restoreFromPath(
   return false;
 }
 
-/**
- * Guest "build my box" swaps the Main gate for Onboarding, so the page they came
- * from (e.g. a product's "Buy with a box") is unmounted and goBack has nothing to
- * pop. Close the builder and remount Main on the screen the browser went back to.
- */
-function leaveGuestBoxBuilder(): boolean {
+function onboardingIsRoot(): boolean {
   const root = navigationRef.getRootState();
-  if (root?.routes[root.index]?.name !== 'Onboarding') return false;
-  if (useAuthStore.getState().isAuthenticated) return false;
-  const guest = useGuestSessionStore.getState();
-  if (!guest.buildBoxPath || guest.boxRevealComplete) return false;
+  return root?.routes[root.index]?.name === 'Onboarding';
+}
 
+/** Main screen for the current address bar, for leaving the box builder. */
+function mainNavForBrowserUrl(): PendingMainNav {
   let target: PendingMainNav = { screen: 'StorefrontHome' };
   restoreFromPath(
     window.location.pathname,
@@ -303,7 +305,22 @@ function leaveGuestBoxBuilder(): boolean {
   );
   // Leaving for My Box would only reopen the builder.
   if (target.screen === 'MyBox') target = { screen: 'StorefrontHome' };
-  queuePendingMainNav(target);
+  return target;
+}
+
+/**
+ * Guest "build my box" swaps the Main gate for Onboarding, so the page they came
+ * from (e.g. a product's "Buy with a box") is unmounted and goBack has nothing to
+ * pop. Close the builder and remount Main on the screen the browser went back to.
+ */
+function leaveGuestBoxBuilder(): boolean {
+  if (!onboardingIsRoot()) return false;
+  if (useAuthStore.getState().isAuthenticated) return false;
+  const guest = useGuestSessionStore.getState();
+  if (!guest.buildBoxPath || guest.boxRevealComplete) return false;
+
+  queuePendingMainNav(mainNavForBrowserUrl());
+  consumeInboundBoxUrlPreserve();
   useGuestSessionStore.setState({
     buildBoxPath: false,
     onboardingStep: null,
@@ -313,6 +330,57 @@ function leaveGuestBoxBuilder(): boolean {
     ...(guest.onboardingComplete ? null : { lineItems: [] }),
   });
   return true;
+}
+
+type BoxBuilderHistory = {
+  /** Show a step the browser moved to (Back/Forward). Must not push history. */
+  showStep: (step: string) => void;
+  /** Leave the builder for a Main screen (signed-in; guests use leaveGuestBoxBuilder). */
+  leave: (target: PendingMainNav) => void;
+};
+
+let boxBuilderHistory: BoxBuilderHistory | null = null;
+
+/**
+ * Box builder steps share the `/box` URL, so each step gets its own history entry
+ * (tagged with `builderStep`) for browser Back/Forward to move between steps.
+ */
+export function registerBoxBuilderHistory(handlers: BoxBuilderHistory): () => void {
+  boxBuilderHistory = handlers;
+  return () => {
+    if (boxBuilderHistory === handlers) boxBuilderHistory = null;
+  };
+}
+
+/**
+ * Builder mount: the first step gets its own entry so Back from it returns to the
+ * page before the builder. A reload/resume already sits on a builder entry — retag it.
+ */
+export function enterBoxBuilderStep(step: string): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const current = window.history.state as GjHistoryState | null;
+  if (!current?.builderStep) {
+    pushBoxBuilderStep(step);
+    return;
+  }
+  window.history.replaceState(
+    { gjNav: true, idx: historyIdx, builderStep: step },
+    '',
+    window.location.pathname + window.location.search
+  );
+}
+
+/** Push an entry for a step the user moved to inside the builder. */
+export function pushBoxBuilderStep(step: string): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const current = window.history.state as GjHistoryState | null;
+  if (current?.builderStep === step) return;
+  historyIdx += 1;
+  window.history.pushState(
+    { gjNav: true, idx: historyIdx, builderStep: step },
+    '',
+    window.location.pathname + window.location.search
+  );
 }
 
 /** Push a browser history entry when in-app navigation moves forward. */
@@ -390,6 +458,17 @@ export function installWebBrowserHistory(): () => void {
       }
       const goingBack = nextIdx < historyIdx;
       historyIdx = nextIdx;
+      if (boxBuilderHistory && onboardingIsRoot()) {
+        const builderStep = (event.state as GjHistoryState).builderStep;
+        if (builderStep) {
+          boxBuilderHistory.showStep(builderStep);
+          return;
+        }
+        // Moved off the builder's entries (Back from the first step): leave it.
+        if (leaveGuestBoxBuilder()) return;
+        boxBuilderHistory.leave(mainNavForBrowserUrl());
+        return;
+      }
       if (goingBack) {
         if (leaveGuestBoxBuilder()) return;
         // In-screen history (e.g. /checkout?step=payment → /checkout): the screen

@@ -159,7 +159,14 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
           },
           {
             label: 'Account',
-            onPress: () => go(() => navigation.navigate('MainTabs', { screen: 'Account' })),
+            onPress: () =>
+              go(() => {
+                if (leave) {
+                  leave({ type: 'screen', nav: { screen: 'MainTabs', tab: 'Account' } });
+                  return;
+                }
+                navigation.navigate('MainTabs', { screen: 'Account' });
+              }),
           },
         ],
       },

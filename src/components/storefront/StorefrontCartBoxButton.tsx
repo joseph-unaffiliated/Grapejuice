@@ -42,6 +42,10 @@ export function StorefrontCartBoxButton() {
           navigation.navigate('MyBox');
           return;
         }
+        if (leave) {
+          leave({ type: 'screen', nav: { screen: 'StorefrontCart' } });
+          return;
+        }
         navigation.navigate('StorefrontCart');
       }}
       accessibilityRole="button"

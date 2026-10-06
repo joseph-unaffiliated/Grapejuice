@@ -1,11 +1,13 @@
 import React, { createContext, useContext, type ReactNode } from 'react';
 import type { StorefrontServiceId } from './StorefrontServicesNav';
+import type { PendingMainNav } from '../../navigation/pendingMainNav';
 
 export type StorefrontLeaveTarget =
   | { type: 'home' }
   | { type: 'category'; slug: string; q?: string }
   | { type: 'myBox' }
-  | { type: 'service'; id: StorefrontServiceId };
+  | { type: 'service'; id: StorefrontServiceId }
+  | { type: 'screen'; nav: PendingMainNav };
 
 const StorefrontLeaveContext = createContext<((target: StorefrontLeaveTarget) => void) | null>(
   null
