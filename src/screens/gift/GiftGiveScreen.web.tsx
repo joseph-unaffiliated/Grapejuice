@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Alert, Text, Platform, TouchableOpacity } from 'react-native';
+import { StyleSheet, Alert, Text, Platform, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -11,6 +11,8 @@ import type { MainStackParamList } from '../../navigation/types';
 import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { SystemPage } from '../../components/layout/SystemPage';
+import { StorefrontCategoryRail } from '../../components/storefront/StorefrontCategoryRail';
+import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
@@ -34,7 +36,7 @@ function notify(title: string, message: string) {
 function GiftGiveBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'GiftGive'>>();
-  const { goHome } = useStorefrontActions();
+  const { goHome, goCategory } = useStorefrontActions();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const startAuthForGiftGive = useAuthFlowStore((s) => s.startAuthForGiftGive);
   const restored = route.params?.form;
@@ -198,7 +200,21 @@ function GiftGiveBody() {
 
   const paying = Boolean(paymentSecret && stripePromise && giftInviteId);
   return (
-    <SystemPage narrow onBack={paying ? undefined : goHome}>
+    <SystemPage
+      narrow
+      onBack={paying ? undefined : goHome}
+      footer={
+        paying ? undefined : (
+          <View style={styles.aisleRail}>
+            <StorefrontCategoryRail
+              heading={null}
+              cards={STOREFRONT_HOME_AISLE_CARDS}
+              onCategoryPress={(category) => goCategory(category)}
+            />
+          </View>
+        )
+      }
+    >
       {paymentSecret && stripePromise && giftInviteId ? (
         <Elements
           stripe={stripePromise}
@@ -257,6 +273,9 @@ export function GiftGiveScreen() {
 }
 
 const styles = StyleSheet.create({
+  aisleRail: {
+    marginTop: spacing.xxl,
+  },
   signInLink: {
     marginTop: spacing.md,
     alignSelf: 'center',

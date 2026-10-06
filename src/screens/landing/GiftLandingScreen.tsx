@@ -1,21 +1,20 @@
-import React from 'react';
-import { useRoute } from '@react-navigation/native';
+import { useEffect } from 'react';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import type { MainStackParamList } from '../../navigation/types';
-import { ModularLandingScreen } from './ModularLandingScreen';
 
 type GiftLandingRoute = RouteProp<MainStackParamList, 'GiftLanding'>;
 
-/** Modular gift campaign landing (`/gift`). */
+/** `/gift` forwards straight to the gift form (`/gift/give`); `?path=` still preselects. */
 export function GiftLandingScreen() {
   const route = useRoute<GiftLandingRoute>();
-  const preferredGiftPath = route.params?.preferredGiftPath ?? null;
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const preferredGiftPath = route.params?.preferredGiftPath;
 
-  return (
-    <ModularLandingScreen
-      audienceId="gift"
-      preferredGiftPath={preferredGiftPath}
-      ravSurface={{ id: 'landing-gift', label: 'Gift landing' }}
-    />
-  );
+  useEffect(() => {
+    navigation.replace('GiftGive', preferredGiftPath ? { initialGiftPath: preferredGiftPath } : undefined);
+  }, [navigation, preferredGiftPath]);
+
+  return null;
 }

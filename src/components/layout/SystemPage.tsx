@@ -44,6 +44,8 @@ type PageProps = {
    * other system pages. Replaces the back link and the left-aligned page title.
    */
   hub?: AccountHubPage;
+  /** Full-bleed content under the column (e.g. a carousel); spans the viewport edge to edge. */
+  footer?: ReactNode;
 };
 
 /**
@@ -58,6 +60,7 @@ export function SystemPage({
   narrow = false,
   loading = false,
   hub,
+  footer,
 }: PageProps) {
   const { isDesktop, layoutWidth, widePanelMaxWidth } = useWebLayout();
   const columnWidth = hub || narrow ? HUB_COLUMN : wide ? widePanelMaxWidth : layoutWidth;
@@ -111,10 +114,11 @@ export function SystemPage({
     <SafeAreaView style={styles.safe} edges={[]}>
       <WebContentPanel
         flush={isDesktop}
-        gutter={!isDesktop}
+        // With a footer the gutter moves onto the column so the footer can bleed edge to edge.
+        gutter={!isDesktop && !footer}
         centerDesktop={isDesktop}
         omitDesktopTopPadding={isDesktop}
-        style={styles.panel}
+        style={[styles.panel, footer && isDesktop ? styles.panelNoSidePad : null]}
       >
         <ScrollView
           style={styles.root}
@@ -125,9 +129,12 @@ export function SystemPage({
         >
           {isDesktop ? (
             <View style={[styles.contentColumn, { maxWidth: columnWidth }]}>{body}</View>
+          ) : footer ? (
+            <View style={styles.mobileGutter}>{body}</View>
           ) : (
             body
           )}
+          {footer}
         </ScrollView>
       </WebContentPanel>
     </SafeAreaView>
@@ -293,6 +300,8 @@ export const systemPageStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: semanticColors.bgPrimary },
   panel: { flex: 1, width: '100%', backgroundColor: semanticColors.bgPrimary },
+  panelNoSidePad: { paddingHorizontal: 0 },
+  mobileGutter: { paddingHorizontal: MOBILE_GUTTER },
   root: { flex: 1, backgroundColor: semanticColors.bgPrimary, width: '100%' },
   scrollContent: {
     paddingTop: spacing.lg,

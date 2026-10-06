@@ -543,6 +543,8 @@ export function OnboardingStack({
           if (target.id === 'box') return;
           if (target.id === 'story') {
             queuePendingMainNav({ screen: 'StorefrontOurStory' });
+          } else if (target.id === 'gift') {
+            queuePendingMainNav({ screen: 'GiftGive' });
           } else if (target.id === 'shop') {
             queuePendingMainNav({
               screen: 'StorefrontCategory',

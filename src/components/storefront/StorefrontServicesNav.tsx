@@ -27,7 +27,7 @@ import {
   typography,
 } from '../../constants/theme';
 
-export type StorefrontServiceId = 'shop' | 'box' | 'story';
+export type StorefrontServiceId = 'shop' | 'box' | 'gift' | 'story';
 
 type Props = {
   onPress: (id: StorefrontServiceId) => void;
@@ -104,6 +104,15 @@ export function StorefrontServicesNav({ onPress }: Props) {
             </View>
           </TouchableOpacity>
         ) : null}
+
+        <TouchableOpacity
+          style={styles.linkHit}
+          onPress={() => onPress('gift')}
+          accessibilityRole="button"
+          accessibilityLabel="Send a Gift"
+        >
+          <Text style={styles.link}>Send a Gift</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.linkHit}

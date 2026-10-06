@@ -376,6 +376,9 @@ function StorefrontChromeInner({
       case 'box':
         startBox();
         break;
+      case 'gift':
+        navigation.navigate('GiftGive');
+        break;
       case 'story':
         navigation.navigate('StorefrontOurStory');
         break;
