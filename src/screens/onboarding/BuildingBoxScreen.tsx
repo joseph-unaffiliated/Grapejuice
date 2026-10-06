@@ -15,7 +15,7 @@ type Props = {
 };
 
 const BUILD_STEPS = [
-  'Reading your family…',
+  'Getting your box started…',
   'Matching stories to ages…',
   'Picking treats and candles…',
   'Asking Rav to look over the picks…',
