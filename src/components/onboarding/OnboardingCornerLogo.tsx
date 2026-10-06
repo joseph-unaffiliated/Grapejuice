@@ -1,10 +1,9 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MOBILE_GUTTER, spacing } from '../../constants/theme';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
-import { useOnboardingBuildingTransition } from './onboardingMediaHostContext';
 import { useOnboardingUnderStorefrontChrome } from './onboardingChromeContext';
 
 /** Matches copy pane horizontal inset — logo lines up with title/body below. */
@@ -20,17 +19,7 @@ export function OnboardingCornerLogo() {
   const underStorefrontChrome = useOnboardingUnderStorefrontChrome();
   const insets = useSafeAreaInsets();
   const { tier } = useWebLayout();
-  const buildingTransition = useOnboardingBuildingTransition();
-  const logoOpacity = useRef(new Animated.Value(buildingTransition ? 0 : 1)).current;
   const isDesktopWeb = Platform.OS === 'web' && tier === 'desktop-web';
-
-  useEffect(() => {
-    Animated.timing(logoOpacity, {
-      toValue: buildingTransition ? 0 : 1,
-      duration: buildingTransition ? 280 : 200,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-  }, [buildingTransition, logoOpacity]);
 
   if (underStorefrontChrome) return null;
   const logoTop =
@@ -42,17 +31,16 @@ export function OnboardingCornerLogo() {
       : MOBILE_GUTTER;
 
   return (
-    <Animated.View
+    <View
       style={[
         styles.corner,
         Platform.OS === 'web' ? styles.cornerWebFixed : null,
-        { top: logoTop, left: logoLeft, opacity: logoOpacity },
+        { top: logoTop, left: logoLeft },
       ]}
       pointerEvents="none"
-      accessibilityElementsHidden={buildingTransition}
     >
       <GrapejuiceBrandMark markOnly align="left" decorative />
-    </Animated.View>
+    </View>
   );
 }
 

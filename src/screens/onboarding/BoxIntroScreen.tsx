@@ -4,7 +4,10 @@ import {
   OnboardingScreenLayout,
   onboardingBodyText,
 } from '../../components/onboarding/OnboardingScreenLayout';
-import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
+import {
+  FamilyMembersForm,
+  FamilyMembersLead,
+} from '../../components/family/FamilyMembersForm';
 import {
   type ChildDraft,
   defaultFamilyMembers,
@@ -49,14 +52,14 @@ export function BoxIntroScreen({ onContinue, initialChildren, defaultName }: Pro
       primaryLabel="Continue"
       onPrimary={() => onContinue(members)}
       primaryDisabled={!namesComplete}
+      aside={<FamilyMembersForm members={members} onChange={setMembers} sectionLead={null} />}
     >
       <View style={styles.copy}>
         <Text style={[onboardingBodyText.lead, styles.intro]}>
           Your box is personalized just for your family, age-appropriate gifts and books for each kid, and
           enough chocolate gelt for everyone.
         </Text>
-
-        <FamilyMembersForm members={members} onChange={setMembers} />
+        <FamilyMembersLead />
       </View>
     </OnboardingScreenLayout>
   );

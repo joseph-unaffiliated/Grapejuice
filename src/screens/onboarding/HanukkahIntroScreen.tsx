@@ -21,19 +21,20 @@ export function HanukkahIntroScreen({ onContinue }: Props) {
       title="Eight nights. Your way."
       primaryLabel="Continue"
       onPrimary={onContinue}
-    >
-      <View style={styles.copy}>
-        <Text style={[onboardingBodyText.lead, styles.intro]}>
-          Hanukkah is a week of light at home — candles, food, games, small rituals. No Hebrew required. No
-          prior experience required. Just show up when you can. Grapejuice sends a curated box with what you
-          actually need to celebrate — not decorations that sit in a drawer until next year.
-        </Text>
-
-        <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{HANUKKAH_PRACTICES_INTRO}</Text>
-        <View style={styles.practices}>
-          <HanukkahPracticesOverview layout="stack" showIntro={false} />
+      aside={
+        <View style={styles.copy}>
+          <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{HANUKKAH_PRACTICES_INTRO}</Text>
+          <View style={styles.practices}>
+            <HanukkahPracticesOverview layout="stack" showIntro={false} />
+          </View>
         </View>
-      </View>
+      }
+    >
+      <Text style={[onboardingBodyText.lead, styles.intro]}>
+        Hanukkah is a week of light at home — candles, food, games, small rituals. No Hebrew required. No
+        prior experience required. Just show up when you can. Grapejuice sends a curated box with what you
+        actually need to celebrate — not decorations that sit in a drawer until next year.
+      </Text>
     </OnboardingScreenLayout>
   );
 }

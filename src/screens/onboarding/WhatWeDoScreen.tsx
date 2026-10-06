@@ -133,6 +133,66 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
     });
   };
 
+  const kidsSection =
+    kids.length > 0 ? (
+      <View style={styles.section}>
+        <Text style={[onboardingBodyText.lead, styles.sectionLead]}>What do your kids enjoy?</Text>
+        <Text style={[onboardingBodyText.text, styles.interestsIntro]}>
+          Pick any that fit — we use this to choose stories, crafts, and treats.
+        </Text>
+
+        {members.map((member, index) => {
+          if (member.role === 'adult') return null;
+          const kidOrdinal = members.slice(0, index + 1).filter((m) => m.role !== 'adult').length;
+          const kidLabel = member.name.trim() || `Kid ${kidOrdinal}`;
+          const selected = member.interests ?? [];
+          const customs = member.customInterests ?? [];
+          const showOther = !!otherOpen[index];
+          return (
+            <View key={index} style={styles.kidBlock}>
+              <Text style={styles.kidName}>{kidLabel}</Text>
+              <View style={styles.chips}>
+                {CHILD_INTEREST_OPTIONS.map(({ id, label }) => (
+                  <InterestChip
+                    key={id}
+                    label={label}
+                    selected={selected.includes(id)}
+                    onPress={() => toggleInterest(index, id)}
+                  />
+                ))}
+                {customs.map((custom) => (
+                  <InterestChip
+                    key={custom}
+                    label={custom}
+                    selected
+                    onPress={() => removeCustom(index, custom)}
+                  />
+                ))}
+                <InterestChip
+                  label="Other"
+                  selected={showOther}
+                  onPress={() => setOtherOpen((prev) => ({ ...prev, [index]: !prev[index] }))}
+                />
+              </View>
+              {showOther ? (
+                <TextInput
+                  style={styles.otherInput}
+                  placeholder="Type an interest"
+                  placeholderTextColor={semanticColors.textTertiary}
+                  value={otherDraft[index] ?? ''}
+                  onChangeText={(t) => setOtherDraft((prev) => ({ ...prev, [index]: t }))}
+                  onSubmitEditing={() => commitOther(index)}
+                  onBlur={() => commitOther(index)}
+                  autoFocus
+                  returnKeyType="done"
+                />
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    ) : null;
+
   return (
     <OnboardingScreenLayout
       kicker="What We Do"
@@ -147,6 +207,7 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
           interests: flattenKidInterests(members),
         })
       }
+      aside={kidsSection}
     >
       <View style={styles.section}>
         <Text style={[onboardingBodyText.lead, styles.sectionLead]}>How has Hanukkah gone in past years?</Text>
@@ -161,65 +222,6 @@ export function WhatWeDoScreen({ family: initialChildren, initialScore = 50, onC
 
         <FamiliaritySliderControl value={score} onChange={setScore} />
       </View>
-
-      {kids.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={[onboardingBodyText.lead, styles.sectionLead]}>What do your kids enjoy?</Text>
-          <Text style={[onboardingBodyText.text, styles.interestsIntro]}>
-            Pick any that fit — we use this to choose stories, crafts, and treats.
-          </Text>
-
-          {members.map((member, index) => {
-            if (member.role === 'adult') return null;
-            const kidOrdinal = members.slice(0, index + 1).filter((m) => m.role !== 'adult').length;
-            const kidLabel = member.name.trim() || `Kid ${kidOrdinal}`;
-            const selected = member.interests ?? [];
-            const customs = member.customInterests ?? [];
-            const showOther = !!otherOpen[index];
-            return (
-              <View key={index} style={styles.kidBlock}>
-                <Text style={styles.kidName}>{kidLabel}</Text>
-                <View style={styles.chips}>
-                  {CHILD_INTEREST_OPTIONS.map(({ id, label }) => (
-                    <InterestChip
-                      key={id}
-                      label={label}
-                      selected={selected.includes(id)}
-                      onPress={() => toggleInterest(index, id)}
-                    />
-                  ))}
-                  {customs.map((custom) => (
-                    <InterestChip
-                      key={custom}
-                      label={custom}
-                      selected
-                      onPress={() => removeCustom(index, custom)}
-                    />
-                  ))}
-                  <InterestChip
-                    label="Other"
-                    selected={showOther}
-                    onPress={() => setOtherOpen((prev) => ({ ...prev, [index]: !prev[index] }))}
-                  />
-                </View>
-                {showOther ? (
-                  <TextInput
-                    style={styles.otherInput}
-                    placeholder="Type an interest"
-                    placeholderTextColor={semanticColors.textTertiary}
-                    value={otherDraft[index] ?? ''}
-                    onChangeText={(t) => setOtherDraft((prev) => ({ ...prev, [index]: t }))}
-                    onSubmitEditing={() => commitOther(index)}
-                    onBlur={() => commitOther(index)}
-                    autoFocus
-                    returnKeyType="done"
-                  />
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
-      ) : null}
     </OnboardingScreenLayout>
   );
 }

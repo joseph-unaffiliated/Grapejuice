@@ -33,7 +33,6 @@ import {
   type OnboardingStep,
   type OnboardingWizardNavStepId,
 } from './onboardingSteps';
-import { OnboardingMediaHost } from '../components/onboarding/OnboardingMediaHost';
 import { OnboardingUnderStorefrontChromeContext } from '../components/onboarding/onboardingChromeContext';
 import { OnboardingWizardNav } from '../components/onboarding/OnboardingWizardNav';
 import {
@@ -517,36 +516,11 @@ export function OnboardingStack({
     [completeReveal, exitOnboarding, lineItems.length]
   );
 
-  const wrap = (
-    content: React.ReactNode,
-    options?: { persistMedia?: boolean; buildingPhase?: boolean; buildingLoader?: boolean }
-  ) => (
+  const wrap = (content: React.ReactNode) => (
     <View style={styles.shell}>
-      <View style={styles.shellBody}>
-        {options?.persistMedia ? (
-          <OnboardingMediaHost
-            buildingPhase={options.buildingPhase}
-            buildingLoader={options.buildingLoader}
-          >
-            {content}
-          </OnboardingMediaHost>
-        ) : (
-          content
-        )}
-      </View>
+      <View style={styles.shellBody}>{content}</View>
     </View>
   );
-
-  const persistMediaSteps: OnboardingStep[] = [
-    'hanukkah-intro',
-    'practices',
-    'box-intro',
-    'children',
-    'child-interests',
-    'familiarity',
-    'rav-question',
-    'building',
-  ];
 
   const wizardServicesSlot = (
     <OnboardingWizardNav
@@ -665,11 +639,7 @@ export function OnboardingStack({
         onLeave={leaveToStorefront}
         servicesSlot={wizardServicesSlot}
       >
-        {wrap(stepContent, {
-          persistMedia: persistMediaSteps.includes(step),
-          buildingPhase: step === 'building' || saving,
-          buildingLoader: step === 'building',
-        })}
+        {wrap(stepContent)}
       </StorefrontChrome>
     </OnboardingUnderStorefrontChromeContext.Provider>
   );

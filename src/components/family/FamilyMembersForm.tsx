@@ -24,14 +24,20 @@ function profileForAge(age: number): { ageGroup: AgeGroup; plannerAge: number } 
 type Props = {
   members: ChildDraft[];
   onChange: (next: ChildDraft[]) => void;
-  /** Optional lead-in copy above the name/age rows. */
-  sectionLead?: string;
+  /** Lead-in copy above the name/age rows; `null` hides it (render `FamilyMembersLead` elsewhere). */
+  sectionLead?: string | null;
 };
+
+export const FAMILY_MEMBERS_SECTION_LEAD = 'Tell us who we\u2019re personalizing this for:';
+
+export function FamilyMembersLead({ text = FAMILY_MEMBERS_SECTION_LEAD }: { text?: string }) {
+  return <Text style={styles.sectionLead}>{text}</Text>;
+}
 
 export function FamilyMembersForm({
   members,
   onChange,
-  sectionLead = 'Tell us who we\u2019re personalizing this for:',
+  sectionLead = FAMILY_MEMBERS_SECTION_LEAD,
 }: Props) {
   const updateMember = (index: number, patch: Partial<ChildDraft>) => {
     const next = [...members];
@@ -91,7 +97,7 @@ export function FamilyMembersForm({
 
   return (
     <View style={styles.copy}>
-      {sectionLead ? <Text style={styles.sectionLead}>{sectionLead}</Text> : null}
+      {sectionLead ? <FamilyMembersLead text={sectionLead} /> : null}
 
       <View style={styles.form}>
         <View style={styles.divider} />

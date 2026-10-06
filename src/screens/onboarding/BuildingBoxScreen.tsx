@@ -27,11 +27,9 @@ const MESSAGE_INTERVAL_MS = 2200;
 const MIN_SPLASH_MS = 4800;
 
 /**
- * Loader splash. Renders bare (no screen chrome) so it centers within the
- * onboarding left pane and tracks the pane as it expands to full width.
- * Mounts the moment the build starts so it rides the expansion; advances to
- * the reveal once the box data is `ready` and the minimum splash has elapsed.
- * The corner logo is faded out by the building transition, so it is omitted here.
+ * Loader splash. Renders bare (no screen chrome), centered in the onboarding body.
+ * Mounts the moment the build starts; advances to the reveal once the box data
+ * is `ready` and the minimum splash has elapsed.
  */
 export function BuildingBoxScreen({ onComplete, hold = false, ready = true }: Props) {
   const contentOpacity = useRef(new Animated.Value(0)).current;
