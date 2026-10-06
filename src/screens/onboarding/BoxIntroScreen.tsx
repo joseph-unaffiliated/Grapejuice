@@ -1,20 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import {
   OnboardingScreenLayout,
   onboardingBodyText,
 } from '../../components/onboarding/OnboardingScreenLayout';
-import {
-  FamilyMembersForm,
-  FamilyMembersLead,
-} from '../../components/family/FamilyMembersForm';
+import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
 import {
   type ChildDraft,
   defaultFamilyMembers,
   ensureAdultLead,
   familyMembersComplete,
 } from '../../components/family/familyDraft';
-import { spacing } from '../../constants/theme';
 
 export type {
   ChildDraft,
@@ -52,22 +48,22 @@ export function BoxIntroScreen({ onContinue, initialChildren, defaultName }: Pro
       primaryLabel="Continue"
       onPrimary={() => onContinue(members)}
       primaryDisabled={!namesComplete}
-      aside={<FamilyMembersForm members={members} onChange={setMembers} sectionLead={null} />}
+      asideSide="left"
+      inlineFooter
+      centerVertically
+      aside={<FamilyMembersForm members={members} onChange={setMembers} dense />}
     >
-      <View style={styles.copy}>
-        <Text style={[onboardingBodyText.lead, styles.intro]}>
-          Your box is personalized just for your family, age-appropriate gifts and books for each kid, and
-          enough chocolate gelt for everyone.
-        </Text>
-        <FamilyMembersLead />
-      </View>
+      <Text style={[onboardingBodyText.lead, styles.intro]}>
+        Your box is personalized just for your family, age-appropriate gifts and books for each kid, and
+        enough chocolate gelt for everyone.
+      </Text>
     </OnboardingScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  copy: { paddingTop: 0, gap: spacing.sm },
   intro: {
     marginBottom: 0,
+    lineHeight: 28,
   },
 });

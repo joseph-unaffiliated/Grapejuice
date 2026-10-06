@@ -26,6 +26,8 @@ type Props = {
   onChange: (next: ChildDraft[]) => void;
   /** Lead-in copy above the name/age rows; `null` hides it (render `FamilyMembersLead` elsewhere). */
   sectionLead?: string | null;
+  /** Tighter rows so four people fit beside onboarding copy. */
+  dense?: boolean;
 };
 
 export const FAMILY_MEMBERS_SECTION_LEAD = 'Tell us who we\u2019re personalizing this for:';
@@ -38,6 +40,7 @@ export function FamilyMembersForm({
   members,
   onChange,
   sectionLead = FAMILY_MEMBERS_SECTION_LEAD,
+  dense = false,
 }: Props) {
   const updateMember = (index: number, patch: Partial<ChildDraft>) => {
     const next = [...members];
@@ -99,16 +102,16 @@ export function FamilyMembersForm({
     <View style={styles.copy}>
       {sectionLead ? <FamilyMembersLead text={sectionLead} /> : null}
 
-      <View style={styles.form}>
+      <View style={[styles.form, dense && styles.formDense]}>
         <View style={styles.divider} />
         {members.map((member, i) => (
-          <View key={i} style={styles.memberBlock}>
+          <View key={i} style={[styles.memberBlock, dense && styles.memberBlockDense]}>
             {i > 0 ? <View style={styles.divider} /> : null}
-            <View style={styles.memberCard}>
+            <View style={[styles.memberCard, dense && styles.memberCardDense]}>
               <View style={styles.nameInline}>
                 <Text style={styles.fieldLabel}>Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, dense && styles.inputDense]}
                   placeholder="Name"
                   placeholderTextColor={semanticColors.textTertiary}
                   value={member.name}
@@ -143,10 +146,10 @@ export function FamilyMembersForm({
           <>
             <View style={styles.divider} />
             <View style={styles.addRow}>
-              <TouchableOpacity style={styles.addBtn} onPress={() => addMember('kid')}>
+              <TouchableOpacity style={[styles.addBtn, dense && styles.addBtnDense]} onPress={() => addMember('kid')}>
                 <Text style={styles.addBtnText}>Add a kid</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.addBtn} onPress={() => addMember('adult')}>
+              <TouchableOpacity style={[styles.addBtn, dense && styles.addBtnDense]} onPress={() => addMember('adult')}>
                 <Text style={styles.addBtnText}>Add an adult</Text>
               </TouchableOpacity>
             </View>
@@ -171,10 +174,17 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     marginBottom: spacing.sm,
   },
+  formDense: {
+    gap: spacing.sm,
+    marginBottom: 0,
+  },
   memberBlock: {
     alignSelf: 'stretch',
     width: '100%',
     gap: spacing.lg,
+  },
+  memberBlockDense: {
+    gap: spacing.sm,
   },
   divider: {
     alignSelf: 'stretch',
@@ -185,6 +195,9 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     width: '100%',
     gap: spacing.sm,
+  },
+  memberCardDense: {
+    gap: spacing.xs + 2,
   },
   nameInline: {
     flexDirection: 'row',
@@ -219,6 +232,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     fontSize: Platform.OS === 'web' ? 14 : 16,
     color: '#000000',
+  },
+  inputDense: {
+    height: 40,
   },
   ageInline: {
     flexDirection: 'row',
@@ -268,6 +284,10 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  addBtnDense: {
+    minHeight: 40,
+    paddingVertical: spacing.xs + 2,
   },
   addBtnText: {
     ...typeface('regular'),
