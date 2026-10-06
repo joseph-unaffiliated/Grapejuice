@@ -4,6 +4,12 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 
 /** Mirrors functions/src/adminDashboard.ts — keep in sync. */
+export type DashAnswers = {
+  hanukkah: number | null;
+  hanukkahLevel: string | null;
+  jewish: number | null;
+};
+
 export type DashLine = {
   itemId: string | null;
   name: string;
@@ -36,6 +42,29 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
+  answers: DashAnswers;
+  lines: DashLine[];
+};
+
+export type DashGuest = {
+  id: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  stage: 'started' | 'answered' | 'built' | 'revealed' | 'gift';
+  step: string | null;
+  kids: number;
+  boxPriceCents: number;
+  addOnCents: number;
+  answers: DashAnswers;
+  source: string | null;
+  landingPath: string | null;
+  lastPath: string | null;
+  converted: boolean;
+  convertedAt: string | null;
+  leadAt: string | null;
+  resumeCount: number;
+  saveCount: number;
+  gift: { kind: string | null; giverName: string | null; recipientEmail: string | null; items: number } | null;
   lines: DashLine[];
 };
 
@@ -45,6 +74,7 @@ export type DashGift = {
   giverEmail: string | null;
   recipientEmail: string | null;
   recipientName: string | null;
+  recipientAnswers: DashAnswers;
   kind: 'box' | 'credit';
   amountCents: number | null;
   paid: boolean;
@@ -78,9 +108,17 @@ export type DashInventoryRow = {
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
-  counts: { households: number; drafts: number; orders: number; giftInvites: number; catalogItems: number };
+  counts: {
+    households: number;
+    drafts: number;
+    orders: number;
+    giftInvites: number;
+    catalogItems: number;
+    guestSessions: number;
+  };
   mismatches: Array<{ id: string; name: string; computed: number; counter: number }>;
   boxes: DashBox[];
+  guests: DashGuest[];
   gifts: DashGift[];
   inventory: DashInventoryRow[];
 };

@@ -27,6 +27,8 @@ export type GuestSnapshotGuest = {
   childInterests: string[];
   familiarityScore: number;
   familiarityLevel: FamiliarityLevel;
+  /** Absent on snapshots saved before this field was added. */
+  practiceFrequencyScore?: number;
   lineItems: BoxLineItem[];
   wrapSelectedItemIds: string[];
   wishlistItemIds: string[];
@@ -67,6 +69,7 @@ function guestFromStore(): GuestSnapshotGuest {
     childInterests: s.childInterests,
     familiarityScore: s.familiarityScore,
     familiarityLevel: s.familiarityLevel,
+    practiceFrequencyScore: s.practiceFrequencyScore,
     lineItems: s.lineItems,
     wrapSelectedItemIds: s.wrapSelectedItemIds,
     wishlistItemIds: s.wishlistItemIds,
@@ -138,6 +141,7 @@ export function applyGuestSnapshot(snapshot: GuestSessionSnapshot): void {
     childInterests: guest.childInterests ?? [],
     familiarityScore: typeof guest.familiarityScore === 'number' ? guest.familiarityScore : 50,
     familiarityLevel: guest.familiarityLevel ?? 'moderate',
+    practiceFrequencyScore: typeof guest.practiceFrequencyScore === 'number' ? guest.practiceFrequencyScore : 50,
     lineItems: retired.lineItems,
     wrapSelectedItemIds: remapLegacyCatalogIds(guest.wrapSelectedItemIds ?? []),
     wishlistItemIds: remapLegacyCatalogIds(guest.wishlistItemIds ?? []),

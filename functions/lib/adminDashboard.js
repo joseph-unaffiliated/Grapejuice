@@ -5,7 +5,7 @@ exports.createAdminBoxesDashboard = createAdminBoxesDashboard;
 const sentry_1 = require("./sentry");
 /**
  * Admin "Boxes and gifts" dashboard: one read-only snapshot of Hanukkah box orders,
- * open drafts, gift invites and inventory holds. Hold math mirrors
+ * open drafts, anonymous (signed-out) boxes, gift invites and inventory holds. Hold math mirrors
  * recomputeBoxAllocations / addOutstandingGiftBoxes in catalogInventory.ts — keep in sync.
  */
 const HOLIDAY_ID = 'hanukkah-2026';
@@ -14,6 +14,9 @@ const LIVE = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
 const DEFAULT_BOX_CENTS = 8000;
 const PER_EXTRA_KID_CENTS = 1000;
 const ADMIN_EMAIL = /^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i;
+const GUEST_ROW_LIMIT = 500;
+/** Onboarding steps after the two sliders — reaching one means the scores are real answers, not defaults. */
+const STEPS_AFTER_SLIDERS = ['rav-question', 'building', 'reveal'];
 function iso(v) {
     if (!v)
         return null;
@@ -51,6 +54,32 @@ function isTest(...vals) {
         return /@unaffiliated?(\.co)?$/.test(s) || /@(a\.com|example\.com)$/.test(s) || /joseph|jweissgold|brendan/.test(s);
     });
 }
+const score = (v) => {
+    const n = num(v);
+    return n == null ? null : Math.round(Math.max(0, Math.min(100, n)));
+};
+const NO_ANSWERS = { hanukkah: null, hanukkahLevel: null, jewish: null };
+function hostOf(url) {
+    if (typeof url !== 'string' || !url)
+        return null;
+    try {
+        return new URL(url).hostname.replace(/^www\./, '');
+    }
+    catch (_a) {
+        return null;
+    }
+}
+function guestSourceLabel(entry) {
+    if (!entry || typeof entry !== 'object')
+        return null;
+    const e = entry;
+    const fromUtm = attributionLabel(e.utm);
+    if (fromUtm)
+        return fromUtm;
+    if (str(e.fbclid))
+        return 'Meta (fbclid)';
+    return hostOf(e.referrer);
+}
 function attributionLabel(a) {
     var _a, _b, _c, _d;
     if (!a || typeof a !== 'object')
@@ -59,9 +88,97 @@ function attributionLabel(a) {
     const parts = [(_b = (_a = o.utm_source) !== null && _a !== void 0 ? _a : o.utmSource) !== null && _b !== void 0 ? _b : o.source, (_d = (_c = o.utm_campaign) !== null && _c !== void 0 ? _c : o.utmCampaign) !== null && _d !== void 0 ? _d : o.campaign].filter((x) => typeof x === 'string' && x.length > 0);
     return parts.length ? parts.join(' / ') : null;
 }
+function guestAnsweredSliders(guest) {
+    return (guest.onboardingComplete === true ||
+        guest.boxRevealComplete === true ||
+        STEPS_AFTER_SLIDERS.includes(String(guest.onboardingStep)) ||
+        (Array.isArray(guest.lineItems) && guest.lineItems.length > 0 && guest.buildBoxPath === true));
+}
+function guestAnswers(guest) {
+    return { hanukkah: score(guest.familiarityScore), hanukkahLevel: null, jewish: score(guest.practiceFrequencyScore) };
+}
+/** Signed-out visitors' saved boxes (guestSessions). Favorites-only browsing is left out. */
+function buildGuestRows(docs, items, priceForKids) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    const rows = [];
+    for (const d of docs) {
+        const x = d.data();
+        const guest = (_b = (_a = x.snapshot) === null || _a === void 0 ? void 0 : _a.guest) !== null && _b !== void 0 ? _b : {};
+        const gift = (_d = (_c = x.snapshot) === null || _c === void 0 ? void 0 : _c.gift) !== null && _d !== void 0 ? _d : null;
+        const giftDraft = (_e = gift === null || gift === void 0 ? void 0 : gift.draft) !== null && _e !== void 0 ? _e : null;
+        const kidDrafts = (Array.isArray(guest.childDrafts) ? guest.childDrafts : []).filter((c) => c && c.role !== 'adult');
+        const rawLines = Array.isArray(guest.lineItems) ? guest.lineItems : [];
+        const step = str(guest.onboardingStep);
+        if (!rawLines.length && !step && !kidDrafts.length && !giftDraft && guest.boxRevealComplete !== true)
+            continue;
+        const kidLabels = new Map();
+        kidDrafts.forEach((c, i) => {
+            const age = num(c.plannerAge);
+            kidLabels.set(`guest-${i}`, `Kid ${i + 1}${age != null ? ` (${age >= 18 ? '18+' : age})` : ''}`);
+        });
+        const lines = rawLines.filter(Boolean).map((raw) => {
+            var _a, _b, _c;
+            const li = raw;
+            const itemId = str(li.itemId);
+            const unitCents = (_a = num(li.unitCents)) !== null && _a !== void 0 ? _a : 0;
+            const childId = str(li.childId);
+            return {
+                itemId,
+                name: (itemId && ((_b = items.get(itemId)) === null || _b === void 0 ? void 0 : _b.name)) || str(li.label) || itemId || '?',
+                qty: Math.max(0, Math.floor(Number(li.quantity) || 0)),
+                unitCents,
+                addOn: unitCents > 0,
+                child: childId ? (_c = kidLabels.get(childId)) !== null && _c !== void 0 ? _c : 'child' : null,
+                forHousehold: !childId,
+            };
+        });
+        const answered = guestAnsweredSliders(guest);
+        const stage = guest.boxRevealComplete
+            ? 'revealed'
+            : lines.length
+                ? 'built'
+                : answered
+                    ? 'answered'
+                    : step || kidDrafts.length
+                        ? 'started'
+                        : 'gift';
+        const kids = Math.max(1, kidDrafts.length);
+        const giftLines = Array.isArray(giftDraft === null || giftDraft === void 0 ? void 0 : giftDraft.lineItems) ? giftDraft === null || giftDraft === void 0 ? void 0 : giftDraft.lineItems.length : 0;
+        rows.push({
+            id: d.id,
+            createdAt: iso(x.createdAt),
+            updatedAt: iso(x.updatedAt),
+            stage,
+            step,
+            kids,
+            boxPriceCents: priceForKids(kids),
+            addOnCents: lines.filter((l) => l.addOn).reduce((s, l) => s + l.unitCents * Math.max(1, l.qty), 0),
+            answers: answered ? guestAnswers(guest) : NO_ANSWERS,
+            source: guestSourceLabel(x.entry),
+            landingPath: str((_f = x.entry) === null || _f === void 0 ? void 0 : _f.landingPath),
+            lastPath: str(x.path),
+            converted: Boolean(str(x.convertedUid)),
+            convertedAt: iso(x.convertedAt),
+            leadAt: iso(x.lastLeadAt),
+            resumeCount: (_g = num(x.resumeCount)) !== null && _g !== void 0 ? _g : 0,
+            saveCount: (_h = num(x.saveCount)) !== null && _h !== void 0 ? _h : 0,
+            gift: giftDraft
+                ? {
+                    kind: str(gift === null || gift === void 0 ? void 0 : gift.kind),
+                    giverName: str((_j = giftDraft.form) === null || _j === void 0 ? void 0 : _j.giverName),
+                    recipientEmail: str((_k = giftDraft.form) === null || _k === void 0 ? void 0 : _k.recipientEmail),
+                    items: giftLines,
+                }
+                : null,
+            lines,
+        });
+    }
+    rows.sort((a, b) => { var _a, _b; return String((_a = b.updatedAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.updatedAt) !== null && _b !== void 0 ? _b : '')); });
+    return rows.slice(0, GUEST_ROW_LIMIT);
+}
 async function buildBoxesDashboard(db, nowMs = Date.now()) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11;
-    const [configSnap, hhSnap, ordersSnap, invitesSnap, itemsSnap, countersSnap, draftsSnap, childrenSnap, receivedSnap] = await Promise.all([
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18;
+    const [configSnap, hhSnap, ordersSnap, invitesSnap, itemsSnap, countersSnap, draftsSnap, childrenSnap, receivedSnap, guestSnap,] = await Promise.all([
         db.doc(`config/${HOLIDAY_ID}`).get(),
         db.collection('households').get(),
         db.collectionGroup('orders').get(),
@@ -71,6 +188,10 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
         db.collectionGroup('boxDrafts').get(),
         db.collectionGroup('children').get(),
         db.collectionGroup('receivedGifts').get(),
+        db
+            .collection('guestSessions')
+            .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'resumeCount', 'saveCount')
+            .get(),
     ]);
     const config = (_a = configSnap.data()) !== null && _a !== void 0 ? _a : {};
     const listCents = (_b = num(config.boxPriceCents)) !== null && _b !== void 0 ? _b : DEFAULT_BOX_CENTS;
@@ -104,10 +225,30 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
     }
     const userRefs = [...userIds].map((uid) => db.doc(`users/${uid}`));
     const userSnaps = userRefs.length ? await db.getAll(...userRefs) : [];
+    // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
+    const guestAnswersByUid = new Map();
+    for (const d of guestSnap.docs) {
+        const x = d.data();
+        const uid = str(x.convertedUid);
+        const guest = (_e = x.snapshot) === null || _e === void 0 ? void 0 : _e.guest;
+        if (uid && guest && guestAnsweredSliders(guest))
+            guestAnswersByUid.set(uid, guestAnswers(guest));
+    }
     const users = new Map();
     for (const s of userSnaps) {
-        const x = (_e = s.data()) !== null && _e !== void 0 ? _e : {};
-        users.set(s.id, { email: str(x.email), name: str(x.displayName) });
+        const x = (_f = s.data()) !== null && _f !== void 0 ? _f : {};
+        const last = (_g = x.lastBoxAnswers) !== null && _g !== void 0 ? _g : {};
+        const fromGuest = (_h = guestAnswersByUid.get(s.id)) !== null && _h !== void 0 ? _h : NO_ANSWERS;
+        const hanukkah = (_j = score(last.familiarityScore)) !== null && _j !== void 0 ? _j : fromGuest.hanukkah;
+        users.set(s.id, {
+            email: str(x.email),
+            name: str(x.displayName),
+            answers: {
+                hanukkah,
+                hanukkahLevel: hanukkah == null ? (_k = str(last.familiarityLevel)) !== null && _k !== void 0 ? _k : str(x.familiarityLevel) : null,
+                jewish: (_l = score(last.practiceFrequencyScore)) !== null && _l !== void 0 ? _l : fromGuest.jewish,
+            },
+        });
     }
     const drafts = new Map();
     for (const d of draftsSnap.docs) {
@@ -122,7 +263,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             received.set(`${hh.id}/${d.id}`, d.data());
     }
     const customerFor = (hid, uid) => {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         const h = (_a = households.get(hid)) !== null && _a !== void 0 ? _a : {};
         const owner = uid !== null && uid !== void 0 ? uid : str(h.ownerId);
         const u = owner ? users.get(owner) : undefined;
@@ -132,6 +273,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             name: (_d = (_c = u === null || u === void 0 ? void 0 : u.name) !== null && _c !== void 0 ? _c : (email ? email.split('@')[0] : null)) !== null && _d !== void 0 ? _d : str(h.name),
             email,
             test: isTest(email, u === null || u === void 0 ? void 0 : u.name),
+            answers: (_e = u === null || u === void 0 ? void 0 : u.answers) !== null && _e !== void 0 ? _e : NO_ANSWERS,
             kids: Math.max(1, childNames.size),
             childNames,
             cardOnFile: Boolean(h.cardOnFileAt || h.stripeDefaultPaymentMethodId),
@@ -161,12 +303,12 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
     const liveBoxHouseholds = new Set();
     for (const d of ordersSnap.docs) {
         const o = d.data();
-        const hid = (_g = (_f = d.ref.parent.parent) === null || _f === void 0 ? void 0 : _f.id) !== null && _g !== void 0 ? _g : '';
+        const hid = (_o = (_m = d.ref.parent.parent) === null || _m === void 0 ? void 0 : _m.id) !== null && _o !== void 0 ? _o : '';
         const playthrough = o.playthrough === true;
         if (o.orderType === 'received_gift') {
-            const key = `${hid}/${String((_h = o.giftInviteId) !== null && _h !== void 0 ? _h : d.id)}`;
-            const list = (_j = receivedGiftOrdersByKey.get(key)) !== null && _j !== void 0 ? _j : [];
-            list.push({ id: d.id, status: (_k = str(o.status)) !== null && _k !== void 0 ? _k : 'unknown', totalCents: num(o.totalCents), createdAt: iso(o.createdAt), playthrough });
+            const key = `${hid}/${String((_p = o.giftInviteId) !== null && _p !== void 0 ? _p : d.id)}`;
+            const list = (_q = receivedGiftOrdersByKey.get(key)) !== null && _q !== void 0 ? _q : [];
+            list.push({ id: d.id, status: (_r = str(o.status)) !== null && _r !== void 0 ? _r : 'unknown', totalCents: num(o.totalCents), createdAt: iso(o.createdAt), playthrough });
             receivedGiftOrdersByKey.set(key, list);
             if (o.holidayId !== HOLIDAY_ID || playthrough || !LIVE.includes(o.status))
                 continue;
@@ -175,7 +317,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
                 if (c != null && nowMs - c >= PENDING_TTL_MS)
                     continue;
             }
-            const createdMs = (_l = ms(o.createdAt)) !== null && _l !== void 0 ? _l : nowMs;
+            const createdMs = (_s = ms(o.createdAt)) !== null && _s !== void 0 ? _s : nowMs;
             const prev = giftOrders.get(key);
             if (!prev || createdMs > prev.createdMs)
                 giftOrders.set(key, { createdMs, lines: o.lineItems });
@@ -191,7 +333,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
         const c = customerFor(hid, str(o.userId));
         const lines = linesOf(o.lineItems, c.childNames);
         const addOnCents = addOnTotal(lines);
-        const kids = (_m = num(o.kidCount)) !== null && _m !== void 0 ? _m : c.kids;
+        const kids = (_t = num(o.kidCount)) !== null && _t !== void 0 ? _t : c.kids;
         const subtotal = num(o.subtotalCents);
         boxes.push({
             id: `${hid}/${d.id}`,
@@ -202,19 +344,20 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             email: c.email,
             test: c.test,
             kids,
-            status: (_o = str(o.status)) !== null && _o !== void 0 ? _o : 'unknown',
+            status: (_u = str(o.status)) !== null && _u !== void 0 ? _u : 'unknown',
             playthrough,
             cardOnFile: c.cardOnFile,
-            boxPriceCents: (_p = num(o.boxPriceCents)) !== null && _p !== void 0 ? _p : (subtotal != null ? subtotal - addOnCents : priceForKids(kids)),
+            boxPriceCents: (_v = num(o.boxPriceCents)) !== null && _v !== void 0 ? _v : (subtotal != null ? subtotal - addOnCents : priceForKids(kids)),
             addOnCents,
             subtotalCents: subtotal,
             shippingCents: num(o.shippingCents),
             taxCents: num(o.taxCents),
-            creditCents: ((_q = num(o.creditAppliedCents)) !== null && _q !== void 0 ? _q : 0) || ((_r = num(o.giftCreditAppliedCents)) !== null && _r !== void 0 ? _r : 0) + ((_s = num(o.platformCreditAppliedCents)) !== null && _s !== void 0 ? _s : 0),
+            creditCents: ((_w = num(o.creditAppliedCents)) !== null && _w !== void 0 ? _w : 0) || ((_x = num(o.giftCreditAppliedCents)) !== null && _x !== void 0 ? _x : 0) + ((_y = num(o.platformCreditAppliedCents)) !== null && _y !== void 0 ? _y : 0),
             totalCents: num(o.totalCents),
-            updatedAt: (_u = (_t = iso(o.updatedAt)) !== null && _t !== void 0 ? _t : iso(o.committedAt)) !== null && _u !== void 0 ? _u : iso(o.createdAt),
+            updatedAt: (_0 = (_z = iso(o.updatedAt)) !== null && _z !== void 0 ? _z : iso(o.committedAt)) !== null && _0 !== void 0 ? _0 : iso(o.createdAt),
             committedAt: iso(o.committedAt),
             attribution: attributionLabel(o.attribution),
+            answers: c.answers,
             lines,
         });
     }
@@ -236,7 +379,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             test: c.test,
             kids: c.kids,
             status: 'draft',
-            playthrough: dr.playthrough === true || ((_v = households.get(hid)) === null || _v === void 0 ? void 0 : _v.playthrough) === true,
+            playthrough: dr.playthrough === true || ((_1 = households.get(hid)) === null || _1 === void 0 ? void 0 : _1.playthrough) === true,
             cardOnFile: c.cardOnFile,
             boxPriceCents,
             addOnCents,
@@ -248,9 +391,11 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             updatedAt: iso(dr.updatedAt),
             committedAt: null,
             attribution: null,
+            answers: c.answers,
             lines,
         });
     }
+    const guests = buildGuestRows(guestSnap.docs, items, priceForKids);
     const giftHeld = new Map();
     for (const { lines } of giftOrders.values())
         addLines(giftHeld, lines);
@@ -259,11 +404,11 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
         const g = d.data();
         const isBox = g.kind === 'box' || g.kind === 'credit' ? g.kind === 'box' : Array.isArray(g.lineItems) && g.lineItems.length > 0;
         const paid = g.paymentStatus === 'paid' || (g.paymentStatus == null && Boolean(g.claimEmailSentAt));
-        const hid = (_w = str(g.claimedByHouseholdId)) !== null && _w !== void 0 ? _w : '';
+        const hid = (_2 = str(g.claimedByHouseholdId)) !== null && _2 !== void 0 ? _2 : '';
         const key = `${hid}/${d.id}`;
-        const rec = hid ? (_x = received.get(key)) !== null && _x !== void 0 ? _x : null : null;
+        const rec = hid ? (_3 = received.get(key)) !== null && _3 !== void 0 ? _3 : null : null;
         const convertedToCredit = g.status === 'converted_to_credit' || (rec === null || rec === void 0 ? void 0 : rec.status) === 'converted_to_credit';
-        const checkoutOrders = (_y = receivedGiftOrdersByKey.get(key)) !== null && _y !== void 0 ? _y : [];
+        const checkoutOrders = (_4 = receivedGiftOrdersByKey.get(key)) !== null && _4 !== void 0 ? _4 : [];
         const checkedOut = checkoutOrders.some((o) => !o.playthrough && LIVE.includes(o.status) && o.status !== 'pending');
         let holding = false;
         if (g.playthrough !== true && isBox && paid && (g.status === 'pending' || g.status === 'claimed')) {
@@ -283,12 +428,13 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             giver: str(g.giverName),
             giverEmail: str(g.giverEmail),
             recipientEmail: str(g.recipientEmail),
-            recipientName: (_z = recipient === null || recipient === void 0 ? void 0 : recipient.name) !== null && _z !== void 0 ? _z : null,
+            recipientName: (_5 = recipient === null || recipient === void 0 ? void 0 : recipient.name) !== null && _5 !== void 0 ? _5 : null,
+            recipientAnswers: (_6 = recipient === null || recipient === void 0 ? void 0 : recipient.answers) !== null && _6 !== void 0 ? _6 : NO_ANSWERS,
             kind: isBox ? 'box' : 'credit',
             amountCents: num(g.creditCents),
             paid,
-            paymentStatus: (_0 = str(g.paymentStatus)) !== null && _0 !== void 0 ? _0 : (g.claimEmailSentAt ? 'legacy-sent' : null),
-            status: convertedToCredit ? 'converted_to_credit' : (_1 = str(g.status)) !== null && _1 !== void 0 ? _1 : 'unknown',
+            paymentStatus: (_7 = str(g.paymentStatus)) !== null && _7 !== void 0 ? _7 : (g.claimEmailSentAt ? 'legacy-sent' : null),
+            status: convertedToCredit ? 'converted_to_credit' : (_8 = str(g.status)) !== null && _8 !== void 0 ? _8 : 'unknown',
             claimed: Boolean(hid) || g.status === 'claimed',
             checkedOut,
             checkoutOrders,
@@ -297,7 +443,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             test: isTest(str(g.giverEmail), str(g.giverName), str(g.recipientEmail), recipient === null || recipient === void 0 ? void 0 : recipient.email, recipient === null || recipient === void 0 ? void 0 : recipient.name),
             message: str(g.message),
             createdAt: iso(g.createdAt),
-            lines: linesOf(lineSource, (_2 = recipient === null || recipient === void 0 ? void 0 : recipient.childNames) !== null && _2 !== void 0 ? _2 : new Map()),
+            lines: linesOf(lineSource, (_9 = recipient === null || recipient === void 0 ? void 0 : recipient.childNames) !== null && _9 !== void 0 ? _9 : new Map()),
         });
     }
     const favorites = new Map();
@@ -307,9 +453,9 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             continue;
         const real = !customerFor(hid, null).test;
         for (const id of new Set(h.wishlistItemIds.filter((x) => typeof x === 'string'))) {
-            favorites.set(id, ((_3 = favorites.get(id)) !== null && _3 !== void 0 ? _3 : 0) + 1);
+            favorites.set(id, ((_10 = favorites.get(id)) !== null && _10 !== void 0 ? _10 : 0) + 1);
             if (real)
-                favoritesReal.set(id, ((_4 = favoritesReal.get(id)) !== null && _4 !== void 0 ? _4 : 0) + 1);
+                favoritesReal.set(id, ((_11 = favoritesReal.get(id)) !== null && _11 !== void 0 ? _11 : 0) + 1);
         }
     }
     const counters = new Map(countersSnap.docs.map((d) => [d.id, d.data()]));
@@ -319,15 +465,15 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
     const mismatches = [];
     for (const id of ids) {
         const it = items.get(id);
-        const c = (_5 = counters.get(id)) !== null && _5 !== void 0 ? _5 : {};
-        const heldByBoxes = (_6 = boxHeld.get(id)) !== null && _6 !== void 0 ? _6 : 0;
-        const heldByGifts = (_7 = giftHeld.get(id)) !== null && _7 !== void 0 ? _7 : 0;
+        const c = (_12 = counters.get(id)) !== null && _12 !== void 0 ? _12 : {};
+        const heldByBoxes = (_13 = boxHeld.get(id)) !== null && _13 !== void 0 ? _13 : 0;
+        const heldByGifts = (_14 = giftHeld.get(id)) !== null && _14 !== void 0 ? _14 : 0;
         const counterAllocated = n0(c.boxAllocatedQty);
         const directSold = n0(c.directSoldQty);
         const directReserved = n0(c.directReservedQty);
-        const stock = (_8 = it === null || it === void 0 ? void 0 : it.inventory) !== null && _8 !== void 0 ? _8 : null;
+        const stock = (_15 = it === null || it === void 0 ? void 0 : it.inventory) !== null && _15 !== void 0 ? _15 : null;
         if (heldByBoxes + heldByGifts !== counterAllocated) {
-            mismatches.push({ id, name: (_9 = it === null || it === void 0 ? void 0 : it.name) !== null && _9 !== void 0 ? _9 : id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
+            mismatches.push({ id, name: (_16 = it === null || it === void 0 ? void 0 : it.name) !== null && _16 !== void 0 ? _16 : id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
         }
         if (!it)
             continue;
@@ -341,8 +487,8 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             directSold,
             directReserved,
             remaining: stock == null ? null : stock - counterAllocated - directSold - directReserved,
-            favorites: (_10 = favorites.get(id)) !== null && _10 !== void 0 ? _10 : 0,
-            favoritesReal: (_11 = favoritesReal.get(id)) !== null && _11 !== void 0 ? _11 : 0,
+            favorites: (_17 = favorites.get(id)) !== null && _17 !== void 0 ? _17 : 0,
+            favoritesReal: (_18 = favoritesReal.get(id)) !== null && _18 !== void 0 ? _18 : 0,
         });
     }
     boxes.sort((a, b) => { var _a, _b; return String((_a = b.updatedAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.updatedAt) !== null && _b !== void 0 ? _b : '')); });
@@ -356,9 +502,11 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             orders: ordersSnap.size,
             giftInvites: invitesSnap.size,
             catalogItems: items.size,
+            guestSessions: guestSnap.size,
         },
         mismatches,
         boxes,
+        guests,
         gifts,
         inventory,
     };

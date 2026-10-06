@@ -3,7 +3,7 @@ import { HttpsError, onCall } from './sentry';
 
 /**
  * Admin "Boxes and gifts" dashboard: one read-only snapshot of Hanukkah box orders,
- * open drafts, gift invites and inventory holds. Hold math mirrors
+ * open drafts, anonymous (signed-out) boxes, gift invites and inventory holds. Hold math mirrors
  * recomputeBoxAllocations / addOutstandingGiftBoxes in catalogInventory.ts — keep in sync.
  */
 
@@ -13,6 +13,17 @@ const LIVE = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
 const DEFAULT_BOX_CENTS = 8000;
 const PER_EXTRA_KID_CENTS = 1000;
 const ADMIN_EMAIL = /^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i;
+const GUEST_ROW_LIMIT = 500;
+/** Onboarding steps after the two sliders — reaching one means the scores are real answers, not defaults. */
+const STEPS_AFTER_SLIDERS = ['rav-question', 'building', 'reveal'];
+
+/** Onboarding slider answers, 0–100. Hanukkah: "don't really do it" → "all eight nights"; jewish: "almost never" → "every day". */
+export type DashAnswers = {
+  hanukkah: number | null;
+  /** Set when only the coarse level was saved (older accounts). */
+  hanukkahLevel: string | null;
+  jewish: number | null;
+};
 
 export type DashLine = {
   itemId: string | null;
@@ -46,6 +57,30 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
+  answers: DashAnswers;
+  lines: DashLine[];
+};
+
+export type DashGuest = {
+  id: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  /** Furthest point reached: started onboarding, answered the sliders, built a box, or saw the reveal. */
+  stage: 'started' | 'answered' | 'built' | 'revealed' | 'gift';
+  step: string | null;
+  kids: number;
+  boxPriceCents: number;
+  addOnCents: number;
+  answers: DashAnswers;
+  source: string | null;
+  landingPath: string | null;
+  lastPath: string | null;
+  converted: boolean;
+  convertedAt: string | null;
+  leadAt: string | null;
+  resumeCount: number;
+  saveCount: number;
+  gift: { kind: string | null; giverName: string | null; recipientEmail: string | null; items: number } | null;
   lines: DashLine[];
 };
 
@@ -55,6 +90,7 @@ export type DashGift = {
   giverEmail: string | null;
   recipientEmail: string | null;
   recipientName: string | null;
+  recipientAnswers: DashAnswers;
   kind: 'box' | 'credit';
   amountCents: number | null;
   paid: boolean;
@@ -88,9 +124,17 @@ export type DashInventoryRow = {
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
-  counts: { households: number; drafts: number; orders: number; giftInvites: number; catalogItems: number };
+  counts: {
+    households: number;
+    drafts: number;
+    orders: number;
+    giftInvites: number;
+    catalogItems: number;
+    guestSessions: number;
+  };
   mismatches: Array<{ id: string; name: string; computed: number; counter: number }>;
   boxes: DashBox[];
+  guests: DashGuest[];
   gifts: DashGift[];
   inventory: DashInventoryRow[];
 };
@@ -128,6 +172,30 @@ function isTest(...vals: Array<string | null | undefined>): boolean {
   });
 }
 
+const score = (v: unknown): number | null => {
+  const n = num(v);
+  return n == null ? null : Math.round(Math.max(0, Math.min(100, n)));
+};
+const NO_ANSWERS: DashAnswers = { hanukkah: null, hanukkahLevel: null, jewish: null };
+
+function hostOf(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+function guestSourceLabel(entry: unknown): string | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const e = entry as Record<string, unknown>;
+  const fromUtm = attributionLabel(e.utm);
+  if (fromUtm) return fromUtm;
+  if (str(e.fbclid)) return 'Meta (fbclid)';
+  return hostOf(e.referrer);
+}
+
 function attributionLabel(a: unknown): string | null {
   if (!a || typeof a !== 'object') return null;
   const o = a as Record<string, unknown>;
@@ -137,9 +205,116 @@ function attributionLabel(a: unknown): string | null {
   return parts.length ? parts.join(' / ') : null;
 }
 
+function guestAnsweredSliders(guest: DocumentData): boolean {
+  return (
+    guest.onboardingComplete === true ||
+    guest.boxRevealComplete === true ||
+    STEPS_AFTER_SLIDERS.includes(String(guest.onboardingStep)) ||
+    (Array.isArray(guest.lineItems) && guest.lineItems.length > 0 && guest.buildBoxPath === true)
+  );
+}
+
+function guestAnswers(guest: DocumentData): DashAnswers {
+  return { hanukkah: score(guest.familiarityScore), hanukkahLevel: null, jewish: score(guest.practiceFrequencyScore) };
+}
+
+/** Signed-out visitors' saved boxes (guestSessions). Favorites-only browsing is left out. */
+function buildGuestRows(
+  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+  items: Map<string, { name: string }>,
+  priceForKids: (kids: number) => number,
+): DashGuest[] {
+  const rows: DashGuest[] = [];
+  for (const d of docs) {
+    const x = d.data();
+    const guest: DocumentData = x.snapshot?.guest ?? {};
+    const gift: DocumentData | null = x.snapshot?.gift ?? null;
+    const giftDraft: DocumentData | null = gift?.draft ?? null;
+    const kidDrafts = (Array.isArray(guest.childDrafts) ? guest.childDrafts : []).filter(
+      (c: DocumentData) => c && c.role !== 'adult',
+    );
+    const rawLines: unknown[] = Array.isArray(guest.lineItems) ? guest.lineItems : [];
+    const step = str(guest.onboardingStep);
+    if (!rawLines.length && !step && !kidDrafts.length && !giftDraft && guest.boxRevealComplete !== true) continue;
+
+    const kidLabels = new Map<string, string>();
+    kidDrafts.forEach((c: DocumentData, i: number) => {
+      const age = num(c.plannerAge);
+      kidLabels.set(`guest-${i}`, `Kid ${i + 1}${age != null ? ` (${age >= 18 ? '18+' : age})` : ''}`);
+    });
+    const lines: DashLine[] = rawLines.filter(Boolean).map((raw) => {
+      const li = raw as DocumentData;
+      const itemId = str(li.itemId);
+      const unitCents = num(li.unitCents) ?? 0;
+      const childId = str(li.childId);
+      return {
+        itemId,
+        name: (itemId && items.get(itemId)?.name) || str(li.label) || itemId || '?',
+        qty: Math.max(0, Math.floor(Number(li.quantity) || 0)),
+        unitCents,
+        addOn: unitCents > 0,
+        child: childId ? kidLabels.get(childId) ?? 'child' : null,
+        forHousehold: !childId,
+      };
+    });
+    const answered = guestAnsweredSliders(guest);
+    const stage: DashGuest['stage'] = guest.boxRevealComplete
+      ? 'revealed'
+      : lines.length
+        ? 'built'
+        : answered
+          ? 'answered'
+          : step || kidDrafts.length
+            ? 'started'
+            : 'gift';
+    const kids = Math.max(1, kidDrafts.length);
+    const giftLines = Array.isArray(giftDraft?.lineItems) ? giftDraft?.lineItems.length : 0;
+    rows.push({
+      id: d.id,
+      createdAt: iso(x.createdAt),
+      updatedAt: iso(x.updatedAt),
+      stage,
+      step,
+      kids,
+      boxPriceCents: priceForKids(kids),
+      addOnCents: lines.filter((l) => l.addOn).reduce((s, l) => s + l.unitCents * Math.max(1, l.qty), 0),
+      answers: answered ? guestAnswers(guest) : NO_ANSWERS,
+      source: guestSourceLabel(x.entry),
+      landingPath: str(x.entry?.landingPath),
+      lastPath: str(x.path),
+      converted: Boolean(str(x.convertedUid)),
+      convertedAt: iso(x.convertedAt),
+      leadAt: iso(x.lastLeadAt),
+      resumeCount: num(x.resumeCount) ?? 0,
+      saveCount: num(x.saveCount) ?? 0,
+      gift: giftDraft
+        ? {
+            kind: str(gift?.kind),
+            giverName: str(giftDraft.form?.giverName),
+            recipientEmail: str(giftDraft.form?.recipientEmail),
+            items: giftLines,
+          }
+        : null,
+      lines,
+    });
+  }
+  rows.sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
+  return rows.slice(0, GUEST_ROW_LIMIT);
+}
+
 export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Promise<BoxesDashboard> {
-  const [configSnap, hhSnap, ordersSnap, invitesSnap, itemsSnap, countersSnap, draftsSnap, childrenSnap, receivedSnap] =
-    await Promise.all([
+  const [
+    configSnap,
+    hhSnap,
+    ordersSnap,
+    invitesSnap,
+    itemsSnap,
+    countersSnap,
+    draftsSnap,
+    childrenSnap,
+    receivedSnap,
+    guestSnap,
+  ] = await Promise.all([
       db.doc(`config/${HOLIDAY_ID}`).get(),
       db.collection('households').get(),
       db.collectionGroup('orders').get(),
@@ -149,6 +324,10 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       db.collectionGroup('boxDrafts').get(),
       db.collectionGroup('children').get(),
       db.collectionGroup('receivedGifts').get(),
+      db
+        .collection('guestSessions')
+        .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'resumeCount', 'saveCount')
+        .get(),
     ]);
   const config = configSnap.data() ?? {};
   const listCents = num(config.boxPriceCents) ?? DEFAULT_BOX_CENTS;
@@ -182,10 +361,29 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   }
   const userRefs = [...userIds].map((uid) => db.doc(`users/${uid}`));
   const userSnaps = userRefs.length ? await db.getAll(...userRefs) : [];
-  const users = new Map<string, { email: string | null; name: string | null }>();
+  // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
+  const guestAnswersByUid = new Map<string, DashAnswers>();
+  for (const d of guestSnap.docs) {
+    const x = d.data();
+    const uid = str(x.convertedUid);
+    const guest = x.snapshot?.guest;
+    if (uid && guest && guestAnsweredSliders(guest)) guestAnswersByUid.set(uid, guestAnswers(guest));
+  }
+  const users = new Map<string, { email: string | null; name: string | null; answers: DashAnswers }>();
   for (const s of userSnaps) {
     const x = s.data() ?? {};
-    users.set(s.id, { email: str(x.email), name: str(x.displayName) });
+    const last = x.lastBoxAnswers ?? {};
+    const fromGuest = guestAnswersByUid.get(s.id) ?? NO_ANSWERS;
+    const hanukkah = score(last.familiarityScore) ?? fromGuest.hanukkah;
+    users.set(s.id, {
+      email: str(x.email),
+      name: str(x.displayName),
+      answers: {
+        hanukkah,
+        hanukkahLevel: hanukkah == null ? str(last.familiarityLevel) ?? str(x.familiarityLevel) : null,
+        jewish: score(last.practiceFrequencyScore) ?? fromGuest.jewish,
+      },
+    });
   }
 
   const drafts = new Map<string, DocumentData>();
@@ -209,6 +407,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       name: u?.name ?? (email ? email.split('@')[0] : null) ?? str(h.name),
       email,
       test: isTest(email, u?.name),
+      answers: u?.answers ?? NO_ANSWERS,
       kids: Math.max(1, childNames.size),
       childNames,
       cardOnFile: Boolean(h.cardOnFileAt || h.stripeDefaultPaymentMethodId),
@@ -291,6 +490,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(o.updatedAt) ?? iso(o.committedAt) ?? iso(o.createdAt),
       committedAt: iso(o.committedAt),
       attribution: attributionLabel(o.attribution),
+      answers: c.answers,
       lines,
     });
   }
@@ -324,9 +524,12 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(dr.updatedAt),
       committedAt: null,
       attribution: null,
+      answers: c.answers,
       lines,
     });
   }
+
+  const guests = buildGuestRows(guestSnap.docs, items, priceForKids);
 
   const giftHeld = new Map<string, number>();
   for (const { lines } of giftOrders.values()) addLines(giftHeld, lines);
@@ -360,6 +563,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       giverEmail: str(g.giverEmail),
       recipientEmail: str(g.recipientEmail),
       recipientName: recipient?.name ?? null,
+      recipientAnswers: recipient?.answers ?? NO_ANSWERS,
       kind: isBox ? 'box' : 'credit',
       amountCents: num(g.creditCents),
       paid,
@@ -432,9 +636,11 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       orders: ordersSnap.size,
       giftInvites: invitesSnap.size,
       catalogItems: items.size,
+      guestSessions: guestSnap.size,
     },
     mismatches,
     boxes,
+    guests,
     gifts,
     inventory,
   };

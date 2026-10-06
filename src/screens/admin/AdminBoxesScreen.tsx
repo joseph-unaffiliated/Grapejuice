@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { isOpsAdmin } from '../../constants/admin';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { useViewportPinnedHeight } from '../../components/storefront/storefrontViewport';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
@@ -23,8 +24,10 @@ import {
   DASHBOARD_REFRESH_MS,
   useBoxesDashboard,
   type BoxesDashboard,
+  type DashAnswers,
   type DashBox,
   type DashGift,
+  type DashGuest,
   type DashInventoryRow,
   type DashLine,
 } from '../../services/admin/boxesDashboard';
@@ -66,6 +69,49 @@ function ago(isoStr: string, now: number): string {
   if (s < 60) return `${s}s ago`;
   return `${Math.round(s / 60)}m ago`;
 }
+
+const LEVEL_SCORE: Record<string, number> = { minimal: 15, moderate: 50, 'all-in': 85 };
+const LEVEL_LABEL: Record<string, string> = { minimal: 'Minimal', moderate: 'Moderate', 'all-in': 'All-in' };
+const ANSWERS_CAPTION =
+  'Hanukkah = "How has Hanukkah looked in recent years?" (0 we don’t really do it, 100 all eight nights). Jewish = "How often do you do Jewish stuff?" (0 almost never, 100 every day). Older accounts only saved a Hanukkah level; — means not answered.';
+
+/** Onboarding slider columns, shared by every table. */
+function answerColumns<T>(get: (row: T) => DashAnswers): Column<T>[] {
+  return [
+    {
+      label: 'Hanukkah',
+      width: 80,
+      align: 'right',
+      cell: (r) => {
+        const a = get(r);
+        if (a.hanukkah != null) return String(a.hanukkah);
+        return a.hanukkahLevel ? LEVEL_LABEL[a.hanukkahLevel] ?? a.hanukkahLevel : '—';
+      },
+      sort: (r) => {
+        const a = get(r);
+        return a.hanukkah ?? (a.hanukkahLevel ? LEVEL_SCORE[a.hanukkahLevel] ?? null : null);
+      },
+    },
+    {
+      label: 'Jewish',
+      width: 65,
+      align: 'right',
+      cell: (r) => {
+        const v = get(r).jewish;
+        return v == null ? '—' : String(v);
+      },
+      sort: (r) => get(r).jewish,
+    },
+  ];
+}
+
+const GUEST_STAGE_LABEL: Record<DashGuest['stage'], string> = {
+  started: 'Started onboarding',
+  answered: 'Answered questions',
+  built: 'Built a box',
+  revealed: 'Saw their box',
+  gift: 'Gift draft only',
+};
 
 function statusLabel(s: string): string {
   if (s === 'pending') return 'Pending (unpaid)';
@@ -432,6 +478,7 @@ function BoxesSection({
   const columns: Column<DashBox>[] = [
     { label: 'Customer', width: 200, cell: (b) => <Who name={b.customer} email={b.email} styles={styles} />, sort: (b) => (b.customer ?? b.email ?? '').toLowerCase() },
     { label: 'Kids', width: 50, align: 'right', cell: (b) => String(b.kids), sort: (b) => b.kids },
+    ...answerColumns<DashBox>((b) => b.answers),
     { label: 'Status', width: 120, cell: (b) => statusLabel(b.status), sort: (b) => b.status },
     { label: 'Card', width: 50, cell: (b) => (b.cardOnFile ? 'Yes' : 'No'), sort: (b) => (b.cardOnFile ? 1 : 0) },
     { label: 'Box price', width: 80, align: 'right', cell: (b) => money(b.boxPriceCents), sort: (b) => b.boxPriceCents },
@@ -513,7 +560,7 @@ function BoxesSection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled.`}
+        {`${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. ${ANSWERS_CAPTION}`}
       </Text>
     </View>
   );
@@ -553,6 +600,7 @@ function GiftsSection({
   const columns: Column<DashGift>[] = [
     { label: 'Giver', width: 190, cell: (g) => <Who name={g.giver} email={g.giverEmail} styles={styles} />, sort: (g) => (g.giver ?? g.giverEmail ?? '').toLowerCase() },
     { label: 'Recipient', width: 190, cell: (g) => <Who name={g.recipientName} email={g.recipientEmail} styles={styles} />, sort: (g) => (g.recipientName ?? g.recipientEmail ?? '').toLowerCase() },
+    ...answerColumns<DashGift>((g) => g.recipientAnswers),
     { label: 'Kind', width: 110, cell: (g) => (g.kind === 'box' ? `Box (${g.lines.length} items)` : 'Credit'), sort: (g) => g.kind },
     { label: 'Amount', width: 80, align: 'right', cell: (g) => money(g.amountCents), sort: (g) => g.amountCents },
     { label: 'Paid', width: 50, cell: (g) => (g.paid ? 'Yes' : 'No'), sort: (g) => (g.paid ? 1 : 0) },
@@ -596,7 +644,141 @@ function GiftsSection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${data.gifts.length} gift invites. Unpaid rows are gift checkouts that were started but never paid. Dot: green checked out, blue paid and waiting on the recipient, grey unpaid.`}
+        {`${rows.length} of ${data.gifts.length} gift invites. Unpaid rows are gift checkouts that were started but never paid. Dot: green checked out, blue paid and waiting on the recipient, grey unpaid. Gift drafts abandoned before checkout by signed-out visitors are on the Anonymous tab. Hanukkah and Jewish are the recipient's answers once they've signed up. ${ANSWERS_CAPTION}`}
+      </Text>
+    </View>
+  );
+}
+
+type GuestSignupFilter = 'open' | 'converted' | 'all';
+type GuestStageFilter = 'any' | 'box' | 'answered' | 'started' | 'gift';
+
+function AnonymousSection({
+  guests,
+  totalSessions,
+  inventoryById,
+  styles,
+  colors,
+}: {
+  guests: DashGuest[];
+  totalSessions: number;
+  inventoryById: Map<string, InventoryView>;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const [signup, setSignup] = useState<GuestSignupFilter>('open');
+  const [stage, setStage] = useState<GuestStageFilter>('any');
+  const [lead, setLead] = useState<YesNoAny>('any');
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const rows = useMemo(
+    () =>
+      guests.filter((g) => {
+        if (signup === 'open' && g.converted) return false;
+        if (signup === 'converted' && !g.converted) return false;
+        if (stage === 'box' && g.stage !== 'built' && g.stage !== 'revealed') return false;
+        if (stage === 'answered' && g.stage !== 'answered') return false;
+        if (stage === 'started' && g.stage !== 'started') return false;
+        if (stage === 'gift' && !g.gift) return false;
+        if (lead === 'yes' && !g.leadAt) return false;
+        if (lead === 'no' && g.leadAt) return false;
+        return true;
+      }),
+    [guests, signup, stage, lead],
+  );
+
+  const columns: Column<DashGuest>[] = [
+    {
+      label: 'Visitor',
+      width: 150,
+      cell: (g) => <Who name={g.id.slice(0, 8)} email={g.source} styles={styles} />,
+      sort: (g) => g.source ?? '',
+    },
+    { label: 'Stage', width: 140, cell: (g) => GUEST_STAGE_LABEL[g.stage], sort: (g) => g.stage },
+    { label: 'Kids', width: 50, align: 'right', cell: (g) => String(g.kids), sort: (g) => g.kids },
+    ...answerColumns<DashGuest>((g) => g.answers),
+    { label: 'Items', width: 55, align: 'right', cell: (g) => (g.lines.length ? String(g.lines.length) : '—'), sort: (g) => g.lines.length },
+    {
+      label: 'Est. total',
+      width: 85,
+      align: 'right',
+      cell: (g) => (g.lines.length ? money(g.boxPriceCents + g.addOnCents) : '—'),
+      sort: (g) => (g.lines.length ? g.boxPriceCents + g.addOnCents : null),
+    },
+    { label: 'Email given', width: 90, cell: (g) => (g.leadAt ? when(g.leadAt) : '—'), sort: (g) => (g.leadAt ? Date.parse(g.leadAt) : null) },
+    { label: 'Signed up', width: 75, cell: (g) => (g.converted ? 'Yes' : 'No'), sort: (g) => (g.converted ? 1 : 0) },
+    { label: 'Started', width: 120, cell: (g) => when(g.createdAt), sort: (g) => (g.createdAt ? Date.parse(g.createdAt) : null) },
+    { label: 'Last active', width: 120, cell: (g) => when(g.updatedAt), sort: (g) => (g.updatedAt ? Date.parse(g.updatedAt) : null) },
+  ];
+
+  return (
+    <View style={styles.sectionBody}>
+      <ChipGroup<GuestSignupFilter>
+        value={signup}
+        onChange={setSignup}
+        styles={styles}
+        options={[
+          ['open', 'Not signed up'],
+          ['converted', 'Signed up later'],
+          ['all', 'Everyone'],
+        ]}
+      />
+      <View style={styles.chipRow}>
+        <ChipGroup<GuestStageFilter>
+          value={stage}
+          onChange={setStage}
+          styles={styles}
+          options={[
+            ['any', 'Stage: any'],
+            ['box', 'Has a box'],
+            ['answered', 'Answered, no box'],
+            ['started', 'Started onboarding'],
+            ['gift', 'Gift drafts'],
+          ]}
+        />
+        <ChipGroup<YesNoAny> value={lead} onChange={setLead} styles={styles} options={[['any', 'Email: any'], ['yes', 'Email given'], ['no', 'No email']]} />
+      </View>
+      <SortTable<DashGuest>
+        columns={columns}
+        rows={rows}
+        rowKey={(g) => g.id}
+        rowTone={(g) => (g.converted ? 'success' : g.leadAt ? 'info' : g.stage === 'built' || g.stage === 'revealed' ? 'warning' : undefined)}
+        openKey={openId}
+        onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
+        renderDetail={(g) => (
+          <View style={styles.detailInner}>
+            {g.lines.length ? <LineItems lines={g.lines} inventoryById={inventoryById} styles={styles} colors={colors} /> : null}
+            <Facts
+              styles={styles}
+              facts={[
+                ['Visitor ID', g.id],
+                ['Onboarding step', g.step ?? '—'],
+                ['Box price', `${money(g.boxPriceCents)} (${g.kids} kid${g.kids === 1 ? '' : 's'})`],
+                ['Add-ons', money(g.addOnCents)],
+                ['Source', g.source ?? '—'],
+                ['Landing page', g.landingPath ?? '—'],
+                ['Last page', g.lastPath ?? '—'],
+                ['Signed up', g.converted ? when(g.convertedAt) : 'No'],
+                [
+                  'Gift draft',
+                  g.gift
+                    ? [g.gift.kind, g.gift.giverName && `from ${g.gift.giverName}`, g.gift.recipientEmail && `to ${g.gift.recipientEmail}`, g.gift.items ? `${g.gift.items} items` : null]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : '—',
+                ],
+                ['Resumed from email', g.resumeCount ? `${g.resumeCount}×` : '—'],
+                ['Saves', String(g.saveCount)],
+              ]}
+            />
+          </View>
+        )}
+        emptyMessage="No anonymous sessions match these filters."
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>
+        {`${rows.length} of ${guests.length} signed-out visitors who started a box or gift (${totalSessions} saved sessions; browsing with only favorites is left out, sessions expire after 60 days). Visitor is the first characters of the browser's visitor ID, with where they came from underneath. Email given = they entered an email we matched through Retention. Signed up later = they made an account, so their box also appears on the Boxes tab. Dot: green signed up, blue email given, amber built a box but neither. Test visits can't be told apart here. ${ANSWERS_CAPTION}`}
       </Text>
     </View>
   );
@@ -688,7 +870,7 @@ function InventorySection({
   );
 }
 
-type Tab = 'boxes' | 'gifts' | 'inventory';
+type Tab = 'boxes' | 'anonymous' | 'gifts' | 'inventory';
 
 /** Ops dashboard of Hanukkah boxes, gifts and inventory holds — admin-gated, refreshes every minute. */
 export function AdminBoxesScreen() {
@@ -699,6 +881,10 @@ export function AdminBoxesScreen() {
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
   const { data, error, refreshing, refresh } = useBoxesDashboard(allowed);
+  const hostRef = useRef<View>(null);
+  // Stack screens on web grow to content height; pin to the viewport so the ScrollView scrolls (iOS especially).
+  const pinnedHeight = useViewportPinnedHeight(hostRef, true);
+  const hostStyle = [styles.host, pinnedHeight != null ? { height: pinnedHeight, maxHeight: pinnedHeight } : null];
   const [tab, setTab] = useState<Tab>('boxes');
   const [hideTests, setHideTests] = useState(true);
   const [now, setNow] = useState(Date.now());
@@ -720,34 +906,38 @@ export function AdminBoxesScreen() {
 
   if (!allowed) {
     return (
-      <WebContentPanel {...panelProps}>
-        <View style={styles.centered}>
-          <Text style={styles.title}>Admin only</Text>
-          <Text style={styles.hint}>This page is limited to allowlisted ops accounts.</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backLink}>← Back</Text>
-          </TouchableOpacity>
-        </View>
-      </WebContentPanel>
+      <View ref={hostRef} style={hostStyle}>
+        <WebContentPanel {...panelProps}>
+          <View style={styles.centered}>
+            <Text style={styles.title}>Admin only</Text>
+            <Text style={styles.hint}>This page is limited to allowlisted ops accounts.</Text>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.backLink}>← Back</Text>
+            </TouchableOpacity>
+          </View>
+        </WebContentPanel>
+      </View>
     );
   }
 
   if (!data) {
     return (
-      <WebContentPanel {...panelProps}>
-        <View style={styles.centered}>
-          {error ? (
-            <>
-              <Text style={styles.error}>{error}</Text>
-              <TouchableOpacity onPress={() => void refresh()}>
-                <Text style={styles.backLink}>Try again</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <BrandLoadingMark color={colors.brand} />
-          )}
-        </View>
-      </WebContentPanel>
+      <View ref={hostRef} style={hostStyle}>
+        <WebContentPanel {...panelProps}>
+          <View style={styles.centered}>
+            {error ? (
+              <>
+                <Text style={styles.error}>{error}</Text>
+                <TouchableOpacity onPress={() => void refresh()}>
+                  <Text style={styles.backLink}>Try again</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <BrandLoadingMark color={colors.brand} />
+            )}
+          </View>
+        </WebContentPanel>
+      </View>
     );
   }
 
@@ -760,99 +950,124 @@ export function AdminBoxesScreen() {
   const negAfterDrafts = inventory.filter((i) => i.remainingAfterDrafts != null && i.remainingAfterDrafts < 0);
   const testBoxes = data.boxes.filter((b) => b.test && !b.playthrough).length;
   const testGifts = data.gifts.filter((g) => g.test && !g.playthrough).length;
+  const openGuests = data.guests.filter((g) => !g.converted);
+  const guestBoxes = openGuests.filter((g) => g.stage === 'built' || g.stage === 'revealed');
+  const guestLeads = openGuests.filter((g) => g.leadAt);
   const liveRevenue = liveOrders.reduce((s, b) => s + (b.totalCents ?? 0), 0);
   const draftValue = openDrafts.reduce((s, b) => s + (b.subtotalCents ?? 0), 0);
 
   return (
-    <WebContentPanel {...panelProps}>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} style={styles.backWrap}>
-          <Text style={styles.backLink}>← Account</Text>
-        </TouchableOpacity>
-        <View style={styles.headerBlock}>
-          <Text style={styles.title}>Boxes and gifts</Text>
-          <Text style={styles.subtitle}>
-            {`${data.counts.households} households · box lock ${data.lockAt ? when(data.lockAt) : 'not set'}`}
-          </Text>
-          <Text style={styles.meta}>
-            {refreshing
-              ? 'Updating…'
-              : `Updated ${ago(data.generatedAt, now)} · refreshes every ${DASHBOARD_REFRESH_MS / 60_000} min`}
-            {error ? ` · last refresh failed: ${error}` : ''}
-          </Text>
-          <View style={[styles.chipRow, styles.headerChips]}>
-            <Chip label="Refresh now" onPress={() => void refresh()} styles={styles} />
-            <Chip
-              label={`Hide tests · ${testBoxes} boxes, ${testGifts} gifts`}
-              active={hideTests}
-              onPress={() => setHideTests((v) => !v)}
+    <View ref={hostRef} style={hostStyle}>
+      <WebContentPanel {...panelProps}>
+        <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} style={styles.backWrap}>
+            <Text style={styles.backLink}>← Account</Text>
+          </TouchableOpacity>
+          <View style={styles.headerBlock}>
+            <Text style={styles.title}>Boxes and gifts</Text>
+            <Text style={styles.subtitle}>
+              {`${data.counts.households} households · box lock ${data.lockAt ? when(data.lockAt) : 'not set'}`}
+            </Text>
+            <Text style={styles.meta}>
+              {refreshing
+                ? 'Updating…'
+                : `Updated ${ago(data.generatedAt, now)} · refreshes every ${DASHBOARD_REFRESH_MS / 60_000} min`}
+              {error ? ` · last refresh failed: ${error}` : ''}
+            </Text>
+            <View style={[styles.chipRow, styles.headerChips]}>
+              <Chip label="Refresh now" onPress={() => void refresh()} styles={styles} />
+              <Chip
+                label={`Hide tests · ${testBoxes} boxes, ${testGifts} gifts`}
+                active={hideTests}
+                onPress={() => setHideTests((v) => !v)}
+                styles={styles}
+              />
+            </View>
+          </View>
+
+          {data.mismatches.length ? (
+            <View style={styles.alert}>
+              <Text style={styles.alertTitle}>Inventory counters disagree with this snapshot</Text>
+              <Text style={styles.hint}>
+                {data.mismatches.map((m) => `${m.name}: computed ${m.computed}, server counter ${m.counter}`).join(' · ')}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.sectionDivider} />
+          <View style={styles.stats}>
+            <Stat value={String(liveOrders.length)} label={`Live box orders · ${money(liveRevenue)}`} tone="info" styles={styles} colors={colors} />
+            <Stat value={String(noCard.length)} label="Live orders and drafts with no card" tone={noCard.length ? 'warning' : undefined} styles={styles} colors={colors} />
+            <Stat value={String(openDrafts.length)} label={`Open drafts · ~${money(draftValue)} before ship/tax`} styles={styles} colors={colors} />
+            <Stat
+              value={String(guestBoxes.length)}
+              label={`Anonymous boxes (not signed up) · ${openGuests.length - guestBoxes.length} more started, ${guestLeads.length} gave an email`}
               styles={styles}
+              colors={colors}
+            />
+            <Stat
+              value={`${realGifts.filter((g) => g.paid).length} / ${realGifts.filter((g) => g.claimed).length}`}
+              label="Gifts paid / claimed"
+              styles={styles}
+              colors={colors}
+            />
+            <Stat
+              value={String(atZero.length)}
+              label={`Items at or below zero · ${negAfterDrafts.length} negative if drafts commit`}
+              tone={atZero.length || negAfterDrafts.length ? 'danger' : 'success'}
+              styles={styles}
+              colors={colors}
             />
           </View>
-        </View>
 
-        {data.mismatches.length ? (
-          <View style={styles.alert}>
-            <Text style={styles.alertTitle}>Inventory counters disagree with this snapshot</Text>
-            <Text style={styles.hint}>
-              {data.mismatches.map((m) => `${m.name}: computed ${m.computed}, server counter ${m.counter}`).join(' · ')}
-            </Text>
+          <View style={styles.sectionDivider} />
+          <View style={styles.chipRow}>
+            <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
+            <Chip label={`Anonymous (${openGuests.length})`} active={tab === 'anonymous'} onPress={() => setTab('anonymous')} styles={styles} />
+            <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
+            <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
           </View>
-        ) : null}
 
-        <View style={styles.sectionDivider} />
-        <View style={styles.stats}>
-          <Stat value={String(liveOrders.length)} label={`Live box orders · ${money(liveRevenue)}`} tone="info" styles={styles} colors={colors} />
-          <Stat value={String(noCard.length)} label="Live orders and drafts with no card" tone={noCard.length ? 'warning' : undefined} styles={styles} colors={colors} />
-          <Stat value={String(openDrafts.length)} label={`Open drafts · ~${money(draftValue)} before ship/tax`} styles={styles} colors={colors} />
-          <Stat
-            value={`${realGifts.filter((g) => g.paid).length} / ${realGifts.filter((g) => g.claimed).length}`}
-            label="Gifts paid / claimed"
-            styles={styles}
-            colors={colors}
-          />
-          <Stat
-            value={String(atZero.length)}
-            label={`Items at or below zero · ${negAfterDrafts.length} negative if drafts commit`}
-            tone={atZero.length || negAfterDrafts.length ? 'danger' : 'success'}
-            styles={styles}
-            colors={colors}
-          />
-        </View>
-
-        <View style={styles.sectionDivider} />
-        <View style={styles.chipRow}>
-          <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
-          <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
-          <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
-        </View>
-
-        {tab === 'boxes' ? (
-          <>
-            <Text style={styles.section}>Boxes</Text>
-            <BoxesSection data={data} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
-          </>
-        ) : null}
-        {tab === 'gifts' ? (
-          <>
-            <Text style={styles.section}>Gifts</Text>
-            <GiftsSection data={data} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
-          </>
-        ) : null}
-        {tab === 'inventory' ? (
-          <>
-            <Text style={styles.section}>Inventory against holds and drafts</Text>
-            <InventorySection inventory={inventory} styles={styles} colors={colors} />
-          </>
-        ) : null}
-      </ScrollView>
-    </WebContentPanel>
+          {tab === 'boxes' ? (
+            <>
+              <Text style={styles.section}>Boxes</Text>
+              <BoxesSection data={data} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+            </>
+          ) : null}
+          {tab === 'anonymous' ? (
+            <>
+              <Text style={styles.section}>Anonymous boxes</Text>
+              <AnonymousSection
+                guests={data.guests}
+                totalSessions={data.counts.guestSessions}
+                inventoryById={inventoryById}
+                styles={styles}
+                colors={colors}
+              />
+            </>
+          ) : null}
+          {tab === 'gifts' ? (
+            <>
+              <Text style={styles.section}>Gifts</Text>
+              <GiftsSection data={data} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+            </>
+          ) : null}
+          {tab === 'inventory' ? (
+            <>
+              <Text style={styles.section}>Inventory against holds and drafts</Text>
+              <InventorySection inventory={inventory} styles={styles} colors={colors} />
+            </>
+          ) : null}
+        </ScrollView>
+      </WebContentPanel>
+    </View>
   );
 }
 
 function createStyles(colors: SemanticColors, isDesktop: boolean) {
   return StyleSheet.create({
-    panel: { flex: 1, width: '100%', backgroundColor: colors.bgPrimary },
+    host: { flex: 1, width: '100%', minHeight: 0, backgroundColor: colors.bgPrimary },
+    panel: { flex: 1, width: '100%', minHeight: 0, backgroundColor: colors.bgPrimary },
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
       padding: spacing.lg,
