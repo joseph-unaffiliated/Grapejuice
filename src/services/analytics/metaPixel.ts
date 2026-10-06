@@ -34,7 +34,7 @@ export type GiftStepEvent =
   | 'GiftSignupPrompt'
   | 'GiftCustomize';
 
-export type MetaCustomEvent = 'PreRegister' | 'ResumeBox' | GiftStepEvent;
+export type MetaCustomEvent = 'PreRegister' | 'ResumeBox' | 'BoxBuilt' | GiftStepEvent;
 
 export type MetaEventParams = {
   value?: number;

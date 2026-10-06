@@ -1867,11 +1867,11 @@ export const finalizePilotGiftPayment = onCall(async (request) => {
 
 /**
  * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
- * per account (`reg_<uid>`); PreRegister reuses the browser's event id for dedupe.
+ * per account (`reg_<uid>`); PreRegister and BoxBuilt reuse the browser's event id for dedupe.
  */
 export const trackMetaEvent = onCall(async (request) => {
   const eventName = request.data?.eventName;
-  if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister') {
+  if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister' && eventName !== 'BoxBuilt') {
     throw new HttpsError('invalid-argument', 'Unsupported event.');
   }
   const context = metaContextFromCallable(request);
@@ -1904,7 +1904,9 @@ export const trackMetaEvent = onCall(async (request) => {
     typeof request.data?.contentName === 'string' ? request.data.contentName.trim().slice(0, 100) : '';
   await sendMetaEvent({
     eventName,
-    eventId: context.eventId ?? `prereg_${randomBytes(8).toString('hex')}`,
+    eventId:
+      context.eventId ??
+      `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${randomBytes(8).toString('hex')}`,
     context,
     user: { email, externalId: uid },
     ...(contentName ? { customData: { content_name: contentName } } : {}),

@@ -1461,12 +1461,12 @@ exports.finalizePilotGiftPayment = (0, sentry_1.onCall)(async (request) => {
 });
 /**
  * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
- * per account (`reg_<uid>`); PreRegister reuses the browser's event id for dedupe.
+ * per account (`reg_<uid>`); PreRegister and BoxBuilt reuse the browser's event id for dedupe.
  */
 exports.trackMetaEvent = (0, sentry_1.onCall)(async (request) => {
     var _a, _b, _c, _d, _e, _f;
     const eventName = (_a = request.data) === null || _a === void 0 ? void 0 : _a.eventName;
-    if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister') {
+    if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister' && eventName !== 'BoxBuilt') {
         throw new sentry_1.HttpsError('invalid-argument', 'Unsupported event.');
     }
     const context = (0, metaCapi_1.metaContextFromCallable)(request);
@@ -1498,7 +1498,7 @@ exports.trackMetaEvent = (0, sentry_1.onCall)(async (request) => {
         return { ok: true };
     }
     const contentName = typeof ((_e = request.data) === null || _e === void 0 ? void 0 : _e.contentName) === 'string' ? request.data.contentName.trim().slice(0, 100) : '';
-    await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_f = context.eventId) !== null && _f !== void 0 ? _f : `prereg_${(0, crypto_1.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
+    await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_f = context.eventId) !== null && _f !== void 0 ? _f : `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${(0, crypto_1.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
     return { ok: true };
 });
 /** Gifts the signed-in user has purchased (giver side). */

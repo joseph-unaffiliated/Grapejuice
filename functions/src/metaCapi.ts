@@ -20,7 +20,8 @@ export type MetaServerEventName =
   | 'Purchase'
   | 'AddPaymentInfo'
   | 'CompleteRegistration'
-  | 'PreRegister';
+  | 'PreRegister'
+  | 'BoxBuilt';
 
 /** Browser + request context captured at the callable (or copied from Stripe metadata). */
 export type MetaClientContext = {

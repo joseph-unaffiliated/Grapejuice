@@ -48,6 +48,7 @@ import {
 } from './webBrowserHistory';
 import { DEFAULT_STOREFRONT_CATEGORY } from '../constants/storefrontCategories';
 import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
+import { trackBoxBuilt } from '../services/analytics/metaServerEvents';
 
 type Props = {
   onComplete?: () => void;
@@ -347,6 +348,7 @@ export function OnboardingStack({
         setFamiliarityScore(score);
         setLineItems(items);
         goToStep('building');
+        trackBoxBuilt(items.length);
         // Fail-open Rav pass after baseline is visible to the loader.
         try {
           items = await runRavPass(items, profiles);
@@ -416,6 +418,7 @@ export function OnboardingStack({
       setFamiliarity(level);
       setLineItems(remappedItems);
       goToStep('building');
+      trackBoxBuilt(remappedItems.length);
 
       try {
         remappedItems = await runRavPass(remappedItems, savedKids);

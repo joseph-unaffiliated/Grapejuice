@@ -8,7 +8,7 @@ import {
   type MetaServerContext,
 } from './metaPixel';
 
-type ServerEventName = 'CompleteRegistration' | 'PreRegister';
+type ServerEventName = 'CompleteRegistration' | 'PreRegister' | 'BoxBuilt';
 
 /** Conversions API copy of a browser event (same event id → Meta dedupes). Never throws. */
 function sendServerEvent(
@@ -58,4 +58,14 @@ export function trackPreRegister(interestKey: string): void {
   const eventId = newMetaEventId('prereg');
   trackMetaCustom('PreRegister', { content_name: interestKey }, eventId);
   sendServerEvent('PreRegister', metaServerContext(eventId), interestKey);
+}
+
+/**
+ * Box builder produced a curated box (guest or signed in). Quiz-built boxes never fire
+ * AddToCart, so this is the only ad-side signal that a visitor got as far as a box.
+ */
+export function trackBoxBuilt(numItems: number): void {
+  const eventId = newMetaEventId('boxbuilt');
+  trackMetaCustom('BoxBuilt', { content_name: 'Hanukkah box', num_items: numItems }, eventId);
+  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box');
 }
