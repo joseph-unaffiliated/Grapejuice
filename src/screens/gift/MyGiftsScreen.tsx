@@ -83,10 +83,11 @@ function GiftCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const isBox = gift.kind === 'box';
-  const items = isBox ? (gift.lineItems ?? []) : [];
   const available = isBox && gift.status === 'available';
   const accepted = isBox && gift.status === 'accepted';
   const shipping = accepted && Boolean(gift.checkoutOrderId);
+  // Unopened and surprise boxes stay sealed here; "Open gift box" is where items are revealed.
+  const items = shipping && !gift.surprise ? (gift.lineItems ?? []) : [];
   const needsAddress = accepted && !gift.checkoutOrderId;
   const converted = gift.status === 'converted_to_credit';
   const claimed = formatGiftDate(gift.claimedAt);

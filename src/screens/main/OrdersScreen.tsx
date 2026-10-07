@@ -100,7 +100,9 @@ function OrderCard({
   const gift = order.giftInvite;
   const isPurchaseOrder = order.kind === 'ala_carte';
   const { box, alaCarte } = pilot
-    ? isPurchaseOrder
+    ? pilot.giftSurprise
+      ? { box: [] as BoxLineItem[], alaCarte: [] as BoxLineItem[] }
+      : isPurchaseOrder
       ? { box: [] as BoxLineItem[], alaCarte: pilot.lineItems }
       : partitionLineItems(pilot.lineItems, catalog)
     : { box: [], alaCarte: [] };

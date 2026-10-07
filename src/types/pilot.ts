@@ -322,6 +322,8 @@ export type PilotOrder = {
   /** Set on marketplace / received-gift checkouts; absent on classic box orders. */
   orderType?: PilotOrderType;
   giftInviteId?: string;
+  /** Recipient chose "Keep it a surprise": don't show them the items. */
+  giftSurprise?: boolean;
   lineItems: BoxLineItem[];
   totalCents: number;
   /** Merchandise subtotal (box + chargeable lines) before shipping/tax/credits. */
@@ -413,6 +415,8 @@ export type ReceivedGift = {
   lineItems?: BoxLineItem[];
   /** Ship-to the giver entered, if any (prefills the recipient's checkout). */
   giverShippingAddress?: ShippingAddress;
+  /** Recipient chose "Keep it a surprise" at checkout. */
+  surprise?: boolean;
   status: ReceivedGiftStatus;
   claimedAt: string;
   viewedAt?: string;

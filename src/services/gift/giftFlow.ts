@@ -96,7 +96,7 @@ export async function createReceivedGiftCheckout(
   giftInviteId: string,
   shippingAddress: import('../../types/pilot').ShippingAddress,
   lineItems: BoxLineItem[],
-  options?: { skipShipStation?: boolean }
+  options?: { skipShipStation?: boolean; surprise?: boolean }
 ): Promise<CreateReceivedGiftCheckoutResult> {
   if (!functions) throw new Error('Firebase Functions is not configured.');
   const address = {
@@ -114,6 +114,7 @@ export async function createReceivedGiftCheckout(
       shippingAddress: typeof address;
       lineItems: BoxLineItem[];
       skipShipStation?: boolean;
+      surprise?: boolean;
     },
     CreateReceivedGiftCheckoutResult
   >(functions, 'createReceivedGiftCheckout');
@@ -122,6 +123,7 @@ export async function createReceivedGiftCheckout(
     shippingAddress: address,
     lineItems,
     skipShipStation: options?.skipShipStation,
+    ...(options?.surprise ? { surprise: true } : {}),
   });
   return data;
 }

@@ -365,14 +365,16 @@ async function fulfillMarketplaceOrder(
   }
   if (email.includes('@') && !fresh.marketplaceEmailSentAt) {
     const lineItems = (order.lineItems as MarketplaceLineItem[]) ?? [];
-    const itemSummary = lineItems
-      .map((li) => {
-        const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
-        const name = String(li.label ?? li.itemId ?? 'Item');
-        return qty > 1 ? `${qty}× ${name}` : name;
-      })
-      .filter(Boolean)
-      .join(', ');
+    const itemSummary = fresh.giftSurprise
+      ? 'A surprise Hanukkah gift box'
+      : lineItems
+          .map((li) => {
+            const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
+            const name = String(li.label ?? li.itemId ?? 'Item');
+            return qty > 1 ? `${qty}× ${name}` : name;
+          })
+          .filter(Boolean)
+          .join(', ');
     try {
       // Prefer dedicated marketplace template; fall back to box template only if unset
       // (still pass orderType so Liquid can branch once CIO is updated).
@@ -2123,6 +2125,7 @@ type ReceivedGiftRow = {
   prepaidAddOnCents?: number;
   lineItems: unknown[];
   giverShippingAddress?: ShippingAddress;
+  surprise?: boolean;
   status: string;
   claimedAt: string;
   viewedAt?: string;
@@ -2148,6 +2151,7 @@ function mapReceivedGiftDoc(docId: string, data: FirebaseFirestore.DocumentData)
       data.giverShippingAddress && typeof data.giverShippingAddress === 'object'
         ? (data.giverShippingAddress as ShippingAddress)
         : undefined,
+    surprise: data.surprise === true ? true : undefined,
     status: String(data.status ?? 'available'),
     claimedAt: String(data.claimedAt ?? ''),
     viewedAt: data.viewedAt ? String(data.viewedAt) : undefined,
@@ -2420,6 +2424,7 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
     };
     if (totalCents === 0) orderPayload.confirmedAt = FieldValue.serverTimestamp();
     if (skipShipStation) orderPayload.playthrough = true;
+    if (request.data?.surprise === true) orderPayload.giftSurprise = true;
     await orderRef.set(orderPayload);
 
     await giftRef.update({
@@ -2427,6 +2432,7 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
       viewedAt: gift.viewedAt ?? now,
       updatedAt: now,
       checkoutOrderId: orderRef.id,
+      surprise: request.data?.surprise === true,
     });
     if (!skipShipStation) {
       await recomputeBoxAllocationsLogged('createReceivedGiftCheckout', {

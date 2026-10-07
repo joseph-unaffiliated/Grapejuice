@@ -25,6 +25,7 @@ function toReceivedGift(id: string, data: Record<string, unknown>): ReceivedGift
       data.giverShippingAddress && typeof data.giverShippingAddress === 'object'
         ? (data.giverShippingAddress as ShippingAddress)
         : undefined,
+    surprise: data.surprise === true ? true : undefined,
     status,
     claimedAt: String(data.claimedAt ?? ''),
     viewedAt: data.viewedAt ? String(data.viewedAt) : undefined,

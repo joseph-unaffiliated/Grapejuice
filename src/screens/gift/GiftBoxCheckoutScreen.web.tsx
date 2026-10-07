@@ -139,7 +139,6 @@ function GiftBoxCheckoutBody() {
     async (orderId: string) => {
       await refresh();
       await refreshSession({ silent: true });
-      // The order confirmation lists every item.
       if (surprise) navigation.replace('MyGifts');
       else navigation.replace('OrderConfirmation', { orderId });
     },
@@ -179,7 +178,7 @@ function GiftBoxCheckoutBody() {
           postalCode: address.postalCode.trim(),
         },
         lineItems,
-        { skipShipStation }
+        { skipShipStation, surprise }
       );
 
       if (result.status === 'confirmed' || result.totalCents === 0) {

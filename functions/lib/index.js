@@ -237,15 +237,17 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
     }
     if (email.includes('@') && !fresh.marketplaceEmailSentAt) {
         const lineItems = (_c = order.lineItems) !== null && _c !== void 0 ? _c : [];
-        const itemSummary = lineItems
-            .map((li) => {
-            var _a, _b;
-            const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
-            const name = String((_b = (_a = li.label) !== null && _a !== void 0 ? _a : li.itemId) !== null && _b !== void 0 ? _b : 'Item');
-            return qty > 1 ? `${qty}× ${name}` : name;
-        })
-            .filter(Boolean)
-            .join(', ');
+        const itemSummary = fresh.giftSurprise
+            ? 'A surprise Hanukkah gift box'
+            : lineItems
+                .map((li) => {
+                var _a, _b;
+                const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
+                const name = String((_b = (_a = li.label) !== null && _a !== void 0 ? _a : li.itemId) !== null && _b !== void 0 ? _b : 'Item');
+                return qty > 1 ? `${qty}× ${name}` : name;
+            })
+                .filter(Boolean)
+                .join(', ');
         try {
             // Prefer dedicated marketplace template; fall back to box template only if unset
             // (still pass orderType so Liquid can branch once CIO is updated).
@@ -1706,6 +1708,7 @@ function mapReceivedGiftDoc(docId, data) {
         giverShippingAddress: data.giverShippingAddress && typeof data.giverShippingAddress === 'object'
             ? data.giverShippingAddress
             : undefined,
+        surprise: data.surprise === true ? true : undefined,
         status: String((_d = data.status) !== null && _d !== void 0 ? _d : 'available'),
         claimedAt: String((_e = data.claimedAt) !== null && _e !== void 0 ? _e : ''),
         viewedAt: data.viewedAt ? String(data.viewedAt) : undefined,
@@ -1866,7 +1869,7 @@ exports.updateReceivedGiftLineItems = (0, sentry_1.onCall)(async (request) => {
  * Applies household gift/platform credit; charges remainder via PaymentIntent.
  */
 exports.createReceivedGiftCheckout = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     try {
@@ -1949,12 +1952,15 @@ exports.createReceivedGiftCheckout = (0, sentry_1.onCall)(async (request) => {
             orderPayload.confirmedAt = firestore_1.FieldValue.serverTimestamp();
         if (skipShipStation)
             orderPayload.playthrough = true;
+        if (((_p = request.data) === null || _p === void 0 ? void 0 : _p.surprise) === true)
+            orderPayload.giftSurprise = true;
         await orderRef.set(orderPayload);
         await giftRef.update({
             lineItems,
-            viewedAt: (_p = gift.viewedAt) !== null && _p !== void 0 ? _p : now,
+            viewedAt: (_q = gift.viewedAt) !== null && _q !== void 0 ? _q : now,
             updatedAt: now,
             checkoutOrderId: orderRef.id,
+            surprise: ((_r = request.data) === null || _r === void 0 ? void 0 : _r.surprise) === true,
         });
         if (!skipShipStation) {
             await recomputeBoxAllocationsLogged('createReceivedGiftCheckout', {
