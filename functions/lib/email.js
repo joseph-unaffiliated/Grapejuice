@@ -1,11 +1,23 @@
 "use strict";
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerioAppApiKey = void 0;
 exports.getCustomerioAppApiKey = getCustomerioAppApiKey;
 exports.sendEmail = sendEmail;
 exports.sendDebriefReminderEmail = sendDebriefReminderEmail;
 exports.sendGiftClaimEmail = sendGiftClaimEmail;
+exports.sendGiftConfirmReminderEmail = sendGiftConfirmReminderEmail;
 exports.sendDebriefAmazonFallbackEmail = sendDebriefAmazonFallbackEmail;
 exports.sendLockReminderEmail = sendLockReminderEmail;
 const params_1 = require("firebase-functions/params");
@@ -22,22 +34,24 @@ const TEMPLATE_IDS = {
     'debrief-reminder': parseInt((_e = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER) !== null && _e !== void 0 ? _e : '0', 10) || 0,
     'lock-reminder': parseInt((_f = process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER) !== null && _f !== void 0 ? _f : '0', 10) || 0,
     'gift-claim': parseInt((_g = process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM) !== null && _g !== void 0 ? _g : '0', 10) || 0,
-    'debrief-amazon': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _h !== void 0 ? _h : '0', 10) || 0,
-    'box-discount': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _j !== void 0 ? _j : '0', 10) || 0,
-    welcome: parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _k !== void 0 ? _k : '0', 10) || 12,
+    /** Gift box nobody has confirmed an address for yet — transactional message 18 (draft until approved). */
+    'gift-confirm-reminder': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_GIFT_CONFIRM_REMINDER) !== null && _h !== void 0 ? _h : '0', 10) || 0,
+    'debrief-amazon': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _j !== void 0 ? _j : '0', 10) || 0,
+    'box-discount': parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _k !== void 0 ? _k : '0', 10) || 0,
+    welcome: parseInt((_l = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _l !== void 0 ? _l : '0', 10) || 12,
     /** Hanukkah box — transactional message 15. */
-    'box-shipped': parseInt((_l = process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED) !== null && _l !== void 0 ? _l : '0', 10) || 15,
+    'box-shipped': parseInt((_m = process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED) !== null && _m !== void 0 ? _m : '0', 10) || 15,
     /** Marketplace / à la carte — transactional message 16. */
-    'order-shipped': parseInt((_m = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _m !== void 0 ? _m : '0', 10) || 16,
+    'order-shipped': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _o !== void 0 ? _o : '0', 10) || 16,
     /** Hanukkah box off-session decline — transactional message 17. */
-    'box-charge-failed': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _o !== void 0 ? _o : '0', 10) || 17,
+    'box-charge-failed': parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _p !== void 0 ? _p : '0', 10) || 17,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
  *  CUSTOMERIO_FROM_EMAIL
  *  CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER, CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER_SMS, CUSTOMERIO_SMS_FROM
  *  CUSTOMERIO_TEMPLATE_LOCK_REMINDER, CUSTOMERIO_TEMPLATE_LOCK_REMINDER_SMS
- *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
+ *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_GIFT_CONFIRM_REMINDER, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
@@ -114,6 +128,14 @@ async function sendGiftClaimEmail({ to, giverName, claimUrl, message, }) {
         return;
     }
     await sendEmail({ to, template, data: { giverName, claimUrl, message: message !== null && message !== void 0 ? message : '' } });
+}
+/** Gift box still needs an address before lock. Returns false when stubbed so the caller doesn't mark it sent. */
+async function sendGiftConfirmReminderEmail(data) {
+    const template = 'gift-confirm-reminder';
+    if (!TEMPLATE_IDS[template] || !getCustomerioAppApiKey())
+        return false;
+    const { to } = data, messageData = __rest(data, ["to"]);
+    return (await sendEmail({ to, template, data: messageData })) === 'sent';
 }
 /** Q5 panel — $20 Amazon gift card fallback after 2 debrief nudges + 14 days. */
 async function sendDebriefAmazonFallbackEmail({ to, claimUrl, }) {

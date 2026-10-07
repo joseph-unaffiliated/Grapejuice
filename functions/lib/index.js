@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.getAdminBoxesDashboard = exports.retentionLead = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.getAdminBoxesDashboard = exports.retentionLead = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
 const logger = require("./logger");
 const sentry_1 = require("./sentry");
 const app_1 = require("firebase-admin/app");
@@ -540,6 +540,116 @@ async function runSettleUnconfirmedGiftBoxes() {
             logger.error('Auto-shipping unclaimed gift box failed', { giftInviteId: doc.id, err });
         }
     }
+}
+const GIFT_REMINDER_UTM = 'utm_source=lifecycle&utm_medium=email&utm_campaign=gift_confirm_reminder';
+/** 7 = the week-out reminder, 1 = deadline day. Null outside both windows. */
+function giftReminderStage(lockAt) {
+    const daysLeft = Math.ceil((new Date(lockAt).getTime() - Date.now()) / 86400000);
+    if (daysLeft < 1)
+        return null;
+    if (daysLeft <= 1)
+        return 1;
+    if (daysLeft <= 7)
+        return 7;
+    return null;
+}
+function alreadyReminded(sentStage, stage) {
+    return typeof sentStage === 'number' && sentStage <= stage;
+}
+function within24h(iso) {
+    return typeof iso === 'string' && Date.now() - new Date(iso).getTime() < 86400000;
+}
+/**
+ * Before lock: remind recipients whose gift box has no confirmed address — claimed boxes go to
+ * the claimer (My Gifts), unclaimed paid boxes go to the invite's recipient (claim link).
+ * Each doc records the last stage sent so a retried or repeated run doesn't double-send.
+ */
+async function runGiftConfirmReminders() {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    const lockAt = await getLockAt();
+    if (!lockAt || isLocked(lockAt))
+        return { sent: 0, skipped: 0 };
+    const stage = giftReminderStage(lockAt);
+    if (!stage)
+        return { sent: 0, skipped: 0 };
+    const configData = (_a = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _a !== void 0 ? _a : {};
+    const deliveryBy = (_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-21';
+    const arrivesByLabel = new Date(`${deliveryBy}T12:00:00Z`).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'America/New_York',
+    });
+    const shared = { finalNotice: stage === 1, deadlineLabel: (0, setupNudge_1.lockDateLabel)(lockAt), arrivesByLabel };
+    const appBase = (_c = process.env.PILOT_APP_BASE_URL) !== null && _c !== void 0 ? _c : 'https://app.grapejuice.co';
+    const now = new Date().toISOString();
+    let sent = 0;
+    let skipped = 0;
+    const received = await db.collectionGroup('receivedGifts').get();
+    for (const doc of received.docs) {
+        const gift = doc.data();
+        if (gift.kind !== 'box')
+            continue;
+        const unconfirmed = gift.status === 'available' || (gift.status === 'accepted' && !gift.checkoutOrderId);
+        if (!unconfirmed || alreadyReminded(gift.confirmReminderStage, stage) || within24h(gift.claimedAt)) {
+            skipped += 1;
+            continue;
+        }
+        try {
+            const giftInviteId = String((_d = gift.giftInviteId) !== null && _d !== void 0 ? _d : doc.id);
+            const householdId = (_e = doc.ref.parent.parent) === null || _e === void 0 ? void 0 : _e.id;
+            const uid = (_g = (_f = (await db.doc(`giftInvites/${giftInviteId}`).get()).data()) === null || _f === void 0 ? void 0 : _f.claimedByUid) !== null && _g !== void 0 ? _g : (householdId
+                ? (_h = (await db.doc(`households/${householdId}`).get()).data()) === null || _h === void 0 ? void 0 : _h.ownerId
+                : undefined);
+            const email = uid ? (_j = (await db.doc(`users/${uid}`).get()).data()) === null || _j === void 0 ? void 0 : _j.email : undefined;
+            if (!(email === null || email === void 0 ? void 0 : email.includes('@'))) {
+                skipped += 1;
+                continue;
+            }
+            const delivered = await (0, email_1.sendGiftConfirmReminderEmail)(Object.assign({ to: email.trim(), giverName: String((_k = gift.giverName) !== null && _k !== void 0 ? _k : 'Someone'), ctaUrl: `${appBase}/my-gifts?${GIFT_REMINDER_UTM}`, claimed: true, hasGiverAddress: isCompleteShippingAddress(gift.giverShippingAddress) }, shared));
+            if (!delivered) {
+                skipped += 1;
+                continue;
+            }
+            await doc.ref.update({ confirmReminderStage: stage, confirmReminderSentAt: now });
+            sent += 1;
+        }
+        catch (err) {
+            logger.error('Gift confirm reminder failed', { receivedGiftId: doc.id, err });
+            skipped += 1;
+        }
+    }
+    const invites = await db.collection('giftInvites').get();
+    for (const doc of invites.docs) {
+        const invite = doc.data();
+        if ((0, giftPayment_1.resolveGiftInviteKind)(invite) !== 'box')
+            continue;
+        const paid = invite.paymentStatus === 'paid' || Boolean(invite.claimEmailSentAt);
+        if (!paid || invite.status === 'claimed' || invite.autoShipOrderId)
+            continue;
+        if (alreadyReminded(invite.confirmReminderStage, stage) || within24h(invite.claimEmailSentAt)) {
+            skipped += 1;
+            continue;
+        }
+        if (!((_l = invite.recipientEmail) === null || _l === void 0 ? void 0 : _l.includes('@')) || !invite.claimToken) {
+            skipped += 1;
+            continue;
+        }
+        try {
+            const delivered = await (0, email_1.sendGiftConfirmReminderEmail)(Object.assign({ to: invite.recipientEmail.trim(), giverName: invite.giverName || 'Someone', ctaUrl: `${appBase}/gift/claim?token=${invite.claimToken}&${GIFT_REMINDER_UTM}`, claimed: false, hasGiverAddress: isCompleteShippingAddress(invite.shippingAddress) }, shared));
+            if (!delivered) {
+                skipped += 1;
+                continue;
+            }
+            await doc.ref.update({ confirmReminderStage: stage, confirmReminderSentAt: now });
+            sent += 1;
+        }
+        catch (err) {
+            logger.error('Gift confirm reminder failed', { giftInviteId: doc.id, err });
+            skipped += 1;
+        }
+    }
+    logger.info('Gift confirm reminder batch complete', { sent, skipped, stage });
+    return { sent, skipped };
 }
 async function runExportHeldGiftOrders() {
     var _a;
@@ -2328,6 +2438,10 @@ exports.scheduledLockReminders = (0, sentry_1.onSchedule)('every day 09:00', asy
     if (!lockAt || isLocked(lockAt))
         return;
     await (0, lockReminders_1.runLockReminderBatch)(db, lockAt);
+});
+/** Gift boxes without a confirmed address: a week before lock and on deadline day. Stubs until the template env var is set. */
+exports.scheduledGiftConfirmReminders = (0, sentry_1.onSchedule)({ schedule: 'every day 10:00', timeZone: 'America/New_York' }, async () => {
+    await runGiftConfirmReminders();
 });
 /** Daily batch — account holders with a box draft but no shipping/payment yet (Customer.io event). */
 exports.scheduledSetupNudges = (0, sentry_1.onSchedule)('every day 08:00', async () => {
