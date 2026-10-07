@@ -33,7 +33,7 @@ export function StorefrontTopPicksAisles({ items, loading, onCategory, flushTop 
   }, [items, railLimit]);
 
   return (
-    <>
+    <View style={styles.root}>
       <SectionHeader
         title="Top Picks"
         subtitle="The most favorited products from our collection"
@@ -71,7 +71,7 @@ export function StorefrontTopPicksAisles({ items, loading, onCategory, flushTop 
           onCategoryPress={onCategory}
         />
       </View>
-    </>
+    </View>
   );
 }
 
@@ -124,6 +124,11 @@ function SectionHeader({
 }
 
 const styles = StyleSheet.create({
+  /** Rails size tiles from their measured width; a centering parent would let them grow unbounded. */
+  root: {
+    width: '100%',
+    alignSelf: 'stretch',
+  },
   loader: {
     minHeight: 280,
     alignItems: 'center',
