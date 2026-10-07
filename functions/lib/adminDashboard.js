@@ -88,18 +88,44 @@ function attributionLabel(a) {
     const parts = [(_b = (_a = o.utm_source) !== null && _a !== void 0 ? _a : o.utmSource) !== null && _b !== void 0 ? _b : o.source, (_d = (_c = o.utm_campaign) !== null && _c !== void 0 ? _c : o.utmCampaign) !== null && _d !== void 0 ? _d : o.campaign].filter((x) => typeof x === 'string' && x.length > 0);
     return parts.length ? parts.join(' / ') : null;
 }
-/** State only — the dashboard never carries street addresses. */
+const US_STATES = {
+    ALABAMA: 'AL', ALASKA: 'AK', ARIZONA: 'AZ', ARKANSAS: 'AR', CALIFORNIA: 'CA', COLORADO: 'CO',
+    CONNECTICUT: 'CT', DELAWARE: 'DE', 'DISTRICT OF COLUMBIA': 'DC', FLORIDA: 'FL', GEORGIA: 'GA',
+    HAWAII: 'HI', IDAHO: 'ID', ILLINOIS: 'IL', INDIANA: 'IN', IOWA: 'IA', KANSAS: 'KS', KENTUCKY: 'KY',
+    LOUISIANA: 'LA', MAINE: 'ME', MARYLAND: 'MD', MASSACHUSETTS: 'MA', MICHIGAN: 'MI', MINNESOTA: 'MN',
+    MISSISSIPPI: 'MS', MISSOURI: 'MO', MONTANA: 'MT', NEBRASKA: 'NE', NEVADA: 'NV', 'NEW HAMPSHIRE': 'NH',
+    'NEW JERSEY': 'NJ', 'NEW MEXICO': 'NM', 'NEW YORK': 'NY', 'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND',
+    OHIO: 'OH', OKLAHOMA: 'OK', OREGON: 'OR', PENNSYLVANIA: 'PA', 'RHODE ISLAND': 'RI',
+    'SOUTH CAROLINA': 'SC', 'SOUTH DAKOTA': 'SD', TENNESSEE: 'TN', TEXAS: 'TX', UTAH: 'UT', VERMONT: 'VT',
+    VIRGINIA: 'VA', WASHINGTON: 'WA', 'WEST VIRGINIA': 'WV', WISCONSIN: 'WI', WYOMING: 'WY', 'PUERTO RICO': 'PR',
+};
+const CA_PROVINCES = {
+    ALBERTA: 'AB', 'BRITISH COLUMBIA': 'BC', MANITOBA: 'MB', 'NEW BRUNSWICK': 'NB',
+    'NEWFOUNDLAND AND LABRADOR': 'NL', NEWFOUNDLAND: 'NL', 'NOVA SCOTIA': 'NS', ONTARIO: 'ON',
+    'PRINCE EDWARD ISLAND': 'PE', QUEBEC: 'QC', QUÉBEC: 'QC', SASKATCHEWAN: 'SK',
+    'NORTHWEST TERRITORIES': 'NT', NUNAVUT: 'NU', YUKON: 'YT',
+};
+const US_CODES = new Set(Object.values(US_STATES));
+const CA_CODES = new Set(Object.values(CA_PROVINCES));
+/**
+ * State only — the dashboard never carries street addresses. The address form defaults country to
+ * US, so Canada is inferred from the province.
+ */
 function locationOf(addr) {
+    var _a, _b;
     if (!addr || typeof addr !== 'object')
         return null;
     const a = addr;
-    const st = str(typeof a.stateProvince === 'string' ? a.stateProvince.trim().toUpperCase() : null);
-    if (!st)
+    const raw = typeof a.stateProvince === 'string' ? a.stateProvince.trim().replace(/\.|\s+(?=\s)/g, '').toUpperCase() : '';
+    if (!raw)
         return null;
-    const country = str(a.country);
-    if (!country || country === 'US')
-        return st;
-    return `${st}, ${country === 'CA' ? 'Canada' : 'outside US'}`;
+    const ca = (_a = CA_PROVINCES[raw]) !== null && _a !== void 0 ? _a : (CA_CODES.has(raw) ? raw : null);
+    const us = (_b = US_STATES[raw]) !== null && _b !== void 0 ? _b : (US_CODES.has(raw) ? raw : null);
+    if (ca && (a.country === 'CA' || !us))
+        return `${ca}, Canada`;
+    if (us)
+        return us;
+    return a.country === 'OTHER' ? `${raw} (intl)` : raw;
 }
 const META_AD_UNKNOWN = 'Meta, ad unknown';
 const NOT_FROM_AD = 'Not from an ad';

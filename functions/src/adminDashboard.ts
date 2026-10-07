@@ -226,15 +226,40 @@ function attributionLabel(a: unknown): string | null {
   return parts.length ? parts.join(' / ') : null;
 }
 
-/** State only — the dashboard never carries street addresses. */
+const US_STATES: Record<string, string> = {
+  ALABAMA: 'AL', ALASKA: 'AK', ARIZONA: 'AZ', ARKANSAS: 'AR', CALIFORNIA: 'CA', COLORADO: 'CO',
+  CONNECTICUT: 'CT', DELAWARE: 'DE', 'DISTRICT OF COLUMBIA': 'DC', FLORIDA: 'FL', GEORGIA: 'GA',
+  HAWAII: 'HI', IDAHO: 'ID', ILLINOIS: 'IL', INDIANA: 'IN', IOWA: 'IA', KANSAS: 'KS', KENTUCKY: 'KY',
+  LOUISIANA: 'LA', MAINE: 'ME', MARYLAND: 'MD', MASSACHUSETTS: 'MA', MICHIGAN: 'MI', MINNESOTA: 'MN',
+  MISSISSIPPI: 'MS', MISSOURI: 'MO', MONTANA: 'MT', NEBRASKA: 'NE', NEVADA: 'NV', 'NEW HAMPSHIRE': 'NH',
+  'NEW JERSEY': 'NJ', 'NEW MEXICO': 'NM', 'NEW YORK': 'NY', 'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND',
+  OHIO: 'OH', OKLAHOMA: 'OK', OREGON: 'OR', PENNSYLVANIA: 'PA', 'RHODE ISLAND': 'RI',
+  'SOUTH CAROLINA': 'SC', 'SOUTH DAKOTA': 'SD', TENNESSEE: 'TN', TEXAS: 'TX', UTAH: 'UT', VERMONT: 'VT',
+  VIRGINIA: 'VA', WASHINGTON: 'WA', 'WEST VIRGINIA': 'WV', WISCONSIN: 'WI', WYOMING: 'WY', 'PUERTO RICO': 'PR',
+};
+const CA_PROVINCES: Record<string, string> = {
+  ALBERTA: 'AB', 'BRITISH COLUMBIA': 'BC', MANITOBA: 'MB', 'NEW BRUNSWICK': 'NB',
+  'NEWFOUNDLAND AND LABRADOR': 'NL', NEWFOUNDLAND: 'NL', 'NOVA SCOTIA': 'NS', ONTARIO: 'ON',
+  'PRINCE EDWARD ISLAND': 'PE', QUEBEC: 'QC', QUÉBEC: 'QC', SASKATCHEWAN: 'SK',
+  'NORTHWEST TERRITORIES': 'NT', NUNAVUT: 'NU', YUKON: 'YT',
+};
+const US_CODES = new Set(Object.values(US_STATES));
+const CA_CODES = new Set(Object.values(CA_PROVINCES));
+
+/**
+ * State only — the dashboard never carries street addresses. The address form defaults country to
+ * US, so Canada is inferred from the province.
+ */
 function locationOf(addr: unknown): string | null {
   if (!addr || typeof addr !== 'object') return null;
   const a = addr as Record<string, unknown>;
-  const st = str(typeof a.stateProvince === 'string' ? a.stateProvince.trim().toUpperCase() : null);
-  if (!st) return null;
-  const country = str(a.country);
-  if (!country || country === 'US') return st;
-  return `${st}, ${country === 'CA' ? 'Canada' : 'outside US'}`;
+  const raw = typeof a.stateProvince === 'string' ? a.stateProvince.trim().replace(/\.|\s+(?=\s)/g, '').toUpperCase() : '';
+  if (!raw) return null;
+  const ca = CA_PROVINCES[raw] ?? (CA_CODES.has(raw) ? raw : null);
+  const us = US_STATES[raw] ?? (US_CODES.has(raw) ? raw : null);
+  if (ca && (a.country === 'CA' || !us)) return `${ca}, Canada`;
+  if (us) return us;
+  return a.country === 'OTHER' ? `${raw} (intl)` : raw;
 }
 
 const META_AD_UNKNOWN = 'Meta, ad unknown';
