@@ -3,7 +3,7 @@ import { onRequest, onCall, HttpsError, onSchedule } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { stripe, stripePublishableKey, verifyWebhook } from './stripe';
-import { sendEmail, sendDebriefReminderEmail } from './email';
+import { sendEmail, sendDebriefReminderEmail, sendGiftConfirmReminderEmail } from './email';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
 import {
@@ -15,7 +15,7 @@ import {
 import { finalizeGiftInvitePayment, resolveGiftInviteKind, type GiftInviteRecord } from './giftPayment';
 import { runDebriefReminderBatch } from './debriefReminders';
 import { runLockReminderBatch } from './lockReminders';
-import { runSetupNudgeBatch } from './setupNudge';
+import { lockDateLabel, runSetupNudgeBatch } from './setupNudge';
 import { untraditionalMarkSafe } from './untraditionalCio';
 import {
   assertCatalogSyncSecret,
@@ -717,6 +717,131 @@ async function runSettleUnconfirmedGiftBoxes(): Promise<void> {
       logger.error('Auto-shipping unclaimed gift box failed', { giftInviteId: doc.id, err });
     }
   }
+}
+
+const GIFT_REMINDER_UTM = 'utm_source=lifecycle&utm_medium=email&utm_campaign=gift_confirm_reminder';
+
+/** 7 = the week-out reminder, 1 = deadline day. Null outside both windows. */
+function giftReminderStage(lockAt: string): 7 | 1 | null {
+  const daysLeft = Math.ceil((new Date(lockAt).getTime() - Date.now()) / 86_400_000);
+  if (daysLeft < 1) return null;
+  if (daysLeft <= 1) return 1;
+  if (daysLeft <= 7) return 7;
+  return null;
+}
+
+function alreadyReminded(sentStage: unknown, stage: 7 | 1): boolean {
+  return typeof sentStage === 'number' && sentStage <= stage;
+}
+
+function within24h(iso: unknown): boolean {
+  return typeof iso === 'string' && Date.now() - new Date(iso).getTime() < 86_400_000;
+}
+
+/**
+ * Before lock: remind recipients whose gift box has no confirmed address — claimed boxes go to
+ * the claimer (My Gifts), unclaimed paid boxes go to the invite's recipient (claim link).
+ * Each doc records the last stage sent so a retried or repeated run doesn't double-send.
+ */
+async function runGiftConfirmReminders(): Promise<{ sent: number; skipped: number }> {
+  const lockAt = await getLockAt();
+  if (!lockAt || isLocked(lockAt)) return { sent: 0, skipped: 0 };
+  const stage = giftReminderStage(lockAt);
+  if (!stage) return { sent: 0, skipped: 0 };
+
+  const configData = (await db.doc('config/hanukkah-2026').get()).data() ?? {};
+  const deliveryBy = (configData.estimatedDeliveryBy as string) ?? '2026-11-21';
+  const arrivesByLabel = new Date(`${deliveryBy}T12:00:00Z`).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'America/New_York',
+  });
+  const shared = { finalNotice: stage === 1, deadlineLabel: lockDateLabel(lockAt), arrivesByLabel };
+  const appBase = process.env.PILOT_APP_BASE_URL ?? 'https://app.grapejuice.co';
+  const now = new Date().toISOString();
+  let sent = 0;
+  let skipped = 0;
+
+  const received = await db.collectionGroup('receivedGifts').get();
+  for (const doc of received.docs) {
+    const gift = doc.data();
+    if (gift.kind !== 'box') continue;
+    const unconfirmed =
+      gift.status === 'available' || (gift.status === 'accepted' && !gift.checkoutOrderId);
+    if (!unconfirmed || alreadyReminded(gift.confirmReminderStage, stage) || within24h(gift.claimedAt)) {
+      skipped += 1;
+      continue;
+    }
+    try {
+      const giftInviteId = String(gift.giftInviteId ?? doc.id);
+      const householdId = doc.ref.parent.parent?.id;
+      const uid =
+        ((await db.doc(`giftInvites/${giftInviteId}`).get()).data()?.claimedByUid as string | undefined) ??
+        (householdId
+          ? ((await db.doc(`households/${householdId}`).get()).data()?.ownerId as string | undefined)
+          : undefined);
+      const email = uid ? ((await db.doc(`users/${uid}`).get()).data()?.email as string | undefined) : undefined;
+      if (!email?.includes('@')) {
+        skipped += 1;
+        continue;
+      }
+      const delivered = await sendGiftConfirmReminderEmail({
+        to: email.trim(),
+        giverName: String(gift.giverName ?? 'Someone'),
+        ctaUrl: `${appBase}/my-gifts?${GIFT_REMINDER_UTM}`,
+        claimed: true,
+        hasGiverAddress: isCompleteShippingAddress(gift.giverShippingAddress),
+        ...shared,
+      });
+      if (!delivered) {
+        skipped += 1;
+        continue;
+      }
+      await doc.ref.update({ confirmReminderStage: stage, confirmReminderSentAt: now });
+      sent += 1;
+    } catch (err) {
+      logger.error('Gift confirm reminder failed', { receivedGiftId: doc.id, err });
+      skipped += 1;
+    }
+  }
+
+  const invites = await db.collection('giftInvites').get();
+  for (const doc of invites.docs) {
+    const invite = doc.data() as GiftInviteRecord & { confirmReminderStage?: number };
+    if (resolveGiftInviteKind(invite) !== 'box') continue;
+    const paid = invite.paymentStatus === 'paid' || Boolean(invite.claimEmailSentAt);
+    if (!paid || invite.status === 'claimed' || invite.autoShipOrderId) continue;
+    if (alreadyReminded(invite.confirmReminderStage, stage) || within24h(invite.claimEmailSentAt)) {
+      skipped += 1;
+      continue;
+    }
+    if (!invite.recipientEmail?.includes('@') || !invite.claimToken) {
+      skipped += 1;
+      continue;
+    }
+    try {
+      const delivered = await sendGiftConfirmReminderEmail({
+        to: invite.recipientEmail.trim(),
+        giverName: invite.giverName || 'Someone',
+        ctaUrl: `${appBase}/gift/claim?token=${invite.claimToken}&${GIFT_REMINDER_UTM}`,
+        claimed: false,
+        hasGiverAddress: isCompleteShippingAddress(invite.shippingAddress),
+        ...shared,
+      });
+      if (!delivered) {
+        skipped += 1;
+        continue;
+      }
+      await doc.ref.update({ confirmReminderStage: stage, confirmReminderSentAt: now });
+      sent += 1;
+    } catch (err) {
+      logger.error('Gift confirm reminder failed', { giftInviteId: doc.id, err });
+      skipped += 1;
+    }
+  }
+
+  logger.info('Gift confirm reminder batch complete', { sent, skipped, stage });
+  return { sent, skipped };
 }
 
 async function runExportHeldGiftOrders(): Promise<void> {
@@ -2877,6 +3002,14 @@ export const scheduledLockReminders = onSchedule('every day 09:00', async () => 
   if (!lockAt || isLocked(lockAt)) return;
   await runLockReminderBatch(db, lockAt);
 });
+
+/** Gift boxes without a confirmed address: a week before lock and on deadline day. Stubs until the template env var is set. */
+export const scheduledGiftConfirmReminders = onSchedule(
+  { schedule: 'every day 10:00', timeZone: 'America/New_York' },
+  async () => {
+    await runGiftConfirmReminders();
+  }
+);
 
 /** Daily batch — account holders with a box draft but no shipping/payment yet (Customer.io event). */
 export const scheduledSetupNudges = onSchedule('every day 08:00', async () => {

@@ -18,6 +18,9 @@ const TEMPLATE_IDS: Record<string, number> = {
   'debrief-reminder': parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER ?? '0', 10) || 0,
   'lock-reminder': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER ?? '0', 10) || 0,
   'gift-claim': parseInt(process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM ?? '0', 10) || 0,
+  /** Gift box nobody has confirmed an address for yet — transactional message 18 (draft until approved). */
+  'gift-confirm-reminder':
+    parseInt(process.env.CUSTOMERIO_TEMPLATE_GIFT_CONFIRM_REMINDER ?? '0', 10) || 0,
   'debrief-amazon': parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON ?? '0', 10) || 0,
   'box-discount': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT ?? '0', 10) || 0,
   welcome: parseInt(process.env.CUSTOMERIO_TEMPLATE_WELCOME ?? '0', 10) || 12,
@@ -34,7 +37,7 @@ const TEMPLATE_IDS: Record<string, number> = {
  *  CUSTOMERIO_FROM_EMAIL
  *  CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER, CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER_SMS, CUSTOMERIO_SMS_FROM
  *  CUSTOMERIO_TEMPLATE_LOCK_REMINDER, CUSTOMERIO_TEMPLATE_LOCK_REMINDER_SMS
- *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
+ *  CUSTOMERIO_TEMPLATE_GIFT_CLAIM, CUSTOMERIO_TEMPLATE_GIFT_CONFIRM_REMINDER, CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
@@ -137,6 +140,23 @@ export async function sendGiftClaimEmail({
     return;
   }
   await sendEmail({ to, template, data: { giverName, claimUrl, message: message ?? '' } });
+}
+
+/** Gift box still needs an address before lock. Returns false when stubbed so the caller doesn't mark it sent. */
+export async function sendGiftConfirmReminderEmail(data: {
+  to: string;
+  giverName: string;
+  ctaUrl: string;
+  claimed: boolean;
+  hasGiverAddress: boolean;
+  finalNotice: boolean;
+  deadlineLabel: string;
+  arrivesByLabel: string;
+}): Promise<boolean> {
+  const template = 'gift-confirm-reminder';
+  if (!TEMPLATE_IDS[template] || !getCustomerioAppApiKey()) return false;
+  const { to, ...messageData } = data;
+  return (await sendEmail({ to, template, data: messageData })) === 'sent';
 }
 
 /** Q5 panel — $20 Amazon gift card fallback after 2 debrief nudges + 14 days. */
