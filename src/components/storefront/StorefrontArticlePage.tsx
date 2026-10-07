@@ -2263,7 +2263,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   bandCta: {
-    alignSelf: 'stretch',
+    alignSelf: 'center',
     maxWidth: 360,
     width: '100%',
     backgroundColor: semanticColors.brand,
@@ -2284,7 +2284,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   bandCtaSecondary: {
-    alignSelf: 'stretch',
+    alignSelf: 'center',
     maxWidth: 360,
     width: '100%',
     backgroundColor: 'transparent',
