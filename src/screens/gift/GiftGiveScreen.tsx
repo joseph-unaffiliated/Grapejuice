@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import { useStripe } from '@stripe/stripe-react-native';
 import type { MainStackParamList } from '../../navigation/types';
 import { spacing, typography, typeface } from '../../constants/theme';
-import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useAuthStore } from '../../stores/authStore';
@@ -46,7 +46,7 @@ function GiftGiveScreenBody() {
   const startAuthForGiftGive = useAuthFlowStore((s) => s.startAuthForGiftGive);
   const restored = route.params?.form;
   const [values, setValues] = useState<GiftGiveFormValues>(() => {
-    const path = route.params?.initialGiftPath ?? restored?.giftPath ?? null;
+    const path = route.params?.initialGiftPath ?? restored?.giftPath ?? 'customize';
     if (restored) return { ...restored, giftPath: path };
     return { recipientEmail: '', giverName: '', message: '', giftPath: path };
   });
@@ -73,7 +73,7 @@ function GiftGiveScreenBody() {
       return;
     }
     if (values.giftPath !== 'credit_only') {
-      setFormError('Choose “Let them choose” to send credit, or “Pick items for them” to curate.');
+      setFormError('Choose “Let them choose” to send credit, or “Pick it for them” to curate.');
       return;
     }
     const draft = {
@@ -111,6 +111,7 @@ function GiftGiveScreenBody() {
         const result = await startGiftPurchase({
           form: { ...values, recipientEmail: email, giftPath: 'credit_only' },
           customize: false,
+          amountCents: listBoxCentsForKids(values.creditKids ?? 1),
         });
 
         const { error: initError } = await initPaymentSheet({
@@ -135,7 +136,7 @@ function GiftGiveScreenBody() {
           recipientEmail: email,
           customize: false,
           giverName: values.giverName.trim() || undefined,
-          amountCents: DEFAULT_BOX_PRICE_CENTS,
+          amountCents: listBoxCentsForKids(values.creditKids ?? 1),
           claimUrl: finalized.claimUrl || result.claimUrl,
         });
       } catch (e) {
@@ -160,7 +161,7 @@ function GiftGiveScreenBody() {
       return;
     }
 
-    setFormError('Choose “Let them choose” (credit) or “Pick items for them” (curated box).');
+    setFormError('Choose “Pick it for them” (curated box) or “Let them choose” (credit).');
   };
 
   useEffect(() => {

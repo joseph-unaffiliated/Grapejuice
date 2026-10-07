@@ -35,6 +35,8 @@ const GA_EVENT_FOR_META: Partial<Record<MetaStandardEvent | MetaCustomEvent, str
   /** Box builder quiz produced a curated box (OnboardingStack). */
   BoxBuilt: 'box_built',
   /** Gift funnel (giftFunnel.ts) — payment steps reuse begin_checkout / purchase. */
+  /** `/gift` landing page. */
+  GiftPageView: 'gift_page_view',
   GiftStart: 'gift_start',
   GiftPathChosen: 'gift_path_chosen',
   GiftDetails: 'gift_details',

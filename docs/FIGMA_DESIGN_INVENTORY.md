@@ -148,7 +148,7 @@ Hero title swaps (Start → Refine → On its way → Arrived) are **text varian
 
 | #   | Frame                | Status | Localhost preview | Purpose                                 |
 | --- | -------------------- | ------ | ----------------- | --------------------------------------- |
-| 16  | **Gift — giver**     | ✅      | [gift-give](http://localhost:8081/?preview=gift-give) · [gift-giver-customize](http://localhost:8081/?preview=gift-giver-customize) | $50 purchase + optional giver customization |
+| 16  | **Gift — giver**     | ✅      | [gift-give](http://localhost:8081/?preview=gift-give) · [gift-giver-customize](http://localhost:8081/?preview=gift-giver-customize) | $80 purchase (+ $10 per extra kid) + optional giver customization |
 | 17  | **Gift — recipient** | ✅      | [gift-claim](http://localhost:8081/?preview=gift-claim) · [gift-reveal](http://localhost:8081/?preview=gift-reveal) | Open link, surprise fork, box reveal |
 
 
@@ -431,7 +431,7 @@ Expanded purpose / description for each numbered frame. Use when implementing or
 ### Frames 16–17 — Grandparent gift ✅
 
 **Preview:** [gift-give](http://localhost:8081/?preview=gift-give) · [gift-giver-customize](http://localhost:8081/?preview=gift-giver-customize) · [gift-claim](http://localhost:8081/?preview=gift-claim) · [gift-reveal](http://localhost:8081/?preview=gift-reveal)  
-**Purpose:** Giver purchases $50 box; recipient claims link without card if prepaid.  
+**Purpose:** Giver purchases an $80 box (+ $10 per extra kid); recipient claims link without card if prepaid.  
 **Description:** Giver: recipient fields + message + customize path + pay. Recipient: gift message, surprise/customize fork, box reveal entry.  
 **Code:** `GiftGiveScreen.tsx`, `GiftGiverCustomizeScreen.tsx`, `GiftClaimScreen.tsx`, `GiftRecipientRevealScreen.tsx`
 

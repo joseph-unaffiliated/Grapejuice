@@ -8,7 +8,7 @@
 
 | # | Topic | Decision |
 |---|--------|----------|
-| Q1 | Grandparent price | **$50** — same as pilot/discount price; charge covers full gift box |
+| Q1 | Grandparent price | **$80** for one kid + $10 per additional kid (list price), charged when the gift is sent. Superseded the earlier $50 answer (Oct 2026) |
 | Q2 | Expedited fee | **Deferred** — long term distance-based at cost; short term flat fee, **no markup** |
 | Q3 | Expedited lock offset | **~7 days** later than standard (7–10 OK); standard ~10–14 day ship window, expedited ~4 days; exact dates when lock set |
 | Q4 | $80 credit storage | **Firestore balance** → applied at **Stripe checkout**; full checkout in Stripe long term |
@@ -49,6 +49,8 @@ When a grandparent purchases a gift box, should they pay the **pilot promotional
 **Recommendation:** **$50** for the pilot (same as parent checkout).
 
 **Your answer:** **$50** — same as the pilot/discount price. The $50 charge on the gift-giver’s card must fully cover the pilot box.
+
+**Current (Oct 2026):** **$80** for one kid, plus $10 for each additional kid, the same list price as the box. Gift boxes and gift credit cost the same, the giver is charged when they send the gift, and the server rejects gift totals below that price.
 
 ---
 
@@ -429,7 +431,7 @@ What URLs should store listings and the app use for **privacy policy**, **terms*
 
 | Topic | Decision |
 |-------|----------|
-| Standard / discount box price | **$80** list · **$50** discount/pilot (same for gift-givers) |
+| Standard / discount box price | **$80** list (+ $10 per additional kid) · **$50** discount/pilot · gift-givers pay list |
 | Kids accounts | Tabled — hidden for pilot |
 | Hanukkah Guide in app | No — **print in box** |
 | Passover card hold | Tabled — notify only |

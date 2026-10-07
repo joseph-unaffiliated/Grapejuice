@@ -28,7 +28,7 @@ export function StorefrontOurStoryScreen() {
     void Linking.openURL('mailto:hello@grapejuice.co?subject=Make%20a%20donation');
   };
   const goGiftHanukkahBox = () => {
-    navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' });
+    navigation.navigate('GiftLanding');
   };
 
   return (

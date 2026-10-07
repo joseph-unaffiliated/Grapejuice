@@ -19,7 +19,7 @@ Everything below is built from facts already in the product. Decisions made on O
 
 **Small print under the buttons:** $80 for one kid, $10 for each additional kid. Order by Nov 7; arrives by Nov 21. Hanukkah starts Dec 5.
 
-**Image:** `editorial-gift-stack` (current gift hero). Alternative: the "older hand next to a kid's" image from the grandparent ad, so the page matches the ad people just tapped.
+**Image:** `box-feature-gift-stack-v2` (wrapped presents, book, stuffie, dreidel, gelt; no menorah, so it doesn't contradict the FAQ). Alternative: the "older hand next to a kid's" image from the grandparent ad, so the page matches the ad people just tapped.
 
 ---
 

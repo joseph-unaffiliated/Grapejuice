@@ -6,7 +6,8 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import { listBoxCentsForKids } from '../../services/box/boxRules';
+import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
 import type { MainStackParamList } from '../../navigation/types';
 import { MOBILE_GUTTER, spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
@@ -49,7 +50,7 @@ function GiftGiveBody() {
   const restored = route.params?.form;
   const entryGiftPath = route.params?.initialGiftPath ?? restored?.giftPath ?? null;
   const [values, setValues] = useState<GiftGiveFormValues>(() => {
-    const path = entryGiftPath ?? 'credit_only';
+    const path = entryGiftPath ?? 'customize';
     if (restored) return { ...restored, giftPath: path };
     return { recipientEmail: '', giverName: '', message: '', giftPath: path };
   });
@@ -74,6 +75,14 @@ function GiftGiveBody() {
   );
 
   const creditOnly = values.giftPath === 'credit_only';
+  const creditCents = listBoxCentsForKids(values.creditKids ?? 1);
+  const boxesClosed = useBoxLockPassed();
+
+  useEffect(() => {
+    if (boxesClosed && values.giftPath === 'customize') {
+      setValues((current) => ({ ...current, giftPath: 'credit_only' }));
+    }
+  }, [boxesClosed, values.giftPath]);
 
   useEffect(() => {
     trackGiftStep('GiftStart');
@@ -99,7 +108,7 @@ function GiftGiveBody() {
       return;
     }
     if (values.giftPath !== 'credit_only') {
-      setFormError('Choose “Let them choose” to send credit, or “Pick items for them” to curate.');
+      setFormError('Choose “Let them choose” to send credit, or “Pick it for them” to curate.');
       return;
     }
     const draft = {
@@ -143,6 +152,7 @@ function GiftGiveBody() {
         const result = await startGiftPurchase({
           form: { ...values, recipientEmail: email, giftPath: 'credit_only' },
           customize: false,
+          amountCents: creditCents,
         });
         setGiftInviteId(result.giftInviteId);
         setServerStripeKey(result.publishableKey);
@@ -161,6 +171,10 @@ function GiftGiveBody() {
     }
 
     if (values.giftPath === 'customize') {
+      if (boxesClosed) {
+        setFormError('Gift boxes for this Hanukkah have closed. Choose “Let them choose” to send gift credit.');
+        return;
+      }
       const address = hasGiverAddress(values.shippingAddress) ? values.shippingAddress : undefined;
       if (address) {
         const check = validateShippingAddress(address);
@@ -184,7 +198,7 @@ function GiftGiveBody() {
       return;
     }
 
-    setFormError('Choose “Let them choose” (credit) or “Pick items for them” (curated box).');
+    setFormError('Choose “Pick it for them” (curated box) or “Let them choose” (credit).');
   };
 
   // After signup from credit-only, skip the form and open Stripe checkout.
@@ -206,7 +220,7 @@ function GiftGiveBody() {
     useGiftIntentStore.getState().clear();
     resetPayment();
     setFormError(null);
-    setValues({ recipientEmail: '', giverName: '', message: '', giftPath: 'credit_only' });
+    setValues({ recipientEmail: '', giverName: '', message: '', giftPath: boxesClosed ? 'credit_only' : 'customize' });
     setChildDrafts(DEFAULT_GIFT_CHILDREN);
     goHome();
   };
@@ -230,6 +244,7 @@ function GiftGiveBody() {
     addressError,
     addressFieldErrors,
     onCancelGift: cancelGift,
+    boxesClosed,
   };
 
   const paying = Boolean(paymentSecret && stripePromise && giftInviteId);
@@ -271,7 +286,7 @@ function GiftGiveBody() {
                 recipientEmail: values.recipientEmail.trim(),
                 customize: false,
                 giverName: values.giverName.trim() || undefined,
-                amountCents: DEFAULT_BOX_PRICE_CENTS,
+                amountCents: creditCents,
                 claimUrl,
               });
             }}

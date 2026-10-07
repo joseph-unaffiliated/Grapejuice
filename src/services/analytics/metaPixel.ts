@@ -28,6 +28,7 @@ export type MetaStandardEvent =
   | 'Purchase';
 
 export type GiftStepEvent =
+  | 'GiftPageView'
   | 'GiftStart'
   | 'GiftPathChosen'
   | 'GiftDetails'

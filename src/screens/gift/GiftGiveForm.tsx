@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
-import { CURATED_GIFT_BOX_LABEL } from '../../constants/giftCopy';
+import { giftBoxPriceLine } from '../../constants/giftCopy';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
-import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import { listBoxCentsForKids } from '../../services/box/boxRules';
+import { useBoxLockDay } from '../../hooks/useBoxLockDay';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from '../main/checkout/checkoutUi';
@@ -10,7 +11,13 @@ import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 import { GiftGiverChildrenFields } from './GiftGiverChildrenFields';
-import { hasGiverAddress, type GiftChildDraft, type GiftGiveFormValues, type GiftPath } from './giftGiveTypes';
+import {
+  hasGiverAddress,
+  MAX_GIFT_CREDIT_KIDS,
+  type GiftChildDraft,
+  type GiftGiveFormValues,
+  type GiftPath,
+} from './giftGiveTypes';
 
 type Props = {
   values: GiftGiveFormValues;
@@ -30,6 +37,8 @@ type Props = {
   /** Optional recipient address (curated box only), shown after a failed submit. */
   addressError?: string | null;
   addressFieldErrors?: ShippingAddressFieldErrors;
+  /** Past box lock: the curated box can't be picked, only credit. */
+  boxesClosed?: boolean;
   children?: React.ReactNode;
 };
 
@@ -47,12 +56,16 @@ export function GiftGiveForm({
   onCancelGift,
   addressError,
   addressFieldErrors,
+  boxesClosed = false,
   children,
 }: Props) {
+  const lockDay = useBoxLockDay();
   const creditOnly = values.giftPath === 'credit_only';
   const customize = values.giftPath === 'customize';
   const pathChosen = values.giftPath != null;
   const [showAddress, setShowAddress] = React.useState(() => hasGiverAddress(values.shippingAddress));
+  const creditKids = values.creditKids ?? 1;
+  const creditCents = listBoxCentsForKids(creditKids);
 
   const defaultSubmit = !pathChosen
     ? 'Choose how this gift works'
@@ -61,12 +74,16 @@ export function GiftGiveForm({
       : 'Curate what goes in their box';
 
   const setPath = (giftPath: GiftPath) => onChange({ giftPath });
+  const setCreditKids = (n: number) =>
+    onChange({ creditKids: Math.max(1, Math.min(MAX_GIFT_CREDIT_KIDS, n)) });
 
   const lead = !pathChosen
-    ? `Pay ${formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)}. Two different gifts — pick one below.`
+    ? 'Two ways to give. Pick one below.'
     : creditOnly
-      ? `Send ${formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)} as gift credit — spendable in the store or toward a Hanukkah box. You won’t pick items for them; they choose how to spend it after claiming.`
-      : `You’ll preview a ${CURATED_GIFT_BOX_LABEL.toLowerCase()}, swap items if you want, then pay ${formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)}. They’ll see what you picked.`;
+      ? boxesClosed
+        ? 'Send gift credit they can spend in the Grapejuice store.'
+        : 'Send gift credit worth a Hanukkah box for their family. Their parents build their own box or shop the store.'
+      : `Pick what goes in their box, then pay: ${giftBoxPriceLine()}. They confirm where to send it by ${lockDay}.`;
 
   return (
     <View>
@@ -88,6 +105,20 @@ export function GiftGiveForm({
 
       <Text style={checkoutUi.sectionHeading}>Gift Type</Text>
       <TouchableOpacity
+        style={[styles.pathCard, customize && styles.pathCardOn, boxesClosed && styles.pathCardClosed]}
+        onPress={() => setPath('customize')}
+        disabled={submitting || boxesClosed}
+        accessibilityRole="button"
+        accessibilityState={{ selected: customize, disabled: boxesClosed }}
+      >
+        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Pick it for them</Text>
+        <Text style={[styles.pathBody, customize && styles.pathBodyOn]}>
+          {boxesClosed
+            ? `Gift boxes for this Hanukkah closed on ${lockDay}. You can still send gift credit.`
+            : `A curated Hanukkah box, chosen by you. ${giftBoxPriceLine()}.`}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
         style={[styles.pathCard, creditOnly && styles.pathCardOn]}
         onPress={() => setPath('credit_only')}
         disabled={submitting}
@@ -96,22 +127,46 @@ export function GiftGiveForm({
       >
         <Text style={[styles.pathTitle, creditOnly && styles.pathTitleOn]}>Let them choose</Text>
         <Text style={[styles.pathBody, creditOnly && styles.pathBodyOn]}>
-          {formatCatalogDollars(DEFAULT_BOX_PRICE_CENTS)} gift credit — no box for you to review. They can
-          shop à la carte or put it toward their own Hanukkah box after claiming.
+          {boxesClosed
+            ? 'Gift credit for the Grapejuice store.'
+            : 'Gift credit worth a box for their family. Their parents build their own box or shop the store.'}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.pathCard, customize && styles.pathCardOn]}
-        onPress={() => setPath('customize')}
-        disabled={submitting}
-        accessibilityRole="button"
-        accessibilityState={{ selected: customize }}
-      >
-        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Pick items for them</Text>
-        <Text style={[styles.pathBody, customize && styles.pathBodyOn]}>
-          Preview and swap items in a {CURATED_GIFT_BOX_LABEL.toLowerCase()} — “Grandma picked this.”
-        </Text>
-      </TouchableOpacity>
+
+      {creditOnly ? (
+        <>
+          <View style={checkoutUi.divider} />
+          <Text style={checkoutUi.sectionHeading}>Gift Amount</Text>
+          <View style={styles.kidsRow}>
+            <Text style={styles.kidsLabel}>How many kids in their family?</Text>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                onPress={() => setCreditKids(creditKids - 1)}
+                style={styles.stepBtn}
+                disabled={submitting || creditKids <= 1}
+                accessibilityRole="button"
+                accessibilityLabel="Fewer kids"
+              >
+                <Text style={styles.stepBtnText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.stepCount}>{creditKids}</Text>
+              <TouchableOpacity
+                onPress={() => setCreditKids(creditKids + 1)}
+                style={styles.stepBtn}
+                disabled={submitting || creditKids >= MAX_GIFT_CREDIT_KIDS}
+                accessibilityRole="button"
+                accessibilityLabel="More kids"
+              >
+                <Text style={styles.stepBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <Text style={checkoutUi.hint}>
+            {formatCatalogDollars(creditCents)} gift credit
+            {boxesClosed ? '' : `, enough for a Hanukkah box for ${creditKids === 1 ? 'one kid' : `${creditKids} kids`}`}.
+          </Text>
+        </>
+      ) : null}
 
       {pathChosen ? (
         <>
@@ -271,6 +326,44 @@ const styles = StyleSheet.create({
   pathCardOn: {
     backgroundColor: semanticColors.logoDark,
     borderColor: semanticColors.logoDark,
+  },
+  pathCardClosed: { opacity: 0.55 },
+  kidsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  kidsLabel: {
+    ...typeface('regular'),
+    flexShrink: 1,
+    fontSize: typography.md,
+    letterSpacing: -0.22,
+    color: semanticColors.textPrimary,
+  },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  stepBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.bgPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBtnText: {
+    ...typeface('regular'),
+    fontSize: typography.lg,
+    color: semanticColors.textPrimary,
+  },
+  stepCount: {
+    ...typeface('medium'),
+    fontSize: typography.xl,
+    color: semanticColors.textPrimary,
+    minWidth: 24,
+    textAlign: 'center',
   },
   pathTitle: {
     ...typeface('medium'),

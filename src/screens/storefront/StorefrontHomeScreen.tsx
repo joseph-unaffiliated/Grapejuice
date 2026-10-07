@@ -143,7 +143,7 @@ export function StorefrontHomeScreen() {
   const goCreateAccount = () => startAuthFromGuest('MyBox', 'signup', 'SignUp');
   const goCheckout = () => navigation.navigate('Checkout');
   const goMyBox = () => navigation.navigate('MyBox');
-  const goGiftGive = () => navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' });
+  const goGiftGive = () => navigation.navigate('GiftLanding');
 
   const resumeIncompleteGift = () => {
     if (!giftDraft) {

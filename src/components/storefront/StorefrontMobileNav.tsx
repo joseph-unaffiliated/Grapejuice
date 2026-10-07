@@ -143,7 +143,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
                   leave({ type: 'service', id: 'gift' });
                   return;
                 }
-                navigation.navigate('GiftGive');
+                navigation.navigate('GiftLanding');
               }),
           },
           {

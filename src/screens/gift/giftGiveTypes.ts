@@ -7,11 +7,15 @@ export type GiftGiveFormValues = {
   recipientEmail: string;
   giverName: string;
   message: string;
-  /** Null until the giver picks a path — do not default to customize. */
+  /** Starts on the curated box (or credit once boxes have locked). */
   giftPath: GiftPath | null;
   /** Curated box only, optional: lets the recipient keep it a surprise without entering an address. */
   shippingAddress?: ShippingAddress;
+  /** Credit only: kids in their family, so the credit covers a box for all of them. */
+  creditKids?: number;
 };
+
+export const MAX_GIFT_CREDIT_KIDS = 8;
 
 /** True once the giver has typed anything into the optional address. */
 export function hasGiverAddress(address: ShippingAddress | undefined): address is ShippingAddress {

@@ -1,4 +1,11 @@
-import { formatDollars } from '../services/box/buildDefaultBox';
+import { formatCatalogDollars, formatDollars } from '../services/box/buildDefaultBox';
+import { listBoxCentsForKids } from '../services/box/boxRules';
+
+/** `$80 for one kid, plus $10 for each additional kid` — same price for a gift box or box-sized credit. */
+export function giftBoxPriceLine(): string {
+  const one = listBoxCentsForKids(1);
+  return `${formatCatalogDollars(one)} for one kid, plus ${formatCatalogDollars(listBoxCentsForKids(2) - one)} for each additional kid`;
+}
 
 /** Spendable balance from a credit-only gift — store or Hanukkah box. */
 export const GIFT_CREDIT_LABEL = 'Gift credit';

@@ -544,7 +544,7 @@ export function OnboardingStack({
           if (target.id === 'story') {
             queuePendingMainNav({ screen: 'StorefrontOurStory' });
           } else if (target.id === 'gift') {
-            queuePendingMainNav({ screen: 'GiftGive' });
+            queuePendingMainNav({ screen: 'GiftLanding' });
           } else if (target.id === 'shop') {
             queuePendingMainNav({
               screen: 'StorefrontCategory',

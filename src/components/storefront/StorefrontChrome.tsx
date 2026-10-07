@@ -377,7 +377,7 @@ function StorefrontChromeInner({
         startBox();
         break;
       case 'gift':
-        navigation.navigate('GiftGive');
+        navigation.navigate('GiftLanding');
         break;
       case 'story':
         navigation.navigate('StorefrontOurStory');
