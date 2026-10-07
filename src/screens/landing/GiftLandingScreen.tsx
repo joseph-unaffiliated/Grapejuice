@@ -8,6 +8,9 @@ import {
   DEFAULT_INCLUSIONS,
   StorefrontBuildBoxStrip,
 } from '../../components/storefront/StorefrontBuildBoxStrip';
+import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import { StorefrontTopPicksAisles } from '../../components/storefront/StorefrontTopPicksAisles';
+import { useCatalog } from '../../hooks/useCatalog';
 import {
   boxLockDayLabel,
   formatShortMonthDay,
@@ -48,6 +51,8 @@ export function GiftLandingScreen() {
   const preferredGiftPath = route.params?.preferredGiftPath;
   const config = useHanukkahConfig();
   const closed = useBoxLockPassed();
+  const { items, loading } = useCatalog();
+  const { goCategory } = useStorefrontActions();
 
   useEffect(() => {
     if (preferredGiftPath) {
@@ -125,6 +130,17 @@ export function GiftLandingScreen() {
               inclusions={DEFAULT_INCLUSIONS}
               ctaLabel={c.inside.videoCta}
               secondaryCtaLabel={c.inside.cta}
+            />
+          ),
+        },
+        {
+          type: 'node',
+          node: (
+            <StorefrontTopPicksAisles
+              items={items}
+              loading={loading}
+              onCategory={(category) => goCategory(category)}
+              flushTop
             />
           ),
         },

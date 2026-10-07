@@ -10,7 +10,6 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
-import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { StorefrontHero } from '../../components/storefront/StorefrontHero';
 import {
@@ -25,16 +24,14 @@ import {
   StorefrontBoxCtaStrip,
   type StorefrontBoxCtaVariant,
 } from '../../components/storefront/StorefrontBoxCtaStrip';
-import { StorefrontCategoryRail } from '../../components/storefront/StorefrontCategoryRail';
+import { StorefrontTopPicksAisles } from '../../components/storefront/StorefrontTopPicksAisles';
 import {
   DREIDELS_LIFESTYLE_HOTSPOTS,
   StorefrontMenorahsLifestyleCard,
 } from '../../components/storefront/StorefrontMenorahsLifestyleCard';
 import { LazyMount } from '../../components/storefront/LazyMount';
 import { Crossfade } from '../../components/ui/Crossfade';
-import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import {
-  excludeBooks,
   filterByStorefrontCategory,
   collectionMenorahs,
   kidsMenorahs,
@@ -45,7 +42,6 @@ import {
   sortBooksByYoungerDefaultAges,
   orderCandlesRollYourOwnBeforeElectric,
 } from '../../constants/storefrontCategories';
-import { filterCatalogByTag } from '../../constants/catalogCuration';
 import { useCatalog } from '../../hooks/useCatalog';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
@@ -69,7 +65,6 @@ import {
   semanticColors,
   spacing,
   typeface,
-  typography,
 } from '../../constants/theme';
 
 const DREIDELS_LIFESTYLE_IMG = require('../../../assets/storefront/dreidels-lifestyle-banner.webp');
@@ -334,16 +329,6 @@ export function StorefrontHomeScreen() {
       ),
     [items, railLimit]
   );
-  const loved = useMemo(() => {
-    const nonBooks = excludeBooks(items);
-    const tagged = filterCatalogByTag(nonBooks, 'collection');
-    const fallback = tagged.length ? tagged : nonBooks;
-    return itemsForStorefrontRail(items, 'most-loved', fallback, railLimit);
-  }, [items, railLimit]);
-
-  /** Aisle rail covers: fixed lifestyle assets from STOREFRONT_HOME_AISLE_CARDS. */
-  const aisleCards = STOREFRONT_HOME_AISLE_CARDS;
-
   const scrollToLook = () => {
     scrollRef.current?.scrollTo({ y: Math.max(0, lookY.current - 24), animated: true });
   };
@@ -386,41 +371,10 @@ export function StorefrontHomeScreen() {
             lookY.current = e.nativeEvent.layout.y;
           }}
         >
-          <SectionHeader
-            title="Top Picks"
-            subtitle="The most favorited products from our collection"
-            onPress={() => goCategory('collection')}
-          />
-          <View style={styles.topPicksBody}>
-            {loading ? (
-              <View style={styles.loader}>
-                <BrandLoadingMark />
-              </View>
-            ) : (
-              <StorefrontProductGrid
-                items={loved}
-                limit={gridLimit}
-                layout={gridLayout}
-                flushBottom
-                browseMoreLabel="top picks"
-                onBrowseMore={() => goCategory('collection')}
-              />
-            )}
-          </View>
-        </View>
-
-        {!compact ? (
-          <SectionHeader
-            title="Browse by Aisle"
-            subtitle="Explore the whole Hanukkah collection"
-            compactTop
-          />
-        ) : null}
-        <View style={compact ? styles.aisleRailCompact : null}>
-          <StorefrontCategoryRail
-            heading={null}
-            cards={aisleCards}
-            onCategoryPress={(category) => goCategory(category)}
+          <StorefrontTopPicksAisles
+            items={items}
+            loading={loading}
+            onCategory={(category) => goCategory(category)}
           />
         </View>
 
@@ -579,64 +533,6 @@ export function StorefrontHomeScreen() {
   );
 }
 
-function SectionHeader({
-  title,
-  subtitle,
-  viewAllLabel,
-  onViewAll,
-  onPress,
-  /** After a product rail: less paddingTop so gap matches hero → Top picks (rail already has marginBottom). */
-  compactTop,
-}: {
-  title: string;
-  subtitle?: string;
-  viewAllLabel?: string;
-  onViewAll?: () => void;
-  /** Navigate when tapping the title/subtitle block (or whole header if no View all). */
-  onPress?: () => void;
-  compactTop?: boolean;
-}) {
-  const go = onPress ?? onViewAll;
-  const titleBlock = (
-    <View style={styles.sectionHeadText}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.sectionSub}>{subtitle}</Text> : null}
-    </View>
-  );
-
-  return (
-    <View style={[styles.sectionHead, compactTop ? styles.sectionHeadCompactTop : null]}>
-      <View style={styles.sectionHeadRow}>
-        {go ? (
-          <TouchableOpacity
-            style={styles.sectionHeadText}
-            onPress={go}
-            accessibilityRole="link"
-            accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
-          >
-            <Text style={styles.sectionTitle}>{title}</Text>
-            {subtitle ? <Text style={styles.sectionSub}>{subtitle}</Text> : null}
-          </TouchableOpacity>
-        ) : (
-          titleBlock
-        )}
-        {viewAllLabel && onViewAll ? (
-          <TouchableOpacity
-            style={styles.viewAllRow}
-            onPress={onViewAll}
-            accessibilityRole="link"
-            accessibilityLabel={`${viewAllLabel} ${title}`}
-            hitSlop={8}
-          >
-            <Text style={styles.viewAll}>{viewAllLabel}</Text>
-            <Icon icon={icons.chevronRight} size={11} color={semanticColors.logoDark} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
 function SubSectionHeader({
   title,
   onPress,
@@ -694,60 +590,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(216, 201, 144, 0.35)',
   },
-  loader: {
-    minHeight: 280,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /** Keep Top picks from collapsing → expanding when catalog arrives. */
-  topPicksBody: {
-    minHeight: 280,
-  },
-  /** Matches former Browse-by-Aisle sectionHead compactTop when the headline is hidden. */
-  aisleRailCompact: {
-    paddingTop: spacing.md,
-  },
-  sectionHead: {
-    width: '100%',
-    maxWidth: 1024,
-    alignSelf: 'center',
-    paddingHorizontal: MOBILE_GUTTER,
-    paddingTop: spacing.xxl,
-    paddingBottom: 32,
-  },
-  /**
-   * Flush rail + xl would match tallest tile → title; visible cards are often shorter,
-   * so use md so the optical gap from on-screen tiles ≈ hero → Top picks (xl).
-   */
-  sectionHeadCompactTop: {
-    paddingTop: spacing.md,
-  },
-  sectionHeadRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: spacing.md,
-  },
-  sectionHeadText: {
-    flex: 1,
-    gap: 4,
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    ...typeface('medium'),
-    // Match Build Box strip headline (“Secure your Hanukkah Box”).
-    fontSize: 40,
-    lineHeight: 38,
-    letterSpacing: -0.2,
-    color: semanticColors.logoDark,
-    textAlign: 'center',
-  },
-  sectionSub: {
-    ...typeface('regular'),
-    fontSize: typography.md,
-    color: semanticColors.textSecondary,
-    textAlign: 'center',
-  },
   subHead: {
     width: '100%',
     maxWidth: 1024,
@@ -784,17 +626,5 @@ const styles = StyleSheet.create({
     ...typeface('medium'),
     fontSize: 12,
     color: semanticColors.brand,
-  },
-  viewAllRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flexShrink: 0,
-    marginBottom: 2,
-  },
-  viewAll: {
-    ...typeface('medium'),
-    fontSize: 14,
-    color: semanticColors.logoDark,
   },
 });
