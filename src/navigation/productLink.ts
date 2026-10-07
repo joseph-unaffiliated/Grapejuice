@@ -4,6 +4,7 @@ import { STORE_PATH_PREFIX, storePathHome, storefrontFromState } from './storeLi
 import { BOX_PATH, myBoxFromState, shouldPreserveInboundBoxUrl, consumeInboundBoxUrlPreserve } from './boxLink';
 import { ACCOUNT_PATH, accountFromState } from './accountLink';
 import { ORDERS_PATH, ordersFromState } from './ordersLink';
+import { ADMIN_BOXES_PATH, adminBoxesFromState } from './adminBoxesLink';
 import {
   MY_GIFTS_PATH,
   myGiftsFromState,
@@ -166,6 +167,8 @@ export function browserPathForNavigationState(
     return ORDERS_PATH;
   }
 
+  if (adminBoxesFromState(state)) return ADMIN_BOXES_PATH;
+
   const giftBox = giftBoxFromState(state);
   if (giftBox) {
     const path = giftBoxPath(giftBox.giftInviteId);
@@ -263,7 +266,7 @@ export function browserPathForNavigationState(
   if (currentPath === ACCOUNT_PATH) {
     return currentPath + search;
   }
-  if (currentPath === ORDERS_PATH) {
+  if (currentPath === ORDERS_PATH || currentPath === ADMIN_BOXES_PATH) {
     return currentPath + search;
   }
   if (currentPath === MY_GIFTS_PATH) {

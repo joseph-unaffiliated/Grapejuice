@@ -39,6 +39,7 @@ import { StorefrontLinkEffect } from './StorefrontLinkEffect';
 import { HomeLinkEffect } from './HomeLinkEffect';
 import { AccountLinkEffect } from './AccountLinkEffect';
 import { OrdersLinkEffect } from './OrdersLinkEffect';
+import { AdminBoxesLinkEffect } from './AdminBoxesLinkEffect';
 import { MyGiftsLinkEffect } from './MyGiftsLinkEffect';
 import { CheckoutLinkEffect } from './CheckoutLinkEffect';
 import { PendingInterestEffect } from './PendingInterestEffect';
@@ -428,6 +429,7 @@ export function RootNavigator() {
           <HomeLinkEffect />
           <AccountLinkEffect />
           <OrdersLinkEffect />
+          <AdminBoxesLinkEffect />
           <MyGiftsLinkEffect />
           <CheckoutLinkEffect />
           <PendingInterestEffect />

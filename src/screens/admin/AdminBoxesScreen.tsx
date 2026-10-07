@@ -1084,6 +1084,26 @@ function AdsSection({
 }
 
 type Tab = 'boxes' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
+const TABS: readonly Tab[] = ['boxes', 'anonymous', 'ads', 'gifts', 'inventory'];
+const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
+
+/** The open tab survives a browser refresh of /admin/boxes. */
+function readStoredTab(): Tab {
+  try {
+    const raw = typeof window !== 'undefined' ? window.sessionStorage?.getItem(TAB_STORAGE_KEY) : null;
+    return TABS.includes(raw as Tab) ? (raw as Tab) : 'boxes';
+  } catch {
+    return 'boxes';
+  }
+}
+
+function storeTab(tab: Tab): void {
+  try {
+    if (typeof window !== 'undefined') window.sessionStorage?.setItem(TAB_STORAGE_KEY, tab);
+  } catch {
+    // Private mode / native: tab just resets on reload.
+  }
+}
 
 /** Ops dashboard of Hanukkah boxes, gifts and inventory holds — admin-gated, refreshes every minute. */
 export function AdminBoxesScreen() {
@@ -1098,7 +1118,11 @@ export function AdminBoxesScreen() {
   // Stack screens on web grow to content height; pin to the viewport so the ScrollView scrolls (iOS especially).
   const pinnedHeight = useViewportPinnedHeight(hostRef, true);
   const hostStyle = [styles.host, pinnedHeight != null ? { height: pinnedHeight, maxHeight: pinnedHeight } : null];
-  const [tab, setTab] = useState<Tab>('boxes');
+  const [tab, setTabState] = useState<Tab>(readStoredTab);
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    storeTab(next);
+  };
   const [hideTests, setHideTests] = useState(true);
   const [now, setNow] = useState(Date.now());
 

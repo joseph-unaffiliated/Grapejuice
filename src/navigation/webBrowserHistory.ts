@@ -6,6 +6,8 @@ import { BOX_PATH, consumeInboundBoxUrlPreserve } from './boxLink';
 import { CHECKOUT_PATH } from './checkoutLink';
 import { ACCOUNT_PATH } from './accountLink';
 import { ORDERS_PATH } from './ordersLink';
+import { ADMIN_BOXES_PATH } from './adminBoxesLink';
+import { isOpsAdmin } from '../constants/admin';
 import {
   MY_GIFTS_PATH,
   readGiftBoxIdFromPath,
@@ -175,6 +177,11 @@ function restoreFromPath(
   }
   if (path === ORDERS_PATH) {
     open('Orders');
+    return true;
+  }
+  if (path === ADMIN_BOXES_PATH) {
+    if (isOpsAdmin(useAuthStore.getState().user)) open('AdminBoxes');
+    else openAccount();
     return true;
   }
   if (path === MY_GIFTS_PATH) {
