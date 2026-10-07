@@ -24,6 +24,7 @@ import { useSession } from '../../hooks/useSession';
 import { convertReceivedGiftToCredit, reopenReceivedGiftBox } from '../../services/gift/giftFlow';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { useCatalog } from '../../hooks/useCatalog';
+import { useBoxLockDay } from '../../hooks/useBoxLockDay';
 import { OrderBoxCollage, OrderItemNameGrid } from '../../components/orders/OrderPurchaseMedia';
 import {
   CURATED_GIFT_BOX_LABEL,
@@ -82,6 +83,7 @@ function GiftCard({
   reopening: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const lockDay = useBoxLockDay();
   const isBox = gift.kind === 'box';
   const available = isBox && gift.status === 'available';
   const accepted = isBox && gift.status === 'accepted';
@@ -100,13 +102,13 @@ function GiftCard({
   const note = gift.kind === 'credit'
     ? `${formatDollars(gift.creditCents)} was added to your gift credit balance. ${GIFT_CREDIT_SPEND_HINT}`
     : available
-      ? 'Open this box to adjust items, or convert it to gift credit.'
+      ? `Open this box to adjust items, or convert it to gift credit. Confirm where to send it by ${lockDay}.`
       : converted
         ? `Converted to ${formatDollars(gift.creditCents)} in gift credit${convertedOn ? ` on ${convertedOn}` : ''}.`
         : shipping
           ? 'Confirmed. It ships with the other Hanukkah boxes.'
           : needsAddress
-            ? 'Add a shipping address so it can ship, or reopen it to edit or convert to credit.'
+            ? `Add a shipping address by ${lockDay} so it can ship, or reopen it to edit or convert to credit.`
             : null;
 
   return (

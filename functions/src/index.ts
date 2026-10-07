@@ -22,6 +22,7 @@ import {
   runAirtableCatalogReplaceSync,
 } from './airtableCatalogSync';
 import {
+  boxPriceCentsForKids,
   boxPriceForUser,
   chargePilotBoxOrderForUser,
   checkoutTotalsAfterCredit,
@@ -407,6 +408,11 @@ async function fulfillMarketplaceOrder(
     await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
     return;
   }
+  // Gift boxes ship with the Hanukkah boxes: runExportHeldGiftOrders sends them once lock passes.
+  if (fresh.orderType === 'received_gift') {
+    const lockAt = (fresh.lockAt as string | null | undefined) ?? (await getLockAt());
+    if (!lockHasPassed(lockAt)) return;
+  }
   if (fresh.shipStationExportedAt) {
     await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
     return;
@@ -554,6 +560,26 @@ async function runChargeEligibleMarketplaceOrders(): Promise<void> {
       await chargeSingleMarketplaceOrder(householdId, doc.id, order);
     } catch (err) {
       logger.error('Marketplace lock charge skipped', { orderId: doc.id, err });
+    }
+  }
+}
+
+async function runExportHeldGiftOrders(): Promise<void> {
+  if (!isLocked(await getLockAt())) return;
+  const snap = await db
+    .collectionGroup('orders')
+    .where('status', '==', 'confirmed')
+    .where('holidayId', '==', HOLIDAY_ID)
+    .get();
+  for (const doc of snap.docs) {
+    const order = doc.data();
+    if (order.orderType !== 'received_gift' || order.marketplaceFulfilledAt) continue;
+    const householdId = doc.ref.parent.parent?.id;
+    if (!householdId) continue;
+    try {
+      await fulfillMarketplaceOrder(householdId, doc.id, order, order.playthrough === true);
+    } catch (err) {
+      logger.error('Held gift order export failed', { orderId: doc.id, err });
     }
   }
 }
@@ -1790,6 +1816,32 @@ export const purchasePilotGift = onCall(async (request) => {
   if (!isValidEmail(recipientEmail)) {
     throw new HttpsError('invalid-argument', 'A valid recipient email is required.');
   }
+  if (giftKind === 'box' && isLocked(await getLockAt())) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Gift boxes for this Hanukkah closed when boxes locked. You can still send gift credit.'
+    );
+  }
+  const priceConfig = (await db.doc('config/hanukkah-2026').get()).data() ?? {};
+  const listCents =
+    typeof priceConfig.boxPriceCents === 'number' ? priceConfig.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+  const perExtraKidCents = boxPriceCentsForKids(2, listCents) - listCents;
+  if (giftKind === 'box') {
+    const addOnCents = (lineItems ?? []).reduce((sum: number, li: { unitCents?: unknown; quantity?: unknown }) => {
+      const unit = Math.max(0, Math.round(Number(li?.unitCents) || 0));
+      return sum + unit * Math.max(1, Math.floor(Number(li?.quantity) || 1));
+    }, 0);
+    const minCents = boxPriceCentsForKids(Math.max(1, childAgeGroups?.length ?? 0), listCents) + addOnCents;
+    if (creditCents < minCents) {
+      throw new HttpsError('invalid-argument', 'The gift total is out of date. Refresh the page and try again.');
+    }
+  } else {
+    // Credit matches a box price: list price plus whole extra kids.
+    const extraCents = creditCents - listCents;
+    if (extraCents < 0 || extraCents % perExtraKidCents !== 0 || extraCents > 16 * perExtraKidCents) {
+      throw new HttpsError('invalid-argument', 'That gift credit amount isn’t available.');
+    }
+  }
   if (giftKind === 'box' && lineItems?.length) {
     await assertBoxLinesWithinInventory(db, lineItems);
   }
@@ -2359,6 +2411,13 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
     if (gift.kind !== 'box') {
       throw new HttpsError('failed-precondition', 'Only gift boxes can be checked out.');
     }
+    const lockAt = await getLockAt();
+    if (isLocked(lockAt)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The deadline to confirm gift boxes has passed. Email hello@grapejuice.co and we’ll help.'
+      );
+    }
     // "Keep it a surprise" used to accept without an address; those still need one checkout.
     const acceptedWithoutCheckout = gift.status === 'accepted' && !gift.checkoutOrderId;
     if (gift.status !== 'available' && !acceptedWithoutCheckout) {
@@ -2420,6 +2479,7 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
       holidayId: HOLIDAY_ID,
       userId: request.auth.uid,
       estimatedDelivery,
+      lockAt,
       createdAt: FieldValue.serverTimestamp(),
     };
     if (totalCents === 0) orderPayload.confirmedAt = FieldValue.serverTimestamp();
@@ -2666,6 +2726,11 @@ export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () =>
   } else {
     await runChargeEligiblePilotBoxOrders(db, stripe);
     await runChargeEligibleMarketplaceOrders();
+  }
+  try {
+    await runExportHeldGiftOrders();
+  } catch (giftErr) {
+    logger.error('runExportHeldGiftOrders failed', giftErr);
   }
   try {
     const alloc = await recomputeBoxAllocations(db);

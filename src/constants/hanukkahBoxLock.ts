@@ -41,6 +41,12 @@ export function daysToBoxLock(now: Date = new Date(), lockAt?: string | null): n
   return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
+/** e.g. `Nov 7` — the lock day in the viewer's time zone. */
+export function boxLockDayLabel(lockAt?: string | null): string {
+  const lock = lockTargetDate(lockAt);
+  return `${MONTH_SHORT[lock.getMonth()]} ${lock.getDate()}`;
+}
+
 export function boxLockChipLabel(now: Date = new Date(), lockAt?: string | null): string {
   const days = daysToBoxLock(now, lockAt);
   if (days === 0) return 'Locks today';

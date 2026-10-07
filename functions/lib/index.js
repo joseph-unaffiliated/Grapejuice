@@ -223,7 +223,7 @@ async function recomputeBoxAllocationsLogged(context, extra = {}) {
     }
 }
 async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStation) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
     const freshSnap = await orderRef.get();
     const fresh = (_a = freshSnap.data()) !== null && _a !== void 0 ? _a : order;
@@ -275,6 +275,12 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
         await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
         return;
     }
+    // Gift boxes ship with the Hanukkah boxes: runExportHeldGiftOrders sends them once lock passes.
+    if (fresh.orderType === 'received_gift') {
+        const lockAt = (_e = fresh.lockAt) !== null && _e !== void 0 ? _e : (await getLockAt());
+        if (!lockHasPassed(lockAt))
+            return;
+    }
     if (fresh.shipStationExportedAt) {
         await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
         return;
@@ -283,9 +289,9 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
         await (0, shipstation_1.exportOrderToShipStation)({
             orderId,
             householdId,
-            shippingAddress: (_e = fresh.shippingAddress) !== null && _e !== void 0 ? _e : {},
-            lineItems: (_f = fresh.lineItems) !== null && _f !== void 0 ? _f : [],
-            totalCents: (_g = fresh.totalCents) !== null && _g !== void 0 ? _g : 0,
+            shippingAddress: (_f = fresh.shippingAddress) !== null && _f !== void 0 ? _f : {},
+            lineItems: (_g = fresh.lineItems) !== null && _g !== void 0 ? _g : [],
+            totalCents: (_h = fresh.totalCents) !== null && _h !== void 0 ? _h : 0,
             customerEmail: email.includes('@') ? email : undefined,
         });
         await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
@@ -405,6 +411,30 @@ async function runChargeEligibleMarketplaceOrders() {
         }
         catch (err) {
             logger.error('Marketplace lock charge skipped', { orderId: doc.id, err });
+        }
+    }
+}
+async function runExportHeldGiftOrders() {
+    var _a;
+    if (!isLocked(await getLockAt()))
+        return;
+    const snap = await db
+        .collectionGroup('orders')
+        .where('status', '==', 'confirmed')
+        .where('holidayId', '==', HOLIDAY_ID)
+        .get();
+    for (const doc of snap.docs) {
+        const order = doc.data();
+        if (order.orderType !== 'received_gift' || order.marketplaceFulfilledAt)
+            continue;
+        const householdId = (_a = doc.ref.parent.parent) === null || _a === void 0 ? void 0 : _a.id;
+        if (!householdId)
+            continue;
+        try {
+            await fulfillMarketplaceOrder(householdId, doc.id, order, order.playthrough === true);
+        }
+        catch (err) {
+            logger.error('Held gift order export failed', { orderId: doc.id, err });
         }
     }
 }
@@ -1391,7 +1421,7 @@ exports.shipStationWebhook = (0, sentry_1.onRequest)({ cors: false }, async (req
     }
 });
 exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     if (!stripe_1.stripe)
@@ -1408,10 +1438,33 @@ exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
     if (!isValidEmail(recipientEmail)) {
         throw new sentry_1.HttpsError('invalid-argument', 'A valid recipient email is required.');
     }
+    if (giftKind === 'box' && isLocked(await getLockAt())) {
+        throw new sentry_1.HttpsError('failed-precondition', 'Gift boxes for this Hanukkah closed when boxes locked. You can still send gift credit.');
+    }
+    const priceConfig = (_o = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _o !== void 0 ? _o : {};
+    const listCents = typeof priceConfig.boxPriceCents === 'number' ? priceConfig.boxPriceCents : DEFAULT_BOX_PRICE_CENTS;
+    const perExtraKidCents = (0, chargePilotBox_1.boxPriceCentsForKids)(2, listCents) - listCents;
+    if (giftKind === 'box') {
+        const addOnCents = (lineItems !== null && lineItems !== void 0 ? lineItems : []).reduce((sum, li) => {
+            const unit = Math.max(0, Math.round(Number(li === null || li === void 0 ? void 0 : li.unitCents) || 0));
+            return sum + unit * Math.max(1, Math.floor(Number(li === null || li === void 0 ? void 0 : li.quantity) || 1));
+        }, 0);
+        const minCents = (0, chargePilotBox_1.boxPriceCentsForKids)(Math.max(1, (_p = childAgeGroups === null || childAgeGroups === void 0 ? void 0 : childAgeGroups.length) !== null && _p !== void 0 ? _p : 0), listCents) + addOnCents;
+        if (creditCents < minCents) {
+            throw new sentry_1.HttpsError('invalid-argument', 'The gift total is out of date. Refresh the page and try again.');
+        }
+    }
+    else {
+        // Credit matches a box price: list price plus whole extra kids.
+        const extraCents = creditCents - listCents;
+        if (extraCents < 0 || extraCents % perExtraKidCents !== 0 || extraCents > 16 * perExtraKidCents) {
+            throw new sentry_1.HttpsError('invalid-argument', 'That gift credit amount isn’t available.');
+        }
+    }
     if (giftKind === 'box' && (lineItems === null || lineItems === void 0 ? void 0 : lineItems.length)) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
-    const shippingAddressRaw = (_o = request.data) === null || _o === void 0 ? void 0 : _o.shippingAddress;
+    const shippingAddressRaw = (_q = request.data) === null || _q === void 0 ? void 0 : _q.shippingAddress;
     const giverShippingAddress = giftKind === 'box' && (shippingAddressRaw === null || shippingAddressRaw === void 0 ? void 0 : shippingAddressRaw.line1) ? sanitizeShippingAddress(shippingAddressRaw) : null;
     if (giverShippingAddress &&
         (!giverShippingAddress.name ||
@@ -1421,11 +1474,11 @@ exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
         throw new sentry_1.HttpsError('invalid-argument', 'Please complete their shipping address, or leave it blank.');
     }
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
-    const giverEmail = String((_q = (_p = userSnap.data()) === null || _p === void 0 ? void 0 : _p.email) !== null && _q !== void 0 ? _q : '').trim().toLowerCase();
+    const giverEmail = String((_s = (_r = userSnap.data()) === null || _r === void 0 ? void 0 : _r.email) !== null && _s !== void 0 ? _s : '').trim().toLowerCase();
     const claimToken = (0, crypto_1.randomBytes)(24).toString('hex');
     const inviteRef = db.collection('giftInvites').doc();
     const metaContext = (0, metaCapi_1.metaContextForDoc)((0, metaCapi_1.metaContextFromCallable)(request));
-    const attribution = (0, metaCapi_1.sanitizeAttribution)((_r = request.data) === null || _r === void 0 ? void 0 : _r.attribution);
+    const attribution = (0, metaCapi_1.sanitizeAttribution)((_t = request.data) === null || _t === void 0 ? void 0 : _t.attribution);
     const payload = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ giverUid: request.auth.uid, giverName,
         giverEmail,
         recipientEmail,
@@ -1437,7 +1490,7 @@ exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
             giverUid: request.auth.uid,
         } }, (giverEmail ? { receipt_email: giverEmail } : {})), { automatic_payment_methods: { enabled: true } }));
     await inviteRef.update({ stripePaymentIntentId: paymentIntent.id });
-    const appBase = (_s = process.env.PILOT_APP_BASE_URL) !== null && _s !== void 0 ? _s : 'https://app.grapejuice.co';
+    const appBase = (_u = process.env.PILOT_APP_BASE_URL) !== null && _u !== void 0 ? _u : 'https://app.grapejuice.co';
     const claimUrl = `${appBase}/gift/claim?token=${claimToken}`;
     return {
         giftInviteId: inviteRef.id,
@@ -1896,6 +1949,10 @@ exports.createReceivedGiftCheckout = (0, sentry_1.onCall)(async (request) => {
         if (gift.kind !== 'box') {
             throw new sentry_1.HttpsError('failed-precondition', 'Only gift boxes can be checked out.');
         }
+        const lockAt = await getLockAt();
+        if (isLocked(lockAt)) {
+            throw new sentry_1.HttpsError('failed-precondition', 'The deadline to confirm gift boxes has passed. Email hello@grapejuice.co and we’ll help.');
+        }
         // "Keep it a surprise" used to accept without an address; those still need one checkout.
         const acceptedWithoutCheckout = gift.status === 'accepted' && !gift.checkoutOrderId;
         if (gift.status !== 'available' && !acceptedWithoutCheckout) {
@@ -1946,6 +2003,7 @@ exports.createReceivedGiftCheckout = (0, sentry_1.onCall)(async (request) => {
             holidayId: HOLIDAY_ID,
             userId: request.auth.uid,
             estimatedDelivery,
+            lockAt,
             createdAt: firestore_1.FieldValue.serverTimestamp(),
         };
         if (totalCents === 0)
@@ -2172,6 +2230,12 @@ exports.scheduledChargePilotBoxes = (0, sentry_1.onSchedule)('every 1 hours', as
     else {
         await (0, chargePilotBox_1.runChargeEligiblePilotBoxOrders)(db, stripe_1.stripe);
         await runChargeEligibleMarketplaceOrders();
+    }
+    try {
+        await runExportHeldGiftOrders();
+    }
+    catch (giftErr) {
+        logger.error('runExportHeldGiftOrders failed', giftErr);
     }
     try {
         const alloc = await (0, catalogInventory_1.recomputeBoxAllocations)(db);

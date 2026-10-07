@@ -19,6 +19,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import { spacing, typography, borderRadius, typeface, shadowsWeb, MOBILE_GUTTER } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useBoxLockDay } from '../../hooks/useBoxLockDay';
 import type { SemanticColors } from '../../constants/themeMode';
 import { markReceivedGiftViewed } from '../../services/gift/giftFlow';
 import { noteReceivedGiftViewedThisSession } from './receivedGiftViewedSession';
@@ -44,6 +45,7 @@ function GiftRecipientRevealBody() {
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const lockDay = useBoxLockDay();
 
   const chooseCustomize = () => {
     noteReceivedGiftViewedThisSession(giftInviteId);
@@ -97,7 +99,7 @@ function GiftRecipientRevealBody() {
           <Text style={styles.body}>
             {giverName} picked a {CURATED_GIFT_BOX_LABEL.toLowerCase()} for your family. This gift
             stays separate from your own box — open and adjust here, or keep presents sealed until
-            Hanukkah.
+            Hanukkah. Confirm where to send it by {lockDay} so it ships with the Hanukkah boxes.
           </Text>
 
           <TouchableOpacity style={styles.cta} onPress={chooseSurprise} activeOpacity={0.85}>
