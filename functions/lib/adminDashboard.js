@@ -51,7 +51,7 @@ function isTest(...vals) {
         if (!v)
             return false;
         const s = v.toLowerCase();
-        return /@unaffiliated?(\.co)?$/.test(s) || /@(a\.com|example\.com)$/.test(s) || /joseph|jweissgold|brendan/.test(s);
+        return /@unaffiliated?(\.co)?$/.test(s) || /@(a\.com|test\.com|example\.com)$/.test(s) || /joseph|jweissgold|brendan/.test(s);
     });
 }
 const score = (v) => {
@@ -87,6 +87,21 @@ function attributionLabel(a) {
     const o = a;
     const parts = [(_b = (_a = o.utm_source) !== null && _a !== void 0 ? _a : o.utmSource) !== null && _b !== void 0 ? _b : o.source, (_d = (_c = o.utm_campaign) !== null && _c !== void 0 ? _c : o.utmCampaign) !== null && _d !== void 0 ? _d : o.campaign].filter((x) => typeof x === 'string' && x.length > 0);
     return parts.length ? parts.join(' / ') : null;
+}
+const META_AD_UNKNOWN = 'Meta, ad unknown';
+const NOT_FROM_AD = 'Not from an ad';
+/** Ad name from a touch (`{ utm, fbclid }`) or a guest entry; utm keys may be bare or utm_-prefixed. */
+function adNameOf(touch) {
+    var _a, _b, _c;
+    if (!touch || typeof touch !== 'object')
+        return null;
+    const t = touch;
+    const u = (t.utm && typeof t.utm === 'object' ? t.utm : {});
+    const content = (_a = str(u.utm_content)) !== null && _a !== void 0 ? _a : str(u.content);
+    if (content)
+        return content;
+    const source = (_c = ((_b = str(u.utm_source)) !== null && _b !== void 0 ? _b : str(u.source))) === null || _c === void 0 ? void 0 : _c.toLowerCase();
+    return source === 'meta' || str(t.fbclid) ? META_AD_UNKNOWN : null;
 }
 function guestAnsweredSliders(guest) {
     return (guest.onboardingComplete === true ||
@@ -177,7 +192,7 @@ function buildGuestRows(docs, items, priceForKids) {
     return rows.slice(0, GUEST_ROW_LIMIT);
 }
 async function buildBoxesDashboard(db, nowMs = Date.now()) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26;
     const [configSnap, hhSnap, ordersSnap, invitesSnap, itemsSnap, countersSnap, draftsSnap, childrenSnap, receivedSnap, guestSnap,] = await Promise.all([
         db.doc(`config/${HOLIDAY_ID}`).get(),
         db.collection('households').get(),
@@ -193,6 +208,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'resumeCount', 'saveCount')
             .get(),
     ]);
+    const guestDocs = guestSnap.docs.filter((d) => !d.id.startsWith('agenttest'));
     const config = (_a = configSnap.data()) !== null && _a !== void 0 ? _a : {};
     const listCents = (_b = num(config.boxPriceCents)) !== null && _b !== void 0 ? _b : DEFAULT_BOX_CENTS;
     const priceForKids = (k) => listCents + Math.max(0, k - 1) * PER_EXTRA_KID_CENTS;
@@ -227,12 +243,16 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
     const userSnaps = userRefs.length ? await db.getAll(...userRefs) : [];
     // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
     const guestAnswersByUid = new Map();
+    const guestAdByUid = new Map();
     for (const d of guestSnap.docs) {
         const x = d.data();
         const uid = str(x.convertedUid);
         const guest = (_e = x.snapshot) === null || _e === void 0 ? void 0 : _e.guest;
         if (uid && guest && guestAnsweredSliders(guest))
             guestAnswersByUid.set(uid, guestAnswers(guest));
+        const ad = uid ? adNameOf(x.entry) : null;
+        if (uid && ad)
+            guestAdByUid.set(uid, ad);
     }
     const users = new Map();
     for (const s of userSnaps) {
@@ -240,14 +260,18 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
         const last = (_g = x.lastBoxAnswers) !== null && _g !== void 0 ? _g : {};
         const fromGuest = (_h = guestAnswersByUid.get(s.id)) !== null && _h !== void 0 ? _h : NO_ANSWERS;
         const hanukkah = (_j = score(last.familiarityScore)) !== null && _j !== void 0 ? _j : fromGuest.hanukkah;
+        const attr = (_k = x.attribution) !== null && _k !== void 0 ? _k : {};
         users.set(s.id, {
             email: str(x.email),
             name: str(x.displayName),
             answers: {
                 hanukkah,
-                hanukkahLevel: hanukkah == null ? (_k = str(last.familiarityLevel)) !== null && _k !== void 0 ? _k : str(x.familiarityLevel) : null,
-                jewish: (_l = score(last.practiceFrequencyScore)) !== null && _l !== void 0 ? _l : fromGuest.jewish,
+                hanukkahLevel: hanukkah == null ? (_l = str(last.familiarityLevel)) !== null && _l !== void 0 ? _l : str(x.familiarityLevel) : null,
+                jewish: (_m = score(last.practiceFrequencyScore)) !== null && _m !== void 0 ? _m : fromGuest.jewish,
             },
+            householdId: str(x.householdId),
+            ad: (_q = (_p = (_o = adNameOf(attr.firstTouch)) !== null && _o !== void 0 ? _o : adNameOf(attr.lastTouch)) !== null && _p !== void 0 ? _p : guestAdByUid.get(s.id)) !== null && _q !== void 0 ? _q : (str(attr.fbc) ? META_AD_UNKNOWN : NOT_FROM_AD),
+            createdAt: iso(x.createdAt),
         });
     }
     const drafts = new Map();
@@ -301,14 +325,15 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
     const receivedGiftOrdersByKey = new Map();
     const boxes = [];
     const liveBoxHouseholds = new Set();
+    const committedBoxHouseholds = new Set();
     for (const d of ordersSnap.docs) {
         const o = d.data();
-        const hid = (_o = (_m = d.ref.parent.parent) === null || _m === void 0 ? void 0 : _m.id) !== null && _o !== void 0 ? _o : '';
+        const hid = (_s = (_r = d.ref.parent.parent) === null || _r === void 0 ? void 0 : _r.id) !== null && _s !== void 0 ? _s : '';
         const playthrough = o.playthrough === true;
         if (o.orderType === 'received_gift') {
-            const key = `${hid}/${String((_p = o.giftInviteId) !== null && _p !== void 0 ? _p : d.id)}`;
-            const list = (_q = receivedGiftOrdersByKey.get(key)) !== null && _q !== void 0 ? _q : [];
-            list.push({ id: d.id, status: (_r = str(o.status)) !== null && _r !== void 0 ? _r : 'unknown', totalCents: num(o.totalCents), createdAt: iso(o.createdAt), playthrough });
+            const key = `${hid}/${String((_t = o.giftInviteId) !== null && _t !== void 0 ? _t : d.id)}`;
+            const list = (_u = receivedGiftOrdersByKey.get(key)) !== null && _u !== void 0 ? _u : [];
+            list.push({ id: d.id, status: (_v = str(o.status)) !== null && _v !== void 0 ? _v : 'unknown', totalCents: num(o.totalCents), createdAt: iso(o.createdAt), playthrough });
             receivedGiftOrdersByKey.set(key, list);
             if (o.holidayId !== HOLIDAY_ID || playthrough || !LIVE.includes(o.status))
                 continue;
@@ -317,7 +342,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
                 if (c != null && nowMs - c >= PENDING_TTL_MS)
                     continue;
             }
-            const createdMs = (_s = ms(o.createdAt)) !== null && _s !== void 0 ? _s : nowMs;
+            const createdMs = (_w = ms(o.createdAt)) !== null && _w !== void 0 ? _w : nowMs;
             const prev = giftOrders.get(key);
             if (!prev || createdMs > prev.createdMs)
                 giftOrders.set(key, { createdMs, lines: o.lineItems });
@@ -330,10 +355,12 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             addLines(boxHeld, o.lineItems);
         if (!playthrough && LIVE.includes(o.status))
             liveBoxHouseholds.add(hid);
+        if (!playthrough && LIVE.includes(o.status) && o.status !== 'pending')
+            committedBoxHouseholds.add(hid);
         const c = customerFor(hid, str(o.userId));
         const lines = linesOf(o.lineItems, c.childNames);
         const addOnCents = addOnTotal(lines);
-        const kids = (_t = num(o.kidCount)) !== null && _t !== void 0 ? _t : c.kids;
+        const kids = (_x = num(o.kidCount)) !== null && _x !== void 0 ? _x : c.kids;
         const subtotal = num(o.subtotalCents);
         boxes.push({
             id: `${hid}/${d.id}`,
@@ -344,17 +371,17 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             email: c.email,
             test: c.test,
             kids,
-            status: (_u = str(o.status)) !== null && _u !== void 0 ? _u : 'unknown',
+            status: (_y = str(o.status)) !== null && _y !== void 0 ? _y : 'unknown',
             playthrough,
             cardOnFile: c.cardOnFile,
-            boxPriceCents: (_v = num(o.boxPriceCents)) !== null && _v !== void 0 ? _v : (subtotal != null ? subtotal - addOnCents : priceForKids(kids)),
+            boxPriceCents: (_z = num(o.boxPriceCents)) !== null && _z !== void 0 ? _z : (subtotal != null ? subtotal - addOnCents : priceForKids(kids)),
             addOnCents,
             subtotalCents: subtotal,
             shippingCents: num(o.shippingCents),
             taxCents: num(o.taxCents),
-            creditCents: ((_w = num(o.creditAppliedCents)) !== null && _w !== void 0 ? _w : 0) || ((_x = num(o.giftCreditAppliedCents)) !== null && _x !== void 0 ? _x : 0) + ((_y = num(o.platformCreditAppliedCents)) !== null && _y !== void 0 ? _y : 0),
+            creditCents: ((_0 = num(o.creditAppliedCents)) !== null && _0 !== void 0 ? _0 : 0) || ((_1 = num(o.giftCreditAppliedCents)) !== null && _1 !== void 0 ? _1 : 0) + ((_2 = num(o.platformCreditAppliedCents)) !== null && _2 !== void 0 ? _2 : 0),
             totalCents: num(o.totalCents),
-            updatedAt: (_0 = (_z = iso(o.updatedAt)) !== null && _z !== void 0 ? _z : iso(o.committedAt)) !== null && _0 !== void 0 ? _0 : iso(o.createdAt),
+            updatedAt: (_4 = (_3 = iso(o.updatedAt)) !== null && _3 !== void 0 ? _3 : iso(o.committedAt)) !== null && _4 !== void 0 ? _4 : iso(o.createdAt),
             committedAt: iso(o.committedAt),
             attribution: attributionLabel(o.attribution),
             answers: c.answers,
@@ -379,7 +406,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             test: c.test,
             kids: c.kids,
             status: 'draft',
-            playthrough: dr.playthrough === true || ((_1 = households.get(hid)) === null || _1 === void 0 ? void 0 : _1.playthrough) === true,
+            playthrough: dr.playthrough === true || ((_5 = households.get(hid)) === null || _5 === void 0 ? void 0 : _5.playthrough) === true,
             cardOnFile: c.cardOnFile,
             boxPriceCents,
             addOnCents,
@@ -395,7 +422,49 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             lines,
         });
     }
-    const guests = buildGuestRows(guestSnap.docs, items, priceForKids);
+    const guests = buildGuestRows(guestDocs, items, priceForKids);
+    const adPeople = [];
+    for (const [uid, u] of users) {
+        const hid = u.householdId;
+        const draftLines = hid ? (_6 = drafts.get(hid)) === null || _6 === void 0 ? void 0 : _6.lineItems : null;
+        const hasBox = Boolean(hid && (liveBoxHouseholds.has(hid) || (Array.isArray(draftLines) && draftLines.length > 0)));
+        adPeople.push({
+            id: uid,
+            ad: u.ad,
+            account: true,
+            test: isTest(u.email, u.name),
+            answered: u.answers.jewish != null || u.answers.hanukkah != null || u.answers.hanukkahLevel != null,
+            box: hasBox,
+            purchase: Boolean(hid && committedBoxHouseholds.has(hid)),
+            jewish: u.answers.jewish,
+            hanukkah: u.answers.hanukkah,
+            firstSeen: u.createdAt,
+        });
+    }
+    for (const d of guestDocs) {
+        const x = d.data();
+        const uid = str(x.convertedUid);
+        if (uid && users.has(uid))
+            continue;
+        const guest = (_8 = (_7 = x.snapshot) === null || _7 === void 0 ? void 0 : _7.guest) !== null && _8 !== void 0 ? _8 : {};
+        const answered = guestAnsweredSliders(guest);
+        const box = Array.isArray(guest.lineItems) && guest.lineItems.length > 0;
+        if (!answered && !box)
+            continue;
+        const a = answered ? guestAnswers(guest) : NO_ANSWERS;
+        adPeople.push({
+            id: d.id,
+            ad: (_9 = adNameOf(x.entry)) !== null && _9 !== void 0 ? _9 : NOT_FROM_AD,
+            account: false,
+            test: false,
+            answered,
+            box,
+            purchase: false,
+            jewish: a.jewish,
+            hanukkah: a.hanukkah,
+            firstSeen: iso(x.createdAt),
+        });
+    }
     const giftHeld = new Map();
     for (const { lines } of giftOrders.values())
         addLines(giftHeld, lines);
@@ -404,11 +473,11 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
         const g = d.data();
         const isBox = g.kind === 'box' || g.kind === 'credit' ? g.kind === 'box' : Array.isArray(g.lineItems) && g.lineItems.length > 0;
         const paid = g.paymentStatus === 'paid' || (g.paymentStatus == null && Boolean(g.claimEmailSentAt));
-        const hid = (_2 = str(g.claimedByHouseholdId)) !== null && _2 !== void 0 ? _2 : '';
+        const hid = (_10 = str(g.claimedByHouseholdId)) !== null && _10 !== void 0 ? _10 : '';
         const key = `${hid}/${d.id}`;
-        const rec = hid ? (_3 = received.get(key)) !== null && _3 !== void 0 ? _3 : null : null;
+        const rec = hid ? (_11 = received.get(key)) !== null && _11 !== void 0 ? _11 : null : null;
         const convertedToCredit = g.status === 'converted_to_credit' || (rec === null || rec === void 0 ? void 0 : rec.status) === 'converted_to_credit';
-        const checkoutOrders = (_4 = receivedGiftOrdersByKey.get(key)) !== null && _4 !== void 0 ? _4 : [];
+        const checkoutOrders = (_12 = receivedGiftOrdersByKey.get(key)) !== null && _12 !== void 0 ? _12 : [];
         const checkedOut = checkoutOrders.some((o) => !o.playthrough && LIVE.includes(o.status) && o.status !== 'pending');
         let holding = false;
         if (g.playthrough !== true && isBox && paid && (g.status === 'pending' || g.status === 'claimed')) {
@@ -428,13 +497,13 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             giver: str(g.giverName),
             giverEmail: str(g.giverEmail),
             recipientEmail: str(g.recipientEmail),
-            recipientName: (_5 = recipient === null || recipient === void 0 ? void 0 : recipient.name) !== null && _5 !== void 0 ? _5 : null,
-            recipientAnswers: (_6 = recipient === null || recipient === void 0 ? void 0 : recipient.answers) !== null && _6 !== void 0 ? _6 : NO_ANSWERS,
+            recipientName: (_13 = recipient === null || recipient === void 0 ? void 0 : recipient.name) !== null && _13 !== void 0 ? _13 : null,
+            recipientAnswers: (_14 = recipient === null || recipient === void 0 ? void 0 : recipient.answers) !== null && _14 !== void 0 ? _14 : NO_ANSWERS,
             kind: isBox ? 'box' : 'credit',
             amountCents: num(g.creditCents),
             paid,
-            paymentStatus: (_7 = str(g.paymentStatus)) !== null && _7 !== void 0 ? _7 : (g.claimEmailSentAt ? 'legacy-sent' : null),
-            status: convertedToCredit ? 'converted_to_credit' : (_8 = str(g.status)) !== null && _8 !== void 0 ? _8 : 'unknown',
+            paymentStatus: (_15 = str(g.paymentStatus)) !== null && _15 !== void 0 ? _15 : (g.claimEmailSentAt ? 'legacy-sent' : null),
+            status: convertedToCredit ? 'converted_to_credit' : (_16 = str(g.status)) !== null && _16 !== void 0 ? _16 : 'unknown',
             claimed: Boolean(hid) || g.status === 'claimed',
             checkedOut,
             checkoutOrders,
@@ -443,7 +512,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             test: isTest(str(g.giverEmail), str(g.giverName), str(g.recipientEmail), recipient === null || recipient === void 0 ? void 0 : recipient.email, recipient === null || recipient === void 0 ? void 0 : recipient.name),
             message: str(g.message),
             createdAt: iso(g.createdAt),
-            lines: linesOf(lineSource, (_9 = recipient === null || recipient === void 0 ? void 0 : recipient.childNames) !== null && _9 !== void 0 ? _9 : new Map()),
+            lines: linesOf(lineSource, (_17 = recipient === null || recipient === void 0 ? void 0 : recipient.childNames) !== null && _17 !== void 0 ? _17 : new Map()),
         });
     }
     const favorites = new Map();
@@ -453,9 +522,9 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             continue;
         const real = !customerFor(hid, null).test;
         for (const id of new Set(h.wishlistItemIds.filter((x) => typeof x === 'string'))) {
-            favorites.set(id, ((_10 = favorites.get(id)) !== null && _10 !== void 0 ? _10 : 0) + 1);
+            favorites.set(id, ((_18 = favorites.get(id)) !== null && _18 !== void 0 ? _18 : 0) + 1);
             if (real)
-                favoritesReal.set(id, ((_11 = favoritesReal.get(id)) !== null && _11 !== void 0 ? _11 : 0) + 1);
+                favoritesReal.set(id, ((_19 = favoritesReal.get(id)) !== null && _19 !== void 0 ? _19 : 0) + 1);
         }
     }
     const counters = new Map(countersSnap.docs.map((d) => [d.id, d.data()]));
@@ -465,15 +534,15 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
     const mismatches = [];
     for (const id of ids) {
         const it = items.get(id);
-        const c = (_12 = counters.get(id)) !== null && _12 !== void 0 ? _12 : {};
-        const heldByBoxes = (_13 = boxHeld.get(id)) !== null && _13 !== void 0 ? _13 : 0;
-        const heldByGifts = (_14 = giftHeld.get(id)) !== null && _14 !== void 0 ? _14 : 0;
+        const c = (_20 = counters.get(id)) !== null && _20 !== void 0 ? _20 : {};
+        const heldByBoxes = (_21 = boxHeld.get(id)) !== null && _21 !== void 0 ? _21 : 0;
+        const heldByGifts = (_22 = giftHeld.get(id)) !== null && _22 !== void 0 ? _22 : 0;
         const counterAllocated = n0(c.boxAllocatedQty);
         const directSold = n0(c.directSoldQty);
         const directReserved = n0(c.directReservedQty);
-        const stock = (_15 = it === null || it === void 0 ? void 0 : it.inventory) !== null && _15 !== void 0 ? _15 : null;
+        const stock = (_23 = it === null || it === void 0 ? void 0 : it.inventory) !== null && _23 !== void 0 ? _23 : null;
         if (heldByBoxes + heldByGifts !== counterAllocated) {
-            mismatches.push({ id, name: (_16 = it === null || it === void 0 ? void 0 : it.name) !== null && _16 !== void 0 ? _16 : id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
+            mismatches.push({ id, name: (_24 = it === null || it === void 0 ? void 0 : it.name) !== null && _24 !== void 0 ? _24 : id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
         }
         if (!it)
             continue;
@@ -487,8 +556,8 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             directSold,
             directReserved,
             remaining: stock == null ? null : stock - counterAllocated - directSold - directReserved,
-            favorites: (_17 = favorites.get(id)) !== null && _17 !== void 0 ? _17 : 0,
-            favoritesReal: (_18 = favoritesReal.get(id)) !== null && _18 !== void 0 ? _18 : 0,
+            favorites: (_25 = favorites.get(id)) !== null && _25 !== void 0 ? _25 : 0,
+            favoritesReal: (_26 = favoritesReal.get(id)) !== null && _26 !== void 0 ? _26 : 0,
         });
     }
     boxes.sort((a, b) => { var _a, _b; return String((_a = b.updatedAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.updatedAt) !== null && _b !== void 0 ? _b : '')); });
@@ -502,13 +571,14 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             orders: ordersSnap.size,
             giftInvites: invitesSnap.size,
             catalogItems: items.size,
-            guestSessions: guestSnap.size,
+            guestSessions: guestDocs.length,
         },
         mismatches,
         boxes,
         guests,
         gifts,
         inventory,
+        adPeople,
     };
 }
 function createAdminBoxesDashboard(db) {

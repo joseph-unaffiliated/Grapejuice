@@ -24,6 +24,7 @@ import {
   DASHBOARD_REFRESH_MS,
   useBoxesDashboard,
   type BoxesDashboard,
+  type DashAdPerson,
   type DashAnswers,
   type DashBox,
   type DashGift,
@@ -870,7 +871,176 @@ function InventorySection({
   );
 }
 
-type Tab = 'boxes' | 'anonymous' | 'gifts' | 'inventory';
+type Fit = 'low' | 'high' | 'unknown';
+
+/** Both sliders start at 50, so 50/50 is treated as untouched; Hanukkah alone is too skewed to score. */
+function fitOf(p: DashAdPerson, jewishWeight: number, cutoff: number): { fit: Fit; score: number | null } {
+  if (p.jewish == null || (p.jewish === 50 && p.hanukkah === 50)) return { fit: 'unknown', score: null };
+  const score = p.hanukkah == null ? p.jewish : jewishWeight * p.jewish + (1 - jewishWeight) * p.hanukkah;
+  return { fit: score < cutoff ? 'low' : 'high', score };
+}
+
+type AdRow = {
+  ad: string;
+  people: number;
+  answered: number;
+  boxes: number;
+  accounts: number;
+  purchases: number;
+  avgScore: number | null;
+  lowAnswered: [number, number];
+  lowBoxes: [number, number];
+  lowAccounts: [number, number];
+  creditedBoxes: number;
+  creditedAccounts: number;
+};
+
+const ALL_ADS = 'All sources';
+
+function adRows(
+  people: DashAdPerson[],
+  jewishWeight: number,
+  cutoff: number,
+  highCredit: number,
+  unknownCredit: number,
+): AdRow[] {
+  const groups = new Map<string, DashAdPerson[]>([[ALL_ADS, people]]);
+  for (const p of people) groups.set(p.ad, [...(groups.get(p.ad) ?? []), p]);
+  const credit = (f: Fit) => (f === 'low' ? 1 : f === 'high' ? highCredit : unknownCredit);
+  return [...groups].map(([ad, list]) => {
+    const scored = list.map((p) => ({ p, ...fitOf(p, jewishWeight, cutoff) }));
+    const lowShare = (keep: (p: DashAdPerson) => boolean): [number, number] => {
+      const known = scored.filter((s) => keep(s.p) && s.fit !== 'unknown');
+      return [known.filter((s) => s.fit === 'low').length, known.length];
+    };
+    const scores = scored.map((s) => s.score).filter((s): s is number => s != null);
+    return {
+      ad,
+      people: list.length,
+      answered: list.filter((p) => p.answered).length,
+      boxes: list.filter((p) => p.box).length,
+      accounts: list.filter((p) => p.account).length,
+      purchases: list.filter((p) => p.purchase).length,
+      avgScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
+      lowAnswered: lowShare((p) => p.answered),
+      lowBoxes: lowShare((p) => p.box),
+      lowAccounts: lowShare((p) => p.account),
+      creditedBoxes: scored.filter((s) => s.p.box).reduce((sum, s) => sum + credit(s.fit), 0),
+      creditedAccounts: scored.filter((s) => s.p.account).reduce((sum, s) => sum + credit(s.fit), 0),
+    };
+  });
+}
+
+const share = ([low, known]: [number, number]) => (known ? `${low} of ${known}` : '—');
+const tenths = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+function AdsSection({
+  people,
+  hideTests,
+  styles,
+  colors,
+}: {
+  people: DashAdPerson[];
+  hideTests: boolean;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const [jewishWeight, setJewishWeight] = useState('0.75');
+  const [cutoff, setCutoff] = useState('50');
+  const [highCredit, setHighCredit] = useState('0.5');
+  const [unknownCredit, setUnknownCredit] = useState('0.75');
+
+  const rows = useMemo(
+    () =>
+      adRows(
+        people.filter((p) => !(hideTests && p.test)),
+        Number(jewishWeight),
+        Number(cutoff),
+        Number(highCredit),
+        Number(unknownCredit),
+      ),
+    [people, hideTests, jewishWeight, cutoff, highCredit, unknownCredit],
+  );
+
+  const columns: Column<AdRow>[] = [
+    { label: 'Ad', width: 170, cell: (r) => <Text style={[styles.td, r.ad === ALL_ADS && styles.tdStrong]} numberOfLines={2}>{r.ad}</Text>, sort: (r) => (r.ad === ALL_ADS ? '' : r.ad) },
+    { label: 'People', width: 60, align: 'right', cell: (r) => String(r.people), sort: (r) => r.people },
+    { label: 'Answered', width: 75, align: 'right', cell: (r) => String(r.answered), sort: (r) => r.answered },
+    { label: 'Boxes', width: 60, align: 'right', cell: (r) => String(r.boxes), sort: (r) => r.boxes },
+    { label: 'Accounts', width: 75, align: 'right', cell: (r) => String(r.accounts), sort: (r) => r.accounts },
+    { label: 'Purchases', width: 80, align: 'right', cell: (r) => String(r.purchases), sort: (r) => r.purchases },
+    { label: 'Avg score', width: 75, align: 'right', cell: (r) => (r.avgScore == null ? '—' : String(Math.round(r.avgScore))), sort: (r) => r.avgScore },
+    { label: '70% · answered', width: 110, align: 'right', cell: (r) => share(r.lowAnswered), sort: (r) => (r.lowAnswered[1] ? r.lowAnswered[0] / r.lowAnswered[1] : null) },
+    { label: '70% · box', width: 85, align: 'right', cell: (r) => share(r.lowBoxes), sort: (r) => (r.lowBoxes[1] ? r.lowBoxes[0] / r.lowBoxes[1] : null) },
+    { label: '70% · account', width: 105, align: 'right', cell: (r) => share(r.lowAccounts), sort: (r) => (r.lowAccounts[1] ? r.lowAccounts[0] / r.lowAccounts[1] : null) },
+    { label: 'Credited boxes', width: 105, align: 'right', cell: (r) => tenths(r.creditedBoxes), sort: (r) => r.creditedBoxes },
+    { label: 'Credited accounts', width: 125, align: 'right', cell: (r) => tenths(r.creditedAccounts), sort: (r) => r.creditedAccounts },
+  ];
+
+  return (
+    <View style={styles.sectionBody}>
+      <ChipGroup
+        value={jewishWeight}
+        onChange={setJewishWeight}
+        styles={styles}
+        options={[
+          ['0.5', 'Jewish ½ · Hanukkah ½'],
+          ['0.667', 'Jewish ⅔ · Hanukkah ⅓'],
+          ['0.75', 'Jewish ¾ · Hanukkah ¼'],
+          ['1', 'Jewish only'],
+        ]}
+      />
+      <ChipGroup
+        value={cutoff}
+        onChange={setCutoff}
+        styles={styles}
+        options={[
+          ['40', 'Cutoff 40'],
+          ['50', 'Cutoff 50'],
+          ['60', 'Cutoff 60'],
+        ]}
+      />
+      <View style={styles.chipRow}>
+        <ChipGroup
+          value={highCredit}
+          onChange={setHighCredit}
+          styles={styles}
+          options={[
+            ['0', '30% credit 0'],
+            ['0.25', '30% credit ¼'],
+            ['0.5', '30% credit ½'],
+            ['0.75', '30% credit ¾'],
+            ['1', '30% credit 1'],
+          ]}
+        />
+        <ChipGroup
+          value={unknownCredit}
+          onChange={setUnknownCredit}
+          styles={styles}
+          options={[
+            ['0.5', 'Unknown credit ½'],
+            ['0.75', 'Unknown credit ¾'],
+            ['1', 'Unknown credit 1'],
+          ]}
+        />
+      </View>
+      <SortTable<AdRow>
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.ad}
+        rowTone={(r) => (r.ad === ALL_ADS ? 'neutral' : undefined)}
+        emptyMessage="No one has answered the questions or built a box yet."
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>
+        {`One row per ad (the ad name Meta passes as utm_content), plus a total. People = everyone who answered the onboarding questions or built a box; signed-up people count once, under the ad that first brought them. Purchases = committed box orders (not pending). Score = Jewish × weight + Hanukkah × the rest; below the cutoff counts as the 70%. Both sliders left at 50 (where they start), or no Jewish answer (accounts from before that question), counts as unknown fit. "70% · box" = low scorers out of people with a known score who built a box. Credited = each box or account counts 1 for the 70%, the 30% credit for the rest, and the unknown credit when we can't tell. Divide an ad's Meta spend by credited accounts for cost per credited account. Test accounts follow Hide tests; anonymous test visits can't be told apart.`}
+      </Text>
+    </View>
+  );
+}
+
+type Tab = 'boxes' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
 
 /** Ops dashboard of Hanukkah boxes, gifts and inventory holds — admin-gated, refreshes every minute. */
 export function AdminBoxesScreen() {
@@ -1024,6 +1194,7 @@ export function AdminBoxesScreen() {
           <View style={styles.chipRow}>
             <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
             <Chip label={`Anonymous (${openGuests.length})`} active={tab === 'anonymous'} onPress={() => setTab('anonymous')} styles={styles} />
+            <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
             <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
             <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
           </View>
@@ -1044,6 +1215,12 @@ export function AdminBoxesScreen() {
                 styles={styles}
                 colors={colors}
               />
+            </>
+          ) : null}
+          {tab === 'ads' ? (
+            <>
+              <Text style={styles.section}>By ad: how far people get, and who they are</Text>
+              <AdsSection people={data.adPeople ?? []} hideTests={hideTests} styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'gifts' ? (

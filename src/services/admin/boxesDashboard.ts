@@ -105,6 +105,19 @@ export type DashInventoryRow = {
   favoritesReal: number;
 };
 
+export type DashAdPerson = {
+  id: string;
+  ad: string;
+  account: boolean;
+  test: boolean;
+  answered: boolean;
+  box: boolean;
+  purchase: boolean;
+  jewish: number | null;
+  hanukkah: number | null;
+  firstSeen: string | null;
+};
+
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
@@ -121,6 +134,8 @@ export type BoxesDashboard = {
   guests: DashGuest[];
   gifts: DashGift[];
   inventory: DashInventoryRow[];
+  /** Missing until the server function with the By ad tab is deployed. */
+  adPeople?: DashAdPerson[];
 };
 
 export const DASHBOARD_REFRESH_MS = 60_000;

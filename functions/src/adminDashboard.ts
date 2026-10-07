@@ -121,6 +121,22 @@ export type DashInventoryRow = {
   favoritesReal: number;
 };
 
+/** One person per row for the By ad tab: raw slider answers (scored client-side) and how far they got. */
+export type DashAdPerson = {
+  id: string;
+  /** utm_content (the Meta ad name), or "Meta, ad unknown" / "Not from an ad". */
+  ad: string;
+  account: boolean;
+  test: boolean;
+  answered: boolean;
+  box: boolean;
+  /** Committed (not pending) box order. */
+  purchase: boolean;
+  jewish: number | null;
+  hanukkah: number | null;
+  firstSeen: string | null;
+};
+
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
@@ -137,6 +153,7 @@ export type BoxesDashboard = {
   guests: DashGuest[];
   gifts: DashGift[];
   inventory: DashInventoryRow[];
+  adPeople: DashAdPerson[];
 };
 
 function iso(v: unknown): string | null {
@@ -203,6 +220,20 @@ function attributionLabel(a: unknown): string | null {
     (x): x is string => typeof x === 'string' && x.length > 0,
   );
   return parts.length ? parts.join(' / ') : null;
+}
+
+const META_AD_UNKNOWN = 'Meta, ad unknown';
+const NOT_FROM_AD = 'Not from an ad';
+
+/** Ad name from a touch (`{ utm, fbclid }`) or a guest entry; utm keys may be bare or utm_-prefixed. */
+function adNameOf(touch: unknown): string | null {
+  if (!touch || typeof touch !== 'object') return null;
+  const t = touch as Record<string, unknown>;
+  const u = (t.utm && typeof t.utm === 'object' ? t.utm : {}) as Record<string, unknown>;
+  const content = str(u.utm_content) ?? str(u.content);
+  if (content) return content;
+  const source = (str(u.utm_source) ?? str(u.source))?.toLowerCase();
+  return source === 'meta' || str(t.fbclid) ? META_AD_UNKNOWN : null;
 }
 
 function guestAnsweredSliders(guest: DocumentData): boolean {
@@ -364,18 +395,25 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   const userSnaps = userRefs.length ? await db.getAll(...userRefs) : [];
   // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
   const guestAnswersByUid = new Map<string, DashAnswers>();
+  const guestAdByUid = new Map<string, string>();
   for (const d of guestSnap.docs) {
     const x = d.data();
     const uid = str(x.convertedUid);
     const guest = x.snapshot?.guest;
     if (uid && guest && guestAnsweredSliders(guest)) guestAnswersByUid.set(uid, guestAnswers(guest));
+    const ad = uid ? adNameOf(x.entry) : null;
+    if (uid && ad) guestAdByUid.set(uid, ad);
   }
-  const users = new Map<string, { email: string | null; name: string | null; answers: DashAnswers }>();
+  const users = new Map<
+    string,
+    { email: string | null; name: string | null; answers: DashAnswers; householdId: string | null; ad: string; createdAt: string | null }
+  >();
   for (const s of userSnaps) {
     const x = s.data() ?? {};
     const last = x.lastBoxAnswers ?? {};
     const fromGuest = guestAnswersByUid.get(s.id) ?? NO_ANSWERS;
     const hanukkah = score(last.familiarityScore) ?? fromGuest.hanukkah;
+    const attr = x.attribution ?? {};
     users.set(s.id, {
       email: str(x.email),
       name: str(x.displayName),
@@ -384,6 +422,13 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         hanukkahLevel: hanukkah == null ? str(last.familiarityLevel) ?? str(x.familiarityLevel) : null,
         jewish: score(last.practiceFrequencyScore) ?? fromGuest.jewish,
       },
+      householdId: str(x.householdId),
+      ad:
+        adNameOf(attr.firstTouch) ??
+        adNameOf(attr.lastTouch) ??
+        guestAdByUid.get(s.id) ??
+        (str(attr.fbc) ? META_AD_UNKNOWN : NOT_FROM_AD),
+      createdAt: iso(x.createdAt),
     });
   }
 
@@ -439,6 +484,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   const receivedGiftOrdersByKey = new Map<string, DashGift['checkoutOrders']>();
   const boxes: DashBox[] = [];
   const liveBoxHouseholds = new Set<string>();
+  const committedBoxHouseholds = new Set<string>();
 
   for (const d of ordersSnap.docs) {
     const o = d.data();
@@ -463,6 +509,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     if (!isBox) continue;
     if (o.holidayId === HOLIDAY_ID && !playthrough && LIVE.includes(o.status)) addLines(boxHeld, o.lineItems);
     if (!playthrough && LIVE.includes(o.status)) liveBoxHouseholds.add(hid);
+    if (!playthrough && LIVE.includes(o.status) && o.status !== 'pending') committedBoxHouseholds.add(hid);
     const c = customerFor(hid, str(o.userId));
     const lines = linesOf(o.lineItems, c.childNames);
     const addOnCents = addOnTotal(lines);
@@ -531,6 +578,47 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   }
 
   const guests = buildGuestRows(guestDocs, items, priceForKids);
+
+  const adPeople: DashAdPerson[] = [];
+  for (const [uid, u] of users) {
+    const hid = u.householdId;
+    const draftLines = hid ? drafts.get(hid)?.lineItems : null;
+    const hasBox = Boolean(hid && (liveBoxHouseholds.has(hid) || (Array.isArray(draftLines) && draftLines.length > 0)));
+    adPeople.push({
+      id: uid,
+      ad: u.ad,
+      account: true,
+      test: isTest(u.email, u.name),
+      answered: u.answers.jewish != null || u.answers.hanukkah != null || u.answers.hanukkahLevel != null,
+      box: hasBox,
+      purchase: Boolean(hid && committedBoxHouseholds.has(hid)),
+      jewish: u.answers.jewish,
+      hanukkah: u.answers.hanukkah,
+      firstSeen: u.createdAt,
+    });
+  }
+  for (const d of guestDocs) {
+    const x = d.data();
+    const uid = str(x.convertedUid);
+    if (uid && users.has(uid)) continue;
+    const guest: DocumentData = x.snapshot?.guest ?? {};
+    const answered = guestAnsweredSliders(guest);
+    const box = Array.isArray(guest.lineItems) && guest.lineItems.length > 0;
+    if (!answered && !box) continue;
+    const a = answered ? guestAnswers(guest) : NO_ANSWERS;
+    adPeople.push({
+      id: d.id,
+      ad: adNameOf(x.entry) ?? NOT_FROM_AD,
+      account: false,
+      test: false,
+      answered,
+      box,
+      purchase: false,
+      jewish: a.jewish,
+      hanukkah: a.hanukkah,
+      firstSeen: iso(x.createdAt),
+    });
+  }
 
   const giftHeld = new Map<string, number>();
   for (const { lines } of giftOrders.values()) addLines(giftHeld, lines);
@@ -644,6 +732,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     guests,
     gifts,
     inventory,
+    adPeople,
   };
 }
 
