@@ -95,6 +95,8 @@ type Props = {
    * `content` — alt build reel for Passover / Our Story / article footers / etc.
    */
   variant?: 'home' | 'content';
+  /** Drop the trailing margin when the parent already gaps sections. */
+  flushBottom?: boolean;
 };
 
 const DEFAULT_HEADLINE = 'start building your box today';
@@ -122,6 +124,7 @@ export function StorefrontBuildBoxStrip({
   secondaryCtaLabel = DEFAULT_SECONDARY_CTA,
   backgroundSource,
   variant = 'home',
+  flushBottom = false,
 }: Props) {
   const { isCompact } = useLayoutBreakpoint();
   const isWeb = Platform.OS === 'web';
@@ -145,7 +148,9 @@ export function StorefrontBuildBoxStrip({
   const showIncludesSection = Boolean(includesHeading && inclusionItems.length > 0);
 
   return (
-    <View style={[styles.outer, isCompact && styles.outerCompact]}>
+    <View
+      style={[styles.outer, isCompact && styles.outerCompact, flushBottom && styles.outerFlushBottom]}
+    >
       {/* Desktop: radius clips the reel. Mobile: full-bleed, square. */}
       <View style={[styles.card, isCompact && styles.cardCompact]}>
         <View
@@ -220,6 +225,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: MOBILE_GUTTER,
     // Air before the footer (or next section) so the full-bleed plate doesn’t sit flush.
     marginBottom: 64,
+  },
+  outerFlushBottom: {
+    marginBottom: 0,
   },
   /** Full-bleed media + more space after the paper card above. */
   outerCompact: {

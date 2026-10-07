@@ -130,6 +130,7 @@ export function GiftLandingScreen() {
               inclusions={DEFAULT_INCLUSIONS}
               ctaLabel={c.inside.videoCta}
               secondaryCtaLabel={c.inside.cta}
+              flushBottom
             />
           ),
         },
