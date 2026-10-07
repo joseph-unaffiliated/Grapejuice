@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Alert, Text, Platform, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Alert, Text, Platform, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -9,13 +9,10 @@ import { Elements } from '@stripe/react-stripe-js';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
 import type { MainStackParamList } from '../../navigation/types';
-import { MOBILE_GUTTER, spacing, typography, typeface, semanticColors } from '../../constants/theme';
-import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
+import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { StorefrontFooter } from '../../components/storefront/StorefrontFooter';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { SystemPage } from '../../components/layout/SystemPage';
-import { StorefrontCategoryRail } from '../../components/storefront/StorefrontCategoryRail';
-import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
 import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
@@ -43,8 +40,7 @@ function notify(title: string, message: string) {
 function GiftGiveBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'GiftGive'>>();
-  const { goHome, goCategory } = useStorefrontActions();
-  const { isCompact: compact } = useLayoutBreakpoint();
+  const { goHome } = useStorefrontActions();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const startAuthForGiftGive = useAuthFlowStore((s) => s.startAuthForGiftGive);
   const restored = route.params?.form;
@@ -252,23 +248,7 @@ function GiftGiveBody() {
     <SystemPage
       narrow
       onBack={paying ? undefined : goHome}
-      footer={
-        <>
-          {paying ? null : (
-            <View style={styles.catalog}>
-              <Text style={[styles.catalogTitle, compact && styles.catalogTitleCompact]}>
-                Browse the Catalog
-              </Text>
-              <StorefrontCategoryRail
-                heading={null}
-                cards={STOREFRONT_HOME_AISLE_CARDS}
-                onCategoryPress={(category) => goCategory(category)}
-              />
-            </View>
-          )}
-          <StorefrontFooter />
-        </>
-      }
+      footer={<StorefrontFooter />}
     >
       {paymentSecret && stripePromise && giftInviteId ? (
         <Elements
@@ -328,25 +308,6 @@ export function GiftGiveScreen() {
 }
 
 const styles = StyleSheet.create({
-  catalog: {
-    marginTop: spacing.xxl * 2,
-    marginBottom: spacing.xxl,
-  },
-  catalogTitle: {
-    ...typeface('medium'),
-    fontSize: 40,
-    lineHeight: 38,
-    letterSpacing: -0.2,
-    color: semanticColors.logoDark,
-    textAlign: 'center',
-    paddingHorizontal: MOBILE_GUTTER,
-    marginBottom: 32,
-  },
-  catalogTitleCompact: {
-    fontSize: 30,
-    lineHeight: 32,
-    marginBottom: spacing.lg,
-  },
   signInLink: {
     marginTop: spacing.md,
     alignSelf: 'center',
