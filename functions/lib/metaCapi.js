@@ -183,7 +183,11 @@ function sanitizeTouch(raw) {
         touch.at = at;
     return Object.keys(touch).length ? touch : null;
 }
-/** `data.attribution` (first / last touch UTMs + Meta ids) → Firestore-safe map, or null. */
+const UNAFFILIATED_USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * `data.attribution` (first / last touch UTMs + Meta ids + Unaffiliated reader id) →
+ * Firestore-safe map, or null.
+ */
 function sanitizeAttribution(raw) {
     if (!raw || typeof raw !== 'object')
         return null;
@@ -193,6 +197,7 @@ function sanitizeAttribution(raw) {
     const lastTouch = sanitizeTouch(o.lastTouch);
     const fbc = str(o.fbc, 500);
     const fbp = str(o.fbp, 200);
+    const unaffiliatedUserID = str(o.unaffiliatedUserID, 36);
     if (firstTouch)
         out.firstTouch = firstTouch;
     if (lastTouch)
@@ -201,6 +206,9 @@ function sanitizeAttribution(raw) {
         out.fbc = fbc;
     if (fbp)
         out.fbp = fbp;
+    if (unaffiliatedUserID && UNAFFILIATED_USER_ID_RE.test(unaffiliatedUserID)) {
+        out.unaffiliatedUserID = unaffiliatedUserID.toLowerCase();
+    }
     return Object.keys(out).length ? out : null;
 }
 function stripeKeyIsTest() {

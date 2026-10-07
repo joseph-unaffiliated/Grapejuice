@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.getAdminBoxesDashboard = exports.retentionLead = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.getAdminBoxesDashboard = exports.unaffiliatedVisit = exports.retentionLead = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
 const logger = require("./logger");
 const sentry_1 = require("./sentry");
 const app_1 = require("firebase-admin/app");
@@ -18,6 +18,7 @@ const debriefReminders_1 = require("./debriefReminders");
 const lockReminders_1 = require("./lockReminders");
 const setupNudge_1 = require("./setupNudge");
 const untraditionalCio_1 = require("./untraditionalCio");
+const unaffiliated_1 = require("./unaffiliated");
 const airtableCatalogSync_1 = require("./airtableCatalogSync");
 const chargePilotBox_1 = require("./chargePilotBox");
 const catalogInventory_1 = require("./catalogInventory");
@@ -35,6 +36,8 @@ Object.defineProperty(exports, "deleteGuestDataByEmail", { enumerable: true, get
 Object.defineProperty(exports, "scheduledPurgeGuestSessions", { enumerable: true, get: function () { return guestSessions_1.scheduledPurgeGuestSessions; } });
 var retentionLead_1 = require("./retentionLead");
 Object.defineProperty(exports, "retentionLead", { enumerable: true, get: function () { return retentionLead_1.retentionLead; } });
+var unaffiliated_2 = require("./unaffiliated");
+Object.defineProperty(exports, "unaffiliatedVisit", { enumerable: true, get: function () { return unaffiliated_2.unaffiliatedVisit; } });
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 exports.getAdminBoxesDashboard = (0, adminDashboard_1.createAdminBoxesDashboard)(db);
@@ -754,7 +757,7 @@ exports.createPilotCheckout = (0, sentry_1.onCall)(async (request) => {
 });
 /** À la carte checkout. Saves a card and charges when Hanukkah boxes lock. Guests need an email; a box still requires an account. */
 exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     try {
         const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
         const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
@@ -836,12 +839,16 @@ exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
                     : {})), { updatedAt: new Date().toISOString() }));
                 creditsDeducted = true;
             }
+            if (!skipShipStation) {
+                const buyerEmail = guestEmail || (typeof ((_m = request.auth) === null || _m === void 0 ? void 0 : _m.token.email) === 'string' ? request.auth.token.email : '');
+                await (0, unaffiliated_1.reportUnaffiliatedShippingGeo)({ attribution, shippingAddress, email: buyerEmail });
+            }
             if (!needsCard) {
                 await sendOrderPurchaseToMeta({
                     orderId: orderRef.id,
                     order: orderPayload,
                     context: metaCtx,
-                    email: guestEmail || (authedUid ? await emailForMeta(authedUid, (_m = request.auth) === null || _m === void 0 ? void 0 : _m.token.email) : null),
+                    email: guestEmail || (authedUid ? await emailForMeta(authedUid, (_o = request.auth) === null || _o === void 0 ? void 0 : _o.token.email) : null),
                 });
                 return {
                     orderId: orderRef.id,
@@ -857,7 +864,7 @@ exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
             let customerId = typeof hhData.stripeCustomerId === 'string' ? hhData.stripeCustomerId : '';
             if (!customerId) {
                 const email = guestEmail ||
-                    (authedUid ? String((_p = (_o = (await db.doc(`users/${authedUid}`).get()).data()) === null || _o === void 0 ? void 0 : _o.email) !== null && _p !== void 0 ? _p : '') : '');
+                    (authedUid ? String((_q = (_p = (await db.doc(`users/${authedUid}`).get()).data()) === null || _p === void 0 ? void 0 : _p.email) !== null && _q !== void 0 ? _q : '') : '');
                 const customer = await stripe_1.stripe.customers.create(Object.assign(Object.assign({}, (email.includes('@') ? { email } : {})), { metadata: Object.assign({ householdId }, (guestEmail ? { guest: 'true' } : {})) }));
                 customerId = customer.id;
                 await db.doc(`households/${householdId}`).set({ stripeCustomerId: customerId, updatedAt: new Date().toISOString() }, { merge: true });
@@ -1037,6 +1044,9 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         email: await emailForMeta(request.auth.uid, request.auth.token.email),
         phone: ((_h = data.contactPhone) === null || _h === void 0 ? void 0 : _h.trim()) || null,
     });
+    if (!isPlaythrough) {
+        await (0, unaffiliated_1.reportUnaffiliatedShippingGeo)({ attribution, shippingAddress, email: commitEmail });
+    }
     return {
         orderId: orderRef.id,
         totalCents,

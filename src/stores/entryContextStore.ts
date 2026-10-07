@@ -124,7 +124,19 @@ export type AttributionSnapshot = {
   lastTouch: AttributionTouch | null;
   fbc: string | null;
   fbp: string | null;
+  /** Unaffiliated newsletter reader (`?userID=` on their email link, see public/index.html). */
+  unaffiliatedUserID: string | null;
 };
+
+const UNAFFILIATED_USER_ID_KEY = 'gj.unaffiliatedUserID';
+
+function readUnaffiliatedUserId(): string | null {
+  try {
+    return localStorage.getItem(UNAFFILIATED_USER_ID_KEY);
+  } catch {
+    return null;
+  }
+}
 
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -227,11 +239,13 @@ export function readAttributionSnapshot(): AttributionSnapshot | null {
   const stored = readStoredAttribution();
   const fbc = readFbc();
   const fbp = readFbp();
-  if (!stored && !fbc && !fbp) return null;
+  const unaffiliatedUserID = readUnaffiliatedUserId();
+  if (!stored && !fbc && !fbp && !unaffiliatedUserID) return null;
   return {
     firstTouch: stored?.firstTouch ?? null,
     lastTouch: stored?.lastTouch ?? null,
     fbc,
     fbp,
+    unaffiliatedUserID,
   };
 }

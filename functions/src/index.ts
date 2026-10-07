@@ -17,6 +17,7 @@ import { runDebriefReminderBatch } from './debriefReminders';
 import { runLockReminderBatch } from './lockReminders';
 import { deliveryDateLabel, lockDateLabel, runSetupNudgeBatch } from './setupNudge';
 import { untraditionalMarkSafe } from './untraditionalCio';
+import { reportUnaffiliatedShippingGeo } from './unaffiliated';
 import {
   assertCatalogSyncSecret,
   runAirtableCatalogReplaceSync,
@@ -65,6 +66,7 @@ export {
   scheduledPurgeGuestSessions,
 } from './guestSessions';
 export { retentionLead } from './retentionLead';
+export { unaffiliatedVisit } from './unaffiliated';
 
 initializeApp();
 const db = getFirestore();
@@ -1092,6 +1094,12 @@ export const createMarketplaceCheckout = onCall(async (request) => {
         creditsDeducted = true;
       }
 
+      if (!skipShipStation) {
+        const buyerEmail =
+          guestEmail || (typeof request.auth?.token.email === 'string' ? request.auth.token.email : '');
+        await reportUnaffiliatedShippingGeo({ attribution, shippingAddress, email: buyerEmail });
+      }
+
       if (!needsCard) {
         await sendOrderPurchaseToMeta({
           orderId: orderRef.id,
@@ -1374,6 +1382,10 @@ export const commitPilotBox = onCall(async (request) => {
     email: await emailForMeta(request.auth.uid, request.auth.token.email),
     phone: data.contactPhone?.trim() || null,
   });
+
+  if (!isPlaythrough) {
+    await reportUnaffiliatedShippingGeo({ attribution, shippingAddress, email: commitEmail });
+  }
 
   return {
     orderId: orderRef.id,
