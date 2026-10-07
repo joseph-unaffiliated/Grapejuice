@@ -209,6 +209,8 @@ type Props = {
   leadMaxWidth?: number;
   /** Balance lead line lengths on web instead of the default `pretty` wrap. */
   leadBalance?: boolean;
+  /** 40px hero title, matching the home section headlines (e.g. “Top Picks”). */
+  titleLarge?: boolean;
   primaryCta?: StorefrontArticleCta;
   secondaryCta?: StorefrontArticleCta;
   /** Small secondary line under the hero CTAs (e.g. pre-registered confirmation). */
@@ -1406,6 +1408,7 @@ export function StorefrontArticlePage({
   lead,
   leadMaxWidth,
   leadBalance = false,
+  titleLarge = false,
   primaryCta,
   secondaryCta,
   primaryCtaNote,
@@ -1431,7 +1434,7 @@ export function StorefrontArticlePage({
           ]}
         >
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-          <Text style={styles.title}>{title}</Text>
+          <Text style={[styles.title, titleLarge ? styles.titleLarge : null]}>{title}</Text>
           <View
             style={[
               styles.leadStack,
@@ -1610,6 +1613,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.md,
     ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
+  },
+  titleLarge: {
+    fontSize: 40,
+    lineHeight: 42,
+    letterSpacing: -0.2,
   },
   leadStack: {
     gap: spacing.md,

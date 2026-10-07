@@ -10,7 +10,6 @@ import {
 } from '../../components/storefront/StorefrontBuildBoxStrip';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { StorefrontTopPicksAisles } from '../../components/storefront/StorefrontTopPicksAisles';
-import { useCatalog } from '../../hooks/useCatalog';
 import {
   boxLockDayLabel,
   formatShortMonthDay,
@@ -51,7 +50,6 @@ export function GiftLandingScreen() {
   const preferredGiftPath = route.params?.preferredGiftPath;
   const config = useHanukkahConfig();
   const closed = useBoxLockPassed();
-  const { items, loading } = useCatalog();
   const { goCategory } = useStorefrontActions();
 
   useEffect(() => {
@@ -83,6 +81,7 @@ export function GiftLandingScreen() {
         lead={c.closed.lead}
         leadMaxWidth={560}
         leadBalance
+        titleLarge
         primaryCta={{ label: c.closed.primaryCta, onPress: giveCredit }}
         primaryCtaSize="medium"
         showFooterStrips={false}
@@ -114,6 +113,7 @@ export function GiftLandingScreen() {
       lead={c.lead}
       leadMaxWidth={560}
       leadBalance
+      titleLarge
       primaryCta={{ label: c.primaryCta, onPress: giveBox }}
       secondaryCta={{ label: c.secondaryCta, onPress: giveCredit }}
       primaryCtaNote={c.smallPrint}
@@ -137,8 +137,7 @@ export function GiftLandingScreen() {
           type: 'node',
           node: (
             <StorefrontTopPicksAisles
-              items={items}
-              loading={loading}
+              variant="aisles"
               onCategory={(category) => goCategory(category)}
               flushTop
             />

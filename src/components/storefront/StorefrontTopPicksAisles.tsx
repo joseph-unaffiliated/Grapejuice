@@ -11,15 +11,26 @@ import { StorefrontCategoryRail } from './StorefrontCategoryRail';
 import { StorefrontProductGrid } from './StorefrontProductGrid';
 
 type Props = {
-  items: CatalogItem[];
-  loading: boolean;
+  /** Required for the `home` variant (Top Picks). */
+  items?: CatalogItem[];
+  loading?: boolean;
   onCategory: (category: string) => void;
-  /** Drop the Top Picks header's top padding when a section above already spaces it. */
+  /** Drop the first header's top padding when a section above already spaces it. */
   flushTop?: boolean;
+  /** `aisles` = category rail only, under a smaller "Browse all Products" header on every breakpoint. */
+  variant?: 'home' | 'aisles';
 };
 
+const EMPTY_ITEMS: CatalogItem[] = [];
+
 /** Home "Top Picks" products + "Browse by Aisle" category rail. */
-export function StorefrontTopPicksAisles({ items, loading, onCategory, flushTop }: Props) {
+export function StorefrontTopPicksAisles({
+  items = EMPTY_ITEMS,
+  loading = false,
+  onCategory,
+  flushTop,
+  variant = 'home',
+}: Props) {
   const { isCompact: compact } = useLayoutBreakpoint();
   const railLimit = compact ? 10 : 6;
   const gridLimit = compact ? 10 : 3;
@@ -31,6 +42,24 @@ export function StorefrontTopPicksAisles({ items, loading, onCategory, flushTop 
     const fallback = tagged.length ? tagged : nonBooks;
     return itemsForStorefrontRail(items, 'most-loved', fallback, railLimit);
   }, [items, railLimit]);
+
+  if (variant === 'aisles') {
+    return (
+      <View style={styles.root}>
+        <SectionHeader
+          title="Browse all Products"
+          subtitle="Explore the whole Hanukkah collection"
+          flushTop={flushTop}
+          small
+        />
+        <StorefrontCategoryRail
+          heading={null}
+          cards={STOREFRONT_HOME_AISLE_CARDS}
+          onCategoryPress={onCategory}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -82,6 +111,7 @@ function SectionHeader({
   /** After a product rail: less paddingTop so gap matches hero → Top picks (rail already has marginBottom). */
   compactTop,
   flushTop,
+  small,
 }: {
   title: string;
   subtitle?: string;
@@ -89,10 +119,12 @@ function SectionHeader({
   onPress?: () => void;
   compactTop?: boolean;
   flushTop?: boolean;
+  /** Article-hero title size (32) instead of the 40px section headline. */
+  small?: boolean;
 }) {
   const text = (
     <>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[styles.sectionTitle, small ? styles.sectionTitleSmall : null]}>{title}</Text>
       {subtitle ? <Text style={styles.sectionSub}>{subtitle}</Text> : null}
     </>
   );
@@ -179,6 +211,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     color: semanticColors.logoDark,
     textAlign: 'center',
+  },
+  sectionTitleSmall: {
+    fontSize: 32,
+    lineHeight: 32 * 1.15,
+    letterSpacing: 0,
   },
   sectionSub: {
     ...typeface('regular'),
