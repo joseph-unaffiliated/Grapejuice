@@ -32,6 +32,9 @@ export type GiftInviteRecord = {
   createdAt: string;
   claimedAt?: string;
   claimedByHouseholdId?: string;
+  /** Set at lock when an unclaimed box shipped to the giver's address (order lives in the giver's household). */
+  autoShipOrderId?: string;
+  autoShipHouseholdId?: string;
 };
 
 /** Prefer stored kind; fall back to lineItems for older invites. */

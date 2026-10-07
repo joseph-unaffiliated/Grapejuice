@@ -16,6 +16,7 @@ function toOrder(id: string, data: Record<string, unknown>): PilotOrder {
     orderType,
     giftInviteId: data.giftInviteId ? String(data.giftInviteId) : undefined,
     giftSurprise: data.giftSurprise === true ? true : undefined,
+    autoShipForGiver: data.autoShipForGiver === true ? true : undefined,
     lineItems: Array.isArray(data.lineItems) ? (data.lineItems as BoxLineItem[]) : [],
     totalCents: Number(data.totalCents ?? 0),
     subtotalCents: typeof data.subtotalCents === 'number' ? data.subtotalCents : undefined,

@@ -414,6 +414,133 @@ async function runChargeEligibleMarketplaceOrders() {
         }
     }
 }
+function isCompleteShippingAddress(address) {
+    const a = address;
+    return Boolean((a === null || a === void 0 ? void 0 : a.name) && a.line1 && a.city && a.stateProvince && a.postalCode);
+}
+/**
+ * Sealed $0 order for a gift box nobody confirmed by lock, shipped to the giver's address.
+ * The order id is derived from the invite so a retried run can't create a second one.
+ */
+async function createAutoShipGiftOrder(params) {
+    var _a, _b;
+    const orderRef = db.doc(`households/${params.householdId}/orders/autoship-${params.giftInviteId}`);
+    const configData = (_a = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _a !== void 0 ? _a : {};
+    const payload = Object.assign(Object.assign({ status: 'confirmed', orderType: 'received_gift', giftInviteId: params.giftInviteId, lineItems: normalizeGiftLineItems(params.lineItems), subtotalCents: 0, shippingCents: 0, taxCents: 0, totalCents: 0, creditAppliedCents: 0, giftCreditAppliedCents: 0, platformCreditAppliedCents: 0, shippingAddress: params.shippingAddress, holidayId: HOLIDAY_ID, userId: params.userId, estimatedDelivery: (_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-24', lockAt: params.lockAt, giftSurprise: true, autoShipped: true }, (params.autoShipForGiver ? { autoShipForGiver: true } : {})), { createdAt: firestore_1.FieldValue.serverTimestamp(), confirmedAt: firestore_1.FieldValue.serverTimestamp() });
+    try {
+        await orderRef.create(payload);
+    }
+    catch (err) {
+        if (err.code === 6)
+            return orderRef.id;
+        throw err;
+    }
+    return orderRef.id;
+}
+/**
+ * At lock: claimed gift boxes nobody confirmed ship to the giver's address if they gave one,
+ * otherwise become gift credit. Unclaimed boxes with a giver address ship too; unclaimed ones
+ * without an address become credit when claimed (see claimGiftInvite).
+ */
+async function runSettleUnconfirmedGiftBoxes() {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    const lockAt = await getLockAt();
+    if (!isLocked(lockAt))
+        return;
+    const now = new Date().toISOString();
+    // Filtered in memory: a collection-group equality query would need a collection-group index.
+    const received = await db.collectionGroup('receivedGifts').get();
+    for (const doc of received.docs) {
+        const gift = doc.data();
+        if (gift.kind !== 'box')
+            continue;
+        const unconfirmed = gift.status === 'available' || (gift.status === 'accepted' && !gift.checkoutOrderId);
+        if (!unconfirmed)
+            continue;
+        const householdId = (_a = doc.ref.parent.parent) === null || _a === void 0 ? void 0 : _a.id;
+        if (!householdId)
+            continue;
+        const giftInviteId = String((_b = gift.giftInviteId) !== null && _b !== void 0 ? _b : doc.id);
+        try {
+            if (isCompleteShippingAddress(gift.giverShippingAddress)) {
+                const inviteSnap = await db.doc(`giftInvites/${giftInviteId}`).get();
+                const hhSnap = await db.doc(`households/${householdId}`).get();
+                const userId = (_f = (_d = (_c = inviteSnap.data()) === null || _c === void 0 ? void 0 : _c.claimedByUid) !== null && _d !== void 0 ? _d : (_e = hhSnap.data()) === null || _e === void 0 ? void 0 : _e.ownerId) !== null && _f !== void 0 ? _f : '';
+                const orderId = await createAutoShipGiftOrder({
+                    householdId,
+                    giftInviteId,
+                    userId,
+                    lineItems: (_g = gift.lineItems) !== null && _g !== void 0 ? _g : [],
+                    shippingAddress: gift.giverShippingAddress,
+                    lockAt,
+                });
+                await doc.ref.update({
+                    status: 'accepted',
+                    acceptedAt: (_h = gift.acceptedAt) !== null && _h !== void 0 ? _h : now,
+                    checkoutOrderId: orderId,
+                    surprise: true,
+                    autoShippedAt: now,
+                    updatedAt: now,
+                });
+            }
+            else {
+                const creditCents = typeof gift.creditCents === 'number' ? gift.creditCents : DEFAULT_GIFT_CREDIT_CENTS;
+                const hhRef = db.doc(`households/${householdId}`);
+                await db.runTransaction(async (tx) => {
+                    var _a, _b;
+                    const fresh = await tx.get(doc.ref);
+                    const f = (_a = fresh.data()) !== null && _a !== void 0 ? _a : {};
+                    const stillOpen = f.status === 'available' || (f.status === 'accepted' && !f.checkoutOrderId);
+                    if (!stillOpen)
+                        return;
+                    const hh = await tx.get(hhRef);
+                    const current = typeof ((_b = hh.data()) === null || _b === void 0 ? void 0 : _b.giftCreditCents) === 'number' ? hh.data().giftCreditCents : 0;
+                    tx.update(doc.ref, {
+                        status: 'converted_to_credit',
+                        convertedAt: now,
+                        autoConvertedAt: now,
+                        updatedAt: now,
+                    });
+                    tx.update(hhRef, { giftCreditCents: current + creditCents, updatedAt: now });
+                });
+            }
+        }
+        catch (err) {
+            logger.error('Settling unconfirmed gift box failed', { giftInviteId, err });
+        }
+    }
+    const invites = await db.collection('giftInvites').get();
+    for (const doc of invites.docs) {
+        const invite = doc.data();
+        if ((0, giftPayment_1.resolveGiftInviteKind)(invite) !== 'box')
+            continue;
+        const paid = invite.paymentStatus === 'paid' || Boolean(invite.claimEmailSentAt);
+        if (!paid || invite.status === 'claimed' || invite.autoShipOrderId)
+            continue;
+        if (!isCompleteShippingAddress(invite.shippingAddress))
+            continue;
+        try {
+            const giverHouseholdId = (_j = (await db.doc(`users/${invite.giverUid}`).get()).data()) === null || _j === void 0 ? void 0 : _j.householdId;
+            if (!giverHouseholdId) {
+                logger.warn('Unclaimed gift box has no giver household; ship it manually', { giftInviteId: doc.id });
+                continue;
+            }
+            const orderId = await createAutoShipGiftOrder({
+                householdId: giverHouseholdId,
+                giftInviteId: doc.id,
+                userId: invite.giverUid,
+                lineItems: (_k = invite.lineItems) !== null && _k !== void 0 ? _k : [],
+                shippingAddress: invite.shippingAddress,
+                lockAt,
+                autoShipForGiver: true,
+            });
+            await doc.ref.update({ autoShipOrderId: orderId, autoShipHouseholdId: giverHouseholdId });
+        }
+        catch (err) {
+            logger.error('Auto-shipping unclaimed gift box failed', { giftInviteId: doc.id, err });
+        }
+    }
+}
 async function runExportHeldGiftOrders() {
     var _a;
     if (!isLocked(await getLockAt()))
@@ -1641,7 +1768,10 @@ exports.peekGiftInvite = (0, sentry_1.onCall)(async (request) => {
     if (invite.paymentStatus === 'pending') {
         return { status: 'unpaid', giverName: invite.giverName || undefined };
     }
-    const giftKind = (0, giftPayment_1.resolveGiftInviteKind)(invite);
+    const purchasedKind = (0, giftPayment_1.resolveGiftInviteKind)(invite);
+    const giftKind = purchasedKind === 'box' && !invite.autoShipOrderId && isLocked(await getLockAt())
+        ? 'credit'
+        : purchasedKind;
     return {
         status: 'claimable',
         giverName: invite.giverName || undefined,
@@ -1671,7 +1801,11 @@ exports.claimGiftInvite = (0, sentry_1.onCall)(async (request) => {
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     let householdId = (_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.householdId;
     const now = new Date().toISOString();
-    const giftKind = (0, giftPayment_1.resolveGiftInviteKind)(invite);
+    const purchasedKind = (0, giftPayment_1.resolveGiftInviteKind)(invite);
+    // Past lock, a box that didn't already ship to the giver's address arrives as credit.
+    const boxBecameCredit = purchasedKind === 'box' && !invite.autoShipOrderId && isLocked(await getLockAt());
+    const giftKind = boxBecameCredit ? 'credit' : purchasedKind;
+    const autoShipped = giftKind === 'box' && Boolean(invite.autoShipOrderId);
     if (!householdId) {
         const hhRef = db.collection('households').doc();
         await hhRef.set({
@@ -1698,27 +1832,10 @@ exports.claimGiftInvite = (0, sentry_1.onCall)(async (request) => {
     // Store on household — never merge into the family's own box draft.
     const boxLines = giftKind === 'box' ? ((_f = invite.lineItems) !== null && _f !== void 0 ? _f : []) : [];
     const prepaidAddOnCents = giftKind === 'box' ? chargeableLineTotal(boxLines) : 0;
-    await db.doc(`households/${householdId}/receivedGifts/${inviteDoc.id}`).set({
-        giftInviteId: inviteDoc.id,
-        giverName: invite.giverName,
-        message: (_g = invite.message) !== null && _g !== void 0 ? _g : null,
-        kind: giftKind,
-        creditCents: invite.creditCents,
-        prepaidAddOnCents,
-        lineItems: giftKind === 'box' ? (_h = invite.lineItems) !== null && _h !== void 0 ? _h : [] : [],
-        childInterests: giftKind === 'box' ? (_j = invite.childInterests) !== null && _j !== void 0 ? _j : [] : [],
-        giverShippingAddress: giftKind === 'box' ? (_k = invite.shippingAddress) !== null && _k !== void 0 ? _k : null : null,
-        status: 'available',
-        claimedAt: now,
-        updatedAt: now,
-    });
-    await inviteDoc.ref.update({
-        status: 'claimed',
-        kind: giftKind,
-        claimedAt: now,
-        claimedByHouseholdId: householdId,
-        claimedByUid: request.auth.uid,
-    });
+    await db.doc(`households/${householdId}/receivedGifts/${inviteDoc.id}`).set(Object.assign(Object.assign(Object.assign({ giftInviteId: inviteDoc.id, giverName: invite.giverName, message: (_g = invite.message) !== null && _g !== void 0 ? _g : null, kind: giftKind, creditCents: invite.creditCents, prepaidAddOnCents, lineItems: giftKind === 'box' ? (_h = invite.lineItems) !== null && _h !== void 0 ? _h : [] : [], childInterests: giftKind === 'box' ? (_j = invite.childInterests) !== null && _j !== void 0 ? _j : [] : [], giverShippingAddress: giftKind === 'box' ? (_k = invite.shippingAddress) !== null && _k !== void 0 ? _k : null : null, status: autoShipped ? 'accepted' : 'available' }, (autoShipped
+        ? { acceptedAt: now, checkoutOrderId: invite.autoShipOrderId, surprise: true, autoShippedAt: now }
+        : {})), (boxBecameCredit ? { autoConvertedAt: now } : {})), { claimedAt: now, updatedAt: now }));
+    await inviteDoc.ref.update(Object.assign(Object.assign({ status: 'claimed', kind: purchasedKind }, (boxBecameCredit ? { claimedAsCredit: true } : {})), { claimedAt: now, claimedByHouseholdId: householdId, claimedByUid: request.auth.uid }));
     // Claiming a gift is not starting a household Hanukkah box. Only force
     // BoxReveal when they already have their own draft in progress.
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
@@ -1743,6 +1860,7 @@ exports.claimGiftInvite = (0, sentry_1.onCall)(async (request) => {
         giverName: invite.giverName,
         message: invite.message,
         hasGiverDraft: giftKind === 'box',
+        alreadyShipping: autoShipped,
     };
 });
 function mapReceivedGiftDoc(docId, data) {
@@ -2232,6 +2350,7 @@ exports.scheduledChargePilotBoxes = (0, sentry_1.onSchedule)('every 1 hours', as
         await runChargeEligibleMarketplaceOrders();
     }
     try {
+        await runSettleUnconfirmedGiftBoxes();
         await runExportHeldGiftOrders();
     }
     catch (giftErr) {

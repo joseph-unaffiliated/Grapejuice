@@ -50,6 +50,8 @@ export type ClaimGiftResult = {
   giverName?: string;
   message?: string;
   hasGiverDraft: boolean;
+  /** Box already shipped to the giver's address at lock; nothing for the recipient to choose. */
+  alreadyShipping?: boolean;
 };
 
 export async function listMyReceivedGifts(): Promise<import('../../types/pilot').ReceivedGift[]> {

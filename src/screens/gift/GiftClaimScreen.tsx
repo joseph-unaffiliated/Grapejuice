@@ -93,6 +93,11 @@ function GiftClaimBody() {
       await refresh();
       // Clear token only after leave — clearing earlier re-renders this screen as
       // "invalid link" when the token lived in the store but not route params.
+      if (result.alreadyShipping) {
+        navigation.replace('MyGifts');
+        useAuthFlowStore.getState().setPendingGiftClaimToken(null);
+        return;
+      }
       navigation.replace('GiftRecipientReveal', {
         giftInviteId: result.giftInviteId,
         giverName: result.giverName ?? 'Someone who loves you',

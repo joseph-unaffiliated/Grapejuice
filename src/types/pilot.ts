@@ -324,6 +324,8 @@ export type PilotOrder = {
   giftInviteId?: string;
   /** Recipient chose "Keep it a surprise": don't show them the items. */
   giftSurprise?: boolean;
+  /** Unclaimed gift box shipped at lock from the giver's household. */
+  autoShipForGiver?: boolean;
   lineItems: BoxLineItem[];
   totalCents: number;
   /** Merchandise subtotal (box + chargeable lines) before shipping/tax/credits. */

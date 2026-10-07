@@ -164,7 +164,8 @@ export function useUnifiedOrders() {
 
   const orders = useMemo(() => {
     const unified: UnifiedOrder[] = [
-      ...pilotOrders.map(toUnifiedFromPilot),
+      // A gift box shipped from the giver's household is already listed as their gift.
+      ...pilotOrders.filter((o) => !o.autoShipForGiver).map(toUnifiedFromPilot),
       ...giftInvites.map(toUnifiedFromGift),
     ];
     unified.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
