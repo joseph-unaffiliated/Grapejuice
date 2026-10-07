@@ -1,7 +1,7 @@
 "use strict";
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteGuestDataByEmail = exports.scheduledPurgeGuestSessions = exports.resumeGuestSession = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.VISITOR_ID_RE = exports.SNAPSHOT_MAX_BYTES = exports.RESUME_TOKEN_MAX_USES = exports.RESUME_TOKEN_TTL_DAYS = exports.GUEST_SESSION_TTL_DAYS = exports.GUEST_SESSION_SCHEMA_VERSION = void 0;
+exports.deleteGuestDataByEmail = exports.scheduledPurgeGuestSessions = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.VISITOR_ID_RE = exports.SNAPSHOT_MAX_BYTES = exports.RESUME_TOKEN_MAX_USES = exports.RESUME_TOKEN_TTL_DAYS = exports.GUEST_SESSION_TTL_DAYS = exports.GUEST_SESSION_SCHEMA_VERSION = void 0;
 exports.appOrigin = appOrigin;
 exports.sha256Hex = sha256Hex;
 exports.emailHash = emailHash;
@@ -19,6 +19,7 @@ const sentry_1 = require("./sentry");
 const firestore_1 = require("firebase-admin/firestore");
 const crypto_1 = require("crypto");
 const untraditionalCio_1 = require("./untraditionalCio");
+const geo_1 = require("./geo");
 /**
  * Guest box recovery — server-side copy of a signed-out visitor's in-progress box.
  *
@@ -118,7 +119,7 @@ function expireAtFrom(now, days) {
  * Upsert guestSessions/{visitorId}. Rate-limited per visitor; preserves createdAt,
  * convertedUid and lead linkage across saves.
  */
-async function saveGuestSessionRecord(db, visitorId, snapshot, now = new Date()) {
+async function saveGuestSessionRecord(db, visitorId, snapshot, now = new Date(), geo = null) {
     var _a, _b, _c, _d, _e, _f;
     const summary = summarizeSnapshot(snapshot);
     const ref = db.doc(`guestSessions/${visitorId}`);
@@ -129,16 +130,16 @@ async function saveGuestSessionRecord(db, visitorId, snapshot, now = new Date())
         return { ok: true, skipped: 'rate_limited' };
     }
     const entry = isRecord(snapshot.entry) ? snapshot.entry : null;
-    await ref.set(Object.assign(Object.assign({ schemaVersion: exports.GUEST_SESSION_SCHEMA_VERSION, snapshot }, summary), { path: typeof snapshot.path === 'string' ? snapshot.path.slice(0, 200) : null, entry, createdAt: (_a = prior === null || prior === void 0 ? void 0 : prior.createdAt) !== null && _a !== void 0 ? _a : firestore_1.Timestamp.fromDate(now), updatedAt: firestore_1.Timestamp.fromDate(now), expireAt: expireAtFrom(now, exports.GUEST_SESSION_TTL_DAYS), convertedUid: (_b = prior === null || prior === void 0 ? void 0 : prior.convertedUid) !== null && _b !== void 0 ? _b : null, convertedAt: (_c = prior === null || prior === void 0 ? void 0 : prior.convertedAt) !== null && _c !== void 0 ? _c : null, lastLeadEmailHash: (_d = prior === null || prior === void 0 ? void 0 : prior.lastLeadEmailHash) !== null && _d !== void 0 ? _d : null, lastLeadAt: (_e = prior === null || prior === void 0 ? void 0 : prior.lastLeadAt) !== null && _e !== void 0 ? _e : null, resumeCount: (_f = prior === null || prior === void 0 ? void 0 : prior.resumeCount) !== null && _f !== void 0 ? _f : 0, saveCount: firestore_1.FieldValue.increment(1) }), { merge: true });
+    await ref.set(Object.assign(Object.assign(Object.assign({ schemaVersion: exports.GUEST_SESSION_SCHEMA_VERSION, snapshot }, summary), { path: typeof snapshot.path === 'string' ? snapshot.path.slice(0, 200) : null, entry, createdAt: (_a = prior === null || prior === void 0 ? void 0 : prior.createdAt) !== null && _a !== void 0 ? _a : firestore_1.Timestamp.fromDate(now), updatedAt: firestore_1.Timestamp.fromDate(now), expireAt: expireAtFrom(now, exports.GUEST_SESSION_TTL_DAYS), convertedUid: (_b = prior === null || prior === void 0 ? void 0 : prior.convertedUid) !== null && _b !== void 0 ? _b : null, convertedAt: (_c = prior === null || prior === void 0 ? void 0 : prior.convertedAt) !== null && _c !== void 0 ? _c : null, lastLeadEmailHash: (_d = prior === null || prior === void 0 ? void 0 : prior.lastLeadEmailHash) !== null && _d !== void 0 ? _d : null, lastLeadAt: (_e = prior === null || prior === void 0 ? void 0 : prior.lastLeadAt) !== null && _e !== void 0 ? _e : null, resumeCount: (_f = prior === null || prior === void 0 ? void 0 : prior.resumeCount) !== null && _f !== void 0 ? _f : 0, saveCount: firestore_1.FieldValue.increment(1) }), (geo ? { ipGeo: (0, geo_1.ipGeoField)(geo) } : {})), { merge: true });
     return { ok: true };
 }
 /** Callable used by the debounced client sync (src/hooks/useGuestSessionSync.ts). Unauthenticated. */
-exports.saveGuestSession = (0, sentry_1.onCall)(async (request) => {
+exports.saveGuestSession = (0, sentry_1.onCall)({ memory: '512MiB' }, async (request) => {
     var _a;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const visitorId = validateVisitorId(data.visitorId);
     const snapshot = validateSnapshot(data.snapshot);
-    return saveGuestSessionRecord((0, firestore_1.getFirestore)(), visitorId, snapshot);
+    return saveGuestSessionRecord((0, firestore_1.getFirestore)(), visitorId, snapshot, new Date(), (0, geo_1.geoFromRequest)(request.rawRequest));
 });
 const BEACON_ORIGINS = [
     'https://grapejuice.co',
@@ -152,7 +153,7 @@ const BEACON_ORIGINS = [
  * JSON (a "simple" request, so no CORS preflight is needed at pagehide). Same validation
  * as the callable; the client never reads the response.
  */
-exports.saveGuestSessionBeacon = (0, sentry_1.onRequest)({ cors: BEACON_ORIGINS }, async (req, res) => {
+exports.saveGuestSessionBeacon = (0, sentry_1.onRequest)({ cors: BEACON_ORIGINS, memory: '512MiB' }, async (req, res) => {
     var _a, _b;
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
@@ -163,7 +164,7 @@ exports.saveGuestSessionBeacon = (0, sentry_1.onRequest)({ cors: BEACON_ORIGINS 
         const parsed = (raw ? JSON.parse(raw) : isRecord(req.body) ? req.body : {});
         const visitorId = validateVisitorId(parsed.visitorId);
         const snapshot = validateSnapshot(parsed.snapshot);
-        await saveGuestSessionRecord((0, firestore_1.getFirestore)(), visitorId, snapshot);
+        await saveGuestSessionRecord((0, firestore_1.getFirestore)(), visitorId, snapshot, new Date(), (0, geo_1.geoFromRequest)(req));
         res.status(204).send('');
     }
     catch (err) {
@@ -184,13 +185,16 @@ function scrubChildNames(snapshot) {
  * Called by persistGuestToAccount after sign-up: records the account so recovery emails stop,
  * and scrubs child names from the stored snapshot.
  */
-exports.markGuestSessionConverted = (0, sentry_1.onCall)(async (request) => {
+exports.markGuestSessionConverted = (0, sentry_1.onCall)({ memory: '512MiB' }, async (request) => {
     var _a, _b, _c;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     const visitorId = validateVisitorId(data.visitorId);
     const db = (0, firestore_1.getFirestore)();
+    const geo = (0, geo_1.geoFromRequest)(request.rawRequest);
+    if (geo)
+        await db.doc(`users/${request.auth.uid}`).set({ ipGeo: (0, geo_1.ipGeoField)(geo) }, { merge: true });
     const ref = db.doc(`guestSessions/${visitorId}`);
     const snap = await ref.get();
     if (!snap.exists)
@@ -199,6 +203,19 @@ exports.markGuestSessionConverted = (0, sentry_1.onCall)(async (request) => {
     const scrubbed = isRecord(stored.snapshot) ? scrubChildNames(stored.snapshot) : null;
     await ref.set(Object.assign({ convertedUid: request.auth.uid, convertedAt: firestore_1.FieldValue.serverTimestamp() }, (scrubbed ? { snapshot: scrubbed } : null)), { merge: true });
     return { ok: true, found: true };
+});
+/**
+ * Signed-in visit ping (src/hooks/useVisitorRegion.ts, once per app session): keeps an approximate
+ * region on users/{uid} for accounts that never went through a guest session or entered an address.
+ */
+exports.noteVisitorRegion = (0, sentry_1.onCall)({ memory: '512MiB' }, async (request) => {
+    var _a;
+    if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
+    const geo = (0, geo_1.geoFromRequest)(request.rawRequest);
+    if (geo)
+        await (0, firestore_1.getFirestore)().doc(`users/${request.auth.uid}`).set({ ipGeo: (0, geo_1.ipGeoField)(geo) }, { merge: true });
+    return { ok: true };
 });
 /** Mint a one-click resume link; only the SHA-256 of the token is stored. */
 async function mintResumeToken(db, visitorId, leadEmail, now = new Date()) {

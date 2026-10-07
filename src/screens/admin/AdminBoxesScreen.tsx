@@ -434,17 +434,31 @@ function Facts({ facts, styles }: { facts: Array<[string, string]>; styles: Styl
   );
 }
 
-/** "By state: NY 4 · CA 2 · no address 3" for the rows currently shown. */
-function stateSummary(locations: Array<string | null | undefined>): string {
+type Placed = { location?: string | null; fromIp?: boolean };
+
+/** "NY" from an address, "~NY" when estimated from the IP address. */
+function placeLabel(p: Placed): string {
+  return p.location ? `${p.fromIp ? '~' : ''}${p.location}` : '—';
+}
+
+/** "By state: NY 4 · ON, Canada 2 · unknown 3 (~ 5 estimated from IP)" for the rows currently shown. */
+function stateSummary(rows: Placed[], label = 'By state'): string {
   const counts = new Map<string, number>();
   let missing = 0;
-  for (const l of locations) {
-    if (l) counts.set(l, (counts.get(l) ?? 0) + 1);
-    else missing += 1;
+  let fromIp = 0;
+  for (const r of rows) {
+    if (!r.location) {
+      missing += 1;
+      continue;
+    }
+    counts.set(r.location, (counts.get(r.location) ?? 0) + 1);
+    if (r.fromIp) fromIp += 1;
   }
   const parts = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([s, n]) => `${s} ${n}`);
-  if (missing) parts.push(`no address ${missing}`);
-  return parts.length ? `By state: ${parts.join(' · ')}` : '';
+  if (missing) parts.push(`unknown ${missing}`);
+  if (!parts.length) return '';
+  const note = fromIp ? ` (~ ${fromIp} estimated from IP address; mobile networks can be off by a state)` : '';
+  return `${label}: ${parts.join(' · ')}${note}`;
 }
 
 type BoxStatusFilter = 'active' | 'draft' | 'open' | 'fulfilled' | 'cancelled' | 'all';
@@ -491,7 +505,7 @@ function BoxesSection({
 
   const columns: Column<DashBox>[] = [
     { label: 'Customer', width: 200, cell: (b) => <Who name={b.customer} email={b.email} styles={styles} />, sort: (b) => (b.customer ?? b.email ?? '').toLowerCase() },
-    { label: 'Ships to', width: 90, cell: (b) => b.location ?? '—', sort: (b) => b.location ?? null },
+    { label: 'State', width: 100, cell: (b) => placeLabel({ location: b.location, fromIp: b.locationFromIp }), sort: (b) => b.location ?? null },
     { label: 'Kids', width: 50, align: 'right', cell: (b) => String(b.kids), sort: (b) => b.kids },
     ...answerColumns<DashBox>((b) => b.answers),
     { label: 'Status', width: 120, cell: (b) => statusLabel(b.status), sort: (b) => b.status },
@@ -574,7 +588,7 @@ function BoxesSection({
         styles={styles}
         colors={colors}
       />
-      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((b) => b.location))}</Text> : null}
+      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((b) => ({ location: b.location, fromIp: b.locationFromIp })))}</Text> : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. ${ANSWERS_CAPTION}`}
       </Text>
@@ -615,6 +629,7 @@ function GiftsSection({
 
   const columns: Column<DashGift>[] = [
     { label: 'Giver', width: 190, cell: (g) => <Who name={g.giver} email={g.giverEmail} styles={styles} />, sort: (g) => (g.giver ?? g.giverEmail ?? '').toLowerCase() },
+    { label: 'Giver from', width: 100, cell: (g) => placeLabel({ location: g.giverLocation, fromIp: true }), sort: (g) => g.giverLocation ?? null },
     { label: 'Recipient', width: 190, cell: (g) => <Who name={g.recipientName} email={g.recipientEmail} styles={styles} />, sort: (g) => (g.recipientName ?? g.recipientEmail ?? '').toLowerCase() },
     { label: 'Ships to', width: 90, cell: (g) => g.location ?? '—', sort: (g) => g.location ?? null },
     ...answerColumns<DashGift>((g) => g.recipientAnswers),
@@ -660,7 +675,16 @@ function GiftsSection({
         styles={styles}
         colors={colors}
       />
-      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((g) => g.location))}</Text> : null}
+      {rows.length ? (
+        <Text style={styles.caption}>
+          {[
+            stateSummary(rows.map((g) => ({ location: g.location })), 'Ships to'),
+            stateSummary(rows.map((g) => ({ location: g.giverLocation, fromIp: true })), 'Givers from'),
+          ]
+            .filter(Boolean)
+            .join('\n')}
+        </Text>
+      ) : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${data.gifts.length} gift invites. Unpaid rows are gift checkouts that were started but never paid. Dot: green checked out, blue paid and waiting on the recipient, grey unpaid. Gift drafts abandoned before checkout by signed-out visitors are on the Anonymous tab. Hanukkah and Jewish are the recipient's answers once they've signed up. ${ANSWERS_CAPTION}`}
       </Text>
@@ -713,6 +737,7 @@ function AnonymousSection({
       sort: (g) => g.source ?? '',
     },
     { label: 'Stage', width: 140, cell: (g) => GUEST_STAGE_LABEL[g.stage], sort: (g) => g.stage },
+    { label: 'State', width: 100, cell: (g) => placeLabel({ location: g.location, fromIp: true }), sort: (g) => g.location ?? null },
     { label: 'Kids', width: 50, align: 'right', cell: (g) => String(g.kids), sort: (g) => g.kids },
     ...answerColumns<DashGuest>((g) => g.answers),
     { label: 'Items', width: 55, align: 'right', cell: (g) => (g.lines.length ? String(g.lines.length) : '—'), sort: (g) => g.lines.length },
@@ -795,6 +820,7 @@ function AnonymousSection({
         styles={styles}
         colors={colors}
       />
+      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((g) => ({ location: g.location, fromIp: true })))}</Text> : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${guests.length} signed-out visitors who started a box or gift (${totalSessions} saved sessions; browsing with only favorites is left out, sessions expire after 60 days). Visitor is the first characters of the browser's visitor ID, with where they came from underneath. Email given = they entered an email we matched through Retention. Signed up later = they made an account, so their box also appears on the Boxes tab. Dot: green signed up, blue email given, amber built a box but neither. Test visits can't be told apart here. ${ANSWERS_CAPTION}`}
       </Text>

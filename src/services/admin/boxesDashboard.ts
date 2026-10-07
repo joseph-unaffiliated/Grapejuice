@@ -42,8 +42,9 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
-  /** Ship-to state ("NY", "ON, Canada"). */
+  /** State ("NY", "ON, Canada") from an address, else the account's IP region. */
   location?: string | null;
+  locationFromIp?: boolean;
   answers: DashAnswers;
   lines: DashLine[];
 };
@@ -67,6 +68,8 @@ export type DashGuest = {
   resumeCount: number;
   saveCount: number;
   gift: { kind: string | null; giverName: string | null; recipientEmail: string | null; items: number } | null;
+  /** IP region from the visitor's saves. */
+  location?: string | null;
   lines: DashLine[];
 };
 
@@ -92,6 +95,8 @@ export type DashGift = {
   createdAt: string | null;
   /** Ship-to state ("NY", "ON, Canada"). */
   location?: string | null;
+  /** The giver's IP region. */
+  giverLocation?: string | null;
   lines: DashLine[];
 };
 

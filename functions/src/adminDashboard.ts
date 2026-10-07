@@ -57,8 +57,12 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
-  /** Ship-to state ("NY", "ON, Canada"); drafts fall back to the household's latest order address. */
+  /**
+   * State ("NY", "ON, Canada"): the order's ship-to, else the household's latest order address, else
+   * the account's IP region (`locationFromIp`).
+   */
   location: string | null;
+  locationFromIp: boolean;
   answers: DashAnswers;
   lines: DashLine[];
 };
@@ -83,6 +87,8 @@ export type DashGuest = {
   resumeCount: number;
   saveCount: number;
   gift: { kind: string | null; giverName: string | null; recipientEmail: string | null; items: number } | null;
+  /** IP region from the visitor's saves. */
+  location: string | null;
   lines: DashLine[];
 };
 
@@ -108,6 +114,8 @@ export type DashGift = {
   createdAt: string | null;
   /** Ship-to state: the giver-entered address, else the recipient household's latest order address. */
   location: string | null;
+  /** The giver's IP region. */
+  giverLocation: string | null;
   lines: DashLine[];
 };
 
@@ -262,6 +270,18 @@ function locationOf(addr: unknown): string | null {
   return a.country === 'OTHER' ? `${raw} (intl)` : raw;
 }
 
+/** `ipGeo` written by functions/src/geo.ts → "NY", "ON, Canada", or a country code. */
+function ipLocationOf(geo: unknown): string | null {
+  if (!geo || typeof geo !== 'object') return null;
+  const g = geo as Record<string, unknown>;
+  const country = str(g.country);
+  const region = str(g.region);
+  if (!country) return null;
+  if (country === 'US') return region ?? 'US';
+  if (country === 'CA') return region ? `${region}, Canada` : 'Canada';
+  return country;
+}
+
 const META_AD_UNKNOWN = 'Meta, ad unknown';
 const NOT_FROM_AD = 'Not from an ad';
 
@@ -366,6 +386,7 @@ function buildGuestRows(
             items: giftLines,
           }
         : null,
+      location: ipLocationOf(x.ipGeo),
       lines,
     });
   }
@@ -397,7 +418,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       db.collectionGroup('receivedGifts').get(),
       db
         .collection('guestSessions')
-        .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'resumeCount', 'saveCount')
+        .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'resumeCount', 'saveCount', 'ipGeo')
         .get(),
     ]);
   const guestDocs = guestSnap.docs.filter((d) => !d.id.startsWith('agenttest'));
@@ -422,6 +443,10 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const u = str(d.data().userId);
     if (u) userIds.add(u);
   }
+  for (const d of invitesSnap.docs) {
+    const u = str(d.data().giverUid);
+    if (u) userIds.add(u);
+  }
 
   const childNamesByUser = new Map<string, Map<string, string | null>>();
   for (const d of childrenSnap.docs) {
@@ -436,6 +461,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
   const guestAnswersByUid = new Map<string, DashAnswers>();
   const guestAdByUid = new Map<string, string>();
+  const guestIpLocationByUid = new Map<string, string>();
   for (const d of guestSnap.docs) {
     const x = d.data();
     const uid = str(x.convertedUid);
@@ -443,10 +469,20 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     if (uid && guest && guestAnsweredSliders(guest)) guestAnswersByUid.set(uid, guestAnswers(guest));
     const ad = uid ? adNameOf(x.entry) : null;
     if (uid && ad) guestAdByUid.set(uid, ad);
+    const ipLoc = uid ? ipLocationOf(x.ipGeo) : null;
+    if (uid && ipLoc) guestIpLocationByUid.set(uid, ipLoc);
   }
   const users = new Map<
     string,
-    { email: string | null; name: string | null; answers: DashAnswers; householdId: string | null; ad: string; createdAt: string | null }
+    {
+      email: string | null;
+      name: string | null;
+      answers: DashAnswers;
+      householdId: string | null;
+      ad: string;
+      createdAt: string | null;
+      ipLocation: string | null;
+    }
   >();
   for (const s of userSnaps) {
     const x = s.data() ?? {};
@@ -469,6 +505,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         guestAdByUid.get(s.id) ??
         (str(attr.fbc) ? META_AD_UNKNOWN : NOT_FROM_AD),
       createdAt: iso(x.createdAt),
+      ipLocation: ipLocationOf(x.ipGeo) ?? guestIpLocationByUid.get(s.id) ?? null,
     });
   }
 
@@ -529,6 +566,14 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     if (!prev || createdMs > prev.createdMs) latestLocation.set(hid, { createdMs, location });
   }
   const householdLocation = (hid: string | null) => (hid ? latestLocation.get(hid)?.location ?? null : null);
+  const userIpLocation = (uid: string | null) => (uid ? users.get(uid)?.ipLocation ?? guestIpLocationByUid.get(uid) ?? null : null);
+  /** Address-based state when known, else the account's IP region (flagged). */
+  const placeFor = (hid: string, uid: string | null, address: string | null) => {
+    const known = address ?? householdLocation(hid);
+    if (known) return { location: known, locationFromIp: false };
+    const ip = userIpLocation(uid) ?? userIpLocation(str(households.get(hid)?.ownerId));
+    return { location: ip, locationFromIp: Boolean(ip) };
+  };
 
   const boxHeld = new Map<string, number>();
   const giftOrders = new Map<string, { createdMs: number; lines: unknown }>();
@@ -589,7 +634,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(o.updatedAt) ?? iso(o.committedAt) ?? iso(o.createdAt),
       committedAt: iso(o.committedAt),
       attribution: attributionLabel(o.attribution),
-      location: locationOf(o.shippingAddress) ?? householdLocation(hid),
+      ...placeFor(hid, str(o.userId), locationOf(o.shippingAddress)),
       answers: c.answers,
       lines,
     });
@@ -624,7 +669,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(dr.updatedAt),
       committedAt: null,
       attribution: null,
-      location: householdLocation(hid),
+      ...placeFor(hid, str(dr.updatedBy), null),
       answers: c.answers,
       lines,
     });
@@ -720,6 +765,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       message: str(g.message),
       createdAt: iso(g.createdAt),
       location: locationOf(g.shippingAddress) ?? householdLocation(hid || null),
+      giverLocation: userIpLocation(str(g.giverUid)),
       lines: linesOf(lineSource, recipient?.childNames ?? new Map()),
     });
   }

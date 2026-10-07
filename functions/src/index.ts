@@ -61,6 +61,7 @@ export {
   saveGuestSession,
   saveGuestSessionBeacon,
   markGuestSessionConverted,
+  noteVisitorRegion,
   resumeGuestSession,
   deleteGuestDataByEmail,
   scheduledPurgeGuestSessions,

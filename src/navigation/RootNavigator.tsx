@@ -46,6 +46,7 @@ import { BoxLinkEffect } from './BoxLinkEffect';
 import { PasswordResetLinkEffect } from './PasswordResetLinkEffect';
 import { ResumeLinkEffect } from './ResumeLinkEffect';
 import { GuestSessionSyncEffect } from '../hooks/useGuestSessionSync';
+import { VisitorRegionEffect } from '../hooks/useVisitorRegion';
 import { hydratePasswordResetFromBoot } from './passwordResetLink';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { consumePendingAuthReturn } from '../services/auth/auth';
@@ -434,6 +435,7 @@ export function RootNavigator() {
           <PasswordResetLinkEffect />
           <ResumeLinkEffect />
           <GuestSessionSyncEffect />
+          <VisitorRegionEffect />
           <AuthResumeMainEffect />
           <DevPreviewEffect />
           <RootRoutes />

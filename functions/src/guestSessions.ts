@@ -3,6 +3,7 @@ import { onCall, onRequest, HttpsError, onSchedule } from './sentry';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'crypto';
 import { untraditionalDeletePerson } from './untraditionalCio';
+import { geoFromRequest, ipGeoField, type IpGeo } from './geo';
 
 /**
  * Guest box recovery — server-side copy of a signed-out visitor's in-progress box.
@@ -132,7 +133,8 @@ export async function saveGuestSessionRecord(
   db: FirebaseFirestore.Firestore,
   visitorId: string,
   snapshot: JsonRecord,
-  now: Date = new Date()
+  now: Date = new Date(),
+  geo: IpGeo | null = null
 ): Promise<SaveGuestSessionResult> {
   const summary = summarizeSnapshot(snapshot);
   const ref = db.doc(`guestSessions/${visitorId}`);
@@ -159,6 +161,7 @@ export async function saveGuestSessionRecord(
       lastLeadAt: prior?.lastLeadAt ?? null,
       resumeCount: prior?.resumeCount ?? 0,
       saveCount: FieldValue.increment(1),
+      ...(geo ? { ipGeo: ipGeoField(geo) } : {}),
     },
     { merge: true }
   );
@@ -166,11 +169,11 @@ export async function saveGuestSessionRecord(
 }
 
 /** Callable used by the debounced client sync (src/hooks/useGuestSessionSync.ts). Unauthenticated. */
-export const saveGuestSession = onCall(async (request) => {
+export const saveGuestSession = onCall({ memory: '512MiB' }, async (request) => {
   const data = (request.data ?? {}) as { visitorId?: unknown; snapshot?: unknown };
   const visitorId = validateVisitorId(data.visitorId);
   const snapshot = validateSnapshot(data.snapshot);
-  return saveGuestSessionRecord(getFirestore(), visitorId, snapshot);
+  return saveGuestSessionRecord(getFirestore(), visitorId, snapshot, new Date(), geoFromRequest(request.rawRequest));
 });
 
 const BEACON_ORIGINS = [
@@ -186,7 +189,7 @@ const BEACON_ORIGINS = [
  * JSON (a "simple" request, so no CORS preflight is needed at pagehide). Same validation
  * as the callable; the client never reads the response.
  */
-export const saveGuestSessionBeacon = onRequest({ cors: BEACON_ORIGINS }, async (req, res) => {
+export const saveGuestSessionBeacon = onRequest({ cors: BEACON_ORIGINS, memory: '512MiB' }, async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');
     return;
@@ -198,7 +201,7 @@ export const saveGuestSessionBeacon = onRequest({ cors: BEACON_ORIGINS }, async 
     ) as { visitorId?: unknown; snapshot?: unknown };
     const visitorId = validateVisitorId(parsed.visitorId);
     const snapshot = validateSnapshot(parsed.snapshot);
-    await saveGuestSessionRecord(getFirestore(), visitorId, snapshot);
+    await saveGuestSessionRecord(getFirestore(), visitorId, snapshot, new Date(), geoFromRequest(req));
     res.status(204).send('');
   } catch (err) {
     const code = err instanceof HttpsError ? 400 : 500;
@@ -224,11 +227,13 @@ export function scrubChildNames(snapshot: JsonRecord): JsonRecord {
  * Called by persistGuestToAccount after sign-up: records the account so recovery emails stop,
  * and scrubs child names from the stored snapshot.
  */
-export const markGuestSessionConverted = onCall(async (request) => {
+export const markGuestSessionConverted = onCall({ memory: '512MiB' }, async (request) => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.');
   const data = (request.data ?? {}) as { visitorId?: unknown };
   const visitorId = validateVisitorId(data.visitorId);
   const db = getFirestore();
+  const geo = geoFromRequest(request.rawRequest);
+  if (geo) await db.doc(`users/${request.auth.uid}`).set({ ipGeo: ipGeoField(geo) }, { merge: true });
   const ref = db.doc(`guestSessions/${visitorId}`);
   const snap = await ref.get();
   if (!snap.exists) return { ok: true, found: false };
@@ -243,6 +248,17 @@ export const markGuestSessionConverted = onCall(async (request) => {
     { merge: true }
   );
   return { ok: true, found: true };
+});
+
+/**
+ * Signed-in visit ping (src/hooks/useVisitorRegion.ts, once per app session): keeps an approximate
+ * region on users/{uid} for accounts that never went through a guest session or entered an address.
+ */
+export const noteVisitorRegion = onCall({ memory: '512MiB' }, async (request) => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const geo = geoFromRequest(request.rawRequest);
+  if (geo) await getFirestore().doc(`users/${request.auth.uid}`).set({ ipGeo: ipGeoField(geo) }, { merge: true });
+  return { ok: true };
 });
 
 export type MintedResumeToken = { token: string; url: string; hash: string };
