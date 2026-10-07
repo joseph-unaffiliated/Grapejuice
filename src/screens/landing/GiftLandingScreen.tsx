@@ -3,10 +3,11 @@ import { Image, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { StorefrontArticlePage } from '../../components/storefront/StorefrontArticlePage';
 import {
-  StorefrontArticlePage,
-  type StorefrontArticleBlock,
-} from '../../components/storefront/StorefrontArticlePage';
+  DEFAULT_INCLUSIONS,
+  StorefrontBuildBoxStrip,
+} from '../../components/storefront/StorefrontBuildBoxStrip';
 import {
   boxLockDayLabel,
   formatShortMonthDay,
@@ -23,8 +24,8 @@ import type { GiftPath } from '../gift/giftGiveTypes';
 
 type GiftLandingRoute = RouteProp<MainStackParamList, 'GiftLanding'>;
 
-const HERO_IMAGE = require('../../../assets/storefront/box-feature-gift-stack-v2.webp');
-const HERO_ASPECT = 819 / 1024;
+const CLOSED_IMAGE = require('../../../assets/storefront/box-feature-gift-stack-v2.webp');
+const CLOSED_IMAGE_ASPECT = 819 / 1024;
 
 function useHanukkahConfig(): HanukkahConfig | null {
   const [config, setConfig] = useState<HanukkahConfig | null>(() => peekHanukkahConfig());
@@ -69,22 +70,6 @@ export function GiftLandingScreen() {
   const giveBox = () => give('customize');
   const giveCredit = () => give('credit_only');
 
-  const heroImage: StorefrontArticleBlock = {
-    type: 'node',
-    node: (
-      <View style={styles.heroImageWrap}>
-        <View style={styles.heroImageFrame}>
-          <Image
-            source={HERO_IMAGE}
-            style={styles.heroImage}
-            resizeMode="cover"
-            accessibilityLabel="Wrapped Hanukkah presents with a book, a stuffie, a dreidel, and gelt"
-          />
-        </View>
-      </View>
-    ),
-  };
-
   if (closed) {
     return (
       <StorefrontArticlePage
@@ -92,10 +77,27 @@ export function GiftLandingScreen() {
         title={c.title}
         lead={c.closed.lead}
         leadMaxWidth={560}
+        leadBalance
         primaryCta={{ label: c.closed.primaryCta, onPress: giveCredit }}
         primaryCtaSize="medium"
         showFooterStrips={false}
-        blocks={[heroImage]}
+        blocks={[
+          {
+            type: 'node',
+            node: (
+              <View style={styles.closedImageWrap}>
+                <View style={styles.closedImageFrame}>
+                  <Image
+                    source={CLOSED_IMAGE}
+                    style={styles.closedImage}
+                    resizeMode="cover"
+                    accessibilityLabel="Wrapped Hanukkah presents with a book, a stuffie, a dreidel, and gelt"
+                  />
+                </View>
+              </View>
+            ),
+          },
+        ]}
       />
     );
   }
@@ -106,16 +108,26 @@ export function GiftLandingScreen() {
       title={c.title}
       lead={c.lead}
       leadMaxWidth={560}
+      leadBalance
       primaryCta={{ label: c.primaryCta, onPress: giveBox }}
       secondaryCta={{ label: c.secondaryCta, onPress: giveCredit }}
       primaryCtaNote={c.smallPrint}
       primaryCtaSize="medium"
       showFooterStrips={false}
       blocks={[
-        heroImage,
-        { type: 'prose', heading: c.inside.heading, body: c.inside.intro, maxWidth: 480, paddingBottom: 0 },
-        { type: 'beliefs', items: c.inside.items },
-        { type: 'prose', body: c.inside.menorahNote, maxWidth: 480, paddingBottom: spacing.lg },
+        {
+          type: 'node',
+          node: (
+            <StorefrontBuildBoxStrip
+              onPress={giveBox}
+              headline={c.inside.headline}
+              body={c.inside.body}
+              inclusions={DEFAULT_INCLUSIONS}
+              ctaLabel={c.inside.videoCta}
+              secondaryCtaLabel={c.inside.cta}
+            />
+          ),
+        },
         { type: 'steps', heading: c.howItWorks.heading, items: c.howItWorks.steps },
         { type: 'prose', body: c.howItWorks.after, maxWidth: 480, paddingBottom: spacing.lg },
         {
@@ -126,7 +138,7 @@ export function GiftLandingScreen() {
           secondaryCta: { label: c.twoWays.secondaryCta, onPress: giveCredit },
           paper: true,
         },
-        { type: 'beliefs', heading: c.faq.heading, items: c.faq.items },
+        { type: 'beliefs', heading: c.faq.heading, items: c.faq.items, roomy: true },
         {
           type: 'band',
           heading: c.closing.heading,
@@ -139,20 +151,20 @@ export function GiftLandingScreen() {
 }
 
 const styles = StyleSheet.create({
-  heroImageWrap: {
+  closedImageWrap: {
     width: '100%',
     maxWidth: 440 + MOBILE_GUTTER * 2,
     alignSelf: 'center',
     paddingHorizontal: MOBILE_GUTTER,
     marginBottom: spacing.xl,
   },
-  heroImageFrame: {
+  closedImageFrame: {
     width: '100%',
-    aspectRatio: HERO_ASPECT,
+    aspectRatio: CLOSED_IMAGE_ASPECT,
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
   },
-  heroImage: {
+  closedImage: {
     width: '100%',
     height: '100%',
   },

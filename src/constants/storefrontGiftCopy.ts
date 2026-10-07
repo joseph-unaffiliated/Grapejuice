@@ -1,4 +1,6 @@
 import type { StorefrontArticleBeliefItem, StorefrontArticleStepItem } from '../components/storefront/StorefrontArticlePage';
+import { formatCatalogDollars } from '../services/box/buildDefaultBox';
+import { listBoxCentsForKids } from '../services/box/boxRules';
 import { giftBoxPriceLine } from './giftCopy';
 
 /** `/gift` landing — see docs/GIFT_LANDING_COPY.md. Dates come from live config (`Nov 7`, `Nov 21`, `Dec 5`). */
@@ -10,37 +12,27 @@ export type GiftLandingDates = {
 
 export function giftLandingCopy({ lockDay, arrivesBy, startsOn }: GiftLandingDates) {
   const price = giftBoxPriceLine();
+  const oneKid = listBoxCentsForKids(1);
+  const perExtraKid = listBoxCentsForKids(2) - oneKid;
   return {
-    eyebrow: 'Give Hanukkah',
+    eyebrow: 'The gift of Hanukkah',
     title: 'Send them Hanukkah in a box',
     lead: 'One box with everything for the eight nights: candles, gelt, latke and sufganiyot mixes, and a book and a present for each kid. You pick, we ship it to their door, free.',
     primaryCta: 'Give a gift box',
     secondaryCta: 'Or send gift credit',
-    smallPrint: `${price.charAt(0).toUpperCase()}${price.slice(1)}. Order by ${lockDay}; arrives by ${arrivesBy}. Hanukkah starts ${startsOn}.`,
+    smallPrint: `${formatCatalogDollars(oneKid)} covers a box with up to one kid, plus ${formatCatalogDollars(perExtraKid)} for each additional. Order by ${lockDay}; arrives by ${arrivesBy}. Hanukkah starts ${startsOn}.`,
 
     closed: {
       lead: `Gift boxes for this Hanukkah closed on ${lockDay}, and they're on their way to families now. You can still send gift credit to spend in the Grapejuice store.`,
       primaryCta: 'Send gift credit',
     },
 
+    /** Video strip + "Each box includes" row (StorefrontBuildBoxStrip). */
     inside: {
-      heading: "What's in the box",
-      intro: 'Everything a family needs for the eight nights, sized to how many kids they have.',
-      items: [
-        { title: 'Candles', body: 'Beeswax candles for the eight nights.' },
-        { title: 'A dreidel for each kid', body: 'A wooden dreidel for every kid, plus gelt to play for.' },
-        {
-          title: 'Latke and sufganiyot mixes',
-          body: 'Mixes for latkes and sufganiyot (Hanukkah donuts), with applesauce spices in the latke kit.',
-        },
-        { title: 'A book for each kid', body: "A Hanukkah story picked for each kid's age." },
-        {
-          title: 'A present for each kid',
-          body: 'A stuffie, a play menorah, a clay dreidel kit, make-your-own candles, or another book. You choose, or we match it to their age.',
-        },
-        { title: 'Wrapping paper', body: 'So the presents are ready to give.' },
-      ] satisfies StorefrontArticleBeliefItem[],
-      menorahNote: "A menorah isn't included (most families have one), but you can add one.",
+      headline: 'give them all eight nights',
+      body: 'Books and presents picked for each kid’s age, plus everything for the candles, the dreidel games and the latkes.',
+      videoCta: 'Give a gift box',
+      cta: 'Pick what goes in their box',
     },
 
     howItWorks: {
@@ -98,7 +90,7 @@ export function giftLandingCopy({ lockDay, arrivesBy, startsOn }: GiftLandingDat
 
     closing: {
       heading: `Hanukkah starts ${startsOn}`,
-      body: "Send it now and it's one less thing for their December.",
+      body: 'Send it now. Give them the gift of one less thing to think about.',
       cta: 'Give a gift box',
     },
   };

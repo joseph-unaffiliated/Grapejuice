@@ -138,6 +138,8 @@ export type StorefrontArticleBlock =
       sections?: StorefrontArticleBeliefSection[];
       /** Wrap in cold-press paper mid-band (Passover / Ask Rav / B'Mitzvah shell). */
       paper?: boolean;
+      /** Extra vertical padding on flat item rows (e.g. FAQ). */
+      roomy?: boolean;
     }
   | { type: 'missions'; heading?: string; items: { num: string; title: string; body: string }[] }
   | { type: 'visualPlaceholder'; label: string; aspectRatio?: number }
@@ -205,6 +207,8 @@ type Props = {
    * fills the article column like the title. Passover uses a tighter measure.
    */
   leadMaxWidth?: number;
+  /** Balance lead line lengths on web instead of the default `pretty` wrap. */
+  leadBalance?: boolean;
   primaryCta?: StorefrontArticleCta;
   secondaryCta?: StorefrontArticleCta;
   /** Small secondary line under the hero CTAs (e.g. pre-registered confirmation). */
@@ -779,6 +783,7 @@ function BeliefItemsList({
   onPaper,
   inColumn,
   tooltips,
+  roomy,
 }: {
   items: StorefrontArticleBeliefItem[];
   onPaper?: boolean;
@@ -786,6 +791,7 @@ function BeliefItemsList({
   inColumn?: boolean;
   /** Hover/tap tooltips instead of always-visible bodies. */
   tooltips?: boolean;
+  roomy?: boolean;
 }) {
   return (
     <View style={onPaper || inColumn ? styles.beliefsOnPaperList : undefined}>
@@ -807,6 +813,7 @@ function BeliefItemsList({
             style={[
               styles.beliefRow,
               inColumn ? styles.beliefRowInColumn : null,
+              roomy ? styles.beliefRowRoomy : null,
               isLast ? styles.beliefRowLast : null,
             ]}
           >
@@ -823,10 +830,12 @@ function BeliefsContent({
   items,
   sections,
   onPaper,
+  roomy,
 }: {
   items?: StorefrontArticleBeliefItem[];
   sections?: StorefrontArticleBeliefSection[];
   onPaper?: boolean;
+  roomy?: boolean;
 }) {
   const { width: windowWidth } = useWindowDimensions();
 
@@ -893,7 +902,7 @@ function BeliefsContent({
     );
   }
   if (items && items.length > 0) {
-    return <BeliefItemsList items={items} onPaper={onPaper} tooltips={false} />;
+    return <BeliefItemsList items={items} onPaper={onPaper} tooltips={false} roomy={roomy} />;
   }
   return null;
 }
@@ -1221,7 +1230,12 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
             );
           case 'beliefs': {
             const beliefsList = (
-              <BeliefsContent items={block.items} sections={block.sections} onPaper={block.paper} />
+              <BeliefsContent
+                items={block.items}
+                sections={block.sections}
+                onPaper={block.paper}
+                roomy={block.roomy}
+              />
             );
             if (block.paper) {
               return (
@@ -1391,6 +1405,7 @@ export function StorefrontArticlePage({
   title,
   lead,
   leadMaxWidth,
+  leadBalance = false,
   primaryCta,
   secondaryCta,
   primaryCtaNote,
@@ -1428,7 +1443,9 @@ export function StorefrontArticlePage({
                 {segment.heading ? (
                   <Text style={styles.blockHeading}>{segment.heading}</Text>
                 ) : null}
-                <Text style={styles.lead}>{preventWidow(segment.body)}</Text>
+                <Text style={[styles.lead, leadBalance ? styles.leadBalanced : null]}>
+                  {preventWidow(segment.body)}
+                </Text>
               </View>
             ))}
           </View>
@@ -1614,6 +1631,7 @@ const styles = StyleSheet.create({
     width: '100%',
     ...(Platform.OS === 'web' ? ({ textWrap: 'pretty' } as object) : null),
   },
+  leadBalanced: Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : {},
   ctas: {
     gap: spacing.sm,
     marginTop: spacing.md,
@@ -2133,6 +2151,9 @@ const styles = StyleSheet.create({
   beliefRowInColumn: {
     borderBottomWidth: 0,
     paddingVertical: spacing.xs,
+  },
+  beliefRowRoomy: {
+    paddingVertical: spacing.md + spacing.xs,
   },
   beliefRowLast: {
     borderBottomWidth: 0,

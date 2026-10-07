@@ -102,7 +102,7 @@ const DEFAULT_BODY =
   'Bring the holidays to life with age-appropriate activities and books tailored uniquely for your family';
 const DEFAULT_INCLUDES_LABEL = 'Each box includes:';
 /** Five traditions L→R — same icons as How it Works practices accordion. */
-const DEFAULT_INCLUSIONS: BuildBoxInclusion[] = [
+export const DEFAULT_INCLUSIONS: BuildBoxInclusion[] = [
   { practiceId: 'candles', lead: 'Candles', rest: 'for all 8 nights' },
   { practiceId: 'dreidel', lead: 'Dreidels and gelt', rest: 'enough for everyone' },
   { practiceId: 'food', lead: 'latkes and sufganiyot', rest: 'in an easy mix' },

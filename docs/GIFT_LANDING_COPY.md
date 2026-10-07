@@ -17,30 +17,20 @@ Everything below is built from facts already in the product. Decisions made on O
 **Primary button:** Give a gift box
 **Secondary link, under the button:** Or send gift credit
 
-**Small print under the buttons:** $80 for one kid, $10 for each additional kid. Order by Nov 7; arrives by Nov 21. Hanukkah starts Dec 5.
+**Eyebrow:** The gift of Hanukkah
 
-**Image:** `box-feature-gift-stack-v2` (wrapped presents, book, stuffie, dreidel, gelt; no menorah, so it doesn't contradict the FAQ). Alternative: the "older hand next to a kid's" image from the grandparent ad, so the page matches the ad people just tapped.
+**Small print under the buttons:** $80 covers a box with up to one kid, plus $10 for each additional. Order by Nov 7; arrives by Nov 21. Hanukkah starts Dec 5.
 
 ---
 
 ## 2. What's inside
 
-**Heading:** What's in the box
+The storefront's box-reveal video strip (kid and dog reel) with the "Each box includes" icon row: candles, dreidels and gelt, latkes and sufganiyot, a book, a wrapped present.
 
-**Intro:** Everything a family needs for the eight nights, sized to how many kids they have.
-
-| Item | Line |
-|---|---|
-| Candles | Beeswax candles for the eight nights. |
-| A dreidel for each kid | A wooden dreidel for every kid, plus gelt to play for. |
-| Latke and sufganiyot mixes | Mixes for latkes and sufganiyot (Hanukkah donuts), with applesauce spices in the latke kit. |
-| A book for each kid | A Hanukkah story picked for each kid's age. |
-| A present for each kid | A stuffie, a play menorah, a clay dreidel kit, make-your-own candles, or another book. You choose, or we match it to their age. |
-| Wrapping paper | So the presents are ready to give. |
-
-**Below the list:** A menorah isn't included (most families have one), but you can add one.
-
-**Image:** `box-feature-gift-stack-v2` or `boxrevealv2`.
+**Over the video:** give them all eight nights
+**Body:** Books and presents picked for each kid's age, plus everything for the candles, the dreidel games and the latkes.
+**Button on the video:** Give a gift box
+**Button under the icons:** Pick what goes in their box
 
 ---
 
@@ -104,7 +94,7 @@ Yes, a quick sign-up when you send the gift, so you can see when it's been claim
 ## 6. Closing strip
 
 **Heading:** Hanukkah starts Dec 5
-**Body:** Send it now and it's one less thing for their December.
+**Body:** Send it now. Give them the gift of one less thing to think about.
 **Button:** Give a gift box
 
 ---
