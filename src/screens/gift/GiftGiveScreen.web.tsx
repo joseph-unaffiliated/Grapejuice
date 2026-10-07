@@ -20,11 +20,15 @@ import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiveForm } from './GiftGiveForm';
-import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from './giftGiveTypes';
+import { DEFAULT_GIFT_CHILDREN, hasGiverAddress, type GiftGiveFormValues } from './giftGiveTypes';
 import type { GiftChildDraft } from './giftGiveTypes';
 import { GiftPaymentPanel } from './GiftPaymentPanel.web';
 import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
-import { isValidEmail } from '../../utils/formValidation';
+import {
+  isValidEmail,
+  validateShippingAddress,
+  type ShippingAddressFieldErrors,
+} from '../../utils/formValidation';
 import { trackGiftStep } from '../../services/analytics/giftFunnel';
 
 function notify(title: string, message: string) {
@@ -54,6 +58,8 @@ function GiftGiveBody() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
   const [giftInviteId, setGiftInviteId] = useState<string | null>(null);
   const [serverStripeKey, setServerStripeKey] = useState<string | null>(null);
@@ -78,6 +84,10 @@ function GiftGiveBody() {
 
   const patchValues = (patch: Partial<GiftGiveFormValues>) => {
     if (patch.recipientEmail !== undefined || patch.giftPath !== undefined) setFormError(null);
+    if ('shippingAddress' in patch) {
+      setAddressError(null);
+      setAddressFieldErrors({});
+    }
     if (patch.giftPath) trackGiftStep('GiftPathChosen', patch.giftPath);
     setValues((current) => ({ ...current, ...patch }));
   };
@@ -151,7 +161,21 @@ function GiftGiveBody() {
     }
 
     if (values.giftPath === 'customize') {
-      const form = { ...values, recipientEmail: email, giftPath: 'customize' as const };
+      const address = hasGiverAddress(values.shippingAddress) ? values.shippingAddress : undefined;
+      if (address) {
+        const check = validateShippingAddress(address);
+        if (!check.ok) {
+          setAddressFieldErrors(check.fields);
+          setAddressError(`${check.message ?? 'Finish their address.'} Or remove it to skip.`);
+          return;
+        }
+      }
+      const form = {
+        ...values,
+        shippingAddress: address,
+        recipientEmail: email,
+        giftPath: 'customize' as const,
+      };
       useGiftIntentStore.getState().markIncomplete('customize', { form, childDrafts });
       navigation.navigate('GiftGiverCustomize', {
         form,
@@ -203,6 +227,8 @@ function GiftGiveBody() {
     onChildDraftsChange: setChildDrafts,
     hideBack: true as const,
     error: formError,
+    addressError,
+    addressFieldErrors,
     onCancelGift: cancelGift,
   };
 

@@ -24,10 +24,7 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useSession } from '../../hooks/useSession';
 import { useWebLayout } from '../../hooks/useWebLayout';
-import {
-  acceptReceivedGiftBox,
-  updateReceivedGiftLineItems,
-} from '../../services/gift/giftFlow';
+import { updateReceivedGiftLineItems } from '../../services/gift/giftFlow';
 import {
   collectFromOtherGifts,
   giftTransferLine,
@@ -197,18 +194,12 @@ function GiftBoxBody() {
     navigation.navigate('GiftBoxCheckout', { giftInviteId });
   };
 
+  // Even a $0 box goes through checkout: that's the only step that takes an address and ships it.
   const confirmFree = async () => {
     setConfirming(true);
     try {
       await persist(lineItems);
-      if (upgradeCents > 0) {
-        goCheckout();
-        return;
-      }
-      await acceptReceivedGiftBox(giftInviteId);
-      await refreshSession({ silent: true });
-      await refresh();
-      navigation.replace('MyGifts');
+      goCheckout();
     } catch (e) {
       notify('Could not confirm', e instanceof Error ? e.message : 'Try again.');
     } finally {
@@ -254,7 +245,7 @@ function GiftBoxBody() {
       ? dueNow > 0
         ? `Continue to payment · ${formatDollars(dueNow)}`
         : `Confirm with credit · ${formatDollars(creditApplied)}`
-      : 'Confirm gift box';
+      : 'Continue to shipping';
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>

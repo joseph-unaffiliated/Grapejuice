@@ -1,4 +1,4 @@
-import type { AgeGroup } from '../../types/pilot';
+import type { AgeGroup, ShippingAddress } from '../../types/pilot';
 import { ageGroupForNumericAge } from '../../services/box/boxRules';
 
 export type GiftPath = 'customize' | 'credit_only';
@@ -9,7 +9,17 @@ export type GiftGiveFormValues = {
   message: string;
   /** Null until the giver picks a path — do not default to customize. */
   giftPath: GiftPath | null;
+  /** Curated box only, optional: lets the recipient keep it a surprise without entering an address. */
+  shippingAddress?: ShippingAddress;
 };
+
+/** True once the giver has typed anything into the optional address. */
+export function hasGiverAddress(address: ShippingAddress | undefined): address is ShippingAddress {
+  if (!address) return false;
+  return [address.name, address.line1, address.line2, address.city, address.stateProvince, address.postalCode].some(
+    (v) => Boolean(v?.trim())
+  );
+}
 
 export type GiftChildDraft = {
   /** Catalog band — derived from plannerAge. */

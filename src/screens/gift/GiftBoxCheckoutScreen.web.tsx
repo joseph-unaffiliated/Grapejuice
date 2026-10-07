@@ -87,7 +87,7 @@ function WebPayStep({ onPaid }: { onPaid: () => void }) {
 function GiftBoxCheckoutBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<Route>();
-  const { giftInviteId } = route.params;
+  const { giftInviteId, surprise = false } = route.params;
   const { household, refresh: refreshSession } = useSession();
   const { gifts, loading: giftsLoading, refresh } = useReceivedGifts();
   const { items: catalog } = useCatalog();
@@ -95,7 +95,12 @@ function GiftBoxCheckoutBody() {
 
   const gift = gifts.find((g) => g.giftInviteId === giftInviteId);
   const lineItems = gift?.lineItems ?? [];
+  const giverName = gift?.giverName?.trim() || 'The giver';
   const [address, setAddress] = useState<ShippingAddress>(emptyShippingAddress);
+  const giverAddress = gift?.giverShippingAddress;
+  useEffect(() => {
+    if (giverAddress) setAddress((a) => (a.line1 ? a : { ...emptyShippingAddress, ...giverAddress }));
+  }, [giverAddress]);
   const [preparing, setPreparing] = useState(false);
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
@@ -134,9 +139,11 @@ function GiftBoxCheckoutBody() {
     async (orderId: string) => {
       await refresh();
       await refreshSession({ silent: true });
-      navigation.replace('OrderConfirmation', { orderId });
+      // The order confirmation lists every item.
+      if (surprise) navigation.replace('MyGifts');
+      else navigation.replace('OrderConfirmation', { orderId });
     },
-    [navigation, refresh, refreshSession]
+    [navigation, refresh, refreshSession, surprise]
   );
 
   useEffect(() => {
@@ -152,7 +159,8 @@ function GiftBoxCheckoutBody() {
       return;
     }
     setAddressFieldErrors({});
-    if (!gift || gift.status !== 'available') {
+    const acceptedWithoutCheckout = gift?.status === 'accepted' && !gift.checkoutOrderId;
+    if (!gift || (gift.status !== 'available' && !acceptedWithoutCheckout)) {
       setFormError('This gift is no longer available for checkout.');
       return;
     }
@@ -193,7 +201,8 @@ function GiftBoxCheckoutBody() {
     }
   };
 
-  const backToGiftBox = () => navigation.navigate('GiftBox', { giftInviteId });
+  const backToGiftBox = () =>
+    surprise ? navigation.navigate('MyGifts') : navigation.navigate('GiftBox', { giftInviteId });
 
   if (giftsLoading || !gift) {
     return <SystemPage narrow loading onBack={backToGiftBox} />;
@@ -213,6 +222,34 @@ function GiftBoxCheckoutBody() {
         >
           <WebPayStep onPaid={() => void finish(pendingOrderId)} />
         </Elements>
+      </SystemPage>
+    );
+  }
+
+  if (surprise) {
+    return (
+      <SystemPage narrow onBack={backToGiftBox}>
+        <Text style={checkoutUi.title}>Where should it go?</Text>
+        <Text style={checkoutUi.lead}>
+          {giverAddress
+            ? `${giverName} added this address. Check it, and we'll ship the box exactly as they picked it. You won't see what's inside until it arrives.`
+            : `We'll ship the box exactly as ${giverName} picked it. You won't see what's inside until it arrives.`}
+        </Text>
+        <View style={checkoutUi.divider} />
+        <CheckoutAddressFields
+          address={address}
+          onChange={onAddressChange}
+          fieldErrors={addressFieldErrors}
+        />
+        {formError ? <Text style={checkoutUi.fieldError}>{formError}</Text> : null}
+        <GrapejuiceButton
+          label="Ship my surprise"
+          variant="filled"
+          onPress={() => void startCheckout()}
+          loading={preparing}
+          style={[checkoutUi.button, styles.ctaSpacing]}
+          textStyle={checkoutUi.buttonText}
+        />
       </SystemPage>
     );
   }

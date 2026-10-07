@@ -52,7 +52,7 @@ function formatGiftDate(iso: string | undefined): string | null {
 
 function statusLabel(gift: ReceivedGift): string {
   if (gift.status === 'converted_to_credit') return 'Converted to credit';
-  if (gift.status === 'accepted') return `${CURATED_GIFT_BOX_LABEL} accepted`;
+  if (gift.status === 'accepted') return gift.checkoutOrderId ? 'Confirmed to ship' : 'Needs a shipping address';
   if (gift.kind === 'credit') return 'Credit applied';
   if (gift.viewedAt) return 'Viewed · ready to convert';
   return 'Ready to open';
@@ -66,6 +66,7 @@ function GiftCard({
   onEdit,
   onConvert,
   onReopen,
+  onAddAddress,
   converting,
   reopening,
 }: {
@@ -76,6 +77,7 @@ function GiftCard({
   onEdit: () => void;
   onConvert: () => void;
   onReopen: () => void;
+  onAddAddress: () => void;
   converting: boolean;
   reopening: boolean;
 }) {
@@ -84,6 +86,8 @@ function GiftCard({
   const items = isBox ? (gift.lineItems ?? []) : [];
   const available = isBox && gift.status === 'available';
   const accepted = isBox && gift.status === 'accepted';
+  const shipping = accepted && Boolean(gift.checkoutOrderId);
+  const needsAddress = accepted && !gift.checkoutOrderId;
   const converted = gift.status === 'converted_to_credit';
   const claimed = formatGiftDate(gift.claimedAt);
   const convertedOn = formatGiftDate(gift.convertedAt);
@@ -98,9 +102,11 @@ function GiftCard({
       ? 'Open this box to adjust items, or convert it to gift credit.'
       : converted
         ? `Converted to ${formatDollars(gift.creditCents)} in gift credit${convertedOn ? ` on ${convertedOn}` : ''}.`
-        : accepted
-          ? 'Reopen it to edit or convert to credit, unless you already finished checkout.'
-          : null;
+        : shipping
+          ? 'Confirmed. It ships with the other Hanukkah boxes.'
+          : needsAddress
+            ? 'Add a shipping address so it can ship, or reopen it to edit or convert to credit.'
+            : null;
 
   return (
     <View style={styles.card}>
@@ -164,18 +170,13 @@ function GiftCard({
               />
             </>
           ) : null}
-          {accepted ? (
+          {needsAddress ? (
             <>
-              <SystemChip
+              <SystemChip label="Add shipping address" onPress={onAddAddress} style={styles.actionControl} />
+              <SystemTextAction
                 label={reopening ? 'Reopening…' : 'Reopen to manage'}
                 onPress={onReopen}
                 disabled={reopening}
-                style={styles.actionControl}
-              />
-              <SystemTextAction
-                label="View reveal"
-                tone="brand"
-                onPress={onView}
                 style={styles.actionControl}
               />
             </>
@@ -350,6 +351,9 @@ function MyGiftsBody() {
               onEdit={() => openGiftBox(gift)}
               onConvert={() => confirmConvert(gift)}
               onReopen={() => void performReopen(gift)}
+              onAddAddress={() =>
+                navigation.navigate('GiftBoxCheckout', { giftInviteId: gift.giftInviteId, surprise: true })
+              }
               converting={convertingId === gift.giftInviteId}
               reopening={reopeningId === gift.giftInviteId}
             />

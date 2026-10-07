@@ -1,11 +1,10 @@
 /** Figma rGzXYb1rNVxqGHz81835Jn — frame 17: recipient reveal after claim. */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
   Platform,
 } from 'react-native';
@@ -21,7 +20,7 @@ import { spacing, typography, borderRadius, typeface, shadowsWeb, MOBILE_GUTTER 
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
-import { acceptReceivedGiftBox, markReceivedGiftViewed } from '../../services/gift/giftFlow';
+import { markReceivedGiftViewed } from '../../services/gift/giftFlow';
 import { noteReceivedGiftViewedThisSession } from './receivedGiftViewedSession';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import { CURATED_GIFT_BOX_LABEL, GIFT_CREDIT_SPEND_HINT } from '../../constants/giftCopy';
@@ -41,12 +40,10 @@ function GiftRecipientRevealBody() {
   const route = useRoute<Route>();
   const { giftInviteId, giverName, message, giftCreditCents, hasGiverDraft } = route.params;
   const user = useAuthStore((s) => s.user);
-  const { refresh, household } = useSession();
+  const { household } = useSession();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
   const chooseCustomize = () => {
     noteReceivedGiftViewedThisSession(giftInviteId);
@@ -55,19 +52,9 @@ function GiftRecipientRevealBody() {
     navigation.replace('GiftBox', { giftInviteId });
   };
 
-  const chooseSurprise = async () => {
+  const chooseSurprise = () => {
     if (!user?.uid) return;
-    setSaving(true);
-    setLoadError(null);
-    try {
-      await acceptReceivedGiftBox(giftInviteId);
-      await refresh();
-      navigation.replace('MyGifts');
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'Could not accept gift.');
-    } finally {
-      setSaving(false);
-    }
+    navigation.replace('GiftBoxCheckout', { giftInviteId, surprise: true });
   };
 
   if (!hasGiverDraft) {
@@ -113,31 +100,15 @@ function GiftRecipientRevealBody() {
             Hanukkah.
           </Text>
 
-          {loadError ? <Text style={styles.errorText}>{loadError}</Text> : null}
-
-          <TouchableOpacity
-            style={styles.cta}
-            onPress={() => void chooseSurprise()}
-            disabled={saving}
-            activeOpacity={0.85}
-          >
-            {saving ? (
-              <ActivityIndicator color={colors.textInverse} />
-            ) : (
-              <Text style={styles.ctaText}>Keep it a surprise</Text>
-            )}
+          <TouchableOpacity style={styles.cta} onPress={chooseSurprise} activeOpacity={0.85}>
+            <Text style={styles.ctaText}>Keep it a surprise</Text>
           </TouchableOpacity>
           <Text style={styles.optionHint}>
-            We&apos;ll hold this gift box for your family. You won&apos;t see what&apos;s inside until
-            it arrives.
+            Confirm where it should go and we&apos;ll ship it as they picked it. You won&apos;t see
+            what&apos;s inside until it arrives.
           </Text>
 
-          <TouchableOpacity
-            style={styles.secondaryCta}
-            onPress={chooseCustomize}
-            disabled={saving}
-            activeOpacity={0.85}
-          >
+          <TouchableOpacity style={styles.secondaryCta} onPress={chooseCustomize} activeOpacity={0.85}>
             <Text style={styles.secondaryCtaText}>See what they picked</Text>
           </TouchableOpacity>
           <Text style={styles.optionHint}>

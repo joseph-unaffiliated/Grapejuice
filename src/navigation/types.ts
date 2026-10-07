@@ -115,7 +115,8 @@ export type MainStackParamList = {
   GiftClaim: { token?: string };
   MyGifts: undefined;
   GiftBox: { giftInviteId: string };
-  GiftBoxCheckout: { giftInviteId: string };
+  /** surprise: ship the box as picked without showing the items. */
+  GiftBoxCheckout: { giftInviteId: string; surprise?: boolean };
   GiftRecipientReveal: {
     giftInviteId: string;
     giverName: string;

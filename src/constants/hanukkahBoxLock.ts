@@ -1,5 +1,5 @@
 /** Fallback lock when Firestore `config/hanukkah-2026.lockAt` is unavailable. */
-export const HANUKKAH_BOX_LOCK_DATE = new Date('2026-11-04T23:59:59-05:00');
+export const HANUKKAH_BOX_LOCK_DATE = new Date('2026-11-07T23:59:59-05:00');
 
 /** Fallback estimated delivery day (display) when config is unavailable. */
 export const HANUKKAH_DELIVERY_FALLBACK_ISO = '2026-11-21';

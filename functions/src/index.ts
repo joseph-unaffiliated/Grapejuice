@@ -1791,6 +1791,18 @@ export const purchasePilotGift = onCall(async (request) => {
   if (giftKind === 'box' && lineItems?.length) {
     await assertBoxLinesWithinInventory(db, lineItems);
   }
+  const shippingAddressRaw = request.data?.shippingAddress as ShippingAddress | undefined;
+  const giverShippingAddress =
+    giftKind === 'box' && shippingAddressRaw?.line1 ? sanitizeShippingAddress(shippingAddressRaw) : null;
+  if (
+    giverShippingAddress &&
+    (!giverShippingAddress.name ||
+      !giverShippingAddress.city ||
+      !giverShippingAddress.stateProvince ||
+      !giverShippingAddress.postalCode)
+  ) {
+    throw new HttpsError('invalid-argument', 'Please complete their shipping address, or leave it blank.');
+  }
 
   const userSnap = await db.doc(`users/${request.auth.uid}`).get();
   const giverEmail = String(userSnap.data()?.email ?? '').trim().toLowerCase();
@@ -1812,6 +1824,7 @@ export const purchasePilotGift = onCall(async (request) => {
     ...(giftKind === 'box' && lineItems ? { lineItems } : {}),
     ...(giftKind === 'box' && childInterests ? { childInterests } : {}),
     ...(giftKind === 'box' && childAgeGroups ? { childAgeGroups } : {}),
+    ...(giverShippingAddress ? { shippingAddress: giverShippingAddress } : {}),
     ...(Object.keys(metaContext).length ? { metaContext } : {}),
     ...(attribution ? { attribution } : {}),
     createdAt: new Date().toISOString(),
@@ -2058,6 +2071,7 @@ export const claimGiftInvite = onCall(async (request) => {
     prepaidAddOnCents,
     lineItems: giftKind === 'box' ? invite.lineItems ?? [] : [],
     childInterests: giftKind === 'box' ? invite.childInterests ?? [] : [],
+    giverShippingAddress: giftKind === 'box' ? invite.shippingAddress ?? null : null,
     status: 'available',
     claimedAt: now,
     updatedAt: now,
@@ -2108,6 +2122,7 @@ type ReceivedGiftRow = {
   creditCents: number;
   prepaidAddOnCents?: number;
   lineItems: unknown[];
+  giverShippingAddress?: ShippingAddress;
   status: string;
   claimedAt: string;
   viewedAt?: string;
@@ -2129,6 +2144,10 @@ function mapReceivedGiftDoc(docId: string, data: FirebaseFirestore.DocumentData)
         ? Math.max(0, Math.round(Number(data.prepaidAddOnCents)))
         : undefined,
     lineItems: Array.isArray(data.lineItems) ? data.lineItems : [],
+    giverShippingAddress:
+      data.giverShippingAddress && typeof data.giverShippingAddress === 'object'
+        ? (data.giverShippingAddress as ShippingAddress)
+        : undefined,
     status: String(data.status ?? 'available'),
     claimedAt: String(data.claimedAt ?? ''),
     viewedAt: data.viewedAt ? String(data.viewedAt) : undefined,
@@ -2155,6 +2174,7 @@ async function backfillReceivedGiftFromInvite(
     prepaidAddOnCents: giftKind === 'box' ? chargeableLineTotal(boxLines) : 0,
     lineItems: giftKind === 'box' ? invite.lineItems ?? [] : [],
     childInterests: giftKind === 'box' ? invite.childInterests ?? [] : [],
+    giverShippingAddress: giftKind === 'box' ? invite.shippingAddress ?? null : null,
     status: 'available',
     claimedAt: invite.claimedAt ?? now,
     updatedAt: now,
@@ -2335,7 +2355,9 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
     if (gift.kind !== 'box') {
       throw new HttpsError('failed-precondition', 'Only gift boxes can be checked out.');
     }
-    if (gift.status !== 'available') {
+    // "Keep it a surprise" used to accept without an address; those still need one checkout.
+    const acceptedWithoutCheckout = gift.status === 'accepted' && !gift.checkoutOrderId;
+    if (gift.status !== 'available' && !acceptedWithoutCheckout) {
       throw new HttpsError('failed-precondition', 'This gift was already used or converted.');
     }
 

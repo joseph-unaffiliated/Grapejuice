@@ -10,6 +10,8 @@ type Props = {
   onChange: (patch: Partial<ShippingAddress>) => void;
   /** Per-field errors after a failed submit attempt. */
   fieldErrors?: ShippingAddressFieldErrors;
+  heading?: string;
+  hint?: string;
 };
 
 function FieldLabel({ label, required }: { label: string; required?: boolean }) {
@@ -21,7 +23,13 @@ function FieldLabel({ label, required }: { label: string; required?: boolean }) 
   );
 }
 
-export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props) {
+export function CheckoutAddressFields({
+  address,
+  onChange,
+  fieldErrors,
+  heading = 'Shipping Address',
+  hint = 'Fields marked * are required',
+}: Props) {
   const inputStyle = (key: ShippingRequiredField) => [
     checkoutUi.input,
     fieldErrors?.[key] ? checkoutUi.inputError : null,
@@ -29,8 +37,8 @@ export function CheckoutAddressFields({ address, onChange, fieldErrors }: Props)
 
   return (
     <>
-      <Text style={checkoutUi.sectionHeading}>Shipping Address</Text>
-      <Text style={[checkoutUi.hint, styles.requiredHint]}>Fields marked * are required</Text>
+      <Text style={checkoutUi.sectionHeading}>{heading}</Text>
+      <Text style={[checkoutUi.hint, styles.requiredHint]}>{hint}</Text>
 
       <FieldLabel label="Full name" required />
       <TextInput

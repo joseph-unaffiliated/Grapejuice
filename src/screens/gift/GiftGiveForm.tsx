@@ -6,8 +6,11 @@ import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from '../main/checkout/checkoutUi';
+import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
+import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
+import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 import { GiftGiverChildrenFields } from './GiftGiverChildrenFields';
-import type { GiftChildDraft, GiftGiveFormValues, GiftPath } from './giftGiveTypes';
+import { hasGiverAddress, type GiftChildDraft, type GiftGiveFormValues, type GiftPath } from './giftGiveTypes';
 
 type Props = {
   values: GiftGiveFormValues;
@@ -24,6 +27,9 @@ type Props = {
   hideBack?: boolean;
   /** Small "Cancel gift" link under the submit button — wipes the incomplete gift. */
   onCancelGift?: () => void;
+  /** Optional recipient address (curated box only), shown after a failed submit. */
+  addressError?: string | null;
+  addressFieldErrors?: ShippingAddressFieldErrors;
   children?: React.ReactNode;
 };
 
@@ -39,11 +45,14 @@ export function GiftGiveForm({
   error,
   hideBack = false,
   onCancelGift,
+  addressError,
+  addressFieldErrors,
   children,
 }: Props) {
   const creditOnly = values.giftPath === 'credit_only';
   const customize = values.giftPath === 'customize';
   const pathChosen = values.giftPath != null;
+  const [showAddress, setShowAddress] = React.useState(() => hasGiverAddress(values.shippingAddress));
 
   const defaultSubmit = !pathChosen
     ? 'Choose how this gift works'
@@ -160,6 +169,43 @@ export function GiftGiveForm({
                 onChange={onChildDraftsChange}
                 disabled={submitting}
               />
+              <View style={checkoutUi.divider} />
+              {showAddress ? (
+                <>
+                  <CheckoutAddressFields
+                    address={values.shippingAddress ?? emptyShippingAddress}
+                    onChange={(patch) =>
+                      onChange({ shippingAddress: { ...(values.shippingAddress ?? emptyShippingAddress), ...patch } })
+                    }
+                    fieldErrors={addressFieldErrors}
+                    heading="Their Shipping Address (optional)"
+                    hint="Add it and they can keep the box a surprise: it ships without them seeing what's inside. They can still correct it."
+                  />
+                  {addressError ? <Text style={checkoutUi.fieldError}>{addressError}</Text> : null}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowAddress(false);
+                      onChange({ shippingAddress: undefined });
+                    }}
+                    disabled={submitting}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    style={styles.addressToggle}
+                  >
+                    <Text style={styles.addressToggleText}>Remove address</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setShowAddress(true)}
+                  disabled={submitting}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={styles.addressToggle}
+                >
+                  <Text style={styles.addressToggleText}>Know their address? Add it (optional)</Text>
+                </TouchableOpacity>
+              )}
             </>
           ) : null}
 
@@ -247,6 +293,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.78)',
   },
   ctaSpacing: { marginTop: spacing.xl },
+  addressToggle: { alignSelf: 'flex-start', marginTop: spacing.xs },
+  addressToggleText: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: semanticColors.brand,
+  },
   cancelGift: {
     alignSelf: 'center',
     marginTop: spacing.md,

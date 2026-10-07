@@ -1,6 +1,6 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { BoxLineItem, ReceivedGift, ReceivedGiftStatus } from '../../types/pilot';
+import type { BoxLineItem, ReceivedGift, ReceivedGiftStatus, ShippingAddress } from '../../types/pilot';
 
 function toReceivedGift(id: string, data: Record<string, unknown>): ReceivedGift {
   const statusRaw = String(data.status ?? 'available');
@@ -21,6 +21,10 @@ function toReceivedGift(id: string, data: Record<string, unknown>): ReceivedGift
         ? Math.max(0, Math.round(Number(data.prepaidAddOnCents)))
         : undefined,
     lineItems: Array.isArray(data.lineItems) ? (data.lineItems as BoxLineItem[]) : undefined,
+    giverShippingAddress:
+      data.giverShippingAddress && typeof data.giverShippingAddress === 'object'
+        ? (data.giverShippingAddress as ShippingAddress)
+        : undefined,
     status,
     claimedAt: String(data.claimedAt ?? ''),
     viewedAt: data.viewedAt ? String(data.viewedAt) : undefined,

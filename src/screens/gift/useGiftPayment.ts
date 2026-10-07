@@ -2,7 +2,7 @@ import { purchasePilotGift, finalizePilotGiftPayment } from '../../services/gift
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { trackMeta } from '../../services/analytics/metaPixel';
 import type { AgeGroup, BoxLineItem } from '../../types/pilot';
-import type { GiftGiveFormValues } from './giftGiveTypes';
+import { hasGiverAddress, type GiftGiveFormValues } from './giftGiveTypes';
 
 export type GiftPurchaseInput = {
   form: GiftGiveFormValues;
@@ -45,6 +45,8 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
     customize: input.customize,
     lineItems: input.customize ? input.lineItems : undefined,
     childAgeGroups: input.customize ? input.childAgeGroups : undefined,
+    shippingAddress:
+      input.customize && hasGiverAddress(input.form.shippingAddress) ? input.form.shippingAddress : undefined,
   });
 
   if (!result.clientSecret) {

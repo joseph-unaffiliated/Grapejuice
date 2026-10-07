@@ -411,6 +411,8 @@ export type ReceivedGift = {
    */
   prepaidAddOnCents?: number;
   lineItems?: BoxLineItem[];
+  /** Ship-to the giver entered, if any (prefills the recipient's checkout). */
+  giverShippingAddress?: ShippingAddress;
   status: ReceivedGiftStatus;
   claimedAt: string;
   viewedAt?: string;

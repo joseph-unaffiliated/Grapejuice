@@ -21,6 +21,8 @@ export type GiftInviteRecord = {
   kind?: 'credit' | 'box';
   /** Giver customization snapshot — only for kind=box. */
   lineItems?: unknown[];
+  /** Optional ship-to the giver entered (kind=box) so the recipient can keep it a surprise. */
+  shippingAddress?: Record<string, string>;
   childInterests?: string[];
   childAgeGroups?: string[];
   /** Giver's browser Meta ids at purchase (Conversions API match keys). */

@@ -1389,7 +1389,7 @@ exports.shipStationWebhook = (0, sentry_1.onRequest)({ cors: false }, async (req
     }
 });
 exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     if (!stripe_1.stripe)
@@ -1409,16 +1409,25 @@ exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
     if (giftKind === 'box' && (lineItems === null || lineItems === void 0 ? void 0 : lineItems.length)) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
+    const shippingAddressRaw = (_o = request.data) === null || _o === void 0 ? void 0 : _o.shippingAddress;
+    const giverShippingAddress = giftKind === 'box' && (shippingAddressRaw === null || shippingAddressRaw === void 0 ? void 0 : shippingAddressRaw.line1) ? sanitizeShippingAddress(shippingAddressRaw) : null;
+    if (giverShippingAddress &&
+        (!giverShippingAddress.name ||
+            !giverShippingAddress.city ||
+            !giverShippingAddress.stateProvince ||
+            !giverShippingAddress.postalCode)) {
+        throw new sentry_1.HttpsError('invalid-argument', 'Please complete their shipping address, or leave it blank.');
+    }
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
-    const giverEmail = String((_p = (_o = userSnap.data()) === null || _o === void 0 ? void 0 : _o.email) !== null && _p !== void 0 ? _p : '').trim().toLowerCase();
+    const giverEmail = String((_q = (_p = userSnap.data()) === null || _p === void 0 ? void 0 : _p.email) !== null && _q !== void 0 ? _q : '').trim().toLowerCase();
     const claimToken = (0, crypto_1.randomBytes)(24).toString('hex');
     const inviteRef = db.collection('giftInvites').doc();
     const metaContext = (0, metaCapi_1.metaContextForDoc)((0, metaCapi_1.metaContextFromCallable)(request));
-    const attribution = (0, metaCapi_1.sanitizeAttribution)((_q = request.data) === null || _q === void 0 ? void 0 : _q.attribution);
-    const payload = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ giverUid: request.auth.uid, giverName,
+    const attribution = (0, metaCapi_1.sanitizeAttribution)((_r = request.data) === null || _r === void 0 ? void 0 : _r.attribution);
+    const payload = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ giverUid: request.auth.uid, giverName,
         giverEmail,
         recipientEmail,
-        creditCents, kind: giftKind, claimToken, status: 'pending', paymentStatus: 'pending' }, (message ? { message } : {})), (giftKind === 'box' && lineItems ? { lineItems } : {})), (giftKind === 'box' && childInterests ? { childInterests } : {})), (giftKind === 'box' && childAgeGroups ? { childAgeGroups } : {})), (Object.keys(metaContext).length ? { metaContext } : {})), (attribution ? { attribution } : {})), { createdAt: new Date().toISOString() });
+        creditCents, kind: giftKind, claimToken, status: 'pending', paymentStatus: 'pending' }, (message ? { message } : {})), (giftKind === 'box' && lineItems ? { lineItems } : {})), (giftKind === 'box' && childInterests ? { childInterests } : {})), (giftKind === 'box' && childAgeGroups ? { childAgeGroups } : {})), (giverShippingAddress ? { shippingAddress: giverShippingAddress } : {})), (Object.keys(metaContext).length ? { metaContext } : {})), (attribution ? { attribution } : {})), { createdAt: new Date().toISOString() });
     await inviteRef.set(payload);
     const paymentIntent = await stripe_1.stripe.paymentIntents.create(Object.assign(Object.assign({ amount: creditCents, currency: 'usd', metadata: {
             type: 'pilot_gift',
@@ -1426,7 +1435,7 @@ exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
             giverUid: request.auth.uid,
         } }, (giverEmail ? { receipt_email: giverEmail } : {})), { automatic_payment_methods: { enabled: true } }));
     await inviteRef.update({ stripePaymentIntentId: paymentIntent.id });
-    const appBase = (_r = process.env.PILOT_APP_BASE_URL) !== null && _r !== void 0 ? _r : 'https://app.grapejuice.co';
+    const appBase = (_s = process.env.PILOT_APP_BASE_URL) !== null && _s !== void 0 ? _s : 'https://app.grapejuice.co';
     const claimUrl = `${appBase}/gift/claim?token=${claimToken}`;
     return {
         giftInviteId: inviteRef.id,
@@ -1587,7 +1596,7 @@ exports.peekGiftInvite = (0, sentry_1.onCall)(async (request) => {
     };
 });
 exports.claimGiftInvite = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const token = String((_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.token) !== null && _c !== void 0 ? _c : '').trim();
@@ -1643,6 +1652,7 @@ exports.claimGiftInvite = (0, sentry_1.onCall)(async (request) => {
         prepaidAddOnCents,
         lineItems: giftKind === 'box' ? (_h = invite.lineItems) !== null && _h !== void 0 ? _h : [] : [],
         childInterests: giftKind === 'box' ? (_j = invite.childInterests) !== null && _j !== void 0 ? _j : [] : [],
+        giverShippingAddress: giftKind === 'box' ? (_k = invite.shippingAddress) !== null && _k !== void 0 ? _k : null : null,
         status: 'available',
         claimedAt: now,
         updatedAt: now,
@@ -1657,7 +1667,7 @@ exports.claimGiftInvite = (0, sentry_1.onCall)(async (request) => {
     // Claiming a gift is not starting a household Hanukkah box. Only force
     // BoxReveal when they already have their own draft in progress.
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
-    const ownLineItems = Array.isArray((_k = draftSnap.data()) === null || _k === void 0 ? void 0 : _k.lineItems)
+    const ownLineItems = Array.isArray((_l = draftSnap.data()) === null || _l === void 0 ? void 0 : _l.lineItems)
         ? draftSnap.data().lineItems
         : [];
     const hasOwnBoxDraft = ownLineItems.length > 0;
@@ -1693,6 +1703,9 @@ function mapReceivedGiftDoc(docId, data) {
             ? Math.max(0, Math.round(Number(data.prepaidAddOnCents)))
             : undefined,
         lineItems: Array.isArray(data.lineItems) ? data.lineItems : [],
+        giverShippingAddress: data.giverShippingAddress && typeof data.giverShippingAddress === 'object'
+            ? data.giverShippingAddress
+            : undefined,
         status: String((_d = data.status) !== null && _d !== void 0 ? _d : 'available'),
         claimedAt: String((_e = data.claimedAt) !== null && _e !== void 0 ? _e : ''),
         viewedAt: data.viewedAt ? String(data.viewedAt) : undefined,
@@ -1702,7 +1715,7 @@ function mapReceivedGiftDoc(docId, data) {
     };
 }
 async function backfillReceivedGiftFromInvite(householdId, inviteId, invite) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const now = new Date().toISOString();
     const giftKind = (0, giftPayment_1.resolveGiftInviteKind)(invite);
     const boxLines = giftKind === 'box' ? ((_a = invite.lineItems) !== null && _a !== void 0 ? _a : []) : [];
@@ -1715,8 +1728,9 @@ async function backfillReceivedGiftFromInvite(householdId, inviteId, invite) {
         prepaidAddOnCents: giftKind === 'box' ? chargeableLineTotal(boxLines) : 0,
         lineItems: giftKind === 'box' ? (_c = invite.lineItems) !== null && _c !== void 0 ? _c : [] : [],
         childInterests: giftKind === 'box' ? (_d = invite.childInterests) !== null && _d !== void 0 ? _d : [] : [],
+        giverShippingAddress: giftKind === 'box' ? (_e = invite.shippingAddress) !== null && _e !== void 0 ? _e : null : null,
         status: 'available',
-        claimedAt: (_e = invite.claimedAt) !== null && _e !== void 0 ? _e : now,
+        claimedAt: (_f = invite.claimedAt) !== null && _f !== void 0 ? _f : now,
         updatedAt: now,
     };
     await db.doc(`households/${householdId}/receivedGifts/${inviteId}`).set(record, { merge: true });
@@ -1879,7 +1893,9 @@ exports.createReceivedGiftCheckout = (0, sentry_1.onCall)(async (request) => {
         if (gift.kind !== 'box') {
             throw new sentry_1.HttpsError('failed-precondition', 'Only gift boxes can be checked out.');
         }
-        if (gift.status !== 'available') {
+        // "Keep it a surprise" used to accept without an address; those still need one checkout.
+        const acceptedWithoutCheckout = gift.status === 'accepted' && !gift.checkoutOrderId;
+        if (gift.status !== 'available' && !acceptedWithoutCheckout) {
             throw new sentry_1.HttpsError('failed-precondition', 'This gift was already used or converted.');
         }
         const lineItems = Array.isArray((_h = request.data) === null || _h === void 0 ? void 0 : _h.lineItems) && request.data.lineItems.length
