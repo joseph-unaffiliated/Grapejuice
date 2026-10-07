@@ -7,6 +7,7 @@ const stripe_1 = require("./stripe");
 const email_1 = require("./email");
 const metaCapi_1 = require("./metaCapi");
 const catalogInventory_1 = require("./catalogInventory");
+const setupNudge_1 = require("./setupNudge");
 /** Prefer stored kind; fall back to lineItems for older invites. */
 function resolveGiftInviteKind(invite) {
     if (invite.kind === 'box' || invite.kind === 'credit')
@@ -20,7 +21,7 @@ function resolveGiftInviteKind(invite) {
 async function finalizeGiftInvitePayment(db, giftInviteId, 
 /** Finalize callable's browser context — used when the invite predates stored metaContext. */
 fallbackMetaContext) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f, _g;
     const inviteRef = db.collection('giftInvites').doc(giftInviteId);
     const inviteSnap = await inviteRef.get();
     if (!inviteSnap.exists) {
@@ -95,11 +96,15 @@ fallbackMetaContext) {
             (0, metaCapi_1.sendMetaEvent)(Object.assign(Object.assign({}, metaEvent), { eventName: 'GiftSent', eventId: `giftsent_${giftInviteId}` })),
         ]);
         try {
+            const config = (_e = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _e !== void 0 ? _e : {};
             await (0, email_1.sendGiftClaimEmail)({
                 to: invite.recipientEmail,
                 giverName: invite.giverName,
                 claimUrl,
                 message: invite.message,
+                kind: resolveGiftInviteKind(invite),
+                deadlineLabel: (0, setupNudge_1.lockDateLabel)((_f = config.lockAt) !== null && _f !== void 0 ? _f : '2026-11-08T04:59:59Z'),
+                arrivesByLabel: (0, setupNudge_1.deliveryDateLabel)((_g = config.estimatedDeliveryBy) !== null && _g !== void 0 ? _g : '2026-11-21'),
             });
         }
         catch (emailErr) {

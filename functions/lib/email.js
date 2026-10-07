@@ -120,14 +120,18 @@ async function sendDebriefReminderEmail({ to, attempt, claimUrl, }) {
     });
 }
 /** Magic link for gift recipient claim. */
-async function sendGiftClaimEmail({ to, giverName, claimUrl, message, }) {
+async function sendGiftClaimEmail({ to, giverName, claimUrl, message, kind, deadlineLabel, arrivesByLabel, }) {
     const template = 'gift-claim';
     const transactionalMessageId = TEMPLATE_IDS[template];
     if (!transactionalMessageId || !getCustomerioAppApiKey()) {
         console.warn('sendGiftClaimEmail: stub (Customer.io not configured)', { to, giverName });
         return;
     }
-    await sendEmail({ to, template, data: { giverName, claimUrl, message: message !== null && message !== void 0 ? message : '' } });
+    await sendEmail({
+        to,
+        template,
+        data: { giverName, claimUrl, message: message !== null && message !== void 0 ? message : '', kind, deadlineLabel, arrivesByLabel },
+    });
 }
 /** Gift box still needs an address before lock. Returns false when stubbed so the caller doesn't mark it sent. */
 async function sendGiftConfirmReminderEmail(data) {

@@ -127,11 +127,17 @@ export async function sendGiftClaimEmail({
   giverName,
   claimUrl,
   message,
+  kind,
+  deadlineLabel,
+  arrivesByLabel,
 }: {
   to: string;
   giverName: string;
   claimUrl: string;
   message?: string;
+  kind: 'box' | 'credit';
+  deadlineLabel: string;
+  arrivesByLabel: string;
 }): Promise<void> {
   const template = 'gift-claim';
   const transactionalMessageId = TEMPLATE_IDS[template];
@@ -139,7 +145,11 @@ export async function sendGiftClaimEmail({
     console.warn('sendGiftClaimEmail: stub (Customer.io not configured)', { to, giverName });
     return;
   }
-  await sendEmail({ to, template, data: { giverName, claimUrl, message: message ?? '' } });
+  await sendEmail({
+    to,
+    template,
+    data: { giverName, claimUrl, message: message ?? '', kind, deadlineLabel, arrivesByLabel },
+  });
 }
 
 /** Gift box still needs an address before lock. Returns false when stubbed so the caller doesn't mark it sent. */

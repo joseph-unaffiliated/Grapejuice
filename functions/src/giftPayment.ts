@@ -4,6 +4,7 @@ import { stripe } from './stripe';
 import { sendGiftClaimEmail } from './email';
 import { sendMetaEvent, type MetaClientContext } from './metaCapi';
 import { recomputeBoxAllocations } from './catalogInventory';
+import { deliveryDateLabel, lockDateLabel } from './setupNudge';
 
 export type GiftInviteRecord = {
   giverUid: string;
@@ -135,11 +136,15 @@ export async function finalizeGiftInvitePayment(
       sendMetaEvent({ ...metaEvent, eventName: 'GiftSent', eventId: `giftsent_${giftInviteId}` }),
     ]);
     try {
+      const config = (await db.doc('config/hanukkah-2026').get()).data() ?? {};
       await sendGiftClaimEmail({
         to: invite.recipientEmail,
         giverName: invite.giverName,
         claimUrl,
         message: invite.message,
+        kind: resolveGiftInviteKind(invite),
+        deadlineLabel: lockDateLabel((config.lockAt as string) ?? '2026-11-08T04:59:59Z'),
+        arrivesByLabel: deliveryDateLabel((config.estimatedDeliveryBy as string) ?? '2026-11-21'),
       });
     } catch (emailErr) {
       // claimEmailSentAt already set so we don't double-send on retry; log for ops.

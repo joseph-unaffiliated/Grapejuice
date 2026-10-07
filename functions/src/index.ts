@@ -15,7 +15,7 @@ import {
 import { finalizeGiftInvitePayment, resolveGiftInviteKind, type GiftInviteRecord } from './giftPayment';
 import { runDebriefReminderBatch } from './debriefReminders';
 import { runLockReminderBatch } from './lockReminders';
-import { lockDateLabel, runSetupNudgeBatch } from './setupNudge';
+import { deliveryDateLabel, lockDateLabel, runSetupNudgeBatch } from './setupNudge';
 import { untraditionalMarkSafe } from './untraditionalCio';
 import {
   assertCatalogSyncSecret,
@@ -750,12 +750,7 @@ async function runGiftConfirmReminders(): Promise<{ sent: number; skipped: numbe
   if (!stage) return { sent: 0, skipped: 0 };
 
   const configData = (await db.doc('config/hanukkah-2026').get()).data() ?? {};
-  const deliveryBy = (configData.estimatedDeliveryBy as string) ?? '2026-11-21';
-  const arrivesByLabel = new Date(`${deliveryBy}T12:00:00Z`).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'America/New_York',
-  });
+  const arrivesByLabel = deliveryDateLabel((configData.estimatedDeliveryBy as string) ?? '2026-11-21');
   const shared = { finalNotice: stage === 1, deadlineLabel: lockDateLabel(lockAt), arrivesByLabel };
   const appBase = process.env.PILOT_APP_BASE_URL ?? 'https://app.grapejuice.co';
   const now = new Date().toISOString();

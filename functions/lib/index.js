@@ -573,12 +573,7 @@ async function runGiftConfirmReminders() {
     if (!stage)
         return { sent: 0, skipped: 0 };
     const configData = (_a = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _a !== void 0 ? _a : {};
-    const deliveryBy = (_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-21';
-    const arrivesByLabel = new Date(`${deliveryBy}T12:00:00Z`).toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        timeZone: 'America/New_York',
-    });
+    const arrivesByLabel = (0, setupNudge_1.deliveryDateLabel)((_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-21');
     const shared = { finalNotice: stage === 1, deadlineLabel: (0, setupNudge_1.lockDateLabel)(lockAt), arrivesByLabel };
     const appBase = (_c = process.env.PILOT_APP_BASE_URL) !== null && _c !== void 0 ? _c : 'https://app.grapejuice.co';
     const now = new Date().toISOString();

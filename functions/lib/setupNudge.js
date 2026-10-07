@@ -4,6 +4,7 @@ exports.SETUP_NUDGE_EVENT = void 0;
 exports.draftItemCount = draftItemCount;
 exports.setupNudgeSkipReason = setupNudgeSkipReason;
 exports.lockDateLabel = lockDateLabel;
+exports.deliveryDateLabel = deliveryDateLabel;
 exports.runSetupNudgeBatch = runSetupNudgeBatch;
 const logger = require("./logger");
 const auth_1 = require("firebase-admin/auth");
@@ -43,6 +44,10 @@ function setupNudgeSkipReason(c, now) {
 /** "November 7" in Eastern time, for copy like "until November 7". */
 function lockDateLabel(lockAt) {
     return new Date(lockAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'America/New_York' });
+}
+/** "November 21" from a date-only config value like "2026-11-21". */
+function deliveryDateLabel(date) {
+    return lockDateLabel(`${date}T12:00:00Z`);
 }
 async function ownerEmail(db, ownerId) {
     var _a, _b;

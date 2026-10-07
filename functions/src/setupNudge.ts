@@ -46,6 +46,11 @@ export function lockDateLabel(lockAt: string): string {
   return new Date(lockAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'America/New_York' });
 }
 
+/** "November 21" from a date-only config value like "2026-11-21". */
+export function deliveryDateLabel(date: string): string {
+  return lockDateLabel(`${date}T12:00:00Z`);
+}
+
 async function ownerEmail(db: Firestore, ownerId: string | undefined): Promise<string | null> {
   if (!ownerId) return null;
   const user = await db.doc(`users/${ownerId}`).get();
