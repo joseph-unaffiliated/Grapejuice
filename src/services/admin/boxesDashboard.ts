@@ -42,6 +42,8 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
+  /** Ship-to state ("NY", "ON, Canada"). */
+  location?: string | null;
   answers: DashAnswers;
   lines: DashLine[];
 };
@@ -88,6 +90,8 @@ export type DashGift = {
   test: boolean;
   message: string | null;
   createdAt: string | null;
+  /** Ship-to state ("NY", "ON, Canada"). */
+  location?: string | null;
   lines: DashLine[];
 };
 

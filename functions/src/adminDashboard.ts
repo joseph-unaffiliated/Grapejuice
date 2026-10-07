@@ -57,6 +57,8 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
+  /** Ship-to state ("NY", "ON, Canada"); drafts fall back to the household's latest order address. */
+  location: string | null;
   answers: DashAnswers;
   lines: DashLine[];
 };
@@ -104,6 +106,8 @@ export type DashGift = {
   test: boolean;
   message: string | null;
   createdAt: string | null;
+  /** Ship-to state: the giver-entered address, else the recipient household's latest order address. */
+  location: string | null;
   lines: DashLine[];
 };
 
@@ -220,6 +224,17 @@ function attributionLabel(a: unknown): string | null {
     (x): x is string => typeof x === 'string' && x.length > 0,
   );
   return parts.length ? parts.join(' / ') : null;
+}
+
+/** State only — the dashboard never carries street addresses. */
+function locationOf(addr: unknown): string | null {
+  if (!addr || typeof addr !== 'object') return null;
+  const a = addr as Record<string, unknown>;
+  const st = str(typeof a.stateProvince === 'string' ? a.stateProvince.trim().toUpperCase() : null);
+  if (!st) return null;
+  const country = str(a.country);
+  if (!country || country === 'US') return st;
+  return `${st}, ${country === 'CA' ? 'Canada' : 'outside US'}`;
 }
 
 const META_AD_UNKNOWN = 'Meta, ad unknown';
@@ -479,6 +494,17 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   const addOnTotal = (lines: DashLine[]) =>
     lines.filter((l) => l.addOn).reduce((s, l) => s + l.unitCents * Math.max(1, l.qty), 0);
 
+  const latestLocation = new Map<string, { createdMs: number; location: string }>();
+  for (const d of ordersSnap.docs) {
+    const hid = d.ref.parent.parent?.id;
+    const location = locationOf(d.data().shippingAddress);
+    if (!hid || !location) continue;
+    const createdMs = ms(d.data().createdAt) ?? 0;
+    const prev = latestLocation.get(hid);
+    if (!prev || createdMs > prev.createdMs) latestLocation.set(hid, { createdMs, location });
+  }
+  const householdLocation = (hid: string | null) => (hid ? latestLocation.get(hid)?.location ?? null : null);
+
   const boxHeld = new Map<string, number>();
   const giftOrders = new Map<string, { createdMs: number; lines: unknown }>();
   const receivedGiftOrdersByKey = new Map<string, DashGift['checkoutOrders']>();
@@ -538,6 +564,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(o.updatedAt) ?? iso(o.committedAt) ?? iso(o.createdAt),
       committedAt: iso(o.committedAt),
       attribution: attributionLabel(o.attribution),
+      location: locationOf(o.shippingAddress) ?? householdLocation(hid),
       answers: c.answers,
       lines,
     });
@@ -572,6 +599,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(dr.updatedAt),
       committedAt: null,
       attribution: null,
+      location: householdLocation(hid),
       answers: c.answers,
       lines,
     });
@@ -666,6 +694,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       test: isTest(str(g.giverEmail), str(g.giverName), str(g.recipientEmail), recipient?.email, recipient?.name),
       message: str(g.message),
       createdAt: iso(g.createdAt),
+      location: locationOf(g.shippingAddress) ?? householdLocation(hid || null),
       lines: linesOf(lineSource, recipient?.childNames ?? new Map()),
     });
   }

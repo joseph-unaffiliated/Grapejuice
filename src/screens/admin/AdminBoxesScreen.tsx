@@ -434,6 +434,19 @@ function Facts({ facts, styles }: { facts: Array<[string, string]>; styles: Styl
   );
 }
 
+/** "By state: NY 4 · CA 2 · no address 3" for the rows currently shown. */
+function stateSummary(locations: Array<string | null | undefined>): string {
+  const counts = new Map<string, number>();
+  let missing = 0;
+  for (const l of locations) {
+    if (l) counts.set(l, (counts.get(l) ?? 0) + 1);
+    else missing += 1;
+  }
+  const parts = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([s, n]) => `${s} ${n}`);
+  if (missing) parts.push(`no address ${missing}`);
+  return parts.length ? `By state: ${parts.join(' · ')}` : '';
+}
+
 type BoxStatusFilter = 'active' | 'draft' | 'open' | 'fulfilled' | 'cancelled' | 'all';
 type YesNoAny = 'any' | 'yes' | 'no';
 
@@ -478,6 +491,7 @@ function BoxesSection({
 
   const columns: Column<DashBox>[] = [
     { label: 'Customer', width: 200, cell: (b) => <Who name={b.customer} email={b.email} styles={styles} />, sort: (b) => (b.customer ?? b.email ?? '').toLowerCase() },
+    { label: 'Ships to', width: 90, cell: (b) => b.location ?? '—', sort: (b) => b.location ?? null },
     { label: 'Kids', width: 50, align: 'right', cell: (b) => String(b.kids), sort: (b) => b.kids },
     ...answerColumns<DashBox>((b) => b.answers),
     { label: 'Status', width: 120, cell: (b) => statusLabel(b.status), sort: (b) => b.status },
@@ -560,6 +574,7 @@ function BoxesSection({
         styles={styles}
         colors={colors}
       />
+      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((b) => b.location))}</Text> : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. ${ANSWERS_CAPTION}`}
       </Text>
@@ -601,6 +616,7 @@ function GiftsSection({
   const columns: Column<DashGift>[] = [
     { label: 'Giver', width: 190, cell: (g) => <Who name={g.giver} email={g.giverEmail} styles={styles} />, sort: (g) => (g.giver ?? g.giverEmail ?? '').toLowerCase() },
     { label: 'Recipient', width: 190, cell: (g) => <Who name={g.recipientName} email={g.recipientEmail} styles={styles} />, sort: (g) => (g.recipientName ?? g.recipientEmail ?? '').toLowerCase() },
+    { label: 'Ships to', width: 90, cell: (g) => g.location ?? '—', sort: (g) => g.location ?? null },
     ...answerColumns<DashGift>((g) => g.recipientAnswers),
     { label: 'Kind', width: 110, cell: (g) => (g.kind === 'box' ? `Box (${g.lines.length} items)` : 'Credit'), sort: (g) => g.kind },
     { label: 'Amount', width: 80, align: 'right', cell: (g) => money(g.amountCents), sort: (g) => g.amountCents },
@@ -644,6 +660,7 @@ function GiftsSection({
         styles={styles}
         colors={colors}
       />
+      {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((g) => g.location))}</Text> : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${data.gifts.length} gift invites. Unpaid rows are gift checkouts that were started but never paid. Dot: green checked out, blue paid and waiting on the recipient, grey unpaid. Gift drafts abandoned before checkout by signed-out visitors are on the Anonymous tab. Hanukkah and Jewish are the recipient's answers once they've signed up. ${ANSWERS_CAPTION}`}
       </Text>
