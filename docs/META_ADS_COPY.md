@@ -43,7 +43,9 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 | activity-v3 | 10 | 11 | It all starts in the kitchen. |
 | grandparent-gift-v1 | 19 | 20 | Gelt. Not guilt. (older hand next to a kid's) |
 
-**Ad sets:** "Grapejuice Co - Broad" runs every ad except the gift one, ages 25–50 (hard limit, Advantage+ audience off). "Grapejuice Co - Grandparent Gift 50+" runs only the gift copy, in five image versions: `grandparent-gift-50plus` (19/20), `-doorstep` (34/35), `-memories` (13/14), `-screens` (16/17) and `-early` (01/02). It targets ages 50–65+, capped at $5/day for the Friday test. Both are US residents only and exclude newsletter subscribers and past purchasers.
+**Ad sets (since Oct 7):** each Broad ad has its own ad set, "Broad - <ad name>", ages 30–49, optimizing for boxes built, with a $12.50–$50 daily spending range under the campaign's $250/day budget. Each reuses its original post, so comments and likes carry over. The old "Grapejuice Co - Broad" ad set is paused, the Grandparent Gift 50+ ad set is archived, and the separate Grandparent Gift campaign is paused.
+
+**Ad sets (until Oct 7):** "Grapejuice Co - Broad" ran every ad except the gift one, ages 25–50 (hard limit, Advantage+ audience off). "Grapejuice Co - Grandparent Gift 50+" runs only the gift copy, in five image versions: `grandparent-gift-50plus` (19/20), `-doorstep` (34/35), `-memories` (13/14), `-screens` (16/17) and `-early` (01/02). It targets ages 50–65+, capped at $5/day for the Friday test. Both are US residents only and exclude newsletter subscribers and past purchasers.
 
 **Not used:**
 
@@ -274,3 +276,188 @@ Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per ang
 - **Description:** Arrives by Nov 21
 
 *Note: Option B mentions "the grandkids." Meta usually allows this for gift ads, but if review rejects it, switch to Option A.*
+
+---
+
+# New angles (drafts, Oct 7; not built)
+
+Copy for the next round of Broad ads. Nothing here is in Meta yet. Each one becomes its own single-ad ad set (named "Broad - <ad name>") once you approve the copy and supply visuals. The visuals listed are suggestions; on-image text should stay at 7 words or fewer. Vertical video for Reels and Stories is worth trying for any of these, since every current ad is a still.
+
+## 9. rules-in-box-v1
+
+- **Angle:** No experience needed: everything you need to know comes in the box
+- **For:** people who'd like to do Hanukkah but aren't sure how (never say this in the ad)
+- **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
+- **Image:** TBD. Suggested: the instruction booklet open on a table next to the candles. On-image text: "The rules are in the box."
+- **CTA button:** Shop now
+
+**Primary text, Option A**
+
+> The rules are in the box. A simple booklet walks through each of the eight nights: what to light, what to say, what to make, what to play.
+>
+> No Hebrew, no homework. Candles, gelt, food, and a book and present for each kid. Free shipping.
+
+**Primary text, Option B**
+
+> Every night of Hanukkah, explained. The box comes with a step-by-step booklet, so nobody has to remember how it goes.
+>
+> Everything else is in there too: candles, gelt, latke and sufganiyot mixes, a dreidel, a book and a present. Arrives by Nov 21.
+
+- **Headline:** The rules are in the box
+- **Description:** No Hebrew. No homework.
+
+---
+
+## 10. ask-rav-v1
+
+- **Angle:** No experience needed: help on any night
+- **For:** same as rules-in-box; tests "help when you need it" against "it's all written down"
+- **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
+- **Image:** TBD. Suggested: a phone screenshot of a real Rav answer to a simple question ("Which way do the candles go?"). On-image text: "Questions on night three? Ask Rav."
+- **CTA button:** Shop now
+
+**Primary text, Option A**
+
+> Questions on night three? Ask Rav. Our online guide answers anything about Hanukkah, any night, in plain English.
+>
+> Plus a box with everything for all eight nights: candles, gelt, food, and a book and present for each kid. Free shipping.
+
+**Primary text, Option B**
+
+> Which way do the candles go? What do the dreidel letters mean? Rav, our online guide, answers any Hanukkah question, any night.
+>
+> It comes with every box. Free shipping, arrives by Nov 21.
+
+- **Headline:** Questions? Ask Rav.
+- **Description:** Help on every night
+
+*Note: Rav is real and comes with the box, but Meta reviewers sometimes flag "AI" claims; the copy calls Rav an online guide, as the no-fluency ad does.*
+
+---
+
+## 11. your-call-v1
+
+- **Angle:** Low pressure: do as much or as little as you like
+- **For:** people put off by the idea of "doing it right" or doing all eight nights
+- **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
+- **Image:** TBD. Suggested: a calm, lived-in table with a few candles lit and the box half unpacked. On-image text: "One night or all eight."
+- **CTA button:** Shop now
+
+**Primary text, Option A**
+
+> One night or all eight. Your call. This box has candles, gelt, food, stories and presents for the whole holiday, and you use as much of it as you like.
+>
+> Swap or skip anything before it ships. Free shipping.
+
+**Primary text, Option B**
+
+> Hanukkah, at whatever size fits. Light candles one night, make latkes another, or do the whole thing. Everything for eight nights is in one box.
+>
+> Customize until Nov 7. Charged only when it ships.
+
+- **Headline:** One night or all eight
+- **Description:** Hanukkah, your size
+
+---
+
+## 12. kids-in-charge-v1
+
+- **Angle:** Kids run it
+- **For:** parents of kids old enough to want to be in charge
+- **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
+- **Image:** TBD. Suggested: kids' hands spinning dreidels for gelt, or mixing latke batter (a grown-up at the stove, out of frame). On-image text: "This year, the kids are in charge."
+- **CTA button:** Shop now
+
+**Primary text, Option A**
+
+> This year the kids are in charge of Hanukkah. They mix the latkes, spin for gelt, pick the night's story and open a present.
+>
+> Each kid gets their own dreidel, book and present. Free shipping, arrives by Nov 21.
+
+**Primary text, Option B**
+
+> Hand the kids the box and let them run Hanukkah. Dreidels, gelt, latke and sufganiyot mixes, a story and a present for each of them.
+>
+> $80 with one kid, +$10 for each additional kid. Free shipping.
+
+- **Headline:** The kids are in charge
+- **Description:** A dreidel, book and present each
+
+---
+
+## 13. decor-v1
+
+- **Angle:** Design: Hanukkah things that look good out
+- **For:** people who find most Judaica tacky (a design-first version of beautiful-v1)
+- **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
+- **Image:** TBD. Suggested: a flat lay of the box items on a real mantel or dining table, no menorah add-on in frame unless it's labeled. On-image text: "Hanukkah decor you won't hide."
+- **CTA button:** Shop now
+
+**Primary text, Option A**
+
+> Hanukkah decor you won't hide in a closet. Wood dreidels, good candles and pieces that look at home on the mantel all December.
+>
+> Customize every piece before it ships. Free shipping.
+
+**Primary text, Option B**
+
+> Hanukkah things that look good out. A curated box for eight nights, chosen to sit on a real table, not in a junk drawer.
+>
+> Swap anything you don't love. Arrives by Nov 21.
+
+- **Headline:** Decor you won't hide
+- **Description:** Curated for real homes
+
+---
+
+## 14. everything-inside-v1
+
+- **Angle:** Everything inside: see exactly what $80 gets you
+- **For:** people who want to know what they're buying before clicking
+- **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
+- **Image:** TBD. Suggested: a flat lay of every item in the box with "$80, all eight nights", or a carousel with one card per night.
+- **CTA button:** Shop now
+
+**Primary text, Option A**
+
+> Here's everything inside: candles, gelt, latke and sufganiyot mixes, wrapping paper, a how-to booklet, and a dreidel, book and present for a kid. $80 for all eight nights.
+>
+> +$10 for each additional kid. Free shipping.
+
+**Primary text, Option B**
+
+> All eight nights in one box. Night one, candles and gelt. Night two, latkes. Night three, a story. And on through presents and dreidel games.
+>
+> $80 with one kid, free shipping, arrives by Nov 21.
+
+- **Headline:** $80, all eight nights
+- **Description:** Everything in one box
+
+*Note: Option B's night-by-night order is illustrative; match it to the booklet's actual order before building, or use Option A.*
+
+---
+
+## 15. busy-december-v1
+
+- **Angle:** A busy December: Hanukkah without the planning
+- **For:** people with a packed December (focus on the calendar, never on who the viewer is or what else they celebrate)
+- **Landing URL:** [https://grapejuice.co/](https://grapejuice.co/)
+- **Image:** TBD. Suggested: a December wall calendar packed with plans, with Dec 4–12 marked and the box on the counter. On-image text: "Room for Hanukkah in December."
+- **CTA button:** Shop now
+
+**Primary text, Option A**
+
+> Room for Hanukkah in a busy December. Hanukkah starts Dec 4 this year, and this box arrives by Nov 21 with everything for all eight nights.
+>
+> No shopping lists, no last-minute runs. Free shipping, charged only when it ships.
+
+**Primary text, Option B**
+
+> December fills up fast. Hanukkah (Dec 4–12) fits in one box: candles, gelt, food, and a book and present for each kid.
+>
+> Order by Nov 7 to customize. Arrives by Nov 21.
+
+- **Headline:** Room for Hanukkah
+- **Description:** Arrives by Nov 21
+
+*Note: Option B's "Order by Nov 7 to customize" assumes customization closes on Nov 7 for new orders too; drop it if late orders can still customize.*
