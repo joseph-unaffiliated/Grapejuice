@@ -7,17 +7,29 @@
  *   node scripts/move-hanukkah-lock.mjs           # counts only, writes nothing
  *   node scripts/move-hanukkah-lock.mjs --apply   # update matching orders
  *
- * Requires: GOOGLE_APPLICATION_CREDENTIALS or `gcloud auth application-default login`.
+ * Requires: GOOGLE_APPLICATION_CREDENTIALS, `gcloud auth application-default login`, or
+ * `--firebase-cli-login` to reuse the local `firebase login` session.
  * Prints counts only.
  */
 import admin from 'firebase-admin';
+import { firestoreFromFirebaseCliLogin } from './lib/firebaseCliCredential.mjs';
 
 const OLD_LOCK = '2026-11-07T05:00:00.000Z';
 const NEW_LOCK = '2026-11-08T04:59:59.000Z';
 const apply = process.argv.includes('--apply');
+const projectId = process.env.FIREBASE_PROJECT_ID || 'grapejuice-pilot';
 
-admin.initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'grapejuice-pilot' });
-const db = admin.firestore();
+let db;
+if (process.argv.includes('--firebase-cli-login')) {
+  db = firestoreFromFirebaseCliLogin(projectId);
+  if (!db) {
+    console.error('No usable `firebase login` session found.');
+    process.exit(1);
+  }
+} else {
+  admin.initializeApp({ projectId });
+  db = admin.firestore();
+}
 
 const config = (await db.doc('config/hanukkah-2026').get()).data() ?? {};
 if (config.lockAt !== NEW_LOCK) {
