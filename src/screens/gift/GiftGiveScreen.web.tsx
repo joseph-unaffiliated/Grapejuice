@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Alert, Text, Platform, TouchableOpacity } from 'react-native';
+import { StyleSheet, Alert, Text, Platform, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -248,7 +248,12 @@ function GiftGiveBody() {
     <SystemPage
       narrow
       onBack={paying ? undefined : goHome}
-      footer={<StorefrontFooter />}
+      footer={
+        <>
+          <View style={styles.footerGap} />
+          <StorefrontFooter />
+        </>
+      }
     >
       {paymentSecret && stripePromise && giftInviteId ? (
         <Elements
@@ -308,6 +313,9 @@ export function GiftGiveScreen() {
 }
 
 const styles = StyleSheet.create({
+  footerGap: {
+    height: 80,
+  },
   signInLink: {
     marginTop: spacing.md,
     alignSelf: 'center',
