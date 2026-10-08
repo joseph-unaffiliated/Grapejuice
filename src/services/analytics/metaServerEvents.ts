@@ -64,6 +64,17 @@ export function trackPreRegister(interestKey: string): void {
  * Box builder produced a curated box (guest or signed in). Quiz-built boxes never fire
  * AddToCart, so this is the only ad-side signal that a visitor got as far as a box.
  */
+/**
+ * Email entered on the box reveal gate. Browser copy only — revealBoxWithEmail sends the
+ * server copy (with the hashed email) under the same event id. Custom, not `Lead`: the
+ * dataset's Lead belongs to other brands.
+ */
+export function trackBoxEmail(): MetaServerContext {
+  const eventId = newMetaEventId('boxemail');
+  trackMetaCustom('BoxEmail', { content_name: 'Hanukkah box' }, eventId);
+  return metaServerContext(eventId);
+}
+
 export function trackBoxBuilt(numItems: number): void {
   const eventId = newMetaEventId('boxbuilt');
   trackMetaCustom('BoxBuilt', { content_name: 'Hanukkah box', num_items: numItems }, eventId);

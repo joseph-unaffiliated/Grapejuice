@@ -7,7 +7,7 @@ import { useAuthFlowStore } from '../stores/authFlowStore';
 import { catalogService } from '../services/firestore/catalog';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import { ageGroupForNumericAge } from '../services/box/boxRules';
-import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import type { ChildDraft } from '../components/family/familyDraft';
 import { DEFAULT_GIFT_CHILDREN, type GiftGiveFormValues } from '../screens/gift/giftGiveTypes';
 
 const DEFAULT_CATALOG_ITEM_ID = 'graphic-novel-hanukkah';
@@ -168,22 +168,19 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
       setAuth('SignUp');
       break;
     case 'onboarding-intro':
-      setOnboarding('hanukkah-intro');
-      break;
     case 'onboarding-practices':
-      setOnboarding('practices');
-      break;
     case 'onboarding-box-intro':
-      setOnboarding('box-intro');
-      break;
     case 'onboarding-household':
-      setOnboarding('children');
+    case 'onboarding-family':
+      setOnboarding('family');
       break;
     case 'onboarding-familiarity':
-      setOnboarding('familiarity');
-      break;
     case 'onboarding-rav':
-      setOnboarding('rav-question');
+    case 'onboarding-details':
+      setOnboarding('details');
+      break;
+    case 'onboarding-email':
+      setOnboarding('email');
       break;
     case 'onboarding-building':
       setOnboarding('building');

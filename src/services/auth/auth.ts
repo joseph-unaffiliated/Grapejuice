@@ -17,6 +17,9 @@ import {
   reauthenticateWithCredential,
   verifyPasswordResetCode,
   confirmPasswordReset,
+  signInWithCustomToken,
+  linkWithCredential,
+  linkWithPopup,
   type ActionCodeSettings,
 } from 'firebase/auth';
 import Constants from 'expo-constants';
@@ -78,6 +81,8 @@ export interface AuthUser {
   photoURL: string | null;
   /** True when this account has an email/password credential (not Google/Apple-only). */
   hasPasswordProvider: boolean;
+  /** True when Google is linked as a sign-in method. */
+  hasGoogleProvider: boolean;
 }
 
 function collectEmails(user: User): string[] {
@@ -108,6 +113,7 @@ function formatUser(user: User): AuthUser {
     displayName: user.displayName ?? null,
     photoURL: user.photoURL ?? null,
     hasPasswordProvider: userHasPasswordProvider(user),
+    hasGoogleProvider: user.providerData.some((p) => p.providerId === 'google.com'),
   };
 }
 
@@ -428,6 +434,45 @@ export async function changePassword(
   const credential = EmailAuthProvider.credential(user.email, currentPassword);
   await reauthenticateWithCredential(user, credential);
   await updatePassword(user, nextPassword);
+}
+
+/** Sign in with a server-minted custom token (email gate / login link). */
+export async function signInWithToken(customToken: string): Promise<AuthUser> {
+  if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
+  const userCredential = await signInWithCustomToken(auth, customToken);
+  return formatUser(userCredential.user);
+}
+
+/** Add an email/password sign-in method to a passwordless account. */
+export async function setPasswordForCurrentUser(password: string): Promise<AuthUser> {
+  if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
+  const user = auth.currentUser;
+  if (!user?.email) throw new Error('Sign in again to set a password.');
+  if (userHasPasswordProvider(user)) {
+    await updatePassword(user, password);
+    return formatUser(user);
+  }
+  const result = await linkWithCredential(user, EmailAuthProvider.credential(user.email, password));
+  return formatUser(result.user);
+}
+
+/** Link Google to the signed-in account (web popup). */
+export async function connectGoogleToCurrentUser(): Promise<AuthUser> {
+  if (!auth) throw new Error(FIREBASE_NOT_CONFIGURED);
+  const user = auth.currentUser;
+  if (!user) throw new Error('Sign in again to connect Google.');
+  if (Platform.OS !== 'web') {
+    throw new Error('Connect Google from grapejuice.co in a browser.');
+  }
+  const result = await linkWithPopup(user, createGoogleProvider(), webPopupRedirectResolver);
+  return formatUser(result.user);
+}
+
+/** Re-read providers after linking. */
+export async function reloadCurrentAuthUser(): Promise<AuthUser | null> {
+  if (!auth?.currentUser) return null;
+  await auth.currentUser.reload();
+  return formatUser(auth.currentUser);
 }
 
 export function onAuthStateChange(callback: (user: AuthUser | null) => void): () => void {

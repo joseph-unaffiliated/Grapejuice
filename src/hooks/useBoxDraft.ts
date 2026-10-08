@@ -17,7 +17,7 @@ import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
-import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import type { ChildDraft } from '../components/family/familyDraft';
 
 function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
   return drafts

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BoxLineItem, FamiliarityLevel } from '../types/pilot';
-import type { ChildDraft } from '../screens/onboarding/ChildrenScreen';
+import type { ChildDraft } from '../components/family/familyDraft';
 import { remapLegacyCatalogIds, retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 
 export function familiarityScoreToLevel(score: number): FamiliarityLevel {
@@ -18,15 +18,19 @@ export function familiarityLevelToScore(level: FamiliarityLevel): number {
 }
 
 export type GuestOnboardingStep =
+  | 'family'
+  | 'details'
+  | 'email'
+  | 'building'
+  | 'reveal'
+  /** Legacy ids — persisted sessions resolve them to `family` / `details`. */
   | 'hanukkah-intro'
   | 'practices'
   | 'box-intro'
   | 'children'
   | 'child-interests'
   | 'familiarity'
-  | 'rav-question'
-  | 'building'
-  | 'reveal';
+  | 'rav-question';
 
 type GuestSessionState = {
   _hasHydrated: boolean;
@@ -54,6 +58,8 @@ type GuestSessionState = {
   hiddenHolidays: string[];
   interests: string[];
   interestEmail: string;
+  /** Email that already has an account — we emailed a login link to save this box. */
+  pendingAccountEmail: string;
   guestRavPromptCount: number;
   startExplore: () => void;
   startBuildBox: () => void;
@@ -73,6 +79,7 @@ type GuestSessionState = {
   consumeOpenMyBoxAfterReveal: () => void;
   toggleInterest: (interest: string) => void;
   setInterestEmail: (email: string) => void;
+  setPendingAccountEmail: (email: string) => void;
   toggleHiddenHoliday: (holidayId: string) => void;
   recordGuestRavPrompt: () => void;
   /** Clear curated box + completion flags so onboarding can run again. */
@@ -100,6 +107,7 @@ const initialState = {
   hiddenHolidays: [] as string[],
   interests: [] as string[],
   interestEmail: '',
+  pendingAccountEmail: '',
   guestRavPromptCount: 0,
 };
 
@@ -153,6 +161,8 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         });
       },
       setInterestEmail: (interestEmail) => set({ interestEmail: interestEmail.trim() }),
+      setPendingAccountEmail: (pendingAccountEmail) =>
+        set({ pendingAccountEmail: pendingAccountEmail.trim() }),
       toggleHiddenHoliday: (holidayId) => {
         const current = get().hiddenHolidays;
         set({
@@ -198,6 +208,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         hiddenHolidays: state.hiddenHolidays,
         interests: state.interests,
         interestEmail: state.interestEmail,
+        pendingAccountEmail: state.pendingAccountEmail,
         guestRavPromptCount: state.guestRavPromptCount,
       }),
       onRehydrateStorage: () => (state) => {

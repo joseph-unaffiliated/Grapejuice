@@ -46,6 +46,13 @@ export function BoxLinkEffect() {
       useGuestSessionStore.getState().startExplore();
     }
 
+    // A guest box that was built but never revealed is still behind the email gate.
+    if (!isAuthenticated && guestOnboardingComplete && !guestBoxRevealComplete) {
+      pending.current = false;
+      useGuestSessionStore.getState().startBuildBox();
+      return;
+    }
+
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
       if (useGuestSessionStore.getState().buildBoxPath) return;

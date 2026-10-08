@@ -1,10 +1,9 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { View, StyleSheet, Alert, Platform } from 'react-native';
-import { type ChildDraft } from '../screens/onboarding/ChildrenScreen';
-import { WhatWeDoScreen } from '../screens/onboarding/WhatWeDoScreen';
-import { HanukkahIntroScreen } from '../screens/onboarding/HanukkahIntroScreen';
-import { BoxIntroScreen } from '../screens/onboarding/BoxIntroScreen';
-import { RavOpenQuestionScreen } from '../screens/onboarding/RavOpenQuestionScreen';
+import type { ChildDraft } from '../components/family/familyDraft';
+import { FamilyStepScreen } from '../screens/onboarding/FamilyStepScreen';
+import { DetailsStepScreen } from '../screens/onboarding/DetailsStepScreen';
+import { RevealEmailScreen } from '../screens/onboarding/RevealEmailScreen';
 import { BuildingBoxScreen } from '../screens/onboarding/BuildingBoxScreen';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore, familiarityLevelToScore } from '../stores/guestSessionStore';
@@ -48,7 +47,10 @@ import {
 } from './webBrowserHistory';
 import { DEFAULT_STOREFRONT_CATEGORY } from '../constants/storefrontCategories';
 import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
-import { trackBoxBuilt } from '../services/analytics/metaServerEvents';
+import { trackBoxBuilt, trackBoxEmail } from '../services/analytics/metaServerEvents';
+import { revealBoxWithEmail } from '../services/auth/loginLinks';
+import { getVisitorId } from '../services/guest/visitorId';
+import { retentionSuppress } from '../services/analytics/retention';
 
 type Props = {
   onComplete?: () => void;
@@ -87,6 +89,19 @@ async function ensureHouseholdId(uid: string, householdId: string | null | undef
   return created.id;
 }
 
+function flattenKidInterests(members: ChildDraft[]): string[] {
+  const set = new Set<string>();
+  for (const m of members) {
+    if (m.role === 'adult') continue;
+    for (const id of m.interests ?? []) set.add(id);
+    for (const custom of m.customInterests ?? []) {
+      const t = custom.trim();
+      if (t) set.add(t);
+    }
+  }
+  return [...set];
+}
+
 /** Wizard steps the browser can move between; building / reveal are transitional. */
 function isHistoryStep(step: OnboardingStep): boolean {
   return step !== 'building' && step !== 'reveal' && wizardNavStepIndex(step) >= 0;
@@ -120,6 +135,8 @@ export function OnboardingStack({
   const completeGuestBoxReveal = useGuestSessionStore((s) => s.completeBoxReveal);
   const setGuestOnboardingStep = useGuestSessionStore((s) => s.setOnboardingStep);
   const exitGuestOnboarding = useGuestSessionStore((s) => s.exitOnboardingToExplore);
+  const setGuestPendingAccountEmail = useGuestSessionStore((s) => s.setPendingAccountEmail);
+  const signInWithToken = useAuthStore((s) => s.signInWithToken);
   const { household, profile, refresh } = useSession();
   const guestMode = isGuest || !isAuthenticated;
 
@@ -142,7 +159,11 @@ export function OnboardingStack({
   const [lineItems, setLineItems] = useState<BoxLineItem[]>(guestLineItems);
   const [saving, setSaving] = useState(false);
   /** Baseline persisted; Rav pass finished (or timed out). BuildingBoxScreen advances when true. */
-  const [buildingReady, setBuildingReady] = useState(false);
+  const [buildingReady, setBuildingReady] = useState(
+    () => guestOnboardingComplete && guestLineItems.length > 0
+  );
+  /** New account from the email gate — sign in once the curated box is final. */
+  const pendingAccountTokenRef = useRef<string | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [completingReveal, setCompletingReveal] = useState(false);
   const [loadingReveal, setLoadingReveal] = useState(revealOnly);
@@ -192,12 +213,13 @@ export function OnboardingStack({
       // Box Reveal hands off to My Box once the curated draft exists.
       if (next === 'reveal') {
         if (!lineItems.length && !revealOnly) return;
-        goToStep('reveal');
+        // Guests see the box only after the email gate.
+        goToStep(guestMode && !revealOnly ? 'email' : 'reveal');
         return;
       }
       goToStep(next);
     },
-    [goToStep, maxWizardIndex, lineItems.length, revealOnly]
+    [goToStep, maxWizardIndex, lineItems.length, revealOnly, guestMode]
   );
 
   // Signed-in restart with an empty local store: prefill from the account's last answers.
@@ -265,7 +287,7 @@ export function OnboardingStack({
       } catch (error) {
         if (!cancelled) {
           setBuildError(onboardingErrorMessage(error));
-          goToStep('rav-question');
+          goToStep('details');
         }
       } finally {
         if (!cancelled) setLoadingReveal(false);
@@ -347,9 +369,10 @@ export function OnboardingStack({
         setFamiliarity(level);
         setFamiliarityScore(score);
         setLineItems(items);
-        goToStep('building');
+        // Curation keeps running while the guest types their email.
+        goToStep('email');
         trackBoxBuilt(items.length);
-        // Fail-open Rav pass after baseline is visible to the loader.
+        // Fail-open Rav pass; the building screen after the email gate waits on it.
         try {
           items = await runRavPass(items, profiles);
           setGuestLineItems(items);
@@ -477,10 +500,56 @@ export function OnboardingStack({
     }
   }, [completeGuestBoxReveal, guestMode, onComplete, refresh, user?.uid]);
 
-  /** After the build splash, open My Box — Box Reveal is no longer a separate screen. */
+  /**
+   * After the build splash, open My Box — Box Reveal is no longer a separate screen.
+   * A new account from the email gate signs in here so the merge saves the final curated box.
+   */
   const goToReveal = useCallback(() => {
+    const token = pendingAccountTokenRef.current;
+    if (token && guestMode) {
+      pendingAccountTokenRef.current = null;
+      void signInWithToken(token).catch((err) => {
+        console.warn('[onboarding] sign-in after email gate failed', err);
+        void completeReveal();
+      });
+      return;
+    }
     void completeReveal();
-  }, [completeReveal]);
+  }, [completeReveal, guestMode, signInWithToken]);
+
+  const submitRevealEmail = useCallback(
+    async (email: string) => {
+      const meta = trackBoxEmail();
+      retentionSuppress(email);
+      const name = childDrafts.find((d) => d.role === 'adult')?.name.trim() || undefined;
+      let result;
+      try {
+        result = await revealBoxWithEmail({ email, visitorId: getVisitorId(), name, meta });
+      } catch (err) {
+        const code = (err as { code?: string })?.code ?? '';
+        if (code.endsWith('resource-exhausted')) {
+          throw new Error('Too many tries. Please wait a few minutes and try again.');
+        }
+        if (code.endsWith('invalid-argument')) {
+          throw new Error('Please enter a valid email address.');
+        }
+        throw new Error('Something went wrong. Please try again.');
+      }
+      if (result.status === 'created') {
+        pendingAccountTokenRef.current = result.customToken;
+        setGuestPendingAccountEmail('');
+      } else {
+        setGuestPendingAccountEmail(email);
+      }
+      goToStep('building');
+    },
+    [childDrafts, goToStep, setGuestPendingAccountEmail]
+  );
+
+  // Signed in with a persisted email step (e.g. signed in elsewhere): the gate no longer applies.
+  useEffect(() => {
+    if (step === 'email' && !guestMode) goToStep('reveal');
+  }, [step, guestMode, goToStep]);
 
   // Resume / reveal-only / wizard jump: hand off to My Box once draft is ready.
   useEffect(() => {
@@ -528,6 +597,11 @@ export function OnboardingStack({
           });
           break;
         case 'myBox':
+          // Guests reach the built box through the email gate.
+          if (guestMode && lineItems.length > 0 && !revealOnly) {
+            if (step !== 'building') goToStep('email');
+            return;
+          }
           // If the draft already exists, finish reveal and open My Box.
           if (lineItems.length > 0) {
             void completeReveal();
@@ -560,7 +634,7 @@ export function OnboardingStack({
       }
       void exitOnboarding();
     },
-    [completeReveal, exitOnboarding, lineItems.length]
+    [completeReveal, exitOnboarding, lineItems.length, guestMode, revealOnly, step, goToStep]
   );
 
   leaveForHistoryRef.current = (target) => {
@@ -603,68 +677,54 @@ export function OnboardingStack({
   let stepContent: React.ReactNode = null;
 
   switch (step) {
-    case 'hanukkah-intro':
-    case 'practices':
-      stepContent = <HanukkahIntroScreen onContinue={() => goToStep('box-intro')} />;
-      break;
-    case 'box-intro':
-    case 'children':
+    case 'family':
       stepContent = (
-        <BoxIntroScreen
-          key={`box-intro-${seedVersion}`}
-          initialChildren={childDrafts.length ? childDrafts : undefined}
+        <FamilyStepScreen
+          key={`family-${seedVersion}`}
+          initialMembers={childDrafts.length ? childDrafts : undefined}
           defaultName={
             firstNameFromDisplayName(profile?.displayName ?? user?.displayName) || 'Joseph'
           }
-          onContinue={(kids) => {
-            setChildDrafts(kids);
-            setGuestChildDrafts(kids);
-            goToStep('child-interests');
-          }}
-        />
-      );
-      break;
-    case 'child-interests':
-    case 'familiarity':
-      stepContent = (
-        <WhatWeDoScreen
-          key={`what-we-do-${seedVersion}`}
-          family={childDrafts}
-          initialScore={familiarityScore || familiarityLevelToScore(familiarity)}
-          initialFrequency={guestPracticeFrequencyScore}
-          onContinue={({ level, score, frequency, children: nextKids, interests }) => {
-            setGuestPracticeFrequencyScore(frequency);
-            setFamiliarity(level);
-            setFamiliarityScore(score);
-            setGuestFamiliarityScore(score);
-            setChildDrafts(nextKids);
-            setGuestChildDrafts(nextKids);
+          onContinue={(members) => {
+            const interests = flattenKidInterests(members);
+            setChildDrafts(members);
+            setGuestChildDrafts(members);
             setChildInterests(interests);
             setGuestChildInterests(interests);
-            goToStep('rav-question');
+            goToStep('details');
           }}
         />
       );
       break;
-    case 'rav-question':
-      // On build, swap straight to the loader so it rides the pane expansion
+    case 'details':
+      // Signed in: swap straight to the loader so it rides the pane expansion
       // instead of leaving the form on screen through the whole catalog fetch.
-      stepContent = saving ? (
-        <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready={false} />
-      ) : (
-        <RavOpenQuestionScreen
-          key={`rav-question-${seedVersion}`}
-          initialNotes={ravNotes}
-          isAuthenticated={!guestMode}
-          buildError={buildError}
-          building={saving}
-          onContinue={(notes) => {
-            setRavNotes(notes);
-            setGuestRavNotes(notes);
-            void buildBox(familiarity, familiarityScore, childDrafts, childInterests, notes);
-          }}
-        />
-      );
+      stepContent =
+        saving && !guestMode ? (
+          <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready={false} />
+        ) : (
+          <DetailsStepScreen
+            key={`details-${seedVersion}`}
+            initialScore={familiarityScore || familiarityLevelToScore(familiarity)}
+            initialFrequency={guestPracticeFrequencyScore}
+            initialNotes={ravNotes}
+            isAuthenticated={!guestMode}
+            buildError={buildError}
+            building={saving}
+            onContinue={({ level, score, frequency, notes }) => {
+              setGuestPracticeFrequencyScore(frequency);
+              setFamiliarity(level);
+              setFamiliarityScore(score);
+              setGuestFamiliarityScore(score);
+              setRavNotes(notes);
+              setGuestRavNotes(notes);
+              void buildBox(level, score, childDrafts, childInterests, notes);
+            }}
+          />
+        );
+      break;
+    case 'email':
+      stepContent = <RevealEmailScreen onSubmit={submitRevealEmail} />;
       break;
     case 'building':
       stepContent = (

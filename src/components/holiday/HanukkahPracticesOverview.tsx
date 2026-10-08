@@ -30,9 +30,8 @@ const PRACTICE_ICONS: Record<string, (typeof icons)[keyof typeof icons]> = {
   presents: icons.gift,
 };
 
-function PracticeRowIcon({ practiceId }: { practiceId: string }) {
+export function PracticeRowIcon({ practiceId, size = 14 }: { practiceId: string; size?: number }) {
   const color = semanticColors.goldMuted;
-  const size = 14;
   if (practiceId === 'dreidel') {
     return <DreidelIcon size={size} color={color} />;
   }

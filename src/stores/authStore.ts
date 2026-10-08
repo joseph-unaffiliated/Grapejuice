@@ -5,6 +5,7 @@ import {
   signInWithGoogle,
   signInWithApple,
   signOut,
+  signInWithToken as signInWithTokenRequest,
   resetPassword,
   changePassword as changePasswordRequest,
   onAuthStateChange,
@@ -131,6 +132,10 @@ interface AuthState {
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   googleSignIn: (returnTo?: GoogleSignInReturnTo | null) => Promise<void>;
   appleSignIn: () => Promise<void>;
+  /** Server-minted custom token (email gate / login link); merges the guest box like any sign-in. */
+  signInWithToken: (customToken: string) => Promise<void>;
+  /** Refresh provider flags after linking a password or Google. */
+  setUser: (user: AuthUser) => void;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   changePassword: (currentPassword: string, nextPassword: string) => Promise<void>;
@@ -270,6 +275,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
   },
+
+  signInWithToken: async (customToken) => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await signInWithTokenRequest(customToken);
+      const merged = await mergeGuestSession(user);
+      commitAuthenticatedUser(set, user, merged);
+    } catch (error) {
+      set({ error: getErrorMessage(error), isLoading: false });
+      throw error;
+    }
+  },
+
+  setUser: (user) => set({ user }),
 
   logout: async () => {
     await signOut();

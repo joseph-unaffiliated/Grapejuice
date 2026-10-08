@@ -1,18 +1,10 @@
 import { create } from 'zustand';
 import type { AuthStackParamList, MainStackParamList, MainTabsParamList } from '../navigation/types';
+import type { GuestOnboardingStep } from './guestSessionStore';
 
 export type DevPreviewGate = 'auth' | 'onboarding' | 'main';
 
-export type OnboardingPreviewStep =
-  | 'hanukkah-intro'
-  | 'practices'
-  | 'box-intro'
-  | 'children'
-  | 'child-interests'
-  | 'familiarity'
-  | 'rav-question'
-  | 'building'
-  | 'reveal';
+export type OnboardingPreviewStep = GuestOnboardingStep;
 
 type PendingMainNav = {
   screen: keyof MainStackParamList;

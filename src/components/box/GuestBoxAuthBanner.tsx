@@ -3,6 +3,7 @@ import { Text, StyleSheet } from 'react-native';
 import { useThemeMode } from '../../context/ThemeContext';
 import { spacing, typography, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
+import { useGuestSessionStore } from '../../stores/guestSessionStore';
 
 const HOLD_SECONDS = 9 * 60 + 59;
 
@@ -20,6 +21,8 @@ export function GuestBoxAuthBanner({ centered = false }: { centered?: boolean })
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [remaining, setRemaining] = useState(HOLD_SECONDS);
+  /** Email gate found an existing account — the login link in their inbox saves this box. */
+  const pendingAccountEmail = useGuestSessionStore((s) => s.pendingAccountEmail);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -33,7 +36,9 @@ export function GuestBoxAuthBanner({ centered = false }: { centered?: boolean })
       style={[styles.copy, centered && styles.copyCentered]}
       accessibilityRole="summary"
     >
-      {`Items held for ${formatHold(remaining)}. Sign up to save.`}
+      {pendingAccountEmail
+        ? 'We emailed you a link to save this box.'
+        : `Items held for ${formatHold(remaining)}. Sign up to save.`}
     </Text>
   );
 }

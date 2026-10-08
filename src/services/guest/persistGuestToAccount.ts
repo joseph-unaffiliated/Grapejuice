@@ -12,7 +12,7 @@ import { saveLastBoxAnswers } from '../box/lastBoxAnswers';
 import { queuePendingMainNav } from '../../navigation/pendingMainNav';
 import { peekPendingAuthReturn, type AuthUser } from '../auth/auth';
 import type { BoxLineItem, ChildProfile } from '../../types/pilot';
-import type { ChildDraft } from '../../screens/onboarding/BoxIntroScreen';
+import type { ChildDraft } from '../../components/family/familyDraft';
 import { getVisitorId } from './visitorId';
 import { markGuestSessionConvertedRemote } from './guestSessionSync';
 

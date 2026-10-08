@@ -10,6 +10,7 @@ import {
 import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { ageGroupForNumericAge } from '../../services/box/boxRules';
 import type { AgeGroup } from '../../types/pilot';
+import { CHILD_INTEREST_OPTIONS, type ChildInterestId } from '../../constants/childInterests';
 
 const MAX_MEMBERS = 8;
 
@@ -28,6 +29,8 @@ type Props = {
   sectionLead?: string | null;
   /** Tighter rows so four people fit beside onboarding copy. */
   dense?: boolean;
+  /** Box builder: Interests chips under each kid's age. */
+  showInterests?: boolean;
 };
 
 export const FAMILY_MEMBERS_SECTION_LEAD = 'Tell us who we\u2019re personalizing this for:';
@@ -41,11 +44,19 @@ export function FamilyMembersForm({
   onChange,
   sectionLead = FAMILY_MEMBERS_SECTION_LEAD,
   dense = false,
+  showInterests = false,
 }: Props) {
   const updateMember = (index: number, patch: Partial<ChildDraft>) => {
     const next = [...members];
     next[index] = { ...next[index], ...patch };
     onChange(next);
+  };
+
+  const toggleInterest = (index: number, id: ChildInterestId) => {
+    const current = members[index].interests ?? [];
+    updateMember(index, {
+      interests: current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+    });
   };
 
   const setKidAge = (index: number, choice: KidAgeChoice) => {
@@ -138,6 +149,28 @@ export function FamilyMembersForm({
                   />
                 )}
               </View>
+
+              {showInterests && member.role !== 'adult' ? (
+                <View style={styles.ageInline}>
+                  <Text style={[styles.fieldLabel, styles.interestsLabel]}>Interests</Text>
+                  <View style={styles.interestChips}>
+                    {CHILD_INTEREST_OPTIONS.map(({ id, label }) => {
+                      const on = (member.interests ?? []).includes(id);
+                      return (
+                        <TouchableOpacity
+                          key={id}
+                          style={[styles.ageChip, on && styles.ageChipOn]}
+                          onPress={() => toggleInterest(i, id)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                        >
+                          <Text style={[styles.ageText, on && styles.ageTextOn]}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
             </View>
           </View>
         ))}
@@ -241,6 +274,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing.sm,
     flexWrap: 'nowrap',
+  },
+  /** "Interests" is wider than Name / Age — let it size itself. */
+  interestsLabel: {
+    width: 'auto',
+    minWidth: 48,
+  },
+  interestChips: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   ageChip: {
     paddingHorizontal: 8,
