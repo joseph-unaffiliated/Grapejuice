@@ -3,7 +3,7 @@ import { onCall, HttpsError } from './sentry';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { randomBytes } from 'crypto';
-import { customerioAppApiKey, sendEmail } from './email';
+import { sendEmail } from './email';
 import { appOrigin, emailHash, sha256Hex, VISITOR_ID_RE } from './guestSessions';
 import { requestIp } from './geo';
 import { metaContextFromCallable, sendMetaEvent } from './metaCapi';
@@ -165,7 +165,7 @@ export type RevealBoxWithEmailResult =
  *   so typing someone else's email cannot sign you into their account.
  */
 export const revealBoxWithEmail = onCall(
-  { secrets: [customerioAppApiKey], memory: '512MiB' },
+  { memory: '512MiB' },
   async (request): Promise<RevealBoxWithEmailResult> => {
     const data = (request.data ?? {}) as { email?: unknown; visitorId?: unknown; name?: unknown };
     const email = normalizeEmail(data.email);
@@ -239,7 +239,7 @@ export const revealBoxWithEmail = onCall(
 
 /** "Email me a login link" on sign-in. Always ok — never reveals whether the email has an account. */
 export const requestLoginLink = onCall(
-  { secrets: [customerioAppApiKey], memory: '512MiB' },
+  { memory: '512MiB' },
   async (request): Promise<{ ok: true }> => {
     const data = (request.data ?? {}) as { email?: unknown; next?: unknown };
     const email = normalizeEmail(data.email);

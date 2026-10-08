@@ -140,7 +140,7 @@ function firstNameOf(raw) {
  * - Existing account: email a link that signs in and saves this box. Never returns a token,
  *   so typing someone else's email cannot sign you into their account.
  */
-exports.revealBoxWithEmail = (0, sentry_1.onCall)({ secrets: [email_1.customerioAppApiKey], memory: '512MiB' }, async (request) => {
+exports.revealBoxWithEmail = (0, sentry_1.onCall)({ memory: '512MiB' }, async (request) => {
     var _a, _b, _c;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const email = normalizeEmail(data.email);
@@ -206,7 +206,7 @@ exports.revealBoxWithEmail = (0, sentry_1.onCall)({ secrets: [email_1.customerio
     return { status: 'existing' };
 });
 /** "Email me a login link" on sign-in. Always ok — never reveals whether the email has an account. */
-exports.requestLoginLink = (0, sentry_1.onCall)({ secrets: [email_1.customerioAppApiKey], memory: '512MiB' }, async (request) => {
+exports.requestLoginLink = (0, sentry_1.onCall)({ memory: '512MiB' }, async (request) => {
     var _a;
     const data = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
     const email = normalizeEmail(data.email);
