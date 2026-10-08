@@ -80,7 +80,7 @@ export function GiftGiveForm({
 
   const setPath = (giftPath: GiftPath) => onChange({ giftPath });
   const setCreditKids = (n: number) =>
-    onChange({ creditKids: Math.max(1, Math.min(MAX_GIFT_CREDIT_KIDS, n)) });
+    onChange({ creditKids: Math.max(0, Math.min(MAX_GIFT_CREDIT_KIDS, n)) });
 
   const lead = !pathChosen
     ? 'Two ways to give. Pick one below.'
@@ -148,7 +148,7 @@ export function GiftGiveForm({
               <TouchableOpacity
                 onPress={() => setCreditKids(creditKids - 1)}
                 style={styles.stepBtn}
-                disabled={submitting || creditKids <= 1}
+                disabled={submitting || creditKids <= 0}
                 accessibilityRole="button"
                 accessibilityLabel="Fewer kids"
               >
@@ -168,7 +168,12 @@ export function GiftGiveForm({
           </View>
           <Text style={checkoutUi.hint}>
             {formatCatalogDollars(creditCents)} gift credit
-            {boxesClosed ? '' : `, enough for a Hanukkah box for ${creditKids === 1 ? 'one kid' : `${creditKids} kids`}`}.
+            {boxesClosed
+              ? ''
+              : `, enough for a Hanukkah box${
+                  creditKids === 0 ? '' : ` for ${creditKids === 1 ? 'one kid' : `${creditKids} kids`}`
+                }`}
+            .
           </Text>
         </>
       ) : null}

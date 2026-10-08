@@ -645,7 +645,11 @@ export function GiftGiverCustomizeContent({
       <View style={styles.summaryBreakdown}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>
-            {kidsCount === 1 ? 'Gift box (1 kid)' : `Gift box (${kidsCount} kids)`}
+            {kidProfiles.length === 0
+              ? 'Gift box'
+              : kidsCount === 1
+                ? 'Gift box (1 kid)'
+                : `Gift box (${kidsCount} kids)`}
           </Text>
           <Text style={styles.summaryValue}>{formatCatalogDollars(boxPriceCents)}</Text>
         </View>

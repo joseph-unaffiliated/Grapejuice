@@ -23,7 +23,7 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
   const styles = useMemo(() => createStyles(), []);
 
   const syncCount = (n: number) => {
-    const c = Math.max(1, Math.min(MAX_KIDS, n));
+    const c = Math.max(0, Math.min(MAX_KIDS, n));
     const next = [...children];
     while (next.length < c) next.push(giftChildFromAge(6));
     while (next.length > c) next.pop();
@@ -63,7 +63,7 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
           <TouchableOpacity
             onPress={() => syncCount(children.length - 1)}
             style={styles.stepBtn}
-            disabled={disabled || children.length <= 1}
+            disabled={disabled || children.length <= 0}
             accessibilityRole="button"
             accessibilityLabel="Fewer kids"
           >
