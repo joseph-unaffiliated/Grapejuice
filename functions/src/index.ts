@@ -69,6 +69,7 @@ export {
 } from './guestSessions';
 export { revealBoxWithEmail, requestLoginLink, redeemLoginLink } from './loginLinks';
 import { mintInviteAcceptUrl } from './loginLinks';
+import { isAdminToken } from './guestSessions';
 export { validateShippingAddress } from './addressValidation';
 export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
@@ -3093,8 +3094,7 @@ export const recomputeCatalogBoxAllocations = onCall(async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Must be signed in.');
   }
-  const email = (request.auth.token.email as string | undefined) ?? '';
-  if (!/^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email)) {
+  if (!isAdminToken(request.auth.token)) {
     throw new HttpsError('permission-denied', 'Admin only.');
   }
   return recomputeBoxAllocations(db);

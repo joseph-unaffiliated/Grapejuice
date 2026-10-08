@@ -41,11 +41,6 @@ function normalizeEmail(raw: unknown): string {
   return email;
 }
 
-/** Staff addresses get admin rules by email, so the gate never hands out tokens for them. */
-function isStaffEmail(email: string): boolean {
-  return /@unaffiliated\.co$/i.test(email);
-}
-
 /** Only same-site paths; anything else falls back to the default destination. */
 export function safeNextPath(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -279,10 +274,11 @@ export const revealBoxWithEmail = onCall(
       if ((err as { code?: string })?.code !== 'auth/user-not-found') throw err;
     }
 
-    if (!existing && !isStaffEmail(email)) {
+    if (!existing) {
       try {
         const created = await auth.createUser({
           email,
+          // Must stay false: admin access by staff email requires a verified address.
           emailVerified: false,
           ...(firstName ? { displayName: firstName } : {}),
         });
