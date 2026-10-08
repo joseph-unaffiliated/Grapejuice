@@ -51,6 +51,8 @@ import { GrapeWobblePreviewScreen } from '../screens/dev/GrapeWobblePreviewScree
 import { AdminCatalogScreen } from '../screens/admin/AdminCatalogScreen';
 import { AdminCatalogItemScreen } from '../screens/admin/AdminCatalogItemScreen';
 import { AdminBoxesScreen } from '../screens/admin/AdminBoxesScreen';
+import { SetPasswordScreen } from '../screens/account/SetPasswordScreen';
+import { ConnectGoogleScreen } from '../screens/account/ConnectGoogleScreen';
 import { AdminLandingsScreen } from '../screens/admin/AdminLandingsScreen';
 import { AdminLandingEditorScreen } from '../screens/admin/AdminLandingEditorScreen';
 import { PILOT_PARENT_ONLY, PILOT_HIDE_IN_APP_GUIDE } from '../constants/pilotFeatures';
@@ -633,6 +635,16 @@ export function MainStack() {
           name="GiftRecipientReveal"
           component={GiftRecipientRevealScreen}
           options={{ title: 'Your gift' }}
+        />
+        <Stack.Screen
+          name="SetPassword"
+          component={SetPasswordScreen}
+          options={{ title: 'Set a password' }}
+        />
+        <Stack.Screen
+          name="ConnectGoogle"
+          component={ConnectGoogleScreen}
+          options={{ title: 'Connect Google' }}
         />
         <Stack.Screen
           name="AdminCatalog"

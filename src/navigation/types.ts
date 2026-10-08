@@ -124,6 +124,10 @@ export type MainStackParamList = {
     giftCreditCents: number;
     hasGiverDraft: boolean;
   };
+  /** `/account/set-password` — add (or change) an email password on a passwordless account. */
+  SetPassword: undefined;
+  /** `/account/connect-google` — link Google sign-in to the current account. */
+  ConnectGoogle: undefined;
   /** Ops: list Hanukkah catalog items (admin allowlist). */
   AdminCatalog: undefined;
   /** Ops: create or edit a catalog item. Omit itemId to create. */

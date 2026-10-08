@@ -11,6 +11,7 @@ import {
   onAuthStateChange,
   completeGoogleRedirectIfNeeded,
   getCurrentAuthUser,
+  waitForAuthStateReady,
   GOOGLE_REDIRECT_PENDING,
   GOOGLE_REDIRECT_SESSION_LOST,
   isRestrictedWebAuthEnvironment,
@@ -171,6 +172,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ error: getErrorMessage(error) });
       } finally {
         redirectSettled = true;
+        // The guest's null auth event usually fires before the redirect check settles and is
+        // ignored above; without this, guests wait on the 8s fallback.
+        if (!authStateSettled) {
+          try {
+            await waitForAuthStateReady();
+          } catch {
+            /* fallback timer covers it */
+          }
+          if (!cancelled && !authStateSettled && !getCurrentAuthUser()) {
+            authStateSettled = true;
+            set({ user: null, isAuthenticated: false });
+          }
+        }
         finishLoadingIfReady();
       }
     })();

@@ -83,6 +83,8 @@ export interface AuthUser {
   hasPasswordProvider: boolean;
   /** True when Google is linked as a sign-in method. */
   hasGoogleProvider: boolean;
+  /** Email-gate accounts are unverified until a login link is redeemed. */
+  emailVerified: boolean;
 }
 
 function collectEmails(user: User): string[] {
@@ -114,6 +116,7 @@ function formatUser(user: User): AuthUser {
     photoURL: user.photoURL ?? null,
     hasPasswordProvider: userHasPasswordProvider(user),
     hasGoogleProvider: user.providerData.some((p) => p.providerId === 'google.com'),
+    emailVerified: user.emailVerified,
   };
 }
 
@@ -483,6 +486,12 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): ()
   return auth.onAuthStateChanged((user) => {
     callback(user ? formatUser(user) : null);
   });
+}
+
+/** Resolves once persisted auth has loaded (signed in or not). */
+export async function waitForAuthStateReady(): Promise<void> {
+  if (!auth) return;
+  await auth.authStateReady();
 }
 
 /** Synchronous snapshot for race guards during init. */

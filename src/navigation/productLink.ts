@@ -6,6 +6,12 @@ import { ACCOUNT_PATH, accountFromState } from './accountLink';
 import { ORDERS_PATH, ordersFromState } from './ordersLink';
 import { ADMIN_BOXES_PATH, adminBoxesFromState } from './adminBoxesLink';
 import {
+  CONNECT_GOOGLE_PATH,
+  LOGIN_PATH,
+  SET_PASSWORD_PATH,
+  accountConvertFromState,
+} from './loginLink';
+import {
   MY_GIFTS_PATH,
   myGiftsFromState,
   giftBoxFromState,
@@ -169,6 +175,9 @@ export function browserPathForNavigationState(
 
   if (adminBoxesFromState(state)) return ADMIN_BOXES_PATH;
 
+  const convert = accountConvertFromState(state);
+  if (convert) return convert === 'SetPassword' ? SET_PASSWORD_PATH : CONNECT_GOOGLE_PATH;
+
   const giftBox = giftBoxFromState(state);
   if (giftBox) {
     const path = giftBoxPath(giftBox.giftInviteId);
@@ -267,6 +276,13 @@ export function browserPathForNavigationState(
     return currentPath + search;
   }
   if (currentPath === ORDERS_PATH || currentPath === ADMIN_BOXES_PATH) {
+    return currentPath + search;
+  }
+  if (
+    currentPath === LOGIN_PATH ||
+    currentPath === SET_PASSWORD_PATH ||
+    currentPath === CONNECT_GOOGLE_PATH
+  ) {
     return currentPath + search;
   }
   if (currentPath === MY_GIFTS_PATH) {

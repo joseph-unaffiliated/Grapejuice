@@ -5,6 +5,7 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  Platform,
   type NativeSyntheticEvent,
   type TextInputChangeEventData,
 } from 'react-native';
@@ -17,6 +18,8 @@ import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { spacing, typography, typeface, borderRadius } from '../../constants/theme';
 import type { AuthStackParamList } from '../../navigation/types';
+import { requestLoginLink } from '../../services/auth/loginLinks';
+import { isValidEmail } from '../../utils/formValidation';
 
 /** RN Web autofill often fills the DOM without firing onChangeText — sync from the native event too. */
 function readInputValue(
@@ -32,7 +35,7 @@ function readInputValue(
 export function SignInEmailScreen() {
   const { colors } = useThemeMode();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
-  const { signIn, googleSignIn, isLoading, error, clearError } = useAuthStore();
+  const { signIn, googleSignIn, error, clearError } = useAuthStore();
   const route = useRoute<RouteProp<AuthStackParamList, 'SignInEmail'>>();
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
   const restoreSignInEmail = useAuthFlowStore((s) => s.restoreSignInEmail);
@@ -42,6 +45,9 @@ export function SignInEmailScreen() {
   );
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  /** Which button is working — each shows its own spinner. */
+  const [busy, setBusy] = useState<'password' | 'google' | 'link' | null>(null);
+  const [linkSent, setLinkSent] = useState(false);
 
   useEffect(() => {
     if (restoreSignInEmail) clearRestoreSignInEmail();
@@ -62,10 +68,39 @@ export function SignInEmailScreen() {
       );
       return;
     }
+    setBusy('password');
     try {
       await signIn(e, password);
     } catch {
       /* store surfaces error */
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onEmailLink = async () => {
+    clearError();
+    setLocalError(null);
+    const e = email.trim();
+    if (!isValidEmail(e)) {
+      setLocalError('Enter the email for your account and we’ll send you a login link.');
+      return;
+    }
+    setBusy('link');
+    try {
+      const here =
+        Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : undefined;
+      await requestLoginLink({ email: e, next: here && here !== '/login' ? here : undefined });
+      setLinkSent(true);
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? '';
+      setLocalError(
+        code.endsWith('resource-exhausted')
+          ? 'Too many tries. Please wait a few minutes and try again.'
+          : 'We couldn’t send a login link. Please try again.'
+      );
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -115,10 +150,24 @@ export function SignInEmailScreen() {
         label="Log In"
         variant="filled"
         onPress={() => void onSubmit()}
-        disabled={isLoading}
-        loading={isLoading}
+        disabled={busy !== null}
+        loading={busy === 'password'}
         style={styles.btn}
       />
+      {linkSent ? (
+        <Text style={[styles.linkSent, { color: colors.textSecondary }]}>
+          If there’s an account for {email.trim()}, a login link is on its way. Check your inbox.
+        </Text>
+      ) : (
+        <GrapejuiceButton
+          label="Email me a login link"
+          variant="pillOutline"
+          onPress={() => void onEmailLink()}
+          disabled={busy !== null}
+          loading={busy === 'link'}
+          style={styles.btn}
+        />
+      )}
       {localError || error ? (
         <Text style={[styles.error, { color: colors.error }]}>{localError || error}</Text>
       ) : null}
@@ -131,14 +180,17 @@ export function SignInEmailScreen() {
         variant="pill"
         onPress={async () => {
           clearError();
+          setBusy('google');
           try {
             await googleSignIn(pendingReturn === 'Stay' ? 'Stay' : undefined);
           } catch {
             /* store */
+          } finally {
+            setBusy(null);
           }
         }}
-        disabled={isLoading}
-        loading={isLoading}
+        disabled={busy !== null}
+        loading={busy === 'google'}
         style={styles.btn}
       />
     </AuthHeroShell>
@@ -175,5 +227,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
     fontSize: typography.md,
+  },
+  linkSent: {
+    ...typeface('regular'),
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    fontSize: typography.md,
+    lineHeight: 20,
   },
 });

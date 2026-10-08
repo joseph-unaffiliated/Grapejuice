@@ -46,6 +46,7 @@ import { PendingInterestEffect } from './PendingInterestEffect';
 import { BoxLinkEffect } from './BoxLinkEffect';
 import { PasswordResetLinkEffect } from './PasswordResetLinkEffect';
 import { ResumeLinkEffect } from './ResumeLinkEffect';
+import { LoginLinkEffect } from './LoginLinkEffect';
 import { GuestSessionSyncEffect } from '../hooks/useGuestSessionSync';
 import { VisitorRegionEffect } from '../hooks/useVisitorRegion';
 import { hydratePasswordResetFromBoot } from './passwordResetLink';
@@ -441,6 +442,7 @@ export function RootNavigator() {
           <AuthResumeMainEffect />
           <DevPreviewEffect />
           <RootRoutes />
+          <LoginLinkEffect />
         </NavigationContainer>
       </ActiveProfileProvider>
     </SessionProvider>

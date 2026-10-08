@@ -65,6 +65,8 @@ const PREVIEW_SIGNED_IN_USER = {
   displayName: 'Alex',
   photoURL: null as string | null,
   hasPasswordProvider: true,
+  hasGoogleProvider: false,
+  emailVerified: true,
 };
 
 const PREVIEW_HOUSEHOLD: Household = {
@@ -501,7 +503,9 @@ function AccountScreenBody() {
         />
 
         <View style={styles.sectionDivider} />
-        <Text style={styles.section}>Reset Password</Text>
+        <Text style={styles.section}>
+          {user.hasPasswordProvider ? 'Reset Password' : 'Set a Password'}
+        </Text>
         {user.hasPasswordProvider ? (
           <>
             <Text style={styles.hint}>Change the password for {user.email ?? 'your account'}.</Text>
@@ -559,11 +563,32 @@ function AccountScreenBody() {
             ) : null}
           </>
         ) : (
-          <Text style={styles.hint}>
-            You sign in with Google or Apple on this account, so there’s no password to change
-            here. Use “Forgot password?” on email sign-in if you also created an email password.
-          </Text>
+          <>
+            <Text style={styles.hint}>
+              {user.hasGoogleProvider
+                ? `You log in with Google. Add a password to also log in to ${user.email ?? 'your account'} with email.`
+                : `You log in with emailed links. Add a password to log in to ${user.email ?? 'your account'} directly.`}
+            </Text>
+            <GrapejuiceButton
+              label="Set a password"
+              variant="filled"
+              onPress={() => navigation.navigate('SetPassword')}
+              disabled={fakeSignedIn}
+              style={styles.actionBtn}
+              textStyle={styles.primaryBtnText}
+            />
+          </>
         )}
+        {!user.hasGoogleProvider && Platform.OS === 'web' ? (
+          <GrapejuiceButton
+            label="Log in with Google"
+            variant="pillOutline"
+            onPress={() => navigation.navigate('ConnectGoogle')}
+            disabled={fakeSignedIn}
+            style={styles.actionBtn}
+            textStyle={styles.primaryBtnText}
+          />
+        ) : null}
 
         {hiddenHolidays.length ? (
           <>
