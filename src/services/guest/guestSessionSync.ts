@@ -89,7 +89,10 @@ function giftFromStore(): GuestSnapshotGift | null {
 
 function entryFromWindow(): GuestSnapshotEntry | null {
   const attribution = readAttributionSnapshot();
-  const touch = attribution?.firstTouch ?? attribution?.lastTouch ?? null;
+  const first = attribution?.firstTouch ?? null;
+  const last = attribution?.lastTouch ?? null;
+  const campaign = (t: typeof first) => Boolean(t?.utm || t?.fbclid);
+  const touch = campaign(first) ? first : campaign(last) ? last : first ?? last;
   if (!touch) return null;
   return {
     utm: touch.utm ? { ...touch.utm } : null,

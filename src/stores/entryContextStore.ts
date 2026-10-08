@@ -149,21 +149,49 @@ function cookieDomain(): string {
   return host === 'grapejuice.co' || host.endsWith('.grapejuice.co') ? '; domain=.grapejuice.co' : '';
 }
 
-function readStoredAttribution(): StoredAttribution | null {
-  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return null;
+/** Cookie copy of the campaign touch: Meta's in-app browsers can drop localStorage between loads. */
+const ATTRIBUTION_COOKIE = 'gj_attr';
+
+const isCampaignTouch = (t: AttributionTouch | null | undefined): boolean => Boolean(t?.utm || t?.fbclid);
+
+function readAttributionCookie(): StoredAttribution | null {
+  const raw = readCookie(ATTRIBUTION_COOKIE);
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(ATTRIBUTION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredAttribution;
-    if (!parsed?.firstTouch || !parsed?.lastTouch) return null;
-    if (Date.now() - new Date(parsed.lastTouch.at).getTime() > ATTRIBUTION_WINDOW_MS) {
-      localStorage.removeItem(ATTRIBUTION_KEY);
-      return null;
-    }
-    return parsed;
+    const touch = JSON.parse(raw) as AttributionTouch;
+    if (!isCampaignTouch(touch) || !touch.at) return null;
+    return { firstTouch: touch, lastTouch: touch, fbc: null };
   } catch {
     return null;
   }
+}
+
+function writeAttributionCookie(touch: AttributionTouch): void {
+  const slim: AttributionTouch = { ...touch, referrer: touch.referrer?.slice(0, 120) ?? null };
+  document.cookie = `${ATTRIBUTION_COOKIE}=${encodeURIComponent(JSON.stringify(slim))}; max-age=${
+    ATTRIBUTION_WINDOW_MS / 1000
+  }; path=/; SameSite=Lax${cookieDomain()}`;
+}
+
+function readStoredAttribution(): StoredAttribution | null {
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return null;
+  let parsed: StoredAttribution | null = null;
+  try {
+    const raw = localStorage.getItem(ATTRIBUTION_KEY);
+    parsed = raw ? (JSON.parse(raw) as StoredAttribution) : null;
+  } catch {
+    parsed = null;
+  }
+  if (!parsed?.firstTouch || !parsed?.lastTouch) return readAttributionCookie();
+  if (Date.now() - new Date(parsed.lastTouch.at).getTime() > ATTRIBUTION_WINDOW_MS) {
+    try {
+      localStorage.removeItem(ATTRIBUTION_KEY);
+    } catch {
+      // ignore
+    }
+    return readAttributionCookie();
+  }
+  return parsed;
 }
 
 function writeStoredAttribution(value: StoredAttribution): void {
@@ -171,6 +199,11 @@ function writeStoredAttribution(value: StoredAttribution): void {
     localStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(value));
   } catch {
     // ignore quota / private mode
+  }
+  try {
+    if (isCampaignTouch(value.lastTouch)) writeAttributionCookie(value.lastTouch);
+  } catch {
+    // ignore
   }
 }
 
@@ -203,7 +236,6 @@ export function captureAttributionFromWindow(): void {
       referrer,
       at: new Date().toISOString(),
     };
-    const isCampaignTouch = Boolean(utm || fbclid);
     const stored = readStoredAttribution();
 
     let fbc = stored?.fbc ?? null;
@@ -214,7 +246,7 @@ export function captureAttributionFromWindow(): void {
 
     if (!stored) {
       writeStoredAttribution({ firstTouch: touch, lastTouch: touch, fbc });
-    } else if (isCampaignTouch) {
+    } else if (isCampaignTouch(touch)) {
       writeStoredAttribution({ ...stored, lastTouch: touch, fbc });
     }
   } catch {

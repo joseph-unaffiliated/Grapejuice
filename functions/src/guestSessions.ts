@@ -125,6 +125,20 @@ function expireAtFrom(now: Date, days: number): Timestamp {
 
 export type SaveGuestSessionResult = { ok: true; skipped?: 'rate_limited' | 'empty' };
 
+const hasCampaign = (e: JsonRecord): boolean =>
+  (isRecord(e.utm) && Object.values(e.utm).some((v) => typeof v === 'string' && v.length > 0)) ||
+  (typeof e.fbclid === 'string' && e.fbclid.length > 0);
+
+/**
+ * In-app browsers can lose the stored touch between saves; never trade an entry for
+ * nothing, or an ad-tagged entry for an untagged one.
+ */
+function keptEntry(next: JsonRecord | null, prior: JsonRecord | null): JsonRecord | null {
+  if (!prior) return next;
+  if (!next) return prior;
+  return hasCampaign(prior) && !hasCampaign(next) ? prior : next;
+}
+
 /**
  * Upsert guestSessions/{visitorId}. Rate-limited per visitor; preserves createdAt,
  * convertedUid and lead linkage across saves.
@@ -144,7 +158,7 @@ export async function saveGuestSessionRecord(
   if (priorUpdated && now.getTime() - priorUpdated < SAVE_MIN_INTERVAL_MS) {
     return { ok: true, skipped: 'rate_limited' };
   }
-  const entry = isRecord(snapshot.entry) ? snapshot.entry : null;
+  const entry = keptEntry(isRecord(snapshot.entry) ? snapshot.entry : null, isRecord(prior?.entry) ? prior.entry : null);
   await ref.set(
     {
       schemaVersion: GUEST_SESSION_SCHEMA_VERSION,

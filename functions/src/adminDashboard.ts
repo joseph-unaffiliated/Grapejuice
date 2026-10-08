@@ -303,7 +303,29 @@ function ipOutsideUs(geo: unknown): boolean {
 const addressOutsideUs = (location: string | null): boolean => Boolean(location && /(, Canada|\(intl\))$/.test(location));
 
 const META_AD_UNKNOWN = 'Meta, ad unknown';
-const NOT_FROM_AD = 'Not from an ad';
+const DIRECT = 'Direct / no tags';
+const NOT_RECORDED = 'Not recorded';
+
+/** Where a non-ad visit came from: a utm_source (newsletters), else the referring site. */
+function nonAdSourceOf(...touches: unknown[]): string | null {
+  const ts = touches.filter((t): t is Record<string, unknown> => Boolean(t && typeof t === 'object'));
+  for (const t of ts) {
+    const u = (t.utm && typeof t.utm === 'object' ? t.utm : {}) as Record<string, unknown>;
+    const source = str(u.utm_source) ?? str(u.source);
+    if (source) return `From ${source}`;
+  }
+  for (const t of ts) {
+    const host = hostOf(t.referrer);
+    if (host) return `Referral: ${host}`;
+  }
+  return null;
+}
+
+/** Label for a guest session with no ad name. */
+function guestNonAdLabel(entry: unknown): string {
+  if (!entry || typeof entry !== 'object') return NOT_RECORDED;
+  return nonAdSourceOf(entry) ?? DIRECT;
+}
 
 /** Ad name from a touch (`{ utm, fbclid }`) or a guest entry; utm keys may be bare or utm_-prefixed. */
 function adNameOf(touch: unknown): string | null {
@@ -479,7 +501,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   }
   const userRefs = [...userIds].map((uid) => db.doc(`users/${uid}`));
   const userSnaps = userRefs.length ? await db.getAll(...userRefs) : [];
-  // Profiles can miss email/displayName (a region write raced profile creation); Auth still has them.
+  // Some profiles lack email/displayName; the Auth record still has them.
   const authByUid = new Map<string, { email: string | null; name: string | null }>();
   const needAuth = userSnaps.filter((s) => !str(s.data()?.email) || !str(s.data()?.displayName)).map((s) => s.id);
   for (let i = 0; i < needAuth.length; i += 100) {
@@ -489,6 +511,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
   const guestAnswersByUid = new Map<string, DashAnswers>();
   const guestAdByUid = new Map<string, string>();
+  const guestNonAdByUid = new Map<string, string>();
   const guestIpLocationByUid = new Map<string, string>();
   const guestIpOutsideUsByUid = new Map<string, boolean>();
   for (const d of guestSnap.docs) {
@@ -498,6 +521,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     if (uid && guest && guestAnsweredSliders(guest)) guestAnswersByUid.set(uid, guestAnswers(guest));
     const ad = uid ? adNameOf(x.entry) : null;
     if (uid && ad) guestAdByUid.set(uid, ad);
+    const nonAd = uid && !ad ? nonAdSourceOf(x.entry) : null;
+    if (uid && nonAd) guestNonAdByUid.set(uid, nonAd);
     const ipLoc = uid ? ipLocationOf(x.ipGeo) : null;
     if (uid && ipLoc) {
       guestIpLocationByUid.set(uid, ipLoc);
@@ -537,7 +562,11 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         adNameOf(attr.firstTouch) ??
         adNameOf(attr.lastTouch) ??
         guestAdByUid.get(s.id) ??
-        (str(attr.fbc) ? META_AD_UNKNOWN : NOT_FROM_AD),
+        (str(attr.fbc) ? META_AD_UNKNOWN : null) ??
+        nonAdSourceOf(attr.firstTouch, attr.lastTouch) ??
+        (str(attr.unaffiliatedUserID) ? 'Unaffiliated newsletter' : null) ??
+        guestNonAdByUid.get(s.id) ??
+        (attr.firstTouch || attr.lastTouch ? DIRECT : NOT_RECORDED),
       createdAt: iso(x.createdAt),
       ipLocation: ipLocationOf(x.ipGeo) ?? guestIpLocationByUid.get(s.id) ?? null,
       ipOutsideUs: ipLocationOf(x.ipGeo) ? ipOutsideUs(x.ipGeo) : guestIpOutsideUsByUid.get(s.id) ?? false,
@@ -745,7 +774,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const a = answered ? guestAnswers(guest) : NO_ANSWERS;
     adPeople.push({
       id: d.id,
-      ad: adNameOf(x.entry) ?? NOT_FROM_AD,
+      ad: adNameOf(x.entry) ?? guestNonAdLabel(x.entry),
       account: false,
       test: false,
       answered,
