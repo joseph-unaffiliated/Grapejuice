@@ -2,6 +2,7 @@ import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { HttpsError, onCall } from './sentry';
 import { isAdminToken } from './guestSessions';
+import { metaAdsAccessToken, metaStatsByAd, type MetaAdStats } from './metaAdsInsights';
 
 /**
  * Admin "Boxes and gifts" dashboard: one read-only snapshot of Hanukkah box orders,
@@ -174,6 +175,8 @@ export type BoxesDashboard = {
   gifts: DashGift[];
   inventory: DashInventoryRow[];
   adPeople: DashAdPerson[];
+  /** Meta's own per-ad results (Grapejuice campaigns), keyed by ad name; null when Meta is unreachable. */
+  metaByAd: Record<string, MetaAdStats> | null;
 };
 
 function iso(v: unknown): string | null {
@@ -200,10 +203,13 @@ function addLines(totals: Map<string, number>, lines: unknown): void {
   }
 }
 
-/** Team and QA accounts: @unaffiliated.co, placeholder domains, or anything from Joseph or Brendan. */
+/**
+ * Team and QA accounts by email only: @unaffiliated.co, placeholder domains, or Joseph's / Brendan's
+ * addresses. Names don't count — the family form pre-filled "Joseph" for customers until Oct 8.
+ */
 function isTest(...vals: Array<string | null | undefined>): boolean {
   return vals.some((v) => {
-    if (!v) return false;
+    if (!v || !v.includes('@')) return false;
     const s = v.toLowerCase();
     return /@unaffiliated?(\.co)?$/.test(s) || /@(a\.com|test\.com|example\.com)$/.test(s) || /joseph|jweissgold|brendan/.test(s);
   });
@@ -906,13 +912,15 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     gifts,
     inventory,
     adPeople,
+    metaByAd: null,
   };
 }
 
 export function createAdminBoxesDashboard(db: Firestore) {
-  return onCall(async (request): Promise<BoxesDashboard> => {
+  return onCall({ secrets: [metaAdsAccessToken] }, async (request): Promise<BoxesDashboard> => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in.');
     if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
-    return buildBoxesDashboard(db);
+    const [dash, metaByAd] = await Promise.all([buildBoxesDashboard(db), metaStatsByAd()]);
+    return { ...dash, metaByAd };
   });
 }

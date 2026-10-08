@@ -134,6 +134,15 @@ export type DashAdPerson = {
   outsideUs?: boolean;
 };
 
+export type MetaAdStats = {
+  spend: number;
+  linkClicks: number;
+  landingPageViews: number;
+  addToCart: number;
+  registrations: number;
+  purchases: number;
+};
+
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
@@ -152,6 +161,8 @@ export type BoxesDashboard = {
   inventory: DashInventoryRow[];
   /** Missing until the server function with the By ad tab is deployed. */
   adPeople?: DashAdPerson[];
+  /** Meta's per-ad results, keyed by ad name; null when Meta is unreachable. */
+  metaByAd?: Record<string, MetaAdStats> | null;
 };
 
 export const DASHBOARD_REFRESH_MS = 60_000;

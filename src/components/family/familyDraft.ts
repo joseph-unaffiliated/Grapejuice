@@ -89,7 +89,7 @@ export function normalizeFamilyDraft(d: ChildDraft): ChildDraft {
 }
 
 export function ensureAdultLead(members: ChildDraft[], defaultName?: string): ChildDraft[] {
-  const adultName = firstNameFromDisplayName(defaultName) || 'Joseph';
+  const adultName = firstNameFromDisplayName(defaultName) || '';
   const normalized = members.map(normalizeFamilyDraft);
   if (normalized[0]?.role === 'adult') {
     if (!normalized[0].name.trim()) {
@@ -101,8 +101,8 @@ export function ensureAdultLead(members: ChildDraft[], defaultName?: string): Ch
 }
 
 export function defaultFamilyMembers(defaultName?: string | null): ChildDraft[] {
-  const adultName = firstNameFromDisplayName(defaultName) || 'Joseph';
-  return [makeAdultDraft(adultName), makeKidDraft('Sam', 5)];
+  const adultName = firstNameFromDisplayName(defaultName) || '';
+  return [makeAdultDraft(adultName), makeKidDraft('', 5)];
 }
 
 export function familyMembersComplete(members: ChildDraft[]): boolean {

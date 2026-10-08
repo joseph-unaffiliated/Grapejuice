@@ -31,6 +31,7 @@ import {
   type DashGuest,
   type DashInventoryRow,
   type DashLine,
+  type MetaAdStats,
 } from '../../services/admin/boxesDashboard';
 
 type Nav = StackNavigationProp<MainStackParamList>;
@@ -936,9 +937,16 @@ type AdRow = {
   lowAccounts: [number, number];
   creditedBoxes: number;
   creditedAccounts: number;
+  meta: MetaAdStats | null;
 };
 
 const ALL_ADS = 'All sources';
+
+function sumMeta(stats: MetaAdStats[]): MetaAdStats {
+  const total: MetaAdStats = { spend: 0, linkClicks: 0, landingPageViews: 0, addToCart: 0, registrations: 0, purchases: 0 };
+  for (const s of stats) for (const k of Object.keys(total) as (keyof MetaAdStats)[]) total[k] += s[k];
+  return total;
+}
 
 function adRows(
   people: DashAdPerson[],
@@ -946,9 +954,13 @@ function adRows(
   cutoff: number,
   highCredit: number,
   unknownCredit: number,
+  metaByAd: Record<string, MetaAdStats> | null,
 ): AdRow[] {
   const groups = new Map<string, DashAdPerson[]>([[ALL_ADS, people]]);
   for (const p of people) groups.set(p.ad, [...(groups.get(p.ad) ?? []), p]);
+  // Ads Meta spent on that brought no one in still get a row.
+  for (const [ad, s] of Object.entries(metaByAd ?? {})) if (s.spend > 0 && !groups.has(ad)) groups.set(ad, []);
+  const metaTotal = metaByAd ? sumMeta(Object.values(metaByAd)) : null;
   const credit = (f: Fit) => (f === 'low' ? 1 : f === 'high' ? highCredit : unknownCredit);
   return [...groups].map(([ad, list]) => {
     const scored = list.map((p) => ({ p, ...fitOf(p, jewishWeight, cutoff) }));
@@ -970,20 +982,25 @@ function adRows(
       lowAccounts: lowShare((p) => p.account),
       creditedBoxes: scored.filter((s) => s.p.box).reduce((sum, s) => sum + credit(s.fit), 0),
       creditedAccounts: scored.filter((s) => s.p.account).reduce((sum, s) => sum + credit(s.fit), 0),
+      meta: ad === ALL_ADS ? metaTotal : metaByAd?.[ad] ?? null,
     };
   });
 }
+
+const dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 const share = ([low, known]: [number, number]) => (known ? `${low} of ${known}` : '—');
 const tenths = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 function AdsSection({
   people,
+  metaByAd,
   hideTests,
   styles,
   colors,
 }: {
   people: DashAdPerson[];
+  metaByAd: Record<string, MetaAdStats> | null;
   hideTests: boolean;
   styles: Styles;
   colors: SemanticColors;
@@ -1001,8 +1018,9 @@ function AdsSection({
         Number(cutoff),
         Number(highCredit),
         Number(unknownCredit),
+        metaByAd,
       ),
-    [people, hideTests, jewishWeight, cutoff, highCredit, unknownCredit],
+    [people, metaByAd, hideTests, jewishWeight, cutoff, highCredit, unknownCredit],
   );
 
   const columns: Column<AdRow>[] = [
@@ -1018,6 +1036,17 @@ function AdsSection({
     { label: '70% · account', width: 105, align: 'right', cell: (r) => share(r.lowAccounts), sort: (r) => (r.lowAccounts[1] ? r.lowAccounts[0] / r.lowAccounts[1] : null) },
     { label: 'Credited boxes', width: 105, align: 'right', cell: (r) => tenths(r.creditedBoxes), sort: (r) => r.creditedBoxes },
     { label: 'Credited accounts', width: 125, align: 'right', cell: (r) => tenths(r.creditedAccounts), sort: (r) => r.creditedAccounts },
+    { label: 'Meta spend', width: 85, align: 'right', cell: (r) => (r.meta ? dollars(r.meta.spend) : '—'), sort: (r) => r.meta?.spend ?? null },
+    { label: 'Meta page views', width: 115, align: 'right', cell: (r) => (r.meta ? String(r.meta.landingPageViews) : '—'), sort: (r) => r.meta?.landingPageViews ?? null },
+    { label: 'Meta add to cart', width: 115, align: 'right', cell: (r) => (r.meta ? String(r.meta.addToCart) : '—'), sort: (r) => r.meta?.addToCart ?? null },
+    { label: 'Meta purchases', width: 105, align: 'right', cell: (r) => (r.meta ? String(r.meta.purchases) : '—'), sort: (r) => r.meta?.purchases ?? null },
+    {
+      label: '$ / credited account',
+      width: 135,
+      align: 'right',
+      cell: (r) => (r.meta?.spend && r.creditedAccounts ? dollars(r.meta.spend / r.creditedAccounts) : '—'),
+      sort: (r) => (r.meta?.spend && r.creditedAccounts ? r.meta.spend / r.creditedAccounts : null),
+    },
   ];
 
   return (
@@ -1077,7 +1106,7 @@ function AdsSection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`One row per ad (the ad name Meta passes as utm_content), plus a total. Visits without an ad name show their source instead: "From …" (a utm_source such as a newsletter), "Referral: …" (the referring site), "Direct / no tags" (landed with no tags), or "Not recorded" (no entry was saved for that visit). `}{`People = everyone who answered the onboarding questions or built a box; signed-up people count once, under the ad that first brought them. Purchases = committed box orders (not pending). Score = Jewish × weight + Hanukkah × the rest; below the cutoff counts as the 70%. Both sliders left at 50 (where they start), or no Jewish answer (accounts from before that question), counts as unknown fit. "70% · box" = low scorers out of people with a known score who built a box. Credited = each box or account counts 1 for the 70%, the 30% credit for the rest, and the unknown credit when we can't tell. Divide an ad's Meta spend by credited accounts for cost per credited account. Test accounts follow Hide tests; anonymous test visits can't be told apart.`}
+        {`One row per ad (the ad name Meta passes as utm_content), plus a total. Visits without an ad name show their source instead: "From …" (a utm_source such as a newsletter), "Referral: …" (the referring site), "Direct / no tags" (landed with no tags), or "Not recorded" (no entry was saved for that visit). `}{`People = everyone who answered the onboarding questions or built a box; signed-up people count once, under the ad that first brought them. Purchases = committed box orders (not pending). Score = Jewish × weight + Hanukkah × the rest; below the cutoff counts as the 70%. Both sliders left at 50 (where they start), or no Jewish answer (accounts from before that question), counts as unknown fit. "70% · box" = low scorers out of people with a known score who built a box. Credited = each box or account counts 1 for the 70%, the 30% credit for the rest, and the unknown credit when we can't tell. Meta columns are Meta's own numbers for Grapejuice campaigns since Sept 1 (refreshed every 10 minutes): they include visitors whose ad tags we lost and aren't filtered by US only or Hide tests. "$ / credited account" = Meta spend ÷ credited accounts. Test accounts follow Hide tests; anonymous test visits can't be told apart.`}
       </Text>
     </View>
   );
@@ -1315,7 +1344,7 @@ export function AdminBoxesScreen() {
           {tab === 'ads' ? (
             <>
               <Text style={styles.section}>By ad: how far people get, and who they are</Text>
-              <AdsSection people={view.adPeople ?? []} hideTests={hideTests} styles={styles} colors={colors} />
+              <AdsSection people={view.adPeople ?? []} metaByAd={data.metaByAd ?? null} hideTests={hideTests} styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'gifts' ? (

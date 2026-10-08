@@ -682,9 +682,7 @@ export function OnboardingStack({
         <FamilyStepScreen
           key={`family-${seedVersion}`}
           initialMembers={childDrafts.length ? childDrafts : undefined}
-          defaultName={
-            firstNameFromDisplayName(profile?.displayName ?? user?.displayName) || 'Joseph'
-          }
+          defaultName={firstNameFromDisplayName(profile?.displayName ?? user?.displayName) || undefined}
           onContinue={(members) => {
             const interests = flattenKidInterests(members);
             setChildDrafts(members);
