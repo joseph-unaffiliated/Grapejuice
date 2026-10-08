@@ -18,6 +18,8 @@
     "site": "grapejuice-pilot",
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "cleanUrls": true,
+    "trailingSlash": false,
     "headers": [
       {
         "source": "/index.html",
@@ -29,6 +31,24 @@
         "source": "/",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "regex": "^/[^.]*$",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "**/*.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "**/*.@(xml|txt)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
         ]
       },
       {

@@ -84,6 +84,7 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+import { useSeoMeta } from '../../navigation/useSeoMeta';
 
 type DetailRow = { label: string; value: string };
 
@@ -147,6 +148,7 @@ export function CatalogProductScreen() {
       title: item?.name?.trim() || 'Product',
     });
   }, [navigation, item?.name]);
+  useSeoMeta({ description: item?.description });
 
   useEffect(() => {
     if (!item?.id) return;

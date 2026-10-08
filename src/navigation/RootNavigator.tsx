@@ -51,6 +51,8 @@ import { GuestSessionSyncEffect } from '../hooks/useGuestSessionSync';
 import { VisitorRegionEffect } from '../hooks/useVisitorRegion';
 import { hydratePasswordResetFromBoot } from './passwordResetLink';
 import { onWebNavigationStateChange } from './webBrowserHistory';
+import { onSeoNavigationStateChange } from './useSeoMeta';
+import { seoTitle } from '../constants/seo';
 import { consumePendingAuthReturn } from '../services/auth/auth';
 
 hydratePasswordResetFromBoot();
@@ -408,15 +410,17 @@ export function RootNavigator() {
       <ActiveProfileProvider>
         <NavigationContainer
           ref={navigationRef}
-          onStateChange={onWebNavigationStateChange}
+          onStateChange={(state) => {
+            onWebNavigationStateChange(state);
+            onSeoNavigationStateChange(state);
+          }}
+          onReady={() => onSeoNavigationStateChange(navigationRef.getRootState())}
           documentTitle={{
-            formatter: (options, route) => {
-              const page =
+            formatter: (options, route) =>
+              seoTitle(
                 (typeof options?.title === 'string' && options.title.trim()) ||
-                (typeof route?.name === 'string' ? humanizeRoute(route.name) : '');
-              if (!page || page === 'Grapejuice') return 'Grapejuice';
-              return `Grapejuice | ${page}`;
-            },
+                  (typeof route?.name === 'string' ? humanizeRoute(route.name) : '')
+              ),
           }}
         >
           <WebBrowserHistoryBridge />
