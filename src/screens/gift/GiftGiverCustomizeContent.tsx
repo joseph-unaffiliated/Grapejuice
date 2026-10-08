@@ -85,9 +85,7 @@ import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useThemeMode } from '../../context/ThemeContext';
-import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import {
-  MOBILE_GUTTER,
   spacing,
   typography,
   borderRadius,
@@ -162,7 +160,6 @@ export function GiftGiverCustomizeContent({
   paymentSlot,
 }: Props) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const { goHome } = useStorefrontActions();
   const { colors } = useThemeMode();
   const { isDesktop, widePanelMaxWidth } = useWebLayout();
   const insets = useSafeAreaInsets();
@@ -592,20 +589,6 @@ export function GiftGiverCustomizeContent({
     );
   };
 
-  const breadcrumb = (
-    <View style={styles.breadcrumb}>
-      <Text style={styles.crumbLink} onPress={goHome} accessibilityRole="link">
-        Store
-      </Text>
-      <Text style={styles.crumbSep}> / </Text>
-      <Text style={styles.crumbLink} onPress={() => navigation.goBack()} accessibilityRole="link">
-        Send a gift
-      </Text>
-      <Text style={styles.crumbSep}> / </Text>
-      <Text style={styles.crumbCurrent}>Curate their box</Text>
-    </View>
-  );
-
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -740,7 +723,6 @@ export function GiftGiverCustomizeContent({
               ref={contentRef}
               collapsable={false}
             >
-              {breadcrumb}
               <BoxDetailToolbar
                 lockAt={null}
                 now={new Date()}
@@ -900,29 +882,6 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       alignSelf: 'center',
       paddingTop: 0,
       ...(Platform.OS === 'web' ? ({ overflow: 'visible' as const } as object) : null),
-    },
-    breadcrumb: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      marginBottom: spacing.md,
-      paddingHorizontal: isDesktop ? 0 : MOBILE_GUTTER,
-      paddingTop: isDesktop ? spacing.lg : 0,
-    },
-    crumbLink: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.goldMuted,
-    },
-    crumbSep: {
-      ...typeface('regular'),
-      fontSize: typography.md,
-      color: colors.goldMuted,
-    },
-    crumbCurrent: {
-      ...typeface('medium'),
-      fontSize: typography.md,
-      color: colors.logoDark,
     },
     centered: {
       flex: 1,
