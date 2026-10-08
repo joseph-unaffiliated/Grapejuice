@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.getAdminBoxesDashboard = exports.unaffiliatedVisit = exports.retentionLead = exports.redeemLoginLink = exports.requestLoginLink = exports.revealBoxWithEmail = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = void 0;
+exports.scheduledChargePilotBoxes = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.getAdminBoxesDashboard = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginLink = exports.requestLoginLink = exports.revealBoxWithEmail = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = void 0;
 const logger = require("./logger");
 const sentry_1 = require("./sentry");
 const app_1 = require("firebase-admin/app");
@@ -26,6 +26,7 @@ const catalogInventory_1 = require("./catalogInventory");
 const metaCapi_1 = require("./metaCapi");
 const crypto_1 = require("crypto");
 const adminDashboard_1 = require("./adminDashboard");
+const usAddress_1 = require("./usAddress");
 var welcome_1 = require("./welcome");
 Object.defineProperty(exports, "sendWelcomeOnSignup", { enumerable: true, get: function () { return welcome_1.sendWelcomeOnSignup; } });
 var guestSessions_1 = require("./guestSessions");
@@ -40,6 +41,8 @@ var loginLinks_1 = require("./loginLinks");
 Object.defineProperty(exports, "revealBoxWithEmail", { enumerable: true, get: function () { return loginLinks_1.revealBoxWithEmail; } });
 Object.defineProperty(exports, "requestLoginLink", { enumerable: true, get: function () { return loginLinks_1.requestLoginLink; } });
 Object.defineProperty(exports, "redeemLoginLink", { enumerable: true, get: function () { return loginLinks_1.redeemLoginLink; } });
+var addressValidation_1 = require("./addressValidation");
+Object.defineProperty(exports, "validateShippingAddress", { enumerable: true, get: function () { return addressValidation_1.validateShippingAddress; } });
 var retentionLead_1 = require("./retentionLead");
 Object.defineProperty(exports, "retentionLead", { enumerable: true, get: function () { return retentionLead_1.retentionLead; } });
 var unaffiliated_2 = require("./unaffiliated");
@@ -163,20 +166,31 @@ function lockHasPassed(lockAt) {
     return Date.now() >= new Date(lockAt).getTime();
 }
 /** Firestore rejects undefined field values — strip them before writes. */
+/**
+ * Trim + U.S.-only enforcement. A complete address outside the 50 states / DC (or with a
+ * non-U.S. postal code) is rejected; callers still report missing fields themselves.
+ */
 function sanitizeShippingAddress(raw) {
-    var _a, _b, _c, _d, _e, _f;
-    const country = raw.country === 'CA' || raw.country === 'OTHER' ? raw.country : 'US';
+    var _a, _b, _c, _d, _e, _f, _g;
+    const src = (raw !== null && raw !== void 0 ? raw : {});
     const cleaned = {
-        name: String((_a = raw.name) !== null && _a !== void 0 ? _a : '').trim(),
-        line1: String((_b = raw.line1) !== null && _b !== void 0 ? _b : '').trim(),
-        city: String((_c = raw.city) !== null && _c !== void 0 ? _c : '').trim(),
-        stateProvince: String((_d = raw.stateProvince) !== null && _d !== void 0 ? _d : '').trim(),
-        postalCode: String((_e = raw.postalCode) !== null && _e !== void 0 ? _e : '').trim(),
-        country,
+        name: String((_a = src.name) !== null && _a !== void 0 ? _a : '').trim(),
+        line1: String((_b = src.line1) !== null && _b !== void 0 ? _b : '').trim(),
+        city: String((_c = src.city) !== null && _c !== void 0 ? _c : '').trim(),
+        stateProvince: String((_d = src.stateProvince) !== null && _d !== void 0 ? _d : '').trim(),
+        postalCode: String((_e = src.postalCode) !== null && _e !== void 0 ? _e : '').trim(),
+        country: 'US',
     };
-    const line2 = String((_f = raw.line2) !== null && _f !== void 0 ? _f : '').trim();
+    const line2 = String((_f = src.line2) !== null && _f !== void 0 ? _f : '').trim();
     if (line2)
         cleaned.line2 = line2;
+    if (cleaned.line1 && cleaned.city && cleaned.stateProvince && cleaned.postalCode) {
+        const format = (0, usAddress_1.checkUsAddressFormat)(Object.assign(Object.assign({}, cleaned), { country: (_g = src.country) !== null && _g !== void 0 ? _g : 'US' }));
+        if (!format.ok)
+            throw new sentry_1.HttpsError('invalid-argument', format.message);
+        cleaned.stateProvince = format.stateCode;
+        cleaned.postalCode = format.zip;
+    }
     return cleaned;
 }
 function catalogCents(value) {
@@ -691,7 +705,7 @@ async function retryFailedMarketplaceCharges(householdId) {
     }
 }
 exports.createPilotCheckout = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
@@ -700,9 +714,12 @@ exports.createPilotCheckout = (0, sentry_1.onCall)(async (request) => {
     }
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     const householdId = data.householdId;
-    const shippingAddress = data.shippingAddress;
-    if (!householdId || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.line1) || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.city)) {
+    if (!householdId || !((_c = data.shippingAddress) === null || _c === void 0 ? void 0 : _c.line1) || !((_d = data.shippingAddress) === null || _d === void 0 ? void 0 : _d.city)) {
         throw new sentry_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
+    }
+    const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
+    if (!shippingAddress.stateProvince || !shippingAddress.postalCode) {
+        throw new sentry_1.HttpsError('invalid-argument', 'Please enter a state and ZIP code.');
     }
     await assertHouseholdMember(request.auth.uid, householdId);
     const lockAt = await getLockAt();
@@ -714,9 +731,9 @@ exports.createPilotCheckout = (0, sentry_1.onCall)(async (request) => {
         throw new sentry_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
     }
     const draft = draftSnap.data();
-    const lineItems = (_c = draft.lineItems) !== null && _c !== void 0 ? _c : [];
+    const lineItems = (_e = draft.lineItems) !== null && _e !== void 0 ? _e : [];
     const configSnap = await db.doc('config/hanukkah-2026').get();
-    const configData = (_d = configSnap.data()) !== null && _d !== void 0 ? _d : {};
+    const configData = (_f = configSnap.data()) !== null && _f !== void 0 ? _f : {};
     const { boxPriceCents, kidCount } = await (0, chargePilotBox_1.boxPriceForUser)(db, request.auth.uid, configData);
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
@@ -725,7 +742,7 @@ exports.createPilotCheckout = (0, sentry_1.onCall)(async (request) => {
     if (totalCents < 50) {
         throw new sentry_1.HttpsError('invalid-argument', 'Order total is too small.');
     }
-    const estimatedDelivery = (_e = configData.estimatedDeliveryBy) !== null && _e !== void 0 ? _e : '2026-11-24';
+    const estimatedDelivery = (_g = configData.estimatedDeliveryBy) !== null && _g !== void 0 ? _g : '2026-11-24';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set({
         status: 'pending',
@@ -961,18 +978,21 @@ exports.createPilotSetupIntent = (0, sentry_1.onCall)(async (request) => {
  * No PaymentIntent here — one off-session charge at lock/ship (see charge-once-at-ship).
  */
 exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     const householdId = data.householdId;
-    const shippingAddress = data.shippingAddress;
-    if (!householdId || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.line1) || !(shippingAddress === null || shippingAddress === void 0 ? void 0 : shippingAddress.city)) {
+    if (!householdId || !((_c = data.shippingAddress) === null || _c === void 0 ? void 0 : _c.line1) || !((_d = data.shippingAddress) === null || _d === void 0 ? void 0 : _d.city)) {
         throw new sentry_1.HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
     }
+    const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
+    if (!shippingAddress.stateProvince || !shippingAddress.postalCode) {
+        throw new sentry_1.HttpsError('invalid-argument', 'Please enter a state and ZIP code.');
+    }
     const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);
-    const hhData = (_c = hhSnap.data()) !== null && _c !== void 0 ? _c : {};
+    const hhData = (_e = hhSnap.data()) !== null && _e !== void 0 ? _e : {};
     const cardOnFile = !!hhData.cardOnFileAt;
     const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
     const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
@@ -985,9 +1005,9 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         throw new sentry_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
     }
     const draft = draftSnap.data();
-    const lineItems = (_d = draft.lineItems) !== null && _d !== void 0 ? _d : [];
+    const lineItems = (_f = draft.lineItems) !== null && _f !== void 0 ? _f : [];
     const configSnap = await db.doc('config/hanukkah-2026').get();
-    const configData = (_e = configSnap.data()) !== null && _e !== void 0 ? _e : {};
+    const configData = (_g = configSnap.data()) !== null && _g !== void 0 ? _g : {};
     const { boxPriceCents, kidCount } = await (0, chargePilotBox_1.boxPriceForUser)(db, request.auth.uid, configData);
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
@@ -1007,7 +1027,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     if (!isPlaythrough) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
-    const estimatedDelivery = (_f = configData.estimatedDeliveryBy) !== null && _f !== void 0 ? _f : '2026-11-24';
+    const estimatedDelivery = (_h = configData.estimatedDeliveryBy) !== null && _h !== void 0 ? _h : '2026-11-24';
     const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     const orderPayload = Object.assign(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
@@ -1022,7 +1042,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     if (giftCreditApplied > 0 || platformCreditApplied > 0) {
         await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
     }
-    await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_g = data.contactPhone) === null || _g === void 0 ? void 0 : _g.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
+    await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_j = data.contactPhone) === null || _j === void 0 ? void 0 : _j.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
     // Exit signal for the account setup nudge (Untraditional workspace).
     const commitEmail = typeof request.auth.token.email === 'string' ? request.auth.token.email : '';
     if (commitEmail) {
@@ -1048,7 +1068,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         order: orderPayload,
         context: (0, metaCapi_1.metaContextFromCallable)(request),
         email: await emailForMeta(request.auth.uid, request.auth.token.email),
-        phone: ((_h = data.contactPhone) === null || _h === void 0 ? void 0 : _h.trim()) || null,
+        phone: ((_k = data.contactPhone) === null || _k === void 0 ? void 0 : _k.trim()) || null,
     });
     if (!isPlaythrough) {
         await (0, unaffiliated_1.reportUnaffiliatedShippingGeo)({ attribution, shippingAddress, email: commitEmail });

@@ -30,6 +30,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
+import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { CheckoutSmsOptIn } from '../main/checkout/CheckoutSmsOptIn';
 import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
@@ -126,6 +127,7 @@ function MarketplaceCheckoutBody() {
     if (Object.keys(patch).length) setFormError(null);
     updateAddress(patch);
   };
+  const deliverability = useAddressDeliverability(address, onAddressChange);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -199,6 +201,12 @@ function MarketplaceCheckoutBody() {
       return;
     }
     setAddressFieldErrors({});
+    const verdict = await deliverability.verify();
+    if (!verdict.ok) {
+      setAddressFieldErrors(verdict.fields);
+      setFormError(verdict.message);
+      return;
+    }
     if (!lineItems.length) {
       setFormError('Your cart is empty.');
       return;
@@ -251,6 +259,7 @@ function MarketplaceCheckoutBody() {
     sessionLoading,
     household?.id,
     validateAddress,
+    deliverability.verify,
     lineItems,
     total,
     stripeKey,
@@ -370,6 +379,7 @@ function MarketplaceCheckoutBody() {
         address={address}
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
+        {...deliverability.fieldsProps}
       />
       <CheckoutSmsOptIn
         phone={contactPhone}
@@ -381,8 +391,8 @@ function MarketplaceCheckoutBody() {
       <CheckoutCta
         label={total > 0 ? `Continue to payment · ${formatDollars(total)}` : 'Place order'}
         onPress={() => void startCheckout()}
-        loading={preparing}
-        disabled={preparing || sessionLoading}
+        loading={preparing || deliverability.checking}
+        disabled={preparing || sessionLoading || deliverability.checking}
         colors={colors}
         styles={styles}
       />

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.redeemLoginLink = exports.requestLoginLink = exports.revealBoxWithEmail = exports.CONNECT_GOOGLE_PATH = exports.SET_PASSWORD_PATH = void 0;
 exports.safeNextPath = safeNextPath;
+exports.hitRateLimit = hitRateLimit;
 const logger = require("./logger");
 const sentry_1 = require("./sentry");
 const auth_1 = require("firebase-admin/auth");

@@ -31,6 +31,7 @@ import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useChec
 import { editUntilLockNote } from '../../services/hanukkah/dates';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
+import { useAddressDeliverability } from './checkout/useAddressDeliverability';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 import { CheckoutCongratsOverlay } from './checkout/CheckoutCongratsOverlay';
@@ -268,6 +269,17 @@ function CheckoutScreenBody() {
     return false;
   };
 
+  const deliverability = useAddressDeliverability(address, onAddressChange);
+  /** Format check, then the server deliverability check (Google Address Validation). */
+  const ensureAddressDeliverable = async (): Promise<boolean> => {
+    if (!ensureAddressValid()) return false;
+    const verdict = await deliverability.verify();
+    if (verdict.ok) return true;
+    setAddressFieldErrors(verdict.fields);
+    setAddressFormError(verdict.message);
+    return false;
+  };
+
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
   const stripePromise = useMemo(
@@ -348,13 +360,13 @@ function CheckoutScreenBody() {
     });
   }, [loading, lineItems.length, openOrder, total]);
 
-  const startSetup = async () => {
+  const startSetup = async (fromShippingForm = false) => {
     if (!household?.id) return;
     if (!stripeKey) {
       notifyCheckout('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
       return;
     }
-    if (!ensureAddressValid()) return;
+    if (fromShippingForm ? !(await ensureAddressDeliverable()) : !ensureAddressValid()) return;
     cardBeforeSetupRef.current = {
       at: household.cardOnFileAt,
       pm: household.stripeDefaultPaymentMethodId,
@@ -555,6 +567,7 @@ function CheckoutScreenBody() {
         address={address}
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
+        {...deliverability.fieldsProps}
       />
       {addressFormError ? <Text style={checkoutUi.fieldError}>{addressFormError}</Text> : null}
       <View style={checkoutUi.divider} />
@@ -567,12 +580,14 @@ function CheckoutScreenBody() {
       <CheckoutCta
         label="Continue"
         onPress={() => {
-          if (!ensureAddressValid()) return;
-          setShippingConfirmed(true);
-          void handleCommit();
+          void (async () => {
+            if (!(await ensureAddressDeliverable())) return;
+            setShippingConfirmed(true);
+            await handleCommit();
+          })();
         }}
-        loading={committing}
-        disabled={committing || locked}
+        loading={committing || deliverability.checking}
+        disabled={committing || locked || deliverability.checking}
         colors={colors}
         styles={styles}
       />
@@ -583,6 +598,7 @@ function CheckoutScreenBody() {
         address={address}
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
+        {...deliverability.fieldsProps}
       />
       {addressFormError ? <Text style={checkoutUi.fieldError}>{addressFormError}</Text> : null}
       <View style={checkoutUi.divider} />
@@ -594,9 +610,9 @@ function CheckoutScreenBody() {
       />
       <CheckoutCta
         label="Continue"
-        onPress={() => void startSetup()}
-        loading={preparing}
-        disabled={preparing || locked}
+        onPress={() => void startSetup(true)}
+        loading={preparing || deliverability.checking}
+        disabled={preparing || locked || deliverability.checking}
         note={locked ? undefined : editUntilLockNote(lockAt)}
         colors={colors}
         styles={styles}

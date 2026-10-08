@@ -25,6 +25,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
+import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { CheckoutSmsOptIn } from '../main/checkout/CheckoutSmsOptIn';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useMarketplaceCheckout } from './useMarketplaceCheckout';
@@ -87,6 +88,7 @@ function MarketplaceCheckoutBody() {
     if (Object.keys(patch).length) setFormError(null);
     updateAddress(patch);
   };
+  const deliverability = useAddressDeliverability(address, onAddressChange);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -123,6 +125,12 @@ function MarketplaceCheckoutBody() {
       return;
     }
     setAddressFieldErrors({});
+    const verdict = await deliverability.verify();
+    if (!verdict.ok) {
+      setAddressFieldErrors(verdict.fields);
+      setFormError(verdict.message);
+      return;
+    }
     if (!lineItems.length) {
       setFormError('Your cart is empty.');
       return;
@@ -256,6 +264,7 @@ function MarketplaceCheckoutBody() {
         address={address}
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
+        {...deliverability.fieldsProps}
       />
       <CheckoutSmsOptIn
         phone={contactPhone}
@@ -275,7 +284,7 @@ function MarketplaceCheckoutBody() {
       >
         <ButtonLoadingLabel
           label={total > 0 ? `Place order · ${formatDollars(total)}` : 'Place order'}
-          loading={submitting}
+          loading={submitting || deliverability.checking}
           loaderColor={colors.goldMuted}
           labelStyle={styles.ctaText}
         />

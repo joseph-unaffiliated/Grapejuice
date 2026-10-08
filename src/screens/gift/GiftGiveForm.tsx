@@ -10,6 +10,7 @@ import { checkoutUi } from '../main/checkout/checkoutUi';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
+import type { SuggestedAddress } from '../../services/checkout/validateAddressRemote';
 import { GiftGiverChildrenFields } from './GiftGiverChildrenFields';
 import {
   hasGiverAddress,
@@ -37,6 +38,8 @@ type Props = {
   /** Optional recipient address (curated box only), shown after a failed submit. */
   addressError?: string | null;
   addressFieldErrors?: ShippingAddressFieldErrors;
+  addressSuggestion?: SuggestedAddress | null;
+  onUseAddressSuggestion?: () => void;
   /** Past box lock: the curated box can't be picked, only credit. */
   boxesClosed?: boolean;
   children?: React.ReactNode;
@@ -56,6 +59,8 @@ export function GiftGiveForm({
   onCancelGift,
   addressError,
   addressFieldErrors,
+  addressSuggestion,
+  onUseAddressSuggestion,
   boxesClosed = false,
   children,
 }: Props) {
@@ -233,6 +238,8 @@ export function GiftGiveForm({
                       onChange({ shippingAddress: { ...(values.shippingAddress ?? emptyShippingAddress), ...patch } })
                     }
                     fieldErrors={addressFieldErrors}
+                    suggestion={addressSuggestion}
+                    onUseSuggestion={onUseAddressSuggestion}
                     heading="Their Shipping Address (optional)"
                     hint="Add it and they can keep the box a surprise: it ships without them seeing what's inside. They can still correct it."
                   />

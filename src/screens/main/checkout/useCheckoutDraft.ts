@@ -15,7 +15,7 @@ import {
 import { listBoxCentsForKids } from '../../../services/box/boxRules';
 import { checkoutTotalsAfterCredit } from '../../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../../types/pilot';
-import { validateShippingAddress } from '../../../utils/formValidation';
+import { normalizeShippingAddress, validateShippingAddress } from '../../../utils/formValidation';
 
 export const emptyShippingAddress: ShippingAddress = {
   name: '',
@@ -128,15 +128,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
     });
   };
 
-  const normalizedAddress = (): ShippingAddress => ({
-    ...address,
-    name: address.name.trim(),
-    line1: address.line1.trim(),
-    line2: address.line2?.trim() || undefined,
-    city: address.city.trim(),
-    stateProvince: address.stateProvince.trim(),
-    postalCode: address.postalCode.trim(),
-  });
+  const normalizedAddress = (): ShippingAddress => normalizeShippingAddress(address);
 
   const validateAddress = () => validateShippingAddress(address);
 

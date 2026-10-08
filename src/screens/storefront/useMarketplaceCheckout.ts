@@ -6,7 +6,7 @@ import { checkoutTotalsAfterCredit } from '../../services/box/pricing';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../types/pilot';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
-import { validateShippingAddress } from '../../utils/formValidation';
+import { normalizeShippingAddress, validateShippingAddress } from '../../utils/formValidation';
 
 export function useMarketplaceCheckout() {
   const { household } = useSession();
@@ -31,15 +31,7 @@ export function useMarketplaceCheckout() {
     setAddress((prev) => ({ ...prev, ...patch }));
   };
 
-  const normalizedAddress = (): ShippingAddress => ({
-    ...address,
-    name: address.name.trim(),
-    line1: address.line1.trim(),
-    line2: address.line2?.trim() || undefined,
-    city: address.city.trim(),
-    stateProvince: address.stateProvince.trim(),
-    postalCode: address.postalCode.trim(),
-  });
+  const normalizedAddress = (): ShippingAddress => normalizeShippingAddress(address);
 
   const validateAddress = () => validateShippingAddress(address);
 

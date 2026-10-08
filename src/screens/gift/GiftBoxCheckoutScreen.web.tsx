@@ -10,6 +10,7 @@ import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { SystemPage } from '../../components/layout/SystemPage';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
+import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useSession } from '../../hooks/useSession';
@@ -29,6 +30,7 @@ import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearan
 import type { MainStackParamList } from '../../navigation/types';
 import type { ShippingAddress } from '../../types/pilot';
 import {
+  normalizeShippingAddress,
   validateShippingAddress,
   type ShippingAddressFieldErrors,
 } from '../../utils/formValidation';
@@ -118,6 +120,7 @@ function GiftBoxCheckoutBody() {
     if (Object.keys(patch).length) setFormError(null);
     setAddress((a) => ({ ...a, ...patch }));
   };
+  const deliverability = useAddressDeliverability(address, onAddressChange);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -158,6 +161,12 @@ function GiftBoxCheckoutBody() {
       return;
     }
     setAddressFieldErrors({});
+    const verdict = await deliverability.verify();
+    if (!verdict.ok) {
+      setAddressFieldErrors(verdict.fields);
+      setFormError(verdict.message);
+      return;
+    }
     const acceptedWithoutCheckout = gift?.status === 'accepted' && !gift.checkoutOrderId;
     if (!gift || (gift.status !== 'available' && !acceptedWithoutCheckout)) {
       setFormError('This gift is no longer available for checkout.');
@@ -168,15 +177,7 @@ function GiftBoxCheckoutBody() {
     try {
       const result = await createReceivedGiftCheckout(
         giftInviteId,
-        {
-          ...address,
-          name: address.name.trim(),
-          line1: address.line1.trim(),
-          line2: address.line2?.trim() || undefined,
-          city: address.city.trim(),
-          stateProvince: address.stateProvince.trim(),
-          postalCode: address.postalCode.trim(),
-        },
+        normalizeShippingAddress(address),
         lineItems,
         { skipShipStation, surprise }
       );
@@ -239,13 +240,14 @@ function GiftBoxCheckoutBody() {
           address={address}
           onChange={onAddressChange}
           fieldErrors={addressFieldErrors}
+          {...deliverability.fieldsProps}
         />
         {formError ? <Text style={checkoutUi.fieldError}>{formError}</Text> : null}
         <GrapejuiceButton
           label="Ship my surprise"
           variant="filled"
           onPress={() => void startCheckout()}
-          loading={preparing}
+          loading={preparing || deliverability.checking}
           style={[checkoutUi.button, styles.ctaSpacing]}
           textStyle={checkoutUi.buttonText}
         />
@@ -278,13 +280,14 @@ function GiftBoxCheckoutBody() {
         address={address}
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
+        {...deliverability.fieldsProps}
       />
       {formError ? <Text style={checkoutUi.fieldError}>{formError}</Text> : null}
       <GrapejuiceButton
         label={total > 0 ? `Continue to payment · ${formatDollars(total)}` : 'Confirm gift box'}
         variant="filled"
         onPress={() => void startCheckout()}
-        loading={preparing}
+        loading={preparing || deliverability.checking}
         style={[checkoutUi.button, styles.ctaSpacing]}
         textStyle={checkoutUi.buttonText}
       />

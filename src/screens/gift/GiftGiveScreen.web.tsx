@@ -18,6 +18,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiveForm } from './GiftGiveForm';
+import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
+import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { DEFAULT_GIFT_CHILDREN, hasGiverAddress, type GiftGiveFormValues } from './giftGiveTypes';
 import type { GiftChildDraft } from './giftGiveTypes';
 import { GiftPaymentPanel } from './GiftPaymentPanel.web';
@@ -96,6 +98,11 @@ function GiftGiveBody() {
     if (patch.giftPath) trackGiftStep('GiftPathChosen', patch.giftPath);
     setValues((current) => ({ ...current, ...patch }));
   };
+
+  const giverAddress = values.shippingAddress ?? emptyShippingAddress;
+  const deliverability = useAddressDeliverability(giverAddress, (patch) =>
+    patchValues({ shippingAddress: { ...giverAddress, ...patch } })
+  );
 
   const requireAuth = (entry: 'signup' | 'signin') => {
     const email = values.recipientEmail.trim();
@@ -179,6 +186,12 @@ function GiftGiveBody() {
           setAddressError(`${check.message ?? 'Finish their address.'} Or remove it to skip.`);
           return;
         }
+        const verdict = await deliverability.verify(address);
+        if (!verdict.ok) {
+          setAddressFieldErrors(verdict.fields);
+          setAddressError(verdict.message ? `${verdict.message} Or remove it to skip.` : null);
+          return;
+        }
       }
       const form = {
         ...values,
@@ -239,6 +252,8 @@ function GiftGiveBody() {
     error: formError,
     addressError,
     addressFieldErrors,
+    addressSuggestion: deliverability.suggestion,
+    onUseAddressSuggestion: deliverability.fieldsProps.onUseSuggestion,
     onCancelGift: cancelGift,
     boxesClosed,
   };
@@ -285,7 +300,7 @@ function GiftGiveBody() {
         <GiftGiveForm
           {...formProps}
           onSubmit={() => void preparePayment()}
-          submitting={submitting}
+          submitting={submitting || deliverability.checking}
           submitLabel={submitLabel}
         >
           {creditOnly && !isAuthenticated ? (

@@ -7,6 +7,7 @@ import {
   type MetaServerContext,
 } from '../analytics/metaPixel';
 import type { AttributionSnapshot } from '../../stores/entryContextStore';
+import { normalizeUsState, normalizeUsZip } from '../../utils/usAddress';
 
 export type CreateMarketplaceCheckoutResult = {
   clientSecret: string | null;
@@ -30,9 +31,9 @@ export async function createMarketplaceCheckout(
     name: shippingAddress.name.trim(),
     line1: shippingAddress.line1.trim(),
     city: shippingAddress.city.trim(),
-    stateProvince: shippingAddress.stateProvince.trim(),
-    postalCode: shippingAddress.postalCode.trim(),
-    country: shippingAddress.country || 'US',
+    stateProvince: normalizeUsState(shippingAddress.stateProvince) ?? shippingAddress.stateProvince.trim(),
+    postalCode: normalizeUsZip(shippingAddress.postalCode) ?? shippingAddress.postalCode.trim(),
+    country: 'US' as const,
   };
   const line2 = shippingAddress.line2?.trim();
   if (line2) address.line2 = line2;

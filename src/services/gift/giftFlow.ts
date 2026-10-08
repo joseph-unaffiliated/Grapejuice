@@ -8,6 +8,7 @@ import {
   type MetaServerContext,
 } from '../analytics/metaPixel';
 import type { AttributionSnapshot } from '../../stores/entryContextStore';
+import { normalizeUsState, normalizeUsZip } from '../../utils/usAddress';
 
 export type PurchaseGiftResult = {
   giftInviteId: string;
@@ -105,9 +106,9 @@ export async function createReceivedGiftCheckout(
     name: shippingAddress.name.trim(),
     line1: shippingAddress.line1.trim(),
     city: shippingAddress.city.trim(),
-    stateProvince: shippingAddress.stateProvince.trim(),
-    postalCode: shippingAddress.postalCode.trim(),
-    country: shippingAddress.country || ('US' as const),
+    stateProvince: normalizeUsState(shippingAddress.stateProvince) ?? shippingAddress.stateProvince.trim(),
+    postalCode: normalizeUsZip(shippingAddress.postalCode) ?? shippingAddress.postalCode.trim(),
+    country: 'US' as const,
     ...(shippingAddress.line2?.trim() ? { line2: shippingAddress.line2.trim() } : {}),
   };
   const callable = httpsCallable<

@@ -54,6 +54,7 @@ import {
 } from './metaCapi';
 import { randomBytes } from 'crypto';
 import { createAdminBoxesDashboard } from './adminDashboard';
+import { checkUsAddressFormat } from './usAddress';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
 export { sendWelcomeOnSignup } from './welcome';
@@ -67,6 +68,7 @@ export {
   scheduledPurgeGuestSessions,
 } from './guestSessions';
 export { revealBoxWithEmail, requestLoginLink, redeemLoginLink } from './loginLinks';
+export { validateShippingAddress } from './addressValidation';
 export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
 
@@ -279,18 +281,28 @@ type MarketplaceLineItem = {
 };
 
 /** Firestore rejects undefined field values — strip them before writes. */
-function sanitizeShippingAddress(raw: ShippingAddress): ShippingAddress {
-  const country = raw.country === 'CA' || raw.country === 'OTHER' ? raw.country : 'US';
+/**
+ * Trim + U.S.-only enforcement. A complete address outside the 50 states / DC (or with a
+ * non-U.S. postal code) is rejected; callers still report missing fields themselves.
+ */
+function sanitizeShippingAddress(raw: ShippingAddress | undefined): ShippingAddress {
+  const src = (raw ?? {}) as Partial<ShippingAddress>;
   const cleaned: ShippingAddress = {
-    name: String(raw.name ?? '').trim(),
-    line1: String(raw.line1 ?? '').trim(),
-    city: String(raw.city ?? '').trim(),
-    stateProvince: String(raw.stateProvince ?? '').trim(),
-    postalCode: String(raw.postalCode ?? '').trim(),
-    country,
+    name: String(src.name ?? '').trim(),
+    line1: String(src.line1 ?? '').trim(),
+    city: String(src.city ?? '').trim(),
+    stateProvince: String(src.stateProvince ?? '').trim(),
+    postalCode: String(src.postalCode ?? '').trim(),
+    country: 'US',
   };
-  const line2 = String(raw.line2 ?? '').trim();
+  const line2 = String(src.line2 ?? '').trim();
   if (line2) cleaned.line2 = line2;
+  if (cleaned.line1 && cleaned.city && cleaned.stateProvince && cleaned.postalCode) {
+    const format = checkUsAddressFormat({ ...cleaned, country: src.country ?? 'US' });
+    if (!format.ok) throw new HttpsError('invalid-argument', format.message);
+    cleaned.stateProvince = format.stateCode;
+    cleaned.postalCode = format.zip;
+  }
   return cleaned;
 }
 
@@ -894,9 +906,12 @@ export const createPilotCheckout = onCall(async (request) => {
 
   const data = (request.data ?? {}) as CreatePilotCheckoutData;
   const householdId = data.householdId;
-  const shippingAddress = data.shippingAddress;
-  if (!householdId || !shippingAddress?.line1 || !shippingAddress?.city) {
+  if (!householdId || !data.shippingAddress?.line1 || !data.shippingAddress?.city) {
     throw new HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
+  }
+  const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
+  if (!shippingAddress.stateProvince || !shippingAddress.postalCode) {
+    throw new HttpsError('invalid-argument', 'Please enter a state and ZIP code.');
   }
 
   await assertHouseholdMember(request.auth.uid, householdId);
@@ -1253,9 +1268,12 @@ export const commitPilotBox = onCall(async (request) => {
 
   const data = (request.data ?? {}) as CommitPilotBoxData;
   const householdId = data.householdId;
-  const shippingAddress = data.shippingAddress;
-  if (!householdId || !shippingAddress?.line1 || !shippingAddress?.city) {
+  if (!householdId || !data.shippingAddress?.line1 || !data.shippingAddress?.city) {
     throw new HttpsError('invalid-argument', 'householdId and shippingAddress are required.');
+  }
+  const shippingAddress = sanitizeShippingAddress(data.shippingAddress);
+  if (!shippingAddress.stateProvince || !shippingAddress.postalCode) {
+    throw new HttpsError('invalid-argument', 'Please enter a state and ZIP code.');
   }
 
   const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);

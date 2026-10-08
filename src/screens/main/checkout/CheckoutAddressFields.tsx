@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import type { ShippingAddress } from '../../../types/pilot';
 import type { ShippingAddressFieldErrors, ShippingRequiredField } from '../../../utils/formValidation';
-import { spacing, semanticColors, typeface } from '../../../constants/theme';
+import type { SuggestedAddress } from '../../../services/checkout/validateAddressRemote';
+import { borderRadius, spacing, semanticColors, typeface, typography } from '../../../constants/theme';
 import { checkoutUi } from './checkoutUi';
 
 type Props = {
@@ -12,6 +13,9 @@ type Props = {
   fieldErrors?: ShippingAddressFieldErrors;
   heading?: string;
   hint?: string;
+  /** Corrected address from the deliverability check. */
+  suggestion?: SuggestedAddress | null;
+  onUseSuggestion?: () => void;
 };
 
 function FieldLabel({ label, required }: { label: string; required?: boolean }) {
@@ -29,6 +33,8 @@ export function CheckoutAddressFields({
   fieldErrors,
   heading = 'Shipping Address',
   hint = 'Fields marked * are required',
+  suggestion,
+  onUseSuggestion,
 }: Props) {
   const inputStyle = (key: ShippingRequiredField) => [
     checkoutUi.input,
@@ -115,6 +121,27 @@ export function CheckoutAddressFields({
           ) : null}
         </View>
       </View>
+      {suggestion ? (
+        <View style={styles.suggestion} accessibilityLiveRegion="polite">
+          <Text style={styles.suggestionTitle}>Did you mean…?</Text>
+          <Text style={styles.suggestionAddress}>
+            {[suggestion.line1, suggestion.line2].filter(Boolean).join(', ')}
+            {'\n'}
+            {`${suggestion.city}, ${suggestion.stateProvince} ${suggestion.postalCode}`}
+          </Text>
+          <View style={styles.suggestionActions}>
+            <TouchableOpacity
+              onPress={onUseSuggestion}
+              accessibilityRole="button"
+              accessibilityLabel="Use this address"
+              style={styles.suggestionButton}
+            >
+              <Text style={styles.suggestionButtonText}>Use this address</Text>
+            </TouchableOpacity>
+            <Text style={checkoutUi.hint}>Or press Continue to keep yours.</Text>
+          </View>
+        </View>
+      ) : null}
     </>
   );
 }
@@ -127,4 +154,44 @@ const styles = StyleSheet.create({
   },
   row2: { flexDirection: 'row', gap: spacing.sm, minWidth: 0 },
   half: { flex: 1, minWidth: 0 },
+  suggestion: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: semanticColors.brand,
+    backgroundColor: semanticColors.bgElevated,
+    gap: spacing.xs,
+  },
+  suggestionTitle: {
+    ...typeface('medium'),
+    fontSize: typography.md,
+    color: semanticColors.logoDark,
+  },
+  suggestionAddress: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    lineHeight: 20,
+    color: semanticColors.textPrimary,
+  },
+  suggestionActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  suggestionButton: {
+    borderRadius: borderRadius.xl,
+    backgroundColor: semanticColors.brand,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  suggestionButtonText: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    color: semanticColors.logoDark,
+  },
 });

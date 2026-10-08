@@ -24,6 +24,7 @@ import { SystemPage, systemPageStyles as page } from '../../components/layout/Sy
 import { useCheckoutDraft } from './checkout/useCheckoutDraft';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
+import { useAddressDeliverability } from './checkout/useAddressDeliverability';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 import { CheckoutCongratsOverlay } from './checkout/CheckoutCongratsOverlay';
@@ -107,6 +108,8 @@ function CheckoutScreenBody() {
     return false;
   };
 
+  const deliverability = useAddressDeliverability(address, onAddressChange);
+
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
   const cardOnFile = !!household?.cardOnFileAt;
@@ -179,6 +182,12 @@ function CheckoutScreenBody() {
 
     setSubmitting(true);
     try {
+      const verdict = await deliverability.verify();
+      if (!verdict.ok) {
+        setAddressFieldErrors(verdict.fields);
+        setAddressFormError(verdict.message);
+        return;
+      }
       if (!cardOnFile) {
         const before = { at: household.cardOnFileAt, pm: household.stripeDefaultPaymentMethodId };
         if (!(await handleSaveCard())) return;
@@ -267,6 +276,7 @@ function CheckoutScreenBody() {
         address={address}
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
+        {...deliverability.fieldsProps}
       />
       {addressFormError ? <Text style={styles.addressFormError}>{addressFormError}</Text> : null}
       <CheckoutSmsOptIn

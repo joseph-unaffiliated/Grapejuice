@@ -55,7 +55,7 @@ export function safeNextPath(raw: unknown): string | null {
   return next;
 }
 
-async function hitRateLimit(
+export async function hitRateLimit(
   db: FirebaseFirestore.Firestore,
   key: string,
   limit: number,
