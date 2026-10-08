@@ -56,7 +56,7 @@ export function validateShippingAddress(address: ShippingAddress): ShippingAddre
   if (missing.length === 0) {
     const format = checkUsAddressFormat(address);
     if (!format.ok) {
-      return { ok: false, message: format.message, fields: { [format.field]: format.message } };
+      return { ok: false, message: null, fields: { [format.field]: format.message } };
     }
     return { ok: true, message: null, fields: {} };
   }

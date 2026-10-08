@@ -183,13 +183,16 @@ function GiftGiveBody() {
         const check = validateShippingAddress(address);
         if (!check.ok) {
           setAddressFieldErrors(check.fields);
-          setAddressError(`${check.message ?? 'Finish their address.'} Or remove it to skip.`);
+          setAddressError(check.message ? `${check.message} Or remove it to skip.` : 'Or remove the address to skip.');
           return;
         }
         const verdict = await deliverability.verify(address);
         if (!verdict.ok) {
           setAddressFieldErrors(verdict.fields);
-          setAddressError(verdict.message ? `${verdict.message} Or remove it to skip.` : null);
+          const fieldError = Object.keys(verdict.fields).length > 0;
+          setAddressError(
+            verdict.message ? `${verdict.message} Or remove it to skip.` : fieldError ? 'Or remove the address to skip.' : null
+          );
           return;
         }
       }

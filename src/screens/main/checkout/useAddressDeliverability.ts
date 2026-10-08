@@ -60,11 +60,7 @@ export function useAddressDeliverability(
           return { ok: false, message: null, fields: {} };
         default:
           setSuggestion(null);
-          return {
-            ok: false,
-            message: result.message,
-            fields: { [result.field ?? 'line1']: result.message },
-          };
+          return { ok: false, message: null, fields: { [result.field ?? 'line1']: result.message } };
       }
     },
     [address]
