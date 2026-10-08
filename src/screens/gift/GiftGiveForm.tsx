@@ -78,7 +78,7 @@ export function GiftPathCards({
         accessibilityRole="radio"
         accessibilityState={{ checked: customize, disabled: boxesClosed }}
       >
-        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Pick items for them</Text>
+        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Curate items for them</Text>
         <Text style={[styles.pathBody, customize && styles.pathBodyOn]}>
           {boxesClosed
             ? `Gift boxes for this Hanukkah closed on ${lockDay}. You can still send gift credit.`

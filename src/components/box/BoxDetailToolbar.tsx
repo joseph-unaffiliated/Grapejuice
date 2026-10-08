@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
+import type { TextStyle } from 'react-native';
 import { createBoxDetailStyles } from './boxDetailLayout';
 import { AddToCalendarMenu } from '../holiday/AddToCalendarMenu';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -25,6 +26,8 @@ type Props = {
   hideBack?: boolean;
   /** Calendar UI: full chip strip vs inline text link under the subline. */
   calendarVariant?: 'strip' | 'inlineLink';
+  /** Overrides the responsive title sizing (e.g. to match checkout step titles). */
+  titleStyle?: TextStyle;
 };
 
 /** Compact box header — title, lock countdown, optional calendar. */
@@ -39,6 +42,7 @@ export function BoxDetailToolbar({
   align = 'center',
   hideBack = false,
   calendarVariant = 'strip',
+  titleStyle,
 }: Props) {
   const { colors } = useThemeMode();
   const styles = useMemo(
@@ -104,6 +108,7 @@ export function BoxDetailToolbar({
               desktopTitle && !leftAlign && styles.toolbarTitleDesktop,
               leftAlign && styles.toolbarTitleLeft,
               phoneTitleStyle,
+              titleStyle,
             ]}
           >
             {title}

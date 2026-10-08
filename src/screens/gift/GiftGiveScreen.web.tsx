@@ -69,23 +69,6 @@ function stepAfter(step: GiftStep, path: GiftPath | null, signedIn: boolean): Fl
   }
 }
 
-function stepBefore(step: GiftStep, path: GiftPath | null): FlowTarget | null {
-  switch (step) {
-    case 'type':
-      return null;
-    case 'kids':
-      return 'type';
-    case 'email':
-      return 'kids';
-    case 'note':
-      return path === 'customize' ? 'box' : 'kids';
-    case 'send':
-      return 'note';
-    case 'pay':
-      return 'send';
-  }
-}
-
 /** Steps that can't show yet (reload, deep link) fall back to the nearest one that can. */
 function reachableStep(
   step: GiftStep,
@@ -103,12 +86,6 @@ function reachableStep(
 
 function giftStepUrl(step: GiftStep): string {
   return step === 'type' ? GIFT_GIVE_PATH : `${GIFT_GIVE_PATH}?step=${step}`;
-}
-
-function browserHistoryIdx(): number {
-  if (typeof window === 'undefined') return 0;
-  const idx = (window.history.state as { idx?: unknown } | null)?.idx;
-  return typeof idx === 'number' ? idx : 0;
 }
 
 function notify(title: string, message: string) {
@@ -168,8 +145,6 @@ function GiftGiveBody() {
     setPaymentState(next);
   };
   const cancelledRef = useRef(false);
-  /** Browser history index before this screen's first step push; Back pops entries above it. */
-  const historyBase = useRef<number | null>(null);
   const topRef = useRef<View>(null);
   const pathRef = useRef<View>(null);
   const emailRef = useRef<TextInput>(null);
@@ -293,12 +268,8 @@ function GiftGiveBody() {
   };
 
   const showStep = (next: GiftStep, mode: 'push' | 'replace') => {
-    if (mode === 'push') {
-      if (historyBase.current == null) historyBase.current = browserHistoryIdx();
-      pushBrowserPath(giftStepUrl(next));
-    } else {
-      replaceBrowserPath(giftStepUrl(next));
-    }
+    if (mode === 'push') pushBrowserPath(giftStepUrl(next));
+    else replaceBrowserPath(giftStepUrl(next));
     navigation.setParams({ step: next });
   };
 
@@ -311,25 +282,6 @@ function GiftGiveBody() {
       return;
     }
     showStep(target, 'push');
-  };
-
-  const back = () => {
-    if (historyBase.current != null && browserHistoryIdx() > historyBase.current) {
-      window.history.back();
-      return;
-    }
-    const target = step === 'kids' && skippedType.current ? null : stepBefore(step, giftPath);
-    if (target == null || target === 'box') {
-      // The entry before this screen is the page (or box editor) we came from.
-      if (navigation.canGoBack()) {
-        window.history.back();
-        return;
-      }
-      if (target === 'box') navigation.navigate('GiftGiverCustomize', boxParams());
-      else goHome();
-      return;
-    }
-    showStep(target, 'replace');
   };
 
   // Mirror the implied first step into params so the URL says ?step=.
@@ -530,7 +482,7 @@ function GiftGiveBody() {
       case 'type':
         return (
           <>
-            <Text style={checkoutUi.title}>Send a Gift</Text>
+            <Text style={checkoutUi.title}>Send a gift</Text>
             <Text style={checkoutUi.lead}>Two ways to give. Choose one.</Text>
             <View ref={pathRef} style={styles.section}>
               <GiftPathCards
@@ -545,10 +497,10 @@ function GiftGiveBody() {
       case 'kids':
         return (
           <>
-            <Text style={checkoutUi.title}>Their Family</Text>
+            <Text style={checkoutUi.title}>{customize ? 'Every box is unique' : 'Their family'}</Text>
             <Text style={checkoutUi.lead}>
               {customize
-                ? 'How many kids are in their family, and how old are they? We pick books and presents for their ages.'
+                ? 'Tell us who we’re building for and we’ll pick books and presents that are age-appropriate.'
                 : 'How many kids are in their family? The credit covers a Hanukkah box for all of them.'}
             </Text>
             <View style={checkoutUi.divider} />
@@ -566,9 +518,9 @@ function GiftGiveBody() {
       case 'email':
         return (
           <>
-            <Text style={checkoutUi.title}>Curate Their Box</Text>
+            <Text style={checkoutUi.title}>Enter your email to start curating</Text>
             <Text style={checkoutUi.lead}>
-              Enter your email to see the box we picked for their family. Then swap anything you like.
+              We’ll give you a jumping off point, but then add or swap whatever you like.
             </Text>
             <View style={checkoutUi.divider} />
             {isAuthenticated ? (
@@ -598,9 +550,7 @@ function GiftGiveBody() {
                 />
                 {fieldErrors.email ? (
                   <Text style={checkoutUi.fieldError}>{fieldErrors.email}</Text>
-                ) : (
-                  <Text style={checkoutUi.hint}>We save your gift here and send your receipt. No password needed.</Text>
-                )}
+                ) : null}
               </>
             )}
           </>
@@ -608,7 +558,7 @@ function GiftGiveBody() {
       case 'note':
         return (
           <>
-            <Text style={checkoutUi.title}>Your Note</Text>
+            <Text style={checkoutUi.title}>Your note</Text>
             <Text style={checkoutUi.lead}>They see this when they open your gift.</Text>
             <View style={checkoutUi.divider} />
             <Text style={checkoutUi.label}>Your name (on the gift)</Text>
@@ -636,7 +586,7 @@ function GiftGiveBody() {
       case 'send':
         return (
           <>
-            <Text style={checkoutUi.title}>Where Should We Send It?</Text>
+            <Text style={checkoutUi.title}>Where should we send it?</Text>
             <Text style={checkoutUi.lead}>We email them a link to claim your gift.</Text>
             <View style={checkoutUi.divider} />
             <Text style={[checkoutUi.hint, styles.requiredHint]}>Fields marked * are required</Text>
@@ -739,7 +689,6 @@ function GiftGiveBody() {
   return (
     <SystemPage
       narrow
-      onBack={back}
       footer={
         <>
           <View style={styles.footerGap} />

@@ -334,7 +334,7 @@ function MyGiftsBody() {
             onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'credit_only' })}
           />
           <SystemChip
-            label="Pick items for them"
+            label="Curate items for them"
             onPress={() => navigation.navigate('GiftGive', { initialGiftPath: 'customize' })}
           />
         </View>

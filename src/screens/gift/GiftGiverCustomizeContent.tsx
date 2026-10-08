@@ -13,6 +13,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { checkoutUi } from '../main/checkout/checkoutUi';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   formatCatalogDollars,
@@ -744,7 +745,7 @@ export function GiftGiverCustomizeContent({
                 lockAt={null}
                 now={new Date()}
                 title="Curate their box"
-                onBack={() => navigation.goBack()}
+                titleStyle={checkoutUi.title}
                 showCalendar={false}
               />
               {visibleSectionIds.map((id, index) =>
@@ -1021,8 +1022,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     summaryCtaRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      // Mobile: CTAs wrap onto their own line under the price — center them there.
-      justifyContent: isDesktop ? 'flex-end' : 'center',
+      justifyContent: 'flex-end',
       gap: spacing.md,
       flexShrink: 1,
       flexGrow: 1,

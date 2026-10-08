@@ -262,13 +262,13 @@ export const GIFT_LANDING: LandingAudienceConfig = {
       label: 'Lifestyle — Gift stack',
       headline: 'Give a Hanukkah they’ll actually celebrate',
       body: 'A curated box for the kids you love — personalize it yourself, or send gift credit so their family can shop or build a box. Free shipping; you won’t be charged until it ships.',
-      ctaLabel: 'Pick items for them',
+      ctaLabel: 'Curate items for them',
       href: 'gift',
       src: GIFT_HERO_SRC,
     },
     heroCtas: [
       {
-        label: 'Pick items for them',
+        label: 'Curate items for them',
         action: { type: 'gift_give', giftPath: 'customize' },
         style: 'primary',
       },
