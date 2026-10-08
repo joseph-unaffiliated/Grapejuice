@@ -67,6 +67,7 @@ export {
   deleteGuestDataByEmail,
   scheduledPurgeGuestSessions,
 } from './guestSessions';
+export { recordGiftStep } from './giftFunnel';
 export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink } from './loginLinks';
 import { enforceRateLimits, giverUidForEmail, mintInviteAcceptUrl, normalizeEmail } from './loginLinks';
 import { isAdminToken } from './guestSessions';

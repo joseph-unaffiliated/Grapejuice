@@ -133,7 +133,7 @@ const hasCampaign = (e: JsonRecord): boolean =>
  * In-app browsers can lose the stored touch between saves; never trade an entry for
  * nothing, or an ad-tagged entry for an untagged one.
  */
-function keptEntry(next: JsonRecord | null, prior: JsonRecord | null): JsonRecord | null {
+export function keptEntry(next: JsonRecord | null, prior: JsonRecord | null): JsonRecord | null {
   if (!prior) return next;
   if (!next) return prior;
   return hasCampaign(prior) && !hasCampaign(next) ? prior : next;
@@ -373,6 +373,7 @@ export async function purgeExpiredGuestData(
   const counts = { sessions: 0, tokens: 0, loginTokens: 0, rateLimits: 0 };
   for (const [collection, field, key] of [
     ['guestSessions', 'expireAt', 'sessions'],
+    ['giftFunnel', 'expireAt', 'sessions'],
     ['guestResumeTokens', 'expiresAt', 'tokens'],
     // loginLinks.ts — single-use login links and rate-limit windows.
     ['loginTokens', 'expiresAt', 'loginTokens'],
@@ -384,7 +385,7 @@ export async function purgeExpiredGuestData(
     const batch = db.batch();
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
-    counts[key] = snap.size;
+    counts[key] += snap.size;
   }
   return counts;
 }

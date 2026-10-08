@@ -94,7 +94,7 @@ function giftFromStore(): GuestSnapshotGift | null {
   return { status: g.status, kind: g.kind, draft: g.draft };
 }
 
-function entryFromWindow(): GuestSnapshotEntry | null {
+export function entryFromWindow(): GuestSnapshotEntry | null {
   const attribution = readAttributionSnapshot();
   const first = attribution?.firstTouch ?? null;
   const last = attribution?.lastTouch ?? null;

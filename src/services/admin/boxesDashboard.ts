@@ -151,6 +151,35 @@ export type DashFunnelPerson = {
   purchase: boolean;
 };
 
+export type GiftFunnelKey =
+  | 'start'
+  | 'path'
+  | 'family'
+  | 'email'
+  | 'box'
+  | 'note'
+  | 'send'
+  | 'checkout'
+  | 'paid'
+  | 'claimed';
+
+export type DashGiftFunnelPerson = {
+  id: string;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  ad: string;
+  test: boolean;
+  outsideUs: boolean;
+  location: string | null;
+  path: 'credit' | 'curated' | null;
+  landing: boolean;
+  reached: GiftFunnelKey[];
+  tracked: boolean;
+  signedIn: boolean;
+  kids: number | null;
+  items: number;
+};
+
 export type MetaAdStats = {
   spend: number;
   linkClicks: number;
@@ -179,6 +208,7 @@ export type BoxesDashboard = {
   /** Missing until the server function with the By ad tab is deployed. */
   adPeople?: DashAdPerson[];
   funnel?: DashFunnelPerson[];
+  giftFunnel?: DashGiftFunnelPerson[];
   /** Meta's per-ad results, keyed by ad name; null when Meta is unreachable. */
   metaByAd?: Record<string, MetaAdStats> | null;
 };

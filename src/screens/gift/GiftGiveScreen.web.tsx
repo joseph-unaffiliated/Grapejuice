@@ -48,7 +48,7 @@ import {
   type ShippingAddressFieldErrors,
 } from '../../utils/formValidation';
 import { revealField, scrollContainerToTop } from '../../utils/revealField';
-import { trackGiftStep } from '../../services/analytics/giftFunnel';
+import { recordGiftFunnelStep, trackGiftStep } from '../../services/analytics/giftFunnel';
 
 /** `box` is the curated box editor, its own route between `email` and `note`. */
 type FlowTarget = GiftStep | 'box';
@@ -178,8 +178,12 @@ function GiftGiveBody() {
 
   useEffect(() => {
     trackGiftStep('GiftStart');
+    recordGiftFunnelStep('start');
     // Only count a path the visitor actually chose (on /gift or here), never a default.
-    if (entryGiftPath) trackGiftStep('GiftPathChosen', entryGiftPath);
+    if (entryGiftPath) {
+      trackGiftStep('GiftPathChosen', entryGiftPath);
+      recordGiftFunnelStep('path', { path: entryGiftPath });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- entry only; later picks go through patchValues
   }, []);
 
@@ -300,9 +304,19 @@ function GiftGiveBody() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-check when the step, focus, payment or draft changes
   }, [step, isFocused, payment == null, draftAdopted]);
 
+  useEffect(() => {
+    if (!isFocused || cancelledRef.current || !draftAdopted) return;
+    if (step !== 'note' && step !== 'send') return;
+    if (reachableStep(step, giftPath, !!lineItems?.length, payment != null) !== step) return;
+    recordGiftFunnelStep(step, { path: giftPath });
+  }, [step, isFocused, draftAdopted, giftPath, lineItems, payment]);
+
   const patchValues = (patch: Partial<GiftGiveFormValues>) => {
     setStepError(null);
-    if (patch.giftPath) trackGiftStep('GiftPathChosen', patch.giftPath);
+    if (patch.giftPath) {
+      trackGiftStep('GiftPathChosen', patch.giftPath);
+      recordGiftFunnelStep('path', { path: patch.giftPath });
+    }
     if (patch.giverEmail !== undefined) setFieldErrors((e) => ({ ...e, email: undefined, giverEmail: undefined }));
     if (patch.recipientEmail !== undefined) setFieldErrors((e) => ({ ...e, recipientEmail: undefined }));
     if ('shippingAddress' in patch) {
@@ -341,6 +355,7 @@ function GiftGiveBody() {
 
   const continueFromEmail = async () => {
     if (isAuthenticated) {
+      recordGiftFunnelStep('email', { path: giftPath });
       goTo('box');
       return;
     }
@@ -350,6 +365,7 @@ function GiftGiveBody() {
       revealField(emailRef.current);
       return;
     }
+    recordGiftFunnelStep('email', { path: giftPath });
     setSubmitting(true);
     try {
       await signInGiver(email);
@@ -437,6 +453,7 @@ function GiftGiveBody() {
         claimToken: result.claimToken,
         publishableKey: result.publishableKey,
       });
+      recordGiftFunnelStep('checkout', { path: giftPath, inviteId: result.giftInviteId });
       goTo('pay', form);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Try again.';
@@ -454,6 +471,7 @@ function GiftGiveBody() {
         continueFromType();
         return;
       case 'kids':
+        recordGiftFunnelStep('family', { path: giftPath });
         goTo(stepAfter('kids', giftPath, isAuthenticated));
         return;
       case 'email':
@@ -710,6 +728,7 @@ function GiftGiveBody() {
             customize={customize}
             amountCents={amountCents}
             onPaid={({ claimUrl }) => {
+              recordGiftFunnelStep('paid', { path: giftPath, inviteId: payment.giftInviteId });
               cancelledRef.current = true;
               startedPayment = null;
               useGiftIntentStore

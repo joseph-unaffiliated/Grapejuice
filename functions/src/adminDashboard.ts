@@ -182,6 +182,46 @@ export type DashFunnelPerson = {
   purchase: boolean;
 };
 
+/** Gift funnel steps in order; `email` and `box` only exist on the curated path. */
+export const GIFT_FUNNEL_KEYS = [
+  'start',
+  'path',
+  'family',
+  'email',
+  'box',
+  'note',
+  'send',
+  'checkout',
+  'paid',
+  'claimed',
+] as const;
+export type GiftFunnelKey = (typeof GIFT_FUNNEL_KEYS)[number];
+const CURATED_ONLY: readonly GiftFunnelKey[] = ['email', 'box'];
+
+/**
+ * One visitor in the gift flow for the Gift funnel tab. Step tracking (giftFunnel/{visitorId})
+ * started Oct 8, 2026; older rows are signed-out gift drafts placed by the step they stopped on.
+ */
+export type DashGiftFunnelPerson = {
+  id: string;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  ad: string;
+  test: boolean;
+  outsideUs: boolean;
+  location: string | null;
+  path: 'credit' | 'curated' | null;
+  /** Saw the /gift landing page (tracked rows only). */
+  landing: boolean;
+  /** Every step reached; reaching a step counts the ones before it. */
+  reached: GiftFunnelKey[];
+  /** From step tracking, not rebuilt from a saved draft. */
+  tracked: boolean;
+  signedIn: boolean;
+  kids: number | null;
+  items: number;
+};
+
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
@@ -200,6 +240,7 @@ export type BoxesDashboard = {
   inventory: DashInventoryRow[];
   adPeople: DashAdPerson[];
   funnel: DashFunnelPerson[];
+  giftFunnel: DashGiftFunnelPerson[];
   /** Meta's own per-ad results (Grapejuice campaigns), keyed by ad name; null when Meta is unreachable. */
   metaByAd: Record<string, MetaAdStats> | null;
 };
@@ -468,6 +509,92 @@ function buildGuestRows(
   return rows.slice(0, GUEST_ROW_LIMIT);
 }
 
+/** A saved draft's `step` is the page it was on, which means the step before it was done. */
+const GIFT_DRAFT_STEP_REACHED: Record<string, GiftFunnelKey> = {
+  type: 'start',
+  kids: 'path',
+  email: 'family',
+  note: 'note',
+  send: 'send',
+  pay: 'checkout',
+};
+
+/** giftFunnel step tracking, plus signed-out gift drafts saved before it (or without it). */
+export function buildGiftFunnelRows(
+  funnelDocs: FirebaseFirestore.QueryDocumentSnapshot[],
+  guestDocs: FirebaseFirestore.QueryDocumentSnapshot[],
+  invites: Map<string, DocumentData>,
+  testUid: (uid: string) => boolean,
+): DashGiftFunnelPerson[] {
+  const funnelById = new Map(funnelDocs.map((d) => [d.id, d.data()]));
+  const guestById = new Map(guestDocs.map((d) => [d.id, d.data()]));
+  const ids = new Set(funnelById.keys());
+  for (const [id, x] of guestById) if (x.snapshot?.gift?.draft) ids.add(id);
+
+  const rows: DashGiftFunnelPerson[] = [];
+  for (const id of ids) {
+    const f = funnelById.get(id);
+    const g = guestById.get(id);
+    const gift: DocumentData | null = g?.snapshot?.gift ?? null;
+    const draft: DocumentData | null = gift?.draft ?? null;
+    const recorded = new Set<string>(f?.steps && typeof f.steps === 'object' ? Object.keys(f.steps) : []);
+    const draftLines = Array.isArray(draft?.lineItems) ? draft.lineItems.length : 0;
+    if (draft) {
+      recorded.add('path');
+      const fromStep = GIFT_DRAFT_STEP_REACHED[str(draft.step) ?? ''];
+      if (fromStep) recorded.add(fromStep);
+      if (draftLines || str(g?.path) === '/gift/customize') recorded.add('box');
+      // The curated email step signs the giver in, which ends the guest session's saves.
+      if (str(g?.convertedUid) && gift?.kind === 'customize') recorded.add('email');
+    }
+    const linked = (Array.isArray(f?.inviteIds) ? f.inviteIds : [])
+      .map((i: unknown) => invites.get(String(i)))
+      .filter((inv: DocumentData | undefined): inv is DocumentData => Boolean(inv));
+    if (linked.length) recorded.add('checkout');
+    if (linked.some((inv) => inv.paymentStatus === 'paid')) recorded.add('paid');
+    if (linked.some((inv) => inv.status === 'claimed' || str(inv.claimedByHouseholdId))) recorded.add('claimed');
+
+    const rawPath =
+      str(f?.path) ??
+      str(gift?.kind) ??
+      str(draft?.form?.giftPath) ??
+      (linked[0] ? (linked[0].kind === 'box' ? 'customize' : 'credit_only') : null);
+    const path = rawPath === 'customize' ? 'curated' : rawPath === 'credit_only' ? 'credit' : null;
+    const furthest = GIFT_FUNNEL_KEYS.reduce((m, k, i) => (recorded.has(k) ? i : m), -1);
+    const reached = GIFT_FUNNEL_KEYS.filter((k, i) => i <= furthest && (path === 'curated' || !CURATED_ONLY.includes(k)));
+    const landing = recorded.has('landing');
+    if (!reached.length && !landing) continue;
+
+    const uid = str(f?.uid) ?? str(g?.convertedUid);
+    const entry = f?.entry ?? g?.entry;
+    const geo = f?.ipGeo ?? g?.ipGeo;
+    const firstMs = Math.min(ms(f?.createdAt) ?? Infinity, ms(g?.createdAt) ?? Infinity);
+    const lastMs = Math.max(ms(f?.updatedAt) ?? -Infinity, ms(g?.updatedAt) ?? -Infinity);
+    const kids = path === 'curated' ? (Array.isArray(draft?.childDrafts) ? draft.childDrafts.length : null) : num(draft?.form?.creditKids);
+    rows.push({
+      id,
+      firstSeen: Number.isFinite(firstMs) ? new Date(firstMs).toISOString() : null,
+      lastSeen: Number.isFinite(lastMs) ? new Date(lastMs).toISOString() : null,
+      ad: adNameOf(entry) ?? guestNonAdLabel(entry),
+      test:
+        (uid ? testUid(uid) : false) ||
+        linked.some((inv) => isTest(str(inv.giverEmail), str(inv.recipientEmail))) ||
+        isTest(str(draft?.form?.giverEmail), str(draft?.form?.recipientEmail)),
+      outsideUs: ipOutsideUs(geo),
+      location: ipLocationOf(geo),
+      path,
+      landing,
+      reached,
+      tracked: Boolean(f),
+      signedIn: Boolean(uid),
+      kids,
+      items: draftLines,
+    });
+  }
+  rows.sort((a, b) => String(b.lastSeen ?? '').localeCompare(String(a.lastSeen ?? '')));
+  return rows;
+}
+
 export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Promise<BoxesDashboard> {
   const [
     configSnap,
@@ -480,6 +607,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     childrenSnap,
     receivedSnap,
     guestSnap,
+    giftFunnelSnap,
   ] = await Promise.all([
       db.doc(`config/${HOLIDAY_ID}`).get(),
       db.collection('households').get(),
@@ -494,6 +622,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         .collection('guestSessions')
         .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'gateEmailAt', 'resumeCount', 'saveCount', 'ipGeo')
         .get(),
+      db.collection('giftFunnel').get(),
     ]);
   const guestDocs = guestSnap.docs.filter((d) => !d.id.startsWith('agenttest'));
   const config = configSnap.data() ?? {};
@@ -519,6 +648,10 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   }
   for (const d of invitesSnap.docs) {
     const u = str(d.data().giverUid);
+    if (u) userIds.add(u);
+  }
+  for (const d of giftFunnelSnap.docs) {
+    const u = str(d.data().uid);
     if (u) userIds.add(u);
   }
 
@@ -909,6 +1042,16 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     });
   }
 
+  const giftFunnel = buildGiftFunnelRows(
+    giftFunnelSnap.docs.filter((d) => !d.id.startsWith('agenttest')),
+    guestDocs,
+    new Map(invitesSnap.docs.map((d) => [d.id, d.data()])),
+    (uid) => {
+      const u = users.get(uid);
+      return u ? isTest(u.email) : false;
+    },
+  );
+
   const favorites = new Map<string, number>();
   const favoritesReal = new Map<string, number>();
   for (const [hid, h] of households) {
@@ -973,6 +1116,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     inventory,
     adPeople,
     funnel,
+    giftFunnel,
     metaByAd: null,
   };
 }

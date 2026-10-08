@@ -12,7 +12,7 @@ import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { pushBrowserPath } from '../../navigation/webBrowserHistory';
 import { GIFT_GIVE_PATH } from '../../navigation/giftFlowLink';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
-import { trackGiftStep } from '../../services/analytics/giftFunnel';
+import { recordGiftFunnelStep, trackGiftStep } from '../../services/analytics/giftFunnel';
 import type { GiftGiveFormValues } from './giftGiveTypes';
 
 type Route = RouteProp<MainStackParamList, 'GiftGiverCustomize'>;
@@ -60,6 +60,7 @@ export function GiftGiverCustomizeScreen() {
       return;
     }
     trackGiftStep('GiftCustomize', 'customize');
+    recordGiftFunnelStep('box', { path: 'customize' });
   }, [form, childDrafts, navigation, needsEmail]);
 
   const {

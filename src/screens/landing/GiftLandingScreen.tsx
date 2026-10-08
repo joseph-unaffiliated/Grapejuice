@@ -20,7 +20,7 @@ import { giftLandingCopy } from '../../constants/storefrontGiftCopy';
 import { borderRadius, MOBILE_GUTTER, spacing } from '../../constants/theme';
 import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
 import type { MainStackParamList } from '../../navigation/types';
-import { trackGiftStep } from '../../services/analytics/giftFunnel';
+import { recordGiftFunnelStep, trackGiftStep } from '../../services/analytics/giftFunnel';
 import { getHanukkahConfig, peekHanukkahConfig, type HanukkahConfig } from '../../services/firestore/config';
 import type { GiftPath } from '../gift/giftGiveTypes';
 
@@ -58,6 +58,7 @@ export function GiftLandingScreen() {
       return;
     }
     trackGiftStep('GiftPageView');
+    recordGiftFunnelStep('landing');
   }, [navigation, preferredGiftPath]);
 
   if (preferredGiftPath) return null;

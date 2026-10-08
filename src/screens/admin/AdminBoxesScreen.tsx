@@ -29,9 +29,11 @@ import {
   type DashBox,
   type DashFunnelPerson,
   type DashGift,
+  type DashGiftFunnelPerson,
   type DashGuest,
   type DashInventoryRow,
   type DashLine,
+  type GiftFunnelKey,
   type MetaAdStats,
 } from '../../services/admin/boxesDashboard';
 
@@ -688,7 +690,7 @@ function GiftsSection({
         </Text>
       ) : null}
       <Text style={styles.caption}>
-        {`${rows.length} of ${data.gifts.length} gift invites. Unpaid rows are gift checkouts that were started but never paid. Dot: green checked out, blue paid and waiting on the recipient, grey unpaid. Gift drafts abandoned before checkout by signed-out visitors are on the Anonymous tab. Hanukkah and Jewish are the recipient's answers once they've signed up. ${ANSWERS_CAPTION}`}
+        {`${rows.length} of ${data.gifts.length} gift invites. A gift appears here once the giver presses Continue on "Where should we send it?" and payment opens; unpaid rows never finished paying. Dot: green checked out, blue paid and waiting on the recipient, grey unpaid. Everyone who started a gift but stopped before payment is on the Gift funnel tab. Hanukkah and Jewish are the recipient's answers once they've signed up. ${ANSWERS_CAPTION}`}
       </Text>
     </View>
   );
@@ -1162,6 +1164,241 @@ const COMPARE_STEPS: ReadonlyArray<{ key: FunnelKey | 'anyEmail'; label: string 
 type CompareRow = { key: FunnelKey | 'anyEmail'; label: string; before: number; after: number };
 type DayRow = { day: string; people: DashFunnelPerson[] };
 
+/** Horizontal funnel bars out of the first step, with the biggest step-to-step loss called out. */
+function FunnelBars({
+  steps,
+  emptyMessage,
+  styles,
+  colors,
+}: {
+  steps: ReadonlyArray<{ key: string; label: string; count: number }>;
+  emptyMessage: string;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const top = steps[0]?.count ?? 0;
+  let biggest = -1;
+  let drop = 0;
+  steps.forEach((s, i) => {
+    const lost = i > 0 ? steps[i - 1].count - s.count : 0;
+    if (lost > drop) {
+      biggest = i;
+      drop = lost;
+    }
+  });
+  if (top === 0) return <Text style={styles.hint}>{emptyMessage}</Text>;
+  return (
+    <>
+      {biggest > 0 ? (
+        <Text style={styles.hint}>
+          <Text style={[styles.tdStrong, { color: colors.error }]}>Biggest drop-off: </Text>
+          {`${drop} of ${steps[biggest - 1].count} (${pct(drop, steps[biggest - 1].count)}) left between “${steps[biggest - 1].label}” and “${steps[biggest].label}”.`}
+        </Text>
+      ) : null}
+      <View style={styles.funnel}>
+        {steps.map((s, i) => {
+          const prev = i > 0 ? steps[i - 1].count : null;
+          const lost = prev == null ? 0 : prev - s.count;
+          const isBiggest = i === biggest;
+          return (
+            <View key={s.key} style={styles.funnelRow}>
+              <Text style={[styles.td, styles.funnelLabel, isBiggest && styles.tdStrong]} numberOfLines={2}>
+                {s.label}
+              </Text>
+              <View style={styles.funnelTrack}>
+                <View
+                  style={[
+                    styles.funnelFill,
+                    { width: `${(s.count / top) * 100}%`, backgroundColor: isBiggest ? colors.error : colors.brand },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.td, styles.tdStrong, styles.funnelNum]}>{String(s.count)}</Text>
+              <Text style={[styles.tdMuted, styles.funnelNum]}>{pct(s.count, top)}</Text>
+              <Text style={[styles.tdMuted, styles.funnelDrop, isBiggest && { color: colors.error }]}>
+                {prev == null ? '' : lost > 0 ? `−${lost} (${pct(lost, prev)})` : lost < 0 ? `+${-lost}` : '—'}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
+type GiftStepKey = 'visited' | GiftFunnelKey;
+const GIFT_STEPS: ReadonlyArray<{ key: GiftStepKey; label: string; short: string; curatedOnly?: boolean }> = [
+  { key: 'visited', label: 'Visited /gift or the gift flow', short: 'Visited' },
+  { key: 'start', label: 'Started the gift flow', short: 'Started' },
+  { key: 'path', label: 'Chose credit or a curated box', short: 'Chose' },
+  { key: 'family', label: 'Finished their family step', short: 'Family' },
+  { key: 'email', label: 'Entered their email', short: 'Email', curatedOnly: true },
+  { key: 'box', label: 'Opened the box editor', short: 'Box editor', curatedOnly: true },
+  { key: 'note', label: 'Reached the note', short: 'Note' },
+  { key: 'send', label: 'Reached “Where should we send it?”', short: 'Recipient' },
+  { key: 'checkout', label: 'Opened payment', short: 'Payment' },
+  { key: 'paid', label: 'Paid', short: 'Paid' },
+  { key: 'claimed', label: 'Recipient claimed it', short: 'Claimed' },
+];
+const giftReached = (p: DashGiftFunnelPerson, k: GiftStepKey) => k === 'visited' || p.reached.includes(k);
+const giftCount = (people: DashGiftFunnelPerson[], k: GiftStepKey) => people.filter((p) => giftReached(p, k)).length;
+const giftFirstMs = (p: DashGiftFunnelPerson) => (p.firstSeen ? Date.parse(p.firstSeen) : NaN);
+
+function giftFurthest(p: DashGiftFunnelPerson): string {
+  const last = [...GIFT_STEPS].reverse().find((s) => s.key !== 'visited' && p.reached.includes(s.key as GiftFunnelKey));
+  return last ? last.short : 'Saw /gift only';
+}
+
+type GiftPathFilter = 'any' | 'credit' | 'curated';
+type GiftWindow = 'day' | 'week' | 'all';
+const GIFT_WINDOWS: Array<[GiftWindow, string]> = [
+  ['day', 'Last 24 hours'],
+  ['week', 'Last 7 days'],
+  ['all', 'All saved'],
+];
+type GiftCompareRow = { key: GiftStepKey; label: string; credit: number; curated: number };
+type GiftDayRow = { day: string; people: DashGiftFunnelPerson[] };
+const GIFT_DAY_STEPS: GiftStepKey[] = ['visited', 'start', 'path', 'family', 'send', 'checkout', 'paid'];
+
+function GiftFunnelSection({
+  people,
+  hideTests,
+  now,
+  styles,
+  colors,
+}: {
+  people: DashGiftFunnelPerson[];
+  hideTests: boolean;
+  now: number;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const [win, setWin] = useState<GiftWindow>('week');
+  const [path, setPath] = useState<GiftPathFilter>('any');
+  const pool = useMemo(() => people.filter((p) => !(hideTests && p.test)), [people, hideTests]);
+  const inWindow = useMemo(() => {
+    const start = win === 'day' ? now - DAY_MS : win === 'week' ? now - 7 * DAY_MS : -Infinity;
+    return pool.filter((p) => giftFirstMs(p) >= start);
+  }, [pool, win, now]);
+  const shown = path === 'any' ? inWindow : inWindow.filter((p) => p.path === path);
+  const steps = GIFT_STEPS.filter((s) => path === 'curated' || !s.curatedOnly).map((s) => ({
+    ...s,
+    count: giftCount(shown, s.key),
+  }));
+  const sawLanding = shown.filter((p) => p.landing).length;
+
+  const credit = inWindow.filter((p) => p.path === 'credit');
+  const curated = inWindow.filter((p) => p.path === 'curated');
+  const compareRows: GiftCompareRow[] = GIFT_STEPS.filter((s) => s.key !== 'visited' && s.key !== 'start' && s.key !== 'path').map(
+    (s) => ({
+      key: s.key,
+      label: s.label,
+      credit: s.curatedOnly ? NaN : giftCount(credit, s.key),
+      curated: giftCount(curated, s.key),
+    }),
+  );
+  const per100 = (n: number, of: number) => (Number.isNaN(n) ? 'n/a' : of ? `${Math.round((n / of) * 100)}  (${n})` : '—');
+  const compareColumns: Column<GiftCompareRow>[] = [
+    { label: 'Step', width: 290, cell: (r) => r.label },
+    { label: `Credit (${credit.length} chose it)`, width: 180, align: 'right', cell: (r) => per100(r.credit, credit.length) },
+    { label: `Curated box (${curated.length} chose it)`, width: 200, align: 'right', cell: (r) => per100(r.curated, curated.length) },
+  ];
+
+  const days: GiftDayRow[] = useMemo(() => {
+    const byDay = new Map<string, DashGiftFunnelPerson[]>();
+    for (const p of pool) {
+      const t = giftFirstMs(p);
+      if (!Number.isFinite(t) || t < now - 14 * DAY_MS) continue;
+      const d = etDay(t);
+      byDay.set(d, [...(byDay.get(d) ?? []), p]);
+    }
+    return [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([day, ps]) => ({ day, people: ps }));
+  }, [pool, now]);
+  const dayColumns: Column<GiftDayRow>[] = [
+    { label: 'Day (ET)', width: 100, cell: (r) => r.day, sort: (r) => r.day },
+    ...GIFT_DAY_STEPS.map((k): Column<GiftDayRow> => {
+      const count = (r: GiftDayRow) => giftCount(r.people, k);
+      return {
+        label: GIFT_STEPS.find((s) => s.key === k)?.short ?? k,
+        width: 85,
+        align: 'right',
+        cell: (r) => String(count(r)),
+        sort: count,
+      };
+    }),
+  ];
+
+  const pathLabel = (p: DashGiftFunnelPerson) => (p.path === 'credit' ? 'Credit' : p.path === 'curated' ? 'Curated box' : '—');
+  const peopleColumns: Column<DashGiftFunnelPerson>[] = [
+    { label: 'Last seen', width: 130, cell: (p) => when(p.lastSeen), sort: (p) => p.lastSeen },
+    { label: 'First seen', width: 130, cell: (p) => when(p.firstSeen), sort: (p) => p.firstSeen },
+    { label: 'Got to', width: 110, cell: (p) => giftFurthest(p), sort: (p) => p.reached.length },
+    { label: 'Gift', width: 100, cell: pathLabel, sort: pathLabel },
+    { label: 'Kids', width: 50, align: 'right', cell: (p) => (p.kids == null ? '—' : String(p.kids)), sort: (p) => p.kids },
+    { label: 'Items', width: 55, align: 'right', cell: (p) => (p.items ? String(p.items) : '—'), sort: (p) => p.items },
+    { label: 'Source', width: 220, cell: (p) => p.ad, sort: (p) => p.ad },
+    { label: 'Location', width: 110, cell: (p) => p.location ?? '—', sort: (p) => p.location },
+    { label: 'Signed in', width: 80, cell: (p) => (p.signedIn ? 'Yes' : '—'), sort: (p) => (p.signedIn ? 1 : 0) },
+    { label: 'Data', width: 90, cell: (p) => (p.tracked ? 'Tracked' : 'From draft'), sort: (p) => (p.tracked ? 1 : 0) },
+  ];
+
+  return (
+    <View style={styles.sectionBody}>
+      <ChipGroup value={win} onChange={setWin} options={GIFT_WINDOWS} styles={styles} />
+      <ChipGroup
+        value={path}
+        onChange={setPath}
+        options={[
+          ['any', 'Either gift'],
+          ['credit', 'Credit'],
+          ['curated', 'Curated box'],
+        ]}
+        styles={styles}
+      />
+      <FunnelBars steps={steps} emptyMessage="No one opened a gift page in this window." styles={styles} colors={colors} />
+      <Text style={styles.caption}>
+        {`Everyone who opened a gift page, by when we first saw them; ${sawLanding} of ${shown.length} came through the /gift landing page. Reaching a step counts the ones before it. Step tracking (signed in or not, including the /gift landing page) started the evening of Oct 8; before that, only signed-out visitors who chose a gift were saved, and they're placed by the page they stopped on ("From draft" below), so landing-only visits and anyone who signed in mid-flow are missing from earlier days. Email and box editor only exist on the curated path, so "Either gift" skips them. Paid and claimed come from the gift's checkout record. US only and Hide tests apply; anonymous test visits can't be told apart.`}
+      </Text>
+
+      <Text style={styles.section}>Credit vs. curated box</Text>
+      <SortTable<GiftCompareRow>
+        columns={compareColumns}
+        rows={compareRows}
+        rowKey={(r) => r.key}
+        emptyMessage="No one chose a gift yet."
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>Per 100 people who chose that gift in this window, with the count in brackets.</Text>
+
+      <Text style={styles.section}>By day</Text>
+      <SortTable<GiftDayRow>
+        columns={dayColumns}
+        rows={days}
+        rowKey={(r) => r.day}
+        emptyMessage="No gift visitors in the last 14 days."
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>Last 14 days, by the day we first saw each visitor (Eastern time).</Text>
+
+      <Text style={styles.section}>{`People (${shown.length})`}</Text>
+      <SortTable<DashGiftFunnelPerson>
+        columns={peopleColumns}
+        rows={shown}
+        rowKey={(p) => p.id}
+        rowTone={(p) => (p.reached.includes('paid') ? 'success' : p.reached.includes('send') ? 'warning' : undefined)}
+        emptyMessage="No gift visitors match these filters."
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>
+        {`One row per browser, most recent first. Got to = the furthest step reached. Kids = kids in the curated box, or kids the credit covers. Items = items in a saved curated box. Dot: green paid, amber reached the recipient step but didn't pay.`}
+      </Text>
+    </View>
+  );
+}
+
 function FunnelSection({
   people,
   hideTests,
@@ -1183,16 +1420,6 @@ function FunnelSection({
   }, [pool, win, now]);
 
   const steps = FUNNEL_STEPS.map((s) => ({ ...s, count: countStep(inWindow, s.key) }));
-  const top = steps[0].count;
-  let biggest = -1;
-  let drop = 0;
-  steps.forEach((s, i) => {
-    const lost = i > 0 ? steps[i - 1].count - s.count : 0;
-    if (lost > drop) {
-      biggest = i;
-      drop = lost;
-    }
-  });
 
   const before = pool.filter((p) => firstSeenMs(p) < GATE_LIVE_MS && p.family);
   const after = pool.filter((p) => firstSeenMs(p) >= GATE_LIVE_MS && p.family);
@@ -1248,43 +1475,7 @@ function FunnelSection({
   return (
     <View style={styles.sectionBody}>
       <ChipGroup value={win} onChange={setWin} options={FUNNEL_WINDOWS} styles={styles} />
-      {biggest > 0 ? (
-        <Text style={styles.hint}>
-          <Text style={[styles.tdStrong, { color: colors.error }]}>Biggest drop-off: </Text>
-          {`${drop} of ${steps[biggest - 1].count} (${pct(drop, steps[biggest - 1].count)}) left between “${steps[biggest - 1].label}” and “${steps[biggest].label}”.`}
-        </Text>
-      ) : null}
-      {top === 0 ? (
-        <Text style={styles.hint}>No one opened the box builder in this window.</Text>
-      ) : (
-        <View style={styles.funnel}>
-          {steps.map((s, i) => {
-            const prev = i > 0 ? steps[i - 1].count : null;
-            const lost = prev == null ? 0 : prev - s.count;
-            const isBiggest = i === biggest;
-            return (
-              <View key={s.key} style={styles.funnelRow}>
-                <Text style={[styles.td, styles.funnelLabel, isBiggest && styles.tdStrong]} numberOfLines={2}>
-                  {s.label}
-                </Text>
-                <View style={styles.funnelTrack}>
-                  <View
-                    style={[
-                      styles.funnelFill,
-                      { width: `${top ? (s.count / top) * 100 : 0}%`, backgroundColor: isBiggest ? colors.error : colors.brand },
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.td, styles.tdStrong, styles.funnelNum]}>{String(s.count)}</Text>
-                <Text style={[styles.tdMuted, styles.funnelNum]}>{pct(s.count, top)}</Text>
-                <Text style={[styles.tdMuted, styles.funnelDrop, isBiggest && { color: colors.error }]}>
-                  {prev == null ? '' : lost > 0 ? `−${lost} (${pct(lost, prev)})` : lost < 0 ? `+${-lost}` : '—'}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      )}
+      <FunnelBars steps={steps} emptyMessage="No one opened the box builder in this window." styles={styles} colors={colors} />
       <Text style={styles.caption}>
         {`Signed-out visitors who opened the box builder, by when we first saved them. Bars and % are out of everyone who opened it; the right column is how many left since the step before. Visitors who leave on the family screen are saved only from Oct 8 (evening); before that, "Opened" only counts people who got past it. "Entered email at the gate" only exists from Oct 8, 10:30am ET. Signed-in builders aren't included (they skip the gate). US only and Hide tests apply; anonymous test visits can't be told apart.`}
       </Text>
@@ -1318,8 +1509,8 @@ function FunnelSection({
   );
 }
 
-type Tab = 'boxes' | 'funnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
-const TABS: readonly Tab[] = ['boxes', 'funnel', 'anonymous', 'ads', 'gifts', 'inventory'];
+type Tab = 'boxes' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
+const TABS: readonly Tab[] = ['boxes', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory'];
 const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
 
 /** The open tab survives a browser refresh of /admin/boxes. */
@@ -1380,6 +1571,7 @@ export function AdminBoxesScreen() {
             gifts: data.gifts.filter((g) => !g.outsideUs),
             adPeople: (data.adPeople ?? []).filter((p) => !p.outsideUs),
             funnel: (data.funnel ?? []).filter((p) => !p.outsideUs),
+            giftFunnel: (data.giftFunnel ?? []).filter((p) => !p.outsideUs),
           }
         : data,
     [data, usOnly],
@@ -1445,6 +1637,7 @@ export function AdminBoxesScreen() {
   const openGuests = view.guests.filter((g) => !g.converted);
   const guestBoxes = openGuests.filter((g) => g.stage === 'built' || g.stage === 'revealed');
   const guestLeads = openGuests.filter((g) => g.leadAt);
+  const giftStarters = (view.giftFunnel ?? []).filter((p) => !(hideTests && p.test) && p.reached.includes('start')).length;
   const liveRevenue = liveOrders.reduce((s, b) => s + (b.totalCents ?? 0), 0);
   const draftValue = openDrafts.reduce((s, b) => s + (b.subtotalCents ?? 0), 0);
 
@@ -1508,7 +1701,7 @@ export function AdminBoxesScreen() {
             />
             <Stat
               value={`${realGifts.filter((g) => g.paid).length} / ${realGifts.filter((g) => g.claimed).length}`}
-              label="Gifts paid / claimed"
+              label={`Gifts paid / claimed · ${giftStarters} started the gift flow`}
               styles={styles}
               colors={colors}
             />
@@ -1524,7 +1717,8 @@ export function AdminBoxesScreen() {
           <View style={styles.sectionDivider} />
           <View style={styles.chipRow}>
             <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
-            <Chip label="Funnel" active={tab === 'funnel'} onPress={() => setTab('funnel')} styles={styles} />
+            <Chip label="Box funnel" active={tab === 'funnel'} onPress={() => setTab('funnel')} styles={styles} />
+            <Chip label="Gift funnel" active={tab === 'giftFunnel'} onPress={() => setTab('giftFunnel')} styles={styles} />
             <Chip label={`Anonymous (${openGuests.length})`} active={tab === 'anonymous'} onPress={() => setTab('anonymous')} styles={styles} />
             <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
             <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
@@ -1541,6 +1735,12 @@ export function AdminBoxesScreen() {
             <>
               <Text style={styles.section}>Box builder funnel: where people drop off</Text>
               <FunnelSection people={view.funnel ?? []} hideTests={hideTests} now={now} styles={styles} colors={colors} />
+            </>
+          ) : null}
+          {tab === 'giftFunnel' ? (
+            <>
+              <Text style={styles.section}>Gift funnel: where gift givers drop off</Text>
+              <GiftFunnelSection people={view.giftFunnel ?? []} hideTests={hideTests} now={now} styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'anonymous' ? (
