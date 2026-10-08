@@ -582,6 +582,16 @@ ${featured.length ? `<section><h2>From the collection</h2>${productList(featured
       description: seo.clampDescription(hero.body || seo.DEFAULT_SEO_DESCRIPTION),
       lastmod: dateOnly(l.updateTime) ?? (l.source ? gitDate(l.source) : null),
       priority: '0.6',
+      ld: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: plain(hero.headline || l.navLabel),
+          description: seo.clampDescription(hero.body || seo.DEFAULT_SEO_DESCRIPTION),
+          url: abs(l.path),
+          isPartOf: { '@type': 'WebSite', name: seo.SITE_NAME, url: seo.SITE_ORIGIN },
+        },
+      ],
       body: `<article><h1>${esc(hero.headline)}</h1>${hero.body ? `<p>${esc(hero.body)}</p>` : ''}${sections}<p><a href="/store/collection">Browse the Collection</a> or build your box (starting at ${dollars(oneKid)}).</p></article>`,
     });
   }
