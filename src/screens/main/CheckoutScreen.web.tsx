@@ -33,6 +33,7 @@ import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
+import { CheckoutCongratsOverlay } from './checkout/CheckoutCongratsOverlay';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { usePilotOrders } from '../../hooks/usePilotOrders';
 import { householdsService } from '../../services/firestore/households';
@@ -182,7 +183,7 @@ function SetupCardStep({
         <PaymentElement options={{ layout: 'tabs' }} />
       </View>
       <CheckoutCta
-        label={replacing ? 'Save new card' : 'Save card'}
+        label="Continue"
         onPress={() => void handleSave()}
         loading={saving}
         disabled={saving}
@@ -237,6 +238,7 @@ function CheckoutScreenBody() {
   };
   const [preparing, setPreparing] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [showCongrats, setShowCongrats] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
@@ -275,11 +277,13 @@ function CheckoutScreenBody() {
   const cardOnFile = !!household?.cardOnFileAt;
   const skipShipStation = useMockFlowStore((s) => s.active);
   const { openOrder, loading: ordersLoading } = usePilotOrders(household?.id);
+  /** Set once the box commits here — the congrats overlay owns the exit to My Box. */
+  const [committedHere, setCommittedHere] = useState(false);
 
   useEffect(() => {
-    if (ordersLoading || !openOrder) return;
-    navigation.replace('OrderConfirmation', { orderId: openOrder.id });
-  }, [ordersLoading, openOrder, navigation]);
+    if (ordersLoading || !openOrder || committedHere) return;
+    navigation.replace('MyBox');
+  }, [ordersLoading, openOrder, navigation, committedHere]);
 
   const handleCommit = useCallback(async () => {
     if (!user || !household?.id) return;
@@ -290,6 +294,7 @@ function CheckoutScreenBody() {
     if (!ensureAddressValid()) return;
 
     setCommitting(true);
+    setCommittedHere(true);
     try {
       const { orderId, totalCents } = await commitPilotBox(household.id, normalizedAddress(), {
         contactPhone: contactPhone.trim() || undefined,
@@ -310,8 +315,9 @@ function CheckoutScreenBody() {
       );
       clearStoredCheckoutAddress();
       writeShippingConfirmed(false);
-      navigation.replace('OrderConfirmation', { orderId });
+      setShowCongrats(true);
     } catch (e) {
+      setCommittedHere(false);
       notifyCheckout('Error', e instanceof Error ? e.message : 'Could not commit your box.');
     } finally {
       setCommitting(false);
@@ -416,6 +422,29 @@ function CheckoutScreenBody() {
     else navigation.navigate('MyBox');
   };
 
+  const handleCommitRef = useRef(handleCommit);
+  handleCommitRef.current = handleCommit;
+
+  /** Card saved → wait for the webhook to record it, then commit without another click. */
+  const waitForCardThenCommit = async () => {
+    const householdId = household?.id;
+    if (!householdId) {
+      await refreshSession({ silent: true });
+      return;
+    }
+    // Silent only — non-silent refresh flips RootNavigator into boot and remounts
+    // Main onto /store (Checkout has no history path historically).
+    let saved = false;
+    for (let i = 0; i < 20 && !saved; i += 1) {
+      await refreshSession({ silent: true });
+      const hh = await householdsService.get(householdId);
+      saved = savedCardReplaced(hh, cardBeforeSetupRef.current);
+      if (!saved) await new Promise((r) => setTimeout(r, 400));
+    }
+    setAwaitingCardOnFile(false);
+    if (saved) await handleCommitRef.current();
+  };
+
   const onCardSaved = async () => {
     // Persist before URL/history changes so a remount still sees commit-only.
     setShippingConfirmed(true);
@@ -424,23 +453,7 @@ function CheckoutScreenBody() {
     replaceBrowserPath(CHECKOUT_PATH);
     setupSecretRef.current = null;
     setSetupClientSecret(null);
-
-    const householdId = household?.id;
-    if (!householdId) {
-      await refreshSession({ silent: true });
-      return;
-    }
-    // Silent only — non-silent refresh flips RootNavigator into boot and remounts
-    // Main onto /store (Checkout has no history path historically).
-    for (let i = 0; i < 10; i += 1) {
-      await refreshSession({ silent: true });
-      const hh = await householdsService.get(householdId);
-      if (savedCardReplaced(hh, cardBeforeSetupRef.current)) {
-        setAwaitingCardOnFile(false);
-        break;
-      }
-      await new Promise((r) => setTimeout(r, 400));
-    }
+    await waitForCardThenCommit();
   };
 
   // Stripe may redirect back to /checkout after 3DS — treat that as a successful save.
@@ -453,22 +466,8 @@ function CheckoutScreenBody() {
     replaceBrowserPath(CHECKOUT_PATH);
     setShippingConfirmed(true);
     setAwaitingCardOnFile(true);
-    void (async () => {
-      const householdId = household?.id;
-      if (!householdId) {
-        await refreshSession({ silent: true });
-        return;
-      }
-      for (let i = 0; i < 10; i += 1) {
-        await refreshSession({ silent: true });
-        const hh = await householdsService.get(householdId);
-        if (savedCardReplaced(hh, cardBeforeSetupRef.current)) {
-          setAwaitingCardOnFile(false);
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 400));
-      }
-    })();
+    void waitForCardThenCommit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [household?.id, refreshSession]);
 
   const orderSummary = (
@@ -516,7 +515,7 @@ function CheckoutScreenBody() {
       ) : (
         <>
           <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
-          <Text style={checkoutUi.hint}>Card saved. Commit when you&apos;re ready.</Text>
+          <Text style={checkoutUi.hint}>Card saved.</Text>
           <TouchableOpacity
             onPress={() => void startSetup()}
             disabled={preparing || locked}
@@ -530,7 +529,7 @@ function CheckoutScreenBody() {
         </>
       )}
       <CheckoutCta
-        label="Commit to box"
+        label="Continue"
         onPress={() => void handleCommit()}
         loading={committing}
         disabled={committing || locked || awaitingCardOnFile}
@@ -541,7 +540,7 @@ function CheckoutScreenBody() {
   ) : shippingThenCommit ? (
     <>
       <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
-      <Text style={checkoutUi.hint}>Card on file — add shipping and commit.</Text>
+      <Text style={checkoutUi.hint}>Card on file. Add your shipping address to finish.</Text>
       <TouchableOpacity
         onPress={() => void startSetup()}
         disabled={preparing || locked}
@@ -566,7 +565,7 @@ function CheckoutScreenBody() {
         onSmsOptInChange={setSmsOptIn}
       />
       <CheckoutCta
-        label="Commit to box"
+        label="Continue"
         onPress={() => {
           if (!ensureAddressValid()) return;
           setShippingConfirmed(true);
@@ -594,7 +593,7 @@ function CheckoutScreenBody() {
         onSmsOptInChange={setSmsOptIn}
       />
       <CheckoutCta
-        label="Save and continue to payment"
+        label="Continue"
         onPress={() => void startSetup()}
         loading={preparing}
         disabled={preparing || locked}
@@ -606,6 +605,10 @@ function CheckoutScreenBody() {
   );
 
   const onPaymentStep = !!setupClientSecret && !cardReady;
+
+  if (showCongrats) {
+    return <CheckoutCongratsOverlay lockAt={lockAt} onDone={() => navigation.replace('MyBox')} />;
+  }
 
   if (!isAuthenticated) {
     return <CheckoutAuthGate />;
@@ -631,7 +634,7 @@ function CheckoutScreenBody() {
   return (
     <SystemPage narrow onBack={onBack}>
       <Text style={checkoutUi.title}>
-        {onPaymentStep ? 'Payment' : commitOnly ? 'Commit' : 'Shipping'}
+        {onPaymentStep || commitOnly ? 'Payment' : 'Shipping'}
       </Text>
       <Text style={checkoutUi.lead}>
         You won&apos;t be charged until your box ships.

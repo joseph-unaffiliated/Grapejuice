@@ -26,6 +26,7 @@ import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
+import { CheckoutCongratsOverlay } from './checkout/CheckoutCongratsOverlay';
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
 import type { ShippingAddress } from '../../types/pilot';
 
@@ -63,6 +64,7 @@ function CheckoutScreenBody() {
     updateAddress,
     loading,
     locked,
+    lockAt,
     boxPriceCents,
     total,
     validateAddress,
@@ -74,6 +76,7 @@ function CheckoutScreenBody() {
     platformCreditApplied,
   } = useCheckoutDraft(household?.id);
   const [submitting, setSubmitting] = useState(false);
+  const [showCongrats, setShowCongrats] = useState(false);
   const [changingCard, setChangingCard] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
@@ -176,18 +179,22 @@ function CheckoutScreenBody() {
 
     setSubmitting(true);
     try {
-      let ready = cardOnFile;
-      if (!ready) {
-        ready = await handleSaveCard();
-        if (!ready) return;
+      if (!cardOnFile) {
+        const before = { at: household.cardOnFileAt, pm: household.stripeDefaultPaymentMethodId };
+        if (!(await handleSaveCard())) return;
+        // Commit needs the webhook-recorded card.
+        for (let i = 0; i < 20; i += 1) {
+          if (savedCardReplaced(await householdsService.get(household.id), before)) break;
+          await new Promise((r) => setTimeout(r, 400));
+        }
       }
 
-      const { orderId } = await commitPilotBox(household.id, normalizedAddress(), {
+      await commitPilotBox(household.id, normalizedAddress(), {
         contactPhone: contactPhone.trim() || undefined,
         smsOptIn: smsOptIn && contactPhone.trim().length > 0,
         skipShipStation,
       });
-      navigation.replace('OrderConfirmation', { orderId });
+      setShowCongrats(true);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Checkout failed.';
       Alert.alert('Error', message);
@@ -195,6 +202,10 @@ function CheckoutScreenBody() {
       setSubmitting(false);
     }
   };
+
+  if (showCongrats) {
+    return <CheckoutCongratsOverlay lockAt={lockAt} onDone={() => navigation.replace('MyBox')} />;
+  }
 
   if (!isAuthenticated) {
     return <CheckoutAuthGate />;
@@ -271,10 +282,10 @@ function CheckoutScreenBody() {
         disabled={submitting || locked || changingCard}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
+        accessibilityLabel="Continue"
       >
         <ButtonLoadingLabel
-          label={cardOnFile ? 'Commit to box' : 'Save and continue to payment'}
+          label="Continue"
           loading={submitting}
           loaderColor={semanticColors.textInverse}
           labelStyle={styles.ctaText}

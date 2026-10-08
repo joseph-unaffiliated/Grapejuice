@@ -1893,7 +1893,7 @@ export function MyBoxScreen() {
                         (hovered || pressed) && styles.checkoutTextHover,
                       ]}
                     >
-                      {cardOnFile ? 'Review shipping' : 'Continue'}
+                      Continue
                     </Text>
                   )}
                 </Pressable>
