@@ -82,6 +82,44 @@ function comparable(v: string | undefined): string {
   return (v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+const STREET_ABBREVIATIONS: Record<string, string> = {
+  AVENUE: 'AVE',
+  STREET: 'ST',
+  ROAD: 'RD',
+  BOULEVARD: 'BLVD',
+  DRIVE: 'DR',
+  LANE: 'LN',
+  COURT: 'CT',
+  PLACE: 'PL',
+  PARKWAY: 'PKWY',
+  HIGHWAY: 'HWY',
+  TERRACE: 'TER',
+  CIRCLE: 'CIR',
+  SQUARE: 'SQ',
+  TRAIL: 'TRL',
+  APARTMENT: 'APT',
+  SUITE: 'STE',
+  NORTH: 'N',
+  SOUTH: 'S',
+  EAST: 'E',
+  WEST: 'W',
+  NORTHEAST: 'NE',
+  NORTHWEST: 'NW',
+  SOUTHEAST: 'SE',
+  SOUTHWEST: 'SW',
+};
+
+/** Street line compared word by word with USPS abbreviations, so "Avenue" vs "Ave" isn't a change. */
+function comparableStreet(v: string | undefined): string {
+  return (v ?? '')
+    .toUpperCase()
+    .replace(/[.,#]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => STREET_ABBREVIATIONS[w] ?? w)
+    .join(' ');
+}
+
 /** Pure interpretation of the API response (exported for tests). */
 export function interpretValidation(
   input: { line1: string; line2?: string; city: string; stateCode: string; zip: string },
@@ -101,11 +139,13 @@ export function interpretValidation(
 
   const verdict = result.verdict ?? {};
   const dpv = result.uspsData?.dpvConfirmation;
+  const premiseConfirmed = PREMISE_GRANULARITY.has(verdict.validationGranularity ?? '');
   const deliverable =
     dpv === 'Y' ||
     dpv === 'S' ||
     dpv === 'D' ||
-    (verdict.addressComplete === true && PREMISE_GRANULARITY.has(verdict.validationGranularity ?? ''));
+    (premiseConfirmed &&
+      (verdict.addressComplete === true || verdict.possibleNextAction === 'CONFIRM_ADD_SUBPREMISES'));
   if (!deliverable || verdict.possibleNextAction === 'FIX') {
     return { status: 'invalid', message: ADDRESS_NOT_FOUND_MESSAGE, field: 'line1' };
   }
@@ -125,7 +165,11 @@ export function interpretValidation(
   const corrected = (result.address?.addressComponents ?? []).some(
     (c) => (c.spellCorrected || c.replaced) && MEANINGFUL_COMPONENTS.has(c.componentType ?? '')
   );
+  const streetDiffers =
+    comparableStreet(line1) !== comparableStreet(input.line1) &&
+    comparableStreet(lines.join(' ')) !== comparableStreet([input.line1, input.line2].filter(Boolean).join(' '));
   const differs =
+    streetDiffers ||
     comparable(suggestion.city) !== comparable(input.city) ||
     suggestion.stateProvince !== input.stateCode ||
     suggestion.postalCode !== input.zip.slice(0, 5);

@@ -33,6 +33,42 @@ const MEANINGFUL_COMPONENTS = new Set([
 function comparable(v) {
     return (v !== null && v !== void 0 ? v : '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
+const STREET_ABBREVIATIONS = {
+    AVENUE: 'AVE',
+    STREET: 'ST',
+    ROAD: 'RD',
+    BOULEVARD: 'BLVD',
+    DRIVE: 'DR',
+    LANE: 'LN',
+    COURT: 'CT',
+    PLACE: 'PL',
+    PARKWAY: 'PKWY',
+    HIGHWAY: 'HWY',
+    TERRACE: 'TER',
+    CIRCLE: 'CIR',
+    SQUARE: 'SQ',
+    TRAIL: 'TRL',
+    APARTMENT: 'APT',
+    SUITE: 'STE',
+    NORTH: 'N',
+    SOUTH: 'S',
+    EAST: 'E',
+    WEST: 'W',
+    NORTHEAST: 'NE',
+    NORTHWEST: 'NW',
+    SOUTHEAST: 'SE',
+    SOUTHWEST: 'SW',
+};
+/** Street line compared word by word with USPS abbreviations, so "Avenue" vs "Ave" isn't a change. */
+function comparableStreet(v) {
+    return (v !== null && v !== void 0 ? v : '')
+        .toUpperCase()
+        .replace(/[.,#]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w) => { var _a; return (_a = STREET_ABBREVIATIONS[w]) !== null && _a !== void 0 ? _a : w; })
+        .join(' ');
+}
 /** Pure interpretation of the API response (exported for tests). */
 function interpretValidation(input, body) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
@@ -49,10 +85,12 @@ function interpretValidation(input, body) {
     }
     const verdict = (_c = result.verdict) !== null && _c !== void 0 ? _c : {};
     const dpv = (_d = result.uspsData) === null || _d === void 0 ? void 0 : _d.dpvConfirmation;
+    const premiseConfirmed = PREMISE_GRANULARITY.has((_e = verdict.validationGranularity) !== null && _e !== void 0 ? _e : '');
     const deliverable = dpv === 'Y' ||
         dpv === 'S' ||
         dpv === 'D' ||
-        (verdict.addressComplete === true && PREMISE_GRANULARITY.has((_e = verdict.validationGranularity) !== null && _e !== void 0 ? _e : ''));
+        (premiseConfirmed &&
+            (verdict.addressComplete === true || verdict.possibleNextAction === 'CONFIRM_ADD_SUBPREMISES'));
     if (!deliverable || verdict.possibleNextAction === 'FIX') {
         return { status: 'invalid', message: exports.ADDRESS_NOT_FOUND_MESSAGE, field: 'line1' };
     }
@@ -62,7 +100,10 @@ function interpretValidation(input, body) {
     const keptLine2 = (_h = lines[1]) !== null && _h !== void 0 ? _h : (line2FoldedIn ? undefined : input.line2);
     const suggestion = Object.assign(Object.assign({ line1 }, (keptLine2 ? { line2: keptLine2 } : {})), { city: (_j = postal.locality) !== null && _j !== void 0 ? _j : input.city, stateProvince: suggestedState !== null && suggestedState !== void 0 ? suggestedState : input.stateCode, postalCode: ((_k = postal.postalCode) !== null && _k !== void 0 ? _k : input.zip).slice(0, 5) });
     const corrected = ((_m = (_l = result.address) === null || _l === void 0 ? void 0 : _l.addressComponents) !== null && _m !== void 0 ? _m : []).some((c) => { var _a; return (c.spellCorrected || c.replaced) && MEANINGFUL_COMPONENTS.has((_a = c.componentType) !== null && _a !== void 0 ? _a : ''); });
-    const differs = comparable(suggestion.city) !== comparable(input.city) ||
+    const streetDiffers = comparableStreet(line1) !== comparableStreet(input.line1) &&
+        comparableStreet(lines.join(' ')) !== comparableStreet([input.line1, input.line2].filter(Boolean).join(' '));
+    const differs = streetDiffers ||
+        comparable(suggestion.city) !== comparable(input.city) ||
         suggestion.stateProvince !== input.stateCode ||
         suggestion.postalCode !== input.zip.slice(0, 5);
     if (corrected || differs)
