@@ -1,4 +1,119 @@
-# Grapejuice Co: Meta ad copy (draft for edits)
+# Grapejuice Co: Meta ad copy
+
+## Live in Meta: Joseph's copy (source of truth)
+
+Joseph rewrote the ad copy directly in Ads Manager on Oct 8, 2026 (about 2pm ET). This section records it verbatim, as pulled from Meta at 6:10pm ET that day. **It overrides the drafts further down.** Use it when restoring an ad whose copy got overwritten, and as the voice and starting point for new ads.
+
+Every ad: CTA **Shop now**; tracking `utm_source=meta&utm_medium=paid_social&utm_content={{ad.name}}` with `utm_campaign=grapejuice-co` (Broad, Grandparent Gift) or `utm_campaign=grapejuice-followup` (Follow-up).
+
+### Broad (campaign "Grapejuice Co", one ad set per ad, landing https://grapejuice.co/)
+
+**convenient-v1, convenient-v2**
+
+> Hanukkah, handled. Candles, gelt, latke mix, and a book and present for each kid, in one box at your door by Nov 21.
+>
+> Swap what you want before it ships. Free shipping, and you're only charged when it ships.
+
+- Headline: Hanukkah, handled
+- Description: At your door by Nov 21
+
+**affordable-v1**
+
+> Everything you need for Hanukkah for $80. Candles, gelt, latke and sufganiyot mixes, plus a dreidel, book and present for a kid.
+>
+> Each additional kid is just $10 more. Free shipping, charged only when it ships.
+
+- Headline: Eight nights for $80
+- Description: Free shipping. +$10 per kid
+
+**customizable-v1**
+
+> Your Hanukkah, your way. Build a bespoke Hanukkah box tailored to your family. Swap or skip anything, from the candles to the story, before it ships.
+
+- Headline: Hanukkah in a Box
+- Description: Swap or skip anything
+
+**beautiful-v1, beautiful-v2**
+
+> Hanukkah pieces you'd want to leave on display year round. Wood dreidels, beeswax candles, and elegant tchotchkes that look at home on any mantel.
+>
+> Free shipping, arrives by Nov 21.
+
+- Headline: Hanukkah never looked so good
+- Description: Curated for your home
+
+**no-fluency-v1**
+
+> Hanukkah without the learning curve. No Hebrew, no prior knowledge needed. Just candles, food, stories and play for eight nights. It all comes in the box. Easy. Affordable. Accessible.
+
+- Headline: Hanukkah without the learning curve
+- Description: No Hebrew required
+
+**conversation-v1**
+
+> Pass on what matters to you. Hanukkah is rich with rituals and stories that invite big conversations. Order your Hanukkah box today. Totally customizable.
+>
+> Free shipping. Arrives by Nov 21.
+
+- Headline: This Hanukkah, pass on what matters to you
+- Description: A story for every kid
+
+**activity-v1, activity-v2, activity-v3**
+
+> Get some quality family time this Hanukkah. Make latkes and sufganiyot, spin dreidels, play for gelt, light the candles.
+>
+> Swap in roll-your-own candles or a paint-your-own dreidel at no extra cost. Free shipping.
+
+- Headline: Eight nights of quality time
+- Description: Make, play, light
+
+### Follow-up (campaign "Grapejuice Co - Follow-up", ad set "Follow-up - BoxFollowUp 30d", landing https://grapejuice.co/box)
+
+**followup-no-experience-v1**
+
+> Hanukkah without the learning curve. No Hebrew, no prior knowledge needed. Just candles, food, stories and play for eight nights. It all comes in the box. Easy. Affordable. Accessible.
+
+- Headline: Hanukkah without the learning curve
+- Description: No experience needed
+
+**followup-deadline-v1**
+
+> Hanukkah without the learning curve. No Hebrew, no prior knowledge needed. Just candles, food, stories and play for eight nights. It all comes in the box. Easy. Affordable. Accessible.
+
+- Headline: Hanukkah has never looked this good
+- Description: Finish your box
+
+**followup-handled-v1**
+
+> Candles, gelt, latke mix, and a book and present for each kid, in one box at your door by Nov 21. Step-by-step guides make each night easy, even for first-timers.
+
+- Headline: One less thing to think about
+- Description: At your door by Nov 21
+
+### Grandparent Gift (campaign "Grapejuice Co - Grandparent Gift", ad set "Grapejuice Co - Grandparent Gift 50+ (Gift sent)", landing https://grapejuice.co/gift)
+
+**grandparent-gift-50plus, -doorstep, -early, -memories, -screens** (same copy, five images)
+
+> Give a Hanukkah they'll actually celebrate. Pick the pieces yourself, or send gift credit and let their parents choose.
+>
+> Candles, gelt, food, and a book and present for each kid, shipped free by Nov 21.
+
+- Headline: Give them Hanukkah in a box
+- Description: Arrives by Nov 21
+
+### What changed from the drafts below
+
+- **customizable**: shorter. "Build a bespoke Hanukkah box tailored to your family"; headline "Hanukkah in a Box".
+- **beautiful**: headline "Hanukkah never looked so good".
+- **no-fluency**: "without the learning curve" instead of "without the homework". It ends "It all comes in the box. Easy. Affordable. Accessible." and drops the Rav and $18 menorah lines.
+- **conversation**: new text built on "Pass on what matters to you"; headline "This Hanukkah, pass on what matters to you".
+- **activity**: opens "Get some quality family time this Hanukkah"; headline "Eight nights of quality time".
+- **convenient, affordable, grandparent gift**: unchanged (Option A).
+- **Follow-up ads**: weren't in this file before.
+
+---
+
+# Drafts and build notes (Oct 1–7)
 
 Campaign "Grapejuice Co", ad set "Grapejuice Co - Broad". Eight ads, one per angle. Edit anything in place; I'll build the ads from whatever is in this file when you say it's final.
 
