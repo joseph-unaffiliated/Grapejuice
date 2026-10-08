@@ -2,7 +2,7 @@ import * as logger from './logger';
 import { onRequest, onCall, HttpsError, onSchedule } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { stripe, stripePublishableKey, verifyWebhook } from './stripe';
+import { createCardSetupIntent, stripe, stripePublishableKey, verifyWebhook } from './stripe';
 import { sendEmail, sendDebriefReminderEmail, sendGiftConfirmReminderEmail } from './email';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
@@ -1156,10 +1156,9 @@ export const createMarketplaceCheckout = onCall(async (request) => {
         );
       }
 
-      const setupIntent = await stripe.setupIntents.create({
+      const setupIntent = await createCardSetupIntent({
         customer: customerId,
         usage: 'off_session',
-        automatic_payment_methods: { enabled: true },
         metadata: {
           householdId,
           orderId: orderRef.id,
@@ -1240,9 +1239,8 @@ export const createPilotSetupIntent = onCall(async (request) => {
   const email = (userSnap.data()?.email as string) ?? '';
 
   const customerId = await getOrCreateStripeCustomer(householdId, request.auth.uid, email);
-  const setupIntent = await stripe.setupIntents.create({
+  const setupIntent = await createCardSetupIntent({
     customer: customerId,
-    automatic_payment_methods: { enabled: true },
     metadata: {
       householdId,
       userId: request.auth.uid,
