@@ -329,7 +329,7 @@ function GiftBoxBody() {
         disabled={confirming || saving || lineItems.length === 0}
       >
         {confirming ? (
-          <ActivityIndicator color={colors.textInverse} />
+          <BrandLoadingMark large={false} color={colors.textInverse} />
         ) : (
           <Text style={styles.ctaText}>{ctaLabel}</Text>
         )}

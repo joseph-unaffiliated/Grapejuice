@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -329,7 +328,7 @@ function GiftClaimBody() {
           </Text>
           <TouchableOpacity style={styles.cta} onPress={() => void claim()} disabled={claiming}>
             {claiming ? (
-              <ActivityIndicator color={colors.textInverse} />
+              <BrandLoadingMark large={false} color={colors.textInverse} />
             ) : (
               <Text style={styles.ctaText}>Claim gift</Text>
             )}

@@ -8,7 +8,6 @@ import {
   Platform,
   Modal,
   Pressable,
-  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -40,6 +39,7 @@ import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -466,7 +466,7 @@ function OrdersScreenBody() {
                 accessibilityLabel="Cancel box"
               >
                 {cancellingOrderId ? (
-                  <ActivityIndicator color={semanticColors.textInverse} />
+                  <BrandLoadingMark large={false} color={semanticColors.textInverse} />
                 ) : (
                   <Text style={styles.modalCancelConfirmText}>Cancel box</Text>
                 )}

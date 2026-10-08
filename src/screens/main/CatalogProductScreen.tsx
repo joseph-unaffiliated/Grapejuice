@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Platform,
   useWindowDimensions,
 } from 'react-native';
@@ -733,7 +732,7 @@ export function CatalogProductScreen() {
                     accessibilityRole="button"
                   >
                     {saving ? (
-                      <ActivityIndicator color={semanticColors.textInverse} />
+                      <BrandLoadingMark large={false} color={semanticColors.textInverse} />
                     ) : (
                       <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
                     )}

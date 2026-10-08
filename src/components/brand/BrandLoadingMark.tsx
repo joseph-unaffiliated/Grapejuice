@@ -34,6 +34,7 @@ export function BrandLoadingMark({ large = true, color = semanticColors.brand }:
       <GrapejuiceBrandMark
         markOnly
         animating
+        emphasis
         decorative
         color={color}
         width={BUTTON_LOADER_WIDTH}

@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text } from 'react-native';
 import { createBoxDetailStyles } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 
 type Props = {
   onPress: () => void;
@@ -30,7 +31,7 @@ export function BoxDetailReviewCta({
       activeOpacity={0.85}
     >
       {loading ? (
-        <ActivityIndicator color={colors.goldMuted} />
+        <BrandLoadingMark large={false} color={colors.goldMuted} />
       ) : (
         <Text style={styles.reviewCtaText}>{label}</Text>
       )}

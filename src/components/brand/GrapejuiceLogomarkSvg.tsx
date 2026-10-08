@@ -6,6 +6,7 @@ import Animated, {
   useAnimatedProps,
   useSharedValue,
   withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
@@ -68,12 +69,34 @@ export const MOBILE_RAV_THINKING_WOBBLE: Required<GrapeWobbleTune> = {
   squash: 0.1,
 };
 
+/**
+ * Tiny marks (button spinners): the default subtle wobble barely reads at ~16px,
+ * so go faster with more tilt and pulse.
+ */
+export const EMPHASIZED_GRAPE_WOBBLE: Required<GrapeWobbleTune> = {
+  ampScale: 1.5,
+  speedScale: 0.9,
+  pauseMs: 0,
+  pulseMode: 'sequence',
+  pulseDepth: 0.28,
+  squash: 0.12,
+};
+
+/** Whole-mark breathing scale for `emphasis` — peaks at 1 so the viewBox never clips a berry. */
+const EMPHASIS_SCALE_REST = 0.92;
+const EMPHASIS_SCALE_PEAK = 1;
+const EMPHASIS_SCALE_MS = 420;
+const VIEWBOX_CX = 1487 / 2;
+const VIEWBOX_CY = 1360 / 2;
+
 type Props = {
   width?: number;
   height?: number;
   color?: string;
   /** Wobbly per-grape rotation while Rav (or similar) is thinking. */
   animating?: boolean;
+  /** Stronger, faster wobble plus a slight scale pulse — for small marks that must read as loading. */
+  emphasis?: boolean;
   /** Loop the wobble while animating (default). Set false to play a single pass. */
   loop?: boolean;
   /** Override timing / amplitude (preview + tuning). */
@@ -290,16 +313,18 @@ export function GrapejuiceLogomarkSvg({
   height,
   color = '#000000',
   animating = false,
+  emphasis = false,
   loop = true,
   wobble,
 }: Props) {
   const h = height ?? width / LOGOMARK_ASPECT;
-  const ampScale = wobble?.ampScale ?? DEFAULT_GRAPE_WOBBLE.ampScale;
-  const speedScale = wobble?.speedScale ?? DEFAULT_GRAPE_WOBBLE.speedScale;
-  const pauseMs = wobble?.pauseMs ?? DEFAULT_GRAPE_WOBBLE.pauseMs;
-  const pulseMode = wobble?.pulseMode ?? DEFAULT_GRAPE_WOBBLE.pulseMode;
-  const pulseDepth = wobble?.pulseDepth ?? DEFAULT_GRAPE_WOBBLE.pulseDepth;
-  const squash = wobble?.squash ?? DEFAULT_GRAPE_WOBBLE.squash;
+  const base = emphasis ? EMPHASIZED_GRAPE_WOBBLE : DEFAULT_GRAPE_WOBBLE;
+  const ampScale = wobble?.ampScale ?? base.ampScale;
+  const speedScale = wobble?.speedScale ?? base.speedScale;
+  const pauseMs = wobble?.pauseMs ?? base.pauseMs;
+  const pulseMode = wobble?.pulseMode ?? base.pulseMode;
+  const pulseDepth = wobble?.pulseDepth ?? base.pulseDepth;
+  const squash = wobble?.squash ?? base.squash;
 
   const speed = Math.max(0.25, speedScale);
   const scaleMs = (ms: number) => Math.max(16, Math.round(ms / speed));
@@ -365,20 +390,43 @@ export function GrapejuiceLogomarkSvg({
     };
   }, [animating, loop, cycleMs, rotCycleMs, clock, rotClock, active]);
 
+  const markScale = useSharedValue(1);
+  useEffect(() => {
+    cancelAnimation(markScale);
+    markScale.value = 1;
+    if (!animating || !emphasis) return;
+    markScale.value = EMPHASIS_SCALE_REST;
+    markScale.value = withRepeat(
+      withSequence(
+        withTiming(EMPHASIS_SCALE_PEAK, { duration: EMPHASIS_SCALE_MS, easing: Easing.out(Easing.quad) }),
+        withTiming(EMPHASIS_SCALE_REST, { duration: EMPHASIS_SCALE_MS, easing: Easing.in(Easing.quad) }),
+      ),
+      loop ? -1 : 1,
+      false,
+    );
+    return () => cancelAnimation(markScale);
+  }, [animating, emphasis, loop, markScale]);
+
+  const markProps = useAnimatedProps(() => ({
+    transform: `translate(${VIEWBOX_CX} ${VIEWBOX_CY}) scale(${markScale.value}) translate(${-VIEWBOX_CX} ${-VIEWBOX_CY})`,
+  }));
+
   return (
     <Svg width={width} height={h} viewBox="0 0 1487 1360" fill="none">
-      {GRAPES.map((grape, i) => (
-        <WobbleGrape
-          key={i}
-          index={i}
-          grape={grape}
-          color={color}
-          clock={clock}
-          rotClock={rotClock}
-          active={active}
-          config={config}
-        />
-      ))}
+      <AnimatedG animatedProps={markProps}>
+        {GRAPES.map((grape, i) => (
+          <WobbleGrape
+            key={i}
+            index={i}
+            grape={grape}
+            color={color}
+            clock={clock}
+            rotClock={rotClock}
+            active={active}
+            config={config}
+          />
+        ))}
+      </AnimatedG>
     </Svg>
   );
 }

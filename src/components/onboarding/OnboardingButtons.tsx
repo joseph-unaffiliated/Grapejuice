@@ -2,12 +2,12 @@ import React from 'react';
 import {
   TouchableOpacity,
   Text,
-  ActivityIndicator,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { semanticColors, typography, borderRadius, typeface } from '../../constants/theme';
+import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 
 type PrimaryProps = {
   label: string;
@@ -34,7 +34,7 @@ export function OnboardingPrimaryButton({
       accessibilityLabel={label}
     >
       {loading ? (
-        <ActivityIndicator color={semanticColors.brand} />
+        <BrandLoadingMark large={false} color={semanticColors.brand} />
       ) : (
         <Text style={styles.primaryLabel}>{label}</Text>
       )}

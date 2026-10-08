@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -24,6 +23,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { MainStackParamList } from '../../navigation/types';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { LIST_BOX_PRICE_CENTS, LIST_BOX_VALUE_CENTS } from '../../services/box/pricing';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 
 const STATEMENTS = [
   'I identify as Jewish, or I’m part of a Jewish or interfaith household.',
@@ -186,7 +186,7 @@ function BoxDiscountEligibilityBody() {
             onPress={submit}
           >
             {submitting ? (
-              <ActivityIndicator color={colors.bgPrimary} />
+              <BrandLoadingMark large={false} color={colors.bgPrimary} />
             ) : (
               <Text style={[styles.ctaText, { color: colors.bgPrimary }]}>Email my code</Text>
             )}

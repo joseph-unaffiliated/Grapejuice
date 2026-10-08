@@ -26,7 +26,8 @@ function readInputValue(
 
 export function SignUpEmailScreen() {
   const { colors } = useThemeMode();
-  const { signUp, isLoading, error, clearError } = useAuthStore();
+  const { signUp, error, clearError } = useAuthStore();
+  const [submitting, setSubmitting] = useState(false);
   const mockActive = useMockFlowStore((s) => s.active);
   const adminEmail = useMockFlowStore((s) => s.restore?.adminEmail ?? null);
   const plusHint = mockActive ? suggestPlusAlias(adminEmail) : null;
@@ -48,12 +49,15 @@ export function SignUpEmailScreen() {
       setLocalError('Enter email and password (at least 6 characters).');
       return;
     }
+    setSubmitting(true);
     try {
       await signUp(e, password, name);
       const { retentionSuppress } = await import('../../services/analytics/retention');
       retentionSuppress(e);
     } catch {
       /* store surfaces error */
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -106,8 +110,8 @@ export function SignUpEmailScreen() {
         label="Sign up"
         variant="filled"
         onPress={() => void onSubmit()}
-        disabled={isLoading}
-        loading={isLoading}
+        disabled={submitting}
+        loading={submitting}
         style={styles.btn}
       />
       {plusHint ? (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -16,7 +16,8 @@ type Nav = StackNavigationProp<AuthStackParamList, 'SignUp'>;
 export function SignUpScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
-  const { googleSignIn, appleSignIn, isLoading, error, clearError } = useAuthStore();
+  const { googleSignIn, appleSignIn, error, clearError } = useAuthStore();
+  const [busy, setBusy] = useState<'google' | 'apple' | null>(null);
   const mockActive = useMockFlowStore((s) => s.active);
   const pendingReturn = useAuthFlowStore((s) => s.pendingReturn);
   const claimGift = pendingReturn === 'GiftClaim';
@@ -41,15 +42,18 @@ export function SignUpScreen() {
           variant="pill"
           onPress={async () => {
             clearError();
+            setBusy('google');
             try {
               // Survives the redirect round-trip so nav sign-up stays in place.
               await googleSignIn(pendingReturn === 'Stay' ? 'Stay' : undefined);
             } catch {
               /* store */
+            } finally {
+              setBusy(null);
             }
           }}
-          disabled={isLoading}
-          loading={isLoading}
+          disabled={busy !== null}
+          loading={busy === 'google'}
           style={styles.btn}
         />
 
@@ -73,14 +77,17 @@ export function SignUpScreen() {
             variant="pill"
             onPress={async () => {
               clearError();
+              setBusy('apple');
               try {
                 await appleSignIn();
               } catch {
                 /* store */
+              } finally {
+                setBusy(null);
               }
             }}
-            disabled={isLoading}
-            loading={isLoading}
+            disabled={busy !== null}
+            loading={busy === 'apple'}
             style={styles.btn}
           />
         ) : null}

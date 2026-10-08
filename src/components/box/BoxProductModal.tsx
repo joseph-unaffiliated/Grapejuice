@@ -12,7 +12,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Pressable,
-  ActivityIndicator,
   Platform,
   useWindowDimensions,
 } from 'react-native';
@@ -58,6 +57,7 @@ import {
   shadows,
   shadowsWeb,
 } from '../../constants/theme';
+import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 
 export type BoxProductModalContext = 'ownBox' | 'giftBox';
 
@@ -484,7 +484,7 @@ export function BoxProductModal({
                             accessibilityRole="button"
                           >
                             {busy ? (
-                              <ActivityIndicator color={colors.textInverse} />
+                              <BrandLoadingMark large={false} color={colors.textInverse} />
                             ) : (
                               <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
                             )}

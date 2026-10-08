@@ -18,6 +18,8 @@ type Props = {
   color?: string;
   /** Per-grape wobble — used while Rav is generating a reply. */
   animating?: boolean;
+  /** Stronger, faster wobble for small loading marks. */
+  emphasis?: boolean;
   /** Loop the wobble while animating (default). Set false to play a single pass. */
   loop?: boolean;
   /** Override wobble timing / amplitude. */
@@ -54,6 +56,7 @@ export function GrapejuiceBrandMark({
   decorative = variant === 'sidebar',
   color = '#000000',
   animating = false,
+  emphasis = false,
   loop = true,
   wobble,
   width: widthProp,
@@ -81,6 +84,7 @@ export function GrapejuiceBrandMark({
         height={height}
         color={color}
         animating={animating}
+        emphasis={emphasis}
         loop={loop}
         wobble={wobble}
       />
