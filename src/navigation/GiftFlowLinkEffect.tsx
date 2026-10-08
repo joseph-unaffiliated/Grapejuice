@@ -7,8 +7,10 @@ import { DEFAULT_GIFT_CHILDREN } from '../screens/gift/giftGiveTypes';
 import { navigationRef } from './navigationRef';
 import type { MainStackParamList } from './types';
 import {
+  giftGiveParamsFromDraft,
   readGiftCustomizePathFromWindow,
   readGiftGivePathFromWindow,
+  readGiftStepFromWindow,
 } from './giftFlowLink';
 
 function ensureGuestCanMountMain(): void {
@@ -75,7 +77,7 @@ export function GiftFlowLinkEffect() {
           });
           return;
         }
-        // No draft — send them to the give form on the customize path.
+        // No draft — start the curated path at the kids step.
         navigateGiftGive({
           form: {
             recipientEmail: '',
@@ -85,21 +87,14 @@ export function GiftFlowLinkEffect() {
           },
           childDrafts: DEFAULT_GIFT_CHILDREN,
           initialGiftPath: 'customize' as const,
+          step: 'kids',
         });
         return;
       }
 
       if (pendingGive.current) {
         pendingGive.current = false;
-        if (draft?.form) {
-          navigateGiftGive({
-            form: draft.form,
-            childDrafts: draft.childDrafts ?? DEFAULT_GIFT_CHILDREN,
-            initialGiftPath: draft.form.giftPath ?? undefined,
-          });
-          return;
-        }
-        navigateGiftGive();
+        navigateGiftGive(giftGiveParamsFromDraft(draft, readGiftStepFromWindow()));
       }
     }, 50);
 

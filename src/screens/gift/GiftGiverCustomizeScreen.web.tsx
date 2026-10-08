@@ -1,64 +1,66 @@
-/** Figma rGzXYb1rNVxqGHz81835Jn — frame 16: giver picks items before pay (web). */
-import React, { useMemo, useState } from 'react';
-import { Alert, Platform } from 'react-native';
+/** Figma rGzXYb1rNVxqGHz81835Jn — frame 16: giver curates the box between the email and note steps (web). */
+import React from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import Constants from 'expo-constants';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
 import type { MainStackParamList } from '../../navigation/types';
 import { useGiftGiverBoxDraft } from '../../hooks/useGiftGiverBoxDraft';
-import { orderSubtotalCents } from '../../services/box/pricing';
-import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useAuthStore } from '../../stores/authStore';
 import { isValidEmail } from '../../utils/formValidation';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
+import { pushBrowserPath } from '../../navigation/webBrowserHistory';
+import { GIFT_GIVE_PATH } from '../../navigation/giftFlowLink';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
-import { GiftPaymentPanel } from './GiftPaymentPanel.web';
-import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
-import { completeGiftPurchase, startGiftPurchase } from './useGiftPayment';
 import { trackGiftStep } from '../../services/analytics/giftFunnel';
+import type { GiftGiveFormValues } from './giftGiveTypes';
 
 type Route = RouteProp<MainStackParamList, 'GiftGiverCustomize'>;
 
-function notify(title: string, message: string) {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(`${title}\n\n${message}`);
-    return;
-  }
-  Alert.alert(title, message);
-}
-
-function firebaseMessage(e: unknown): string {
-  if (!(e instanceof Error)) return 'Try again.';
-  const anyErr = e as Error & { code?: string; message?: string };
-  const msg = anyErr.message ?? '';
-  if (/failed-precondition|Stripe is not configured/i.test(msg)) {
-    return 'Payments are not configured yet. Ask the team to enable Stripe.';
-  }
-  return msg || 'Try again.';
+/** The note / send steps edit the saved draft; browser Back here keeps the stale route params. */
+function latestCustomizeForm(fallback: GiftGiveFormValues): GiftGiveFormValues {
+  const intent = useGiftIntentStore.getState();
+  const saved = intent.status === 'incomplete' && intent.kind === 'customize' ? intent.draft?.form : null;
+  return { ...fallback, ...(saved ?? {}), giftPath: 'customize' };
 }
 
 export function GiftGiverCustomizeScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<Route>();
   const { form, childDrafts, lineItems: restoredLineItems } = route.params;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+  const draftHydrated = useGiftIntentStore((s) => s._hasHydrated);
+  // After a reload, wait for the session and saved draft before deciding the email is missing.
+  const needsEmail =
+    !authLoading &&
+    draftHydrated &&
+    !isAuthenticated &&
+    !isValidEmail(latestCustomizeForm(form).giverEmail?.trim() ?? '');
 
-  // Credit-only gifts must never land on the box editor.
   React.useEffect(() => {
+    // Credit-only gifts never land on the box editor.
     if (form.giftPath === 'credit_only') {
       navigation.replace('GiftGive', {
         form: { ...form, giftPath: 'credit_only' },
         childDrafts,
         initialGiftPath: 'credit_only',
-        autoStartPayment: true,
+        step: 'note',
+      });
+      return;
+    }
+    // The box is revealed after the email step.
+    if (needsEmail) {
+      navigation.replace('GiftGive', {
+        form: latestCustomizeForm(form),
+        childDrafts,
+        initialGiftPath: 'customize',
+        step: 'email',
       });
       return;
     }
     trackGiftStep('GiftCustomize', 'customize');
-  }, [form, childDrafts, navigation]);
+  }, [form, childDrafts, navigation, needsEmail]);
 
   const {
     catalog,
@@ -77,124 +79,45 @@ export function GiftGiverCustomizeScreen() {
     persistWrapSelection,
     setCashDonation,
   } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
-  const giftAmountCents = useMemo(() => {
-    const boxPriceCents = listBoxCentsForKids(Math.max(1, childDrafts.length));
-    return orderSubtotalCents(lineItems, boxPriceCents);
-  }, [childDrafts.length, lineItems]);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [submitting, setSubmitting] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
-  const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
-  const [giftInviteId, setGiftInviteId] = useState<string | null>(null);
-  const [claimToken, setClaimToken] = useState<string | undefined>(undefined);
-
-  const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
-  const stripeKey = extra?.stripePublishableKey ?? '';
-  const [serverStripeKey, setServerStripeKey] = useState<string | null>(null);
-  const activeStripeKey = serverStripeKey || stripeKey;
-  const stripePromise = useMemo(
-    () => (activeStripeKey ? loadStripe(activeStripeKey) : null),
-    [activeStripeKey]
-  );
 
   const cancelledRef = React.useRef(false);
 
   // Persist so refresh on /gift/customize can restore this draft.
   React.useEffect(() => {
-    if (form.giftPath === 'credit_only' || cancelledRef.current) return;
-    useGiftIntentStore.getState().markIncomplete('customize', {
-      form: { ...form, giftPath: 'customize' },
+    if (form.giftPath === 'credit_only' || cancelledRef.current || !draftHydrated) return;
+    const intent = useGiftIntentStore.getState();
+    intent.markIncomplete('customize', {
+      form: latestCustomizeForm(form),
       childDrafts,
       lineItems,
+      step: intent.draft?.step,
     });
-  }, [form, childDrafts, lineItems]);
+  }, [form, childDrafts, lineItems, draftHydrated]);
 
-  const pay = async () => {
-    setPayError(null);
-    if (!isAuthenticated && !isValidEmail(form.giverEmail?.trim() ?? '')) {
-      // Drafts saved before the email field existed: collect it on the gift form.
-      navigation.navigate('GiftGive', {
-        form,
-        childDrafts,
-        initialGiftPath: 'customize',
-      });
-      return;
-    }
-    if (!stripeKey) {
-      const msg = 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env and restart the app.';
-      setPayError(msg);
-      notify('Not configured', msg);
-      return;
-    }
-    setSubmitting(true);
-    try {
-      useGiftIntentStore.getState().markIncomplete('customize', {
-        form,
-        childDrafts,
-        lineItems,
-      });
-      const childAgeGroups = childDrafts.map((c) => c.ageGroup);
-      const result = await startGiftPurchase({
-        form,
-        customize: true,
-        lineItems,
-        childAgeGroups,
-        amountCents: giftAmountCents,
-      });
-      setGiftInviteId(result.giftInviteId);
-      setClaimToken(result.claimToken);
-      setServerStripeKey(result.publishableKey);
-      setPaymentSecret(result.clientSecret);
-    } catch (e) {
-      const msg = firebaseMessage(e);
-      setPayError(msg);
-      notify('Could not start payment', msg);
-    } finally {
-      setSubmitting(false);
-    }
+  const continueToNote = () => {
+    const nextForm = latestCustomizeForm(form);
+    useGiftIntentStore.getState().markIncomplete('customize', {
+      form: nextForm,
+      childDrafts,
+      lineItems,
+      step: 'note',
+    });
+    // Own history entry, so browser Back from the note step returns to the box.
+    pushBrowserPath(`${GIFT_GIVE_PATH}?step=note`);
+    navigation.push('GiftGive', {
+      form: nextForm,
+      childDrafts,
+      lineItems,
+      initialGiftPath: 'customize',
+      step: 'note',
+    });
   };
 
   const cancelGift = () => {
     cancelledRef.current = true;
     useGiftIntentStore.getState().clear();
-    setPaymentSecret(null);
-    setGiftInviteId(null);
-    setPayError(null);
     navigation.navigate('StorefrontHome');
   };
-
-  const paymentSlot =
-    paymentSecret && stripePromise && giftInviteId ? (
-      <Elements
-        stripe={stripePromise}
-        options={{ clientSecret: paymentSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}
-      >
-        <GiftPaymentPanel
-          giftInviteId={giftInviteId}
-          recipientEmail={form.recipientEmail.trim()}
-          giverName={form.giverName}
-          customize
-          amountCents={giftAmountCents}
-          onPaid={({ claimUrl }) => {
-            useGiftIntentStore.getState().markSent(form.recipientEmail.trim(), 'customize');
-            navigation.replace('GiftSentConfirmation', {
-              recipientEmail: form.recipientEmail.trim(),
-              customize: true,
-              giverName: form.giverName.trim() || undefined,
-              amountCents: giftAmountCents,
-              claimUrl,
-            });
-          }}
-          onCancel={() => {
-            setPaymentSecret(null);
-            setGiftInviteId(null);
-          }}
-          onCancelGift={cancelGift}
-          onError={notify}
-          completePurchase={(id) => completeGiftPurchase(id, claimToken)}
-        />
-      </Elements>
-    ) : null;
 
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
@@ -204,7 +127,7 @@ export function GiftGiverCustomizeScreen() {
         lineItems={lineItems}
         kidProfiles={children}
         loading={loading}
-        submitting={submitting}
+        submitting={false}
         wrapSelectedItemIds={wrapSelectedItemIds}
         applySwap={applySwap}
         swapToPreWrap={swapToPreWrap}
@@ -216,10 +139,8 @@ export function GiftGiverCustomizeScreen() {
         setKidBook={setKidBook}
         persistWrapSelection={persistWrapSelection}
         setCashDonation={setCashDonation}
-        onPay={() => void pay()}
+        onPay={continueToNote}
         onCancelGift={cancelGift}
-        payError={payError}
-        paymentSlot={paymentSlot}
       />
     </StorefrontChrome>
   );

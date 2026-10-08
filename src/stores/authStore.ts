@@ -17,20 +17,27 @@ import {
   isRestrictedWebAuthEnvironment,
   type AuthUser,
 } from '../services/auth/auth';
-import { persistGuestToAccount } from '../services/guest/persistGuestToAccount';
+import {
+  persistGuestToAccount,
+  type PersistGuestOptions,
+} from '../services/guest/persistGuestToAccount';
 import { useGuestSessionStore } from './guestSessionStore';
 import { useBoxPresenceStore } from './boxPresenceStore';
 import type { AuthReturnRoute } from './authFlowStore';
 
 let guestMergeInFlight: Promise<boolean> | null = null;
 let guestMergeUid: string | null = null;
+/** Set before a sign-in starts: the auth-state listener can begin the merge before the caller does. */
+let nextMergeOptions: PersistGuestOptions | undefined;
 
 async function mergeGuestSession(user: AuthUser): Promise<boolean> {
   if (guestMergeInFlight && guestMergeUid === user.uid) {
     return guestMergeInFlight;
   }
+  const options = nextMergeOptions;
+  nextMergeOptions = undefined;
   guestMergeUid = user.uid;
-  guestMergeInFlight = persistGuestToAccount(user)
+  guestMergeInFlight = persistGuestToAccount(user, options)
     .then(() => true)
     .catch((error) => {
       console.warn('[auth] Guest session merge failed:', error);
@@ -135,7 +142,7 @@ interface AuthState {
   googleSignIn: (returnTo?: GoogleSignInReturnTo | null) => Promise<void>;
   appleSignIn: () => Promise<void>;
   /** Server-minted custom token (email gate / login link); merges the guest box like any sign-in. */
-  signInWithToken: (customToken: string) => Promise<void>;
+  signInWithToken: (customToken: string, options?: PersistGuestOptions) => Promise<void>;
   /** Refresh provider flags after linking a password or Google. */
   setUser: (user: AuthUser) => void;
   logout: () => Promise<void>;
@@ -291,13 +298,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signInWithToken: async (customToken) => {
+  signInWithToken: async (customToken, options) => {
     set({ isLoading: true, error: null });
+    nextMergeOptions = options;
     try {
       const user = await signInWithTokenRequest(customToken);
       const merged = await mergeGuestSession(user);
       commitAuthenticatedUser(set, user, merged);
     } catch (error) {
+      nextMergeOptions = undefined;
       set({ error: getErrorMessage(error), isLoading: false });
       throw error;
     }

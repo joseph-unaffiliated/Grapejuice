@@ -24,6 +24,16 @@ export async function revealBoxWithEmail(params: {
   return data;
 }
 
+/** Gift flow email step: `created` signs in a new giver; `existing` stays a guest checkout. */
+export async function signInGiftGiver(params: {
+  email: string;
+  name?: string;
+}): Promise<RevealBoxWithEmailResult> {
+  const callable = httpsCallable<typeof params, RevealBoxWithEmailResult>(functions, 'signInGiftGiver');
+  const { data } = await callable(params);
+  return data;
+}
+
 export async function requestLoginLink(params: { email: string; next?: string }): Promise<void> {
   const callable = httpsCallable<typeof params, { ok: true }>(functions, 'requestLoginLink');
   await callable(params);

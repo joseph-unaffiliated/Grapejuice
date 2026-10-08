@@ -25,7 +25,7 @@ import {
   GIFT_CUSTOMIZE_PATH,
   GIFT_GIVE_PATH,
   giftCustomizeFromState,
-  giftGiveFromState,
+  giftGiveStepFromState,
 } from './giftFlowLink';
 import {
   dynamicLandingPathFromState,
@@ -115,11 +115,12 @@ export function browserPathForNavigationState(
     return GIFT_CUSTOMIZE_PATH;
   }
 
-  if (giftGiveFromState(state)) {
+  const giftStep = giftGiveStepFromState(state);
+  if (giftStep) {
     if (search.includes('preview=')) {
       return `${GIFT_GIVE_PATH}${search}`;
     }
-    return GIFT_GIVE_PATH;
+    return giftStep === 'type' ? GIFT_GIVE_PATH : `${GIFT_GIVE_PATH}?step=${giftStep}`;
   }
 
   const marketingLanding = dynamicLandingPathFromState(state);

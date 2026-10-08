@@ -67,7 +67,7 @@ export {
   deleteGuestDataByEmail,
   scheduledPurgeGuestSessions,
 } from './guestSessions';
-export { revealBoxWithEmail, requestLoginLink, redeemLoginLink } from './loginLinks';
+export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink } from './loginLinks';
 import { enforceRateLimits, giverUidForEmail, mintInviteAcceptUrl, normalizeEmail } from './loginLinks';
 import { isAdminToken } from './guestSessions';
 export { validateShippingAddress } from './addressValidation';

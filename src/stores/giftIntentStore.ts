@@ -2,7 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BoxLineItem } from '../types/pilot';
-import type { GiftChildDraft, GiftGiveFormValues, GiftPath } from '../screens/gift/giftGiveTypes';
+import type {
+  GiftChildDraft,
+  GiftGiveFormValues,
+  GiftPath,
+  GiftStep,
+} from '../screens/gift/giftGiveTypes';
 
 export type GiftIntentKind = 'credit_only' | 'customize';
 
@@ -12,6 +17,8 @@ export type GiftIntentDraft = {
   form: GiftGiveFormValues;
   childDrafts: GiftChildDraft[];
   lineItems?: BoxLineItem[];
+  /** Last web gift step, so a reload resumes there. */
+  step?: GiftStep;
 };
 
 type GiftIntentState = {
@@ -49,6 +56,7 @@ export const useGiftIntentStore = create<GiftIntentState>()(
             form: { ...draft.form, giftPath: kind },
             childDrafts: draft.childDrafts,
             lineItems: draft.lineItems,
+            step: draft.step,
           },
           lastRecipientEmail: null,
           lastSentAt: null,

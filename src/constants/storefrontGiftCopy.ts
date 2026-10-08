@@ -54,7 +54,7 @@ export function giftLandingCopy({ lockDay, arrivesBy, startsOn }: GiftLandingDat
 
     twoWays: {
       heading: 'Two ways to give',
-      body: `Pick it for them: a curated Hanukkah box, chosen by you. Or let them choose: gift credit worth a box for their family, so their parents can build their own box or shop the store. Either way, it's ${price}.`,
+      body: `Pick items for them: a curated Hanukkah box, chosen by you. Or let them choose: gift credit worth a box for their family, so their parents can build their own box or shop the store. Either way, it's ${price}.`,
       primaryCta: 'Give a gift box',
       secondaryCta: 'Send gift credit',
     },

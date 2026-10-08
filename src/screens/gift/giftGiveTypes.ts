@@ -19,6 +19,20 @@ export type GiftGiveFormValues = {
 
 export const MAX_GIFT_CREDIT_KIDS = 8;
 
+/**
+ * Web gift flow, one screen per step (`/gift/give?step=`). The curated box editor sits
+ * between `email` and `note` on its own route (`/gift/customize`).
+ */
+export type GiftStep = 'type' | 'kids' | 'email' | 'note' | 'send' | 'pay';
+
+export const GIFT_STEPS: readonly GiftStep[] = ['type', 'kids', 'email', 'note', 'send', 'pay'];
+
+export function parseGiftStep(raw: unknown): GiftStep | undefined {
+  return typeof raw === 'string' && (GIFT_STEPS as readonly string[]).includes(raw)
+    ? (raw as GiftStep)
+    : undefined;
+}
+
 /** True once the giver has typed anything into the optional address. */
 export function hasGiverAddress(address: ShippingAddress | undefined): address is ShippingAddress {
   if (!address) return false;

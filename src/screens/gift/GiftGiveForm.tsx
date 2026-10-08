@@ -48,6 +48,114 @@ type Props = {
   children?: React.ReactNode;
 };
 
+export function GiftPathCards({
+  giftPath,
+  onChange,
+  disabled = false,
+  boxesClosed = false,
+  hasError = false,
+}: {
+  giftPath: GiftPath | null;
+  onChange: (path: GiftPath) => void;
+  disabled?: boolean;
+  boxesClosed?: boolean;
+  hasError?: boolean;
+}) {
+  const lockDay = useBoxLockDay();
+  const customize = giftPath === 'customize';
+  const creditOnly = giftPath === 'credit_only';
+  return (
+    <>
+      <TouchableOpacity
+        style={[
+          styles.pathCard,
+          hasError && styles.pathCardError,
+          customize && styles.pathCardOn,
+          boxesClosed && styles.pathCardClosed,
+        ]}
+        onPress={() => onChange('customize')}
+        disabled={disabled || boxesClosed}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: customize, disabled: boxesClosed }}
+      >
+        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Pick items for them</Text>
+        <Text style={[styles.pathBody, customize && styles.pathBodyOn]}>
+          {boxesClosed
+            ? `Gift boxes for this Hanukkah closed on ${lockDay}. You can still send gift credit.`
+            : `A curated Hanukkah box, chosen by you. ${giftBoxPriceLine()}.`}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.pathCard, hasError && styles.pathCardError, creditOnly && styles.pathCardOn]}
+        onPress={() => onChange('credit_only')}
+        disabled={disabled}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: creditOnly }}
+      >
+        <Text style={[styles.pathTitle, creditOnly && styles.pathTitleOn]}>Let them choose</Text>
+        <Text style={[styles.pathBody, creditOnly && styles.pathBodyOn]}>
+          {boxesClosed
+            ? 'Gift credit for the Grapejuice store.'
+            : 'Gift credit worth a box for their family. Their parents build their own box or shop the store.'}
+        </Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+/** Credit path: kids in their family sets the credit amount (a box's worth for all of them). */
+export function GiftCreditKidsField({
+  creditKids,
+  onChange,
+  disabled = false,
+  boxesClosed = false,
+}: {
+  creditKids: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+  boxesClosed?: boolean;
+}) {
+  const creditCents = listBoxCentsForKids(creditKids);
+  const set = (n: number) => onChange(Math.max(0, Math.min(MAX_GIFT_CREDIT_KIDS, n)));
+  return (
+    <>
+      <View style={styles.kidsRow}>
+        <Text style={styles.kidsLabel}>How many kids in their family?</Text>
+        <View style={styles.stepper}>
+          <TouchableOpacity
+            onPress={() => set(creditKids - 1)}
+            style={styles.stepBtn}
+            disabled={disabled || creditKids <= 0}
+            accessibilityRole="button"
+            accessibilityLabel="Fewer kids"
+          >
+            <Text style={styles.stepBtnText}>−</Text>
+          </TouchableOpacity>
+          <Text style={styles.stepCount}>{creditKids}</Text>
+          <TouchableOpacity
+            onPress={() => set(creditKids + 1)}
+            style={styles.stepBtn}
+            disabled={disabled || creditKids >= MAX_GIFT_CREDIT_KIDS}
+            accessibilityRole="button"
+            accessibilityLabel="More kids"
+          >
+            <Text style={styles.stepBtnText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <Text style={checkoutUi.hint}>
+        {formatCatalogDollars(creditCents)} gift credit
+        {boxesClosed
+          ? ''
+          : `, enough for a Hanukkah box${
+              creditKids === 0 ? '' : ` for ${creditKids === 1 ? 'one kid' : `${creditKids} kids`}`
+            }`}
+        .
+      </Text>
+    </>
+  );
+}
+
 export function GiftGiveForm({
   values,
   childDrafts,
@@ -75,7 +183,6 @@ export function GiftGiveForm({
   const pathChosen = values.giftPath != null;
   const [showAddress, setShowAddress] = React.useState(() => hasGiverAddress(values.shippingAddress));
   const creditKids = values.creditKids ?? 1;
-  const creditCents = listBoxCentsForKids(creditKids);
 
   const defaultSubmit = !pathChosen
     ? 'Choose how this gift works'
@@ -84,8 +191,6 @@ export function GiftGiveForm({
       : 'Curate what goes in their box';
 
   const setPath = (giftPath: GiftPath) => onChange({ giftPath });
-  const setCreditKids = (n: number) =>
-    onChange({ creditKids: Math.max(0, Math.min(MAX_GIFT_CREDIT_KIDS, n)) });
 
   const lead = !pathChosen
     ? 'Two ways to give. Pick one below.'
@@ -114,72 +219,23 @@ export function GiftGiveForm({
       <View style={checkoutUi.divider} />
 
       <Text style={checkoutUi.sectionHeading}>Gift Type</Text>
-      <TouchableOpacity
-        style={[styles.pathCard, customize && styles.pathCardOn, boxesClosed && styles.pathCardClosed]}
-        onPress={() => setPath('customize')}
-        disabled={submitting || boxesClosed}
-        accessibilityRole="button"
-        accessibilityState={{ selected: customize, disabled: boxesClosed }}
-      >
-        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Pick it for them</Text>
-        <Text style={[styles.pathBody, customize && styles.pathBodyOn]}>
-          {boxesClosed
-            ? `Gift boxes for this Hanukkah closed on ${lockDay}. You can still send gift credit.`
-            : `A curated Hanukkah box, chosen by you. ${giftBoxPriceLine()}.`}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.pathCard, creditOnly && styles.pathCardOn]}
-        onPress={() => setPath('credit_only')}
+      <GiftPathCards
+        giftPath={values.giftPath}
+        onChange={setPath}
         disabled={submitting}
-        accessibilityRole="button"
-        accessibilityState={{ selected: creditOnly }}
-      >
-        <Text style={[styles.pathTitle, creditOnly && styles.pathTitleOn]}>Let them choose</Text>
-        <Text style={[styles.pathBody, creditOnly && styles.pathBodyOn]}>
-          {boxesClosed
-            ? 'Gift credit for the Grapejuice store.'
-            : 'Gift credit worth a box for their family. Their parents build their own box or shop the store.'}
-        </Text>
-      </TouchableOpacity>
+        boxesClosed={boxesClosed}
+      />
 
       {creditOnly ? (
         <>
           <View style={checkoutUi.divider} />
           <Text style={checkoutUi.sectionHeading}>Gift Amount</Text>
-          <View style={styles.kidsRow}>
-            <Text style={styles.kidsLabel}>How many kids in their family?</Text>
-            <View style={styles.stepper}>
-              <TouchableOpacity
-                onPress={() => setCreditKids(creditKids - 1)}
-                style={styles.stepBtn}
-                disabled={submitting || creditKids <= 0}
-                accessibilityRole="button"
-                accessibilityLabel="Fewer kids"
-              >
-                <Text style={styles.stepBtnText}>−</Text>
-              </TouchableOpacity>
-              <Text style={styles.stepCount}>{creditKids}</Text>
-              <TouchableOpacity
-                onPress={() => setCreditKids(creditKids + 1)}
-                style={styles.stepBtn}
-                disabled={submitting || creditKids >= MAX_GIFT_CREDIT_KIDS}
-                accessibilityRole="button"
-                accessibilityLabel="More kids"
-              >
-                <Text style={styles.stepBtnText}>+</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <Text style={checkoutUi.hint}>
-            {formatCatalogDollars(creditCents)} gift credit
-            {boxesClosed
-              ? ''
-              : `, enough for a Hanukkah box${
-                  creditKids === 0 ? '' : ` for ${creditKids === 1 ? 'one kid' : `${creditKids} kids`}`
-                }`}
-            .
-          </Text>
+          <GiftCreditKidsField
+            creditKids={creditKids}
+            onChange={(n) => onChange({ creditKids: n })}
+            disabled={submitting}
+            boxesClosed={boxesClosed}
+          />
         </>
       ) : null}
 
@@ -372,6 +428,7 @@ const styles = StyleSheet.create({
     borderColor: semanticColors.logoDark,
   },
   pathCardClosed: { opacity: 0.55 },
+  pathCardError: { borderColor: semanticColors.error, borderWidth: 1 },
   kidsRow: {
     flexDirection: 'row',
     alignItems: 'center',

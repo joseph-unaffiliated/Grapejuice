@@ -16,7 +16,12 @@ import {
 } from './myGiftsLink';
 import { readStorePathFromPathname } from './storeLink';
 import { GIFT_LANDING_PATH } from './giftLandingLink';
-import { GIFT_CUSTOMIZE_PATH, GIFT_GIVE_PATH } from './giftFlowLink';
+import {
+  GIFT_CUSTOMIZE_PATH,
+  GIFT_GIVE_PATH,
+  giftGiveParamsFromDraft,
+  giftStepFromSearch,
+} from './giftFlowLink';
 import { contentRouteFromPath } from './contentLink';
 import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
@@ -235,6 +240,7 @@ function restoreFromPath(
         },
         childDrafts: DEFAULT_GIFT_CHILDREN,
         initialGiftPath: 'customize' as const,
+        step: 'kids',
       });
     }
     return true;
@@ -242,15 +248,7 @@ function restoreFromPath(
   if (path === GIFT_GIVE_PATH) {
     const intent = useGiftIntentStore.getState();
     const draft = intent.status === 'incomplete' ? intent.draft : null;
-    if (draft?.form) {
-      open('GiftGive', {
-        form: draft.form,
-        childDrafts: draft.childDrafts ?? DEFAULT_GIFT_CHILDREN,
-        initialGiftPath: draft.form.giftPath ?? undefined,
-      });
-    } else {
-      open('GiftGive');
-    }
+    open('GiftGive', giftGiveParamsFromDraft(draft, giftStepFromSearch(search)));
     return true;
   }
   if (path.startsWith(`${PRODUCT_PATH_PREFIX}/`)) {

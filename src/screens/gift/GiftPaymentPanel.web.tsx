@@ -1,5 +1,5 @@
 /** Gift Stripe payment step — same Account-style chrome as the Payment page. */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { formatDollars } from '../../services/box/buildDefaultBox';
@@ -13,6 +13,7 @@ import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from '../main/checkout/checkoutUi';
 import { PAYMENT_ELEMENT_OPTIONS } from '../main/checkout/stripeAppearance';
 import { metaEventIds, trackMeta, trackMetaCustom } from '../../services/analytics/metaPixel';
+import { revealField } from '../../utils/revealField';
 
 /** Stripe Elements appearance — closer to Grapejuice checkout than default purple Stripe. */
 export const GIFT_STRIPE_APPEARANCE = {
@@ -36,7 +37,8 @@ type Props = {
   /** True when giver curated line items (not credit-only). */
   customize?: boolean;
   onPaid: (result: { claimUrl: string }) => void;
-  onCancel: () => void;
+  /** ← Back link; omit when the page already has one. */
+  onCancel?: () => void;
   onError: (title: string, message: string) => void;
   /** Small "Cancel gift" link under Pay — wipes the incomplete gift. */
   onCancelGift?: () => void;
@@ -62,6 +64,8 @@ export function GiftPaymentPanel({
     'loading'
   );
   const [elementError, setElementError] = useState<string | null>(null);
+  const [cardComplete, setCardComplete] = useState(false);
+  const paymentWrapRef = useRef<View>(null);
 
   useEffect(() => {
     if (elementState !== 'loading') return;
@@ -71,6 +75,15 @@ export function GiftPaymentPanel({
 
   const pay = async () => {
     if (!stripe || !elements) return;
+    if (!cardComplete) {
+      // Inline field errors instead of an alert, and bring the card form into view.
+      const { error } = await elements.submit();
+      if (error) {
+        revealField(paymentWrapRef.current, { focus: false });
+        elements.getElement('payment')?.focus();
+        return;
+      }
+    }
     setPaying(true);
     try {
       const { error } = await stripe.confirmPayment({
@@ -106,14 +119,16 @@ export function GiftPaymentPanel({
 
   return (
     <View>
-      <TouchableOpacity
-        onPress={onCancel}
-        style={styles.back}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-      >
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
+      {onCancel ? (
+        <TouchableOpacity
+          onPress={onCancel}
+          style={styles.back}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <Text style={checkoutUi.title}>Payment</Text>
       <Text style={checkoutUi.lead}>
@@ -149,10 +164,11 @@ export function GiftPaymentPanel({
       <View style={checkoutUi.divider} />
 
       <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
-      <View style={styles.paymentElementWrap}>
+      <View ref={paymentWrapRef} style={styles.paymentElementWrap}>
         <PaymentElement
           options={PAYMENT_ELEMENT_OPTIONS}
           onReady={() => setElementState('ready')}
+          onChange={(event) => setCardComplete(event.complete)}
           onLoadError={(event) => {
             console.warn('[gift] PaymentElement failed to load', event.error);
             setElementError(event.error?.message ?? null);
@@ -172,12 +188,14 @@ export function GiftPaymentPanel({
       </View>
 
       <GrapejuiceButton
-        label={`Pay ${formatDollars(amountCents)} & send gift`}
+        label={cardComplete ? 'Send your gift' : 'Continue'}
         variant="filled"
         onPress={() => void pay()}
         loading={paying}
         disabled={elementState !== 'ready'}
-        accessibilityLabel={`Pay ${formatDollars(amountCents)} and send`}
+        accessibilityLabel={
+          cardComplete ? `Pay ${formatDollars(amountCents)} and send your gift` : 'Continue'
+        }
         style={[checkoutUi.button, styles.ctaSpacing]}
         textStyle={checkoutUi.buttonText}
       />

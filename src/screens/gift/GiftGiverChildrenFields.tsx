@@ -16,10 +16,12 @@ type Props = {
   children: GiftChildDraft[];
   onChange: (next: GiftChildDraft[]) => void;
   disabled?: boolean;
+  /** Off when the page title already says what this is. */
+  showHeading?: boolean;
 };
 
 /** Kid ages for giver curation — visual match to onboarding BoxIntro age chips. */
-export function GiftGiverChildrenFields({ children, onChange, disabled }: Props) {
+export function GiftGiverChildrenFields({ children, onChange, disabled, showHeading = true }: Props) {
   const styles = useMemo(() => createStyles(), []);
 
   const syncCount = (n: number) => {
@@ -52,10 +54,14 @@ export function GiftGiverChildrenFields({ children, onChange, disabled }: Props)
 
   return (
     <View>
-      <Text style={checkoutUi.sectionHeading}>Kids&apos; Ages</Text>
-      <Text style={[checkoutUi.hint, styles.hint]}>
-        Same ages as box onboarding — we use them for books and presents.
-      </Text>
+      {showHeading ? (
+        <>
+          <Text style={checkoutUi.sectionHeading}>Kids&apos; Ages</Text>
+          <Text style={[checkoutUi.hint, styles.hint]}>
+            Same ages as box onboarding — we use them for books and presents.
+          </Text>
+        </>
+      ) : null}
 
       <View style={styles.row}>
         <Text style={styles.label}>How many kids?</Text>

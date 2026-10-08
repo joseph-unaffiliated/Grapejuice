@@ -1,6 +1,11 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { BoxLineItem } from '../types/pilot';
-import type { GiftChildDraft, GiftGiveFormValues, GiftPath } from '../screens/gift/giftGiveTypes';
+import type {
+  GiftChildDraft,
+  GiftGiveFormValues,
+  GiftPath,
+  GiftStep,
+} from '../screens/gift/giftGiveTypes';
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -97,6 +102,10 @@ export type MainStackParamList = {
         childDrafts?: GiftChildDraft[];
         /** After signup, open Stripe payment immediately (credit-only). */
         autoStartPayment?: boolean;
+        /** Web step flow; mirrored in `?step=`. */
+        step?: GiftStep;
+        /** Curated box picks, handed back from the box editor for the note / send / pay steps. */
+        lineItems?: BoxLineItem[];
       }
     | undefined;
   GiftGiverCustomize: {

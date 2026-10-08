@@ -386,6 +386,69 @@ export const revealBoxWithEmail = onCall(
   }
 );
 
+export type SignInGiftGiverResult =
+  | { status: 'created'; customToken: string }
+  | { status: 'existing' };
+
+/**
+ * Gift flow email step (src/screens/gift/GiftGiveScreen.web.tsx). Unauthenticated.
+ * - New email: create a passwordless account that skips box onboarding and return a custom token.
+ *   They get back in with an emailed login link (or set a password / Google later).
+ * - Existing account: no token (typing someone else's email must not sign you in). The gift
+ *   still files under that account via purchasePilotGift's guest giverEmail.
+ */
+export const signInGiftGiver = onCall(
+  { memory: '512MiB' },
+  async (request): Promise<SignInGiftGiverResult> => {
+    const data = (request.data ?? {}) as { email?: unknown; name?: unknown };
+    const email = normalizeEmail(data.email);
+    const firstName = firstNameOf(data.name);
+    const db = getFirestore();
+    await enforceRateLimits(db, email, request.rawRequest, 'giftsignin:');
+
+    const auth = getAuth();
+    try {
+      await auth.getUserByEmail(email);
+      logger.info('signInGiftGiver: existing');
+      return { status: 'existing' };
+    } catch (err) {
+      if ((err as { code?: string })?.code !== 'auth/user-not-found') throw err;
+    }
+
+    let uid: string;
+    try {
+      const created = await auth.createUser({
+        email,
+        // Must stay false: admin access by staff email requires a verified address.
+        emailVerified: false,
+        ...(firstName ? { displayName: firstName } : {}),
+      });
+      uid = created.uid;
+    } catch (err) {
+      if ((err as { code?: string })?.code === 'auth/email-already-exists') return { status: 'existing' };
+      throw err;
+    }
+
+    const now = new Date().toISOString();
+    await db.doc(`users/${uid}`).set(
+      {
+        uid,
+        email,
+        displayName: firstName ?? null,
+        role: 'parent',
+        onboardingComplete: true,
+        boxRevealComplete: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+    const customToken = await auth.createCustomToken(uid, { via: 'gift' });
+    logger.info('signInGiftGiver: created');
+    return { status: 'created', customToken };
+  }
+);
+
 /** "Email me a login link" on sign-in. Always ok — never reveals whether the email has an account. */
 export const requestLoginLink = onCall(
   { memory: '512MiB' },

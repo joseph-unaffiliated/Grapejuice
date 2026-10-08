@@ -8,6 +8,7 @@ import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { useThemeMode } from '../../context/ThemeContext';
 import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton';
 import { spacing, typography, typeface } from '../../constants/theme';
 import type { AuthStackParamList } from '../../navigation/types';
 
@@ -37,9 +38,7 @@ export function SignUpScreen() {
           </View>
         ) : null}
 
-        <GrapejuiceButton
-          label="Continue with Google"
-          variant="pill"
+        <GoogleAuthButton
           onPress={async () => {
             clearError();
             setBusy('google');

@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
 import { connectGoogleToCurrentUser } from '../../services/auth/auth';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton';
 import { CONNECT_GOOGLE_PATH } from '../../navigation/loginLink';
 import {
   AccountConvertPage,
@@ -91,9 +92,7 @@ export function ConnectGoogleScreen() {
       title="Log in with Google"
       lead={`Connect a Google account so you can log in to ${user.email} with one click.`}
     >
-      <GrapejuiceButton
-        label="Continue with Google"
-        variant="pill"
+      <GoogleAuthButton
         onPress={() => void onConnect()}
         disabled={busy}
         loading={busy}

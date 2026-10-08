@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GrapejuiceWordmarkLockup } from '../brand/GrapejuiceWordmarkLockup';
 import { GrapejuiceButton } from '../ui/GrapejuiceButton';
+import { GoogleAuthButton } from './GoogleAuthButton';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
@@ -53,9 +54,7 @@ export function GuestAuthPrompt({ returnTo = 'Account', showBack = false, onBack
         <GrapejuiceWordmarkLockup color={semanticColors.logoDark} />
 
         <View style={styles.actions}>
-          <GrapejuiceButton
-            label="Continue with Google"
-            variant="pill"
+          <GoogleAuthButton
             onPress={() => void onGoogle()}
             disabled={busy}
             loading={busy}

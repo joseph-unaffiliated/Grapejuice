@@ -103,7 +103,15 @@ async function ensureGiftResumeSkipsOnboarding(user: AuthUser): Promise<void> {
   });
 }
 
-export async function persistGuestToAccount(user: AuthUser): Promise<void> {
+export type PersistGuestOptions = {
+  /** Signed in mid-flow (gift email step): never bounce to onboarding or My Box. */
+  stayOnSurface?: boolean;
+};
+
+export async function persistGuestToAccount(
+  user: AuthUser,
+  options: PersistGuestOptions = {}
+): Promise<void> {
   const guest = useGuestSessionStore.getState();
   markGuestSessionConverted();
   // A Google redirect reloads the page, so the store is empty here — fall back to
@@ -119,7 +127,7 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   const giftResume = giftCustomizeResume || giftGiveResume || giftClaimResume;
   /** Checkout / nav / gift — stay on surface; never start a box for them. */
   const skipBoxOnboarding =
-    giftResume || authReturnSkipsBoxOnboarding(pendingAtStart);
+    giftResume || !!options.stayOnSurface || authReturnSkipsBoxOnboarding(pendingAtStart);
 
   // Do this first — before any stub profile with onboardingComplete: false can win the race.
   if (giftCustomizeResume) {
@@ -270,7 +278,7 @@ export async function persistGuestToAccount(user: AuthUser): Promise<void> {
   });
 
   // Gift path already queued at the top — never overwrite with My Box.
-  if (giftResume) {
+  if (giftResume || options.stayOnSurface) {
     return;
   }
 

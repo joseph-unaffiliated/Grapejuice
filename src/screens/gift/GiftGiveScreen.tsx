@@ -73,7 +73,7 @@ function GiftGiveScreenBody() {
       return;
     }
     if (values.giftPath !== 'credit_only') {
-      setFormError('Choose “Let them choose” to send credit, or “Pick it for them” to curate.');
+      setFormError('Choose “Let them choose” to send credit, or “Pick items for them” to curate.');
       return;
     }
     const draft = {
@@ -161,7 +161,7 @@ function GiftGiveScreenBody() {
       return;
     }
 
-    setFormError('Choose “Pick it for them” (curated box) or “Let them choose” (credit).');
+    setFormError('Choose “Pick items for them” (curated box) or “Let them choose” (credit).');
   };
 
   useEffect(() => {

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
@@ -81,6 +81,7 @@ import {
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
+import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
@@ -179,6 +180,10 @@ export function GiftGiverCustomizeContent({
   const detailStyles = useMemo(
     () => createBoxDetailStyles(colors, { desktop: isDesktop }),
     [colors, isDesktop],
+  );
+  const isFocused = useIsFocused();
+  const onSummaryLayout = useCookieButtonClearance(
+    isFocused && !isDesktop && !loading && !paymentSlot
   );
 
   useEffect(() => {
@@ -596,7 +601,7 @@ export function GiftGiverCustomizeContent({
         Send a gift
       </Text>
       <Text style={styles.crumbSep}> / </Text>
-      <Text style={styles.crumbCurrent}>Pick their box</Text>
+      <Text style={styles.crumbCurrent}>Curate their box</Text>
     </View>
   );
 
@@ -738,7 +743,7 @@ export function GiftGiverCustomizeContent({
               <BoxDetailToolbar
                 lockAt={null}
                 now={new Date()}
-                title="Pick their box"
+                title="Curate their box"
                 onBack={() => navigation.goBack()}
                 showCalendar={false}
               />
@@ -759,7 +764,11 @@ export function GiftGiverCustomizeContent({
           </ScrollView>
         </View>
       </WebContentPanel>
-      <View style={[styles.summaryFloat, { bottom: floatBottom }]} pointerEvents="box-none">
+      <View
+        style={[styles.summaryFloat, { bottom: floatBottom }]}
+        pointerEvents="box-none"
+        onLayout={onSummaryLayout}
+      >
         <View style={styles.summaryFloatInner}>{summaryPanel}</View>
       </View>
       <BoxProductModal

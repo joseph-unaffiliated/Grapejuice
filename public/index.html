@@ -300,6 +300,12 @@ geq.load("X2JHJ4WE");}();
         height: 0 !important;
         overflow: hidden !important;
       }
+      /* Full-width bottom bar (gift box summary on phones): lift the cookie FAB above it. */
+      body.gj-bottom-bar #ot-sdk-btn-floating,
+      body.gj-bottom-bar #ot-sdk-btn-floating.ot-floating-button,
+      body.gj-bottom-bar [data-testid="gj-admin-fab"] {
+        bottom: calc(var(--gj-bottom-bar-h, 96px) + 12px) !important;
+      }
       /* Click/tap: no focus ring. Keyboard navigation still uses :focus-visible. */
       #root button:focus:not(:focus-visible),
       #root [role="button"]:focus:not(:focus-visible),

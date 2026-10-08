@@ -67,7 +67,12 @@ import { AdminControlPanel } from '../components/storefront/AdminControlPanel';
 import { getBootLocation } from './bootLocation';
 import { landingAudienceFromPath } from '../constants/landingAudiences';
 import { normalizeLandingPath } from '../constants/landingPaths';
-import { isGiftCustomizePath, isGiftGivePath } from './giftFlowLink';
+import {
+  giftGiveParamsFromDraft,
+  isGiftCustomizePath,
+  isGiftGivePath,
+  readGiftStepFromWindow,
+} from './giftFlowLink';
 import { contentRouteFromPath } from './contentLink';
 import { readStorePathFromBoot } from './storeLink';
 import {
@@ -363,14 +368,12 @@ export function MainStack() {
               };
             }
             const intent = useGiftIntentStore.getState();
-            if (intent.status === 'incomplete' && intent.draft?.form) {
-              return {
-                form: intent.draft.form,
-                childDrafts: intent.draft.childDrafts ?? DEFAULT_GIFT_CHILDREN,
-                initialGiftPath: intent.draft.form.giftPath ?? undefined,
-              };
-            }
-            return null;
+            return (
+              giftGiveParamsFromDraft(
+                intent.status === 'incomplete' ? intent.draft : null,
+                readGiftStepFromWindow()
+              ) ?? null
+            );
           })()
         : initialRouteName === 'GiftClaim'
           ? { token: useAuthFlowStore.getState().pendingGiftClaimToken ?? undefined }

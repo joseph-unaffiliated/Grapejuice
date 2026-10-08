@@ -230,6 +230,7 @@ export function AdminControlPanel() {
         accessibilityRole="button"
         accessibilityLabel="Admin controls"
         accessibilityState={{ expanded: open }}
+        testID="gj-admin-fab"
       >
         <Icon icon={icons.gear} size={22} color={semanticColors.logoDark} />
       </TouchableOpacity>

@@ -16,6 +16,7 @@ import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useThemeMode } from '../../context/ThemeContext';
 import { AuthHeroShell } from '../../components/auth/AuthHeroShell';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton';
 import { spacing, typography, typeface, borderRadius } from '../../constants/theme';
 import type { AuthStackParamList } from '../../navigation/types';
 import { requestLoginLink } from '../../services/auth/loginLinks';
@@ -175,9 +176,7 @@ export function SignInEmailScreen() {
         style={[styles.goldDivider, { backgroundColor: colors.border }]}
         accessibilityRole="none"
       />
-      <GrapejuiceButton
-        label="Continue with Google"
-        variant="pill"
+      <GoogleAuthButton
         onPress={async () => {
           clearError();
           setBusy('google');
