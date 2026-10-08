@@ -1,4 +1,5 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { HttpsError, onCall } from './sentry';
 import { isAdminToken } from './guestSessions';
 
@@ -207,6 +208,9 @@ function isTest(...vals: Array<string | null | undefined>): boolean {
     return /@unaffiliated?(\.co)?$/.test(s) || /@(a\.com|test\.com|example\.com)$/.test(s) || /joseph|jweissgold|brendan/.test(s);
   });
 }
+
+/** "Sarah Cohen" → "Sarah". */
+const firstNameOf = (name: string | null): string | null => name?.trim().split(/\s+/)[0] || null;
 
 const score = (v: unknown): number | null => {
   const n = num(v);
@@ -475,6 +479,13 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   }
   const userRefs = [...userIds].map((uid) => db.doc(`users/${uid}`));
   const userSnaps = userRefs.length ? await db.getAll(...userRefs) : [];
+  // Profiles can miss email/displayName (a region write raced profile creation); Auth still has them.
+  const authByUid = new Map<string, { email: string | null; name: string | null }>();
+  const needAuth = userSnaps.filter((s) => !str(s.data()?.email) || !str(s.data()?.displayName)).map((s) => s.id);
+  for (let i = 0; i < needAuth.length; i += 100) {
+    const { users: records } = await getAuth().getUsers(needAuth.slice(i, i + 100).map((uid) => ({ uid })));
+    for (const r of records) authByUid.set(r.uid, { email: r.email ?? null, name: r.displayName ?? null });
+  }
   // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
   const guestAnswersByUid = new Map<string, DashAnswers>();
   const guestAdByUid = new Map<string, string>();
@@ -512,9 +523,10 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const fromGuest = guestAnswersByUid.get(s.id) ?? NO_ANSWERS;
     const hanukkah = score(last.familiarityScore) ?? fromGuest.hanukkah;
     const attr = x.attribution ?? {};
+    const fromAuth = authByUid.get(s.id);
     users.set(s.id, {
-      email: str(x.email),
-      name: str(x.displayName),
+      email: str(x.email) ?? fromAuth?.email ?? null,
+      name: firstNameOf(str(x.displayName) ?? fromAuth?.name ?? null),
       answers: {
         hanukkah,
         hanukkahLevel: hanukkah == null ? str(last.familiarityLevel) ?? str(x.familiarityLevel) : null,
@@ -550,7 +562,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const email = u?.email ?? null;
     const childNames = (owner && childNamesByUser.get(owner)) || new Map<string, string | null>();
     return {
-      name: u?.name ?? (email ? email.split('@')[0] : null) ?? str(h.name),
+      name: u?.name ?? (email ? email.split('@')[0] : null),
       email,
       test: isTest(email, u?.name),
       answers: u?.answers ?? NO_ANSWERS,

@@ -233,7 +233,7 @@ export const markGuestSessionConverted = onCall({ memory: '512MiB' }, async (req
   const visitorId = validateVisitorId(data.visitorId);
   const db = getFirestore();
   const geo = geoFromRequest(request.rawRequest);
-  if (geo) await db.doc(`users/${request.auth.uid}`).set({ ipGeo: ipGeoField(geo) }, { merge: true });
+  if (geo) await noteProfileGeo(request.auth.uid, geo);
   const ref = db.doc(`guestSessions/${visitorId}`);
   const snap = await ref.get();
   if (!snap.exists) return { ok: true, found: false };
@@ -257,9 +257,21 @@ export const markGuestSessionConverted = onCall({ memory: '512MiB' }, async (req
 export const noteVisitorRegion = onCall({ memory: '512MiB' }, async (request) => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.');
   const geo = geoFromRequest(request.rawRequest);
-  if (geo) await getFirestore().doc(`users/${request.auth.uid}`).set({ ipGeo: ipGeoField(geo) }, { merge: true });
+  if (geo) await noteProfileGeo(request.auth.uid, geo);
   return { ok: true };
 });
+
+/**
+ * Update only: creating users/{uid} here races the client's first profile write, which then
+ * sees a profile and never saves email, name, or attribution.
+ */
+async function noteProfileGeo(uid: string, geo: IpGeo): Promise<void> {
+  try {
+    await getFirestore().doc(`users/${uid}`).update({ ipGeo: ipGeoField(geo) });
+  } catch (err) {
+    if ((err as { code?: number })?.code !== 5) throw err;
+  }
+}
 
 export type MintedResumeToken = { token: string; url: string; hash: string };
 

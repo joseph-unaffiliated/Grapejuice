@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, type DocumentSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type {
   AccountRole,
@@ -79,12 +79,19 @@ function omitUndefined(obj: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/** Server-side merges (ipGeo, householdId) can create users/{uid} before the profile exists. */
+function hasProfile(snap: DocumentSnapshot): boolean {
+  if (!snap.exists()) return false;
+  const d = snap.data();
+  return Boolean(d.createdAt || d.role) || d.onboardingComplete !== undefined;
+}
+
 export const usersService = {
   async get(uid: string): Promise<UserProfile | null> {
     if (!db) return null;
     await ensureAuthTokenReady(uid);
     const snap = await getDoc(doc(db, 'users', uid));
-    if (!snap.exists()) return null;
+    if (!hasProfile(snap)) return null;
     return toProfile(snap.id, snap.data() as Record<string, unknown>);
   },
 
@@ -101,7 +108,7 @@ export const usersService = {
       ...data,
       updatedAt: now,
     });
-    const isNewProfile = !existing.exists();
+    const isNewProfile = !hasProfile(existing);
     if (isNewProfile) {
       payload.createdAt = now;
       payload.role = data.role ?? 'parent';
