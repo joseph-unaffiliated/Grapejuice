@@ -696,7 +696,7 @@ function GiftGiveBody() {
         </>
       }
     >
-      <View ref={topRef} />
+      <View ref={topRef} style={styles.topSpacer} />
       {paymentReady ? (
         <Elements
           key={payment.clientSecret}
@@ -771,6 +771,7 @@ const styles = StyleSheet.create({
   footerGap: {
     height: 80,
   },
+  topSpacer: { height: spacing.xl },
   section: { marginTop: spacing.md },
   requiredHint: { marginBottom: spacing.xs },
   requiredMark: {

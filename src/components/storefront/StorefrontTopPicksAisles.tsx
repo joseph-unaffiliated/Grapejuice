@@ -32,8 +32,8 @@ export function StorefrontTopPicksAisles({
   variant = 'home',
 }: Props) {
   const { isCompact: compact } = useLayoutBreakpoint();
-  const railLimit = compact ? 10 : 6;
-  const gridLimit = compact ? 10 : 3;
+  const railLimit = compact ? 24 : 6;
+  const gridLimit = compact ? 24 : 3;
   const gridLayout = compact ? 'rail' : 'grid';
 
   const loved = useMemo(() => {
