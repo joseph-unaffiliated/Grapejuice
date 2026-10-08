@@ -337,9 +337,7 @@ export function MainStack() {
           if (intent.status === 'incomplete' && intent.draft?.form) {
             return {
               form: { ...intent.draft.form, giftPath: 'customize' as const },
-              childDrafts: intent.draft.childDrafts?.length
-                ? intent.draft.childDrafts
-                : DEFAULT_GIFT_CHILDREN,
+              childDrafts: intent.draft.childDrafts ?? DEFAULT_GIFT_CHILDREN,
               lineItems: intent.draft.lineItems,
             };
           }
@@ -368,9 +366,7 @@ export function MainStack() {
             if (intent.status === 'incomplete' && intent.draft?.form) {
               return {
                 form: intent.draft.form,
-                childDrafts: intent.draft.childDrafts?.length
-                  ? intent.draft.childDrafts
-                  : DEFAULT_GIFT_CHILDREN,
+                childDrafts: intent.draft.childDrafts ?? DEFAULT_GIFT_CHILDREN,
                 initialGiftPath: intent.draft.form.giftPath ?? undefined,
               };
             }

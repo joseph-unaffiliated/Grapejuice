@@ -65,9 +65,9 @@ function getErrorMessage(error: unknown): string {
   }
   if (error instanceof Error && error.message === GOOGLE_REDIRECT_SESSION_LOST) {
     if (isRestrictedWebAuthEnvironment()) {
-      return 'Google sign-in can’t save a session in this embedded browser. Open http://localhost:8081 in Chrome for Google, or use email sign-in here.';
+      return 'Google sign-in doesn’t work in this in-app browser. Use your email instead, or open this page in Safari or Chrome.';
     }
-    return 'Google sign-in couldn’t restore your session (browser storage blocked). Allow site data for localhost, try Chrome, or use email sign-in.';
+    return 'Google sign-in couldn’t finish because this browser blocked site data. Use your email instead, or try another browser.';
   }
   if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
     const code = String((error as { code: unknown }).code);
@@ -80,9 +80,9 @@ function getErrorMessage(error: unknown): string {
     }
     if (code === 'auth/internal-error') {
       if (typeof window !== 'undefined' && isRestrictedWebAuthEnvironment()) {
-        return 'Google sign-in is limited in this embedded browser. Use email sign-in here, or open http://localhost:8081 in Chrome for Google.';
+        return 'Google sign-in doesn’t work in this in-app browser. Use your email instead, or open this page in Safari or Chrome.';
       }
-      return 'Google sign-in failed (auth/internal-error). Try Chrome on localhost, or use email sign-in. If it keeps failing, check the browser console for CSP errors and confirm Google is enabled in Firebase Auth.';
+      return 'Google sign-in didn’t go through. Try again, or use your email instead.';
     }
     if (code === 'auth/wrong-password') {
       return 'Current password is incorrect.';

@@ -219,7 +219,7 @@ function restoreFromPath(
   if (path === GIFT_CUSTOMIZE_PATH) {
     const intent = useGiftIntentStore.getState();
     const draft = intent.status === 'incomplete' ? intent.draft : null;
-    if (draft?.form && draft.childDrafts?.length) {
+    if (draft?.form && draft.childDrafts) {
       open('GiftGiverCustomize', {
         form: { ...draft.form, giftPath: 'customize' as const },
         childDrafts: draft.childDrafts,
@@ -245,7 +245,7 @@ function restoreFromPath(
     if (draft?.form) {
       open('GiftGive', {
         form: draft.form,
-        childDrafts: draft.childDrafts?.length ? draft.childDrafts : DEFAULT_GIFT_CHILDREN,
+        childDrafts: draft.childDrafts ?? DEFAULT_GIFT_CHILDREN,
         initialGiftPath: draft.form.giftPath ?? undefined,
       });
     } else {

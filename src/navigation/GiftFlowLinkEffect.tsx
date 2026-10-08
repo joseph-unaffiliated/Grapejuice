@@ -67,7 +67,7 @@ export function GiftFlowLinkEffect() {
       if (pendingCustomize.current) {
         pendingCustomize.current = false;
         pendingGive.current = false;
-        if (draft?.form && draft.childDrafts?.length) {
+        if (draft?.form && draft.childDrafts) {
           navigateGiftCustomize({
             form: { ...draft.form, giftPath: 'customize' as const },
             childDrafts: draft.childDrafts,
@@ -94,7 +94,7 @@ export function GiftFlowLinkEffect() {
         if (draft?.form) {
           navigateGiftGive({
             form: draft.form,
-            childDrafts: draft.childDrafts?.length ? draft.childDrafts : DEFAULT_GIFT_CHILDREN,
+            childDrafts: draft.childDrafts ?? DEFAULT_GIFT_CHILDREN,
             initialGiftPath: draft.form.giftPath ?? undefined,
           });
           return;
