@@ -30,8 +30,8 @@ const TEMPLATE_IDS: Record<string, number> = {
   'order-shipped': parseInt(process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED ?? '0', 10) || 16,
   /** Hanukkah box off-session decline — transactional message 17. */
   'box-charge-failed': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED ?? '0', 10) || 17,
-  /** Passwordless login / save-this-box link (functions/src/loginLinks.ts). Set once the draft is approved. */
-  'login-link': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK ?? '0', 10) || 0,
+  /** Passwordless login / save-this-box link — transactional message 19 (sends fail until it's published). */
+  'login-link': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK ?? '0', 10) || 19,
 };
 
 /** Env vars for Customer.io transactional templates:

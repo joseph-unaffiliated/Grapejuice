@@ -45,8 +45,8 @@ const TEMPLATE_IDS = {
     'order-shipped': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _o !== void 0 ? _o : '0', 10) || 16,
     /** Hanukkah box off-session decline — transactional message 17. */
     'box-charge-failed': parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _p !== void 0 ? _p : '0', 10) || 17,
-    /** Passwordless login / save-this-box link (functions/src/loginLinks.ts). Set once the draft is approved. */
-    'login-link': parseInt((_q = process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK) !== null && _q !== void 0 ? _q : '0', 10) || 0,
+    /** Passwordless login / save-this-box link — transactional message 19 (sends fail until it's published). */
+    'login-link': parseInt((_q = process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK) !== null && _q !== void 0 ? _q : '0', 10) || 19,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
