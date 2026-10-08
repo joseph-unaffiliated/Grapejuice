@@ -39,7 +39,6 @@ import {
   SwapIntoBoxModal,
   swapTitleForItem,
 } from '../../components/storefront/SwapIntoBoxModal';
-import { StickySectionNav } from '../../components/box/StickySectionNav';
 import { BoxDetailToolbar } from '../../components/box/BoxDetailToolbar';
 import { BoxDetailSectionBlock } from '../../components/box/BoxDetailSectionBlock';
 import { PresentsWrappableList } from '../../components/box/PresentsWrappableList';
@@ -85,7 +84,6 @@ import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
-import { useAuthStore } from '../../stores/authStore';
 import {
   MOBILE_GUTTER,
   spacing,
@@ -135,21 +133,11 @@ type Props = {
   onPay: () => void;
   /** Small "Cancel gift" link under Continue to payment — wipes the incomplete gift. */
   onCancelGift?: () => void;
-  onRequireAuth?: (entry: 'signup' | 'signin') => void;
   payError?: string | null;
   paymentSlot?: React.ReactNode;
 };
 
-function pickingLead(giverName: string): string {
-  const name = giverName.trim();
-  if (!name || /^you$/i.test(name)) {
-    return 'You are picking this box — the family will see your choices when they claim the gift.';
-  }
-  return `${name} is picking this box — the family will see your choices when they claim the gift.`;
-}
-
 export function GiftGiverCustomizeContent({
-  form,
   catalog,
   lineItems,
   kidProfiles,
@@ -168,7 +156,6 @@ export function GiftGiverCustomizeContent({
   setCashDonation,
   onPay,
   onCancelGift,
-  onRequireAuth,
   payError,
   paymentSlot,
 }: Props) {
@@ -177,7 +164,6 @@ export function GiftGiverCustomizeContent({
   const { colors } = useThemeMode();
   const { isDesktop, widePanelMaxWidth } = useWebLayout();
   const insets = useSafeAreaInsets();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [catalogById, setCatalogById] = useState<Record<string, CatalogItem>>({});
   const [productModalItem, setProductModalItem] = useState<CatalogItem | null>(null);
   const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(
@@ -259,7 +245,7 @@ export function GiftGiverCustomizeContent({
     [],
   );
 
-  const { scrollRef, contentRef, activeSection, registerSection, onSectionLayout, onScroll, scrollToSection } =
+  const { scrollRef, contentRef, registerSection, onSectionLayout, onScroll, scrollToSection } =
     useBoxDetailScroll({ visibleSectionIds });
 
   const assignKidGiftAndReveal = (childId: string, item: CatalogItem) => {
@@ -645,7 +631,7 @@ export function GiftGiverCustomizeContent({
       <View style={styles.summaryBreakdown}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>
-            {kidProfiles.length === 0
+            {kidProfiles.length === 0 || !isDesktop
               ? 'Gift box'
               : kidsCount === 1
                 ? 'Gift box (1 kid)'
@@ -672,78 +658,48 @@ export function GiftGiverCustomizeContent({
         <View style={styles.summaryTotalItem}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
-          {retailValueCents > 0 ? (
+          {retailValueCents > 0 && isDesktop ? (
             <Text style={styles.summaryRetailValue}>
               ({formatCatalogDollars(retailValueCents)} value)
             </Text>
           ) : null}
         </View>
-        {!isAuthenticated ? (
-          <View style={styles.summaryCtaRow}>
-            <Pressable
-              style={({ pressed, hovered }) => [
-                styles.checkoutCta,
-                styles.guestPrimaryCta,
-                (hovered || pressed) && styles.checkoutCtaHover,
-              ]}
-              onPress={() => onRequireAuth?.('signup')}
+        <View style={styles.summaryCtaRow}>
+          {onCancelGift ? (
+            <TouchableOpacity
+              onPress={onCancelGift}
+              disabled={submitting}
               accessibilityRole="button"
+              accessibilityLabel="Cancel gift"
+              hitSlop={8}
             >
-              {({ pressed, hovered }) => (
+              <Text style={styles.cancelGiftText}>Cancel gift</Text>
+            </TouchableOpacity>
+          ) : null}
+          <Pressable
+            style={({ pressed, hovered }) => [
+              styles.checkoutCta,
+              (hovered || pressed) && styles.checkoutCtaHover,
+              (submitting || lineItems.length === 0) && styles.checkoutCtaDisabled,
+            ]}
+            onPress={onPay}
+            disabled={submitting || lineItems.length === 0}
+            accessibilityRole="button"
+          >
+            {({ pressed, hovered }) =>
+              submitting ? (
+                <ActivityIndicator color={colors.brand} />
+              ) : (
                 <Text
                   style={[styles.checkoutText, (hovered || pressed) && styles.checkoutTextHover]}
                 >
-                  Sign up to continue
+                  Continue
                 </Text>
-              )}
-            </Pressable>
-            <TouchableOpacity
-              onPress={() => onRequireAuth?.('signin')}
-              accessibilityRole="button"
-              hitSlop={8}
-            >
-              <Text style={styles.guestSignIn}>Sign in</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.summaryCtaRow}>
-            <Pressable
-              style={({ pressed, hovered }) => [
-                styles.checkoutCta,
-                (hovered || pressed) && styles.checkoutCtaHover,
-                (submitting || lineItems.length === 0) && styles.checkoutCtaDisabled,
-              ]}
-              onPress={onPay}
-              disabled={submitting || lineItems.length === 0}
-              accessibilityRole="button"
-            >
-              {({ pressed, hovered }) =>
-                submitting ? (
-                  <ActivityIndicator color={colors.brand} />
-                ) : (
-                  <Text
-                    style={[styles.checkoutText, (hovered || pressed) && styles.checkoutTextHover]}
-                  >
-                    Continue to payment
-                  </Text>
-                )
-              }
-            </Pressable>
-          </View>
-        )}
+              )
+            }
+          </Pressable>
+        </View>
       </View>
-      {onCancelGift ? (
-        <TouchableOpacity
-          onPress={onCancelGift}
-          disabled={submitting}
-          style={styles.cancelGift}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel gift"
-          hitSlop={8}
-        >
-          <Text style={styles.cancelGiftText}>Cancel gift</Text>
-        </TouchableOpacity>
-      ) : null}
       {payError ? <Text style={styles.payError}>{payError}</Text> : null}
     </View>
   );
@@ -779,7 +735,6 @@ export function GiftGiverCustomizeContent({
               collapsable={false}
             >
               {breadcrumb}
-              <Text style={styles.lead}>{pickingLead(form.giverName)}</Text>
               <BoxDetailToolbar
                 lockAt={null}
                 now={new Date()}
@@ -787,13 +742,6 @@ export function GiftGiverCustomizeContent({
                 onBack={() => navigation.goBack()}
                 showCalendar={false}
               />
-              {visibleSectionIds.length > 0 ? (
-                <StickySectionNav
-                  activeSection={activeSection}
-                  onSelect={scrollToSection}
-                  sectionIds={visibleSectionIds}
-                />
-              ) : null}
               {visibleSectionIds.map((id, index) =>
                 renderSection(id, index === visibleSectionIds.length - 1),
               )}
@@ -975,14 +923,6 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     kidAddBlocks: { width: '100%', gap: spacing.md, marginTop: spacing.lg },
     /** Space between “Add a gift for…” rails and “Wrappable in this box”. */
     presentsTrailingStack: { width: '100%', gap: spacing.xl },
-    lead: {
-      fontSize: typography.md,
-      lineHeight: typography.md * 1.45,
-      color: colors.textSecondary,
-      marginBottom: spacing.sm,
-      paddingHorizontal: isDesktop ? 0 : MOBILE_GUTTER,
-      ...typeface('regular'),
-    },
     summaryFloat: {
       position: 'absolute',
       left: 0,
@@ -998,7 +938,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     },
     summaryCard: {
       width: '100%',
-      backgroundColor: colors.logoDark,
+      backgroundColor: '#000000',
       borderRadius: isDesktop ? 12 : 0,
       paddingHorizontal: spacing.md,
       paddingTop: spacing.sm,
@@ -1010,7 +950,8 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
-      justifyContent: isDesktop ? 'space-between' : 'center',
+      // Mobile: center Gift box/Total as a group; CTA takes the next full-width row.
+      justifyContent: isDesktop ? 'flex-start' : 'center',
       gap: spacing.sm,
     },
     summaryItem: {
@@ -1026,16 +967,16 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       letterSpacing: -0.22,
     },
     summaryValue: {
-      fontSize: typography.sm,
-      fontWeight: '600',
+      fontSize: typography.titleLg,
       color: colors.textInverse,
-      letterSpacing: -0.22,
+      ...typeface('light'),
+      letterSpacing: -0.32,
     },
     summaryDonatedValue: {
-      fontSize: typography.sm,
-      fontWeight: '600',
+      fontSize: typography.titleLg,
       color: colors.brand,
-      letterSpacing: -0.22,
+      ...typeface('light'),
+      letterSpacing: -0.32,
     },
     summaryTotalItem: {
       flexDirection: 'row',
@@ -1050,16 +991,16 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       minWidth: 0,
     },
     totalLabel: {
-      fontSize: typography.md,
-      fontWeight: '600',
+      fontSize: typography.titleLg,
       color: colors.textInverse,
-      letterSpacing: -0.22,
+      ...typeface('light'),
+      letterSpacing: -0.32,
     },
     totalValue: {
-      fontSize: typography.md,
-      fontWeight: '700',
+      fontSize: typography.titleLg,
       color: colors.brand,
-      letterSpacing: -0.22,
+      ...typeface('light'),
+      letterSpacing: -0.32,
     },
     summaryRetailValue: {
       fontSize: typography.sm,
@@ -1071,20 +1012,14 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     summaryCtaRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.sm,
-      flexShrink: 0,
-      width: '100%',
-      marginTop: spacing.xs,
-    },
-    guestPrimaryCta: {
-      marginLeft: 0,
-    },
-    guestSignIn: {
-      fontSize: typography.sm,
-      color: colors.goldMuted,
-      ...typeface('medium'),
-      letterSpacing: -0.22,
+      // Mobile: CTAs wrap onto their own line under the price — center them there.
+      justifyContent: isDesktop ? 'flex-end' : 'center',
+      gap: spacing.md,
+      flexShrink: 1,
+      flexGrow: 1,
+      flexWrap: 'wrap',
+      marginLeft: isDesktop ? 'auto' : 0,
+      minWidth: 0,
     },
     checkoutCta: {
       backgroundColor: 'transparent',
@@ -1095,7 +1030,6 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: 36,
       flexShrink: 0,
       ...(Platform.OS === 'web'
         ? ({
@@ -1111,10 +1045,10 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     },
     checkoutCtaDisabled: { opacity: 0.5 },
     checkoutText: {
-      fontWeight: '700',
-      fontSize: typography.sm,
+      ...typeface('light'),
+      fontSize: typography.titleLg,
       color: colors.brand,
-      letterSpacing: -0.22,
+      letterSpacing: -0.32,
       textAlign: 'center',
       ...(Platform.OS === 'web'
         ? ({
@@ -1131,15 +1065,11 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
       color: colors.brand,
       ...typeface('medium'),
     },
-    cancelGift: {
-      alignSelf: 'center',
-      marginTop: spacing.md,
-    },
     cancelGiftText: {
       fontSize: typography.sm,
-      color: colors.textTertiary,
-      textDecorationLine: 'underline',
-      ...typeface('regular'),
+      color: colors.goldMuted,
+      ...typeface('medium'),
+      letterSpacing: -0.22,
     },
   });
 }

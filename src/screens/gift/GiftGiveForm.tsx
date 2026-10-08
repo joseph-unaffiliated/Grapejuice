@@ -42,6 +42,9 @@ type Props = {
   onUseAddressSuggestion?: () => void;
   /** Past box lock: the curated box can't be picked, only credit. */
   boxesClosed?: boolean;
+  /** Signed out: ask for the giver's email (no account step before payment). */
+  askGiverEmail?: boolean;
+  giverEmailError?: string | null;
   children?: React.ReactNode;
 };
 
@@ -62,6 +65,8 @@ export function GiftGiveForm({
   addressSuggestion,
   onUseAddressSuggestion,
   boxesClosed = false,
+  askGiverEmail = false,
+  giverEmailError,
   children,
 }: Props) {
   const lockDay = useBoxLockDay();
@@ -213,6 +218,33 @@ export function GiftGiveForm({
             editable={!submitting}
             accessibilityLabel="Your name on the gift"
           />
+
+          {askGiverEmail ? (
+            <>
+              <Text style={checkoutUi.label}>
+                Your email
+                <Text style={styles.requiredMark}> *</Text>
+              </Text>
+              <TextInput
+                style={[checkoutUi.input, giverEmailError ? checkoutUi.inputError : null]}
+                value={values.giverEmail ?? ''}
+                onChangeText={(giverEmail) => onChange({ giverEmail })}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                placeholder="you@example.com"
+                placeholderTextColor={semanticColors.textTertiary}
+                editable={!submitting}
+                accessibilityLabel="Your email, required"
+              />
+              {giverEmailError ? (
+                <Text style={checkoutUi.fieldError}>{giverEmailError}</Text>
+              ) : (
+                <Text style={checkoutUi.hint}>For your receipt. No account needed.</Text>
+              )}
+            </>
+          ) : null}
 
           <Text style={checkoutUi.label}>Short message (optional)</Text>
           <TextInput

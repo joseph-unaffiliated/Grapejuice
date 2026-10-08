@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Alert, Text, Platform, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Alert, Platform, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -9,13 +9,11 @@ import { Elements } from '@stripe/react-stripe-js';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
 import type { MainStackParamList } from '../../navigation/types';
-import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { StorefrontFooter } from '../../components/storefront/StorefrontFooter';
 import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { SystemPage } from '../../components/layout/SystemPage';
 import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
 import { useAuthStore } from '../../stores/authStore';
-import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiveForm } from './GiftGiveForm';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
@@ -44,7 +42,6 @@ function GiftGiveBody() {
   const route = useRoute<RouteProp<MainStackParamList, 'GiftGive'>>();
   const { goHome } = useStorefrontActions();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const startAuthForGiftGive = useAuthFlowStore((s) => s.startAuthForGiftGive);
   const restored = route.params?.form;
   const entryGiftPath = route.params?.initialGiftPath ?? restored?.giftPath ?? null;
   const [values, setValues] = useState<GiftGiveFormValues>(() => {
@@ -57,6 +54,8 @@ function GiftGiveBody() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [giverEmailError, setGiverEmailError] = useState<string | null>(null);
+  const [claimToken, setClaimToken] = useState<string | undefined>(undefined);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
@@ -91,6 +90,7 @@ function GiftGiveBody() {
 
   const patchValues = (patch: Partial<GiftGiveFormValues>) => {
     if (patch.recipientEmail !== undefined || patch.giftPath !== undefined) setFormError(null);
+    if (patch.giverEmail !== undefined) setGiverEmailError(null);
     if ('shippingAddress' in patch) {
       setAddressError(null);
       setAddressFieldErrors({});
@@ -104,29 +104,15 @@ function GiftGiveBody() {
     patchValues({ shippingAddress: { ...giverAddress, ...patch } })
   );
 
-  const requireAuth = (entry: 'signup' | 'signin') => {
-    const email = values.recipientEmail.trim();
-    if (!isValidEmail(email)) {
-      setFormError('Enter a valid email (like name@example.com).');
-      return;
-    }
-    if (values.giftPath !== 'credit_only') {
-      setFormError('Choose “Let them choose” to send credit, or “Pick it for them” to curate.');
-      return;
-    }
-    const draft = {
-      form: { ...values, recipientEmail: email, giftPath: 'credit_only' as const },
-      childDrafts,
-    };
-    trackGiftStep('GiftSignupPrompt', 'credit_only');
-    useGiftIntentStore.getState().markIncomplete('credit_only', draft);
-    startAuthForGiftGive(entry, draft);
-  };
-
   const preparePayment = async () => {
     const email = values.recipientEmail.trim();
     if (!isValidEmail(email)) {
       setFormError('Enter a valid email (like name@example.com).');
+      return;
+    }
+    const giverEmail = values.giverEmail?.trim() ?? '';
+    if (!isAuthenticated && !isValidEmail(giverEmail)) {
+      setGiverEmailError('Enter your email (like name@example.com).');
       return;
     }
     if (values.giftPath) {
@@ -136,11 +122,6 @@ function GiftGiveBody() {
 
     // Credit-only first — never fall through into the box editor.
     if (values.giftPath === 'credit_only') {
-      if (!isAuthenticated) {
-        requireAuth('signup');
-        return;
-      }
-
       if (!stripeKey) {
         notify('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
         return;
@@ -158,15 +139,13 @@ function GiftGiveBody() {
           amountCents: creditCents,
         });
         setGiftInviteId(result.giftInviteId);
+        setClaimToken(result.claimToken);
         setServerStripeKey(result.publishableKey);
         setPaymentSecret(result.clientSecret);
         if (__DEV__) console.log('[gift] prepared credit', result.claimUrl);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Try again.';
         notify('Could not start payment', msg);
-        if (/unauthenticated|Sign in required/i.test(msg)) {
-          requireAuth('signin');
-        }
       } finally {
         setSubmitting(false);
       }
@@ -213,19 +192,21 @@ function GiftGiveBody() {
     setFormError('Choose “Pick it for them” (curated box) or “Let them choose” (credit).');
   };
 
-  // After signup from credit-only, skip the form and open Stripe checkout.
+  // Credit-only handoff (e.g. from /gift/customize): skip the form and open Stripe checkout.
   useEffect(() => {
-    if (!route.params?.autoStartPayment || !isAuthenticated || autoStartedPayment.current) return;
+    if (!route.params?.autoStartPayment || autoStartedPayment.current) return;
+    if (!isAuthenticated && !isValidEmail(values.giverEmail?.trim() ?? '')) return;
     if (values.giftPath !== 'credit_only') return;
     autoStartedPayment.current = true;
     navigation.setParams({ autoStartPayment: undefined });
     void preparePayment();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on auth resume
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per handoff
   }, [isAuthenticated, route.params?.autoStartPayment]);
 
   const resetPayment = () => {
     setPaymentSecret(null);
     setGiftInviteId(null);
+    setClaimToken(undefined);
   };
 
   const cancelGift = () => {
@@ -242,9 +223,7 @@ function GiftGiveBody() {
       ? 'Choose how this gift works'
       : !creditOnly
         ? 'Curate what goes in their box'
-        : !isAuthenticated
-          ? 'Sign up to continue'
-          : 'Continue to payment';
+        : 'Continue to payment';
 
   const formProps = {
     values,
@@ -259,6 +238,8 @@ function GiftGiveBody() {
     onUseAddressSuggestion: deliverability.fieldsProps.onUseSuggestion,
     onCancelGift: cancelGift,
     boxesClosed,
+    askGiverEmail: !isAuthenticated,
+    giverEmailError,
   };
 
   const paying = Boolean(paymentSecret && stripePromise && giftInviteId);
@@ -296,7 +277,7 @@ function GiftGiveBody() {
             onCancel={resetPayment}
             onCancelGift={cancelGift}
             onError={notify}
-            completePurchase={completeGiftPurchase}
+            completePurchase={(id) => completeGiftPurchase(id, claimToken)}
           />
         </Elements>
       ) : (
@@ -305,18 +286,7 @@ function GiftGiveBody() {
           onSubmit={() => void preparePayment()}
           submitting={submitting || deliverability.checking}
           submitLabel={submitLabel}
-        >
-          {creditOnly && !isAuthenticated ? (
-            <TouchableOpacity
-              onPress={() => requireAuth('signin')}
-              accessibilityRole="button"
-              hitSlop={8}
-              style={styles.signInLink}
-            >
-              <Text style={styles.signInText}>Already have an account? Sign in</Text>
-            </TouchableOpacity>
-          ) : null}
-        </GiftGiveForm>
+        />
       )}
     </SystemPage>
   );
@@ -333,15 +303,5 @@ export function GiftGiveScreen() {
 const styles = StyleSheet.create({
   footerGap: {
     height: 80,
-  },
-  signInLink: {
-    marginTop: spacing.md,
-    alignSelf: 'center',
-  },
-  signInText: {
-    ...typeface('medium'),
-    fontSize: typography.md,
-    color: semanticColors.brand,
-    textAlign: 'center',
   },
 });

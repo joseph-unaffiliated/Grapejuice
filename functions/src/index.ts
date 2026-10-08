@@ -68,7 +68,7 @@ export {
   scheduledPurgeGuestSessions,
 } from './guestSessions';
 export { revealBoxWithEmail, requestLoginLink, redeemLoginLink } from './loginLinks';
-import { mintInviteAcceptUrl } from './loginLinks';
+import { enforceRateLimits, giverUidForEmail, mintInviteAcceptUrl, normalizeEmail } from './loginLinks';
 import { isAdminToken } from './guestSessions';
 export { validateShippingAddress } from './addressValidation';
 export { retentionLead } from './retentionLead';
@@ -2115,9 +2115,10 @@ export const shipStationWebhook = onRequest({ cors: false }, async (req, res) =>
   }
 });
 
+/** Signed-out givers pass `giverEmail`; the gift is filed under that email's account (see giverUidForEmail). */
 export const purchasePilotGift = onCall(async (request) => {
-  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.');
   if (!stripe) throw new HttpsError('failed-precondition', 'Stripe is not configured.');
+  const guestGiverEmail = request.auth?.uid ? null : normalizeEmail(request.data?.giverEmail);
 
   const recipientEmail = String(request.data?.recipientEmail ?? '').trim().toLowerCase();
   const giverName = String(request.data?.giverName ?? 'Someone who loves you').trim();
@@ -2174,14 +2175,23 @@ export const purchasePilotGift = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Please complete their shipping address, or leave it blank.');
   }
 
-  const userSnap = await db.doc(`users/${request.auth.uid}`).get();
-  const giverEmail = String(userSnap.data()?.email ?? '').trim().toLowerCase();
+  let giverUid: string;
+  let giverEmail: string;
+  if (guestGiverEmail) {
+    await enforceRateLimits(db, guestGiverEmail, request.rawRequest, 'gift:');
+    giverEmail = guestGiverEmail;
+    giverUid = await giverUidForEmail(guestGiverEmail, String(request.data?.giverName ?? '').trim() || null);
+  } else {
+    giverUid = request.auth!.uid;
+    const userSnap = await db.doc(`users/${giverUid}`).get();
+    giverEmail = String(userSnap.data()?.email ?? request.auth!.token.email ?? '').trim().toLowerCase();
+  }
   const claimToken = randomBytes(24).toString('hex');
   const inviteRef = db.collection('giftInvites').doc();
   const metaContext = metaContextForDoc(metaContextFromCallable(request));
   const attribution = sanitizeAttribution(request.data?.attribution);
   const payload: GiftInviteRecord = {
-    giverUid: request.auth.uid,
+    giverUid,
     giverName,
     giverEmail,
     recipientEmail,
@@ -2207,7 +2217,7 @@ export const purchasePilotGift = onCall(async (request) => {
     metadata: {
       type: 'pilot_gift',
       giftInviteId: inviteRef.id,
-      giverUid: request.auth.uid,
+      giverUid,
     },
     ...(giverEmail ? { receipt_email: giverEmail } : {}),
     automatic_payment_methods: { enabled: true },
@@ -2227,15 +2237,18 @@ export const purchasePilotGift = onCall(async (request) => {
   };
 });
 
+/** Signed-out givers prove the gift is theirs with the claimToken purchasePilotGift returned. */
 export const finalizePilotGiftPayment = onCall(async (request) => {
-  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.');
   const giftInviteId = String(request.data?.giftInviteId ?? '').trim();
   if (!giftInviteId) throw new HttpsError('invalid-argument', 'giftInviteId is required.');
+  const claimToken = typeof request.data?.claimToken === 'string' ? request.data.claimToken : '';
 
   const inviteSnap = await db.collection('giftInvites').doc(giftInviteId).get();
   if (!inviteSnap.exists) throw new HttpsError('not-found', 'Gift invite not found.');
   const invite = inviteSnap.data() as GiftInviteRecord;
-  if (invite.giverUid !== request.auth.uid) {
+  const isGiver = Boolean(request.auth?.uid) && invite.giverUid === request.auth?.uid;
+  const hasToken = Boolean(claimToken) && claimToken === invite.claimToken;
+  if (!isGiver && !hasToken) {
     throw new HttpsError('permission-denied', 'Only the giver can finalize this gift.');
   }
 

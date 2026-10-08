@@ -1,6 +1,7 @@
 import { purchasePilotGift, finalizePilotGiftPayment } from '../../services/gift/giftFlow';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { trackMeta } from '../../services/analytics/metaPixel';
+import { useAuthStore } from '../../stores/authStore';
 import type { AgeGroup, BoxLineItem } from '../../types/pilot';
 import { hasGiverAddress, type GiftGiveFormValues } from './giftGiveTypes';
 
@@ -19,6 +20,8 @@ export type GiftPurchaseResult = {
   /** Server's publishable key — must be used with clientSecret when present. */
   publishableKey: string | null;
   claimUrl: string;
+  /** Pass back to completeGiftPurchase — finalizes for signed-out givers. */
+  claimToken: string;
 };
 
 export type GiftFinalizeResult = {
@@ -37,9 +40,11 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
     content_name: input.customize ? 'Gift box' : 'Gift credit',
     content_type: 'product',
   });
+  const signedIn = useAuthStore.getState().isAuthenticated;
   const result = await purchasePilotGift({
     recipientEmail: input.form.recipientEmail.trim(),
     giverName: input.form.giverName.trim() || 'Someone who loves you',
+    giverEmail: signedIn ? undefined : input.form.giverEmail?.trim(),
     message: input.form.message.trim() || undefined,
     creditCents,
     customize: input.customize,
@@ -58,12 +63,16 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
     clientSecret: result.clientSecret,
     publishableKey: result.publishableKey?.trim() || null,
     claimUrl: result.claimUrl,
+    claimToken: result.claimToken,
   };
 }
 
 /** Finalize Stripe payment on the invite — no UI; caller navigates to confirmation. */
-export async function completeGiftPurchase(giftInviteId: string): Promise<GiftFinalizeResult> {
-  const result = await finalizePilotGiftPayment(giftInviteId);
+export async function completeGiftPurchase(
+  giftInviteId: string,
+  claimToken?: string
+): Promise<GiftFinalizeResult> {
+  const result = await finalizePilotGiftPayment(giftInviteId, claimToken);
   return {
     claimUrl: result.claimUrl,
     alreadyFinalized: result.alreadyFinalized,

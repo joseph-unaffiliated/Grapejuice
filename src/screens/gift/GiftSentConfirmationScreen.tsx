@@ -18,6 +18,7 @@ import { spacing, typography, borderRadius, typeface, shadowsWeb, MOBILE_GUTTER 
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useAuthStore } from '../../stores/authStore';
 
 type Route = RouteProp<MainStackParamList, 'GiftSentConfirmation'>;
 
@@ -27,6 +28,7 @@ function GiftSentConfirmationBody() {
   const { goHome } = useStorefrontActions();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
 
   const {
@@ -116,13 +118,15 @@ function GiftSentConfirmationBody() {
           >
             <Text style={styles.ctaText}>Back to store</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Orders')}
-            style={styles.secondary}
-            accessibilityRole="button"
-          >
-            <Text style={styles.secondaryText}>View in Orders</Text>
-          </TouchableOpacity>
+          {isAuthenticated ? (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Orders')}
+              style={styles.secondary}
+              accessibilityRole="button"
+            >
+              <Text style={styles.secondaryText}>View in Orders</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </ScrollView>
     </WebContentPanel>

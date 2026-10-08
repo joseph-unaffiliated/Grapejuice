@@ -195,7 +195,6 @@ function GiftGiverCustomizeBody() {
         useGiftIntentStore.getState().clear();
         navigation.navigate('StorefrontHome');
       }}
-      onRequireAuth={requireAuth}
       payError={payError}
     />
   );

@@ -13,7 +13,7 @@ import { orderSubtotalCents } from '../../services/box/pricing';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useAuthStore } from '../../stores/authStore';
-import { useAuthFlowStore } from '../../stores/authFlowStore';
+import { isValidEmail } from '../../utils/formValidation';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
 import { GiftPaymentPanel } from './GiftPaymentPanel.web';
@@ -35,9 +35,6 @@ function firebaseMessage(e: unknown): string {
   if (!(e instanceof Error)) return 'Try again.';
   const anyErr = e as Error & { code?: string; message?: string };
   const msg = anyErr.message ?? '';
-  if (/unauthenticated|Sign in required/i.test(msg) || anyErr.code === 'functions/unauthenticated') {
-    return 'Sign in to continue to payment.';
-  }
   if (/failed-precondition|Stripe is not configured/i.test(msg)) {
     return 'Payments are not configured yet. Ask the team to enable Stripe.';
   }
@@ -85,11 +82,11 @@ export function GiftGiverCustomizeScreen() {
     return orderSubtotalCents(lineItems, boxPriceCents);
   }, [childDrafts.length, lineItems]);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const startAuthForGiftCustomize = useAuthFlowStore((s) => s.startAuthForGiftCustomize);
   const [submitting, setSubmitting] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
   const [giftInviteId, setGiftInviteId] = useState<string | null>(null);
+  const [claimToken, setClaimToken] = useState<string | undefined>(undefined);
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
@@ -112,18 +109,15 @@ export function GiftGiverCustomizeScreen() {
     });
   }, [form, childDrafts, lineItems]);
 
-  const requireAuth = (entry: 'signup' | 'signin') => {
-    const draft = { form, childDrafts, lineItems };
-    trackGiftStep('GiftSignupPrompt', 'customize');
-    useGiftIntentStore.getState().markIncomplete('customize', draft);
-    startAuthForGiftCustomize(entry, draft);
-  };
-
   const pay = async () => {
     setPayError(null);
-    if (!isAuthenticated) {
-      setPayError('Sign in to continue to payment.');
-      requireAuth('signin');
+    if (!isAuthenticated && !isValidEmail(form.giverEmail?.trim() ?? '')) {
+      // Drafts saved before the email field existed: collect it on the gift form.
+      navigation.navigate('GiftGive', {
+        form,
+        childDrafts,
+        initialGiftPath: 'customize',
+      });
       return;
     }
     if (!stripeKey) {
@@ -148,15 +142,13 @@ export function GiftGiverCustomizeScreen() {
         amountCents: giftAmountCents,
       });
       setGiftInviteId(result.giftInviteId);
+      setClaimToken(result.claimToken);
       setServerStripeKey(result.publishableKey);
       setPaymentSecret(result.clientSecret);
     } catch (e) {
       const msg = firebaseMessage(e);
       setPayError(msg);
       notify('Could not start payment', msg);
-      if (/Sign in/i.test(msg)) {
-        requireAuth('signin');
-      }
     } finally {
       setSubmitting(false);
     }
@@ -199,7 +191,7 @@ export function GiftGiverCustomizeScreen() {
           }}
           onCancelGift={cancelGift}
           onError={notify}
-          completePurchase={completeGiftPurchase}
+          completePurchase={(id) => completeGiftPurchase(id, claimToken)}
         />
       </Elements>
     ) : null;
@@ -226,7 +218,6 @@ export function GiftGiverCustomizeScreen() {
         setCashDonation={setCashDonation}
         onPay={() => void pay()}
         onCancelGift={cancelGift}
-        onRequireAuth={requireAuth}
         payError={payError}
         paymentSlot={paymentSlot}
       />

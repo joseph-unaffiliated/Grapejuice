@@ -32,7 +32,7 @@ type LoginPurpose = 'save-box' | 'login' | 'invite';
 export const SET_PASSWORD_PATH = '/account/set-password';
 export const CONNECT_GOOGLE_PATH = '/account/connect-google';
 
-function normalizeEmail(raw: unknown): string {
+export function normalizeEmail(raw: unknown): string {
   if (typeof raw !== 'string') throw new HttpsError('invalid-argument', 'Email required.');
   const email = raw.trim().toLowerCase();
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -74,16 +74,18 @@ export async function hitRateLimit(
   });
 }
 
-async function enforceRateLimits(
+/** `scope` keeps separate counters per flow, so gift checkout retries don't use up the email gate's budget. */
+export async function enforceRateLimits(
   db: FirebaseFirestore.Firestore,
   email: string | null,
-  rawRequest: unknown
+  rawRequest: unknown,
+  scope = ''
 ): Promise<void> {
   const now = Date.now();
   const ip = requestIp(rawRequest);
   const [ipLimited, emailLimited] = await Promise.all([
-    ip ? hitRateLimit(db, `ip:${ip}`, IP_LIMIT_PER_WINDOW, now) : Promise.resolve(false),
-    email ? hitRateLimit(db, `email:${email}`, EMAIL_LIMIT_PER_WINDOW, now) : Promise.resolve(false),
+    ip ? hitRateLimit(db, `${scope}ip:${ip}`, IP_LIMIT_PER_WINDOW, now) : Promise.resolve(false),
+    email ? hitRateLimit(db, `${scope}email:${email}`, EMAIL_LIMIT_PER_WINDOW, now) : Promise.resolve(false),
   ]);
   if (ipLimited || emailLimited) {
     throw new HttpsError('resource-exhausted', 'Too many requests. Try again later.');
@@ -258,6 +260,34 @@ async function unfinishedGateAccountHouseholds(
     if (!orders.empty || !received.empty) return null;
   }
   return households.docs.map((hh) => hh.ref);
+}
+
+/**
+ * Signed-out gift checkout: the uid that owns gifts bought with this email. Existing accounts are
+ * reused as-is; otherwise a passwordless one is created. Never signs anyone in — the giver logs in
+ * later with an emailed link, so typing someone else's email only files the gift under them.
+ */
+export async function giverUidForEmail(email: string, name: string | null): Promise<string> {
+  const auth = getAuth();
+  try {
+    return (await auth.getUserByEmail(email)).uid;
+  } catch (err) {
+    if ((err as { code?: string })?.code !== 'auth/user-not-found') throw err;
+  }
+  const firstName = firstNameOf(name);
+  try {
+    const created = await auth.createUser({
+      email,
+      // Must stay false: admin access by staff email requires a verified address.
+      emailVerified: false,
+      ...(firstName ? { displayName: firstName } : {}),
+    });
+    logger.info('giverUidForEmail: created');
+    return created.uid;
+  } catch (err) {
+    if ((err as { code?: string })?.code !== 'auth/email-already-exists') throw err;
+    return (await auth.getUserByEmail(email)).uid;
+  }
 }
 
 export type RevealBoxWithEmailResult =

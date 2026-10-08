@@ -22,6 +22,8 @@ export type PurchaseGiftResult = {
 export async function purchasePilotGift(input: {
   recipientEmail: string;
   giverName: string;
+  /** Required when signed out. */
+  giverEmail?: string;
   message?: string;
   creditCents?: number;
   customize?: boolean;
@@ -173,17 +175,21 @@ export async function listMyGiftInvites(): Promise<GiftInvite[]> {
   return data.invites ?? [];
 }
 
-export async function finalizePilotGiftPayment(giftInviteId: string): Promise<{
+/** `claimToken` (from purchasePilotGift) lets a signed-out giver finalize. */
+export async function finalizePilotGiftPayment(
+  giftInviteId: string,
+  claimToken?: string
+): Promise<{
   ok: boolean;
   claimUrl: string;
   alreadyFinalized: boolean;
 }> {
   if (!functions) throw new Error('Firebase Functions is not configured.');
   const callable = httpsCallable<
-    { giftInviteId: string; meta?: MetaServerContext },
+    { giftInviteId: string; claimToken?: string; meta?: MetaServerContext },
     { ok: boolean; claimUrl: string; alreadyFinalized: boolean }
   >(functions, 'finalizePilotGiftPayment');
-  const { data } = await callable({ giftInviteId, meta: metaServerContext() });
+  const { data } = await callable({ giftInviteId, claimToken, meta: metaServerContext() });
   return data;
 }
 

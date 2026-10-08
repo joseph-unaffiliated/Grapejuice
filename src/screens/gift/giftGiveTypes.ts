@@ -6,6 +6,8 @@ export type GiftPath = 'customize' | 'credit_only';
 export type GiftGiveFormValues = {
   recipientEmail: string;
   giverName: string;
+  /** Signed-out givers only: receipt address, and the account the gift is filed under. */
+  giverEmail?: string;
   message: string;
   /** Starts on the curated box (or credit once boxes have locked). */
   giftPath: GiftPath | null;
