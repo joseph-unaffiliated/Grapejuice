@@ -284,10 +284,13 @@ exports.resumeGuestSession = (0, sentry_1.onCall)({ minInstances: 1 }, async (re
  */
 async function purgeExpiredGuestData(db, now = new Date()) {
     const cutoff = firestore_1.Timestamp.fromDate(now);
-    const counts = { sessions: 0, tokens: 0 };
+    const counts = { sessions: 0, tokens: 0, loginTokens: 0, rateLimits: 0 };
     for (const [collection, field, key] of [
         ['guestSessions', 'expireAt', 'sessions'],
         ['guestResumeTokens', 'expiresAt', 'tokens'],
+        // loginLinks.ts — single-use login links and rate-limit windows.
+        ['loginTokens', 'expiresAt', 'loginTokens'],
+        ['rateLimits', 'expiresAt', 'rateLimits'],
     ]) {
         // Bounded per run; the schedule picks up the rest tomorrow.
         const snap = await db.collection(collection).where(field, '<=', cutoff).limit(400).get();

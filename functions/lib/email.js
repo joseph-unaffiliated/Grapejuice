@@ -10,7 +10,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerioAppApiKey = void 0;
 exports.getCustomerioAppApiKey = getCustomerioAppApiKey;
@@ -45,6 +45,8 @@ const TEMPLATE_IDS = {
     'order-shipped': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _o !== void 0 ? _o : '0', 10) || 16,
     /** Hanukkah box off-session decline — transactional message 17. */
     'box-charge-failed': parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _p !== void 0 ? _p : '0', 10) || 17,
+    /** Passwordless login / save-this-box link (functions/src/loginLinks.ts). Set once the draft is approved. */
+    'login-link': parseInt((_q = process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK) !== null && _q !== void 0 ? _q : '0', 10) || 0,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
@@ -55,7 +57,7 @@ const TEMPLATE_IDS = {
  *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
- *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED
+ *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED, CUSTOMERIO_TEMPLATE_LOGIN_LINK
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
  */

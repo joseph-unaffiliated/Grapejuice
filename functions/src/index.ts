@@ -66,6 +66,7 @@ export {
   deleteGuestDataByEmail,
   scheduledPurgeGuestSessions,
 } from './guestSessions';
+export { revealBoxWithEmail, requestLoginLink, redeemLoginLink } from './loginLinks';
 export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
 

@@ -30,6 +30,8 @@ const TEMPLATE_IDS: Record<string, number> = {
   'order-shipped': parseInt(process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED ?? '0', 10) || 16,
   /** Hanukkah box off-session decline — transactional message 17. */
   'box-charge-failed': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED ?? '0', 10) || 17,
+  /** Passwordless login / save-this-box link (functions/src/loginLinks.ts). Set once the draft is approved. */
+  'login-link': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK ?? '0', 10) || 0,
 };
 
 /** Env vars for Customer.io transactional templates:
@@ -41,7 +43,7 @@ const TEMPLATE_IDS: Record<string, number> = {
  *  CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
- *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED
+ *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED, CUSTOMERIO_TEMPLATE_LOGIN_LINK
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
  */

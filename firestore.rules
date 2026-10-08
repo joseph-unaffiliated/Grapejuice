@@ -101,5 +101,12 @@ service cloud.firestore {
     match /retentionLeadEvents/{eventId} {
       allow read, write: if false;
     }
+    /** Login links + rate-limit windows (functions/src/loginLinks.ts) — functions only. */
+    match /loginTokens/{tokenHash} {
+      allow read, write: if false;
+    }
+    match /rateLimits/{keyHash} {
+      allow read, write: if false;
+    }
   }
 }

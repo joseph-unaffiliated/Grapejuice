@@ -342,12 +342,15 @@ export const resumeGuestSession = onCall({ minInstances: 1 }, async (request) =>
 export async function purgeExpiredGuestData(
   db: FirebaseFirestore.Firestore,
   now: Date = new Date()
-): Promise<{ sessions: number; tokens: number }> {
+): Promise<{ sessions: number; tokens: number; loginTokens: number; rateLimits: number }> {
   const cutoff = Timestamp.fromDate(now);
-  const counts = { sessions: 0, tokens: 0 };
+  const counts = { sessions: 0, tokens: 0, loginTokens: 0, rateLimits: 0 };
   for (const [collection, field, key] of [
     ['guestSessions', 'expireAt', 'sessions'],
     ['guestResumeTokens', 'expiresAt', 'tokens'],
+    // loginLinks.ts — single-use login links and rate-limit windows.
+    ['loginTokens', 'expiresAt', 'loginTokens'],
+    ['rateLimits', 'expiresAt', 'rateLimits'],
   ] as const) {
     // Bounded per run; the schedule picks up the rest tomorrow.
     const snap = await db.collection(collection).where(field, '<=', cutoff).limit(400).get();
