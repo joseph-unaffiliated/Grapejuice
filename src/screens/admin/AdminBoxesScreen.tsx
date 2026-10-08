@@ -1124,6 +1124,7 @@ export function AdminBoxesScreen() {
     storeTab(next);
   };
   const [hideTests, setHideTests] = useState(true);
+  const [usOnly, setUsOnly] = useState(true);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -1133,6 +1134,20 @@ export function AdminBoxesScreen() {
 
   const inventory = useMemo(() => (data ? inventoryFor(data, hideTests) : []), [data, hideTests]);
   const inventoryById = useMemo(() => new Map(inventory.map((i) => [i.id, i])), [inventory]);
+  // Inventory keeps every row: stock held by a non-US box is still held.
+  const shown = useMemo(
+    () =>
+      data && usOnly
+        ? {
+            ...data,
+            boxes: data.boxes.filter((b) => !b.outsideUs),
+            guests: data.guests.filter((g) => !g.outsideUs),
+            gifts: data.gifts.filter((g) => !g.outsideUs),
+            adPeople: (data.adPeople ?? []).filter((p) => !p.outsideUs),
+          }
+        : data,
+    [data, usOnly],
+  );
 
   const panelProps = {
     flush: isDesktop,
@@ -1178,16 +1193,20 @@ export function AdminBoxesScreen() {
     );
   }
 
-  const real = data.boxes.filter((b) => !b.playthrough && !(hideTests && b.test));
+  const view = shown ?? data;
+  const real = view.boxes.filter((b) => !b.playthrough && !(hideTests && b.test));
   const liveOrders = real.filter((b) => b.source === 'order' && LIVE.includes(b.status));
   const openDrafts = real.filter((b) => b.status === 'draft');
   const noCard = [...liveOrders, ...openDrafts].filter((b) => !b.cardOnFile);
-  const realGifts = data.gifts.filter((g) => !g.playthrough && !(hideTests && g.test));
+  const realGifts = view.gifts.filter((g) => !g.playthrough && !(hideTests && g.test));
   const atZero = inventory.filter((i) => i.remaining != null && i.remaining <= 0);
   const negAfterDrafts = inventory.filter((i) => i.remainingAfterDrafts != null && i.remainingAfterDrafts < 0);
-  const testBoxes = data.boxes.filter((b) => b.test && !b.playthrough).length;
-  const testGifts = data.gifts.filter((g) => g.test && !g.playthrough).length;
-  const openGuests = data.guests.filter((g) => !g.converted);
+  const testBoxes = view.boxes.filter((b) => b.test && !b.playthrough).length;
+  const testGifts = view.gifts.filter((g) => g.test && !g.playthrough).length;
+  const outsideBoxes = data.boxes.filter((b) => b.outsideUs && !b.playthrough && !(hideTests && b.test)).length;
+  const outsideGuests = data.guests.filter((g) => g.outsideUs).length;
+  const outsideGifts = data.gifts.filter((g) => g.outsideUs && !g.playthrough && !(hideTests && g.test)).length;
+  const openGuests = view.guests.filter((g) => !g.converted);
   const guestBoxes = openGuests.filter((g) => g.stage === 'built' || g.stage === 'revealed');
   const guestLeads = openGuests.filter((g) => g.leadAt);
   const liveRevenue = liveOrders.reduce((s, b) => s + (b.totalCents ?? 0), 0);
@@ -1219,7 +1238,16 @@ export function AdminBoxesScreen() {
                 onPress={() => setHideTests((v) => !v)}
                 styles={styles}
               />
+              <Chip
+                label={`US only · ${outsideBoxes} boxes, ${outsideGuests} anonymous, ${outsideGifts} gifts outside`}
+                active={usOnly}
+                onPress={() => setUsOnly((v) => !v)}
+                styles={styles}
+              />
             </View>
+            <Text style={styles.meta}>
+              US only hides rows known to be outside the US: a non-US ship-to address, else a non-US IP. Rows with no location stay in. Inventory is unaffected.
+            </Text>
           </View>
 
           {data.mismatches.length ? (
@@ -1269,14 +1297,14 @@ export function AdminBoxesScreen() {
           {tab === 'boxes' ? (
             <>
               <Text style={styles.section}>Boxes</Text>
-              <BoxesSection data={data} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+              <BoxesSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'anonymous' ? (
             <>
               <Text style={styles.section}>Anonymous boxes</Text>
               <AnonymousSection
-                guests={data.guests}
+                guests={view.guests}
                 totalSessions={data.counts.guestSessions}
                 inventoryById={inventoryById}
                 styles={styles}
@@ -1287,13 +1315,13 @@ export function AdminBoxesScreen() {
           {tab === 'ads' ? (
             <>
               <Text style={styles.section}>By ad: how far people get, and who they are</Text>
-              <AdsSection people={data.adPeople ?? []} hideTests={hideTests} styles={styles} colors={colors} />
+              <AdsSection people={view.adPeople ?? []} hideTests={hideTests} styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'gifts' ? (
             <>
               <Text style={styles.section}>Gifts</Text>
-              <GiftsSection data={data} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+              <GiftsSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'inventory' ? (

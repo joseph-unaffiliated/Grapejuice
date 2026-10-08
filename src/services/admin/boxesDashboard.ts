@@ -45,6 +45,8 @@ export type DashBox = {
   /** State ("NY", "ON, Canada") from an address, else the account's IP region. */
   location?: string | null;
   locationFromIp?: boolean;
+  /** `location` is known to be outside the US. */
+  outsideUs?: boolean;
   answers: DashAnswers;
   lines: DashLine[];
 };
@@ -70,6 +72,7 @@ export type DashGuest = {
   gift: { kind: string | null; giverName: string | null; recipientEmail: string | null; items: number } | null;
   /** IP region from the visitor's saves. */
   location?: string | null;
+  outsideUs?: boolean;
   lines: DashLine[];
 };
 
@@ -97,6 +100,8 @@ export type DashGift = {
   location?: string | null;
   /** The giver's IP region. */
   giverLocation?: string | null;
+  /** The giver's IP is outside the US, or (no giver IP) the ship-to is. */
+  outsideUs?: boolean;
   lines: DashLine[];
 };
 
@@ -125,6 +130,8 @@ export type DashAdPerson = {
   jewish: number | null;
   hanukkah: number | null;
   firstSeen: string | null;
+  /** IP country known and not US. */
+  outsideUs?: boolean;
 };
 
 export type BoxesDashboard = {

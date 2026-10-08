@@ -63,6 +63,8 @@ export type DashBox = {
    */
   location: string | null;
   locationFromIp: boolean;
+  /** `location` is known to be outside the US. */
+  outsideUs: boolean;
   answers: DashAnswers;
   lines: DashLine[];
 };
@@ -89,6 +91,7 @@ export type DashGuest = {
   gift: { kind: string | null; giverName: string | null; recipientEmail: string | null; items: number } | null;
   /** IP region from the visitor's saves. */
   location: string | null;
+  outsideUs: boolean;
   lines: DashLine[];
 };
 
@@ -116,6 +119,8 @@ export type DashGift = {
   location: string | null;
   /** The giver's IP region. */
   giverLocation: string | null;
+  /** The giver's IP is outside the US, or (no giver IP) the ship-to is. */
+  outsideUs: boolean;
   lines: DashLine[];
 };
 
@@ -147,6 +152,8 @@ export type DashAdPerson = {
   jewish: number | null;
   hanukkah: number | null;
   firstSeen: string | null;
+  /** IP country known and not US. */
+  outsideUs: boolean;
 };
 
 export type BoxesDashboard = {
@@ -282,6 +289,15 @@ function ipLocationOf(geo: unknown): string | null {
   return country;
 }
 
+/** IP country known and not US. No geo counts as US. */
+function ipOutsideUs(geo: unknown): boolean {
+  const country = geo && typeof geo === 'object' ? str((geo as Record<string, unknown>).country) : null;
+  return Boolean(country && country.toUpperCase() !== 'US');
+}
+
+/** A `locationOf` label for a Canadian or international address. */
+const addressOutsideUs = (location: string | null): boolean => Boolean(location && /(, Canada|\(intl\))$/.test(location));
+
 const META_AD_UNKNOWN = 'Meta, ad unknown';
 const NOT_FROM_AD = 'Not from an ad';
 
@@ -387,6 +403,7 @@ function buildGuestRows(
           }
         : null,
       location: ipLocationOf(x.ipGeo),
+      outsideUs: ipOutsideUs(x.ipGeo),
       lines,
     });
   }
@@ -462,6 +479,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   const guestAnswersByUid = new Map<string, DashAnswers>();
   const guestAdByUid = new Map<string, string>();
   const guestIpLocationByUid = new Map<string, string>();
+  const guestIpOutsideUsByUid = new Map<string, boolean>();
   for (const d of guestSnap.docs) {
     const x = d.data();
     const uid = str(x.convertedUid);
@@ -470,7 +488,10 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const ad = uid ? adNameOf(x.entry) : null;
     if (uid && ad) guestAdByUid.set(uid, ad);
     const ipLoc = uid ? ipLocationOf(x.ipGeo) : null;
-    if (uid && ipLoc) guestIpLocationByUid.set(uid, ipLoc);
+    if (uid && ipLoc) {
+      guestIpLocationByUid.set(uid, ipLoc);
+      guestIpOutsideUsByUid.set(uid, ipOutsideUs(x.ipGeo));
+    }
   }
   const users = new Map<
     string,
@@ -482,6 +503,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       ad: string;
       createdAt: string | null;
       ipLocation: string | null;
+      ipOutsideUs: boolean;
     }
   >();
   for (const s of userSnaps) {
@@ -506,6 +528,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         (str(attr.fbc) ? META_AD_UNKNOWN : NOT_FROM_AD),
       createdAt: iso(x.createdAt),
       ipLocation: ipLocationOf(x.ipGeo) ?? guestIpLocationByUid.get(s.id) ?? null,
+      ipOutsideUs: ipLocationOf(x.ipGeo) ? ipOutsideUs(x.ipGeo) : guestIpOutsideUsByUid.get(s.id) ?? false,
     });
   }
 
@@ -567,12 +590,15 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   }
   const householdLocation = (hid: string | null) => (hid ? latestLocation.get(hid)?.location ?? null : null);
   const userIpLocation = (uid: string | null) => (uid ? users.get(uid)?.ipLocation ?? guestIpLocationByUid.get(uid) ?? null : null);
+  const userIpOutsideUs = (uid: string | null) =>
+    uid ? users.get(uid)?.ipOutsideUs ?? guestIpOutsideUsByUid.get(uid) ?? false : false;
   /** Address-based state when known, else the account's IP region (flagged). */
   const placeFor = (hid: string, uid: string | null, address: string | null) => {
     const known = address ?? householdLocation(hid);
-    if (known) return { location: known, locationFromIp: false };
-    const ip = userIpLocation(uid) ?? userIpLocation(str(households.get(hid)?.ownerId));
-    return { location: ip, locationFromIp: Boolean(ip) };
+    if (known) return { location: known, locationFromIp: false, outsideUs: addressOutsideUs(known) };
+    const ipUid = userIpLocation(uid) ? uid : str(households.get(hid)?.ownerId);
+    const ip = userIpLocation(ipUid);
+    return { location: ip, locationFromIp: Boolean(ip), outsideUs: Boolean(ip) && userIpOutsideUs(ipUid) };
   };
 
   const boxHeld = new Map<string, number>();
@@ -693,6 +719,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       jewish: u.answers.jewish,
       hanukkah: u.answers.hanukkah,
       firstSeen: u.createdAt,
+      outsideUs: u.ipOutsideUs,
     });
   }
   for (const d of guestDocs) {
@@ -715,6 +742,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       jewish: a.jewish,
       hanukkah: a.hanukkah,
       firstSeen: iso(x.createdAt),
+      outsideUs: ipOutsideUs(x.ipGeo),
     });
   }
 
@@ -744,6 +772,9 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     }
     const recipient = hid ? customerFor(hid, null) : null;
     const lineSource = Array.isArray(rec?.lineItems) ? rec?.lineItems : g.lineItems;
+    const shipTo = locationOf(g.shippingAddress) ?? householdLocation(hid || null);
+    const giverUid = str(g.giverUid);
+    const giverLocation = userIpLocation(giverUid);
     gifts.push({
       id: d.id,
       giver: str(g.giverName),
@@ -764,8 +795,9 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       test: isTest(str(g.giverEmail), str(g.giverName), str(g.recipientEmail), recipient?.email, recipient?.name),
       message: str(g.message),
       createdAt: iso(g.createdAt),
-      location: locationOf(g.shippingAddress) ?? householdLocation(hid || null),
-      giverLocation: userIpLocation(str(g.giverUid)),
+      location: shipTo,
+      giverLocation,
+      outsideUs: giverLocation ? userIpOutsideUs(giverUid) : addressOutsideUs(shipTo),
       lines: linesOf(lineSource, recipient?.childNames ?? new Map()),
     });
   }
