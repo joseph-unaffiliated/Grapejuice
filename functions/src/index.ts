@@ -68,6 +68,7 @@ export {
   scheduledPurgeGuestSessions,
 } from './guestSessions';
 export { revealBoxWithEmail, requestLoginLink, redeemLoginLink } from './loginLinks';
+import { mintInviteAcceptUrl } from './loginLinks';
 export { validateShippingAddress } from './addressValidation';
 export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
@@ -2006,15 +2007,24 @@ export const createPartnerInvite = onCall(async (request) => {
   };
   await inviteRef.set(payload);
 
-  await sendEmail({
-    to: email,
-    template: 'partner-invite',
-    data: {
-      householdName,
-      invitedByName,
-      inviteId: inviteRef.id,
-    },
-  }).catch((err) => logger.error('Partner invite email failed', err));
+  const inviterEmail = String(request.auth.token.email ?? '');
+  const inviterLabel =
+    invitedByName.trim() && invitedByName !== 'Partner' ? invitedByName.trim() : inviterEmail;
+  try {
+    const acceptUrl = await mintInviteAcceptUrl(db, { householdId, inviteId: inviteRef.id, email });
+    await sendEmail({
+      to: email,
+      template: 'partner-invite',
+      data: {
+        householdName,
+        invitedByName: inviterLabel,
+        inviteId: inviteRef.id,
+        accept_url: acceptUrl,
+      },
+    });
+  } catch (err) {
+    logger.error('Partner invite email failed', err);
+  }
 
   return { id: inviteRef.id, ...payload };
 });

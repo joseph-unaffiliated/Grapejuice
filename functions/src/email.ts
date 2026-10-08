@@ -14,7 +14,8 @@ const TEMPLATE_IDS: Record<string, number> = {
   /** À la carte / marketplace — must not reuse Hanukkah-box copy. */
   'marketplace-order-confirmed':
     parseInt(process.env.CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED ?? '0', 10) || 13,
-  'partner-invite': parseInt(process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE ?? '0', 10) || 0,
+  /** Collaborator invite with a sign-in accept link — transactional message 20. */
+  'partner-invite': parseInt(process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE ?? '0', 10) || 20,
   'debrief-reminder': parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER ?? '0', 10) || 0,
   'lock-reminder': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER ?? '0', 10) || 0,
   'gift-claim': parseInt(process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM ?? '0', 10) || 0,

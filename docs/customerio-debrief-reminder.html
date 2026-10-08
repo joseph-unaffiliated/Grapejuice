@@ -19,7 +19,7 @@
 <body class="body" style="background: #fefefe;">
 <div role="article" aria-roledescription="email" aria-label="{{message.subject | default: ''}}" lang="und" dir="auto" style="font-size: max(16px, 1rem); color: #2F2412; background: #fefefe; line-height: 1.6; mso-line-height-alt: 160%; font-family: 'DM Sans', Helvetica, Arial, sans-serif; word-break: normal; word-wrap: normal; word-spacing: normal;" class="x-wrapper">
 <div style="font-size: 16px;">
-<!--[if mso]><span style="display: inline-block; max-height: 0; max-width: 0; mso-font-width: 0%; mso-style-textfill-type: none; white-space: nowrap;"><span style="max-height: 1px; max-width: 1px; display: inline-block; overflow: hidden; font-size: 1px; color: rgba(0, 0, 0, 0); text-indent: 9px;"><![endif]--><!--[if !mso]><! --><span style="float: left; max-height: 0; max-width: 0; overflow: hidden; font-size: 0; line-height: 0; mso-font-width: 0%; mso-style-textfill-type: none; white-space: nowrap;"><span style="max-height: 1px; max-width: 1px; overflow: hidden; font-size: 1px; color: rgba(0, 0, 0, 0); text-indent: 9px;"><!-- <![endif]-->{% if trigger.variant == "save-box" %}Log in to save the box you just built to your account.{% else %}Tap to log in to Grapejuice. This link works once and expires in an hour.{% endif %}</span></span>
+<!--[if mso]><span style="display: inline-block; max-height: 0; max-width: 0; mso-font-width: 0%; mso-style-textfill-type: none; white-space: nowrap;"><span style="max-height: 1px; max-width: 1px; display: inline-block; overflow: hidden; font-size: 1px; color: rgba(0, 0, 0, 0); text-indent: 9px;"><![endif]--><!--[if !mso]><! --><span style="float: left; max-height: 0; max-width: 0; overflow: hidden; font-size: 0; line-height: 0; mso-font-width: 0%; mso-style-textfill-type: none; white-space: nowrap;"><span style="max-height: 1px; max-width: 1px; overflow: hidden; font-size: 1px; color: rgba(0, 0, 0, 0); text-indent: 9px;"><!-- <![endif]-->{% if trigger.attempt == 2 %}We'd still love your feedback — unlock $80 credit.{% else %}Share what worked and unlock $80 toward your next box.{% endif %}</span></span>
 
 <div>
 <!--[if true]><table role="none" class="mso" align="left" style="width: 100%;"><tr><td></td><td style="width: 600px; background: #fefefe; padding: 32px 24px 8px;"><![endif]--><!--[if !true]><! --><div style="max-width: 600px; margin-left: auto; margin-right: auto;"><div style="background: #fefefe;"><!-- <![endif]--><div style="padding: 32px 24px 8px; overflow: auto;">
@@ -31,22 +31,21 @@
 <div>
 <!--[if true]><table role="none" class="mso" align="left" style="width: 100%;"><tr><td></td><td style="width: 600px; background: #fefefe; padding: 20px 40px 36px;"><![endif]--><!--[if !true]><! --><div style="max-width: 600px; margin-left: auto; margin-right: auto;"><div style="background: #fefefe;"><!-- <![endif]--><div style="padding: 20px 40px 36px; overflow: auto;">
 
-  <h1 style="color: #2F2412; font-size: 28px; line-height: 1.2; mso-line-height-alt: 120%; letter-spacing: -0.02em; text-align: center; margin: 0px 0px 32px;">{% if trigger.variant == "save-box" %}Save your box{% else %}Log in to Grapejuice{% endif %}</h1>
+  <h1 style="color: #2F2412; font-size: 28px; line-height: 1.2; mso-line-height-alt: 120%; letter-spacing: -0.02em; text-align: center; margin: 0px 0px 32px;">{% if trigger.attempt == 2 %}Still thinking about Hanukkah?{% else %}How did Hanukkah feel?{% endif %}</h1>
 
-  <p style="color: #433C32; text-align: center; margin: 0 0 14px 0;">Hi {{ trigger.displayName | default: "there" }},</p>
-  {% if trigger.variant == "save-box" %}
-  <p style="color: #433C32; text-align: center; margin: 0 0 14px 0;">You already have a Grapejuice account, so we held the box you just built. Log in to save it to your account and keep customizing. The link works once and expires in 24 hours.</p>
+  {% if trigger.attempt == 2 %}
+  <p style="color: #433C32; text-align: center; margin: 0 0 14px 0;">We sent a note earlier &mdash; no pressure, but if you have two minutes, your debrief helps us plan Passover and next year. Complete it and we&rsquo;ll add <strong>$80 credit</strong> to your account.</p>
   {% else %}
-  <p style="color: #433C32; text-align: center; margin: 0 0 14px 0;">Tap the button below to log in. The link works once and expires in an hour.</p>
+  <p style="color: #433C32; text-align: center; margin: 0 0 14px 0;">Your box shipped, the candles burned down, and now we&rsquo;d love to hear how it went. A quick Hanukkah debrief unlocks <strong>$80 toward your next box</strong>.</p>
   {% endif %}
 
   <div style="text-align: center; margin: 24px 0 0 0; font-size: 15px;">
-    <a href="{{ trigger.login_url }}" style="display: inline-block; mso-padding-alt: 0; color: #ffffff; font-family: Helvetica, sans-serif; font-weight: 700; text-decoration: none; text-align: center; background: #141414; border-radius: 6px; text-underline-color: #141414;"><!--[if mso]><i hidden style="mso-font-width: 213.33%; mso-text-raise: 173.34%;">&#8203;&emsp;</i><![endif]--><span style="mso-text-raise: 86.67%; padding: 13px 32px; display: block;">Log in</span><!--[if mso]><i hidden style="mso-font-width: 213.33%;">&emsp;&#8203;</i><![endif]--></a>
+    <a href="{{ trigger.claimUrl }}" style="display: inline-block; mso-padding-alt: 0; color: #ffffff; font-family: Helvetica, sans-serif; font-weight: 700; text-decoration: none; text-align: center; background: #141414; border-radius: 6px; text-underline-color: #141414;"><!--[if mso]><i hidden style="mso-font-width: 213.33%; mso-text-raise: 173.34%;">&#8203;&emsp;</i><![endif]--><span style="mso-text-raise: 86.67%; padding: 13px 32px; display: block;">Start debrief</span><!--[if mso]><i hidden style="mso-font-width: 213.33%;">&emsp;&#8203;</i><![endif]--></a>
   </div>
 
-  <p style="color: #7A6F5E; font-size: 13px; text-align: center; margin: 20px 0 0 0;">Don&rsquo;t want to log in by email? <a href="{{ trigger.set_password_url }}" style="color: #433C32; text-decoration: underline;">Set a password</a> or <a href="{{ trigger.google_url }}" style="color: #433C32; text-decoration: underline;">log in with Google</a>.</p>
+  <p style="color: #7A6F5E; font-size: 13px; text-align: center; margin: 20px 0 0 0;">Voluntary only &mdash; skip anytime. No clawback.</p>
 
-  <p style="color: #7A6F5E; font-size: 14px; text-align: center; margin: 28px 0 0 0;">Didn&rsquo;t ask for this? You can ignore this email. Nobody can log in without the link. Questions? Just reply to this email.</p>
+  <p style="color: #7A6F5E; font-size: 14px; text-align: center; margin: 28px 0 0 0;">Questions? Just reply to this email.</p>
 
 </div><!--[if !true]><! --></div></div><!-- <![endif]--><!--[if true]></td><td></td></tr></table><![endif]-->
 </div>

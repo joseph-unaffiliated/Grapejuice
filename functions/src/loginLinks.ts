@@ -22,11 +22,12 @@ import { metaContextFromCallable, sendMetaEvent } from './metaCapi';
 /** Save-this-box links ride along with a fresh box, so they live longer than plain sign-in links. */
 const SAVE_BOX_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const LOGIN_TOKEN_TTL_MS = 60 * 60 * 1000;
+const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const EMAIL_LIMIT_PER_WINDOW = 6;
 const IP_LIMIT_PER_WINDOW = 30;
 
-type LoginPurpose = 'save-box' | 'login';
+type LoginPurpose = 'save-box' | 'login' | 'invite';
 
 export const SET_PASSWORD_PATH = '/account/set-password';
 export const CONNECT_GOOGLE_PATH = '/account/connect-google';
@@ -94,9 +95,23 @@ async function enforceRateLimits(
   }
 }
 
+const TOKEN_TTL_MS: Record<LoginPurpose, number> = {
+  'save-box': SAVE_BOX_TOKEN_TTL_MS,
+  login: LOGIN_TOKEN_TTL_MS,
+  invite: INVITE_TOKEN_TTL_MS,
+};
+
 async function mintLoginToken(
   db: FirebaseFirestore.Firestore,
-  input: { uid: string; email: string; purpose: LoginPurpose; next: string | null; visitorId: string | null }
+  input: {
+    /** Null only for invite tokens: the account is created when the invitee clicks. */
+    uid: string | null;
+    email: string;
+    purpose: LoginPurpose;
+    next: string | null;
+    visitorId: string | null;
+    invitePath?: string;
+  }
 ): Promise<string> {
   const token = randomBytes(32).toString('base64url');
   const now = Date.now();
@@ -106,13 +121,76 @@ async function mintLoginToken(
     purpose: input.purpose,
     next: input.next,
     visitorId: input.visitorId,
+    invitePath: input.invitePath ?? null,
     createdAt: Timestamp.fromMillis(now),
-    expiresAt: Timestamp.fromMillis(
-      now + (input.purpose === 'save-box' ? SAVE_BOX_TOKEN_TTL_MS : LOGIN_TOKEN_TTL_MS)
-    ),
+    expiresAt: Timestamp.fromMillis(now + TOKEN_TTL_MS[input.purpose]),
     usedAt: null,
   });
   return token;
+}
+
+/** Accept-invite link for a collaborator invite email (createPartnerInvite). */
+export async function mintInviteAcceptUrl(
+  db: FirebaseFirestore.Firestore,
+  input: { householdId: string; inviteId: string; email: string }
+): Promise<string> {
+  const existing = await getAuth()
+    .getUserByEmail(input.email)
+    .catch(() => null);
+  const token = await mintLoginToken(db, {
+    uid: existing?.uid ?? null,
+    email: input.email,
+    purpose: 'invite',
+    next: '/box',
+    visitorId: null,
+    invitePath: `households/${input.householdId}/partnerInvites/${input.inviteId}`,
+  });
+  return loginUrl(token, '/box');
+}
+
+/**
+ * Join the inviting household. Returns the invitee's uid, creating a passwordless account
+ * when the address has none (clicking the emailed link proves the inbox is theirs).
+ */
+async function acceptInviteFromLink(
+  db: FirebaseFirestore.Firestore,
+  invitePath: string,
+  tokenEmailHash: string
+): Promise<string | null> {
+  const inviteRef = db.doc(invitePath);
+  const invite = (await inviteRef.get()).data();
+  const email = String(invite?.invitedEmail ?? '').trim().toLowerCase();
+  if (!invite || !email || emailHash(email) !== tokenEmailHash) return null;
+  if (invite.status !== 'pending' && invite.status !== 'accepted') return null;
+
+  const auth = getAuth();
+  const user =
+    (await auth.getUserByEmail(email).catch(() => null)) ??
+    (await auth.createUser({ email, emailVerified: true }));
+  if (invite.status === 'accepted') return user.uid;
+
+  const householdId = String(invite.householdId);
+  const now = new Date().toISOString();
+  const userRef = db.doc(`users/${user.uid}`);
+  const profileExists = (await userRef.get()).exists;
+  await db.doc(`households/${householdId}`).update({
+    memberIds: FieldValue.arrayUnion(user.uid),
+    updatedAt: now,
+  });
+  await userRef.set(
+    {
+      householdId,
+      onboardingComplete: true,
+      boxRevealComplete: true,
+      updatedAt: now,
+      ...(profileExists
+        ? {}
+        : { uid: user.uid, email, displayName: null, role: 'parent', createdAt: now }),
+    },
+    { merge: true }
+  );
+  await inviteRef.update({ status: 'accepted', acceptedByUid: user.uid });
+  return user.uid;
 }
 
 function loginUrl(token: string, next: string | null): string {
@@ -289,19 +367,26 @@ export const redeemLoginLink = onCall(
       tx.update(ref, { usedAt: Timestamp.fromMillis(now) });
       return {
         status: 'ok' as const,
-        uid: String(tok.uid),
+        uid: typeof tok.uid === 'string' ? tok.uid : null,
+        emailHash: String(tok.emailHash ?? ''),
+        invitePath: typeof tok.invitePath === 'string' ? tok.invitePath : null,
         next: typeof tok.next === 'string' ? tok.next : null,
         visitorId: typeof tok.visitorId === 'string' ? tok.visitorId : null,
       };
     });
     if (claimed.status !== 'ok') return { status: claimed.status };
 
+    const uid = claimed.invitePath
+      ? await acceptInviteFromLink(db, claimed.invitePath, claimed.emailHash)
+      : claimed.uid;
+    if (!uid) return { status: 'invalid' };
+
     const auth = getAuth();
     // Clicking the link proves the inbox is theirs.
-    await auth.updateUser(claimed.uid, { emailVerified: true }).catch((err) => {
+    await auth.updateUser(uid, { emailVerified: true }).catch((err) => {
       logger.warn('redeemLoginLink: emailVerified update failed', { err: String(err) });
     });
-    const customToken = await auth.createCustomToken(claimed.uid, { via: 'email-link' });
+    const customToken = await auth.createCustomToken(uid, { via: 'email-link' });
 
     let snapshot: Record<string, unknown> | null = null;
     if (claimed.visitorId) {
