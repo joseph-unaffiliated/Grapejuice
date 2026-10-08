@@ -23,6 +23,7 @@ export type MetaServerEventName =
   | 'PreRegister'
   | 'BoxBuilt'
   | 'BoxEmail'
+  | 'BoxFollowUp'
   | 'GiftSent';
 
 /** Browser + request context captured at the callable (or copied from Stripe metadata). */

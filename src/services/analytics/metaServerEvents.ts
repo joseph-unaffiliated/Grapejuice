@@ -14,14 +14,25 @@ type ServerEventName = 'CompleteRegistration' | 'PreRegister' | 'BoxBuilt';
 function sendServerEvent(
   eventName: ServerEventName,
   meta: MetaServerContext,
-  contentName?: string
+  contentName?: string,
+  practiceFrequencyScore?: number
 ): void {
   if (!functions || meta.skip) return;
   const callable = httpsCallable<
-    { eventName: ServerEventName; meta: MetaServerContext; contentName?: string },
+    {
+      eventName: ServerEventName;
+      meta: MetaServerContext;
+      contentName?: string;
+      practiceFrequencyScore?: number;
+    },
     { ok: boolean }
   >(functions, 'trackMetaEvent');
-  void callable({ eventName, meta, ...(contentName ? { contentName } : {}) }).catch(() => undefined);
+  void callable({
+    eventName,
+    meta,
+    ...(contentName ? { contentName } : {}),
+    ...(typeof practiceFrequencyScore === 'number' ? { practiceFrequencyScore } : {}),
+  }).catch(() => undefined);
 }
 
 const REG_SENT_KEY = 'gj.metaRegSent';
@@ -75,8 +86,12 @@ export function trackBoxEmail(): MetaServerContext {
   return metaServerContext(eventId);
 }
 
-export function trackBoxBuilt(numItems: number): void {
+/**
+ * `practiceFrequencyScore` goes to our server only, which picks the follow-up audience.
+ * Never put slider scores in pixel params.
+ */
+export function trackBoxBuilt(numItems: number, practiceFrequencyScore?: number): void {
   const eventId = newMetaEventId('boxbuilt');
   trackMetaCustom('BoxBuilt', { content_name: 'Hanukkah box', num_items: numItems }, eventId);
-  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box');
+  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box', practiceFrequencyScore);
 }

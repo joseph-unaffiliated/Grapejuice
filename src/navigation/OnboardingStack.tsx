@@ -371,7 +371,7 @@ export function OnboardingStack({
         setLineItems(items);
         // Curation keeps running while the guest types their email.
         goToStep('email');
-        trackBoxBuilt(items.length);
+        trackBoxBuilt(items.length, useGuestSessionStore.getState().practiceFrequencyScore);
         // Fail-open Rav pass; the building screen after the email gate waits on it.
         try {
           items = await runRavPass(items, profiles);
@@ -441,7 +441,7 @@ export function OnboardingStack({
       setFamiliarity(level);
       setLineItems(remappedItems);
       goToStep('building');
-      trackBoxBuilt(remappedItems.length);
+      trackBoxBuilt(remappedItems.length, useGuestSessionStore.getState().practiceFrequencyScore);
 
       try {
         remappedItems = await runRavPass(remappedItems, savedKids);
