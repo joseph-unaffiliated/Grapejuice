@@ -1,6 +1,6 @@
 import * as logger from './logger';
 import { onCall, HttpsError } from './sentry';
-import { getAuth } from 'firebase-admin/auth';
+import { getAuth, type UserRecord } from 'firebase-admin/auth';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { randomBytes } from 'crypto';
 import { sendEmail } from './email';
@@ -227,6 +227,39 @@ function firstNameOf(raw: unknown): string | undefined {
   return first || undefined;
 }
 
+/**
+ * A gate account nobody ever finished: never verified, no password or Google, nothing ordered,
+ * gifted, saved, or shared. Returns its households when it qualifies, else null.
+ */
+async function unfinishedGateAccountHouseholds(
+  db: FirebaseFirestore.Firestore,
+  user: UserRecord
+): Promise<FirebaseFirestore.DocumentReference[] | null> {
+  if (user.disabled || user.emailVerified || user.providerData.length > 0 || user.passwordHash) return null;
+  if (user.customClaims && Object.keys(user.customClaims).length > 0) return null;
+
+  const [households, gifts] = await Promise.all([
+    db.collection('households').where('memberIds', 'array-contains', user.uid).get(),
+    db.collection('giftInvites').where('giverUid', '==', user.uid).limit(1).get(),
+  ]);
+  if (!gifts.empty) return null;
+
+  for (const hh of households.docs) {
+    const d = hh.data();
+    const members = Array.isArray(d.memberIds) ? d.memberIds : [];
+    const kids = Array.isArray(d.childUserIds) ? d.childUserIds : [];
+    if (members.length !== 1 || kids.length > 0 || d.ownerId !== user.uid) return null;
+    if (d.cardOnFileAt || d.stripeDefaultPaymentMethodId) return null;
+    if ((Number(d.giftCreditCents) || 0) > 0 || (Number(d.platformCreditCents) || 0) > 0) return null;
+    const [orders, received] = await Promise.all([
+      hh.ref.collection('orders').limit(1).get(),
+      hh.ref.collection('receivedGifts').limit(1).get(),
+    ]);
+    if (!orders.empty || !received.empty) return null;
+  }
+  return households.docs.map((hh) => hh.ref);
+}
+
 export type RevealBoxWithEmailResult =
   | { status: 'created'; customToken: string }
   | { status: 'existing' };
@@ -234,8 +267,9 @@ export type RevealBoxWithEmailResult =
 /**
  * Box builder email gate (src/screens/onboarding/RevealEmailScreen.tsx). Unauthenticated.
  * - New email: create a passwordless account and return a custom token.
- * - Existing account: email a link that signs in and saves this box. Never returns a token,
- *   so typing someone else's email cannot sign you into their account.
+ * - Unfinished gate account (see unfinishedGateAccountHouseholds): erase it, then same as new.
+ * - Any other existing account: email a link that signs in and saves this box. Never returns a
+ *   token, so typing someone else's email cannot sign you into their account.
  */
 export const revealBoxWithEmail = onCall(
   { memory: '512MiB' },
@@ -270,6 +304,17 @@ export const revealBoxWithEmail = onCall(
     try {
       const user = await auth.getUserByEmail(email);
       existing = { uid: user.uid, displayName: user.displayName };
+      const unfinished = await unfinishedGateAccountHouseholds(db, user);
+      if (unfinished) {
+        // Start over under a new uid so no other device signed into the old account sees this box.
+        await Promise.all([
+          ...unfinished.map((ref) => db.recursiveDelete(ref)),
+          db.recursiveDelete(db.doc(`users/${user.uid}`)),
+        ]);
+        await auth.deleteUser(user.uid);
+        existing = null;
+        logger.info('revealBoxWithEmail: replaced unfinished account');
+      }
     } catch (err) {
       if ((err as { code?: string })?.code !== 'auth/user-not-found') throw err;
     }
@@ -379,9 +424,13 @@ export const redeemLoginLink = onCall(
 
     const auth = getAuth();
     // Clicking the link proves the inbox is theirs.
-    await auth.updateUser(uid, { emailVerified: true }).catch((err) => {
+    try {
+      await auth.updateUser(uid, { emailVerified: true });
+    } catch (err) {
+      // Account erased since the link was sent; a custom token would recreate it with no email.
+      if ((err as { code?: string })?.code === 'auth/user-not-found') return { status: 'invalid' };
       logger.warn('redeemLoginLink: emailVerified update failed', { err: String(err) });
-    });
+    }
     const customToken = await auth.createCustomToken(uid, { via: 'email-link' });
 
     let snapshot: Record<string, unknown> | null = null;
