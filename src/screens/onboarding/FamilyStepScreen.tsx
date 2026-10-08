@@ -50,7 +50,6 @@ export function FamilyStepScreen({ onContinue, initialMembers, defaultName }: Pr
       asideSide="right"
       inlineFooter
       footerUnderAside
-      centerVertically
       aside={
         <FamilyMembersForm members={members} onChange={setMembers} dense showInterests />
       }

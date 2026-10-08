@@ -127,7 +127,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       alignSelf: 'center',
       paddingTop: isDesktop ? spacing.sm : 0,
     },
-    backRow: { marginBottom: spacing.md, alignSelf: 'flex-start' },
+    backRow: { marginBottom: spacing.lg, alignSelf: 'flex-start' },
     backLink: {
       color: colors.brand,
       fontSize: typography.md,

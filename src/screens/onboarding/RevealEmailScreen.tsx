@@ -138,6 +138,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xl,
     paddingHorizontal: spacing.md,
     paddingVertical: 0,
+    /** Under 16px, iOS Safari zooms the page on focus. */
     fontSize: 16,
     color: '#000000',
     textAlign: 'center',

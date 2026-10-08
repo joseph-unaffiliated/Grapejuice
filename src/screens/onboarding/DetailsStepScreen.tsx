@@ -92,7 +92,6 @@ export function DetailsStepScreen({
       asideSide="right"
       inlineFooter
       footerUnderAside
-      centerVertically
       aside={
         <View>
           <Text style={[onboardingBodyText.lead, styles.notesLead]}>
@@ -172,7 +171,8 @@ const styles = StyleSheet.create({
     borderColor: semanticColors.brand,
     borderRadius: borderRadius.xl,
     padding: spacing.sm,
-    fontSize: 15,
+    /** Under 16px, iOS Safari zooms the page on focus. */
+    fontSize: 16,
     minHeight: INPUT_MIN_HEIGHT,
     maxHeight: INPUT_MAX_HEIGHT,
     backgroundColor: semanticColors.bgPrimary,

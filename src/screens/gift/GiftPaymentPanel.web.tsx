@@ -197,7 +197,7 @@ export function GiftPaymentPanel({
 }
 
 const styles = StyleSheet.create({
-  back: { marginBottom: spacing.md, alignSelf: 'flex-start' },
+  back: { marginBottom: spacing.lg, alignSelf: 'flex-start' },
   backText: {
     ...typeface('regular'),
     fontSize: typography.lg,

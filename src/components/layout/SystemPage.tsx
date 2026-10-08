@@ -343,11 +343,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
   },
   loaderBack: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
     paddingHorizontal: MOBILE_GUTTER,
     paddingTop: spacing.lg,
   },
-  back: { marginBottom: spacing.md },
+  back: { marginBottom: spacing.lg },
   backText: {
     ...typeface('regular'),
     fontSize: typography.lg,

@@ -259,7 +259,7 @@ function createStyles(colors: SemanticColors) {
       alignSelf: 'center',
     },
     centered: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
-    backRow: { marginBottom: spacing.sm },
+    backRow: { marginBottom: spacing.lg },
     backLink: { color: colors.brand, fontWeight: '600', fontSize: typography.md },
     title: { ...typeface('medium'), fontSize: 28, color: colors.textPrimary },
     sub: {
