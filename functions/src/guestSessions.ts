@@ -368,10 +368,20 @@ export const scheduledPurgeGuestSessions = onSchedule('every day 04:00', async (
   logger.info('scheduledPurgeGuestSessions', counts);
 });
 
-/** Mirrors firestore.rules isAdmin() — pilot ops allowlist with plus-aliases. */
+/** Pilot ops allowlist with plus-aliases. */
 export function isAdminEmail(email: string | undefined | null): boolean {
   if (!email) return false;
   return /^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email.trim());
+}
+
+/**
+ * Mirrors firestore.rules isAdmin(): a verified allowlisted email, or the `admin` custom claim.
+ * Unverified matches don't count — anyone can register a password account for an unused alias.
+ */
+export function isAdminToken(token: Record<string, unknown> | undefined): boolean {
+  if (!token) return false;
+  if (token.admin === true) return true;
+  return token.email_verified === true && typeof token.email === 'string' && isAdminEmail(token.email);
 }
 
 /**
@@ -380,7 +390,7 @@ export function isAdminEmail(email: string | undefined | null): boolean {
  */
 export const deleteGuestDataByEmail = onCall(
   async (request) => {
-    if (!isAdminEmail(request.auth?.token?.email)) {
+    if (!isAdminToken(request.auth?.token)) {
       throw new HttpsError('permission-denied', 'Admin only.');
     }
     const data = (request.data ?? {}) as { email?: unknown };

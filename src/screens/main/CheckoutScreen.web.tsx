@@ -24,7 +24,7 @@ import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from './checkout/checkoutUi';
-import { STRIPE_APPEARANCE, STRIPE_FONTS } from './checkout/stripeAppearance';
+import { PAYMENT_ELEMENT_OPTIONS, STRIPE_APPEARANCE, STRIPE_FONTS } from './checkout/stripeAppearance';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useCheckoutDraft';
@@ -181,7 +181,7 @@ function SetupCardStep({
     <View>
       <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
       <View style={styles.paymentElementWrap}>
-        <PaymentElement options={{ layout: 'tabs' }} />
+        <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </View>
       <CheckoutCta
         label="Continue"

@@ -26,7 +26,11 @@ import {
 } from '../../services/box/pricing';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
 import { checkoutUi } from '../main/checkout/checkoutUi';
-import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
+import {
+  PAYMENT_ELEMENT_OPTIONS,
+  STRIPE_APPEARANCE,
+  STRIPE_FONTS,
+} from '../main/checkout/stripeAppearance';
 import type { MainStackParamList } from '../../navigation/types';
 import type { ShippingAddress } from '../../types/pilot';
 import {
@@ -72,7 +76,7 @@ function WebPayStep({ onPaid }: { onPaid: () => void }) {
     <View>
       <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
       <View style={styles.paymentElementWrap}>
-        <PaymentElement options={{ layout: 'tabs' }} />
+        <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </View>
       <GrapejuiceButton
         label="Pay & confirm gift box"

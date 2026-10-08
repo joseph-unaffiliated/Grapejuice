@@ -21,6 +21,7 @@ import {
   type FailedBoxSnapshot,
 } from '../../services/checkout/chargeRetry';
 import type { MainStackParamList } from '../../navigation/types';
+import { PAYMENT_ELEMENT_OPTIONS } from './checkout/stripeAppearance';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -67,7 +68,7 @@ function SaveCardForm({
   return (
     <View style={styles.paymentBlock}>
       <View style={styles.paymentElementWrap}>
-        <PaymentElement options={{ layout: 'tabs' }} />
+        <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </View>
       <TouchableOpacity
         style={[styles.cta, saving && styles.ctaDisabled]}

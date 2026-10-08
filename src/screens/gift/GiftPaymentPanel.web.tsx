@@ -11,6 +11,7 @@ import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from '../main/checkout/checkoutUi';
+import { PAYMENT_ELEMENT_OPTIONS } from '../main/checkout/stripeAppearance';
 import { metaEventIds, trackMeta, trackMetaCustom } from '../../services/analytics/metaPixel';
 
 /** Stripe Elements appearance — closer to Grapejuice checkout than default purple Stripe. */
@@ -150,7 +151,7 @@ export function GiftPaymentPanel({
       <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
       <View style={styles.paymentElementWrap}>
         <PaymentElement
-          options={{ layout: 'tabs' }}
+          options={PAYMENT_ELEMENT_OPTIONS}
           onReady={() => setElementState('ready')}
           onLoadError={(event) => {
             console.warn('[gift] PaymentElement failed to load', event.error);

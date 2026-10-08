@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useBoxPresenceStore } from '../stores/boxPresenceStore';
+import { LAST_SIGNED_IN_KEY, useBoxPresenceStore } from '../stores/boxPresenceStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import {
   dateFromPreviewNowIso,
@@ -44,6 +44,7 @@ export function usePreviewedHasStartedBox(): boolean {
   const preview = useUserStatePreviewStore((s) => s.preview);
   const overridden = previewHasBox(preview);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const householdId = useSession().household?.id ?? null;
   const guestHasBox = useGuestSessionStore(
     (s) => s.onboardingComplete || s.boxRevealComplete || s.lineItems.length > 0
@@ -52,11 +53,19 @@ export function usePreviewedHasStartedBox(): boolean {
   const remembered = useBoxPresenceStore((s) =>
     householdId ? s.byKey[householdId] : undefined
   );
+  const lastSignedIn = useBoxPresenceStore((s) => s.byKey[LAST_SIGNED_IN_KEY]);
 
   if (overridden != null) return overridden;
-  if (!isAuthenticated) return guestHasBox;
+  if (!isAuthenticated) {
+    // Cold load: Firebase hasn't restored the session yet.
+    if (authLoading && lastSignedIn !== undefined) return lastSignedIn;
+    return guestHasBox;
+  }
   // A new screen starts with an empty draft. Keep the last answer until this load finishes.
-  if (loading && remembered !== undefined) return remembered;
+  if (loading) {
+    const known = remembered ?? lastSignedIn;
+    if (known !== undefined) return known;
+  }
   return lineItems.length > 0;
 }
 

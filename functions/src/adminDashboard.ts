@@ -1,5 +1,6 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from './sentry';
+import { isAdminToken } from './guestSessions';
 
 /**
  * Admin "Boxes and gifts" dashboard: one read-only snapshot of Hanukkah box orders,
@@ -12,7 +13,6 @@ const PENDING_TTL_MS = 2 * 60 * 60 * 1000;
 const LIVE = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
 const DEFAULT_BOX_CENTS = 8000;
 const PER_EXTRA_KID_CENTS = 1000;
-const ADMIN_EMAIL = /^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i;
 const GUEST_ROW_LIMIT = 500;
 /** Onboarding steps after the two sliders — reaching one means the scores are real answers, not defaults. */
 const STEPS_AFTER_SLIDERS = ['rav-question', 'building', 'reveal'];
@@ -839,8 +839,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
 export function createAdminBoxesDashboard(db: Firestore) {
   return onCall(async (request): Promise<BoxesDashboard> => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in.');
-    const email = (request.auth.token.email as string | undefined) ?? '';
-    if (!ADMIN_EMAIL.test(email)) throw new HttpsError('permission-denied', 'Admin only.');
+    if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
     return buildBoxesDashboard(db);
   });
 }

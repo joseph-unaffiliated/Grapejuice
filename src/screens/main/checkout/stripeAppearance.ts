@@ -1,4 +1,4 @@
-import type { Appearance, CssFontSource } from '@stripe/stripe-js';
+import type { Appearance, CssFontSource, StripePaymentElementOptions } from '@stripe/stripe-js';
 import { WEB_FONT_FAMILY, borderRadius, semanticColors } from '../../../constants/theme';
 
 /** Stripe's card form runs in an iframe, so the Account input style is passed in here. */
@@ -21,6 +21,12 @@ export const STRIPE_APPEARANCE: Appearance = {
     '.Tab--selected': { borderColor: semanticColors.goldMuted, boxShadow: 'none' },
     '.Label': { fontSize: '12px', color: semanticColors.textSecondary },
   },
+};
+
+/** Stripe otherwise picks the billing country from the visitor's IP; we only ship in the U.S. */
+export const PAYMENT_ELEMENT_OPTIONS: StripePaymentElementOptions = {
+  layout: 'tabs',
+  defaultValues: { billingDetails: { address: { country: 'US' } } },
 };
 
 export const STRIPE_FONTS: CssFontSource[] = [

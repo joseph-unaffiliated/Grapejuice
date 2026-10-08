@@ -19,6 +19,7 @@ import {
 } from '../services/auth/auth';
 import { persistGuestToAccount } from '../services/guest/persistGuestToAccount';
 import { useGuestSessionStore } from './guestSessionStore';
+import { useBoxPresenceStore } from './boxPresenceStore';
 import type { AuthReturnRoute } from './authFlowStore';
 
 let guestMergeInFlight: Promise<boolean> | null = null;
@@ -306,6 +307,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     await signOut();
+    useBoxPresenceStore.getState().clearLastSignedIn();
     set({ user: null, isAuthenticated: false, error: null });
   },
 

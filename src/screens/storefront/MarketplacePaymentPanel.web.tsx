@@ -10,6 +10,7 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { BoxLineItem } from '../../types/pilot';
 import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
+import { PAYMENT_ELEMENT_OPTIONS } from '../main/checkout/stripeAppearance';
 
 type Props = {
   lineItems: BoxLineItem[];
@@ -97,7 +98,7 @@ export function MarketplacePaymentPanel({
 
       <Text style={styles.sectionTitle}>Payment method</Text>
       <View style={styles.paymentElementWrap}>
-        <PaymentElement options={{ layout: 'tabs' }} />
+        <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </View>
 
       <TouchableOpacity

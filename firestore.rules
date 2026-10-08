@@ -13,10 +13,13 @@ service cloud.firestore {
     }
 
     /** Pilot ops allowlist — keep in sync with src/constants/admin.ts (plus-aliases allowed). */
+    // Unverified email matches don't count: anyone can register a password account for an unused alias.
     function isAdmin() {
       return signedIn()
-        && request.auth.token.email is string
-        && request.auth.token.email.matches('^(brendan|joseph|maya)(\\+[^@]*)?@unaffiliated[.]co$');
+        && (request.auth.token.get('admin', false) == true
+          || (request.auth.token.email_verified == true
+            && request.auth.token.email is string
+            && request.auth.token.email.matches('^(brendan|joseph|maya)(\\+[^@]*)?@unaffiliated[.]co$')));
     }
 
     match /users/{userId} {
