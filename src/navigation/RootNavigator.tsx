@@ -52,7 +52,7 @@ import { VisitorRegionEffect } from '../hooks/useVisitorRegion';
 import { hydratePasswordResetFromBoot } from './passwordResetLink';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { onSeoNavigationStateChange } from './useSeoMeta';
-import { seoTitle } from '../constants/seo';
+import { HOME_TITLE, seoTitle } from '../constants/seo';
 import { consumePendingAuthReturn } from '../services/auth/auth';
 
 hydratePasswordResetFromBoot();
@@ -417,10 +417,12 @@ export function RootNavigator() {
           onReady={() => onSeoNavigationStateChange(navigationRef.getRootState())}
           documentTitle={{
             formatter: (options, route) =>
-              seoTitle(
-                (typeof options?.title === 'string' && options.title.trim()) ||
-                  (typeof route?.name === 'string' ? humanizeRoute(route.name) : '')
-              ),
+              route?.name === 'StorefrontHome'
+                ? HOME_TITLE
+                : seoTitle(
+                    (typeof options?.title === 'string' && options.title.trim()) ||
+                      (typeof route?.name === 'string' ? humanizeRoute(route.name) : '')
+                  ),
           }}
         >
           <WebBrowserHistoryBridge />

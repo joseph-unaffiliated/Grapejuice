@@ -71,6 +71,9 @@ export function useBoxDraft() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   const { household, profile, loading: sessionLoading } = useSession();
+  const hasProfile = profile != null;
+  const profileHouseholdId = profile?.householdId ?? null;
+  const profileRole = profile?.role;
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const guestFamiliarity = useGuestSessionStore((s) => s.familiarityLevel);
   const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
@@ -141,7 +144,11 @@ export function useBoxDraft() {
     }
 
     if (!household?.id || !user?.uid) {
-      setLoading(sessionLoading);
+      // SessionContext sets the profile before the household, and silent refreshes never flip
+      // sessionLoading — an unknown draft must not read as an empty one (My Box restarts the build).
+      const householdPending =
+        !!user?.uid && (!hasProfile || !!profileHouseholdId || profileRole === 'parent');
+      setLoading(sessionLoading || householdPending);
       return;
     }
 
@@ -288,6 +295,9 @@ export function useBoxDraft() {
     household?.id,
     user?.uid,
     user?.displayName,
+    hasProfile,
+    profileHouseholdId,
+    profileRole,
     profile?.displayName,
     profile?.familiarityLevel,
     profile?.onboardingComplete,
