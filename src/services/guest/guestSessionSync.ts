@@ -2,7 +2,11 @@ import { Platform } from 'react-native';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { app, db, functions } from '../../lib/firebase';
-import { useGuestSessionStore, type GuestOnboardingStep } from '../../stores/guestSessionStore';
+import {
+  useGuestSessionStore,
+  type GuestOnboardingStep,
+  type GuestStepsReached,
+} from '../../stores/guestSessionStore';
 import {
   useGiftIntentStore,
   type GiftIntentDraft,
@@ -23,6 +27,8 @@ export const GUEST_SESSION_SCHEMA_VERSION = 1 as const;
 export type GuestSnapshotGuest = {
   buildBoxPath: boolean;
   onboardingStep: GuestOnboardingStep | null;
+  /** Absent on snapshots saved before Oct 8, 2026. */
+  stepsReached?: GuestStepsReached;
   childDrafts: ChildDraft[];
   childInterests: string[];
   familiarityScore: number;
@@ -65,6 +71,7 @@ function guestFromStore(): GuestSnapshotGuest {
   return {
     buildBoxPath: s.buildBoxPath,
     onboardingStep: s.onboardingStep,
+    stepsReached: s.stepsReached,
     childDrafts: s.childDrafts,
     childInterests: s.childInterests,
     familiarityScore: s.familiarityScore,
@@ -102,9 +109,13 @@ function entryFromWindow(): GuestSnapshotEntry | null {
   };
 }
 
-/** Anything worth emailing someone about? Empty storefront browsing is not. */
+/**
+ * Anything worth saving? Empty storefront browsing is not. Opening the box builder is, so the
+ * Funnel tab sees visitors who leave on the first screen.
+ */
 export function hasMeaningfulGuestData(guest: GuestSnapshotGuest, gift: GuestSnapshotGift | null): boolean {
   return (
+    Object.keys(guest.stepsReached ?? {}).length > 0 ||
     guest.childDrafts.length > 0 ||
     guest.lineItems.length > 0 ||
     guest.wishlistItemIds.length > 0 ||
@@ -140,6 +151,7 @@ export function applyGuestSnapshot(snapshot: GuestSessionSnapshot): void {
     exploreStarted: true,
     buildBoxPath: guest.buildBoxPath ?? false,
     onboardingStep: guest.onboardingStep ?? null,
+    stepsReached: { ...useGuestSessionStore.getState().stepsReached, ...guest.stepsReached },
     childDrafts: guest.childDrafts ?? [],
     childInterests: guest.childInterests ?? [],
     familiarityScore: typeof guest.familiarityScore === 'number' ? guest.familiarityScore : 50,

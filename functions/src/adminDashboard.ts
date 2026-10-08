@@ -158,6 +158,30 @@ export type DashAdPerson = {
   outsideUs: boolean;
 };
 
+/**
+ * One signed-out box-builder session for the Funnel tab: which steps it got through. Sessions
+ * are saved from the first builder screen only since Oct 8, 2026; older ones only once past it.
+ */
+export type DashFunnelPerson = {
+  id: string;
+  firstSeen: string | null;
+  ad: string;
+  /** Converted to a test account. */
+  test: boolean;
+  outsideUs: boolean;
+  family: boolean;
+  /** Finished the sliders, so a box was curated. */
+  sliders: boolean;
+  /** Submitted the email gate (live since Oct 8, 2026). */
+  gateEmail: boolean;
+  sawBox: boolean;
+  account: boolean;
+  /** Account, gate email, or a Retention.com lead. */
+  anyEmail: boolean;
+  card: boolean;
+  purchase: boolean;
+};
+
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
@@ -175,6 +199,7 @@ export type BoxesDashboard = {
   gifts: DashGift[];
   inventory: DashInventoryRow[];
   adPeople: DashAdPerson[];
+  funnel: DashFunnelPerson[];
   /** Meta's own per-ad results (Grapejuice campaigns), keyed by ad name; null when Meta is unreachable. */
   metaByAd: Record<string, MetaAdStats> | null;
 };
@@ -467,7 +492,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       db.collectionGroup('receivedGifts').get(),
       db
         .collection('guestSessions')
-        .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'resumeCount', 'saveCount', 'ipGeo')
+        .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'gateEmailAt', 'resumeCount', 'saveCount', 'ipGeo')
         .get(),
     ]);
   const guestDocs = guestSnap.docs.filter((d) => !d.id.startsWith('agenttest'));
@@ -793,6 +818,41 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     });
   }
 
+  const funnel: DashFunnelPerson[] = [];
+  for (const d of guestDocs) {
+    const x = d.data();
+    const guest: DocumentData = x.snapshot?.guest ?? {};
+    const steps: DocumentData = guest.stepsReached && typeof guest.stepsReached === 'object' ? guest.stepsReached : {};
+    const hasLines = Array.isArray(guest.lineItems) && guest.lineItems.length > 0;
+    const kids = Array.isArray(guest.childDrafts) && guest.childDrafts.length > 0;
+    const uid = str(x.convertedUid);
+    const builder =
+      Object.keys(steps).length > 0 || kids || hasLines || Boolean(str(guest.onboardingStep)) || guest.onboardingComplete === true;
+    if (!builder) continue;
+    const sliders =
+      hasLines || guest.onboardingComplete === true || guestAnsweredSliders(guest) || Boolean(steps.email || steps.building);
+    // Before the gate, guests went from the sliders straight to `building`; only email → building is the gate.
+    const gateEmail = Boolean(x.gateEmailAt) || Boolean(steps.email && steps.building);
+    const u = uid ? users.get(uid) : undefined;
+    const hid = u?.householdId ?? null;
+    const h = hid ? households.get(hid) : undefined;
+    funnel.push({
+      id: d.id,
+      firstSeen: iso(x.createdAt),
+      ad: adNameOf(x.entry) ?? guestNonAdLabel(x.entry),
+      test: u ? isTest(u.email) : false,
+      outsideUs: ipOutsideUs(x.ipGeo),
+      family: kids || Boolean(steps.details) || sliders,
+      sliders,
+      gateEmail,
+      sawBox: guest.boxRevealComplete === true || Boolean(steps.reveal) || Boolean(uid),
+      account: Boolean(uid),
+      anyEmail: Boolean(uid) || gateEmail || Boolean(x.lastLeadAt),
+      card: Boolean(h && (h.cardOnFileAt || h.stripeDefaultPaymentMethodId)),
+      purchase: Boolean(hid && committedBoxHouseholds.has(hid)),
+    });
+  }
+
   const giftHeld = new Map<string, number>();
   for (const { lines } of giftOrders.values()) addLines(giftHeld, lines);
   const gifts: DashGift[] = [];
@@ -912,6 +972,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     gifts,
     inventory,
     adPeople,
+    funnel,
     metaByAd: null,
   };
 }

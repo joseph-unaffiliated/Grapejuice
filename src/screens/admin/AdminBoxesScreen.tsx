@@ -27,6 +27,7 @@ import {
   type DashAdPerson,
   type DashAnswers,
   type DashBox,
+  type DashFunnelPerson,
   type DashGift,
   type DashGuest,
   type DashInventoryRow,
@@ -1112,8 +1113,213 @@ function AdsSection({
   );
 }
 
-type Tab = 'boxes' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
-const TABS: readonly Tab[] = ['boxes', 'anonymous', 'ads', 'gifts', 'inventory'];
+/** The box builder's email gate went live (10:30am ET). */
+const GATE_LIVE_MS = Date.parse('2026-10-08T14:30:00Z');
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type FunnelKey = 'opened' | 'family' | 'sliders' | 'gateEmail' | 'sawBox' | 'account' | 'card' | 'purchase';
+const FUNNEL_STEPS: ReadonlyArray<{ key: FunnelKey; label: string; short: string }> = [
+  { key: 'opened', label: 'Opened the box builder', short: 'Opened' },
+  { key: 'family', label: 'Finished “Your family”', short: 'Family' },
+  { key: 'sliders', label: 'Finished the sliders (box built)', short: 'Box built' },
+  { key: 'gateEmail', label: 'Entered email at the gate', short: 'Gate email' },
+  { key: 'sawBox', label: 'Saw their box', short: 'Saw box' },
+  { key: 'account', label: 'Has an account', short: 'Accounts' },
+  { key: 'card', label: 'Added a card', short: 'Cards' },
+  { key: 'purchase', label: 'Ordered', short: 'Orders' },
+];
+const reachedStep = (p: DashFunnelPerson, k: FunnelKey) => k === 'opened' || p[k];
+const countStep = (people: DashFunnelPerson[], k: FunnelKey) => people.filter((p) => reachedStep(p, k)).length;
+const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '—');
+const firstSeenMs = (p: DashFunnelPerson) => (p.firstSeen ? Date.parse(p.firstSeen) : NaN);
+
+type FunnelWindow = 'day' | 'week' | 'gate' | 'all';
+const FUNNEL_WINDOWS: Array<[FunnelWindow, string]> = [
+  ['day', 'Last 24 hours'],
+  ['week', 'Last 7 days'],
+  ['gate', 'Since the email gate'],
+  ['all', 'All saved'],
+];
+
+function windowStart(w: FunnelWindow, now: number): number {
+  if (w === 'day') return now - DAY_MS;
+  if (w === 'week') return now - 7 * DAY_MS;
+  if (w === 'gate') return GATE_LIVE_MS;
+  return -Infinity;
+}
+
+const etDay = (ms: number) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+
+const COMPARE_STEPS: ReadonlyArray<{ key: FunnelKey | 'anyEmail'; label: string }> = [
+  { key: 'sliders', label: 'Finished the sliders (box built)' },
+  { key: 'sawBox', label: 'Saw their box' },
+  { key: 'anyEmail', label: 'Gave an email (gate, account or Retention)' },
+  { key: 'account', label: 'Has an account' },
+  { key: 'card', label: 'Added a card' },
+  { key: 'purchase', label: 'Ordered' },
+];
+
+type CompareRow = { key: FunnelKey | 'anyEmail'; label: string; before: number; after: number };
+type DayRow = { day: string; people: DashFunnelPerson[] };
+
+function FunnelSection({
+  people,
+  hideTests,
+  now,
+  styles,
+  colors,
+}: {
+  people: DashFunnelPerson[];
+  hideTests: boolean;
+  now: number;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const [win, setWin] = useState<FunnelWindow>('gate');
+  const pool = useMemo(() => people.filter((p) => !(hideTests && p.test)), [people, hideTests]);
+  const inWindow = useMemo(() => {
+    const start = windowStart(win, now);
+    return pool.filter((p) => firstSeenMs(p) >= start);
+  }, [pool, win, now]);
+
+  const steps = FUNNEL_STEPS.map((s) => ({ ...s, count: countStep(inWindow, s.key) }));
+  const top = steps[0].count;
+  let biggest = -1;
+  let drop = 0;
+  steps.forEach((s, i) => {
+    const lost = i > 0 ? steps[i - 1].count - s.count : 0;
+    if (lost > drop) {
+      biggest = i;
+      drop = lost;
+    }
+  });
+
+  const before = pool.filter((p) => firstSeenMs(p) < GATE_LIVE_MS && p.family);
+  const after = pool.filter((p) => firstSeenMs(p) >= GATE_LIVE_MS && p.family);
+  const beforeStart = before.reduce((m, p) => Math.min(m, firstSeenMs(p)), Infinity);
+  const compareRows: CompareRow[] = COMPARE_STEPS.map(({ key, label }) => {
+    const has = (p: DashFunnelPerson) => (key === 'anyEmail' ? p.anyEmail : reachedStep(p, key));
+    return { key, label, before: before.filter(has).length, after: after.filter(has).length };
+  });
+  const per100 = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}  (${n})` : '—');
+  const hoursBefore = Number.isFinite(beforeStart) ? Math.round((GATE_LIVE_MS - beforeStart) / 3_600_000) : 0;
+  const hoursAfter = Math.max(0, Math.round((now - GATE_LIVE_MS) / 3_600_000));
+
+  const days: DayRow[] = useMemo(() => {
+    const byDay = new Map<string, DashFunnelPerson[]>();
+    for (const p of pool) {
+      const t = firstSeenMs(p);
+      if (!Number.isFinite(t) || t < now - 14 * DAY_MS) continue;
+      const d = etDay(t);
+      byDay.set(d, [...(byDay.get(d) ?? []), p]);
+    }
+    return [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([day, ps]) => ({ day, people: ps }));
+  }, [pool, now]);
+
+  const dayCount = (k: FunnelKey) => (r: DayRow) => countStep(r.people, k);
+  const dayColumns: Column<DayRow>[] = [
+    { label: 'Day (ET)', width: 100, cell: (r) => r.day, sort: (r) => r.day },
+    ...FUNNEL_STEPS.map(
+      (s): Column<DayRow> => ({
+        label: s.short,
+        width: 80,
+        align: 'right',
+        cell: (r) => String(dayCount(s.key)(r)),
+        sort: dayCount(s.key),
+      }),
+    ),
+    {
+      label: 'Gate pass',
+      width: 85,
+      align: 'right',
+      cell: (r) => {
+        const built = r.people.filter((p) => p.sliders && firstSeenMs(p) >= GATE_LIVE_MS);
+        return built.length ? pct(built.filter((p) => p.gateEmail).length, built.length) : '—';
+      },
+    },
+  ];
+
+  const compareColumns: Column<CompareRow>[] = [
+    { label: 'Step', width: 290, cell: (r) => r.label },
+    { label: `Before the gate (${before.length} in ${hoursBefore}h)`, width: 200, align: 'right', cell: (r) => per100(r.before, before.length) },
+    { label: `With the gate (${after.length} in ${hoursAfter}h)`, width: 200, align: 'right', cell: (r) => per100(r.after, after.length) },
+  ];
+
+  return (
+    <View style={styles.sectionBody}>
+      <ChipGroup value={win} onChange={setWin} options={FUNNEL_WINDOWS} styles={styles} />
+      {biggest > 0 ? (
+        <Text style={styles.hint}>
+          <Text style={[styles.tdStrong, { color: colors.error }]}>Biggest drop-off: </Text>
+          {`${drop} of ${steps[biggest - 1].count} (${pct(drop, steps[biggest - 1].count)}) left between “${steps[biggest - 1].label}” and “${steps[biggest].label}”.`}
+        </Text>
+      ) : null}
+      {top === 0 ? (
+        <Text style={styles.hint}>No one opened the box builder in this window.</Text>
+      ) : (
+        <View style={styles.funnel}>
+          {steps.map((s, i) => {
+            const prev = i > 0 ? steps[i - 1].count : null;
+            const lost = prev == null ? 0 : prev - s.count;
+            const isBiggest = i === biggest;
+            return (
+              <View key={s.key} style={styles.funnelRow}>
+                <Text style={[styles.td, styles.funnelLabel, isBiggest && styles.tdStrong]} numberOfLines={2}>
+                  {s.label}
+                </Text>
+                <View style={styles.funnelTrack}>
+                  <View
+                    style={[
+                      styles.funnelFill,
+                      { width: `${top ? (s.count / top) * 100 : 0}%`, backgroundColor: isBiggest ? colors.error : colors.brand },
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.td, styles.tdStrong, styles.funnelNum]}>{String(s.count)}</Text>
+                <Text style={[styles.tdMuted, styles.funnelNum]}>{pct(s.count, top)}</Text>
+                <Text style={[styles.tdMuted, styles.funnelDrop, isBiggest && { color: colors.error }]}>
+                  {prev == null ? '' : lost > 0 ? `−${lost} (${pct(lost, prev)})` : lost < 0 ? `+${-lost}` : '—'}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+      <Text style={styles.caption}>
+        {`Signed-out visitors who opened the box builder, by when we first saved them. Bars and % are out of everyone who opened it; the right column is how many left since the step before. Visitors who leave on the family screen are saved only from Oct 8 (evening); before that, "Opened" only counts people who got past it. "Entered email at the gate" only exists from Oct 8, 10:30am ET. Signed-in builders aren't included (they skip the gate). US only and Hide tests apply; anonymous test visits can't be told apart.`}
+      </Text>
+
+      <Text style={styles.section}>Before vs. with the email gate</Text>
+      <SortTable<CompareRow>
+        columns={compareColumns}
+        rows={compareRows}
+        rowKey={(r) => r.key}
+        emptyMessage="No sessions yet."
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>
+        {`Per 100 people who finished “Your family”, with the count in brackets. Before = saved sessions from the first one on record until the gate went live (Oct 8, 10:30am ET); with = since then. Newer sessions have had less time to come back, add a card, or order.`}
+      </Text>
+
+      <Text style={styles.section}>By day</Text>
+      <SortTable<DayRow>
+        columns={dayColumns}
+        rows={days}
+        rowKey={(r) => r.day}
+        emptyMessage="No sessions in the last 14 days."
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>
+        {`Last 14 days, by the day we first saved each visitor (Eastern time). Gate pass = gate emails out of boxes built since the gate went live.`}
+      </Text>
+    </View>
+  );
+}
+
+type Tab = 'boxes' | 'funnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
+const TABS: readonly Tab[] = ['boxes', 'funnel', 'anonymous', 'ads', 'gifts', 'inventory'];
 const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
 
 /** The open tab survives a browser refresh of /admin/boxes. */
@@ -1173,6 +1379,7 @@ export function AdminBoxesScreen() {
             guests: data.guests.filter((g) => !g.outsideUs),
             gifts: data.gifts.filter((g) => !g.outsideUs),
             adPeople: (data.adPeople ?? []).filter((p) => !p.outsideUs),
+            funnel: (data.funnel ?? []).filter((p) => !p.outsideUs),
           }
         : data,
     [data, usOnly],
@@ -1317,6 +1524,7 @@ export function AdminBoxesScreen() {
           <View style={styles.sectionDivider} />
           <View style={styles.chipRow}>
             <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
+            <Chip label="Funnel" active={tab === 'funnel'} onPress={() => setTab('funnel')} styles={styles} />
             <Chip label={`Anonymous (${openGuests.length})`} active={tab === 'anonymous'} onPress={() => setTab('anonymous')} styles={styles} />
             <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
             <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
@@ -1327,6 +1535,12 @@ export function AdminBoxesScreen() {
             <>
               <Text style={styles.section}>Boxes</Text>
               <BoxesSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+            </>
+          ) : null}
+          {tab === 'funnel' ? (
+            <>
+              <Text style={styles.section}>Box builder funnel: where people drop off</Text>
+              <FunnelSection people={view.funnel ?? []} hideTests={hideTests} now={now} styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'anonymous' ? (
@@ -1527,6 +1741,21 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       color: colors.textSecondary,
     },
     right: { textAlign: 'right' },
+    funnel: { gap: spacing.xs, marginTop: spacing.xs },
+    funnelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: isDesktop ? 'nowrap' : 'wrap', gap: spacing.sm },
+    funnelLabel: { width: isDesktop ? 240 : '100%' },
+    funnelTrack: {
+      flexGrow: 1,
+      flexBasis: isDesktop ? 0 : 140,
+      minWidth: 0,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: colors.bgElevated,
+      overflow: 'hidden',
+    },
+    funnelFill: { height: '100%', borderRadius: 9 },
+    funnelNum: { width: 44, textAlign: 'right' },
+    funnelDrop: { width: 96, textAlign: 'right' },
     dotCell: { width: 20, alignItems: 'center' },
     dot: { width: 7, height: 7, borderRadius: 4 },
     toggleCell: { width: 28 },

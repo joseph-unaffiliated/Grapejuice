@@ -134,6 +134,7 @@ export function OnboardingStack({
   const completeGuestOnboarding = useGuestSessionStore((s) => s.completeOnboarding);
   const completeGuestBoxReveal = useGuestSessionStore((s) => s.completeBoxReveal);
   const setGuestOnboardingStep = useGuestSessionStore((s) => s.setOnboardingStep);
+  const markStepReached = useGuestSessionStore((s) => s.markStepReached);
   const exitGuestOnboarding = useGuestSessionStore((s) => s.exitOnboardingToExplore);
   const setGuestPendingAccountEmail = useGuestSessionStore((s) => s.setPendingAccountEmail);
   const signInWithToken = useAuthStore((s) => s.signInWithToken);
@@ -184,6 +185,10 @@ export function OnboardingStack({
       setMaxWizardIndex((prev) => Math.max(prev, idx));
     }
   }, [step]);
+
+  useEffect(() => {
+    if (guestMode && !initialStep && !revealOnly) markStepReached(step);
+  }, [step, guestMode, initialStep, revealOnly, markStepReached]);
 
   const stepRef = useRef(step);
   stepRef.current = step;

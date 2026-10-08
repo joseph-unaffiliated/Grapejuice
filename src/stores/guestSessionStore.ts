@@ -32,6 +32,9 @@ export type GuestOnboardingStep =
   | 'familiarity'
   | 'rav-question';
 
+/** First time (ms) each box-builder screen was shown — the admin Funnel tab reads this. */
+export type GuestStepsReached = Partial<Record<'family' | 'details' | 'email' | 'building' | 'reveal', number>>;
+
 type GuestSessionState = {
   _hasHydrated: boolean;
   exploreStarted: boolean;
@@ -39,6 +42,8 @@ type GuestSessionState = {
   buildBoxPath: boolean;
   /** Last onboarding screen reached — resume after refresh */
   onboardingStep: GuestOnboardingStep | null;
+  /** Never cleared by leaving or restarting the builder, only by `reset`. */
+  stepsReached: GuestStepsReached;
   childDrafts: ChildDraft[];
   childInterests: string[];
   familiarityScore: number;
@@ -74,6 +79,7 @@ type GuestSessionState = {
   setWrapSelectedItemIds: (ids: string[]) => void;
   toggleWishlistItem: (itemId: string) => void;
   setOnboardingStep: (step: GuestOnboardingStep | null) => void;
+  markStepReached: (step: keyof GuestStepsReached) => void;
   completeOnboarding: () => void;
   completeBoxReveal: () => void;
   consumeOpenMyBoxAfterReveal: () => void;
@@ -92,6 +98,7 @@ const initialState = {
   exploreStarted: true,
   buildBoxPath: false,
   onboardingStep: null as GuestOnboardingStep | null,
+  stepsReached: {} as GuestStepsReached,
   childDrafts: [] as ChildDraft[],
   childInterests: [] as string[],
   familiarityScore: 50,
@@ -143,6 +150,11 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         });
       },
       setOnboardingStep: (onboardingStep) => set({ onboardingStep }),
+      markStepReached: (step) => {
+        const reached = get().stepsReached ?? {};
+        if (reached[step]) return;
+        set({ stepsReached: { ...reached, [step]: Date.now() } });
+      },
       completeOnboarding: () => set({ onboardingComplete: true }),
       completeBoxReveal: () =>
         set({
@@ -193,6 +205,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         exploreStarted: state.exploreStarted,
         buildBoxPath: state.buildBoxPath,
         onboardingStep: state.onboardingStep,
+        stepsReached: state.stepsReached,
         childDrafts: state.childDrafts,
         childInterests: state.childInterests,
         familiarityScore: state.familiarityScore,

@@ -134,6 +134,23 @@ export type DashAdPerson = {
   outsideUs?: boolean;
 };
 
+/** One signed-out box-builder session: which steps it got through. Mirrors functions/src/adminDashboard.ts. */
+export type DashFunnelPerson = {
+  id: string;
+  firstSeen: string | null;
+  ad: string;
+  test: boolean;
+  outsideUs: boolean;
+  family: boolean;
+  sliders: boolean;
+  gateEmail: boolean;
+  sawBox: boolean;
+  account: boolean;
+  anyEmail: boolean;
+  card: boolean;
+  purchase: boolean;
+};
+
 export type MetaAdStats = {
   spend: number;
   linkClicks: number;
@@ -161,6 +178,7 @@ export type BoxesDashboard = {
   inventory: DashInventoryRow[];
   /** Missing until the server function with the By ad tab is deployed. */
   adPeople?: DashAdPerson[];
+  funnel?: DashFunnelPerson[];
   /** Meta's per-ad results, keyed by ad name; null when Meta is unreachable. */
   metaByAd?: Record<string, MetaAdStats> | null;
 };
