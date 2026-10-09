@@ -149,6 +149,50 @@ export async function commitMarketplaceReservations(
   await batch.commit();
 }
 
+/** Count units as sold straight from stock (their reservation was already released). */
+export async function sellMarketplaceInventory(
+  db: Firestore,
+  lines: ReservedLine[]
+): Promise<void> {
+  if (!lines.length) return;
+  const batch = db.batch();
+  for (const line of lines) {
+    batch.set(
+      inventoryDocRef(db, line.itemId),
+      {
+        directSoldQty: FieldValue.increment(line.quantity),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  }
+  await batch.commit();
+}
+
+export type PaidInventoryAction = 'commit' | 'sell' | null;
+
+/**
+ * How stock moves when a marketplace order is paid: a live hold becomes sold ('commit'); a hold
+ * the stale sweep already released (shopper paid after the TTL) is sold from stock ('sell').
+ */
+export function paidMarketplaceInventoryAction(
+  order: FirebaseFirestore.DocumentData | undefined
+): PaidInventoryAction {
+  if (!order || order.inventoryCommittedAt) return null;
+  if (order.inventoryReserved === true) return 'commit';
+  if (order.reservationReleasedAt && reservedLinesFromOrder(order).length) return 'sell';
+  return null;
+}
+
+export async function applyPaidMarketplaceInventory(
+  db: Firestore,
+  action: PaidInventoryAction,
+  lines: ReservedLine[]
+): Promise<void> {
+  if (action === 'commit') await commitMarketplaceReservations(db, lines);
+  else if (action === 'sell') await sellMarketplaceInventory(db, lines);
+}
+
 /** Release reserved qty (payment failed / canceled / stale). */
 export async function releaseMarketplaceReservations(
   db: Firestore,

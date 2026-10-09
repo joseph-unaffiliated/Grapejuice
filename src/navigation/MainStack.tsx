@@ -665,7 +665,7 @@ export function MainStack() {
         <Stack.Screen
           name="AdminBoxes"
           component={AdminBoxesScreen}
-          options={{ title: 'Boxes and gifts' }}
+          options={{ title: 'Orders and Inventory' }}
         />
         <Stack.Screen
           name="AdminPromotions"

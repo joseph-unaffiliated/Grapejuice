@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import {
   MARKETPLACE_RESERVATION_TTL_MS,
+  applyPaidMarketplaceInventory,
   createdAtMs,
+  paidMarketplaceInventoryAction,
   receivedGiftOrderHoldsStock,
   reserveBoxLinesInTx,
   reserveMarketplaceInventoryInTx,
@@ -28,6 +30,52 @@ assert.equal(
   false
 );
 assert.equal(receivedGiftOrderHoldsStock({ status: 'pending' }, now), true);
+
+// Paying a storefront order: a live hold becomes sold; a hold the stale sweep released is
+// sold from stock; an already-counted order moves nothing.
+const lines = [{ itemId: 'stuffie', quantity: 2 }];
+assert.equal(paidMarketplaceInventoryAction({ inventoryReserved: true, inventoryReservedLines: lines }), 'commit');
+assert.equal(
+  paidMarketplaceInventoryAction({
+    status: 'cancelled',
+    inventoryReserved: false,
+    reservationReleasedAt: iso(0),
+    inventoryReservedLines: lines,
+  }),
+  'sell'
+);
+assert.equal(
+  paidMarketplaceInventoryAction({ inventoryReserved: false, inventoryCommittedAt: iso(0), inventoryReservedLines: lines }),
+  null
+);
+assert.equal(paidMarketplaceInventoryAction({ inventoryReserved: false, reservationReleasedAt: iso(0) }), null);
+assert.equal(paidMarketplaceInventoryAction(undefined), null);
+
+async function paidInventoryTests() {
+  const sets: Array<{ path: string; data: Record<string, unknown> }> = [];
+  const fakeDb = {
+    doc: (path: string) => ({ path }),
+    batch: () => ({
+      set: (ref: { path: string }, data: Record<string, unknown>) => sets.push({ path: ref.path, data }),
+      commit: async () => undefined,
+    }),
+  } as unknown as Firestore;
+  const incrementOf = (v: unknown) => (v as { operand?: number } | undefined)?.operand;
+
+  await applyPaidMarketplaceInventory(fakeDb, 'commit', lines);
+  assert.equal(sets[0].path, 'catalog/hanukkah/inventory/stuffie');
+  assert.equal(incrementOf(sets[0].data.directReservedQty), -2);
+  assert.equal(incrementOf(sets[0].data.directSoldQty), 2);
+
+  sets.length = 0;
+  await applyPaidMarketplaceInventory(fakeDb, 'sell', lines);
+  assert.equal(incrementOf(sets[0].data.directSoldQty), 2);
+  assert.equal('directReservedQty' in sets[0].data, false);
+
+  sets.length = 0;
+  await applyPaidMarketplaceInventory(fakeDb, null, lines);
+  assert.equal(sets.length, 0);
+}
 
 // Multi-item carts: Firestore rejects a read after a write in the same transaction.
 async function reserveTests() {
@@ -121,6 +169,7 @@ async function reserveTests() {
 }
 
 reserveTests()
+  .then(paidInventoryTests)
   .then(() => console.log('catalogInventory tests passed'))
   .catch((err) => {
     console.error(err);

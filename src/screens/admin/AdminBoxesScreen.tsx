@@ -33,6 +33,8 @@ import {
   type DashGuest,
   type DashInventoryRow,
   type DashLine,
+  type DashShopLine,
+  type DashShopOrder,
   type GiftFunnelKey,
   type MetaAdStats,
 } from '../../services/admin/boxesDashboard';
@@ -832,6 +834,193 @@ function AnonymousSection({
   );
 }
 
+type ShopRange = 'all' | 'today' | '7d' | '30d';
+
+function shopAvailabilityLabel(i: DashInventoryRow): string {
+  if (i.shopStatus === 'box_only') return 'Box only';
+  if (i.shopStatus === 'sold_out') return 'Sold out';
+  return i.shopRemaining == null ? '—' : String(i.shopRemaining);
+}
+
+function shopStatusLabel(o: DashShopOrder): string {
+  if (o.status === 'committed') return 'Committed, charged at lock';
+  if (o.status === 'cancelled' && o.paid) return 'Cancelled after payment';
+  if (o.refundedCents > 0 && o.status !== 'refunded') return `${statusLabel(o.status)}, part refunded`;
+  return statusLabel(o.status);
+}
+
+const shopLinesSummary = (o: DashShopOrder) => o.lines.map((l) => `${l.name} ×${l.qty}`).join(', ');
+/** Revenue kept: total less refunds. */
+const shopNetCents = (o: DashShopOrder) => Math.max(0, (o.totalCents ?? 0) - o.refundedCents);
+
+function ShopOrdersSection({
+  orders,
+  hideTests,
+  now,
+  styles,
+  colors,
+}: {
+  orders: DashShopOrder[];
+  hideTests: boolean;
+  now: number;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const [range, setRange] = useState<ShopRange>('all');
+  const [showAbandoned, setShowAbandoned] = useState(false);
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const base = useMemo(() => {
+    const today = etDay(now);
+    return orders.filter((o) => {
+      if (hideTests && (o.test || o.playthrough)) return false;
+      if (range === 'all') return true;
+      const t = o.createdAt ? Date.parse(o.createdAt) : NaN;
+      if (!Number.isFinite(t)) return false;
+      if (range === 'today') return etDay(t) === today;
+      return now - t < (range === '7d' ? 7 : 30) * DAY_MS;
+    });
+  }, [orders, hideTests, range, now]);
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return base.filter((o) => {
+      if (!showAbandoned && o.abandoned) return false;
+      if (q && !`${o.buyer ?? ''} ${o.email ?? ''} ${o.orderNumber} ${shopLinesSummary(o)}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [base, showAbandoned, query]);
+
+  const paid = base.filter((o) => o.paid && o.status !== 'refunded');
+  const committed = base.filter((o) => o.status === 'committed');
+  const abandoned = base.filter((o) => o.abandoned).length;
+  const units = paid.reduce((s, o) => s + o.units, 0);
+  const unitsByItem = new Map<string, number>();
+  for (const o of [...paid, ...committed]) for (const l of o.lines) unitsByItem.set(l.name, (unitsByItem.get(l.name) ?? 0) + l.qty);
+  const itemSummary = [...unitsByItem]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name, q]) => `${name} ${q}`)
+    .join(' · ');
+
+  const columns: Column<DashShopOrder>[] = [
+    { label: 'Date', width: 120, cell: (o) => when(o.createdAt), sort: (o) => (o.createdAt ? Date.parse(o.createdAt) : null) },
+    { label: 'Order #', width: 90, cell: (o) => o.orderNumber, sort: (o) => o.orderNumber },
+    { label: 'Buyer', width: 200, cell: (o) => <Who name={o.buyer} email={o.email} styles={styles} />, sort: (o) => (o.buyer ?? o.email ?? '').toLowerCase() },
+    { label: 'Account', width: 80, cell: (o) => (o.guest ? 'Guest' : 'Signed in'), sort: (o) => (o.guest ? 1 : 0) },
+    { label: 'Items', width: 240, cell: (o) => shopLinesSummary(o) || '—' },
+    { label: 'Units', width: 55, align: 'right', cell: (o) => String(o.units), sort: (o) => o.units },
+    { label: 'Total', width: 85, align: 'right', cell: (o) => money(o.totalCents), sort: (o) => o.totalCents },
+    { label: 'Status', width: 170, cell: (o) => shopStatusLabel(o), sort: (o) => o.status },
+    { label: 'Charged', width: 95, cell: (o) => (o.chargeTiming === 'lock' ? 'At box lock' : o.chargeTiming === 'checkout' ? 'At checkout' : '—'), sort: (o) => o.chargeTiming },
+    { label: 'Paid', width: 120, cell: (o) => when(o.paidAt), sort: (o) => (o.paidAt ? Date.parse(o.paidAt) : null) },
+    { label: 'Fulfillment', width: 150, cell: (o) => o.fulfillment, sort: (o) => o.fulfillment },
+    { label: 'Promo', width: 140, cell: (o) => o.promo ?? '—', sort: (o) => o.promo },
+    { label: 'Test', width: 50, cell: (o) => (o.test ? 'Test' : o.playthrough ? 'Play' : '—'), sort: (o) => (o.test || o.playthrough ? 1 : 0) },
+  ];
+  const lineColumns: Column<DashShopLine>[] = [
+    { label: 'Item', width: 240, cell: (l) => l.name },
+    { label: 'Qty', width: 50, align: 'right', cell: (l) => String(l.qty) },
+    { label: 'Unit price', width: 80, align: 'right', cell: (l) => money(l.unitCents) },
+    { label: 'Line total', width: 80, align: 'right', cell: (l) => money(l.unitCents * l.qty) },
+  ];
+
+  return (
+    <View style={styles.sectionBody}>
+      <View style={styles.stats}>
+        <Stat value={String(paid.length)} label={`Paid orders · ${money(paid.reduce((s, o) => s + shopNetCents(o), 0))} after refunds`} tone="success" styles={styles} colors={colors} />
+        <Stat value={String(units)} label="Units in paid orders" styles={styles} colors={colors} />
+        <Stat
+          value={String(committed.length)}
+          label={`Committed, charged at box lock · ${money(committed.reduce((s, o) => s + (o.totalCents ?? 0), 0))}`}
+          tone={committed.length ? 'info' : undefined}
+          styles={styles}
+          colors={colors}
+        />
+        <Stat value={String(abandoned)} label={`Unpaid or abandoned${showAbandoned ? '' : ' (hidden)'}`} styles={styles} colors={colors} />
+      </View>
+      <ChipGroup<ShopRange>
+        value={range}
+        onChange={setRange}
+        styles={styles}
+        options={[
+          ['all', 'All time'],
+          ['today', 'Today'],
+          ['7d', 'Last 7 days'],
+          ['30d', 'Last 30 days'],
+        ]}
+      />
+      <View style={styles.chipRow}>
+        <Chip label={`Show unpaid and abandoned (${abandoned})`} active={showAbandoned} onPress={() => setShowAbandoned((v) => !v)} styles={styles} />
+      </View>
+      <TextInput
+        style={styles.input}
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search buyer, email, order # or item"
+        placeholderTextColor={colors.textTertiary}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <SortTable<DashShopOrder>
+        columns={columns}
+        rows={rows}
+        rowKey={(o) => o.id}
+        rowTone={(o) => {
+          if (o.status === 'refunded' || o.status === 'cancelled') return 'neutral';
+          if (o.paid) return 'success';
+          if (o.status === 'committed') return 'info';
+          return 'warning';
+        }}
+        openKey={openId}
+        onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
+        renderDetail={(o) => (
+          <View style={styles.detailInner}>
+            <SortTable<DashShopLine>
+              columns={lineColumns}
+              rows={o.lines}
+              rowKey={(l) => `${l.itemId ?? l.name}-${l.unitCents}`}
+              emptyMessage="No line items."
+              styles={styles}
+              colors={colors}
+            />
+            <Facts
+              styles={styles}
+              facts={[
+                ['Subtotal', money(o.subtotalCents)],
+                ['Discount', o.discountCents ? `−${money(o.discountCents)}` : '—'],
+                ['Credit applied', o.creditCents ? `−${money(o.creditCents)}` : '—'],
+                ['Shipping', money(o.shippingCents)],
+                ['Tax', money(o.taxCents)],
+                ['Total', money(o.totalCents)],
+                ['Refunded', o.refundedCents ? money(o.refundedCents) : '—'],
+                ['Promo', o.promo ?? '—'],
+                ['Attribution', o.attribution ?? '—'],
+                ['Ships to', o.location ?? '—'],
+                ['Tracking', o.trackingNumber ? `${o.carrier ?? ''} ${o.trackingNumber}`.trim() : '—'],
+                ['Shipped', when(o.shippedAt)],
+                ...(o.chargeFailure ? ([['Charge failed', o.chargeFailure]] as Array<[string, string]>) : []),
+                ...(o.cancelReason ? ([['Cancel reason', o.cancelReason]] as Array<[string, string]>) : []),
+                ['Household', o.householdId],
+                ['Order', o.orderId],
+              ]}
+            />
+          </View>
+        )}
+        emptyMessage={
+          hideTests ? 'No real shop orders match. Turn off Hide tests to see test orders.' : 'No shop orders match these filters.'
+        }
+        styles={styles}
+        colors={colors}
+      />
+      {itemSummary ? <Text style={styles.caption}>{`Units in paid and committed orders: ${itemSummary}`}</Text> : null}
+      <Text style={styles.caption}>
+        {`${rows.length} of ${orders.length} storefront orders (bought from the shop without a box). Paid = charged at checkout, or at box lock for shoppers who also have a box. Committed = card saved, charged when boxes lock. Unpaid or abandoned = still pending, or cancelled before payment (holds are released after 2 hours). Revenue is totals after refunds, including shipping and tax. Paid orders ship with the boxes after lock. Dot: green paid, blue committed, amber unpaid, grey cancelled or refunded. US only doesn't apply here.`}
+      </Text>
+    </View>
+  );
+}
+
 function InventorySection({
   inventory,
   styles,
@@ -841,12 +1030,13 @@ function InventorySection({
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [view, setView] = useState<'all' | 'tracked' | 'held' | 'low'>('all');
+  const [view, setView] = useState<'all' | 'tracked' | 'shop' | 'held' | 'low'>('all');
   const [query, setQuery] = useState('');
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return inventory.filter((i) => {
       if (view === 'tracked' && i.stock == null) return false;
+      if (view === 'shop' && !(i.directCap ?? 0) && i.directSold + i.directReserved === 0) return false;
       if (view === 'low' && (i.remainingAfterDrafts == null || i.remainingAfterDrafts > LOW_THRESHOLD)) return false;
       if (view === 'held' && i.counterAllocated + i.draftDemand + i.directSold + i.directReserved === 0) return false;
       if (q && !i.name.toLowerCase().includes(q)) return false;
@@ -858,12 +1048,14 @@ function InventorySection({
   const columns: Column<InventoryView>[] = [
     { label: 'Item', width: 240, cell: (i) => i.name, sort: (i) => i.name.toLowerCase() },
     { label: 'Favorited', width: 80, align: 'right', cell: (i) => dash(i.favoritesShown), sort: (i) => i.favoritesShown },
-    { label: 'Stock', width: 70, align: 'right', cell: (i) => (i.stock == null ? 'untracked' : String(i.stock)), sort: (i) => i.stock },
-    { label: 'Boxes', width: 60, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
-    { label: 'Gifts', width: 60, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
-    { label: 'Sold', width: 60, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
-    { label: 'Reserved', width: 75, align: 'right', cell: (i) => dash(i.directReserved), sort: (i) => i.directReserved },
-    { label: 'Remaining', width: 85, align: 'right', cell: (i) => (i.remaining == null ? '—' : String(i.remaining)), sort: (i) => i.remaining },
+    { label: 'On hand', width: 75, align: 'right', cell: (i) => (i.stock == null ? 'untracked' : String(i.stock)), sort: (i) => i.stock },
+    { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
+    { label: 'In gifts', width: 65, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
+    { label: 'Sold direct', width: 85, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
+    { label: 'Reserved (unpaid)', width: 125, align: 'right', cell: (i) => dash(i.directReserved), sort: (i) => i.directReserved },
+    { label: 'Available', width: 80, align: 'right', cell: (i) => (i.remaining == null ? '—' : String(i.remaining)), sort: (i) => i.remaining },
+    { label: 'Shop cap', width: 75, align: 'right', cell: (i) => (i.directCap ? String(i.directCap) : '—'), sort: (i) => i.directCap ?? null },
+    { label: 'Shop can sell', width: 100, align: 'right', cell: (i) => shopAvailabilityLabel(i), sort: (i) => i.shopRemaining ?? null },
     { label: 'Draft demand', width: 95, align: 'right', cell: (i) => dash(i.draftDemand), sort: (i) => i.draftDemand },
     {
       label: 'After drafts',
@@ -883,6 +1075,7 @@ function InventorySection({
         options={[
           ['all', 'All items'],
           ['tracked', 'Stock-tracked'],
+          ['shop', 'Sold in the shop'],
           ['held', 'Held or wanted'],
           ['low', `${LOW_THRESHOLD} or fewer after drafts`],
         ]}
@@ -912,7 +1105,7 @@ function InventorySection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${inventory.length} items. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). Remaining = stock − held by boxes and gifts − direct sold − direct reserved. Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
+        {`${rows.length} of ${inventory.length} items. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Available = on hand − in boxes − in gifts − sold direct − reserved. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
       </Text>
     </View>
   );
@@ -1509,11 +1702,11 @@ function FunnelSection({
   );
 }
 
-type Tab = 'boxes' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
-const TABS: readonly Tab[] = ['boxes', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory'];
+type Tab = 'boxes' | 'shop' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
+const TABS: readonly Tab[] = ['boxes', 'shop', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory'];
 const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
 
-/** The open tab survives a browser refresh of /admin/boxes. */
+/** The open tab survives a browser refresh of /admin/orders. */
 function readStoredTab(): Tab {
   try {
     const raw = typeof window !== 'undefined' ? window.sessionStorage?.getItem(TAB_STORAGE_KEY) : null;
@@ -1531,7 +1724,7 @@ function storeTab(tab: Tab): void {
   }
 }
 
-/** Ops dashboard of Hanukkah boxes, gifts and inventory holds — admin-gated, refreshes every minute. */
+/** Ops dashboard of Hanukkah boxes, shop orders, gifts and inventory — admin-gated, refreshes every minute. */
 export function AdminBoxesScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
@@ -1640,6 +1833,10 @@ export function AdminBoxesScreen() {
   const giftStarters = (view.giftFunnel ?? []).filter((p) => !(hideTests && p.test) && p.reached.includes('start')).length;
   const liveRevenue = liveOrders.reduce((s, b) => s + (b.totalCents ?? 0), 0);
   const draftValue = openDrafts.reduce((s, b) => s + (b.subtotalCents ?? 0), 0);
+  const shopOrders = data.shopOrders ?? [];
+  const realShop = shopOrders.filter((o) => !(hideTests && (o.test || o.playthrough)));
+  const shopPaid = realShop.filter((o) => o.paid && o.status !== 'refunded');
+  const testShop = shopOrders.filter((o) => o.test || o.playthrough).length;
 
   return (
     <View ref={hostRef} style={hostStyle}>
@@ -1649,7 +1846,7 @@ export function AdminBoxesScreen() {
             <Text style={styles.backLink}>← Account</Text>
           </TouchableOpacity>
           <View style={styles.headerBlock}>
-            <Text style={styles.title}>Boxes and gifts</Text>
+            <Text style={styles.title}>Orders and Inventory</Text>
             <Text style={styles.subtitle}>
               {`${data.counts.households} households · box lock ${data.lockAt ? when(data.lockAt) : 'not set'}`}
             </Text>
@@ -1662,7 +1859,7 @@ export function AdminBoxesScreen() {
             <View style={[styles.chipRow, styles.headerChips]}>
               <Chip label="Refresh now" onPress={() => void refresh()} styles={styles} />
               <Chip
-                label={`Hide tests · ${testBoxes} boxes, ${testGifts} gifts`}
+                label={`Hide tests · ${testBoxes} boxes, ${testGifts} gifts, ${testShop} shop orders`}
                 active={hideTests}
                 onPress={() => setHideTests((v) => !v)}
                 styles={styles}
@@ -1691,6 +1888,13 @@ export function AdminBoxesScreen() {
           <View style={styles.sectionDivider} />
           <View style={styles.stats}>
             <Stat value={String(liveOrders.length)} label={`Live box orders · ${money(liveRevenue)}`} tone="info" styles={styles} colors={colors} />
+            <Stat
+              value={String(shopPaid.length)}
+              label={`Paid shop orders · ${money(shopPaid.reduce((s, o) => s + shopNetCents(o), 0))} · ${shopPaid.reduce((s, o) => s + o.units, 0)} units`}
+              tone="info"
+              styles={styles}
+              colors={colors}
+            />
             <Stat value={String(noCard.length)} label="Live orders and drafts with no card" tone={noCard.length ? 'warning' : undefined} styles={styles} colors={colors} />
             <Stat value={String(openDrafts.length)} label={`Open drafts · ~${money(draftValue)} before ship/tax`} styles={styles} colors={colors} />
             <Stat
@@ -1717,6 +1921,12 @@ export function AdminBoxesScreen() {
           <View style={styles.sectionDivider} />
           <View style={styles.chipRow}>
             <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
+            <Chip
+              label={`Shop orders (${realShop.filter((o) => !o.abandoned).length})`}
+              active={tab === 'shop'}
+              onPress={() => setTab('shop')}
+              styles={styles}
+            />
             <Chip label="Box funnel" active={tab === 'funnel'} onPress={() => setTab('funnel')} styles={styles} />
             <Chip label="Gift funnel" active={tab === 'giftFunnel'} onPress={() => setTab('giftFunnel')} styles={styles} />
             <Chip label={`Anonymous (${openGuests.length})`} active={tab === 'anonymous'} onPress={() => setTab('anonymous')} styles={styles} />
@@ -1729,6 +1939,16 @@ export function AdminBoxesScreen() {
             <>
               <Text style={styles.section}>Boxes</Text>
               <BoxesSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+            </>
+          ) : null}
+          {tab === 'shop' ? (
+            <>
+              <Text style={styles.section}>Shop orders: storefront purchases without a box</Text>
+              {data.shopOrders ? (
+                <ShopOrdersSection orders={shopOrders} hideTests={hideTests} now={now} styles={styles} colors={colors} />
+              ) : (
+                <Text style={styles.hint}>Shop orders appear once the updated dashboard function is deployed.</Text>
+              )}
             </>
           ) : null}
           {tab === 'funnel' ? (
@@ -1769,7 +1989,7 @@ export function AdminBoxesScreen() {
           ) : null}
           {tab === 'inventory' ? (
             <>
-              <Text style={styles.section}>Inventory against holds and drafts</Text>
+              <Text style={styles.section}>Inventory: stock, boxes, shop sales and holds</Text>
               <InventorySection inventory={inventory} styles={styles} colors={colors} />
             </>
           ) : null}

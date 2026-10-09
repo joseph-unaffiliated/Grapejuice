@@ -4,11 +4,14 @@ import { HttpsError, onCall } from './sentry';
 import { isAdminToken } from './guestSessions';
 import { metaAdsAccessToken, metaStatsByAd, type MetaAdStats } from './metaAdsInsights';
 import { isTest } from './testAccounts';
+import { resolveAvailability, availabilityRemaining } from './catalogAvailability';
+import { buildShopOrder, type DashShopOrder } from './shopOrders';
 
 /**
- * Admin "Boxes and gifts" dashboard: one read-only snapshot of Hanukkah box orders,
- * open drafts, anonymous (signed-out) boxes, gift invites and inventory holds. Hold math mirrors
- * recomputeBoxAllocations / addOutstandingGiftBoxes in catalogInventory.ts — keep in sync.
+ * Admin "Orders and Inventory" dashboard: one read-only snapshot of Hanukkah box orders,
+ * storefront (no-box) orders, open drafts, anonymous (signed-out) boxes, gift invites and
+ * inventory holds. Hold math mirrors recomputeBoxAllocations / addOutstandingGiftBoxes in
+ * catalogInventory.ts — keep in sync.
  */
 
 const HOLIDAY_ID = 'hanukkah-2026';
@@ -137,6 +140,11 @@ export type DashInventoryRow = {
   directSold: number;
   directReserved: number;
   remaining: number | null;
+  /** Storefront direct-sale cap before lock (null: box only until lock). */
+  directCap: number | null;
+  /** What the storefront offers shoppers now (catalogAvailability.resolveAvailability). */
+  shopStatus: 'direct' | 'limited' | 'box_only' | 'sold_out';
+  shopRemaining: number | null;
   favorites: number;
   favoritesReal: number;
 };
@@ -238,6 +246,8 @@ export type BoxesDashboard = {
   boxes: DashBox[];
   guests: DashGuest[];
   gifts: DashGift[];
+  /** Storefront orders with no box, newest first. */
+  shopOrders: DashShopOrder[];
   inventory: DashInventoryRow[];
   adPeople: DashAdPerson[];
   funnel: DashFunnelPerson[];
@@ -618,11 +628,29 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   const listCents = num(config.boxPriceCents) ?? DEFAULT_BOX_CENTS;
   const priceForKids = (k: number) => listCents + Math.max(0, k - 1) * PER_EXTRA_KID_CENTS;
 
-  const items = new Map<string, { name: string; inventory: number | null }>();
+  const items = new Map<
+    string,
+    {
+      name: string;
+      inventory: number | null;
+      category: string | null;
+      categories: string[] | undefined;
+      directSaleCapBeforeLock: number | null;
+      sellAfterLock: 'yes' | 'flag' | 'no' | null;
+    }
+  >();
   for (const d of itemsSnap.docs) {
     const x = d.data();
-    items.set(d.id, { name: str(x.name) ?? d.id, inventory: num(x.inventory) });
+    items.set(d.id, {
+      name: str(x.name) ?? d.id,
+      inventory: num(x.inventory),
+      category: str(x.category),
+      categories: Array.isArray(x.categories) ? x.categories.filter((c: unknown): c is string => typeof c === 'string') : undefined,
+      directSaleCapBeforeLock: num(x.directSaleCapBeforeLock),
+      sellAfterLock: x.sellAfterLock === 'yes' || x.sellAfterLock === 'flag' || x.sellAfterLock === 'no' ? x.sellAfterLock : null,
+    });
   }
+  const itemNames = new Map([...items].map(([id, it]) => [id, it.name]));
 
   const households = new Map<string, DocumentData>();
   const userIds = new Set<string>();
@@ -799,6 +827,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   const giftOrders = new Map<string, { createdMs: number; lines: unknown }>();
   const receivedGiftOrdersByKey = new Map<string, DashGift['checkoutOrders']>();
   const boxes: DashBox[] = [];
+  const shopOrders: DashShopOrder[] = [];
   const liveBoxHouseholds = new Set<string>();
   const committedBoxHouseholds = new Set<string>();
 
@@ -819,6 +848,22 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       const createdMs = ms(o.createdAt) ?? nowMs;
       const prev = giftOrders.get(key);
       if (!prev || createdMs > prev.createdMs) giftOrders.set(key, { createdMs, lines: o.lineItems });
+      continue;
+    }
+    if (o.orderType === 'marketplace') {
+      const uid = str(o.userId);
+      const u = uid ? users.get(uid) : undefined;
+      shopOrders.push(
+        buildShopOrder({
+          householdId: hid,
+          orderId: d.id,
+          order: o,
+          user: u ? { email: u.email, name: u.name } : null,
+          itemNames,
+          attribution: attributionLabel(o.attribution),
+          location: locationOf(o.shippingAddress),
+        }),
+      );
       continue;
     }
     const isBox = o.orderType === 'hanukkah_box' || (!o.orderType && o.holidayId === HOLIDAY_ID);
@@ -1070,6 +1115,12 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       mismatches.push({ id, name: it?.name ?? id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
     }
     if (!it) continue;
+    const shop = resolveAvailability(
+      { id, ...it },
+      { boxAllocatedQty: counterAllocated, directSoldQty: directSold, directReservedQty: directReserved },
+      iso(config.lockAt),
+      new Date(nowMs),
+    );
     inventory.push({
       id,
       name: it.name,
@@ -1080,12 +1131,16 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       directSold,
       directReserved,
       remaining: stock == null ? null : stock - counterAllocated - directSold - directReserved,
+      directCap: it.directSaleCapBeforeLock,
+      shopStatus: shop.status,
+      shopRemaining: availabilityRemaining(shop),
       favorites: favorites.get(id) ?? 0,
       favoritesReal: favoritesReal.get(id) ?? 0,
     });
   }
   boxes.sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
   gifts.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+  shopOrders.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
 
   return {
     generatedAt: new Date(nowMs).toISOString(),
@@ -1102,6 +1157,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     boxes,
     guests,
     gifts,
+    shopOrders,
     inventory,
     adPeople,
     funnel,

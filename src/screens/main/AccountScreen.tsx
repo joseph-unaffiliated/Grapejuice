@@ -636,7 +636,7 @@ function AccountScreenBody() {
           <>
             <View style={styles.sectionDivider} />
             <Text style={styles.section}>Ops</Text>
-            <Text style={styles.hint}>Edit Hanukkah catalog SKUs, see live boxes, gifts and inventory holds, or manage discount codes, credit and influencer links.</Text>
+            <Text style={styles.hint}>Edit Hanukkah catalog SKUs, see live boxes, shop orders, gifts and inventory, or manage discount codes, credit and influencer links.</Text>
             <GrapejuiceButton
               label="Catalog admin"
               variant="filled"
@@ -645,7 +645,7 @@ function AccountScreenBody() {
               textStyle={styles.primaryBtnText}
             />
             <GrapejuiceButton
-              label="Boxes and gifts"
+              label="Orders and Inventory"
               variant="filled"
               onPress={() => navigation.navigate('AdminBoxes')}
               style={styles.actionBtn}

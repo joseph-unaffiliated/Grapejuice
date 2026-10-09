@@ -37,9 +37,10 @@ import {
   runChargeEligiblePilotBoxOrders,
 } from './chargePilotBox';
 import {
+  applyPaidMarketplaceInventory,
   assertBoxLinesWithinInventory,
-  commitMarketplaceReservations,
   heldReceivedGiftLines,
+  paidMarketplaceInventoryAction,
   recomputeBoxAllocations,
   releaseMarketplaceReservations,
   releaseStaleMarketplaceReservations,
@@ -557,23 +558,22 @@ async function confirmMarketplaceCharge(
     const snap = await tx.get(orderRef);
     const data = snap.data() ?? {};
     if (data.status === 'confirmed' || data.status === 'shipped' || data.status === 'delivered') {
-      return false;
+      return null;
     }
+    const action = paidMarketplaceInventoryAction(data);
     tx.update(orderRef, {
       status: 'confirmed',
       confirmedAt: FieldValue.serverTimestamp(),
       ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
       chargeFailedAt: FieldValue.delete(),
       chargeFailureMessage: FieldValue.delete(),
-      ...(data.inventoryReserved === true && !data.inventoryCommittedAt
-        ? { inventoryReserved: false, inventoryCommittedAt: new Date().toISOString() }
-        : {}),
+      ...(action ? { inventoryReserved: false, inventoryCommittedAt: new Date().toISOString() } : {}),
     });
-    return data.inventoryReserved === true && !data.inventoryCommittedAt;
+    return action ? { action, lines: reservedLinesFromOrder({ ...order, ...data }) } : null;
   });
   if (claimed) {
     try {
-      await commitMarketplaceReservations(db, reservedLinesFromOrder(order));
+      await applyPaidMarketplaceInventory(db, claimed.action, claimed.lines);
     } catch (invErr) {
       logger.error('Marketplace inventory commit failed', { orderId, invErr });
     }
@@ -2096,18 +2096,19 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
 
             if (isMarketplaceOrder) {
               try {
-                const shouldCommit = await db.runTransaction(async (tx) => {
+                const claimed = await db.runTransaction(async (tx) => {
                   const snap = await tx.get(orderRef);
                   const data = snap.data() ?? {};
-                  if (data.inventoryCommittedAt || data.inventoryReserved !== true) return false;
+                  const action = paidMarketplaceInventoryAction(data);
+                  if (!action) return null;
                   tx.update(orderRef, {
                     inventoryReserved: false,
                     inventoryCommittedAt: new Date().toISOString(),
                   });
-                  return true;
+                  return { action, lines: reservedLinesFromOrder(data) };
                 });
-                if (shouldCommit) {
-                  await commitMarketplaceReservations(db, reservedLinesFromOrder(order));
+                if (claimed) {
+                  await applyPaidMarketplaceInventory(db, claimed.action, claimed.lines);
                 }
               } catch (invErr) {
                 logger.error('Marketplace inventory commit failed', { orderId, invErr });

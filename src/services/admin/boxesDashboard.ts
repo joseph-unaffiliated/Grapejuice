@@ -115,8 +115,51 @@ export type DashInventoryRow = {
   directSold: number;
   directReserved: number;
   remaining: number | null;
+  /** Missing until the server function with the Shop orders tab is deployed. */
+  directCap?: number | null;
+  shopStatus?: 'direct' | 'limited' | 'box_only' | 'sold_out';
+  shopRemaining?: number | null;
   favorites: number;
   favoritesReal: number;
+};
+
+export type DashShopLine = { itemId: string | null; name: string; qty: number; unitCents: number };
+
+/** One storefront (no-box) order. Mirrors functions/src/shopOrders.ts. */
+export type DashShopOrder = {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  householdId: string;
+  createdAt: string | null;
+  paidAt: string | null;
+  buyer: string | null;
+  email: string | null;
+  guest: boolean;
+  test: boolean;
+  playthrough: boolean;
+  status: string;
+  paid: boolean;
+  abandoned: boolean;
+  cancelReason: string | null;
+  chargeTiming: 'checkout' | 'lock' | null;
+  chargeFailure: string | null;
+  lines: DashShopLine[];
+  units: number;
+  subtotalCents: number | null;
+  discountCents: number;
+  creditCents: number;
+  shippingCents: number | null;
+  taxCents: number | null;
+  totalCents: number | null;
+  refundedCents: number;
+  promo: string | null;
+  attribution: string | null;
+  location: string | null;
+  fulfillment: string;
+  trackingNumber: string | null;
+  carrier: string | null;
+  shippedAt: string | null;
 };
 
 export type DashAdPerson = {
@@ -204,6 +247,8 @@ export type BoxesDashboard = {
   boxes: DashBox[];
   guests: DashGuest[];
   gifts: DashGift[];
+  /** Storefront orders with no box, newest first. Missing until the server function is deployed. */
+  shopOrders?: DashShopOrder[];
   inventory: DashInventoryRow[];
   /** Missing until the server function with the By ad tab is deployed. */
   adPeople?: DashAdPerson[];

@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 
+/** Orders and Inventory. `/admin/boxes` (its old URL) still opens it and is rewritten to this. */
+export const ADMIN_ORDERS_PATH = '/admin/orders';
 export const ADMIN_BOXES_PATH = '/admin/boxes';
 export const ADMIN_PROMOTIONS_PATH = '/admin/promotions';
 
@@ -8,13 +10,17 @@ export const ADMIN_PROMOTIONS_PATH = '/admin/promotions';
 export type AdminPathScreen = 'AdminBoxes' | 'AdminPromotions';
 
 const ADMIN_SCREEN_PATHS: Record<AdminPathScreen, string> = {
-  AdminBoxes: ADMIN_BOXES_PATH,
+  AdminBoxes: ADMIN_ORDERS_PATH,
   AdminPromotions: ADMIN_PROMOTIONS_PATH,
+};
+
+const LEGACY_ADMIN_PATHS: Record<string, AdminPathScreen> = {
+  [ADMIN_BOXES_PATH]: 'AdminBoxes',
 };
 
 export function adminScreenForPath(path: string): AdminPathScreen | null {
   const match = (Object.keys(ADMIN_SCREEN_PATHS) as AdminPathScreen[]).find((s) => ADMIN_SCREEN_PATHS[s] === path);
-  return match ?? null;
+  return match ?? LEGACY_ADMIN_PATHS[path] ?? null;
 }
 
 export function readAdminScreenFromWindow(): AdminPathScreen | null {
