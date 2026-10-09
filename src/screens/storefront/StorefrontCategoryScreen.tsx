@@ -568,8 +568,8 @@ const styles = StyleSheet.create({
   },
   /** Breadcrumbs are desktop-only — tighter title stack under chrome on mobile. */
   headingBlockMobile: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
+    marginTop: spacing.md + spacing.sm,
+    marginBottom: spacing.md,
     paddingTop: 0,
   },
   title: {
