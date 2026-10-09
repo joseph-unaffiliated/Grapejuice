@@ -109,6 +109,7 @@ import { PerKidSlotAddBlock } from '../../components/box/PerKidSlotAddBlock';
 import { BoxSummaryDonated } from '../../components/box/BoxSummaryDonated';
 import { DonatedItemsModal } from '../../components/box/DonatedItemsModal';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { SystemChip } from '../../components/layout/SystemPage';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import {
   BOX_DISPLAY_SECTIONS,
@@ -214,7 +215,7 @@ export function MyBoxScreen() {
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
   const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
-  const { lineItems, slotVotes, sealedSectionIds, wrapSelectedItemIds, children, loading: draftLoading, persist, persistSlotVotes, persistWrapSelection } =
+  const { lineItems, slotVotes, sealedSectionIds, wrapSelectedItemIds, children, loading: draftLoading, error: draftError, persist, persistSlotVotes, persistWrapSelection, refresh: refreshDraft } =
     useBoxDraft();
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
@@ -296,6 +297,7 @@ export function MyBoxScreen() {
     !guestViewOnly &&
     !sessionLoading &&
     !draftLoading &&
+    !draftError &&
     !ordersLoading &&
     lineItems.length === 0 &&
     !openOrder;
@@ -1507,6 +1509,24 @@ export function MyBoxScreen() {
       <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
         <View style={styles.centered}>
           <BrandLoadingMark color={colors.brand} />
+        </View>
+      </StorefrontChrome>
+    );
+  }
+
+  if (draftError && lineItems.length === 0) {
+    return (
+      <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
+        <View style={styles.centered}>
+          <View style={styles.kidEmptyCard}>
+            <Text style={styles.kidEmptyTitle}>We couldn’t load your box</Text>
+            <Text style={styles.kidEmptyBody}>Check your connection and try again.</Text>
+            <SystemChip
+              label="Try again"
+              onPress={() => void refreshDraft()}
+              style={{ marginTop: spacing.md, alignSelf: 'flex-start' }}
+            />
+          </View>
         </View>
       </StorefrontChrome>
     );

@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { Household } from '../../types/pilot';
-import { ensureAuthTokenReady } from './token';
+import { withAuthRetry } from './token';
 
 function toHousehold(id: string, data: Record<string, unknown>): Household {
   return {
@@ -38,7 +38,6 @@ export const householdsService = {
 
   async createForOwner(ownerId: string, name = 'Our household'): Promise<Household> {
     if (!db) throw new Error('Firestore not configured');
-    await ensureAuthTokenReady(ownerId);
     const ref = doc(collection(db, 'households'));
     const now = new Date().toISOString();
     const household: Household = {
@@ -50,14 +49,16 @@ export const householdsService = {
       createdAt: now,
       updatedAt: now,
     };
-    await setDoc(ref, {
-      name: household.name,
-      ownerId,
-      memberIds: household.memberIds,
-      childUserIds: household.childUserIds,
-      createdAt: now,
-      updatedAt: now,
-    });
+    await withAuthRetry(ownerId, () =>
+      setDoc(ref, {
+        name: household.name,
+        ownerId,
+        memberIds: household.memberIds,
+        childUserIds: household.childUserIds,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
     return household;
   },
 

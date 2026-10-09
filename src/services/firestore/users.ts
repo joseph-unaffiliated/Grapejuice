@@ -7,7 +7,7 @@ import type {
   UpcomingBeamMilestone,
   UserProfile,
 } from '../../types/pilot';
-import { ensureAuthTokenReady } from './token';
+import { withAuthRetry } from './token';
 import { attributionForServer } from '../analytics/metaPixel';
 import { trackRegistration } from '../analytics/metaServerEvents';
 
@@ -89,8 +89,8 @@ function hasProfile(snap: DocumentSnapshot): boolean {
 export const usersService = {
   async get(uid: string): Promise<UserProfile | null> {
     if (!db) return null;
-    await ensureAuthTokenReady(uid);
-    const snap = await getDoc(doc(db, 'users', uid));
+    const firestore = db;
+    const snap = await withAuthRetry(uid, () => getDoc(doc(firestore, 'users', uid)));
     if (!hasProfile(snap)) return null;
     return toProfile(snap.id, snap.data() as Record<string, unknown>);
   },
@@ -100,9 +100,8 @@ export const usersService = {
     data: Partial<Omit<UserProfile, 'uid' | 'createdAt'>> & { email?: string | null; displayName?: string | null }
   ): Promise<UserProfile> {
     if (!db) throw new Error('Firestore not configured');
-    await ensureAuthTokenReady(uid);
     const ref = doc(db, 'users', uid);
-    const existing = await getDoc(ref);
+    const existing = await withAuthRetry(uid, () => getDoc(ref));
     const now = new Date().toISOString();
     const payload: Record<string, unknown> = omitUndefined({
       ...data,

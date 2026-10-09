@@ -1,7 +1,7 @@
 import { collection, doc, getDocs, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { AgeGroup, BeamStatus, ChildProfile } from '../../types/pilot';
-import { ensureAuthTokenReady } from './token';
+import { ensureAuthTokenReady, withAuthRetry } from './token';
 
 function parseBeamStatus(value: unknown): BeamStatus {
   if (value === 'eligible' || value === 'enrolled' || value === 'completed') return value;
@@ -34,8 +34,10 @@ export type ChildInput = Omit<ChildProfile, 'id'>;
 export const childrenService = {
   async list(userId: string): Promise<ChildProfile[]> {
     if (!db) return [];
-    await ensureAuthTokenReady(userId);
-    const snap = await getDocs(collection(db, 'users', userId, 'children'));
+    const firestore = db;
+    const snap = await withAuthRetry(userId, () =>
+      getDocs(collection(firestore, 'users', userId, 'children'))
+    );
     return snap.docs.map((d) => toChild(d.id, d.data() as Record<string, unknown>));
   },
 

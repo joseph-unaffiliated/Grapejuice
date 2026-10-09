@@ -6,6 +6,8 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
+import { withAuthRetry } from '../services/firestore/token';
+import { Sentry } from '../services/monitoring/sentry';
 import { repairAdultLeakedAsFirstChild, remapGuestChildIds } from '../services/guest/persistGuestToAccount';
 import {
   EXTRA_FLAT_CENTS,
@@ -67,6 +69,208 @@ export function clearBoxDraftCache() {
   clearAuthBoxDraftCache();
 }
 
+type AuthBoxDraftLoadArgs = {
+  householdId: string;
+  uid: string;
+  displayName: string | null | undefined;
+  profileFamiliarity: FamiliarityLevel | undefined;
+};
+
+/** Fetch + repair the signed-in draft (repairs persist once, not once per hook instance). */
+async function fetchAuthBoxDraft({
+  householdId,
+  uid,
+  displayName,
+  profileFamiliarity,
+}: AuthBoxDraftLoadArgs): Promise<AuthBoxDraftSnapshot> {
+  const [draft, catalog, kids] = await Promise.all([
+    withAuthRetry(uid, () => boxDraftService.get(householdId)),
+    catalogService.getAll(),
+    childrenService.list(uid),
+  ]);
+
+  let nextKids = kids;
+  const retired = retireLegacyBoxLines(draft?.lineItems?.length ? draft.lineItems : []);
+  let nextLines = retired.lineItems;
+
+  // Leftover guest-N ids after account create — remap so gifts/books count for kids.
+  const hadGuestIds = nextLines.some((li) => {
+    const id = li.childId || '';
+    return /^guest-\d+$/.test(id) || /guest-\d+/.test(li.slotId);
+  });
+  if (hadGuestIds && nextKids.length) {
+    const remapped = remapGuestChildIds(nextLines, nextKids);
+    const changed = remapped.some(
+      (li, i) => li.childId !== nextLines[i]?.childId || li.slotId !== nextLines[i]?.slotId
+    );
+    if (changed) {
+      nextLines = remapped;
+      try {
+        await boxDraftService.save(householdId, uid, nextLines, {
+          familiarityLevel: profileFamiliarity ?? draft?.familiarityLevel,
+          childInterests: draft?.childInterests,
+          slotVotes: draft?.slotVotes,
+          wrapSelectedItemIds: draft?.wrapSelectedItemIds,
+          sealedSectionIds: draft?.sealedSectionIds,
+        });
+      } catch (e) {
+        console.warn('[box] failed to persist guest-id remap', e);
+      }
+    }
+  }
+
+  const repaired = repairAdultLeakedAsFirstChild(nextKids, nextLines, displayName);
+  if (repaired.dirty) {
+    nextKids = repaired.children;
+    nextLines = repaired.lineItems;
+    try {
+      await childrenService.replaceAll(
+        uid,
+        nextKids.map((c) => ({
+          name: c.name,
+          ageGroup: c.ageGroup,
+          birthdate: c.birthdate,
+          hebrewName: c.hebrewName,
+          barMitzvahDate: c.barMitzvahDate,
+          beamStatus: c.beamStatus,
+          ravEnabled: c.ravEnabled,
+        }))
+      );
+      await boxDraftService.save(householdId, uid, nextLines, {
+        familiarityLevel: profileFamiliarity ?? draft?.familiarityLevel,
+        childInterests: draft?.childInterests,
+        slotVotes: draft?.slotVotes,
+        wrapSelectedItemIds: draft?.wrapSelectedItemIds,
+        sealedSectionIds: draft?.sealedSectionIds,
+      });
+    } catch (e) {
+      console.warn('[box] failed to persist adult-as-child repair', e);
+    }
+  }
+
+  const repairedWood = repairWoodDreidelHouseholdQty(nextLines, nextKids);
+  if (repairedWood.dirty) nextLines = repairedWood.lineItems;
+
+  const repairedBooks = repairExtraPerKidPricing(nextLines, catalog);
+  if (repairedBooks.dirty) nextLines = repairedBooks.lineItems;
+
+  const repairedWoodIncluded = repairWoodDreidelIncluded(nextLines, catalog);
+  if (repairedWoodIncluded.dirty) nextLines = repairedWoodIncluded.lineItems;
+
+  const wrapIds = draft?.wrapSelectedItemIds ?? [];
+  const beforeWrap = nextLines;
+  nextLines = syncWrappingPaperUnitCentsForWrapSelection(
+    nextLines,
+    catalog,
+    wrapIds.length,
+    EXTRA_FLAT_CENTS
+  );
+  const wrapDirty = nextLines !== beforeWrap;
+
+  if (
+    retired.dirty ||
+    repairedWood.dirty ||
+    repairedWoodIncluded.dirty ||
+    repairedBooks.dirty ||
+    wrapDirty
+  ) {
+    try {
+      await boxDraftService.save(householdId, uid, nextLines, {
+        familiarityLevel: profileFamiliarity ?? draft?.familiarityLevel,
+        childInterests: draft?.childInterests,
+        slotVotes: draft?.slotVotes,
+        wrapSelectedItemIds: draft?.wrapSelectedItemIds,
+        sealedSectionIds: draft?.sealedSectionIds,
+      });
+    } catch (e) {
+      console.warn('[box] failed to persist box line repairs', e);
+    }
+  }
+
+  const snapshot: AuthBoxDraftSnapshot = {
+    householdId,
+    lineItems: nextLines,
+    slotVotes: draft?.slotVotes ?? emptySlotVotes(),
+    sealedSectionIds: draft?.sealedSectionIds,
+    wrapSelectedItemIds: wrapIds,
+    children: nextKids,
+    familiarity: profileFamiliarity ?? draft?.familiarityLevel ?? 'moderate',
+  };
+  writeAuthBoxDraftCache(snapshot);
+  useBoxPresenceStore.getState().setHasBox(householdId, nextLines.length > 0);
+  return snapshot;
+}
+
+const TRANSIENT_LOAD_ERROR_CODES = new Set([
+  'auth/quota-exceeded',
+  'auth/too-many-requests',
+  'auth/network-request-failed',
+  'permission-denied',
+  'unauthenticated',
+  'unavailable',
+  'deadline-exceeded',
+  'resource-exhausted',
+]);
+
+function isTransientLoadError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && TRANSIENT_LOAD_ERROR_CODES.has(code.replace(/^firestore\//, ''));
+}
+
+const reportedLoadErrorHouseholds = new Set<string>();
+
+async function fetchAuthBoxDraftWithRetry(args: AuthBoxDraftLoadArgs): Promise<AuthBoxDraftSnapshot> {
+  try {
+    return await fetchAuthBoxDraft(args);
+  } catch (error) {
+    if (!isTransientLoadError(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 1000));
+    return fetchAuthBoxDraft(args);
+  }
+}
+
+/**
+ * One in-flight load per identical set of inputs, shared by every mounted `useBoxDraft()`
+ * (product grids, tiles, header…). A changed input still starts a fresh fetch.
+ */
+const inflightAuthLoads = new Map<string, Promise<AuthBoxDraftSnapshot>>();
+
+function loadAuthBoxDraftShared(
+  key: string,
+  args: AuthBoxDraftLoadArgs,
+  fresh: boolean
+): Promise<AuthBoxDraftSnapshot> {
+  const existing = inflightAuthLoads.get(key);
+  if (existing && !fresh) return existing;
+  const promise = fetchAuthBoxDraftWithRetry(args)
+    .catch((error: unknown) => {
+      if (!reportedLoadErrorHouseholds.has(args.householdId)) {
+        reportedLoadErrorHouseholds.add(args.householdId);
+        Sentry.captureException(error, { tags: { area: 'box-draft-load' } });
+      }
+      throw error;
+    })
+    .finally(() => {
+      if (inflightAuthLoads.get(key) === promise) inflightAuthLoads.delete(key);
+    });
+  inflightAuthLoads.set(key, promise);
+  return promise;
+}
+
+const refIds = new WeakMap<object, number>();
+let nextRefId = 0;
+
+/** Stable id for a store-owned array/object reference, so load keys track identity like hook deps. */
+function refId(value: object | null | undefined): number {
+  if (!value) return 0;
+  let id = refIds.get(value);
+  if (id === undefined) {
+    id = ++nextRefId;
+    refIds.set(value, id);
+  }
+  return id;
+}
+
 export function useBoxDraft() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
@@ -97,10 +301,12 @@ export function useBoxDraft() {
     () => cached?.familiarity ?? 'moderate'
   );
   const [loading, setLoading] = useState(() => !cached);
+  const [loadError, setLoadError] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { fresh?: boolean }) => {
     if (!isAuthenticated) {
       clearAuthBoxDraftCache();
+      setLoadError(false);
       const kids = draftsToProfiles(guestDrafts);
       setChildren(kids);
       setFamiliarity(guestFamiliarity);
@@ -165,130 +371,51 @@ export function useBoxDraft() {
       setLoading(true);
     }
 
-    const [draft, catalog, kids] = await Promise.all([
-      boxDraftService.get(household.id),
-      catalogService.getAll(),
-      childrenService.list(user.uid),
+    const loadKey = JSON.stringify([
+      user.uid,
+      household.id,
+      user.displayName,
+      hasProfile,
+      profileHouseholdId,
+      profileRole,
+      profile?.displayName,
+      profile?.familiarityLevel,
+      profile?.onboardingComplete,
+      profile?.boxRevealComplete,
+      sessionLoading,
+      guestFamiliarity,
+      guestOnboardingComplete,
+      guestBoxRevealComplete,
+      refId(guestDrafts),
+      refId(guestLineItems),
+      refId(guestWrapSelectedItemIds),
     ]);
-
-    let nextKids = kids;
-    const retired = retireLegacyBoxLines(draft?.lineItems?.length ? draft.lineItems : []);
-    let nextLines = retired.lineItems;
-
-    // Leftover guest-N ids after account create — remap so gifts/books count for kids.
-    const hadGuestIds = nextLines.some((li) => {
-      const id = li.childId || '';
-      return /^guest-\d+$/.test(id) || /guest-\d+/.test(li.slotId);
-    });
-    if (hadGuestIds && nextKids.length) {
-      const remapped = remapGuestChildIds(nextLines, nextKids);
-      const changed = remapped.some(
-        (li, i) => li.childId !== nextLines[i]?.childId || li.slotId !== nextLines[i]?.slotId
+    let snapshot: AuthBoxDraftSnapshot;
+    try {
+      snapshot = await loadAuthBoxDraftShared(
+        loadKey,
+        {
+          householdId: household.id,
+          uid: user.uid,
+          displayName: user.displayName ?? profile?.displayName,
+          profileFamiliarity: profile?.familiarityLevel,
+        },
+        options?.fresh === true
       );
-      if (changed) {
-        nextLines = remapped;
-        try {
-          await boxDraftService.save(household.id, user.uid, nextLines, {
-            familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel,
-            childInterests: draft?.childInterests,
-            slotVotes: draft?.slotVotes,
-            wrapSelectedItemIds: draft?.wrapSelectedItemIds,
-            sealedSectionIds: draft?.sealedSectionIds,
-          });
-        } catch (e) {
-          console.warn('[box] failed to persist guest-id remap', e);
-        }
-      }
+    } catch {
+      // Keep whatever is on screen (seeded cache); `error` stops My Box reading this as "no box".
+      setLoadError(true);
+      setLoading(false);
+      return;
     }
 
-    const repaired = repairAdultLeakedAsFirstChild(
-      nextKids,
-      nextLines,
-      user.displayName ?? profile?.displayName
-    );
-    if (repaired.dirty) {
-      nextKids = repaired.children;
-      nextLines = repaired.lineItems;
-      try {
-        await childrenService.replaceAll(
-          user.uid,
-          nextKids.map((c) => ({
-            name: c.name,
-            ageGroup: c.ageGroup,
-            birthdate: c.birthdate,
-            hebrewName: c.hebrewName,
-            barMitzvahDate: c.barMitzvahDate,
-            beamStatus: c.beamStatus,
-            ravEnabled: c.ravEnabled,
-          }))
-        );
-        await boxDraftService.save(household.id, user.uid, nextLines, {
-          familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel,
-          childInterests: draft?.childInterests,
-          slotVotes: draft?.slotVotes,
-          wrapSelectedItemIds: draft?.wrapSelectedItemIds,
-          sealedSectionIds: draft?.sealedSectionIds,
-        });
-      } catch (e) {
-        console.warn('[box] failed to persist adult-as-child repair', e);
-      }
-    }
-
-    const repairedWood = repairWoodDreidelHouseholdQty(nextLines, nextKids);
-    if (repairedWood.dirty) nextLines = repairedWood.lineItems;
-
-    const repairedBooks = repairExtraPerKidPricing(nextLines, catalog);
-    if (repairedBooks.dirty) nextLines = repairedBooks.lineItems;
-
-    const repairedWoodIncluded = repairWoodDreidelIncluded(nextLines, catalog);
-    if (repairedWoodIncluded.dirty) nextLines = repairedWoodIncluded.lineItems;
-
-    const wrapIds = draft?.wrapSelectedItemIds ?? [];
-    const beforeWrap = nextLines;
-    nextLines = syncWrappingPaperUnitCentsForWrapSelection(
-      nextLines,
-      catalog,
-      wrapIds.length,
-      EXTRA_FLAT_CENTS
-    );
-    const wrapDirty = nextLines !== beforeWrap;
-
-    if (
-      retired.dirty ||
-      repairedWood.dirty ||
-      repairedWoodIncluded.dirty ||
-      repairedBooks.dirty ||
-      wrapDirty
-    ) {
-      try {
-        await boxDraftService.save(household.id, user.uid, nextLines, {
-          familiarityLevel: profile?.familiarityLevel ?? draft?.familiarityLevel,
-          childInterests: draft?.childInterests,
-          slotVotes: draft?.slotVotes,
-          wrapSelectedItemIds: draft?.wrapSelectedItemIds,
-          sealedSectionIds: draft?.sealedSectionIds,
-        });
-      } catch (e) {
-        console.warn('[box] failed to persist box line repairs', e);
-      }
-    }
-
-    setChildren(nextKids);
-    setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
-    setSlotVotes(draft?.slotVotes ?? emptySlotVotes());
-    setSealedSectionIds(draft?.sealedSectionIds);
-    setWrapSelectedItemIds(wrapIds);
-    setLineItems(nextLines);
-    writeAuthBoxDraftCache({
-      householdId: household.id,
-      lineItems: nextLines,
-      slotVotes: draft?.slotVotes ?? emptySlotVotes(),
-      sealedSectionIds: draft?.sealedSectionIds,
-      wrapSelectedItemIds: wrapIds,
-      children: nextKids,
-      familiarity: profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate',
-    });
-    useBoxPresenceStore.getState().setHasBox(household.id, nextLines.length > 0);
+    setLoadError(false);
+    setChildren(snapshot.children);
+    setFamiliarity(snapshot.familiarity);
+    setSlotVotes(snapshot.slotVotes);
+    setSealedSectionIds(snapshot.sealedSectionIds);
+    setWrapSelectedItemIds(snapshot.wrapSelectedItemIds);
+    setLineItems(snapshot.lineItems);
     setLoading(false);
   }, [
     isAuthenticated,
@@ -315,6 +442,8 @@ export function useBoxDraft() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const refresh = useCallback(() => load({ fresh: true }), [load]);
 
   const persist = useCallback(
     async (next: BoxLineItem[]) => {
@@ -385,10 +514,12 @@ export function useBoxDraft() {
     children,
     familiarity,
     loading: loading || (isAuthenticated && sessionLoading),
+    /** Signed-in draft failed to load (after one retry) — not the same as an empty box. */
+    error: loadError,
     isGuest: !isAuthenticated,
     persist,
     persistSlotVotes,
     persistWrapSelection,
-    refresh: load,
+    refresh,
   };
 }
