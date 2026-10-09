@@ -71,6 +71,8 @@ export {
   scheduledPurgeGuestSessions,
 } from './guestSessions';
 export { recordGiftStep } from './giftFunnel';
+export { restorePilotBoxOrder } from './orderRestore';
+export { cancelPilotGift, resumePilotGiftPayment } from './pendingGift';
 export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink } from './loginLinks';
 import { enforceRateLimits, giverUidForEmail, mintInviteAcceptUrl, normalizeEmail } from './loginLinks';
 import { isAdminToken } from './guestSessions';

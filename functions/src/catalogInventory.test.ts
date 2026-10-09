@@ -4,6 +4,7 @@ import {
   MARKETPLACE_RESERVATION_TTL_MS,
   createdAtMs,
   receivedGiftOrderHoldsStock,
+  reserveBoxLinesInTx,
   reserveMarketplaceInventoryInTx,
 } from './catalogInventory';
 
@@ -92,6 +93,31 @@ async function reserveTests() {
     /Only 1 of B left/
   );
   assert.equal(over.writes.length, 0);
+
+  // Box restore: validate every line first, queue boxAllocatedQty only when asked.
+  docs['catalog/hanukkah/items/c'] = { name: 'C', inventory: 3 };
+  docs['catalog/hanukkah/inventory/c'] = { boxAllocatedQty: 2 };
+  docs['catalog/hanukkah/items/book-x'] = { name: 'Book X', inventory: 0 };
+  docs['catalog/hanukkah/items/d'] = { name: 'D' };
+  const box = makeTx();
+  const queue = await reserveBoxLinesInTx(fakeDb, box.tx, [
+    { itemId: 'c', quantity: 1 },
+    { itemId: 'book-x', quantity: 1 },
+    { itemId: 'd', quantity: 1 },
+  ]);
+  assert.equal(box.writes.length, 0);
+  queue();
+  assert.deepEqual(
+    box.writes.map((w) => w.path),
+    ['catalog/hanukkah/inventory/c']
+  );
+
+  const soldOut = makeTx();
+  await assert.rejects(
+    reserveBoxLinesInTx(fakeDb, soldOut.tx, [{ itemId: 'c', quantity: 2 }]),
+    /Only 1 of C left for boxes/
+  );
+  assert.equal(soldOut.writes.length, 0);
 }
 
 reserveTests()

@@ -127,6 +127,8 @@ export type MainStackParamList = {
   GiftBox: { giftInviteId: string };
   /** surprise: ship the box as picked without showing the items. */
   GiftBoxCheckout: { giftInviteId: string; surprise?: boolean };
+  /** Giver finishes paying for a gift left at "Payment pending" (from Orders). */
+  GiftResumePayment: { giftInviteId: string };
   GiftRecipientReveal: {
     giftInviteId: string;
     giverName: string;

@@ -30,16 +30,22 @@ import {
 } from '../../components/orders/OrderPurchaseMedia';
 import { useAuthStore } from '../../stores/authStore';
 import { useSession } from '../../hooks/useSession';
-import { useUnifiedOrders, type UnifiedOrder } from '../../hooks/useUnifiedOrders';
+import { giftInvitePaid, useUnifiedOrders, type UnifiedOrder } from '../../hooks/useUnifiedOrders';
 import { useCatalog } from '../../hooks/useCatalog';
 import { chargePilotBoxOrder } from '../../services/checkout/chargePilotBoxOrder';
 import { cancelPilotBoxOrder } from '../../services/checkout/cancelPilotBoxOrder';
 import { inferPricingTier } from '../../services/box/pricing';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
-import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import type { BoxLineItem, CatalogItem, GiftInvite } from '../../types/pilot';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
+import { CheckoutCongratsOverlay } from './checkout/CheckoutCongratsOverlay';
+import { restorePilotBoxOrder } from '../../services/checkout/restorePilotBoxOrder';
+import { cancelPilotGift } from '../../services/gift/pendingGift';
+import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
+import { clearBoxDraftCache } from '../../hooks/useBoxDraft';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -60,6 +66,11 @@ function formatOrderDate(iso: string | undefined): string | null {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+/** Gifts listed as "Payment pending". */
+function isUnpaidGift(invite: GiftInvite): boolean {
+  return !giftInvitePaid(invite) && invite.status !== 'cancelled';
 }
 
 function partitionLineItems(lineItems: BoxLineItem[], catalog: CatalogItem[]) {
@@ -85,6 +96,11 @@ function OrderCard({
   onUpdatePayment,
   onCancel,
   cancelling,
+  onRestore,
+  restoring,
+  onAddPayment,
+  onCancelGift,
+  cancellingGift,
 }: {
   order: UnifiedOrder;
   catalog: CatalogItem[];
@@ -94,6 +110,13 @@ function OrderCard({
   onUpdatePayment?: () => void;
   onCancel?: () => void;
   cancelling?: boolean;
+  /** Cancelled box that can be put back as it was. */
+  onRestore?: () => void;
+  restoring?: boolean;
+  /** Unpaid gift: finish paying, or cancel it. */
+  onAddPayment?: () => void;
+  onCancelGift?: () => void;
+  cancellingGift?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const pilot = order.pilotOrder;
@@ -228,6 +251,35 @@ function OrderCard({
         <View style={styles.purchaseActions}>
           <Text style={styles.statusAside}>{order.statusLabel}</Text>
 
+          {onRestore ? (
+            <GrapejuiceButton
+              label="Restore Box"
+              onPress={onRestore}
+              loading={restoring}
+              style={styles.asideButton}
+              textStyle={styles.asideButtonText}
+            />
+          ) : null}
+
+          {onAddPayment ? (
+            <GrapejuiceButton
+              label="Add Payment Info"
+              onPress={onAddPayment}
+              disabled={cancellingGift}
+              style={styles.asideButton}
+              textStyle={styles.asideButtonText}
+            />
+          ) : null}
+          {onCancelGift ? (
+            <SystemTextAction
+              label={cancellingGift ? 'Cancelling…' : 'Cancel Gift'}
+              tone="brand"
+              onPress={onCancelGift}
+              disabled={cancellingGift}
+              style={actionStyle}
+            />
+          ) : null}
+
           {order.trackingNumber && pilot ? (
             <>
               <Text style={styles.trackingDetail}>
@@ -294,12 +346,69 @@ function OrdersScreenBody() {
   const navigation = useNavigation<Nav>();
   const styles = useMemo(() => createOrdersStyles(), []);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { household } = useSession();
+  const { household, refresh: refreshSession } = useSession();
   const { items: catalog } = useCatalog();
   const { orders, loading, loadError, refresh } = useUnifiedOrders();
+  const boxesLocked = useBoxLockPassed();
   const [chargingOrderId, setChargingOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [cancelConfirmOrderId, setCancelConfirmOrderId] = useState<string | null>(null);
+  const [restoringOrderId, setRestoringOrderId] = useState<string | null>(null);
+  /** Set once a box is restored: show Congratulations, then My Box. */
+  const [restored, setRestored] = useState<{ lockAt: string | null } | null>(null);
+  const [cancelGiftConfirmId, setCancelGiftConfirmId] = useState<string | null>(null);
+  const [cancellingGiftId, setCancellingGiftId] = useState<string | null>(null);
+
+  const hasActiveBox = orders.some(
+    (o) =>
+      o.kind === 'box' &&
+      o.pilotOrder != null &&
+      ['pending', 'committed', 'confirmed', 'shipped', 'delivered'].includes(o.pilotOrder.status)
+  );
+
+  const restoreBox = useCallback(
+    (orderId: string) => {
+      if (!household?.id || restoringOrderId) return;
+      void (async () => {
+        setRestoringOrderId(orderId);
+        try {
+          const result = await restorePilotBoxOrder(household.id, orderId);
+          // The server reset the box draft to this order's items either way.
+          clearBoxDraftCache();
+          if (result.status === 'needs_checkout') {
+            notify('Check out to restore your box', result.message);
+            navigation.navigate('Checkout');
+            return;
+          }
+          await refreshSession({ silent: true });
+          setRestored({ lockAt: result.lockAt });
+        } catch (e) {
+          notify('Could not restore box', e instanceof Error ? e.message : 'Try again or contact support.');
+          void refresh();
+        } finally {
+          setRestoringOrderId(null);
+        }
+      })();
+    },
+    [household?.id, restoringOrderId, navigation, refreshSession, refresh]
+  );
+
+  const confirmCancelGift = useCallback(() => {
+    const giftInviteId = cancelGiftConfirmId;
+    if (!giftInviteId || cancellingGiftId) return;
+    setCancelGiftConfirmId(null);
+    void (async () => {
+      setCancellingGiftId(giftInviteId);
+      try {
+        await cancelPilotGift(giftInviteId);
+        await refresh();
+      } catch (e) {
+        notify('Could not cancel gift', e instanceof Error ? e.message : 'Try again or contact support.');
+      } finally {
+        setCancellingGiftId(null);
+      }
+    })();
+  }, [cancelGiftConfirmId, cancellingGiftId, refresh]);
 
   useFocusEffect(
     useCallback(() => {
@@ -368,6 +477,12 @@ function OrdersScreenBody() {
     );
   }
 
+  if (restored) {
+    return (
+      <CheckoutCongratsOverlay lockAt={restored.lockAt} onDone={() => navigation.replace('MyBox')} />
+    );
+  }
+
   if (loading) {
     return (
       <SystemPage hub="orders" loading />
@@ -415,62 +530,120 @@ function OrdersScreenBody() {
                   : undefined
               }
               cancelling={cancellingOrderId === order.id}
+              onRestore={
+                order.kind === 'box' &&
+                order.pilotOrder?.status === 'cancelled' &&
+                !hasActiveBox &&
+                !boxesLocked
+                  ? () => restoreBox(order.id)
+                  : undefined
+              }
+              restoring={restoringOrderId === order.id}
+              onAddPayment={
+                order.giftInvite && isUnpaidGift(order.giftInvite)
+                  ? () => navigation.navigate('GiftResumePayment', { giftInviteId: order.id })
+                  : undefined
+              }
+              onCancelGift={
+                order.giftInvite && isUnpaidGift(order.giftInvite)
+                  ? () => setCancelGiftConfirmId(order.id)
+                  : undefined
+              }
+              cancellingGift={cancellingGiftId === order.id}
             />
           ))
         )}
 
     </SystemPage>
-      <Modal
+      <ConfirmModal
         visible={cancelConfirmOrderId != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!cancellingOrderId) setCancelConfirmOrderId(null);
-        }}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              if (!cancellingOrderId) setCancelConfirmOrderId(null);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          />
-          <View style={styles.modalCard} accessibilityViewIsModal>
-            <Text style={styles.modalTitle}>Cancel this box?</Text>
-            <Text style={styles.modalBody}>
-              Your commitment will be cancelled. Gift or platform credits applied to this order will
-              be restored.
-            </Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalKeepBtn}
-                onPress={() => setCancelConfirmOrderId(null)}
-                disabled={!!cancellingOrderId}
-                accessibilityRole="button"
-                accessibilityLabel="Keep box"
-              >
-                <Text style={styles.modalKeepText}>Keep box</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalCancelConfirmBtn, !!cancellingOrderId && styles.devChargeBtnDisabled]}
-                onPress={confirmCancel}
-                disabled={!!cancellingOrderId}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel box"
-              >
-                {cancellingOrderId ? (
-                  <BrandLoadingMark large={false} color={semanticColors.textInverse} />
-                ) : (
-                  <Text style={styles.modalCancelConfirmText}>Cancel box</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+        busy={!!cancellingOrderId}
+        title="Cancel this box?"
+        body="Your commitment will be cancelled. Gift or platform credits applied to this order will be restored."
+        keepLabel="Keep box"
+        confirmLabel="Cancel box"
+        onKeep={() => setCancelConfirmOrderId(null)}
+        onConfirm={confirmCancel}
+        styles={styles}
+      />
+      <ConfirmModal
+        visible={cancelGiftConfirmId != null}
+        busy={!!cancellingGiftId}
+        title="Cancel this gift?"
+        body="You haven't paid for this gift yet, so nothing will be charged and the recipient won't be emailed."
+        keepLabel="Keep gift"
+        confirmLabel="Cancel gift"
+        onKeep={() => setCancelGiftConfirmId(null)}
+        onConfirm={confirmCancelGift}
+        styles={styles}
+      />
+    </>
+  );
+}
+
+function ConfirmModal({
+  visible,
+  busy,
+  title,
+  body,
+  keepLabel,
+  confirmLabel,
+  onKeep,
+  onConfirm,
+  styles,
+}: {
+  visible: boolean;
+  busy: boolean;
+  title: string;
+  body: string;
+  keepLabel: string;
+  confirmLabel: string;
+  onKeep: () => void;
+  onConfirm: () => void;
+  styles: ReturnType<typeof createOrdersStyles>;
+}) {
+  const dismiss = () => {
+    if (!busy) onKeep();
+  };
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss}>
+      <View style={styles.modalBackdrop}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={dismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
+        />
+        <View style={styles.modalCard} accessibilityViewIsModal>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <Text style={styles.modalBody}>{body}</Text>
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={styles.modalKeepBtn}
+              onPress={onKeep}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={keepLabel}
+            >
+              <Text style={styles.modalKeepText}>{keepLabel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalCancelConfirmBtn, busy && styles.devChargeBtnDisabled]}
+              onPress={onConfirm}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={confirmLabel}
+            >
+              {busy ? (
+                <BrandLoadingMark large={false} color={semanticColors.textInverse} />
+              ) : (
+                <Text style={styles.modalCancelConfirmText}>{confirmLabel}</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
-    </>
+      </View>
+    </Modal>
   );
 }
 
@@ -497,6 +670,7 @@ function createOrdersStyles() {
       alignItems: 'center',
       gap: spacing.md,
       backgroundColor: semanticColors.logoDark,
+      borderRadius: borderRadius.md,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
     },
@@ -544,6 +718,17 @@ function createOrdersStyles() {
       marginTop: 0,
       alignSelf: 'flex-end',
       paddingHorizontal: spacing.sm,
+    },
+    asideButton: {
+      width: 'auto',
+      alignSelf: 'flex-end',
+      minHeight: 0,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      marginTop: spacing.xs,
+    },
+    asideButtonText: {
+      fontSize: typography.md,
     },
     productName: {
       ...typeface('medium'),

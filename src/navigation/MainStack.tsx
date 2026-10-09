@@ -35,6 +35,7 @@ import { GiftClaimScreen } from '../screens/gift/GiftClaimScreen';
 import { MyGiftsScreen } from '../screens/gift/MyGiftsScreen';
 import { GiftBoxScreen } from '../screens/gift/GiftBoxScreen';
 import { GiftBoxCheckoutScreen } from '../screens/gift/GiftBoxCheckoutScreen';
+import { GiftResumePaymentScreen } from '../screens/gift/GiftResumePaymentScreen';
 import { GiftRecipientRevealScreen } from '../screens/gift/GiftRecipientRevealScreen';
 import { GiftSentConfirmationScreen } from '../screens/gift/GiftSentConfirmationScreen';
 import { GiftLandingScreen } from '../screens/landing/GiftLandingScreen';
@@ -547,6 +548,11 @@ export function MainStack() {
           name="GiftBoxCheckout"
           component={GiftBoxCheckoutScreen}
           options={{ title: 'Gift checkout' }}
+        />
+        <Stack.Screen
+          name="GiftResumePayment"
+          component={GiftResumePaymentScreen}
+          options={{ title: 'Gift payment' }}
         />
         <Stack.Screen
           name="Reflection"

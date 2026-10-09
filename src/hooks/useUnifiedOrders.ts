@@ -23,11 +23,17 @@ export type UnifiedOrder = {
   giftInvite?: GiftInvite;
 };
 
-function giftStatusLabel(invite: GiftInvite): string {
-  const paid =
+export function giftInvitePaid(invite: GiftInvite): boolean {
+  return (
     invite.paymentStatus === 'paid' ||
     Boolean(invite.claimEmailSentAt) ||
-    invite.status === 'claimed';
+    invite.status === 'claimed'
+  );
+}
+
+function giftStatusLabel(invite: GiftInvite): string {
+  const paid = giftInvitePaid(invite);
+  if (!paid && invite.status === 'cancelled') return 'Cancelled';
   if (!paid) return 'Payment pending';
   if (invite.status === 'claimed') return 'Claimed by recipient';
   return 'Sent · awaiting claim';

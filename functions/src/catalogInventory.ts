@@ -219,32 +219,91 @@ export async function assertBoxLinesWithinInventory(
     const itemRef = db.doc(`catalog/${CATALOG_HOLIDAY}/items/${itemId}`);
     const invRef = inventoryDocRef(db, itemId);
     const [itemSnap, invSnap] = await Promise.all([itemRef.get(), invRef.get()]);
-    if (!itemSnap.exists) {
-      throw new HttpsError('invalid-argument', `Unknown product: ${itemId}`);
-    }
-    const item = itemFromSnap(itemId, itemSnap.data() ?? {});
-    if (isCatalogBookItem(item)) continue;
-    if (item.inventory == null || !Number.isFinite(item.inventory)) continue;
+    assertBoxItemWithinInventory(
+      itemId,
+      itemSnap,
+      invSnap,
+      proposed.get(itemId) ?? 0,
+      credit.get(itemId) ?? 0
+    );
+  }
+}
 
-    const inventory = Math.max(0, Math.floor(item.inventory));
-    const counters = parseCounters(invSnap.data());
-    const direct =
-      (counters.directReservedQty ?? 0) + (counters.directSoldQty ?? 0);
-    const boxAllocated = counters.boxAllocatedQty ?? 0;
-    const credited = credit.get(itemId) ?? 0;
-    const want = proposed.get(itemId) ?? 0;
-    const available = inventory - boxAllocated - direct + credited;
-    if (want > available) {
-      const name = item.name ?? itemId;
-      const left = Math.max(0, available);
-      throw new HttpsError(
-        'failed-precondition',
-        left <= 0
-          ? `${name} is out of stock for boxes.`
-          : `Only ${left} of ${name} left for boxes.`
+/** Items the box allocation counter tracks (books and uncapped items are skipped). */
+function boxAllocationTracked(item: CatalogAvailabilityItem): boolean {
+  if (isCatalogBookItem(item)) return false;
+  return item.inventory != null && Number.isFinite(item.inventory);
+}
+
+function assertBoxItemWithinInventory(
+  itemId: string,
+  itemSnap: FirebaseFirestore.DocumentSnapshot,
+  invSnap: FirebaseFirestore.DocumentSnapshot,
+  want: number,
+  credited: number
+): boolean {
+  if (!itemSnap.exists) {
+    throw new HttpsError('invalid-argument', `Unknown product: ${itemId}`);
+  }
+  const item = itemFromSnap(itemId, itemSnap.data() ?? {});
+  if (!boxAllocationTracked(item)) return false;
+
+  const inventory = Math.max(0, Math.floor(item.inventory!));
+  const counters = parseCounters(invSnap.data());
+  const direct =
+    (counters.directReservedQty ?? 0) + (counters.directSoldQty ?? 0);
+  const boxAllocated = counters.boxAllocatedQty ?? 0;
+  const available = inventory - boxAllocated - direct + credited;
+  if (want > available) {
+    const name = item.name ?? itemId;
+    const left = Math.max(0, available);
+    throw new HttpsError(
+      'failed-precondition',
+      left <= 0
+        ? `${name} is out of stock for boxes.`
+        : `Only ${left} of ${name} left for boxes.`
+    );
+  }
+  return true;
+}
+
+/**
+ * Transaction form of assertBoxLinesWithinInventory: reads every item first, validates, and
+ * returns a function that queues the boxAllocatedQty increments. Call the returned function only
+ * after the caller has finished all of its own reads (Firestore rejects reads after writes).
+ * recomputeBoxAllocations afterwards replaces these counters with the full recount.
+ */
+export async function reserveBoxLinesInTx(
+  db: Firestore,
+  tx: Transaction,
+  lines: Array<{ itemId?: string; quantity?: number }>
+): Promise<() => void> {
+  const proposed = aggregateLineQuantities(lines);
+  const itemIds = [...proposed.keys()].sort();
+  const snaps = await Promise.all(
+    itemIds.map((itemId) =>
+      Promise.all([
+        tx.get(db.doc(`catalog/${CATALOG_HOLIDAY}/items/${itemId}`)),
+        tx.get(inventoryDocRef(db, itemId)),
+      ])
+    )
+  );
+  const tracked = itemIds.filter((itemId, i) =>
+    assertBoxItemWithinInventory(itemId, snaps[i][0], snaps[i][1], proposed.get(itemId) ?? 0, 0)
+  );
+  return () => {
+    const nowIso = new Date().toISOString();
+    for (const itemId of tracked) {
+      tx.set(
+        inventoryDocRef(db, itemId),
+        {
+          boxAllocatedQty: FieldValue.increment(proposed.get(itemId) ?? 0),
+          updatedAt: nowIso,
+        },
+        { merge: true }
       );
     }
-  }
+  };
 }
 
 type LineLike = { itemId?: string; quantity?: number };
