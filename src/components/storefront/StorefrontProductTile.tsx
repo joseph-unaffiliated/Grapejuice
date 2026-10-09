@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -39,6 +39,57 @@ import {
 import { isBookItem } from '../../constants/storefrontCategories';
 
 export type StorefrontTileBoxRelation = 'in_box' | 'swap' | 'add';
+
+/** Touch screens never hover — skip downloading the hover-only secondary photo. */
+const WEB_CAN_HOVER =
+  Platform.OS === 'web' &&
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(hover: hover)').matches;
+
+/** Start loading grid photos this far before they scroll into view. */
+const DEFER_IMAGE_MARGIN_PX = 900;
+
+function nearestScrollParent(node: HTMLElement): HTMLElement | null {
+  let el = node.parentElement;
+  while (el && el !== document.body) {
+    const { overflowY } = window.getComputedStyle(el);
+    if (overflowY === 'auto' || overflowY === 'scroll') return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Web PLP grids: hold the photo until the tile is near the viewport so a long
+ * aisle doesn't queue every full-size image ahead of what the shopper sees.
+ */
+function useNearViewport(enabled: boolean) {
+  const ref = useRef<View>(null);
+  const [near, setNear] = useState(!enabled);
+
+  useEffect(() => {
+    if (near) return;
+    const node = ref.current as unknown as HTMLElement | null;
+    if (!node || typeof IntersectionObserver === 'undefined' || typeof window === 'undefined') {
+      setNear(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setNear(true);
+          io.disconnect();
+        }
+      },
+      { root: nearestScrollParent(node), rootMargin: `${DEFER_IMAGE_MARGIN_PX}px 0px` }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [near]);
+
+  return { ref, near };
+}
 
 const DESCRIPTION_MAX_LINES = 4;
 const DESCRIPTION_LINE_HEIGHT = 14;
@@ -184,6 +235,8 @@ type Props = {
    * the measured `width` is stale or replayed at another viewport.
    */
   maxWidth?: string;
+  /** Web grids: wait to load the photo until the tile nears the viewport. */
+  deferImage?: boolean;
 };
 
 function firstSecondaryUrl(item: CatalogItem): string | null {
@@ -208,8 +261,12 @@ export function StorefrontProductTile({
   onSwapPress,
   flushBottom = false,
   maxWidth,
+  deferImage = false,
 }: Props) {
   const imageSize = Math.max(120, width);
+  const { ref: imageWrapRef, near: showImage } = useNearViewport(
+    deferImage && Platform.OS === 'web'
+  );
   const capStyle = maxWidth ? ({ maxWidth } as object) : null;
   const fitStyle = maxWidth ? styles.fitParent : null;
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
@@ -231,8 +288,7 @@ export function StorefrontProductTile({
   const [hoverSecondary, setHoverSecondary] = useState(false);
   const [descriptionShown, setDescriptionShown] = useState(description);
   // Books keep a single cover image — no hover secondary reveal.
-  const canCrossfade =
-    Platform.OS === 'web' && Boolean(secondaryUrl) && !isBookItem(item);
+  const canCrossfade = WEB_CAN_HOVER && Boolean(secondaryUrl) && !isBookItem(item);
 
   useEffect(() => {
     if (!description) {
@@ -278,14 +334,20 @@ export function StorefrontProductTile({
           onHoverOut={canCrossfade ? () => setHoverSecondary(false) : undefined}
           style={({ pressed }) => [pressed && { opacity: 0.85 }]}
         >
-          <View style={{ width: imageSize, height: imageSize }}>
-            <BoxItemImage
-              size={imageSize}
-              itemId={item.id}
-              imageUrl={item.imageUrl}
-              style={styles.image}
-            />
-            {canCrossfade && secondaryUrl ? (
+          <View ref={imageWrapRef} style={{ width: imageSize, height: imageSize }}>
+            {showImage ? (
+              <BoxItemImage
+                size={imageSize}
+                itemId={item.id}
+                imageUrl={item.imageUrl}
+                style={styles.image}
+              />
+            ) : (
+              <View
+                style={[styles.image, styles.imagePending, { width: imageSize, height: imageSize }]}
+              />
+            )}
+            {showImage && canCrossfade && secondaryUrl ? (
               <View
                 pointerEvents="none"
                 style={[
@@ -439,6 +501,9 @@ const styles = StyleSheet.create({
   },
   image: {
     borderRadius: borderRadius.md,
+  },
+  imagePending: {
+    backgroundColor: semanticColors.border,
   },
   secondaryLayer: {
     ...StyleSheet.absoluteFillObject,

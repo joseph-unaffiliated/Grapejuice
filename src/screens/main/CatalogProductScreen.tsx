@@ -21,7 +21,7 @@ import {
   useMarketplaceCartStore,
 } from '../../stores/marketplaceCartStore';
 import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
-import { getHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import {
   useEffectiveBoxLocked,
   usePreviewNow,
@@ -155,11 +155,14 @@ export function CatalogProductScreen() {
     recordBrowseView({ id: item.id, name: item.name });
   }, [item?.id, item?.name, recordBrowseView]);
 
-  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [loadingConfig, setLoadingConfig] = useState(() => peekHanukkahConfig() == null);
   const [saving, setSaving] = useState(false);
-  const [lockAt, setLockAt] = useState<string | null>(null);
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
   const locked = useEffectiveBoxLocked(lockAt);
-  const [shipWindow, setShipWindow] = useState(HANUKKAH_SHIP_WINDOW_LABEL);
+  const [shipWindow, setShipWindow] = useState(() => {
+    const cached = peekHanukkahConfig();
+    return cached ? shipWindowLabel(cached.estimatedDeliveryBy) : HANUKKAH_SHIP_WINDOW_LABEL;
+  });
   const [detailsOpen, setDetailsOpen] = useState(true);
 
   const effectiveLockAtForAvail = useMemo(() => {
@@ -217,7 +220,6 @@ export function CatalogProductScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoadingConfig(true);
     getHanukkahConfig().then((config) => {
       if (cancelled) return;
       setLockAt(config.lockAt);

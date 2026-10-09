@@ -54,7 +54,7 @@ import {
 } from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
-import { getHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
 import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
@@ -89,10 +89,16 @@ export function StorefrontHomeScreen() {
   const signedIn = usePreviewedIsAuthenticated();
   const scrollRef = useRef<ScrollView>(null);
   const lookY = useRef(0);
-  const [lockAt, setLockAt] = useState<string | null>(null);
-  const [startsOn, setStartsOn] = useState<string | null>(null);
-  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(null);
-  const [hanukkahConfigReady, setHanukkahConfigReady] = useState(false);
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(
+    () => peekHanukkahConfig()?.estimatedDeliveryBy ?? null
+  );
+  const [hanukkahConfigReady, setHanukkahConfigReady] = useState(
+    () => peekHanukkahConfig() != null
+  );
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const boxMode = useStorefrontHomeMode(lockAt, startsOn, { ignoreGiftIntent: true });
   const giftDraft = useGiftIntentStore((s) => s.draft);

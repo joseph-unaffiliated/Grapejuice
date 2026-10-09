@@ -250,6 +250,7 @@ export function StorefrontProductGrid({
             onToggleWishlist={() => void toggleWishlist(item.id)}
             flushBottom={isRail}
             maxWidth={tileMaxWidth}
+            deferImage={!isRail}
           />
         );
       })}

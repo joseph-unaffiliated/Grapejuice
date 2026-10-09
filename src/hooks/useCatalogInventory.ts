@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { catalogInventoryService } from '../services/firestore/catalogInventory';
+import { useSyncExternalStore } from 'react';
+import { liveCatalogInventory } from '../services/catalog/liveCatalog';
 import type { CatalogInventoryCounters } from '../types/pilot';
 
 /**
@@ -10,25 +10,6 @@ export function useCatalogInventory(): {
   loading: boolean;
   error: string | null;
 } {
-  const [byId, setById] = useState<Record<string, CatalogInventoryCounters>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    const unsub = catalogInventoryService.subscribeAll(
-      (next) => {
-        setById(next);
-        setLoading(false);
-        setError(null);
-      },
-      (err) => {
-        setError(err.message);
-        setLoading(false);
-      }
-    );
-    return unsub;
-  }, []);
-
-  return { byId, loading, error };
+  const state = useSyncExternalStore(liveCatalogInventory.subscribe, liveCatalogInventory.get);
+  return { byId: state.value, loading: state.loading, error: state.error };
 }

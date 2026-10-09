@@ -48,7 +48,7 @@ import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
 import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
-import { getHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
 import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
@@ -257,8 +257,10 @@ export function StorefrontCategoryScreen() {
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
-  const [lockAt, setLockAt] = useState<string | null>(null);
-  const [startsOn, setStartsOn] = useState<string | null>(null);
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const giftDraft = useGiftIntentStore((s) => s.draft);
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);

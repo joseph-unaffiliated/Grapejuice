@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useCatalog } from './useCatalog';
 import { useCatalogInventory } from './useCatalogInventory';
-import { getHanukkahConfig } from '../services/firestore/config';
+import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
 import { useEffectiveBoxLocked, usePreviewNow, useUserStatePreview } from './useUserStatePreview';
 import {
   resolveAvailability,
@@ -22,8 +22,8 @@ export function useCatalogAvailabilityMap(): {
 } {
   const { items, loading: catalogLoading } = useCatalog();
   const { byId: counters, loading: invLoading } = useCatalogInventory();
-  const [lockAt, setLockAt] = useState<string | null>(null);
-  const [configLoading, setConfigLoading] = useState(true);
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [configLoading, setConfigLoading] = useState(() => peekHanukkahConfig() == null);
   const now = usePreviewNow();
   const preview = useUserStatePreview();
   const locked = useEffectiveBoxLocked(lockAt);

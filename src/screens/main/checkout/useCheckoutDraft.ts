@@ -83,7 +83,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
   const load = useCallback(async () => {
     setLoading(true);
     const [config, items, kids] = await Promise.all([
-      getHanukkahConfig(),
+      getHanukkahConfig({ fresh: true }),
       catalogService.getAll(),
       isAuthenticated && userId ? childrenService.list(userId) : Promise.resolve(null),
     ]);
