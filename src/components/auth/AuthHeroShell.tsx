@@ -99,7 +99,10 @@ export function AuthHeroShell({ children, modal }: Props) {
         showsVerticalScrollIndicator={false}
         bounces={false}
         style={styles.cardScroll}
-        contentContainerStyle={styles.cardScrollContent}
+        contentContainerStyle={[
+          styles.cardScrollContent,
+          !isDesktop && styles.cardScrollContentNarrow,
+        ]}
       >
         <View style={styles.brandBlock}>
           <GrapejuiceWordmarkLockup color={semanticColors.logoDark} />
@@ -199,6 +202,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     paddingTop: spacing.xxl,
     paddingBottom: spacing.xxl,
+  },
+  cardScrollContentNarrow: {
+    paddingHorizontal: spacing.md,
   },
   brandBlock: {
     alignItems: 'center',
