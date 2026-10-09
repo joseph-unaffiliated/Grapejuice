@@ -80,6 +80,7 @@ export { validateShippingAddress } from './addressValidation';
 export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
 export { adminPromotions, awardDebriefCredit, checkPromo, getMyInfluencerStats } from './promotions';
+export { scheduledFollowUpListAudience } from './followUpListAudience';
 
 initializeApp();
 const db = getFirestore();

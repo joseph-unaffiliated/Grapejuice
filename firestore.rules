@@ -140,5 +140,9 @@ service cloud.firestore {
     match /promoRedemptions/{redemptionId} {
       allow read, write: if false;
     }
+    /** Server-only settings and hashed lead lists (functions/src/followUpAudience.ts) — functions only. */
+    match /adminConfig/{docId} {
+      allow read, write: if false;
+    }
   }
 }
