@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -8,11 +8,15 @@ import { useAuthStore } from '../../stores/authStore';
 import { ordersService } from '../../services/firestore/orders';
 import type { PilotOrder } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
-import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
+import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
-import { WebContentPanel } from '../../components/layout/WebContentPanel';
+import { SystemPage } from '../../components/layout/SystemPage';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { retentionTrackOrder } from '../../services/analytics/retention';
+import { formatShortMonthDay } from '../../constants/hanukkahBoxLock';
+import { useArrivesByWithWait } from '../../hooks/useArrivesByWithWait';
+import { checkoutUi } from './checkout/checkoutUi';
 
 export function OrderConfirmationScreen() {
   return (
@@ -28,6 +32,7 @@ function OrderConfirmationBody() {
   const { household, profile } = useSession();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authEmail = useAuthStore((s) => s.user?.email ?? null);
+  const arrival = useArrivesByWithWait();
   const [order, setOrder] = useState<PilotOrder | null>(null);
   const trackedOrderId = React.useRef<string | null>(null);
 
@@ -82,10 +87,10 @@ function OrderConfirmationBody() {
   } else if (isMarketplace && committed) {
     title = 'Your order is saved.';
     subtitle =
-      "We'll charge your card when Hanukkah boxes lock, and ship these items with that wave.";
+      "We'll charge your card when Hanukkah boxes lock, and ship these items with your box.";
   } else if (isMarketplace && confirmed) {
-    title = 'Your purchase is confirmed.';
-    subtitle = "We'll send a tracking link when it ships.";
+    title = 'Your order is confirmed.';
+    subtitle = `${arrival} We'll send a tracking link when it ships.`;
   } else if (isReceivedGift && confirmed) {
     title = 'Your gift order is confirmed.';
     subtitle = "We'll send a tracking link when it ships.";
@@ -97,8 +102,10 @@ function OrderConfirmationBody() {
     showBoxPreview = !committed;
   }
 
+  const deliveryDay = isMarketplace ? null : formatShortMonthDay(order?.estimatedDelivery);
+
   return (
-    <WebContentPanel flush centerDesktop style={styles.panel}>
+    <SystemPage narrow>
       <View style={styles.root}>
         {order ? (
           <>
@@ -107,18 +114,16 @@ function OrderConfirmationBody() {
                 <View style={styles.pendingMark}>
                   <BrandLoadingMark />
                 </View>
-                <Text style={styles.title}>{title}</Text>
-                <Text style={styles.subtitle}>{subtitle}</Text>
+                <Text style={checkoutUi.title}>{title}</Text>
+                <Text style={checkoutUi.lead}>{subtitle}</Text>
               </>
             ) : confirmed ? (
               <>
                 <Text style={styles.emoji}>✓</Text>
-                <Text style={styles.title}>{title}</Text>
-                <Text style={styles.subtitle}>{subtitle}</Text>
-                {order.estimatedDelivery ? (
-                  <Text style={styles.delivery}>
-                    Estimated delivery by {order.estimatedDelivery}
-                  </Text>
+                <Text style={checkoutUi.title}>{title}</Text>
+                <Text style={checkoutUi.lead}>{subtitle}</Text>
+                {deliveryDay ? (
+                  <Text style={styles.delivery}>Estimated delivery by {deliveryDay}</Text>
                 ) : null}
                 {isMarketplace && order.lineItems?.length ? (
                   <View style={styles.previewBox}>
@@ -148,7 +153,7 @@ function OrderConfirmationBody() {
                 ) : null}
               </>
             ) : (
-              <Text style={styles.title}>Order status: {order.status}</Text>
+              <Text style={checkoutUi.title}>Order status: {order.status}</Text>
             )}
           </>
         ) : isAuthenticated ? (
@@ -158,69 +163,66 @@ function OrderConfirmationBody() {
         ) : (
           <>
             <Text style={styles.emoji}>✓</Text>
-            <Text style={styles.title}>Your order is saved.</Text>
-            <Text style={styles.subtitle}>
-              We&apos;ll charge the card you saved when Hanukkah boxes lock, and email you at the
-              address you entered.
+            <Text style={checkoutUi.title}>
+              {route.params.charged ? 'Your order is confirmed.' : 'Your order is saved.'}
+            </Text>
+            <Text style={checkoutUi.lead}>
+              {route.params.charged
+                ? `${arrival} We'll email your confirmation and a tracking link to the address you entered.`
+                : "We'll charge the card you saved when Hanukkah boxes lock, and email you at the address you entered."}
             </Text>
           </>
         )}
 
-        {isAuthenticated ? (
-          <TouchableOpacity
-            style={styles.cta}
-            onPress={() => navigation.navigate(isReceivedGift ? 'MyGifts' : 'Orders')}
-          >
-            <Text style={styles.ctaText}>
-              {isReceivedGift ? 'View in Gifts' : 'View in Orders'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-        <TouchableOpacity onPress={() => navigation.navigate('StorefrontHome')}>
-          <Text style={styles.link}>Back to Home</Text>
-        </TouchableOpacity>
+        <View style={styles.actions}>
+          {isAuthenticated ? (
+            <GrapejuiceButton
+              label={isReceivedGift ? 'View in Gifts' : 'View in Orders'}
+              variant="filled"
+              onPress={() => navigation.navigate(isReceivedGift ? 'MyGifts' : 'Orders')}
+              style={checkoutUi.button}
+              textStyle={checkoutUi.buttonText}
+            />
+          ) : null}
+          <GrapejuiceButton
+            label="Back to Home"
+            variant={isAuthenticated ? 'pillOutline' : 'filled'}
+            onPress={() => navigation.navigate('StorefrontHome')}
+            style={checkoutUi.button}
+            textStyle={checkoutUi.buttonText}
+          />
+        </View>
       </View>
-    </WebContentPanel>
+    </SystemPage>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    flex: 1,
-    width: '100%',
-    minHeight: 0,
-    backgroundColor: semanticColors.bgPrimary,
-  },
   root: {
-    flex: 1,
-    backgroundColor: semanticColors.bgPrimary,
-    padding: spacing.lg,
-    paddingTop: spacing.xl,
     alignItems: 'center',
+    paddingTop: spacing.xl,
   },
   pendingMark: { marginBottom: spacing.lg },
   waiting: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: spacing.xxl,
   },
   emoji: {
     fontSize: 48,
     color: semanticColors.brand,
     marginBottom: spacing.md,
   },
-  title: { fontSize: 26, fontWeight: '700', textAlign: 'center' },
-  subtitle: {
-    fontSize: typography.lg,
-    color: semanticColors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
   delivery: {
+    ...typeface('medium'),
     fontSize: typography.lg,
-    fontWeight: '600',
     marginTop: spacing.lg,
     textAlign: 'center',
+    color: semanticColors.textPrimary,
+  },
+  actions: {
+    alignSelf: 'stretch',
+    marginTop: spacing.xl,
   },
   previewBox: {
     marginTop: spacing.lg,
@@ -238,13 +240,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     lineHeight: 20,
   },
-  cta: {
-    backgroundColor: semanticColors.brand,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.xxl,
-  },
-  ctaText: { color: semanticColors.textInverse, fontWeight: '700', fontSize: typography.lg },
-  link: { marginTop: spacing.lg, color: semanticColors.brand, fontWeight: '600' },
 });

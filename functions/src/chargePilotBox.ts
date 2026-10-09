@@ -125,7 +125,7 @@ function isLockPassed(lockAt: string | null | undefined): boolean {
   return Date.now() >= new Date(lockAt).getTime();
 }
 
-function isHanukkahBoxOrder(order: FirebaseFirestore.DocumentData): boolean {
+export function isHanukkahBoxOrder(order: FirebaseFirestore.DocumentData): boolean {
   if (order.orderType === 'marketplace' || order.orderType === 'received_gift') return false;
   if (order.orderType === 'hanukkah_box') return true;
   return order.holidayId === HOLIDAY_ID || !order.orderType;

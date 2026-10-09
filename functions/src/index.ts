@@ -28,6 +28,7 @@ import {
   chargePilotBoxOrderForUser,
   checkoutTotalsAfterCredit,
   fulfillHanukkahBoxOrder,
+  isHanukkahBoxOrder,
   notifyHanukkahBoxChargeFailed,
   retryFailedHanukkahBoxCharges,
   runChargeEligiblePilotBoxOrders,
@@ -270,6 +271,17 @@ function guestHouseholdId(email: string): string {
   return `guest_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 140);
 }
 
+const BOX_HELD_STATUSES = new Set(['committed', 'confirmed', 'shipped', 'delivered']);
+
+/** À la carte orders from a household with a box charge at lock; everyone else pays at checkout. */
+async function householdHasHanukkahBox(householdId: string): Promise<boolean> {
+  const snap = await db.collection(`households/${householdId}/orders`).get();
+  return snap.docs.some((d) => {
+    const order = d.data();
+    return isHanukkahBoxOrder(order) && BOX_HELD_STATUSES.has(String(order.status ?? ''));
+  });
+}
+
 function lockHasPassed(lockAt: string | null | undefined): boolean {
   if (!lockAt) return false;
   return Date.now() >= new Date(lockAt).getTime();
@@ -427,8 +439,8 @@ async function fulfillMarketplaceOrder(
     await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
     return;
   }
-  // Gift boxes ship with the Hanukkah boxes: runExportHeldGiftOrders sends them once lock passes.
-  if (fresh.orderType === 'received_gift') {
+  // Gift boxes and à la carte orders ship with the Hanukkah boxes: runExportHeldOrders sends them once lock passes.
+  if (fresh.orderType === 'received_gift' || fresh.orderType === 'marketplace') {
     const lockAt = (fresh.lockAt as string | null | undefined) ?? (await getLockAt());
     if (!lockHasPassed(lockAt)) return;
   }
@@ -858,7 +870,7 @@ async function runGiftConfirmReminders(): Promise<{ sent: number; skipped: numbe
   return { sent, skipped };
 }
 
-async function runExportHeldGiftOrders(): Promise<void> {
+async function runExportHeldOrders(): Promise<void> {
   if (!isLocked(await getLockAt())) return;
   const snap = await db
     .collectionGroup('orders')
@@ -867,13 +879,14 @@ async function runExportHeldGiftOrders(): Promise<void> {
     .get();
   for (const doc of snap.docs) {
     const order = doc.data();
-    if (order.orderType !== 'received_gift' || order.marketplaceFulfilledAt) continue;
+    if (order.orderType !== 'received_gift' && order.orderType !== 'marketplace') continue;
+    if (order.marketplaceFulfilledAt) continue;
     const householdId = doc.ref.parent.parent?.id;
     if (!householdId) continue;
     try {
       await fulfillMarketplaceOrder(householdId, doc.id, order, order.playthrough === true);
     } catch (err) {
-      logger.error('Held gift order export failed', { orderId: doc.id, err });
+      logger.error('Held order export failed', { orderId: doc.id, err });
     }
   }
 }
@@ -985,7 +998,10 @@ export const createPilotCheckout = onCall(async (request) => {
   };
 });
 
-/** À la carte checkout. Saves a card and charges when Hanukkah boxes lock. Guests need an email; a box still requires an account. */
+/**
+ * À la carte checkout. Charged now, unless the household has a box: then the card is saved
+ * and charged when boxes lock. Guests need an email.
+ */
 export const createMarketplaceCheckout = onCall(async (request) => {
   try {
     const data = (request.data ?? {}) as CreateMarketplaceCheckoutData;
@@ -1071,11 +1087,14 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       )
     );
 
-    const cardOnFile = Boolean(hhData.stripeDefaultPaymentMethodId);
-    const needsCard = totalCents > 0 && !cardOnFile;
+    const chargeNow = !authedUid || !(await householdHasHanukkahBox(householdId));
+    const savedPaymentMethodId =
+      typeof hhData.stripeDefaultPaymentMethodId === 'string' ? hhData.stripeDefaultPaymentMethodId : '';
+    const needsCard = totalCents > 0 && !savedPaymentMethodId;
     const reservedAt = new Date().toISOString();
     const orderPayload: Record<string, unknown> = {
-      status: needsCard ? 'pending' : 'committed',
+      status: (chargeNow ? totalCents > 0 : needsCard) ? 'pending' : 'committed',
+      chargeTiming: chargeNow ? 'checkout' : 'lock',
       orderType: 'marketplace',
       lineItems,
       subtotalCents,
@@ -1120,18 +1139,41 @@ export const createMarketplaceCheckout = onCall(async (request) => {
         await reportUnaffiliatedShippingGeo({ attribution, shippingAddress, email: buyerEmail });
       }
 
-      if (!needsCard) {
-        await sendOrderPurchaseToMeta({
+      const purchaseToMeta = async () =>
+        sendOrderPurchaseToMeta({
           orderId: orderRef.id,
           order: orderPayload,
           context: metaCtx,
           email: guestEmail || (authedUid ? await emailForMeta(authedUid, request.auth?.token.email) : null),
         });
+      // Once money has moved, a failure here must not fall into the release/cancel path below.
+      const confirmedNow = async (paymentIntentId: string | null) => {
+        try {
+          await confirmMarketplaceCharge(householdId, orderRef.id, orderRef, orderPayload, paymentIntentId);
+          await purchaseToMeta();
+        } catch (postErr) {
+          logger.error('Marketplace order paid; follow-up steps failed', { orderId: orderRef.id, postErr });
+        }
         return {
           orderId: orderRef.id,
           totalCents,
           clientSecret: null as string | null,
-          intent: null as 'setup' | null,
+          intent: null as 'setup' | 'payment' | null,
+          status: 'confirmed' as const,
+        };
+      };
+
+      if (chargeNow && totalCents === 0) {
+        return await confirmedNow(null);
+      }
+
+      if (!chargeNow && !needsCard) {
+        await purchaseToMeta();
+        return {
+          orderId: orderRef.id,
+          totalCents,
+          clientSecret: null as string | null,
+          intent: null as 'setup' | 'payment' | null,
           status: 'committed' as const,
         };
       }
@@ -1157,6 +1199,62 @@ export const createMarketplaceCheckout = onCall(async (request) => {
           { stripeCustomerId: customerId, updatedAt: new Date().toISOString() },
           { merge: true }
         );
+      }
+
+      if (chargeNow) {
+        const metadata: Record<string, string> = {
+          householdId,
+          orderId: orderRef.id,
+          type: 'marketplace',
+          chargeTiming: 'checkout',
+          ...(authedUid ? { userId: authedUid } : {}),
+          ...metaContextToStripeMetadata(metaCtx),
+        };
+        if (savedPaymentMethodId) {
+          try {
+            const saved = await stripe.paymentIntents.create(
+              {
+                amount: totalCents,
+                currency: 'usd',
+                customer: customerId,
+                payment_method: savedPaymentMethodId,
+                confirm: true,
+                off_session: true,
+                metadata: { ...metadata, savedCard: 'true' },
+              },
+              { idempotencyKey: `marketplace-checkout-${orderRef.id}-saved` }
+            );
+            if (saved.status === 'succeeded' || saved.status === 'processing') {
+              return await confirmedNow(saved.id);
+            }
+          } catch (savedErr) {
+            logger.warn('Saved card declined at checkout; asking for a card', {
+              orderId: orderRef.id,
+              savedErr,
+            });
+          }
+        }
+        const paymentIntent = await stripe.paymentIntents.create(
+          {
+            amount: totalCents,
+            currency: 'usd',
+            customer: customerId,
+            automatic_payment_methods: { enabled: true },
+            metadata,
+          },
+          { idempotencyKey: `marketplace-checkout-${orderRef.id}` }
+        );
+        if (!paymentIntent.client_secret) {
+          throw new HttpsError('internal', 'PaymentIntent missing client secret.');
+        }
+        await orderRef.update({ stripePaymentIntentId: paymentIntent.id });
+        return {
+          clientSecret: paymentIntent.client_secret,
+          orderId: orderRef.id,
+          totalCents,
+          intent: 'payment' as const,
+          status: 'pending' as const,
+        };
       }
 
       const setupIntent = await createCardSetupIntent({
@@ -1826,6 +1924,18 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
               chargeFailureMessage: FieldValue.delete(),
             });
             const fresh = (await orderRef.get()).data() ?? order;
+            if (isMarketplaceOrder && pi.metadata?.chargeTiming === 'checkout') {
+              try {
+                await sendOrderPurchaseToMeta({
+                  orderId,
+                  order: fresh,
+                  context: metaContextFromStripeMetadata(pi.metadata),
+                  email: await emailForMeta(pi.metadata.userId, fresh.guestEmail as string | undefined),
+                });
+              } catch (metaErr) {
+                logger.warn('Meta purchase for marketplace checkout failed', { orderId, metaErr });
+              }
+            }
             if (isMarketplaceOrder || isReceivedGift) {
               await fulfillMarketplaceOrder(
                 householdId,
@@ -1931,6 +2041,9 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
               chargeFailedAt: new Date().toISOString(),
               chargeFailureMessage: message,
             });
+          } else if (pi.metadata.chargeTiming === 'checkout') {
+            // Shopper can retry on the same payment; the stale-reservation sweep frees abandoned holds.
+            logger.info('Marketplace checkout payment declined', { householdId, orderId, message });
           } else if (order?.inventoryReserved === true && !order.reservationReleasedAt) {
             try {
               await releaseMarketplaceReservations(db, reservedLinesFromOrder(order));
@@ -3099,9 +3212,9 @@ export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () =>
   }
   try {
     await runSettleUnconfirmedGiftBoxes();
-    await runExportHeldGiftOrders();
+    await runExportHeldOrders();
   } catch (giftErr) {
-    logger.error('runExportHeldGiftOrders failed', giftErr);
+    logger.error('runExportHeldOrders failed', giftErr);
   }
   try {
     const alloc = await recomputeBoxAllocations(db);

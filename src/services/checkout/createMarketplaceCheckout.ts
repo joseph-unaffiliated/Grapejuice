@@ -13,7 +13,8 @@ export type CreateMarketplaceCheckoutResult = {
   clientSecret: string | null;
   orderId: string;
   totalCents: number;
-  intent?: 'setup' | null;
+  /** `payment` charges at checkout; `setup` saves a card for the lock-day charge. */
+  intent?: 'setup' | 'payment' | null;
   status: 'pending' | 'committed' | 'confirmed';
 };
 

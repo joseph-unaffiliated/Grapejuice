@@ -67,27 +67,37 @@ export async function reserveMarketplaceInventoryInTx(
   lockAt: string | null,
   now: Date = new Date()
 ): Promise<ReservedLine[]> {
-  const reserved: ReservedLine[] = [];
-  // Deterministic order avoids transaction deadlocks.
-  const sorted = [...lines].sort((a, b) => a.itemId.localeCompare(b.itemId));
-
-  for (const line of sorted) {
+  const qtyById = new Map<string, number>();
+  for (const line of lines) {
     const itemId = String(line.itemId ?? '').trim();
-    const quantity = Math.max(1, Math.floor(Number(line.quantity) || 1));
     if (!itemId) {
       throw new HttpsError('invalid-argument', 'Each line item needs an itemId.');
     }
+    const quantity = Math.max(1, Math.floor(Number(line.quantity) || 1));
+    qtyById.set(itemId, (qtyById.get(itemId) ?? 0) + quantity);
+  }
+  // Deterministic order avoids transaction deadlocks.
+  const reserved: ReservedLine[] = [...qtyById.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([itemId, quantity]) => ({ itemId, quantity }));
 
-    const itemRef = db.doc(`catalog/${CATALOG_HOLIDAY}/items/${itemId}`);
-    const invRef = inventoryDocRef(db, itemId);
-    const [itemSnap, invSnap] = await Promise.all([tx.get(itemRef), tx.get(invRef)]);
+  // Firestore transactions reject any read after a write, so read every item first.
+  const snaps = await Promise.all(
+    reserved.map(({ itemId }) =>
+      Promise.all([
+        tx.get(db.doc(`catalog/${CATALOG_HOLIDAY}/items/${itemId}`)),
+        tx.get(inventoryDocRef(db, itemId)),
+      ])
+    )
+  );
+
+  reserved.forEach(({ itemId, quantity }, i) => {
+    const [itemSnap, invSnap] = snaps[i];
     if (!itemSnap.exists) {
       throw new HttpsError('invalid-argument', `Unknown product: ${itemId}`);
     }
     const item = itemFromSnap(itemId, itemSnap.data() ?? {});
-    const counters = parseCounters(invSnap.data());
-    const avail = resolveAvailability(item, counters, lockAt, now);
-
+    const avail = resolveAvailability(item, parseCounters(invSnap.data()), lockAt, now);
     if (!availabilityAllowsDirectPurchase(avail)) {
       throw new HttpsError(
         'failed-precondition',
@@ -101,16 +111,17 @@ export async function reserveMarketplaceInventoryInTx(
         `Only ${remaining} of ${item.name ?? itemId} left for direct purchase.`
       );
     }
+  });
 
+  for (const { itemId, quantity } of reserved) {
     tx.set(
-      invRef,
+      inventoryDocRef(db, itemId),
       {
         directReservedQty: FieldValue.increment(quantity),
         updatedAt: new Date().toISOString(),
       },
       { merge: true }
     );
-    reserved.push({ itemId, quantity });
   }
 
   return reserved;

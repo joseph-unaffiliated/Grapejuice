@@ -26,7 +26,7 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
-import { CheckoutSmsOptIn } from '../main/checkout/CheckoutSmsOptIn';
+import { useArrivesByWithWait } from '../../hooks/useArrivesByWithWait';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useMarketplaceCheckout } from './useMarketplaceCheckout';
 import { isValidEmail, type ShippingAddressFieldErrors } from '../../utils/formValidation';
@@ -53,6 +53,7 @@ function MarketplaceCheckoutBody() {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const skipShipStation = useMockFlowStore((s) => s.active);
+  const arrival = useArrivesByWithWait();
 
   const {
     lineItems,
@@ -72,8 +73,6 @@ function MarketplaceCheckoutBody() {
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [contactPhone, setContactPhone] = useState('');
-  const [smsOptIn, setSmsOptIn] = useState(false);
   const [addressFieldErrors, setAddressFieldErrors] = useState<ShippingAddressFieldErrors>({});
   const [guestEmail, setGuestEmail] = useState('');
 
@@ -94,9 +93,9 @@ function MarketplaceCheckoutBody() {
   const stripeKey = extra?.stripePublishableKey ?? '';
 
   const finishOrder = useCallback(
-    (orderId: string) => {
+    (orderId: string, charged: boolean) => {
       clearCart();
-      navigation.replace('OrderConfirmation', { orderId });
+      navigation.replace('OrderConfirmation', { orderId, charged });
     },
     [clearCart, navigation]
   );
@@ -158,7 +157,7 @@ function MarketplaceCheckoutBody() {
         result.status === 'confirmed' ||
         result.totalCents === 0
       ) {
-        finishOrder(result.orderId);
+        finishOrder(result.orderId, result.status === 'confirmed');
         return;
       }
 
@@ -167,8 +166,11 @@ function MarketplaceCheckoutBody() {
         return;
       }
 
+      const chargeNow = result.intent === 'payment';
       const { error: initError } = await initPaymentSheet({
-        setupIntentClientSecret: result.clientSecret,
+        ...(chargeNow
+          ? { paymentIntentClientSecret: result.clientSecret }
+          : { setupIntentClientSecret: result.clientSecret }),
         merchantDisplayName: 'Grapejuice',
       });
       if (initError) {
@@ -183,7 +185,7 @@ function MarketplaceCheckoutBody() {
         return;
       }
 
-      finishOrder(result.orderId);
+      finishOrder(result.orderId, chargeNow);
     } catch (e) {
       const msg = marketplaceCheckoutErrorMessage(e);
       setFormError(msg);
@@ -220,9 +222,7 @@ function MarketplaceCheckoutBody() {
 
       <Text style={styles.title}>Checkout</Text>
       <Text style={styles.chargeBanner}>
-        {total > 0
-          ? "We'll save your card and charge it when Hanukkah boxes lock. These items ship with that wave."
-          : "Your credits cover this order. We'll hold it until boxes lock, then ship it with them."}
+        {`${arrival} These items ship with our Hanukkah boxes.`}
       </Text>
 
       <CheckoutOrderSummary
@@ -255,9 +255,6 @@ function MarketplaceCheckoutBody() {
             autoComplete="email"
             accessibilityLabel="Email, required"
           />
-          <Text style={styles.emailHint}>
-            No account needed for this order. A Hanukkah box still needs an account.
-          </Text>
         </>
       ) : null}
       <CheckoutAddressFields
@@ -265,12 +262,6 @@ function MarketplaceCheckoutBody() {
         onChange={onAddressChange}
         fieldErrors={addressFieldErrors}
         {...deliverability.fieldsProps}
-      />
-      <CheckoutSmsOptIn
-        phone={contactPhone}
-        smsOptIn={smsOptIn}
-        onPhoneChange={setContactPhone}
-        onSmsOptInChange={setSmsOptIn}
       />
 
       {formError ? <Text style={styles.formError}>{formError}</Text> : null}
@@ -352,13 +343,6 @@ function createStyles(colors: SemanticColors) {
       color: colors.textPrimary,
       backgroundColor: colors.bgElevated,
       marginBottom: spacing.xs,
-      ...typeface('regular'),
-    },
-    emailHint: {
-      fontSize: typography.sm,
-      color: colors.textTertiary,
-      marginBottom: spacing.md,
-      lineHeight: typography.sm * 1.4,
       ...typeface('regular'),
     },
     formError: {

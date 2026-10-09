@@ -70,7 +70,8 @@ export type MainStackParamList = {
   /** Replace card on file after a failed off-session charge. */
   UpdatePayment: undefined;
   MarketplaceCheckout: undefined;
-  OrderConfirmation: { orderId: string };
+  /** `charged`: guests can't read the order, so checkout says whether the card was charged now. */
+  OrderConfirmation: { orderId: string; charged?: boolean };
   Orders: undefined;
   Reflection: undefined;
   /** Post-Hanukkah feedback survey ($50 credit). */

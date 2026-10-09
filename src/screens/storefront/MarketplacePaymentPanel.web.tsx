@@ -1,38 +1,27 @@
-/** Marketplace Stripe payment step — aligned with GiftPaymentPanel.web. */
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+/** Marketplace Stripe payment step: card form + pay button, inside the checkout page. */
+import React, { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { ButtonLoadingLabel } from '../../components/brand/ButtonLoadingLabel';
+import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { formatDollars } from '../../services/box/buildDefaultBox';
-import { spacing, typography, borderRadius, typeface, shadowsWeb } from '../../constants/theme';
-import { useThemeMode } from '../../context/ThemeContext';
-import type { SemanticColors } from '../../constants/themeMode';
-import { useWebLayout } from '../../hooks/useWebLayout';
-import type { BoxLineItem } from '../../types/pilot';
+import { spacing } from '../../constants/theme';
 import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
 import { PAYMENT_ELEMENT_OPTIONS } from '../main/checkout/stripeAppearance';
+import { checkoutUi } from '../main/checkout/checkoutUi';
 
 type Props = {
-  lineItems: BoxLineItem[];
   totalCents: number;
+  /** `payment` charges now; `setup` saves the card for the lock-day charge. */
+  intent: 'payment' | 'setup';
   onPaid: () => void;
-  onCancel: () => void;
   onError: (title: string, message: string) => void;
 };
 
-export function MarketplacePaymentPanel({
-  lineItems,
-  totalCents,
-  onPaid,
-  onCancel,
-  onError,
-}: Props) {
+export function MarketplacePaymentPanel({ totalCents, intent, onPaid, onError }: Props) {
   const stripe = useStripe();
   const elements = useElements();
-  const { colors } = useThemeMode();
-  const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const [paying, setPaying] = useState(false);
+  const chargeNow = intent === 'payment';
 
   const pay = async () => {
     if (!stripe || !elements) {
@@ -41,19 +30,33 @@ export function MarketplacePaymentPanel({
     }
     setPaying(true);
     try {
-      const { error, setupIntent } = await stripe.confirmSetup({
-        elements,
-        confirmParams: {
-          return_url: typeof window !== 'undefined' ? window.location.href : undefined,
-        },
-        redirect: 'if_required',
-      });
-      if (error) {
-        onError('Could not save card', error.message ?? 'Please try again.');
-        return;
-      }
-      if (setupIntent?.id) {
-        trackMeta('AddPaymentInfo', undefined, metaEventIds.addPaymentInfo(setupIntent.id));
+      const returnUrl = typeof window !== 'undefined' ? window.location.href : undefined;
+      if (chargeNow) {
+        const { error, paymentIntent } = await stripe.confirmPayment({
+          elements,
+          confirmParams: { return_url: returnUrl },
+          redirect: 'if_required',
+        });
+        if (error) {
+          onError('Payment did not go through', error.message ?? 'Please try again.');
+          return;
+        }
+        if (paymentIntent?.id) {
+          trackMeta('AddPaymentInfo', undefined, metaEventIds.addPaymentInfo(paymentIntent.id));
+        }
+      } else {
+        const { error, setupIntent } = await stripe.confirmSetup({
+          elements,
+          confirmParams: { return_url: returnUrl },
+          redirect: 'if_required',
+        });
+        if (error) {
+          onError('Could not save card', error.message ?? 'Please try again.');
+          return;
+        }
+        if (setupIntent?.id) {
+          trackMeta('AddPaymentInfo', undefined, metaEventIds.addPaymentInfo(setupIntent.id));
+        }
       }
       onPaid();
     } finally {
@@ -61,162 +64,28 @@ export function MarketplacePaymentPanel({
     }
   };
 
+  const label = chargeNow ? `Pay ${formatDollars(totalCents)}` : 'Save card & place order';
+
   return (
-    <View style={styles.root}>
-      <TouchableOpacity onPress={onCancel} style={styles.backRow} accessibilityRole="button">
-        <Text style={styles.backLink}>← Back to shipping</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Payment</Text>
-      <Text style={styles.lead}>
-        We&apos;ll save this card and charge it when Hanukkah boxes lock. Your items ship with that wave.
-      </Text>
-
-      <View
-        style={[
-          styles.summaryCard,
-          Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.sm } as object) : null,
-        ]}
-      >
-        <Text style={styles.summaryHeading}>Order summary</Text>
-        {lineItems.map((li) => (
-          <View key={`${li.slotId}-${li.itemId}`} style={styles.summaryRow}>
-            <Text style={styles.summaryLabel} numberOfLines={2}>
-              {li.label ?? li.itemId}
-              {(li.quantity ?? 1) > 1 ? ` × ${li.quantity}` : ''}
-            </Text>
-            <Text style={styles.summaryValue}>
-              {formatDollars(li.unitCents * Math.max(1, li.quantity ?? 1))}
-            </Text>
-          </View>
-        ))}
-        <View style={styles.summaryTotalRow}>
-          <Text style={styles.totalLabel}>Due when boxes lock</Text>
-          <Text style={styles.totalValue}>{formatDollars(totalCents)}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.sectionTitle}>Payment method</Text>
+    <View>
+      <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
       <View style={styles.paymentElementWrap}>
         <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </View>
-
-      <TouchableOpacity
-        style={[styles.cta, paying && styles.ctaDisabled]}
+      <GrapejuiceButton
+        label={label}
+        variant="filled"
         onPress={() => void pay()}
+        loading={paying}
         disabled={paying}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={`Save card for ${formatDollars(totalCents)}`}
-      >
-        <ButtonLoadingLabel
-          label="Save card & place order"
-          loading={paying}
-          loaderColor={colors.goldMuted}
-          labelStyle={styles.ctaText}
-        />
-      </TouchableOpacity>
+        style={[checkoutUi.button, styles.ctaSpacing]}
+        textStyle={checkoutUi.buttonText}
+      />
     </View>
   );
 }
 
-function createStyles(colors: SemanticColors, isDesktop: boolean) {
-  return StyleSheet.create({
-    root: {
-      width: '100%',
-      maxWidth: 480,
-      alignSelf: 'center',
-      paddingTop: isDesktop ? spacing.sm : 0,
-    },
-    backRow: { marginBottom: spacing.lg, alignSelf: 'flex-start' },
-    backLink: {
-      color: colors.brand,
-      fontSize: typography.md,
-      ...typeface('medium'),
-    },
-    title: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
-      marginBottom: spacing.sm,
-      ...typeface('regular'),
-    },
-    lead: {
-      fontSize: typography.md,
-      lineHeight: typography.md * 1.45,
-      color: colors.textSecondary,
-      marginBottom: spacing.lg,
-      ...typeface('regular'),
-    },
-    summaryCard: {
-      backgroundColor: colors.bgElevated,
-      borderRadius: borderRadius.lg,
-      padding: spacing.lg,
-      marginBottom: spacing.lg,
-    },
-    summaryHeading: {
-      fontSize: typography.xl,
-      color: colors.textPrimary,
-      marginBottom: spacing.md,
-      ...typeface('medium'),
-    },
-    summaryRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: spacing.md,
-      marginBottom: spacing.sm,
-    },
-    summaryLabel: {
-      flex: 1,
-      fontSize: typography.md,
-      color: colors.textSecondary,
-      ...typeface('regular'),
-    },
-    summaryValue: {
-      fontSize: typography.md,
-      color: colors.textPrimary,
-      ...typeface('medium'),
-    },
-    summaryTotalRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginTop: spacing.md,
-      paddingTop: spacing.md,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-    },
-    totalLabel: {
-      fontSize: typography.lg,
-      color: colors.textPrimary,
-      ...typeface('medium'),
-    },
-    totalValue: {
-      fontSize: typography.lg,
-      color: colors.textPrimary,
-      ...typeface('medium'),
-    },
-    sectionTitle: {
-      fontSize: typography.titleLg,
-      color: colors.textPrimary,
-      letterSpacing: -0.32,
-      marginBottom: spacing.sm,
-      ...typeface('medium'),
-    },
-    paymentElementWrap: { minHeight: 120, marginBottom: spacing.md },
-    cta: {
-      backgroundColor: colors.textPrimary,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: spacing.md,
-    },
-    ctaDisabled: { opacity: 0.5 },
-    ctaText: {
-      color: colors.goldMuted,
-      fontWeight: '700',
-    },
-  });
-}
+const styles = StyleSheet.create({
+  paymentElementWrap: { minHeight: 120, marginTop: spacing.xs },
+  ctaSpacing: { marginTop: spacing.xl },
+});

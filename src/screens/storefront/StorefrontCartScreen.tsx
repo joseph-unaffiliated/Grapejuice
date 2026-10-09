@@ -18,6 +18,7 @@ import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import { useArrivesByWithWait } from '../../hooks/useArrivesByWithWait';
 import {
   marketplaceCartCount,
   useMarketplaceCartStore,
@@ -54,6 +55,7 @@ export function StorefrontCartScreen() {
   const changeQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
   const setQuantity = useMarketplaceCartStore((s) => s.setQuantity);
   const removeItem = useMarketplaceCartStore((s) => s.removeItem);
+  const arrival = useArrivesByWithWait();
   const {
     items: catalog,
     byId: availabilityById,
@@ -247,6 +249,9 @@ export function StorefrontCartScreen() {
                 {subtotalCents > 0 ? formatCatalogDollars(subtotalCents) : '—'}
               </Text>
             </View>
+            <Text style={styles.arrivalNote}>
+              {arrival} Items ship with our Hanukkah boxes.
+            </Text>
 
             {hasCartIssues ? (
               <Text style={styles.cartIssueBanner}>
@@ -433,8 +438,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.sm,
     paddingTop: spacing.sm,
+  },
+  arrivalNote: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    lineHeight: 20,
+    color: semanticColors.goldMuted,
+    marginBottom: spacing.xl,
   },
   summaryLabel: {
     ...typeface('medium'),

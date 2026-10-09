@@ -170,6 +170,23 @@ export function guestBoxSecurePromoLine(
 }
 
 /**
+ * À la carte wait: `Arrives by Nov 21, about 6 weeks from now.`
+ * Drops the wait once the day is close or past.
+ */
+export function arrivesByWithWaitLabel(
+  estimatedDeliveryBy?: string | null,
+  now: Date = new Date()
+): string {
+  const iso = estimatedDeliveryBy?.trim() || HANUKKAH_DELIVERY_FALLBACK_ISO;
+  const day = formatShortMonthDay(iso) ?? 'Nov 21';
+  const days = daysToShip(iso, now) ?? 0;
+  const weeks = Math.round(days / 7);
+  if (weeks >= 2) return `Arrives by ${day}, about ${weeks} weeks from now.`;
+  if (days >= 2) return `Arrives by ${day}, ${days} days from now.`;
+  return `Arrives by ${day}.`;
+}
+
+/**
  * Short ship window for PDP (“Arrives in time for Hanukkah (est. …)”).
  * Prefer a single day from config; fall back to the arrives-by day.
  */
