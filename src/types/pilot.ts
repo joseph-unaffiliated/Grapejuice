@@ -144,6 +144,8 @@ export type CatalogItem = {
   imageUrl?: string;
   /** Additional photos (Airtable Other Images → Storage). */
   imageUrls?: string[];
+  /** ~600px WebP per `imageUrls` entry for tiles (null until generated). */
+  imageThumbUrls?: (string | null)[];
   dollarCostCents: number;
   /** What we paid (COGS). */
   unitCostCents?: number;

@@ -10,10 +10,11 @@
  *   CATALOG_SYNC_SECRET — shared secret for HTTP trigger (Authorization: Bearer …)
  */
 import * as logger from './logger';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, type CollectionReference } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { createHash } from 'crypto';
 import sharp = require('sharp');
+import { ensureCatalogThumb, thumbMatchesFull } from './catalogThumbs';
 
 export const AIRTABLE_BASE_ID_DEFAULT = 'appQscrPCQUIj4shh';
 export const FULL_CATALOG_TABLE_ID = 'tblCUCVfohWTQy8fP';
@@ -123,6 +124,8 @@ export type SyncedCatalogItem = {
   brand: string | null;
   imageUrl: string | null;
   imageUrls: string[];
+  /** Small WebP per `imageUrls` entry (null until generated) — see catalogThumbs.ts. */
+  imageThumbUrls: (string | null)[];
   buyLink: string | null;
   interest: string | null;
   curationTags: string[];
@@ -397,12 +400,19 @@ async function toWebpBuffer(input: Buffer): Promise<Buffer> {
   return Buffer.from(out);
 }
 
+type MirroredImage = {
+  url: string;
+  /** Storage path when `url` is the public object URL (thumbs are only made for these). */
+  path: string | null;
+  buffer: Buffer;
+};
+
 async function mirrorAttachmentToStorage(
   itemId: string,
   kind: 'primary' | 'other',
   index: number,
   att: AirtableAttachment
-): Promise<string | null> {
+): Promise<MirroredImage | null> {
   if (!att.url) return null;
   const bucket = getStorage().bucket();
   const res = await fetch(att.url);
@@ -434,36 +444,97 @@ async function mirrorAttachmentToStorage(
   await file.makePublic().catch(() => undefined);
   const [meta] = await file.getMetadata();
   if (meta.mediaLink) {
-    return `https://storage.googleapis.com/${bucket.name}/${finalPath}`;
+    return {
+      url: `https://storage.googleapis.com/${bucket.name}/${finalPath}`,
+      path: finalPath,
+      buffer: buf,
+    };
   }
   const [signed] = await file.getSignedUrl({
     action: 'read',
     expires: '2099-01-01',
   });
-  return signed;
+  return { url: signed, path: null, buffer: buf };
+}
+
+type ResolvedImages = {
+  imageUrl: string | null;
+  imageUrls: string[];
+  imageThumbUrls: (string | null)[];
+};
+
+const NO_IMAGES: ResolvedImages = { imageUrl: null, imageUrls: [], imageThumbUrls: [] };
+
+/**
+ * New thumbs encoded per sync run — the first run after deploy would otherwise encode every
+ * photo inside the 300s timeout. Later runs (or backfillCatalogThumbs) pick up the rest.
+ */
+const MAX_NEW_THUMBS_PER_SYNC = 60;
+
+type ThumbContext = {
+  /** Full URL → thumb URL already on the item docs (no Storage calls needed). */
+  known: Map<string, string>;
+  createBudget: number;
+  created: number;
+};
+
+async function loadKnownThumbs(
+  col: CollectionReference
+): Promise<Map<string, string>> {
+  const known = new Map<string, string>();
+  const snap = await col.select('imageUrls', 'imageThumbUrls').get();
+  for (const d of snap.docs) {
+    const urls = d.get('imageUrls');
+    const thumbs = d.get('imageThumbUrls');
+    if (!Array.isArray(urls) || !Array.isArray(thumbs)) continue;
+    urls.forEach((u, i) => {
+      const t = thumbs[i];
+      if (typeof u === 'string' && typeof t === 'string' && thumbMatchesFull(u, t)) known.set(u, t);
+    });
+  }
+  return known;
+}
+
+async function thumbFor(itemId: string, img: MirroredImage, ctx: ThumbContext): Promise<string | null> {
+  const known = ctx.known.get(img.url);
+  if (known) return known;
+  if (!img.path) return null;
+  const allowCreate = ctx.createBudget > 0;
+  try {
+    const ensured = await ensureCatalogThumb(img.path, { fullBuffer: img.buffer, allowCreate });
+    if (ensured.created) {
+      ctx.createBudget -= 1;
+      ctx.created += 1;
+    }
+    return ensured.url;
+  } catch (e) {
+    logger.warn('Catalog thumb failed', { itemId, error: String(e) });
+    return null;
+  }
 }
 
 async function resolveImages(
   itemId: string,
   primary: AirtableAttachment[],
-  other: AirtableAttachment[]
-): Promise<{ imageUrl: string | null; imageUrls: string[] }> {
-  const urls: string[] = [];
+  other: AirtableAttachment[],
+  thumbs: ThumbContext
+): Promise<ResolvedImages> {
+  const mirrored: MirroredImage[] = [];
   if (primary[0]) {
-    const u = await mirrorAttachmentToStorage(itemId, 'primary', 0, primary[0]);
-    if (u) urls.push(u);
+    const m = await mirrorAttachmentToStorage(itemId, 'primary', 0, primary[0]);
+    if (m) mirrored.push(m);
   }
   for (let i = 0; i < other.length; i++) {
-    const u = await mirrorAttachmentToStorage(itemId, 'other', i, other[i]);
-    if (u) urls.push(u);
+    const m = await mirrorAttachmentToStorage(itemId, 'other', i, other[i]);
+    if (m) mirrored.push(m);
   }
-  return { imageUrl: urls[0] ?? null, imageUrls: urls };
+  const imageThumbUrls: (string | null)[] = [];
+  for (const m of mirrored) imageThumbUrls.push(await thumbFor(itemId, m, thumbs));
+  const urls = mirrored.map((m) => m.url);
+  return { imageUrl: urls[0] ?? null, imageUrls: urls, imageThumbUrls };
 }
 
-function listingToItem(
-  rec: AirtableRecord,
-  images: { imageUrl: string | null; imageUrls: string[] }
-): SyncedCatalogItem | null {
+function listingToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatalogItem | null {
   const f = rec.fields;
   const name = String(f[F.id] ?? '').trim();
   if (!name) return null;
@@ -506,6 +577,7 @@ function listingToItem(
     brand: null,
     imageUrl: images.imageUrl,
     imageUrls: images.imageUrls,
+    imageThumbUrls: images.imageThumbUrls,
     buyLink: typeof f[F.link] === 'string' ? (f[F.link] as string) : null,
     interest: null,
     curationTags: curationTagsFor(categories),
@@ -523,10 +595,7 @@ function listingToItem(
   };
 }
 
-function bookToItem(
-  rec: AirtableRecord,
-  images: { imageUrl: string | null; imageUrls: string[] }
-): SyncedCatalogItem | null {
+function bookToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatalogItem | null {
   const f = rec.fields;
   if (f[B.cut] === true) return null;
   const title = String(f[B.title] ?? '').trim();
@@ -567,6 +636,7 @@ function bookToItem(
     brand: author || null,
     imageUrl: images.imageUrl,
     imageUrls: images.imageUrls,
+    imageThumbUrls: images.imageThumbUrls,
     buyLink: typeof f[B.buyLink] === 'string' ? (f[B.buyLink] as string) : null,
     interest: selectName(f[B.interest]),
     curationTags: ['collection'],
@@ -682,6 +752,8 @@ export type CatalogSyncResult = {
   /** Hanukkah Books that used a Full Catalog Primary Image rendering. */
   booksUsingFcPrimary: number;
   bookRenderingsIndexed: number;
+  /** Grid thumbnails encoded this run (capped; see MAX_NEW_THUMBS_PER_SYNC). */
+  thumbsCreated: number;
 };
 
 export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult> {
@@ -689,10 +761,21 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
   const listingFields = Object.values(F);
   const bookFields = Object.values(B);
 
-  const [listingRecs, bookRecs] = await Promise.all([
+  const col = db.collection('catalog').doc(CATALOG_HOLIDAY).collection('items');
+
+  const [listingRecs, bookRecs, knownThumbs] = await Promise.all([
     airtableListAll(FULL_CATALOG_TABLE_ID, listingFields),
     airtableListAll(BOOKS_TABLE_ID, bookFields),
+    loadKnownThumbs(col).catch((e) => {
+      logger.warn('Could not read existing catalog thumbs', { error: String(e) });
+      return new Map<string, string>();
+    }),
   ]);
+  const thumbs: ThumbContext = {
+    known: knownThumbs,
+    createBudget: MAX_NEW_THUMBS_PER_SYNC,
+    created: 0,
+  };
 
   const items: SyncedCatalogItem[] = [];
   let skippedImages = 0;
@@ -710,10 +793,10 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
     const id = slugifyCatalogId(name);
     const primary = attachments(rec.fields[F.primaryImage]);
     const other = attachments(rec.fields[F.otherImages]);
-    let images = { imageUrl: null as string | null, imageUrls: [] as string[] };
+    let images = NO_IMAGES;
     if (primary.length || other.length) {
       try {
-        images = await resolveImages(id, primary, other);
+        images = await resolveImages(id, primary, other, thumbs);
       } catch (e) {
         skippedImages += 1;
         logger.warn('Image mirror failed', { id, error: String(e) });
@@ -748,10 +831,10 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
       logger.warn('No Full Catalog primary rendering for book', { id, title });
     }
 
-    let images = { imageUrl: null as string | null, imageUrls: [] as string[] };
+    let images = NO_IMAGES;
     if (primary.length || other.length) {
       try {
-        images = await resolveImages(id, primary, other);
+        images = await resolveImages(id, primary, other, thumbs);
       } catch (e) {
         skippedImages += 1;
         logger.warn('Book image mirror failed', { id, error: String(e) });
@@ -770,7 +853,6 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
     );
   }
 
-  const col = db.collection('catalog').doc(CATALOG_HOLIDAY).collection('items');
   const existing = await col.listDocuments();
   const keep = new Set(items.map((i) => i.id));
 
@@ -828,6 +910,7 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
     skippedImages,
     booksUsingFcPrimary,
     bookRenderingsIndexed: bookRenderings.size,
+    thumbsCreated: thumbs.created,
   };
 }
 

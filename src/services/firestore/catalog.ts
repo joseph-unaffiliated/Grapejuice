@@ -10,6 +10,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { registerCatalogThumbs } from '../../constants/catalogImages';
 import type {
   AgeGroup,
   CatalogCurationTag,
@@ -44,6 +45,19 @@ function itemsCollection() {
 }
 
 function toItem(id: string, data: Record<string, unknown>): CatalogItem {
+  const imageUrls = Array.isArray(data.imageUrls)
+    ? (data.imageUrls as unknown[]).filter((u): u is string => typeof u === 'string')
+    : undefined;
+  // Parallel to the raw `imageUrls` array, so map before any filtering shifts indexes.
+  const imageThumbUrls =
+    Array.isArray(data.imageUrls) && Array.isArray(data.imageThumbUrls)
+      ? (data.imageUrls as unknown[]).flatMap((u, i) => {
+          if (typeof u !== 'string') return [];
+          const t = (data.imageThumbUrls as unknown[])[i];
+          return [typeof t === 'string' ? t : null];
+        })
+      : undefined;
+  registerCatalogThumbs(imageUrls, imageThumbUrls);
   return {
     id,
     name: String(data.name ?? ''),
@@ -54,9 +68,8 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
     defaultFor: Array.isArray(data.defaultFor) ? (data.defaultFor as CatalogItem['defaultFor']) : [],
     swapOptions: Array.isArray(data.swapOptions) ? (data.swapOptions as string[]) : [],
     imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : undefined,
-    imageUrls: Array.isArray(data.imageUrls)
-      ? (data.imageUrls as unknown[]).filter((u): u is string => typeof u === 'string')
-      : undefined,
+    imageUrls,
+    imageThumbUrls,
     dollarCostCents: Number(data.dollarCostCents ?? 0),
     unitCostCents:
       data.unitCostCents != null ? Number(data.unitCostCents) : undefined,

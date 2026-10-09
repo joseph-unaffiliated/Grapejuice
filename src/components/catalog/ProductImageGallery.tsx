@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
+import { catalogThumbUrl } from '../../constants/catalogImages';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { LAYOUT, borderRadius, spacing } from '../../constants/theme';
@@ -87,7 +88,11 @@ export function ProductImageGallery({
               },
             ]}
           >
-            <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
+            <Image
+              source={{ uri: catalogThumbUrl(url) ?? url }}
+              style={styles.thumbImage}
+              resizeMode="cover"
+            />
           </TouchableOpacity>
         );
       })}
@@ -118,6 +123,7 @@ export function ProductImageGallery({
               size={Platform.OS === 'web' ? 480 : 320}
               itemId={itemId}
               imageUrl={imageUrl}
+              full
               style={styles.heroFallback}
             />
           )}

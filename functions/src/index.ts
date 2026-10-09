@@ -21,8 +21,10 @@ import { untraditionalMarkSafe } from './untraditionalCio';
 import { reportUnaffiliatedShippingGeo } from './unaffiliated';
 import {
   assertCatalogSyncSecret,
+  CATALOG_HOLIDAY,
   runAirtableCatalogReplaceSync,
 } from './airtableCatalogSync';
+import { backfillCatalogThumbs } from './catalogThumbs';
 import {
   boxPriceCentsForKids,
   boxPriceForUser,
@@ -3500,6 +3502,41 @@ export const syncAirtableCatalog = onRequest(
     } catch (e) {
       const status = (e as { status?: number }).status === 401 ? 401 : 500;
       logger.error('Airtable catalog sync failed', e);
+      res.status(status).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+);
+
+/**
+ * Generate missing grid thumbnails from catalog photos already in Storage and write only
+ * `imageThumbUrls` on each item — no Airtable resync. Dry run unless `?apply=1`.
+ * `?maxCreate=N` caps thumbs encoded per call (default 400); re-run until `truncated` is false.
+ * Auth: Authorization: Bearer $CATALOG_SYNC_SECRET
+ */
+export const backfillCatalogThumbsHttp = onRequest(
+  {
+    timeoutSeconds: 540,
+    memory: '1GiB',
+    invoker: 'public',
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).send('Method not allowed');
+        return;
+      }
+      assertCatalogSyncSecret(req.get('Authorization') ?? undefined);
+      const maxCreate = Number(req.query.maxCreate);
+      const result = await backfillCatalogThumbs({
+        holiday: CATALOG_HOLIDAY,
+        apply: req.query.apply === '1',
+        maxCreate: Number.isFinite(maxCreate) && maxCreate >= 0 ? maxCreate : undefined,
+      });
+      logger.info('Catalog thumb backfill complete', result);
+      res.status(200).json({ ok: true, ...result });
+    } catch (e) {
+      const status = (e as { status?: number }).status === 401 ? 401 : 500;
+      logger.error('Catalog thumb backfill failed', e);
       res.status(status).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
     }
   }

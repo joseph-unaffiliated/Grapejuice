@@ -1,4 +1,4 @@
-import type { ImageSourcePropType } from 'react-native';
+import { PixelRatio, type ImageSourcePropType } from 'react-native';
 
 /** Bundled catalog product photos — synced from Figma file rGzXYb1rNVxqGHz81835Jn */
 export const CATALOG_IMAGES: Record<string, number> = {
@@ -34,14 +34,52 @@ export const CATALOG_IMAGES: Record<string, number> = {
 
 export const HERO_COLLAGE_START = require('../../assets/home/hero-stacked-cards.png');
 
+/** Thumbs are 600px; allow ~20% upscale on dense screens before falling back to the full photo. */
+const CATALOG_THUMB_MAX_DEVICE_PX = 720;
+
+/** Whether a square of `size` layout px is small enough for the thumb on this screen. */
+export function catalogThumbFits(size: number): boolean {
+  return size * PixelRatio.get() <= CATALOG_THUMB_MAX_DEVICE_PX;
+}
+
+/** Full photo URL → its small thumb, filled as catalog docs are read. */
+const thumbByFullUrl = new Map<string, string>();
+
+/** Thumbs sit beside the full photo: `…/primary-0-abc.webp` → `…/primary-0-abc.thumb.webp`. */
+function isThumbOf(fullUrl: string, thumbUrl: string): boolean {
+  if (fullUrl.includes('?') || thumbUrl.includes('?')) return false;
+  return thumbUrl === `${fullUrl.replace(/\.[a-z0-9]+$/i, '')}.thumb.webp`;
+}
+
+/**
+ * Remember thumbs from a catalog doc (`imageThumbUrls` parallels `imageUrls`). A thumb is only
+ * kept when its name matches the full photo, so a replaced photo never shows an old thumb.
+ */
+export function registerCatalogThumbs(
+  imageUrls: string[] | undefined,
+  imageThumbUrls: (string | null)[] | undefined
+): void {
+  if (!imageUrls || !imageThumbUrls) return;
+  imageUrls.forEach((full, i) => {
+    const thumb = imageThumbUrls[i];
+    if (typeof thumb === 'string' && isThumbOf(full, thumb)) thumbByFullUrl.set(full, thumb);
+  });
+}
+
+/** Thumb for a full catalog photo URL, or null when none has been generated yet. */
+export function catalogThumbUrl(fullUrl?: string | null): string | null {
+  return fullUrl ? thumbByFullUrl.get(fullUrl.trim()) ?? null : null;
+}
+
 export function resolveCatalogImage(
   itemId?: string | null,
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  opts?: { thumb?: boolean }
 ): ImageSourcePropType | null {
   // Prefer remote (Airtable → Storage sync) over legacy bundled placeholders.
   if (imageUrl) {
     if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('/')) {
-      return { uri: imageUrl };
+      return { uri: (opts?.thumb && catalogThumbUrl(imageUrl)) || imageUrl };
     }
   }
   if (itemId && CATALOG_IMAGES[itemId]) {
