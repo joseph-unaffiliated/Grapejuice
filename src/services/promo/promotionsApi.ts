@@ -38,7 +38,7 @@ export async function getMyInfluencerStats(): Promise<InfluencerStatsView[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Admin (Account → Boxes and gifts → Discounts / Credit / Influencers)
+// Admin (Account → Promotions → Discounts / Credit / Influencers)
 // ---------------------------------------------------------------------------
 
 export type AdminDiscountCode = {

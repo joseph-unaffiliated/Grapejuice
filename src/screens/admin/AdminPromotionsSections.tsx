@@ -809,7 +809,7 @@ function InfluencersSection({ styles, colors }: { styles: Styles; colors: Semant
   );
 }
 
-/** Discounts, direct credit and influencer links — the promotions tabs of the admin dashboard. */
+/** Discounts, direct credit and influencer links — the tabs of the Promotions admin page. */
 export function PromotionsSection({ tab }: { tab: PromotionsTab }) {
   const { colors } = useThemeMode();
   const styles = useMemo(() => createStyles(colors), [colors]);

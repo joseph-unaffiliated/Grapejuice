@@ -3,15 +3,18 @@ import { isOpsAdmin } from '../constants/admin';
 import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { navigationRef } from './navigationRef';
-import { readAdminBoxesPathFromWindow } from './adminBoxesLink';
+import { readAdminScreenFromWindow } from './adminBoxesLink';
 
-/** Web: `/admin/boxes` → Boxes and gifts dashboard for ops admins; everyone else lands on Account. */
+/**
+ * Web: `/admin/boxes` → Boxes and gifts, `/admin/promotions` → Promotions, for ops admins;
+ * everyone else lands on Account.
+ */
 export function AdminBoxesLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
   const user = useAuthStore((s) => s.user);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
-  const pending = useRef(readAdminBoxesPathFromWindow());
+  const pending = useRef(readAdminScreenFromWindow());
 
   useEffect(() => {
     if (!pending.current) return;
@@ -20,13 +23,15 @@ export function AdminBoxesLinkEffect() {
     const id = setInterval(() => {
       if (!navigationRef.isReady()) return;
       clearInterval(id);
-      pending.current = false;
+      const screen = pending.current;
+      pending.current = null;
+      if (!screen) return;
       if (!isAuthenticated) {
         startAuthFromGuest('Account', 'signin', 'SignInEmail');
         return;
       }
       if (isOpsAdmin(user)) {
-        navigationRef.navigate('Main', { screen: 'AdminBoxes' });
+        navigationRef.navigate('Main', { screen });
       } else {
         navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: 'Account' } });
       }

@@ -52,6 +52,7 @@ import { GrapeWobblePreviewScreen } from '../screens/dev/GrapeWobblePreviewScree
 import { AdminCatalogScreen } from '../screens/admin/AdminCatalogScreen';
 import { AdminCatalogItemScreen } from '../screens/admin/AdminCatalogItemScreen';
 import { AdminBoxesScreen } from '../screens/admin/AdminBoxesScreen';
+import { AdminPromotionsScreen } from '../screens/admin/AdminPromotionsScreen';
 import { SetPasswordScreen } from '../screens/account/SetPasswordScreen';
 import { ConnectGoogleScreen } from '../screens/account/ConnectGoogleScreen';
 import { AdminLandingsScreen } from '../screens/admin/AdminLandingsScreen';
@@ -665,6 +666,11 @@ export function MainStack() {
           name="AdminBoxes"
           component={AdminBoxesScreen}
           options={{ title: 'Boxes and gifts' }}
+        />
+        <Stack.Screen
+          name="AdminPromotions"
+          component={AdminPromotionsScreen}
+          options={{ title: 'Promotions' }}
         />
         <Stack.Screen
           name="AdminLandings"

@@ -146,6 +146,8 @@ export type MainStackParamList = {
   AdminCatalogItem: { itemId?: string };
   /** Ops: live Hanukkah boxes, gifts and inventory dashboard (admin allowlist). */
   AdminBoxes: undefined;
+  /** Ops: discount codes, direct credit and influencer links (admin allowlist). */
+  AdminPromotions: undefined;
   /** Ops: list marketing landings (admin allowlist). */
   AdminLandings: undefined;
   /** Ops: edit one marketing landing's sections / copy. */

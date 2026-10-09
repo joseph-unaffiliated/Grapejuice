@@ -4,7 +4,7 @@ import { STORE_PATH_PREFIX, storePathHome, storefrontFromState } from './storeLi
 import { BOX_PATH, myBoxFromState, shouldPreserveInboundBoxUrl, consumeInboundBoxUrlPreserve } from './boxLink';
 import { ACCOUNT_PATH, accountFromState } from './accountLink';
 import { ORDERS_PATH, ordersFromState } from './ordersLink';
-import { ADMIN_BOXES_PATH, adminBoxesFromState } from './adminBoxesLink';
+import { adminPathFromState, adminScreenForPath } from './adminBoxesLink';
 import {
   CONNECT_GOOGLE_PATH,
   LOGIN_PATH,
@@ -174,7 +174,8 @@ export function browserPathForNavigationState(
     return ORDERS_PATH;
   }
 
-  if (adminBoxesFromState(state)) return ADMIN_BOXES_PATH;
+  const adminPath = adminPathFromState(state);
+  if (adminPath) return adminPath;
 
   const convert = accountConvertFromState(state);
   if (convert) return convert === 'SetPassword' ? SET_PASSWORD_PATH : CONNECT_GOOGLE_PATH;
@@ -276,7 +277,7 @@ export function browserPathForNavigationState(
   if (currentPath === ACCOUNT_PATH) {
     return currentPath + search;
   }
-  if (currentPath === ORDERS_PATH || currentPath === ADMIN_BOXES_PATH) {
+  if (currentPath === ORDERS_PATH || adminScreenForPath(currentPath)) {
     return currentPath + search;
   }
   if (

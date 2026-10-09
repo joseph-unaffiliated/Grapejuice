@@ -36,7 +36,6 @@ import {
   type GiftFunnelKey,
   type MetaAdStats,
 } from '../../services/admin/boxesDashboard';
-import { PromotionsSection, type PromotionsTab } from './AdminPromotionsSections';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 type Styles = ReturnType<typeof createStyles>;
@@ -1510,19 +1509,8 @@ function FunnelSection({
   );
 }
 
-type Tab = 'boxes' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory' | PromotionsTab;
-const TABS: readonly Tab[] = [
-  'boxes',
-  'funnel',
-  'giftFunnel',
-  'anonymous',
-  'ads',
-  'gifts',
-  'inventory',
-  'discounts',
-  'credit',
-  'influencers',
-];
+type Tab = 'boxes' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
+const TABS: readonly Tab[] = ['boxes', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory'];
 const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
 
 /** The open tab survives a browser refresh of /admin/boxes. */
@@ -1735,9 +1723,6 @@ export function AdminBoxesScreen() {
             <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
             <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
             <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
-            <Chip label="Discounts" active={tab === 'discounts'} onPress={() => setTab('discounts')} styles={styles} />
-            <Chip label="Credit" active={tab === 'credit'} onPress={() => setTab('credit')} styles={styles} />
-            <Chip label="Influencers" active={tab === 'influencers'} onPress={() => setTab('influencers')} styles={styles} />
           </View>
 
           {tab === 'boxes' ? (
@@ -1786,14 +1771,6 @@ export function AdminBoxesScreen() {
             <>
               <Text style={styles.section}>Inventory against holds and drafts</Text>
               <InventorySection inventory={inventory} styles={styles} colors={colors} />
-            </>
-          ) : null}
-          {tab === 'discounts' || tab === 'credit' || tab === 'influencers' ? (
-            <>
-              <Text style={styles.section}>
-                {tab === 'discounts' ? 'Discount codes' : tab === 'credit' ? 'Direct credit' : 'Influencer links'}
-              </Text>
-              <PromotionsSection tab={tab} />
             </>
           ) : null}
         </ScrollView>
