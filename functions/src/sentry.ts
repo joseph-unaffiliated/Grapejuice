@@ -54,6 +54,15 @@ export function reportError(err: unknown, message?: string): void {
   });
 }
 
+/** A Sentry warning for something ops should follow up on. Pass ids and amounts only, no PII. */
+export function reportWarning(message: string): void {
+  if (!enabled) return;
+  Sentry.withScope((scope) => {
+    if (process.env.K_SERVICE) scope.setTag('function', process.env.K_SERVICE);
+    Sentry.captureMessage(message, 'warning');
+  });
+}
+
 /** Cloud Functions throttles CPU once a handler returns, so send queued events first. */
 async function flush(): Promise<void> {
   if (enabled) await Sentry.flush(2000);

@@ -184,6 +184,65 @@ export function paidMarketplaceInventoryAction(
   return null;
 }
 
+export type LateCreditReapply = { giftCents: number; platformCents: number; shortfallCents: number };
+
+/**
+ * Credit to take back when a stale-swept order (whose credit the sweep returned to the household)
+ * is paid late. Takes what the household still has; the rest is the shortfall. Null when nothing
+ * is owed or it was already taken back.
+ */
+export function lateCreditReapply(
+  order: FirebaseFirestore.DocumentData | undefined,
+  household: FirebaseFirestore.DocumentData | undefined
+): LateCreditReapply | null {
+  const owed = lateCreditOwed(order);
+  if (!owed) return null;
+  const giftCents = Math.min(owed.gift, nonNegInt(household?.giftCreditCents));
+  const platformCents = Math.min(owed.platform, nonNegInt(household?.platformCreditCents));
+  return { giftCents, platformCents, shortfallCents: owed.gift - giftCents + (owed.platform - platformCents) };
+}
+
+const nonNegInt = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+
+function lateCreditOwed(order: FirebaseFirestore.DocumentData | undefined): { gift: number; platform: number } | null {
+  if (!order || order.creditReappliedAt) return null;
+  if (order.cancelReason !== 'stale_inventory_reservation' || !order.reservationReleasedAt) return null;
+  const gift = nonNegInt(order.giftCreditAppliedCents);
+  const platform = nonNegInt(order.platformCreditAppliedCents);
+  return gift || platform ? { gift, platform } : null;
+}
+
+/**
+ * Inside a transaction, after the order was read and before any write: reads the household and
+ * queues the late credit re-apply on it. Returns the fields to merge into the order update.
+ */
+export async function reapplyLateCreditInTx(
+  tx: Transaction,
+  householdRef: FirebaseFirestore.DocumentReference,
+  order: FirebaseFirestore.DocumentData
+): Promise<{ reapply: LateCreditReapply; orderFields: Record<string, unknown> } | null> {
+  if (!lateCreditOwed(order)) return null;
+  const household = (await tx.get(householdRef)).data();
+  const reapply = lateCreditReapply(order, household);
+  if (!reapply) return null;
+  const nowIso = new Date().toISOString();
+  if (reapply.giftCents || reapply.platformCents) {
+    tx.update(householdRef, {
+      ...(reapply.giftCents ? { giftCreditCents: FieldValue.increment(-reapply.giftCents) } : {}),
+      ...(reapply.platformCents ? { platformCreditCents: FieldValue.increment(-reapply.platformCents) } : {}),
+      updatedAt: nowIso,
+    });
+  }
+  return {
+    reapply,
+    orderFields: {
+      creditReappliedAt: nowIso,
+      creditReappliedCents: reapply.giftCents + reapply.platformCents,
+      ...(reapply.shortfallCents ? { creditShortfallCents: reapply.shortfallCents } : {}),
+    },
+  };
+}
+
 export async function applyPaidMarketplaceInventory(
   db: Firestore,
   action: PaidInventoryAction,

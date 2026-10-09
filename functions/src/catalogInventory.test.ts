@@ -4,7 +4,9 @@ import {
   MARKETPLACE_RESERVATION_TTL_MS,
   applyPaidMarketplaceInventory,
   createdAtMs,
+  lateCreditReapply,
   paidMarketplaceInventoryAction,
+  reapplyLateCreditInTx,
   receivedGiftOrderHoldsStock,
   reserveBoxLinesInTx,
   reserveMarketplaceInventoryInTx,
@@ -50,6 +52,68 @@ assert.equal(
 );
 assert.equal(paidMarketplaceInventoryAction({ inventoryReserved: false, reservationReleasedAt: iso(0) }), null);
 assert.equal(paidMarketplaceInventoryAction(undefined), null);
+
+// Late payment after the stale sweep returned the order's credit: take it back, up to the balance.
+const swept = {
+  status: 'cancelled',
+  cancelReason: 'stale_inventory_reservation',
+  reservationReleasedAt: iso(0),
+  giftCreditAppliedCents: 1500,
+  platformCreditAppliedCents: 500,
+};
+assert.deepEqual(lateCreditReapply(swept, { giftCreditCents: 4000, platformCreditCents: 800 }), {
+  giftCents: 1500,
+  platformCents: 500,
+  shortfallCents: 0,
+});
+assert.deepEqual(lateCreditReapply(swept, { giftCreditCents: 1000 }), {
+  giftCents: 1000,
+  platformCents: 0,
+  shortfallCents: 1000,
+});
+assert.equal(lateCreditReapply({ ...swept, creditReappliedAt: iso(0) }, { giftCreditCents: 4000 }), null);
+// Other cancellations never returned credit through the sweep.
+assert.equal(lateCreditReapply({ ...swept, cancelReason: 'payment_intent_canceled' }, { giftCreditCents: 4000 }), null);
+assert.equal(lateCreditReapply({ ...swept, giftCreditAppliedCents: 0, platformCreditAppliedCents: 0 }, {}), null);
+assert.equal(lateCreditReapply({ status: 'pending', giftCreditAppliedCents: 1500 }, { giftCreditCents: 4000 }), null);
+
+async function lateCreditTxTests() {
+  const householdRef = { path: 'households/h1' };
+  const makeTx = (household: Record<string, unknown> | undefined) => {
+    const reads: string[] = [];
+    const updates: Array<{ path: string; data: Record<string, unknown> }> = [];
+    const tx = {
+      get: async (ref: { path: string }) => {
+        reads.push(ref.path);
+        return { exists: household != null, data: () => household };
+      },
+      update: (ref: { path: string }, data: Record<string, unknown>) => updates.push({ path: ref.path, data }),
+    } as unknown as Transaction;
+    return { tx, reads, updates };
+  };
+  const ref = householdRef as unknown as FirebaseFirestore.DocumentReference;
+  const incrementOf = (v: unknown) => (v as { operand?: number } | undefined)?.operand;
+
+  const full = makeTx({ giftCreditCents: 4000, platformCreditCents: 800 });
+  const res = await reapplyLateCreditInTx(full.tx, ref, swept);
+  assert.equal(incrementOf(full.updates[0].data.giftCreditCents), -1500);
+  assert.equal(incrementOf(full.updates[0].data.platformCreditCents), -500);
+  assert.equal(res?.orderFields.creditReappliedCents, 2000);
+  assert.equal('creditShortfallCents' in (res?.orderFields ?? {}), false);
+  assert.equal(typeof res?.orderFields.creditReappliedAt, 'string');
+
+  const short = makeTx({ giftCreditCents: 0, platformCreditCents: 0 });
+  const shortRes = await reapplyLateCreditInTx(short.tx, ref, swept);
+  assert.equal(short.updates.length, 0);
+  assert.equal(shortRes?.orderFields.creditShortfallCents, 2000);
+  assert.equal(shortRes?.orderFields.creditReappliedCents, 0);
+  assert.equal(shortRes?.reapply.shortfallCents, 2000);
+
+  // Nothing owed: no household read, so callers keep their reads-before-writes order.
+  const none = makeTx({ giftCreditCents: 4000 });
+  assert.equal(await reapplyLateCreditInTx(none.tx, ref, { status: 'pending' }), null);
+  assert.equal(none.reads.length, 0);
+}
 
 async function paidInventoryTests() {
   const sets: Array<{ path: string; data: Record<string, unknown> }> = [];
@@ -170,6 +234,7 @@ async function reserveTests() {
 
 reserveTests()
   .then(paidInventoryTests)
+  .then(lateCreditTxTests)
   .then(() => console.log('catalogInventory tests passed'))
   .catch((err) => {
     console.error(err);

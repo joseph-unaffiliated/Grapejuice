@@ -1,5 +1,5 @@
 import * as logger from './logger';
-import { onRequest, onCall, HttpsError, onSchedule } from './sentry';
+import { onRequest, onCall, HttpsError, onSchedule, reportWarning } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -41,7 +41,9 @@ import {
   assertBoxLinesWithinInventory,
   heldReceivedGiftLines,
   paidMarketplaceInventoryAction,
+  reapplyLateCreditInTx,
   recomputeBoxAllocations,
+  type LateCreditReapply,
   releaseMarketplaceReservations,
   releaseStaleMarketplaceReservations,
   reserveMarketplaceInventoryInTx,
@@ -561,6 +563,7 @@ async function confirmMarketplaceCharge(
       return null;
     }
     const action = paidMarketplaceInventoryAction(data);
+    const credit = await reapplyLateCreditInTx(tx, db.doc(`households/${householdId}`), data);
     tx.update(orderRef, {
       status: 'confirmed',
       confirmedAt: FieldValue.serverTimestamp(),
@@ -568,12 +571,17 @@ async function confirmMarketplaceCharge(
       chargeFailedAt: FieldValue.delete(),
       chargeFailureMessage: FieldValue.delete(),
       ...(action ? { inventoryReserved: false, inventoryCommittedAt: new Date().toISOString() } : {}),
+      ...(credit?.orderFields ?? {}),
     });
-    return action ? { action, lines: reservedLinesFromOrder({ ...order, ...data }) } : null;
+    return {
+      inventory: action ? { action, lines: reservedLinesFromOrder({ ...order, ...data }) } : null,
+      credit: credit?.reapply,
+    };
   });
-  if (claimed) {
+  warnCreditShortfall(orderId, claimed?.credit);
+  if (claimed?.inventory) {
     try {
-      await applyPaidMarketplaceInventory(db, claimed.action, claimed.lines);
+      await applyPaidMarketplaceInventory(db, claimed.inventory.action, claimed.inventory.lines);
     } catch (invErr) {
       logger.error('Marketplace inventory commit failed', { orderId, invErr });
     }
@@ -582,6 +590,13 @@ async function confirmMarketplaceCharge(
   if (fresh.status === 'confirmed' || fresh.status === 'shipped') {
     await fulfillMarketplaceOrder(householdId, orderId, fresh, fresh.playthrough === true);
   }
+}
+
+function warnCreditShortfall(orderId: string, reapply: LateCreditReapply | undefined): void {
+  if (!reapply?.shortfallCents) return;
+  const message = `Late-paid storefront order ${orderId}: ${reapply.shortfallCents} cents of credit could not be re-applied (household balance too low); recorded as creditShortfallCents`;
+  logger.warn(message);
+  reportWarning(message);
 }
 
 async function runChargeEligibleMarketplaceOrders(): Promise<void> {
@@ -2100,15 +2115,20 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
                   const snap = await tx.get(orderRef);
                   const data = snap.data() ?? {};
                   const action = paidMarketplaceInventoryAction(data);
-                  if (!action) return null;
+                  const credit = await reapplyLateCreditInTx(tx, db.doc(`households/${householdId}`), data);
+                  if (!action && !credit) return null;
                   tx.update(orderRef, {
-                    inventoryReserved: false,
-                    inventoryCommittedAt: new Date().toISOString(),
+                    ...(action ? { inventoryReserved: false, inventoryCommittedAt: new Date().toISOString() } : {}),
+                    ...(credit?.orderFields ?? {}),
                   });
-                  return { action, lines: reservedLinesFromOrder(data) };
+                  return {
+                    inventory: action ? { action, lines: reservedLinesFromOrder(data) } : null,
+                    credit: credit?.reapply,
+                  };
                 });
-                if (claimed) {
-                  await applyPaidMarketplaceInventory(db, claimed.action, claimed.lines);
+                warnCreditShortfall(orderId, claimed?.credit);
+                if (claimed?.inventory) {
+                  await applyPaidMarketplaceInventory(db, claimed.inventory.action, claimed.inventory.lines);
                 }
               } catch (invErr) {
                 logger.error('Marketplace inventory commit failed', { orderId, invErr });
