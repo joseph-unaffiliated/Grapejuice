@@ -377,11 +377,6 @@ function OrdersScreenBody() {
   return (
     <>
     <SystemPage hub="orders">
-        <Text style={page.sectionLead}>
-          Status and summaries for gift boxes you&apos;ve sent, your household box, and à la carte
-          add-ons. Tracking appears when a package ships.
-        </Text>
-
         {loadError ? (
           <View style={page.section}>
             <Text style={page.emptyText}>{loadError}</Text>
