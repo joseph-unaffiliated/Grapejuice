@@ -12,7 +12,13 @@ import { useAuthStore } from '../../stores/authStore';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
-import { createMarketplaceCheckout } from '../../services/checkout/createMarketplaceCheckout';
+import {
+  createMarketplaceCheckout,
+  payMarketplaceOrderWithSavedCard,
+  type CheckoutSignIn,
+  type SavedCardSummary,
+} from '../../services/checkout/createMarketplaceCheckout';
+import { signInAfterCheckout } from './checkoutSignIn';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import type { PilotOrder } from '../../types/pilot';
@@ -53,6 +59,8 @@ type PendingPayment = {
   totalCents: number;
   clientSecret: string;
   intent: 'payment' | 'setup';
+  savedCard: SavedCardSummary | null;
+  signIn: CheckoutSignIn | null;
 };
 
 function MarketplaceCheckoutBody() {
@@ -113,7 +121,7 @@ function MarketplaceCheckoutBody() {
   );
 
   const finishOrder = useCallback(
-    (orderId: string, totalCents: number, charged: boolean) => {
+    (orderId: string, totalCents: number, charged: boolean, signIn: CheckoutSignIn | null | undefined) => {
       trackMeta(
         'Purchase',
         {
@@ -128,7 +136,9 @@ function MarketplaceCheckoutBody() {
         metaEventIds.purchase(orderId)
       );
       clearCart();
-      navigation.replace('OrderConfirmation', { orderId, charged });
+      const params = { orderId, charged, ...(signIn?.kind === 'email' ? { emailedLink: true } : {}) };
+      navigation.replace('OrderConfirmation', params);
+      void signInAfterCheckout(orderId, signIn, params);
     },
     [clearCart, navigation, lineItems]
   );
@@ -204,7 +214,7 @@ function MarketplaceCheckoutBody() {
         result.status === 'confirmed' ||
         result.totalCents === 0
       ) {
-        finishOrder(result.orderId, result.totalCents, result.status === 'confirmed');
+        finishOrder(result.orderId, result.totalCents, result.status === 'confirmed', result.signIn);
         return;
       }
 
@@ -218,6 +228,8 @@ function MarketplaceCheckoutBody() {
         totalCents: result.totalCents,
         clientSecret: result.clientSecret,
         intent: result.intent === 'payment' ? 'payment' : 'setup',
+        savedCard: isAuthenticated ? result.savedCard ?? null : null,
+        signIn: result.signIn ?? null,
       });
     } catch (e) {
       const msg = marketplaceCheckoutErrorMessage(e);
@@ -240,6 +252,21 @@ function MarketplaceCheckoutBody() {
     skipShipStation,
     finishOrder,
   ]);
+
+  /** The buyer chose their saved card and pressed Pay; false sends them to the card form. */
+  const paySaved = async (householdId: string, order: PendingPayment): Promise<boolean> => {
+    try {
+      const result = await payMarketplaceOrderWithSavedCard(householdId, order.orderId);
+      if (result.status === 'confirmed') {
+        finishOrder(order.orderId, order.totalCents, true, order.signIn);
+        return true;
+      }
+      marketplaceCheckoutNotify('Your saved card didn’t go through', `${result.message} Enter a card below.`);
+    } catch (e) {
+      marketplaceCheckoutNotify('Your saved card didn’t go through', marketplaceCheckoutErrorMessage(e));
+    }
+    return false;
+  };
 
   const onBack = () => navigation.goBack();
 
@@ -298,8 +325,10 @@ function MarketplaceCheckoutBody() {
             <MarketplacePaymentPanel
               totalCents={pending.totalCents}
               intent={pending.intent}
+              savedCard={pending.savedCard}
+              onPaySaved={household?.id ? () => paySaved(household.id, pending) : undefined}
               onError={marketplaceCheckoutNotify}
-              onPaid={() => finishOrder(pending.orderId, pending.totalCents, chargeNow)}
+              onPaid={() => finishOrder(pending.orderId, pending.totalCents, chargeNow, pending.signIn)}
             />
           </Elements>
         ) : (

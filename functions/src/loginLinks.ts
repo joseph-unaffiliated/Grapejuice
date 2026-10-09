@@ -7,6 +7,8 @@ import { sendEmail } from './email';
 import { appOrigin, emailHash, sha256Hex, VISITOR_ID_RE } from './guestSessions';
 import { requestIp } from './geo';
 import { metaContextFromCallable, sendMetaEvent } from './metaCapi';
+import { accountForCheckoutEmail, firstNameOf, guestHouseholdId } from './checkoutAccount';
+import { loginTokenStatus, ORDER_TOKEN_RETAIN_MS, ORDER_TOKEN_TTL_MS } from './loginTokenRules';
 
 /**
  * Passwordless accounts for the box builder's email gate, plus emailed login links.
@@ -27,7 +29,7 @@ const RATE_WINDOW_MS = 60 * 60 * 1000;
 const EMAIL_LIMIT_PER_WINDOW = 6;
 const IP_LIMIT_PER_WINDOW = 30;
 
-type LoginPurpose = 'save-box' | 'login' | 'invite';
+type LoginPurpose = 'save-box' | 'login' | 'invite' | 'order';
 
 export const SET_PASSWORD_PATH = '/account/set-password';
 export const CONNECT_GOOGLE_PATH = '/account/connect-google';
@@ -96,6 +98,7 @@ const TOKEN_TTL_MS: Record<LoginPurpose, number> = {
   'save-box': SAVE_BOX_TOKEN_TTL_MS,
   login: LOGIN_TOKEN_TTL_MS,
   invite: INVITE_TOKEN_TTL_MS,
+  order: ORDER_TOKEN_TTL_MS,
 };
 
 async function mintLoginToken(
@@ -108,10 +111,13 @@ async function mintLoginToken(
     next: string | null;
     visitorId: string | null;
     invitePath?: string;
+    orderPath?: string;
   }
 ): Promise<string> {
   const token = randomBytes(32).toString('base64url');
   const now = Date.now();
+  const signInUntil = now + TOKEN_TTL_MS[input.purpose];
+  const isOrder = input.purpose === 'order';
   await db.doc(`loginTokens/${sha256Hex(token)}`).set({
     uid: input.uid,
     emailHash: emailHash(input.email),
@@ -120,10 +126,54 @@ async function mintLoginToken(
     visitorId: input.visitorId,
     invitePath: input.invitePath ?? null,
     createdAt: Timestamp.fromMillis(now),
-    expiresAt: Timestamp.fromMillis(now + TOKEN_TTL_MS[input.purpose]),
+    // `expiresAt` drives the daily purge; order links stay readable past sign-in expiry to prefill the email.
+    expiresAt: Timestamp.fromMillis(isOrder ? signInUntil + ORDER_TOKEN_RETAIN_MS : signInUntil),
     usedAt: null,
+    ...(isOrder
+      ? {
+          signInUntil: Timestamp.fromMillis(signInUntil),
+          orderPath: input.orderPath ?? null,
+          emailHint: input.email,
+          useCount: 0,
+        }
+      : {}),
   });
   return token;
+}
+
+/**
+ * Signed "View my order" link for an order confirmation email. The email goes to the order's
+ * account, so the link signs the reader in as that account and opens Orders.
+ */
+export async function mintOrderViewUrl(
+  db: FirebaseFirestore.Firestore,
+  input: { uid: string; email: string; householdId: string; orderId: string }
+): Promise<string> {
+  const next = '/orders';
+  const token = await mintLoginToken(db, {
+    uid: input.uid,
+    email: input.email,
+    purpose: 'order',
+    next,
+    visitorId: null,
+    orderPath: `households/${input.householdId}/orders/${input.orderId}`,
+  });
+  return loginUrl(token, next);
+}
+
+/** `order_url` for confirmation emails; plain Orders link when the order has no account or minting fails. */
+export async function orderViewUrl(
+  db: FirebaseFirestore.Firestore,
+  input: { uid: string | null | undefined; email: string; householdId: string; orderId: string }
+): Promise<string> {
+  const fallback = `${appOrigin()}/orders?utm_source=transactional&utm_medium=email`;
+  if (!input.uid) return fallback;
+  try {
+    return await mintOrderViewUrl(db, { ...input, uid: input.uid });
+  } catch (err) {
+    logger.error('orderViewUrl: could not mint order link', { err: String(err) });
+    return fallback;
+  }
 }
 
 /** Accept-invite link for a collaborator invite email (createPartnerInvite). */
@@ -221,12 +271,6 @@ async function sendLoginLinkEmail(
       google_url: loginUrl(googleToken, CONNECT_GOOGLE_PATH),
     },
   });
-}
-
-function firstNameOf(raw: unknown): string | undefined {
-  if (typeof raw !== 'string') return undefined;
-  const first = raw.trim().split(/\s+/)[0]?.slice(0, 60);
-  return first || undefined;
 }
 
 /**
@@ -449,6 +493,19 @@ export const signInGiftGiver = onCall(
   }
 );
 
+/**
+ * Storefront orders placed signed out before accounts were created at checkout live only in the
+ * email's guest household. Give that household an account so a login link can reach it.
+ */
+async function legacyGuestCheckoutUser(db: FirebaseFirestore.Firestore, email: string): Promise<UserRecord | null> {
+  const guestRef = db.doc(`households/${guestHouseholdId(email)}`);
+  if (!(await guestRef.get()).exists) return null;
+  if ((await guestRef.collection('orders').limit(1).get()).empty) return null;
+  const { uid } = await accountForCheckoutEmail(db, email, null);
+  logger.info('requestLoginLink: linked guest checkout household');
+  return getAuth().getUser(uid);
+}
+
 /** "Email me a login link" on sign-in. Always ok — never reveals whether the email has an account. */
 export const requestLoginLink = onCall(
   { memory: '512MiB' },
@@ -458,29 +515,42 @@ export const requestLoginLink = onCall(
     const db = getFirestore();
     await enforceRateLimits(db, email, request.rawRequest);
     try {
-      const user = await getAuth().getUserByEmail(email);
-      await sendLoginLinkEmail(db, {
-        uid: user.uid,
-        email,
-        purpose: 'login',
-        next: safeNextPath(data.next),
-        visitorId: null,
-        firstName: firstNameOf(user.displayName),
-      });
-    } catch (err) {
-      if ((err as { code?: string })?.code !== 'auth/user-not-found') {
-        logger.error('requestLoginLink failed', err);
+      let user: UserRecord | null = null;
+      try {
+        user = await getAuth().getUserByEmail(email);
+      } catch (err) {
+        if ((err as { code?: string })?.code !== 'auth/user-not-found') throw err;
+        user = await legacyGuestCheckoutUser(db, email);
       }
+      if (user) {
+        await sendLoginLinkEmail(db, {
+          uid: user.uid,
+          email,
+          purpose: 'login',
+          next: safeNextPath(data.next),
+          visitorId: null,
+          firstName: firstNameOf(user.displayName),
+        });
+      }
+    } catch (err) {
+      logger.error('requestLoginLink failed', err);
     }
     return { ok: true };
   }
 );
 
 export type RedeemLoginLinkResult =
-  | { status: 'ok'; customToken: string; next: string | null; snapshot: Record<string, unknown> | null }
-  | { status: 'invalid' | 'expired' | 'used' };
+  | {
+      status: 'ok';
+      customToken: string;
+      uid: string;
+      next: string | null;
+      snapshot: Record<string, unknown> | null;
+    }
+  /** `email` only for an expired order link, so the sign-in screen can offer a fresh link to that address. */
+  | { status: 'invalid' | 'expired' | 'used'; email?: string };
 
-/** `/login?token=` (src/navigation/LoginLinkEffect.tsx). Unauthenticated; single use. */
+/** `/login?token=` (src/navigation/LoginLinkEffect.tsx). Unauthenticated; single use except order links. */
 export const redeemLoginLink = onCall(
   { memory: '512MiB' },
   async (request): Promise<RedeemLoginLinkResult> => {
@@ -494,11 +564,17 @@ export const redeemLoginLink = onCall(
     const claimed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const tok = snap.data();
-      if (!tok) return { status: 'invalid' as const };
-      if (tok.usedAt) return { status: 'used' as const };
-      const expires = tok.expiresAt instanceof Timestamp ? tok.expiresAt.toMillis() : 0;
-      if (!expires || expires < now) return { status: 'expired' as const };
-      tx.update(ref, { usedAt: Timestamp.fromMillis(now) });
+      const status = loginTokenStatus(tok, now);
+      if (status !== 'ok' || !tok) {
+        const email = status === 'expired' && typeof tok?.emailHint === 'string' ? tok.emailHint : undefined;
+        return { status: status === 'ok' ? ('invalid' as const) : status, ...(email ? { email } : {}) };
+      }
+      tx.update(
+        ref,
+        tok.purpose === 'order'
+          ? { useCount: FieldValue.increment(1), usedAt: Timestamp.fromMillis(now) }
+          : { usedAt: Timestamp.fromMillis(now) }
+      );
       return {
         status: 'ok' as const,
         uid: typeof tok.uid === 'string' ? tok.uid : null,
@@ -508,7 +584,7 @@ export const redeemLoginLink = onCall(
         visitorId: typeof tok.visitorId === 'string' ? tok.visitorId : null,
       };
     });
-    if (claimed.status !== 'ok') return { status: claimed.status };
+    if (claimed.status !== 'ok') return claimed;
 
     const uid = claimed.invitePath
       ? await acceptInviteFromLink(db, claimed.invitePath, claimed.emailHash)
@@ -533,6 +609,6 @@ export const redeemLoginLink = onCall(
         snapshot = session.snapshot as Record<string, unknown>;
       }
     }
-    return { status: 'ok', customToken, next: claimed.next, snapshot };
+    return { status: 'ok', customToken, uid, next: claimed.next, snapshot };
   }
 );

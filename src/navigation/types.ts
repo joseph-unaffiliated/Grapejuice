@@ -71,7 +71,8 @@ export type MainStackParamList = {
   UpdatePayment: undefined;
   MarketplaceCheckout: undefined;
   /** `charged`: guests can't read the order, so checkout says whether the card was charged now. */
-  OrderConfirmation: { orderId: string; charged?: boolean };
+  /** `emailedLink`: signed-out buyer with an existing account; their receipt carries the sign-in link. */
+  OrderConfirmation: { orderId: string; charged?: boolean; emailedLink?: boolean };
   Orders: undefined;
   Reflection: undefined;
   /** Post-Hanukkah feedback survey ($50 credit). */

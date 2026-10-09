@@ -15,7 +15,11 @@ import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
-import { createMarketplaceCheckout } from '../../services/checkout/createMarketplaceCheckout';
+import {
+  createMarketplaceCheckout,
+  type CheckoutSignIn,
+} from '../../services/checkout/createMarketplaceCheckout';
+import { signInAfterCheckout } from './checkoutSignIn';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
@@ -93,9 +97,11 @@ function MarketplaceCheckoutBody() {
   const stripeKey = extra?.stripePublishableKey ?? '';
 
   const finishOrder = useCallback(
-    (orderId: string, charged: boolean) => {
+    (orderId: string, charged: boolean, signIn: CheckoutSignIn | null | undefined) => {
       clearCart();
-      navigation.replace('OrderConfirmation', { orderId, charged });
+      const params = { orderId, charged, ...(signIn?.kind === 'email' ? { emailedLink: true } : {}) };
+      navigation.replace('OrderConfirmation', params);
+      void signInAfterCheckout(orderId, signIn, params);
     },
     [clearCart, navigation]
   );
@@ -157,7 +163,7 @@ function MarketplaceCheckoutBody() {
         result.status === 'confirmed' ||
         result.totalCents === 0
       ) {
-        finishOrder(result.orderId, result.status === 'confirmed');
+        finishOrder(result.orderId, result.status === 'confirmed', result.signIn);
         return;
       }
 
@@ -185,7 +191,7 @@ function MarketplaceCheckoutBody() {
         return;
       }
 
-      finishOrder(result.orderId, chargeNow);
+      finishOrder(result.orderId, chargeNow, result.signIn);
     } catch (e) {
       const msg = marketplaceCheckoutErrorMessage(e);
       setFormError(msg);

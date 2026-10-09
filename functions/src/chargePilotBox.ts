@@ -4,6 +4,8 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 import { exportOrderToShipStation } from './shipstation';
 import { sendEmail } from './email';
+import { orderViewUrl } from './loginLinks';
+import { claimOrderEmail, orderConfirmationTemplate } from './orderEmails';
 import { untraditionalMarkSafe } from './untraditionalCio';
 import { PRICING_POLICY } from './rav/boxRules';
 import { discountCentsForTerms, type PromoTerms } from './promoPricing';
@@ -250,21 +252,25 @@ export async function fulfillHanukkahBoxOrder(
   if (!order.orderConfirmedEmailSentAt && userId) {
     const userSnap = await db.doc(`users/${userId}`).get();
     const email = (userSnap.data()?.email as string) ?? '';
-    if (email) {
+    if (email && (await claimOrderEmail(orderRef, 'orderConfirmedEmail'))) {
       try {
         await sendEmail({
           to: email,
-          template: 'order-confirmed',
+          template: orderConfirmationTemplate(order),
           data: {
             orderId,
             totalCents: order.totalCents,
             estimatedDelivery: order.estimatedDelivery,
+            order_url: await orderViewUrl(db, { uid: userId, email, householdId, orderId }),
           },
         });
         await orderRef.update({ orderConfirmedEmailSentAt: new Date().toISOString() });
       } catch (emailErr) {
+        await orderRef.update({ orderConfirmedEmailClaimedAt: FieldValue.delete() }).catch(() => undefined);
         logger.error('Hanukkah box order confirmation email failed', { orderId, emailErr });
       }
+    }
+    if (email) {
       // Exit signal for the guest-box recovery campaigns (Untraditional workspace).
       await untraditionalMarkSafe(email, {
         grapejuice_order_placed: true,

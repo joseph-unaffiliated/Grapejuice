@@ -167,9 +167,11 @@ function OrderConfirmationBody() {
               {route.params.charged ? 'Your order is confirmed.' : 'Your order is saved.'}
             </Text>
             <Text style={checkoutUi.lead}>
-              {route.params.charged
-                ? `${arrival} We'll email your confirmation and a tracking link to the address you entered.`
-                : "We'll charge the card you saved when Hanukkah boxes lock, and email you at the address you entered."}
+              {route.params.emailedLink
+                ? `${arrival} We've emailed you a link to view your order.`
+                : route.params.charged
+                  ? `${arrival} We'll email your confirmation and a tracking link to the address you entered.`
+                  : "We'll charge the card you saved when Hanukkah boxes lock, and email you at the address you entered."}
             </Text>
           </>
         )}

@@ -42,11 +42,14 @@ export async function requestLoginLink(params: { email: string; next?: string })
 export type RedeemLoginLinkResult =
   | {
       status: 'ok';
+      /** The account the link signs in as; a browser signed in as someone else signs out first. */
+      uid: string;
       customToken: string;
       next: string | null;
       snapshot: GuestSessionSnapshot | null;
     }
-  | { status: 'invalid' | 'expired' | 'used' };
+  /** `email`: only on an expired order link, to prefill the email-me-a-link form. */
+  | { status: 'invalid' | 'expired' | 'used'; email?: string };
 
 export async function redeemLoginLink(token: string): Promise<RedeemLoginLinkResult> {
   const callable = httpsCallable<{ token: string }, RedeemLoginLinkResult>(functions, 'redeemLoginLink');

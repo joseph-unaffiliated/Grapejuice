@@ -1,6 +1,7 @@
 import * as logger from './logger';
 import { onRequest, onCall, HttpsError, onSchedule } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { createCardSetupIntent, stripe, stripePublishableKey, verifyWebhook } from './stripe';
 import { sendEmail, sendDebriefReminderEmail, sendGiftConfirmReminderEmail } from './email';
@@ -74,8 +75,22 @@ export { recordGiftStep } from './giftFunnel';
 export { restorePilotBoxOrder } from './orderRestore';
 export { cancelPilotGift, resumePilotGiftPayment } from './pendingGift';
 export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink } from './loginLinks';
-import { enforceRateLimits, giverUidForEmail, mintInviteAcceptUrl, normalizeEmail } from './loginLinks';
+import {
+  enforceRateLimits,
+  giverUidForEmail,
+  mintInviteAcceptUrl,
+  normalizeEmail,
+  orderViewUrl,
+} from './loginLinks';
 import { isAdminToken } from './guestSessions';
+import {
+  accountForCheckoutEmail,
+  checkoutClaimStatus,
+  mintCheckoutClaim,
+  savedCardChargeDenial,
+  type CheckoutAccount,
+} from './checkoutAccount';
+import { claimOrderEmail, orderConfirmationTemplate, orderEmailLines, orderItemSummary } from './orderEmails';
 export { validateShippingAddress } from './addressValidation';
 export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
@@ -276,10 +291,6 @@ async function emailForMeta(uid: string | null | undefined, fallback?: string | 
   return (snap.data()?.email as string | undefined) ?? null;
 }
 
-function guestHouseholdId(email: string): string {
-  return `guest_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 140);
-}
-
 const BOX_HELD_STATUSES = new Set(['committed', 'confirmed', 'shipped', 'delivered']);
 
 /** À la carte orders from a household with a box charge at lock; everyone else pays at checkout. */
@@ -404,42 +415,28 @@ async function fulfillMarketplaceOrder(
     const userSnap = await db.doc(`users/${userId}`).get();
     email = (userSnap.data()?.email as string) || email;
   }
-  if (email.includes('@') && !fresh.marketplaceEmailSentAt) {
-    const lineItems = (order.lineItems as MarketplaceLineItem[]) ?? [];
-    const itemSummary = fresh.giftSurprise
-      ? 'A surprise Hanukkah gift box'
-      : lineItems
-          .map((li) => {
-            const qty = Math.max(1, Math.floor(Number(li.quantity) || 1));
-            const name = String(li.label ?? li.itemId ?? 'Item');
-            return qty > 1 ? `${qty}× ${name}` : name;
-          })
-          .filter(Boolean)
-          .join(', ');
+  if (email.includes('@') && !fresh.marketplaceEmailSentAt && (await claimOrderEmail(orderRef, 'marketplaceEmail'))) {
+    const lines = fresh.giftSurprise
+      ? [{ name: 'A surprise Hanukkah gift box', quantity: 1 }]
+      : orderEmailLines(fresh.lineItems ?? order.lineItems);
     try {
-      // Prefer dedicated marketplace template; fall back to box template only if unset
-      // (still pass orderType so Liquid can branch once CIO is updated).
-      const marketplaceTemplateId = parseInt(
-        process.env.CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED ?? '0',
-        10
-      );
       await sendEmail({
         to: email,
-        template: marketplaceTemplateId > 0 ? 'marketplace-order-confirmed' : 'order-confirmed',
+        template: orderConfirmationTemplate(fresh),
         data: {
           orderId,
-          orderType: 'marketplace',
-          totalCents: order.totalCents,
-          estimatedDelivery: order.estimatedDelivery,
-          itemSummary,
-          itemCount: lineItems.reduce(
-            (sum, li) => sum + Math.max(1, Math.floor(Number(li.quantity) || 1)),
-            0
-          ),
+          orderType: fresh.orderType ?? 'marketplace',
+          totalCents: fresh.totalCents ?? order.totalCents,
+          estimatedDelivery: fresh.estimatedDelivery ?? order.estimatedDelivery,
+          items: lines,
+          itemSummary: orderItemSummary(lines),
+          itemCount: lines.reduce((sum, li) => sum + li.quantity, 0),
+          order_url: await orderViewUrl(db, { uid: userId, email, householdId, orderId }),
         },
       });
       await orderRef.update({ marketplaceEmailSentAt: new Date().toISOString() });
     } catch (emailErr) {
+      await orderRef.update({ marketplaceEmailClaimedAt: FieldValue.delete() }).catch(() => undefined);
       logger.error('Marketplace order confirmation email failed', emailErr);
     }
   }
@@ -1028,6 +1025,8 @@ export const createMarketplaceCheckout = onCall(async (request) => {
     const authedUid = request.auth?.uid;
     let householdId = '';
     let guestEmail = '';
+    // Signed out, the household (and its credit and saved card) is never touched: knowing an
+    // email is not proof of owning its account.
     let hhData: FirebaseFirestore.DocumentData = {};
     if (authedUid) {
       householdId = String(data.householdId ?? '').trim();
@@ -1037,23 +1036,12 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       const hhSnap = await assertHouseholdMember(authedUid, householdId);
       hhData = hhSnap.data() ?? {};
     } else {
-      guestEmail = String(data.email ?? '').trim().toLowerCase();
-      if (!guestEmail.includes('@')) {
+      try {
+        guestEmail = normalizeEmail(data.email);
+      } catch {
         throw new HttpsError('invalid-argument', 'Enter an email so we can send your receipt.');
       }
-      householdId = guestHouseholdId(guestEmail);
-      const hhRef = db.doc(`households/${householdId}`);
-      const existing = await hhRef.get();
-      hhData = existing.data() ?? {};
-      if (!existing.exists) {
-        const now = new Date().toISOString();
-        await hhRef.set({
-          guest: true,
-          guestEmail,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+      await enforceRateLimits(db, guestEmail, request.rawRequest, 'checkout:');
     }
     const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
     const platformCreditCents =
@@ -1089,6 +1077,20 @@ export const createMarketplaceCheckout = onCall(async (request) => {
     if (totalCents > 0 && totalCents < 50) {
       throw new HttpsError('invalid-argument', 'Order total is too small.');
     }
+
+    let account: CheckoutAccount | null = null;
+    if (!authedUid) {
+      account = await accountForCheckoutEmail(db, guestEmail, shippingAddress.name);
+      householdId = account.householdId;
+    }
+    const orderUserId = authedUid ?? account?.uid ?? null;
+    // Only a brand-new account may be signed in from this browser, and only after it pays.
+    const checkoutClaim = account && !account.accountExisted ? mintCheckoutClaim() : null;
+    const signIn = account
+      ? checkoutClaim
+        ? { kind: 'token' as const, claim: checkoutClaim.claim, householdId }
+        : { kind: 'email' as const }
+      : null;
 
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = configSnap.data() ?? {};
@@ -1130,8 +1132,11 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       shippingAddress,
       holidayId: HOLIDAY_ID,
       lockAt,
-      ...(authedUid ? { userId: authedUid } : {}),
-      ...(guestEmail ? { guestEmail } : {}),
+      ...(orderUserId ? { userId: orderUserId } : {}),
+      ...(guestEmail ? { guestEmail, checkoutSignedOut: true } : {}),
+      ...(checkoutClaim
+        ? { checkoutClaimHash: checkoutClaim.hash, checkoutClaimExpiresAt: checkoutClaim.expiresAt }
+        : {}),
       estimatedDelivery,
       inventoryReserved: true,
       inventoryReservedAt: reservedAt,
@@ -1191,6 +1196,8 @@ export const createMarketplaceCheckout = onCall(async (request) => {
           clientSecret: null as string | null,
           intent: null as 'setup' | 'payment' | null,
           status: 'confirmed' as const,
+          savedCard: null as SavedCardSummary | null,
+          signIn,
         };
       };
 
@@ -1206,6 +1213,8 @@ export const createMarketplaceCheckout = onCall(async (request) => {
           clientSecret: null as string | null,
           intent: null as 'setup' | 'payment' | null,
           status: 'committed' as const,
+          savedCard: null as SavedCardSummary | null,
+          signIn,
         };
       }
 
@@ -1216,14 +1225,13 @@ export const createMarketplaceCheckout = onCall(async (request) => {
         );
       }
 
-      let customerId = typeof hhData.stripeCustomerId === 'string' ? hhData.stripeCustomerId : '';
-      if (!customerId) {
-        const email =
-          guestEmail ||
-          (authedUid ? String((await db.doc(`users/${authedUid}`).get()).data()?.email ?? '') : '');
+      // Signed-out payments carry no Stripe customer, so no saved card can be offered or charged.
+      let customerId = authedUid && typeof hhData.stripeCustomerId === 'string' ? hhData.stripeCustomerId : '';
+      if (authedUid && !customerId) {
+        const email = String((await db.doc(`users/${authedUid}`).get()).data()?.email ?? '');
         const customer = await stripe.customers.create({
           ...(email.includes('@') ? { email } : {}),
-          metadata: { householdId, ...(guestEmail ? { guest: 'true' } : {}) },
+          metadata: { householdId },
         });
         customerId = customer.id;
         await db.doc(`households/${householdId}`).set(
@@ -1238,38 +1246,14 @@ export const createMarketplaceCheckout = onCall(async (request) => {
           orderId: orderRef.id,
           type: 'marketplace',
           chargeTiming: 'checkout',
-          ...(authedUid ? { userId: authedUid } : {}),
+          ...(orderUserId ? { userId: orderUserId } : {}),
           ...metaContextToStripeMetadata(metaCtx),
         };
-        if (savedPaymentMethodId) {
-          try {
-            const saved = await stripe.paymentIntents.create(
-              {
-                amount: totalCents,
-                currency: 'usd',
-                customer: customerId,
-                payment_method: savedPaymentMethodId,
-                confirm: true,
-                off_session: true,
-                metadata: { ...metadata, savedCard: 'true' },
-              },
-              { idempotencyKey: `marketplace-checkout-${orderRef.id}-saved` }
-            );
-            if (saved.status === 'succeeded' || saved.status === 'processing') {
-              return await confirmedNow(saved.id);
-            }
-          } catch (savedErr) {
-            logger.warn('Saved card declined at checkout; asking for a card', {
-              orderId: orderRef.id,
-              savedErr,
-            });
-          }
-        }
         const paymentIntent = await stripe.paymentIntents.create(
           {
             amount: totalCents,
             currency: 'usd',
-            customer: customerId,
+            ...(customerId ? { customer: customerId } : {}),
             automatic_payment_methods: { enabled: true },
             metadata,
           },
@@ -1285,6 +1269,8 @@ export const createMarketplaceCheckout = onCall(async (request) => {
           totalCents,
           intent: 'payment' as const,
           status: 'pending' as const,
+          savedCard: authedUid ? await savedCardSummary(hhData, customerId) : null,
+          signIn,
         };
       }
 
@@ -1309,6 +1295,8 @@ export const createMarketplaceCheckout = onCall(async (request) => {
         totalCents,
         intent: 'setup' as const,
         status: 'pending' as const,
+        savedCard: null as SavedCardSummary | null,
+        signIn,
       };
     } catch (innerErr) {
       // Release reservation if we fail after reserving (Stripe/config errors).
@@ -1349,6 +1337,140 @@ export const createMarketplaceCheckout = onCall(async (request) => {
     logger.error('createMarketplaceCheckout failed', { err, message: msg });
     throw new HttpsError('internal', msg || 'Checkout failed. Please try again.');
   }
+});
+
+type SavedCardSummary = { brand: string; last4: string };
+
+/** Brand and last four of the household's saved card, for the signed-in payment step. */
+async function savedCardSummary(
+  hhData: FirebaseFirestore.DocumentData,
+  customerId: string
+): Promise<SavedCardSummary | null> {
+  const pmId = typeof hhData.stripeDefaultPaymentMethodId === 'string' ? hhData.stripeDefaultPaymentMethodId : '';
+  if (!stripe || !pmId || !customerId) return null;
+  try {
+    const pm = await stripe.paymentMethods.retrieve(pmId);
+    const pmCustomer = typeof pm.customer === 'string' ? pm.customer : pm.customer?.id;
+    if (pmCustomer !== customerId || !pm.card) return null;
+    return { brand: pm.card.brand, last4: pm.card.last4 };
+  } catch (err) {
+    logger.warn('savedCardSummary: could not load saved card', { err: String(err) });
+    return null;
+  }
+}
+
+/**
+ * Pay a pending storefront order with the household's saved card. The buyer chose it on the
+ * payment step; only an authenticated household member whose card it is may charge it.
+ */
+export const payMarketplaceOrderWithSavedCard = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in to use your saved card.');
+  const data = (request.data ?? {}) as { householdId?: unknown; orderId?: unknown; useSavedCard?: unknown };
+  const householdId = String(data.householdId ?? '').trim();
+  const orderId = String(data.orderId ?? '').trim();
+  if (!householdId || !orderId) {
+    throw new HttpsError('invalid-argument', 'householdId and orderId are required.');
+  }
+  if (!stripe) throw new HttpsError('failed-precondition', 'Stripe is not configured.');
+  const hh = (await assertHouseholdMember(uid, householdId)).data() ?? {};
+  const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+  const order = (await orderRef.get()).data();
+  if (!order || order.orderType !== 'marketplace' || order.chargeTiming !== 'checkout') {
+    throw new HttpsError('not-found', 'Order not found.');
+  }
+  if (order.status === 'confirmed' || order.status === 'shipped' || order.status === 'delivered') {
+    return { status: 'confirmed' as const };
+  }
+  if (order.status !== 'pending') {
+    throw new HttpsError('failed-precondition', 'This order can no longer be paid. Start checkout again.');
+  }
+  const piId = typeof order.stripePaymentIntentId === 'string' ? order.stripePaymentIntentId : '';
+  if (!piId) throw new HttpsError('failed-precondition', 'This order has no payment to confirm.');
+
+  const pmId = typeof hh.stripeDefaultPaymentMethodId === 'string' ? hh.stripeDefaultPaymentMethodId : '';
+  const [pm, pi] = await Promise.all([
+    pmId ? stripe.paymentMethods.retrieve(pmId) : Promise.resolve(null),
+    stripe.paymentIntents.retrieve(piId),
+  ]);
+  const denial = savedCardChargeDenial({
+    authedUid: uid,
+    useSavedCard: data.useSavedCard,
+    householdMemberIds: hh.memberIds,
+    householdCustomerId: hh.stripeCustomerId,
+    householdPaymentMethodId: pmId,
+    paymentMethodCustomerId: pm ? (typeof pm.customer === 'string' ? pm.customer : pm.customer?.id ?? null) : null,
+    paymentIntentCustomerId: typeof pi.customer === 'string' ? pi.customer : pi.customer?.id ?? null,
+  });
+  if (denial) {
+    logger.warn('payMarketplaceOrderWithSavedCard refused', { orderId, denial });
+    throw new HttpsError('permission-denied', 'Your saved card can’t be used for this order. Enter a card instead.');
+  }
+
+  const finish = async (paymentIntentId: string) => {
+    try {
+      const fresh = (await orderRef.get()).data() ?? order;
+      await confirmMarketplaceCharge(householdId, orderId, orderRef, fresh, paymentIntentId);
+      await sendOrderPurchaseToMeta({
+        orderId,
+        order: fresh,
+        context: metaContextFromStripeMetadata(pi.metadata),
+        email: await emailForMeta(uid, request.auth?.token.email),
+      });
+    } catch (postErr) {
+      logger.error('Marketplace order paid with saved card; follow-up steps failed', { orderId, postErr });
+    }
+    return { status: 'confirmed' as const };
+  };
+
+  if (pi.status === 'succeeded' || pi.status === 'processing') return finish(pi.id);
+  try {
+    const confirmed = await stripe.paymentIntents.confirm(
+      pi.id,
+      { payment_method: pmId, off_session: true },
+      { idempotencyKey: `marketplace-saved-card-${pi.id}` }
+    );
+    if (confirmed.status === 'succeeded' || confirmed.status === 'processing') return finish(confirmed.id);
+    return { status: 'declined' as const, message: 'Your saved card needs another step. Enter a card instead.' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Your saved card was declined.';
+    logger.info('Saved card declined at checkout', { orderId, message });
+    return { status: 'declined' as const, message };
+  }
+});
+
+/**
+ * After a signed-out checkout that created a brand-new account: exchange the browser's
+ * single-use claim for a sign-in token, once the order is paid. Existing accounts never get one.
+ */
+export const claimMarketplaceCheckoutSignIn = onCall(async (request) => {
+  const data = (request.data ?? {}) as { householdId?: unknown; orderId?: unknown; claim?: unknown };
+  const householdId = String(data.householdId ?? '').trim();
+  const orderId = String(data.orderId ?? '').trim();
+  if (!householdId || !orderId) return { status: 'invalid' as const };
+  await enforceRateLimits(db, null, request.rawRequest, 'checkoutclaim:');
+  const orderRef = db.doc(`households/${householdId}/orders/${orderId}`);
+  const order = (await orderRef.get()).data();
+  if (!order || typeof order.userId !== 'string') return { status: 'invalid' as const };
+  const status = checkoutClaimStatus(order, data.claim);
+  if (status !== 'ok') return { status };
+
+  let paid = order.status === 'confirmed' || order.status === 'shipped' || order.status === 'delivered';
+  if (!paid && stripe && typeof order.stripePaymentIntentId === 'string') {
+    const pi = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+    paid = pi.status === 'succeeded' || pi.status === 'processing';
+  }
+  if (!paid) return { status: 'pending' as const };
+
+  const used = await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(orderRef)).data() ?? {};
+    if (checkoutClaimStatus(fresh, data.claim) !== 'ok') return false;
+    tx.update(orderRef, { checkoutClaimUsedAt: new Date().toISOString() });
+    return true;
+  });
+  if (!used) return { status: 'used' as const };
+  const customToken = await getAuth().createCustomToken(order.userId, { via: 'checkout' });
+  return { status: 'ok' as const, customToken };
 });
 
 export const createPilotSetupIntent = onCall(async (request) => {

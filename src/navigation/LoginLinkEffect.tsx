@@ -6,6 +6,7 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { navigateMainStack } from './mainStackNavigation';
 import { navigateToAppPath } from './webBrowserHistory';
+import { whenMainSettled } from './whenMainSettled';
 import {
   CONNECT_GOOGLE_PATH,
   SET_PASSWORD_PATH,
@@ -32,20 +33,8 @@ function whenNavigationReady(): Promise<void> {
   });
 }
 
-/** After sign-in the root gate remounts Main and AuthReturnHandler settles; then navigate. */
-function whenMainSettled(): Promise<void> {
-  return new Promise((resolve) => {
-    let attempts = 0;
-    const id = setInterval(() => {
-      attempts += 1;
-      const root = navigationRef.isReady() ? navigationRef.getRootState()?.routes?.[0]?.name : null;
-      const settled = root === 'Main' && useAuthFlowStore.getState().pendingReturn == null;
-      if (settled || attempts > 160) {
-        clearInterval(id);
-        resolve();
-      }
-    }, 50);
-  });
+function sameEmail(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 function failedLinkMessage(status: Exclude<RedeemLoginLinkResult['status'], 'ok'>): string {
@@ -63,6 +52,7 @@ export function LoginLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
   const signInWithToken = useAuthStore((s) => s.signInWithToken);
+  const logout = useAuthStore((s) => s.logout);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const pendingLink = useRef(readLoginLinkFromBoot());
   const pendingConvert = useRef(readAccountConvertPathFromBoot());
@@ -89,9 +79,22 @@ export function LoginLinkEffect() {
         result = { status: 'invalid' };
       }
       await whenNavigationReady();
+      const current = useAuthStore.getState().user;
       if (result.status !== 'ok') {
         setWorking(false);
-        if (!isAuthenticated) {
+        // Expired order link: offer a fresh link for the order's email, never the signed-in account's.
+        if (result.email) {
+          if (sameEmail(current?.email, result.email)) {
+            navigateToAppPath(link.next ?? '/orders');
+            return;
+          }
+          if (current) await logout();
+          useAuthFlowStore.setState({ restoreSignInEmail: result.email });
+          startAuthFromGuest('Orders', 'signin', 'SignInEmail');
+          useAuthStore.setState({ error: failedLinkMessage(result.status) });
+          return;
+        }
+        if (!current) {
           startAuthFromGuest('Stay', 'signin', 'SignInEmail');
           useAuthStore.setState({ error: failedLinkMessage(result.status) });
         }
@@ -99,18 +102,21 @@ export function LoginLinkEffect() {
       }
 
       const next = result.next ?? link.next;
-      // Same browser usually still holds the box; another device gets the saved copy.
-      if (result.snapshot && !useGuestSessionStore.getState().lineItems.length) {
-        applyGuestSnapshot(result.snapshot);
-      }
-      useGuestSessionStore.getState().setPendingAccountEmail('');
-      try {
-        await signInWithToken(result.customToken);
-      } catch {
-        setWorking(false);
-        startAuthFromGuest('Stay', 'signin', 'SignInEmail');
-        useAuthStore.setState({ error: failedLinkMessage('invalid') });
-        return;
+      if (current?.uid !== result.uid) {
+        if (current) await logout();
+        // Same browser usually still holds the box; another device gets the saved copy.
+        if (result.snapshot && !useGuestSessionStore.getState().lineItems.length) {
+          applyGuestSnapshot(result.snapshot);
+        }
+        useGuestSessionStore.getState().setPendingAccountEmail('');
+        try {
+          await signInWithToken(result.customToken);
+        } catch {
+          setWorking(false);
+          startAuthFromGuest('Stay', 'signin', 'SignInEmail');
+          useAuthStore.setState({ error: failedLinkMessage('invalid') });
+          return;
+        }
       }
       await whenMainSettled();
       setWorking(false);
@@ -119,7 +125,7 @@ export function LoginLinkEffect() {
       else if (next === '/box') navigateMainStack('MyBox');
       else if (next) navigateToAppPath(next);
     })();
-  }, [authLoading, isAuthenticated, signInWithToken, startAuthFromGuest]);
+  }, [authLoading, isAuthenticated, signInWithToken, logout, startAuthFromGuest]);
 
   useEffect(() => {
     const screen = pendingConvert.current;
