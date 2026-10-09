@@ -398,7 +398,7 @@ export const scheduledPurgeGuestSessions = onSchedule('every day 04:00', async (
 /** Pilot ops allowlist with plus-aliases. */
 export function isAdminEmail(email: string | undefined | null): boolean {
   if (!email) return false;
-  return /^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email.trim());
+  return /^(brendan|joseph|maya|shameem)(\+[^@]*)?@unaffiliated\.co$/i.test(email.trim());
 }
 
 /**

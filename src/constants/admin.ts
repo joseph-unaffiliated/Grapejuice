@@ -8,6 +8,7 @@ export const ADMIN_EMAILS = [
   'brendan@unaffiliated.co',
   'joseph@unaffiliated.co',
   'maya@unaffiliated.co',
+  'shameem@unaffiliated.co',
 ] as const;
 
 /** Strip `+tag` so `local+qa@domain` matches `local@domain`. */

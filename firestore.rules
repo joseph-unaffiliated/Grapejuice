@@ -19,7 +19,7 @@ service cloud.firestore {
         && (request.auth.token.get('admin', false) == true
           || (request.auth.token.email_verified == true
             && request.auth.token.email is string
-            && request.auth.token.email.matches('^(brendan|joseph|maya)(\\+[^@]*)?@unaffiliated[.]co$')));
+            && request.auth.token.email.matches('^(brendan|joseph|maya|shameem)(\\+[^@]*)?@unaffiliated[.]co$')));
     }
 
     match /users/{userId} {
