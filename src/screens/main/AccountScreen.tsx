@@ -55,6 +55,8 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { navigateMainStack } from '../../navigation/mainStackNavigation';
 import { usersService } from '../../services/firestore/users';
 import { isOpsAdmin } from '../../constants/admin';
+import { InfluencerDashboard } from '../../components/account/InfluencerDashboard';
+import { formatDollars } from '../../services/box/buildDefaultBox';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -148,6 +150,7 @@ function AccountScreenBody() {
   const familyDirty = familyMembersFingerprint(familyMembers) !== familyBaseline;
   const familyComplete = familyMembersComplete(familyMembers);
   const cardOnFile = Boolean(household?.cardOnFileAt);
+  const creditCents = (household?.giftCreditCents ?? 0) + (household?.platformCreditCents ?? 0);
 
   const load = useCallback(async () => {
     if (fakeSignedIn) {
@@ -493,6 +496,11 @@ function AccountScreenBody() {
             ? 'A card is saved for your household box and checkout.'
             : 'No card on file yet. Add one to commit your box or check out faster.'}
         </Text>
+        {creditCents > 0 ? (
+          <Text style={[styles.hint, styles.creditLine]}>
+            {`You have ${formatDollars(creditCents)} in credit. It comes off your next box, order or gift at checkout.`}
+          </Text>
+        ) : null}
         <GrapejuiceButton
           label={cardOnFile ? 'Update payment' : 'Add payment'}
           variant="filled"
@@ -616,6 +624,12 @@ function AccountScreenBody() {
           onPress={() => navigation.navigate('GiftGive')}
           style={styles.actionBtn}
           textStyle={styles.primaryBtnText}
+        />
+
+        <InfluencerDashboard
+          enabled={!fakeSignedIn && Boolean(user.emailVerified)}
+          sectionStyle={styles.section}
+          dividerStyle={styles.sectionDivider}
         />
 
         {isOpsAdmin(user) ? (
@@ -750,6 +764,10 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     familyForm: {
       marginTop: spacing.sm,
+    },
+    creditLine: {
+      marginTop: spacing.sm,
+      color: colors.textPrimary,
     },
     input: {
       ...typeface('regular'),

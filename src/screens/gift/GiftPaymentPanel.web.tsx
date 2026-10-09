@@ -34,6 +34,11 @@ type Props = {
   recipientEmail: string;
   giverName?: string;
   amountCents?: number;
+  /** Discount code / influencer offer the server applied; the recipient still gets amountCents. */
+  discountCents?: number;
+  discountLabel?: string;
+  /** What the PaymentIntent charges. Defaults to amountCents. */
+  amountDueCents?: number;
   /** True when giver curated line items (not credit-only). */
   customize?: boolean;
   onPaid: (result: { claimUrl: string }) => void;
@@ -50,6 +55,9 @@ export function GiftPaymentPanel({
   recipientEmail,
   giverName,
   amountCents = DEFAULT_BOX_PRICE_CENTS,
+  discountCents = 0,
+  discountLabel = 'Discount',
+  amountDueCents,
   customize = true,
   onPaid,
   onCancel,
@@ -57,6 +65,7 @@ export function GiftPaymentPanel({
   onCancelGift,
   completePurchase,
 }: Props) {
+  const dueCents = amountDueCents ?? amountCents;
   const stripe = useStripe();
   const elements = useElements();
   const [paying, setPaying] = useState(false);
@@ -98,7 +107,7 @@ export function GiftPaymentPanel({
         return;
       }
       const giftParams = {
-        value: amountCents / 100,
+        value: dueCents / 100,
         currency: 'USD',
         order_id: giftInviteId,
         content_name: customize ? 'Gift box' : 'Gift credit',
@@ -146,6 +155,12 @@ export function GiftPaymentPanel({
         </Text>
         <Text style={styles.summaryValue}>{formatDollars(amountCents)}</Text>
       </View>
+      {discountCents > 0 ? (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryName}>{discountLabel}</Text>
+          <Text style={styles.summaryValue}>-{formatDollars(discountCents)}</Text>
+        </View>
+      ) : null}
       <View style={styles.summaryRow}>
         <Text style={styles.summaryName}>From</Text>
         <Text style={styles.summaryValue}>{fromLabel}</Text>
@@ -158,7 +173,7 @@ export function GiftPaymentPanel({
       </View>
       <View style={styles.totalRow}>
         <Text style={styles.totalText}>Total due now</Text>
-        <Text style={styles.totalText}>{formatDollars(amountCents)}</Text>
+        <Text style={styles.totalText}>{formatDollars(dueCents)}</Text>
       </View>
 
       <View style={checkoutUi.divider} />
@@ -194,7 +209,7 @@ export function GiftPaymentPanel({
         loading={paying}
         disabled={elementState !== 'ready'}
         accessibilityLabel={
-          cardComplete ? `Pay ${formatDollars(amountCents)} and send your gift` : 'Continue'
+          cardComplete ? `Pay ${formatDollars(dueCents)} and send your gift` : 'Continue'
         }
         style={[checkoutUi.button, styles.ctaSpacing]}
         textStyle={checkoutUi.buttonText}

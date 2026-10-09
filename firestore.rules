@@ -35,10 +35,17 @@ service cloud.firestore {
       }
     }
 
+    /** Credit balances only change in functions (checkout, gift claims, admin grants, debrief award). */
+    function creditKeys() {
+      return ['giftCreditCents', 'platformCreditCents'];
+    }
+
     match /households/{householdId} {
       allow read: if isHouseholdMember(householdId);
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isHouseholdMember(householdId);
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid
+        && !request.resource.data.keys().hasAny(creditKeys());
+      allow update: if isHouseholdMember(householdId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(creditKeys());
       match /boxDrafts/{holidayId} {
         allow read, write: if isHouseholdMember(householdId);
       }
@@ -109,6 +116,28 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /rateLimits/{keyHash} {
+      allow read, write: if false;
+    }
+    /** Discount codes, credit grants, influencers and their stats (functions/src/promotions.ts) — functions only. */
+    match /discountCodes/{code} {
+      allow read, write: if false;
+    }
+    match /creditGrants/{grantId} {
+      allow read, write: if false;
+    }
+    match /creditAwards/{awardId} {
+      allow read, write: if false;
+    }
+    match /influencers/{slug} {
+      allow read, write: if false;
+    }
+    match /influencerVisits/{visitId} {
+      allow read, write: if false;
+    }
+    match /influencerPayouts/{payoutId} {
+      allow read, write: if false;
+    }
+    match /promoRedemptions/{redemptionId} {
       allow read, write: if false;
     }
   }

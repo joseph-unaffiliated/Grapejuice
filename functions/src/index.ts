@@ -56,6 +56,8 @@ import {
 import { randomBytes } from 'crypto';
 import { createAdminBoxesDashboard } from './adminDashboard';
 import { checkUsAddressFormat } from './usAddress';
+import { applyResolvedPromo, recordPromoRedemption, resolveCheckoutPromo } from './promotions';
+import { discountCentsForTerms, type PromoTerms } from './promoPricing';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
 export { sendWelcomeOnSignup } from './welcome';
@@ -75,6 +77,7 @@ import { isAdminToken } from './guestSessions';
 export { validateShippingAddress } from './addressValidation';
 export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
+export { adminPromotions, awardDebriefCredit, checkPromo, getMyInfluencerStats } from './promotions';
 
 initializeApp();
 const db = getFirestore();
@@ -188,6 +191,8 @@ interface CommitPilotBoxData {
   meta?: unknown;
   /** First / last-touch UTMs (see metaCapi.sanitizeAttribution). */
   attribution?: unknown;
+  /** Discount code / influencer link (see promotions.resolveCheckoutPromo). */
+  promo?: unknown;
 }
 
 interface CreatePilotSetupIntentData {
@@ -203,6 +208,7 @@ interface CreateMarketplaceCheckoutData {
   skipShipStation?: boolean;
   meta?: unknown;
   attribution?: unknown;
+  promo?: unknown;
 }
 
 function metaUserWithAddress(
@@ -1057,10 +1063,23 @@ export const createMarketplaceCheckout = onCall(async (request) => {
     }
 
     const shippingCents = SHIPPING_FLAT_CENTS;
+    const buyerEmail =
+      guestEmail ||
+      String(
+        (authedUid ? (await db.doc(`users/${authedUid}`).get()).data()?.email : null) ??
+          request.auth?.token.email ??
+          ''
+      )
+        .trim()
+        .toLowerCase() ||
+      null;
+    const resolvedPromo = await resolveCheckoutPromo(db, data.promo, buyerEmail);
+    const { discountCents, promo } = applyResolvedPromo(resolvedPromo, subtotalCents);
     const priced = checkoutTotalsAfterCredit(
       subtotalCents + shippingCents,
       giftCreditCents,
-      platformCreditCents
+      platformCreditCents,
+      discountCents
     );
     const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
 
@@ -1099,6 +1118,7 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       lineItems,
       subtotalCents,
       shippingCents,
+      discountCents: priced.discountApplied,
       taxCents,
       totalCents,
       creditAppliedCents: creditApplied,
@@ -1115,12 +1135,20 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       inventoryReservedLines: reservedLines,
       createdAt: FieldValue.serverTimestamp(),
       ...(attribution ? { attribution } : {}),
+      ...(promo ? { promo } : {}),
     };
     if (skipShipStation) orderPayload.playthrough = true;
 
     let creditsDeducted = false;
     try {
       await orderRef.set(orderPayload);
+      await recordPromoRedemption(db, {
+        sourcePath: orderRef.path,
+        kind: 'order',
+        resolved: resolvedPromo,
+        promo,
+        householdId,
+      });
 
       if (creditApplied > 0) {
         await db.doc(`households/${householdId}`).update({
@@ -1400,15 +1428,22 @@ export const commitPilotBox = onCall(async (request) => {
     boxPriceCents
   );
   const shippingCents = SHIPPING_FLAT_CENTS;
+  const buyerEmail =
+    String((await db.doc(`users/${request.auth.uid}`).get()).data()?.email ?? request.auth.token.email ?? '')
+      .trim()
+      .toLowerCase() || null;
+  const resolvedPromo = await resolveCheckoutPromo(db, data.promo, buyerEmail);
+  const { discountCents, promo } = applyResolvedPromo(resolvedPromo, subtotalCents);
   const priced = checkoutTotalsAfterCredit(
     subtotalCents + shippingCents,
     giftCreditCents,
-    platformCreditCents
+    platformCreditCents,
+    discountCents
   );
   const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
 
   const totalAvailableCredit = giftCreditCents + platformCreditCents;
-  if (!cardOnFile && totalAvailableCredit < boxPriceCents) {
+  if (!cardOnFile && totalAvailableCredit + priced.discountApplied < boxPriceCents) {
     throw new HttpsError('failed-precondition', 'Save a payment method before committing your box.');
   }
   if (totalCents > 0 && !cardOnFile) {
@@ -1435,6 +1470,7 @@ export const commitPilotBox = onCall(async (request) => {
     kidCount,
     subtotalCents,
     shippingCents,
+    discountCents: priced.discountApplied,
     taxCents,
     totalCents,
     creditAppliedCents: creditApplied,
@@ -1450,8 +1486,16 @@ export const commitPilotBox = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
     ...(isPlaythrough ? { playthrough: true } : {}),
     ...(attribution ? { attribution } : {}),
+    ...(promo ? { promo } : {}),
   };
   await orderRef.set(orderPayload);
+  await recordPromoRedemption(db, {
+    sourcePath: orderRef.path,
+    kind: 'order',
+    resolved: resolvedPromo,
+    promo,
+    householdId,
+  });
 
   if (giftCreditApplied > 0 || platformCreditApplied > 0) {
     await db.doc(`households/${householdId}`).update({
@@ -1509,6 +1553,7 @@ export const commitPilotBox = onCall(async (request) => {
   return {
     orderId: orderRef.id,
     totalCents,
+    discountCents: priced.discountApplied,
     status: 'committed' as const,
   };
 });
@@ -1587,7 +1632,8 @@ export const updatePilotBoxOrder = onCall(async (request) => {
   const priced = checkoutTotalsAfterCredit(
     subtotalCents + shippingCents,
     giftCreditApplied,
-    platformCreditApplied
+    platformCreditApplied,
+    discountCentsForTerms((order.promo as Partial<PromoTerms> | undefined) ?? null, subtotalCents)
   );
   const { taxCents, totalCents, creditApplied } = priced;
 
@@ -1605,6 +1651,7 @@ export const updatePilotBoxOrder = onCall(async (request) => {
     kidCount,
     subtotalCents,
     shippingCents,
+    discountCents: priced.discountApplied,
     taxCents,
     totalCents,
     creditAppliedCents: creditApplied,
@@ -1745,6 +1792,30 @@ export const chargePilotBoxOrder = onCall(async (request) => {
   }
   return chargePilotBoxOrderForUser(db, stripe, request.auth.uid, householdId, orderId, force);
 });
+
+/**
+ * Refunds (issued in the Stripe dashboard) shrink or remove an order's / gift's discount-code use
+ * and influencer commission. Needs `charge.refunded` on the webhook endpoint's event list.
+ */
+async function recordChargeRefund(charge: {
+  amount_refunded?: number;
+  payment_intent?: string | { id?: string } | null;
+  metadata?: Record<string, string>;
+}): Promise<void> {
+  let metadata = charge.metadata ?? {};
+  const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+  if (!metadata.orderId && !metadata.giftInviteId && piId && stripe) {
+    metadata = (await stripe.paymentIntents.retrieve(piId)).metadata ?? {};
+  }
+  const refundedCents = Math.max(0, Math.round(Number(charge.amount_refunded) || 0));
+  const update = { refundedCents, refundedAt: new Date().toISOString() };
+  if (metadata.type === 'pilot_gift' && metadata.giftInviteId) {
+    await db.doc(`giftInvites/${metadata.giftInviteId}`).set(update, { merge: true });
+  } else if (metadata.householdId && metadata.orderId) {
+    const ref = db.doc(`households/${metadata.householdId}/orders/${metadata.orderId}`);
+    if ((await ref.get()).exists) await ref.set(update, { merge: true });
+  }
+}
 
 export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
   if (req.method !== 'POST') {
@@ -2085,6 +2156,15 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
         }
       }
     }
+    if (event.type === 'charge.refunded') {
+      await recordChargeRefund(
+        event.data.object as {
+          amount_refunded?: number;
+          payment_intent?: string | { id?: string } | null;
+          metadata?: Record<string, string>;
+        }
+      );
+    }
     await eventRef.set({
       type: event.type,
       processedAt: new Date().toISOString(),
@@ -2300,6 +2380,11 @@ export const purchasePilotGift = onCall(async (request) => {
     const userSnap = await db.doc(`users/${giverUid}`).get();
     giverEmail = String(userSnap.data()?.email ?? request.auth!.token.email ?? '').trim().toLowerCase();
   }
+  const resolvedPromo = await resolveCheckoutPromo(db, request.data?.promo, giverEmail || null);
+  const applied = applyResolvedPromo(resolvedPromo, creditCents);
+  // Stripe's minimum charge; the recipient still receives the full gift.
+  const discountCents = Math.min(applied.discountCents, Math.max(0, creditCents - 50));
+  const amountDueCents = creditCents - discountCents;
   const claimToken = randomBytes(24).toString('hex');
   const inviteRef = db.collection('giftInvites').doc();
   const metaContext = metaContextForDoc(metaContextFromCallable(request));
@@ -2310,6 +2395,7 @@ export const purchasePilotGift = onCall(async (request) => {
     giverEmail,
     recipientEmail,
     creditCents,
+    ...(applied.promo ? { promo: applied.promo, discountCents, amountDueCents } : {}),
     kind: giftKind,
     claimToken,
     status: 'pending',
@@ -2324,9 +2410,16 @@ export const purchasePilotGift = onCall(async (request) => {
     createdAt: new Date().toISOString(),
   };
   await inviteRef.set(payload);
+  await recordPromoRedemption(db, {
+    sourcePath: inviteRef.path,
+    kind: 'gift',
+    resolved: resolvedPromo,
+    promo: applied.promo,
+    householdId: null,
+  });
 
   const paymentIntent = await stripe.paymentIntents.create({
-    amount: creditCents,
+    amount: amountDueCents,
     currency: 'usd',
     metadata: {
       type: 'pilot_gift',
@@ -2348,6 +2441,9 @@ export const purchasePilotGift = onCall(async (request) => {
     publishableKey: stripePublishableKey || null,
     claimToken,
     claimUrl,
+    creditCents,
+    discountCents,
+    amountDueCents,
   };
 });
 
@@ -2910,10 +3006,15 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
     // Giver already paid prepaidAddOnCents — recipient only pays upgrades above that.
     const subtotalCents = recipientGiftUpgradeCents(lineItems, prepaidAddOnCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
+    const buyerEmail =
+      String(userSnap.data()?.email ?? request.auth.token.email ?? '').trim().toLowerCase() || null;
+    const resolvedPromo = await resolveCheckoutPromo(db, request.data?.promo, buyerEmail);
+    const { discountCents, promo } = applyResolvedPromo(resolvedPromo, subtotalCents);
     const priced = checkoutTotalsAfterCredit(
       subtotalCents + shippingCents,
       giftCreditCents,
-      platformCreditCents
+      platformCreditCents,
+      discountCents
     );
     const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
 
@@ -2940,6 +3041,7 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
       lineItems,
       subtotalCents,
       shippingCents,
+      discountCents: priced.discountApplied,
       taxCents,
       totalCents,
       creditAppliedCents: creditApplied,
@@ -2951,11 +3053,19 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
       estimatedDelivery,
       lockAt,
       createdAt: FieldValue.serverTimestamp(),
+      ...(promo ? { promo } : {}),
     };
     if (totalCents === 0) orderPayload.confirmedAt = FieldValue.serverTimestamp();
     if (skipShipStation) orderPayload.playthrough = true;
     if (request.data?.surprise === true) orderPayload.giftSurprise = true;
     await orderRef.set(orderPayload);
+    await recordPromoRedemption(db, {
+      sourcePath: orderRef.path,
+      kind: 'order',
+      resolved: resolvedPromo,
+      promo,
+      householdId,
+    });
 
     await giftRef.update({
       lineItems,

@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { boxPriceCentsForKids, boxPriceForUser, computeCommittedBoxTotals } from './chargePilotBox';
+import {
+  boxPriceCentsForKids,
+  boxPriceForUser,
+  checkoutTotalsAfterCredit,
+  computeCommittedBoxTotals,
+} from './chargePilotBox';
 
 assert.equal(boxPriceCentsForKids(1), 8000);
 assert.equal(boxPriceCentsForKids(2), 9000);
@@ -37,6 +42,41 @@ const fakeDb = (kids: number) =>
   );
   assert.equal(totals.subtotalCents, 10500);
   assert.equal(totals.totalCents, 11288);
+  assert.equal(totals.discountCents, 0);
+
+  // 10% code snapshotted at checkout reprices against the lock-time subtotal, before credit and tax.
+  const discounted = computeCommittedBoxTotals(
+    [
+      { slotId: 'candles', unitCents: 0, quantity: 1 },
+      { itemId: 'lego-menorah', unitCents: 1500, quantity: 1 },
+    ],
+    9000,
+    true,
+    2000,
+    0,
+    { percentOff: 10, amountOffCents: null }
+  );
+  assert.equal(discounted.subtotalCents, 10500);
+  assert.equal(discounted.shippingCents, 1500);
+  assert.equal(discounted.discountCents, 1050);
+  // (10500 − 1050 + 1500 − 2000 credit) = 8950 taxable → 8950 + 671 tax.
+  assert.equal(discounted.giftCreditAppliedCents, 2000);
+  assert.equal(discounted.taxCents, 671);
+  assert.equal(discounted.totalCents, 9621);
+
+  // A fixed $20 code never discounts shipping.
+  const fixed = computeCommittedBoxTotals([{ slotId: 'candles', unitCents: 0, quantity: 1 }], 1000, true, 0, 0, {
+    percentOff: null,
+    amountOffCents: 2000,
+  });
+  assert.equal(fixed.discountCents, 1000);
+  assert.equal(fixed.totalCents, 1500 + Math.round(1500 * 0.075));
+
+  // Credit covers what the discount leaves; tax only on the unpaid remainder.
+  const covered = checkoutTotalsAfterCredit(8000, 8000, 0, 800);
+  assert.equal(covered.discountApplied, 800);
+  assert.equal(covered.giftCreditApplied, 7200);
+  assert.equal(covered.totalCents, 0);
 
   console.log('chargePilotBox pricing tests passed');
 })();

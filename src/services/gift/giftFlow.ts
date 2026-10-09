@@ -9,6 +9,7 @@ import {
 } from '../analytics/metaPixel';
 import type { AttributionSnapshot } from '../../stores/entryContextStore';
 import { normalizeUsState, normalizeUsZip } from '../../utils/usAddress';
+import { promoForServer, type PromoRequest } from '../promo/promoSession';
 
 export type PurchaseGiftResult = {
   giftInviteId: string;
@@ -17,6 +18,11 @@ export type PurchaseGiftResult = {
   publishableKey?: string | null;
   claimToken: string;
   claimUrl: string;
+  /** What the recipient receives. */
+  creditCents?: number;
+  discountCents?: number;
+  /** What the giver is charged (creditCents − discountCents). */
+  amountDueCents?: number;
 };
 
 export async function purchasePilotGift(input: {
@@ -34,13 +40,15 @@ export async function purchasePilotGift(input: {
 }): Promise<PurchaseGiftResult> {
   if (!functions) throw new Error('Firebase Functions is not configured.');
   const callable = httpsCallable<
-    typeof input & { meta?: MetaServerContext; attribution?: AttributionSnapshot },
+    typeof input & { meta?: MetaServerContext; attribution?: AttributionSnapshot; promo?: PromoRequest },
     PurchaseGiftResult
   >(functions, 'purchasePilotGift');
+  const promo = promoForServer();
   const { data } = await callable({
     ...input,
     meta: metaServerContext(),
     attribution: attributionForServer(),
+    ...(promo ? { promo } : {}),
   });
   return data;
 }
@@ -120,15 +128,18 @@ export async function createReceivedGiftCheckout(
       lineItems: BoxLineItem[];
       skipShipStation?: boolean;
       surprise?: boolean;
+      promo?: PromoRequest;
     },
     CreateReceivedGiftCheckoutResult
   >(functions, 'createReceivedGiftCheckout');
+  const promo = promoForServer();
   const { data } = await callable({
     giftInviteId,
     shippingAddress: address,
     lineItems,
     skipShipStation: options?.skipShipStation,
     ...(options?.surprise ? { surprise: true } : {}),
+    ...(promo ? { promo } : {}),
   });
   return data;
 }

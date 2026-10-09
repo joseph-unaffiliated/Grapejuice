@@ -19,6 +19,8 @@ export function CheckoutOrderSummary({
   catalog = [],
   giftCreditApplied = 0,
   platformCreditApplied = 0,
+  discountCents = 0,
+  discountLabel = 'Discount',
   compact = false,
   marketplaceOnly = false,
 }: {
@@ -31,6 +33,8 @@ export function CheckoutOrderSummary({
   catalog?: CatalogItem[];
   giftCreditApplied?: number;
   platformCreditApplied?: number;
+  discountCents?: number;
+  discountLabel?: string;
   /** When wrapped in a summary card — tighter heading spacing. */
   compact?: boolean;
   /** À la carte cart — hide Hanukkah box base line. */
@@ -86,6 +90,12 @@ export function CheckoutOrderSummary({
             Shipping (US)
           </Text>
           <Text style={styles.summaryPrice}>{formatDollars(shippingCents)}</Text>
+        </View>
+      ) : null}
+      {discountCents ? (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryName}>{discountLabel}</Text>
+          <Text style={styles.creditPrice}>-{formatDollars(discountCents)}</Text>
         </View>
       ) : null}
       {giftCreditApplied ? (

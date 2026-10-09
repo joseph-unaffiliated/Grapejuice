@@ -14,6 +14,7 @@ import {
 } from '../../../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../../../services/box/boxRules';
 import { checkoutTotalsAfterCredit } from '../../../services/box/pricing';
+import { usePromo } from '../../../services/promo/usePromo';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../../types/pilot';
 import { normalizeShippingAddress, validateShippingAddress } from '../../../utils/formValidation';
 
@@ -134,10 +135,12 @@ export function useCheckoutDraft(householdId: string | undefined) {
 
   const subtotal = totalCents(lineItems, boxPriceCents);
   const shippingCents = SHIPPING_FLAT_CENTS;
+  const promo = usePromo(subtotal);
   const priced = checkoutTotalsAfterCredit({
     merchandiseCents: subtotal + shippingCents,
     giftCreditCents: household?.giftCreditCents ?? 0,
     platformCreditCents: household?.platformCreditCents ?? 0,
+    discountCents: promo.discountCents,
   });
   const { taxCents, giftCreditApplied, platformCreditApplied, creditApplied, totalCents: total } = priced;
 
@@ -158,6 +161,8 @@ export function useCheckoutDraft(householdId: string | undefined) {
     giftCreditApplied,
     platformCreditApplied,
     creditApplied,
+    promo,
+    discountCents: priced.discountApplied,
     validateAddress,
     normalizedAddress,
   };

@@ -22,6 +22,9 @@ export type GiftPurchaseResult = {
   claimUrl: string;
   /** Pass back to completeGiftPurchase — finalizes for signed-out givers. */
   claimToken: string;
+  /** Server-applied discount; the recipient still gets the full amount. */
+  discountCents: number;
+  amountDueCents: number;
 };
 
 export type GiftFinalizeResult = {
@@ -64,6 +67,8 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
     publishableKey: result.publishableKey?.trim() || null,
     claimUrl: result.claimUrl,
     claimToken: result.claimToken,
+    discountCents: result.discountCents ?? 0,
+    amountDueCents: result.amountDueCents ?? creditCents,
   };
 }
 

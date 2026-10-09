@@ -37,6 +37,11 @@ function toOrder(id: string, data: Record<string, unknown>): PilotOrder {
       typeof data.platformCreditAppliedCents === 'number'
         ? data.platformCreditAppliedCents
         : undefined,
+    discountCents: typeof data.discountCents === 'number' ? data.discountCents : undefined,
+    promo:
+      data.promo && typeof data.promo === 'object'
+        ? (data.promo as NonNullable<PilotOrder['promo']>)
+        : undefined,
     lockAt: (data.lockAt as string | null) ?? null,
     trackingNumber: (data.trackingNumber as string | null) ?? null,
     carrier: (data.carrier as string | null) ?? null,

@@ -12,6 +12,8 @@ import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
+import { DiscountCodeField } from '../main/checkout/DiscountCodeField';
+import { usePromo } from '../../services/promo/usePromo';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useSession } from '../../hooks/useSession';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
@@ -135,10 +137,12 @@ function GiftBoxCheckoutBody() {
     resolveGiftPrepaidAddOnCents(gift ?? {})
   );
   const shippingCents = SHIPPING_FLAT_CENTS;
+  const promo = usePromo(subtotal);
   const priced = checkoutTotalsAfterCredit({
     merchandiseCents: subtotal + shippingCents,
     giftCreditCents: household?.giftCreditCents ?? 0,
     platformCreditCents: household?.platformCreditCents ?? 0,
+    discountCents: promo.discountCents,
   });
   const { taxCents, giftCreditApplied, platformCreditApplied, totalCents: total } = priced;
 
@@ -277,8 +281,11 @@ function GiftBoxCheckoutBody() {
         catalog={catalog}
         giftCreditApplied={giftCreditApplied}
         platformCreditApplied={platformCreditApplied}
+        discountCents={priced.discountApplied}
+        discountLabel={promo.discountLabel}
         marketplaceOnly
       />
+      {subtotal > 0 ? <DiscountCodeField promo={promo} /> : null}
       <View style={checkoutUi.divider} />
       <CheckoutAddressFields
         address={address}

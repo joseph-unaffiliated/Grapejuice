@@ -8,10 +8,12 @@ import { TypographyProvider } from './src/components/ui/TypographyProvider';
 import { warmWebAuth } from './src/services/auth/auth';
 import { captureAttributionFromWindow } from './src/stores/entryContextStore';
 import { reportUnaffiliatedVisit } from './src/services/analytics/unaffiliatedVisit';
+import { capturePromoFromWindow } from './src/services/promo/promoSession';
 
 // Before navigation rewrites the URL (drops utm_* / fbclid).
 captureAttributionFromWindow();
 reportUnaffiliatedVisit();
+capturePromoFromWindow();
 
 // Start Firebase redirect completion before the font gate mounts RootNavigator.
 // Late getRedirectResult is a common cause of "signed in with Google, still a guest".

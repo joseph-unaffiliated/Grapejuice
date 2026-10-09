@@ -42,6 +42,7 @@ import {
 } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
+import { discountCentsForTerms } from '../../services/promo/promoPricing';
 import {
   resolveSectionUpsellItems,
   resolveSwapOptionsForItem,
@@ -1525,6 +1526,8 @@ export function MyBoxScreen() {
   }
 
   const subtotal = totalCents(lineItems, boxPriceCents);
+  /** Code / influencer discount recorded at checkout; it re-applies to the box as it changes. */
+  const boxDiscountCents = discountCentsForTerms(openOrder?.promo ?? null, subtotal);
   const kidsCount = Math.max(1, children.length);
   const cashDonationCents = getCashDonationCents(lineItems);
   const chargeableAddOns = Math.max(0, chargeableLineTotal(lineItems) - cashDonationCents);
@@ -1779,9 +1782,19 @@ export function MyBoxScreen() {
               itemStyle={styles.summaryItem}
             />
           ) : null}
+          {boxDiscountCents > 0 ? (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>
+                {openOrder?.promo?.source === 'code' && openOrder.promo.code
+                  ? `Code ${openOrder.promo.code}`
+                  : 'Discount'}
+              </Text>
+              <Text style={styles.summaryValue}>-{formatCatalogDollars(boxDiscountCents)}</Text>
+            </View>
+          ) : null}
           <View style={styles.summaryTotalItem}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatCatalogDollars(subtotal)}</Text>
+            <Text style={styles.totalValue}>{formatCatalogDollars(subtotal - boxDiscountCents)}</Text>
             {retailValueCents > 0 && isDesktop ? (
               <Text style={styles.summaryRetailValue}>
                 ({formatCatalogDollars(retailValueCents)} value)

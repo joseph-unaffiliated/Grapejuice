@@ -5,7 +5,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
 import { useSession } from '../../hooks/useSession';
 import { reflectionsService } from '../../services/firestore/reflections';
-import { householdsService } from '../../services/firestore/households';
+import { awardDebriefCredit } from '../../services/promo/promotionsApi';
 import { usersService } from '../../services/firestore/users';
 import { DEBRIEF_PLATFORM_CREDIT_CENTS } from '../../services/box/pricing';
 import { HOLIDAY_ID } from '../../types/pilot';
@@ -61,7 +61,7 @@ function ReflectionFlowBody() {
       });
 
       if (!alreadyAwarded && household?.id) {
-        await householdsService.addPlatformCredit(household.id, DEBRIEF_PLATFORM_CREDIT_CENTS);
+        await awardDebriefCredit();
         await refresh();
       }
 

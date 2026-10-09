@@ -53,6 +53,28 @@
     </script>
     <script type="text/javascript">
       /**
+       * Influencer links (/r/<slug> or ?ref=<slug>) and ?code=<CODE>. Off the URL before anything
+       * reads it; the app validates and stores them (src/services/promo/promoSession.ts).
+       */
+      window.__gjPromoLanding = (function () {
+        try {
+          var url = new URL(location.href);
+          var m = url.pathname.match(/^\/r\/([A-Za-z0-9-]{2,40})\/?$/);
+          var ref = m ? m[1] : url.searchParams.get('ref');
+          var code = url.searchParams.get('code');
+          if (!m && ref === null && code === null) return null;
+          if (m) url.pathname = '/';
+          url.searchParams.delete('ref');
+          url.searchParams.delete('code');
+          history.replaceState(history.state, '', url.toString());
+          return { ref: ref ? ref.trim().toLowerCase() : null, code: code ? code.trim().toUpperCase() : null };
+        } catch (e) {
+          return null;
+        }
+      })();
+    </script>
+    <script type="text/javascript">
+      /**
        * Guest visitor id (gj.vid). Retention's lead webhook keeps the full landing_page_url,
        * so carrying ?gjv=<id> lets a lead be linked back to this browser's saved guest box
        * (functions/src/guestSessions.ts). Cookie first (survives localStorage loss in in-app

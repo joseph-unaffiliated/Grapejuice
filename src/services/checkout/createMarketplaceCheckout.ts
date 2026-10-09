@@ -8,6 +8,7 @@ import {
 } from '../analytics/metaPixel';
 import type { AttributionSnapshot } from '../../stores/entryContextStore';
 import { normalizeUsState, normalizeUsZip } from '../../utils/usAddress';
+import { promoForServer, type PromoRequest } from '../promo/promoSession';
 
 export type CreateMarketplaceCheckoutResult = {
   clientSecret: string | null;
@@ -48,9 +49,11 @@ export async function createMarketplaceCheckout(
       skipShipStation?: boolean;
       meta?: MetaServerContext;
       attribution?: AttributionSnapshot;
+      promo?: PromoRequest;
     },
     CreateMarketplaceCheckoutResult
   >(functions, 'createMarketplaceCheckout');
+  const promo = promoForServer();
   const { data } = await callable({
     ...(householdId ? { householdId } : {}),
     ...(options?.email ? { email: options.email } : {}),
@@ -59,6 +62,7 @@ export async function createMarketplaceCheckout(
     skipShipStation: options?.skipShipStation,
     meta: metaServerContext(),
     attribution: attributionForServer(),
+    ...(promo ? { promo } : {}),
   });
   return data;
 }

@@ -3,6 +3,7 @@ import { useSession } from '../../hooks/useSession';
 import { catalogService } from '../../services/firestore/catalog';
 import { SHIPPING_FLAT_CENTS } from '../../services/box/buildDefaultBox';
 import { checkoutTotalsAfterCredit } from '../../services/box/pricing';
+import { usePromo } from '../../services/promo/usePromo';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../types/pilot';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
@@ -40,10 +41,12 @@ export function useMarketplaceCheckout() {
     0
   );
   const shippingCents = SHIPPING_FLAT_CENTS;
+  const promo = usePromo(subtotal);
   const priced = checkoutTotalsAfterCredit({
     merchandiseCents: subtotal + shippingCents,
     giftCreditCents: household?.giftCreditCents ?? 0,
     platformCreditCents: household?.platformCreditCents ?? 0,
+    discountCents: promo.discountCents,
   });
   const { taxCents, giftCreditApplied, platformCreditApplied, totalCents: total } = priced;
 
@@ -60,6 +63,8 @@ export function useMarketplaceCheckout() {
     taxCents,
     giftCreditApplied,
     platformCreditApplied,
+    promo,
+    discountCents: priced.discountApplied,
     total,
     validateAddress,
     normalizedAddress,

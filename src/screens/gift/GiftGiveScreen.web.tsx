@@ -8,6 +8,8 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { orderSubtotalCents } from '../../services/box/pricing';
+import { formatDollars } from '../../services/box/buildDefaultBox';
+import { usePromo } from '../../services/promo/usePromo';
 import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -24,6 +26,7 @@ import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { STRIPE_APPEARANCE, STRIPE_FONTS } from '../main/checkout/stripeAppearance';
 import { checkoutUi } from '../main/checkout/checkoutUi';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
+import { DiscountCodeField } from '../main/checkout/DiscountCodeField';
 import { emptyShippingAddress } from '../main/checkout/useCheckoutDraft';
 import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
@@ -100,6 +103,9 @@ type GiftPayment = {
   giftInviteId: string;
   claimToken?: string;
   publishableKey: string | null;
+  discountCents?: number;
+  discountLabel?: string;
+  amountDueCents?: number;
 };
 
 /** Outlives remounts (StorefrontChrome re-parents the body when the layout breakpoint flips). */
@@ -166,6 +172,7 @@ function GiftGiveBody() {
   const amountCents = customize
     ? orderSubtotalCents(lineItems ?? [], listBoxCentsForKids(Math.max(1, childDrafts.length)))
     : listBoxCentsForKids(values.creditKids ?? 1);
+  const promo = usePromo(amountCents);
   /** Curated path collects the giver's email before the box; ask again only if we don't have it. */
   const askGiverEmailOnSend =
     !isAuthenticated && !(customize && isValidEmail(values.giverEmail?.trim() ?? ''));
@@ -434,7 +441,7 @@ function GiftGiveBody() {
         shippingAddress: address,
       };
       const signedIn = useAuthStore.getState().isAuthenticated;
-      const key = JSON.stringify([form, childDrafts, lineItems, amountCents, signedIn]);
+      const key = JSON.stringify([form, childDrafts, lineItems, amountCents, signedIn, promo.request() ?? null]);
       if (payment?.key === key) {
         goTo('pay');
         return;
@@ -452,6 +459,9 @@ function GiftGiveBody() {
         giftInviteId: result.giftInviteId,
         claimToken: result.claimToken,
         publishableKey: result.publishableKey,
+        discountCents: result.discountCents,
+        discountLabel: promo.discountLabel,
+        amountDueCents: result.amountDueCents,
       });
       recordGiftFunnelStep('checkout', { path: giftPath, inviteId: result.giftInviteId });
       goTo('pay', form);
@@ -696,6 +706,14 @@ function GiftGiveBody() {
                 )}
               </View>
             ) : null}
+            <View style={checkoutUi.divider} />
+            <DiscountCodeField promo={promo} disabled={submitting} />
+            {promo.discountCents > 0 ? (
+              <Text style={checkoutUi.hint}>
+                {promo.discountLabel}: you pay {formatDollars(amountCents - promo.discountCents)}; they still get the
+                full {formatDollars(amountCents)} gift.
+              </Text>
+            ) : null}
           </>
         );
       case 'pay':
@@ -727,6 +745,9 @@ function GiftGiveBody() {
             giverName={values.giverName}
             customize={customize}
             amountCents={amountCents}
+            discountCents={payment.discountCents}
+            discountLabel={payment.discountLabel}
+            amountDueCents={payment.amountDueCents}
             onPaid={({ claimUrl }) => {
               recordGiftFunnelStep('paid', { path: giftPath, inviteId: payment.giftInviteId });
               cancelledRef.current = true;

@@ -336,6 +336,16 @@ export type PilotOrder = {
   stripePaymentIntentId?: string;
   giftCreditAppliedCents?: number;
   platformCreditAppliedCents?: number;
+  /** Discount code / influencer offer, off the subtotal before credit and tax. */
+  discountCents?: number;
+  /** Terms snapshot from checkout; box orders reprice the discount from it at lock. */
+  promo?: {
+    source: 'code' | 'influencer' | null;
+    code: string | null;
+    influencerSlug: string | null;
+    percentOff: number | null;
+    amountOffCents: number | null;
+  };
   lockAt?: string | null;
   trackingNumber?: string | null;
   carrier?: string | null;
@@ -437,7 +447,8 @@ export type GiftInvite = {
   message?: string;
   creditCents: number;
   claimToken: string;
-  status: 'pending' | 'claimed';
+  /** cancelled: the giver cancelled it before paying. */
+  status: 'pending' | 'claimed' | 'cancelled';
   paymentStatus?: 'pending' | 'paid';
   claimEmailSentAt?: string;
   lineItems?: BoxLineItem[];

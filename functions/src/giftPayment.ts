@@ -5,6 +5,7 @@ import { sendGiftClaimEmail } from './email';
 import { sendMetaEvent, type MetaClientContext } from './metaCapi';
 import { recomputeBoxAllocations } from './catalogInventory';
 import { deliveryDateLabel, lockDateLabel } from './setupNudge';
+import type { OrderPromo } from './promoPricing';
 
 export type GiftInviteRecord = {
   giverUid: string;
@@ -13,6 +14,11 @@ export type GiftInviteRecord = {
   recipientEmail: string;
   message?: string;
   creditCents: number;
+  /** Discount-code / influencer savings; the recipient still gets the full creditCents. */
+  discountCents?: number;
+  /** What the giver pays: creditCents − discountCents. */
+  amountDueCents?: number;
+  promo?: OrderPromo;
   claimToken: string;
   status: 'pending' | 'claimed';
   paymentStatus?: 'pending' | 'paid';

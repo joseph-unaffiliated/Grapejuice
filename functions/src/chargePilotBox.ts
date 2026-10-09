@@ -6,6 +6,7 @@ import { exportOrderToShipStation } from './shipstation';
 import { sendEmail } from './email';
 import { untraditionalMarkSafe } from './untraditionalCio';
 import { PRICING_POLICY } from './rav/boxRules';
+import { discountCentsForTerms, type PromoTerms } from './promoPricing';
 
 export const HOLIDAY_ID = 'hanukkah-2026';
 export const DEFAULT_BOX_PRICE_CENTS = 8000;
@@ -31,19 +32,25 @@ const SHIPPING_FLAT_CENTS = 0;
 const EXPEDITED_SHIPPING_CENTS = 1500;
 const CHECKOUT_TAX_RATE = 0.075;
 
-/** Credit covers merchandise first. Tax applies only to the unpaid remainder. */
+/**
+ * A discount comes off first, then credit covers what's left of the merchandise. Tax applies only
+ * to the unpaid remainder. `discountCents` is computed on the subtotal (not shipping) by the caller.
+ */
 export function checkoutTotalsAfterCredit(
   merchandiseCents: number,
   giftCreditCents: number,
-  platformCreditCents: number
+  platformCreditCents: number,
+  discountCents = 0
 ): {
+  discountApplied: number;
   giftCreditApplied: number;
   platformCreditApplied: number;
   creditApplied: number;
   taxCents: number;
   totalCents: number;
 } {
-  const merchandise = Math.max(0, merchandiseCents);
+  const discountApplied = Math.min(Math.max(0, Math.round(discountCents)), Math.max(0, merchandiseCents));
+  const merchandise = Math.max(0, merchandiseCents) - discountApplied;
   const giftCreditApplied = Math.min(Math.max(0, giftCreditCents), merchandise);
   const platformCreditApplied = Math.min(
     Math.max(0, platformCreditCents),
@@ -52,6 +59,7 @@ export function checkoutTotalsAfterCredit(
   const taxableCents = merchandise - giftCreditApplied - platformCreditApplied;
   const taxCents = Math.round(taxableCents * CHECKOUT_TAX_RATE);
   return {
+    discountApplied,
     giftCreditApplied,
     platformCreditApplied,
     creditApplied: giftCreditApplied + platformCreditApplied,
@@ -84,17 +92,22 @@ function orderSubtotalCents(lineItems: BoxLineItem[], boxPriceCents: number): nu
   return base + chargeableLineTotal(lineItems);
 }
 
-/** Final totals from current draft + credits frozen on the order at commit. */
+/**
+ * Final totals from current draft + credits frozen on the order at commit. `promo` is the discount
+ * snapshot recorded at checkout; it reprices against the final subtotal.
+ */
 export function computeCommittedBoxTotals(
   lineItems: BoxLineItem[],
   boxPriceCents: number,
   expeditedShipping: boolean,
   giftCreditApplied: number,
-  platformCreditApplied: number
+  platformCreditApplied: number,
+  promo?: Partial<PromoTerms> | null
 ): {
   lineItems: BoxLineItem[];
   subtotalCents: number;
   shippingCents: number;
+  discountCents: number;
   taxCents: number;
   totalCents: number;
   creditAppliedCents: number;
@@ -106,12 +119,14 @@ export function computeCommittedBoxTotals(
   const priced = checkoutTotalsAfterCredit(
     subtotalCents + shippingCents,
     giftCreditApplied,
-    platformCreditApplied
+    platformCreditApplied,
+    discountCentsForTerms(promo, subtotalCents)
   );
   return {
     lineItems,
     subtotalCents,
     shippingCents,
+    discountCents: priced.discountApplied,
     taxCents: priced.taxCents,
     totalCents: priced.totalCents,
     creditAppliedCents: priced.creditApplied,
@@ -307,6 +322,7 @@ async function markHanukkahBoxConfirmed(
     lineItems: totals.lineItems,
     subtotalCents: totals.subtotalCents,
     shippingCents: totals.shippingCents,
+    discountCents: totals.discountCents,
     taxCents: totals.taxCents,
     totalCents: totals.totalCents,
     creditAppliedCents: totals.creditAppliedCents,
@@ -395,7 +411,8 @@ export async function chargeSinglePilotBoxOrder(
     boxPriceCents,
     expeditedShipping,
     giftCreditApplied,
-    platformCreditApplied
+    platformCreditApplied,
+    (order.promo as Partial<PromoTerms> | null | undefined) ?? null
   );
 
   const legacyPiId =
@@ -422,6 +439,7 @@ export async function chargeSinglePilotBoxOrder(
     lineItems: totals.lineItems,
     subtotalCents: totals.subtotalCents,
     shippingCents: totals.shippingCents,
+    discountCents: totals.discountCents,
     taxCents: totals.taxCents,
     totalCents: totals.totalCents,
     creditAppliedCents: totals.creditAppliedCents,

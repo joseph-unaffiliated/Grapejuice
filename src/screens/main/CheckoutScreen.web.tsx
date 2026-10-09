@@ -30,6 +30,7 @@ import type { SemanticColors } from '../../constants/themeMode';
 import { useCheckoutDraft, clearStoredCheckoutAddress } from './checkout/useCheckoutDraft';
 import { editUntilLockNote } from '../../services/hanukkah/dates';
 import { CheckoutOrderSummary } from './checkout/CheckoutOrderSummary';
+import { DiscountCodeField } from './checkout/DiscountCodeField';
 import { CheckoutAddressFields } from './checkout/CheckoutAddressFields';
 import { useAddressDeliverability } from './checkout/useAddressDeliverability';
 import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
@@ -220,6 +221,8 @@ function CheckoutScreenBody() {
     taxCents,
     giftCreditApplied,
     platformCreditApplied,
+    promo,
+    discountCents,
   } = useCheckoutDraft(household?.id);
 
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
@@ -493,6 +496,8 @@ function CheckoutScreenBody() {
       catalog={catalog}
       giftCreditApplied={giftCreditApplied}
       platformCreditApplied={platformCreditApplied}
+      discountCents={discountCents}
+      discountLabel={promo.discountLabel}
     />
   );
 
@@ -665,6 +670,7 @@ function CheckoutScreenBody() {
       ) : null}
       <View style={checkoutUi.divider} />
       {orderSummary}
+      <DiscountCodeField promo={promo} disabled={committing || locked} />
       <View style={checkoutUi.divider} />
       {checkoutForm}
     </SystemPage>

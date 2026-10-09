@@ -19,6 +19,7 @@ import type { PilotOrder } from '../../types/pilot';
 import { spacing, semanticColors } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
+import { DiscountCodeField } from '../main/checkout/DiscountCodeField';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { checkoutUi } from '../main/checkout/checkoutUi';
@@ -79,6 +80,8 @@ function MarketplaceCheckoutBody() {
     taxCents,
     giftCreditApplied,
     platformCreditApplied,
+    promo,
+    discountCents,
   } = useMarketplaceCheckout();
 
   const [preparing, setPreparing] = useState(false);
@@ -264,6 +267,8 @@ function MarketplaceCheckoutBody() {
       catalog={catalog}
       giftCreditApplied={giftCreditApplied}
       platformCreditApplied={platformCreditApplied}
+      discountCents={discountCents}
+      discountLabel={promo.discountLabel}
       marketplaceOnly
     />
   );
@@ -318,6 +323,7 @@ function MarketplaceCheckoutBody() {
       <Text style={checkoutUi.lead}>{lead}</Text>
       <View style={checkoutUi.divider} />
       {orderSummary}
+      <DiscountCodeField promo={promo} disabled={preparing} />
       <View style={checkoutUi.divider} />
       {!isAuthenticated ? (
         <>

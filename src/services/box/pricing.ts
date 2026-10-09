@@ -32,22 +32,29 @@ export const EXPEDITED_SHIPPING_CENTS = 1500;
 export const CHECKOUT_TAX_RATE = 0.075;
 
 /**
- * Credit pays for the box (and shipping) first. Tax is only on the leftover,
- * so an $80 gift that covers an $80 box does not leave a tax balance.
+ * A discount code comes off first (computed on the subtotal, never shipping). Credit then pays for
+ * the box (and shipping). Tax is only on the leftover, so an $80 gift that covers an $80 box does
+ * not leave a tax balance. Mirrors functions/src/chargePilotBox.ts.
  */
 export function checkoutTotalsAfterCredit(params: {
   merchandiseCents: number;
   giftCreditCents: number;
   platformCreditCents: number;
+  discountCents?: number;
   taxRate?: number;
 }): {
+  discountApplied: number;
   giftCreditApplied: number;
   platformCreditApplied: number;
   creditApplied: number;
   taxCents: number;
   totalCents: number;
 } {
-  const merchandise = Math.max(0, params.merchandiseCents);
+  const discountApplied = Math.min(
+    Math.max(0, Math.round(params.discountCents ?? 0)),
+    Math.max(0, params.merchandiseCents)
+  );
+  const merchandise = Math.max(0, params.merchandiseCents) - discountApplied;
   const giftCreditApplied = Math.min(Math.max(0, params.giftCreditCents), merchandise);
   const platformCreditApplied = Math.min(
     Math.max(0, params.platformCreditCents),
@@ -56,6 +63,7 @@ export function checkoutTotalsAfterCredit(params: {
   const taxableCents = merchandise - giftCreditApplied - platformCreditApplied;
   const taxCents = Math.round(taxableCents * (params.taxRate ?? CHECKOUT_TAX_RATE));
   return {
+    discountApplied,
     giftCreditApplied,
     platformCreditApplied,
     creditApplied: giftCreditApplied + platformCreditApplied,

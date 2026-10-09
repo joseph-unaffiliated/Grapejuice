@@ -69,17 +69,6 @@ export const householdsService = {
     });
   },
 
-  async addPlatformCredit(householdId: string, cents: number): Promise<void> {
-    if (!db) throw new Error('Firestore not configured');
-    const snap = await getDoc(doc(db, 'households', householdId));
-    if (!snap.exists()) throw new Error('Household not found');
-    const current = typeof snap.data()?.platformCreditCents === 'number' ? snap.data()!.platformCreditCents : 0;
-    await updateDoc(doc(db, 'households', householdId), {
-      platformCreditCents: current + cents,
-      updatedAt: new Date().toISOString(),
-    });
-  },
-
   async setWishlistItemIds(householdId: string, wishlistItemIds: string[]): Promise<void> {
     if (!db) throw new Error('Firestore not configured');
     await updateDoc(doc(db, 'households', householdId), {
