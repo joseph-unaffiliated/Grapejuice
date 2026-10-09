@@ -3,6 +3,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { HttpsError, onCall } from './sentry';
 import { isAdminToken } from './guestSessions';
 import { metaAdsAccessToken, metaStatsByAd, type MetaAdStats } from './metaAdsInsights';
+import { isTest } from './testAccounts';
 
 /**
  * Admin "Boxes and gifts" dashboard: one read-only snapshot of Hanukkah box orders,
@@ -267,18 +268,6 @@ function addLines(totals: Map<string, number>, lines: unknown): void {
     const q = Math.max(1, Math.floor(Number(li.quantity) || 1));
     totals.set(id, (totals.get(id) ?? 0) + q);
   }
-}
-
-/**
- * Team and QA accounts by email only: @unaffiliated.co, placeholder domains, or Joseph's / Brendan's
- * addresses. Names don't count — the family form pre-filled "Joseph" for customers until Oct 8.
- */
-function isTest(...vals: Array<string | null | undefined>): boolean {
-  return vals.some((v) => {
-    if (!v || !v.includes('@')) return false;
-    const s = v.toLowerCase();
-    return /@unaffiliated?(\.co)?$/.test(s) || /@(a\.com|test\.com|example\.com)$/.test(s) || /joseph|jweissgold|brendan/.test(s);
-  });
 }
 
 /** "Sarah Cohen" → "Sarah". */

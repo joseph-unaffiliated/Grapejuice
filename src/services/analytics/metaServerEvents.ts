@@ -11,28 +11,13 @@ import {
 type ServerEventName = 'CompleteRegistration' | 'PreRegister' | 'BoxBuilt';
 
 /** Conversions API copy of a browser event (same event id → Meta dedupes). Never throws. */
-function sendServerEvent(
-  eventName: ServerEventName,
-  meta: MetaServerContext,
-  contentName?: string,
-  practiceFrequencyScore?: number
-): void {
+function sendServerEvent(eventName: ServerEventName, meta: MetaServerContext, contentName?: string): void {
   if (!functions || meta.skip) return;
   const callable = httpsCallable<
-    {
-      eventName: ServerEventName;
-      meta: MetaServerContext;
-      contentName?: string;
-      practiceFrequencyScore?: number;
-    },
+    { eventName: ServerEventName; meta: MetaServerContext; contentName?: string },
     { ok: boolean }
   >(functions, 'trackMetaEvent');
-  void callable({
-    eventName,
-    meta,
-    ...(contentName ? { contentName } : {}),
-    ...(typeof practiceFrequencyScore === 'number' ? { practiceFrequencyScore } : {}),
-  }).catch(() => undefined);
+  void callable({ eventName, meta, ...(contentName ? { contentName } : {}) }).catch(() => undefined);
 }
 
 const REG_SENT_KEY = 'gj.metaRegSent';
@@ -72,10 +57,6 @@ export function trackPreRegister(interestKey: string): void {
 }
 
 /**
- * Box builder produced a curated box (guest or signed in). Quiz-built boxes never fire
- * AddToCart, so this is the only ad-side signal that a visitor got as far as a box.
- */
-/**
  * Email entered on the box reveal gate. Browser copy only — revealBoxWithEmail sends the
  * server copy (with the hashed email) under the same event id. Custom, not `Lead`: the
  * dataset's Lead belongs to other brands.
@@ -87,11 +68,13 @@ export function trackBoxEmail(): MetaServerContext {
 }
 
 /**
- * `practiceFrequencyScore` goes to our server only, which picks the follow-up audience.
- * Never put slider scores in pixel params.
+ * Box builder produced a curated box (guest or signed in). Quiz-built boxes never fire
+ * AddToCart, so this is the only ad-side signal that a visitor got as far as a box.
+ * The server copy also adds the visitor to the follow-up audience. Never put slider scores
+ * in pixel params.
  */
-export function trackBoxBuilt(numItems: number, practiceFrequencyScore?: number): void {
+export function trackBoxBuilt(numItems: number): void {
   const eventId = newMetaEventId('boxbuilt');
   trackMetaCustom('BoxBuilt', { content_name: 'Hanukkah box', num_items: numItems }, eventId);
-  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box', practiceFrequencyScore);
+  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box');
 }

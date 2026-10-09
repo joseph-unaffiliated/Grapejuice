@@ -2376,15 +2376,11 @@ export const finalizePilotGiftPayment = onCall(async (request) => {
 });
 
 /**
- * Box builders below this "How often do you do Jewish stuff?" score also get a server-only
- * BoxFollowUp event for the Meta follow-up audience. Meta receives membership, never the score
- * or the cutoff: religious practice is sensitive data under Meta's Business Tools Terms.
- */
-const FOLLOW_UP_MAX_PRACTICE_FREQUENCY = 40;
-
-/**
  * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
  * per account (`reg_<uid>`); PreRegister and BoxBuilt reuse the browser's event id for dedupe.
+ * Every BoxBuilt also sends a server-only BoxFollowUp, which feeds the Meta follow-up audience
+ * (purchasers are excluded in the ad set). The practice-frequency score is never sent to Meta:
+ * religious practice is sensitive data under Meta's Business Tools Terms.
  */
 export const trackMetaEvent = onCall(async (request) => {
   const eventName = request.data?.eventName;
@@ -2429,8 +2425,7 @@ export const trackMetaEvent = onCall(async (request) => {
     ...(contentName ? { customData: { content_name: contentName } } : {}),
   });
 
-  const frequency = Number(request.data?.practiceFrequencyScore);
-  if (eventName === 'BoxBuilt' && Number.isFinite(frequency) && frequency < FOLLOW_UP_MAX_PRACTICE_FREQUENCY) {
+  if (eventName === 'BoxBuilt') {
     await sendMetaEvent({
       eventName: 'BoxFollowUp',
       eventId: `followup_${randomBytes(8).toString('hex')}`,

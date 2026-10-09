@@ -69,6 +69,8 @@ Every ad: CTA **Shop now**; tracking `utm_source=meta&utm_medium=paid_social&utm
 
 ### Follow-up (campaign "Grapejuice Co - Follow-up", ad set "Follow-up - BoxFollowUp 30d", landing https://grapejuice.co/box)
 
+Audience: website audience "Grapejuice box follow-up 30d" (`120247895234950519`, everyone whose box build fired the server-only `BoxFollowUp` event in the last 30 days, signed in or not), minus newsletter subscribers and purchasers. Account holders with a box but no card, plus lead CSVs, go in a separate customer list built by `scripts/meta-followup-list-audience.mjs`; it only reaches people once it's added to this ad set.
+
 **followup-no-experience-v1**
 
 > Hanukkah without the learning curve. No Hebrew, no prior knowledge needed. Just candles, food, stories and play for eight nights. It all comes in the box. Easy. Affordable. Accessible.
