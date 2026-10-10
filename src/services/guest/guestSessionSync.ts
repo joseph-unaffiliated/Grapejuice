@@ -14,7 +14,8 @@ import {
   type GiftIntentStatus,
 } from '../../stores/giftIntentStore';
 import { readAttributionSnapshot } from '../../stores/entryContextStore';
-import type { BoxLineItem, FamiliarityLevel } from '../../types/pilot';
+import type { BoxLineItem, FamiliarityLevel, InventorySwapNotice } from '../../types/pilot';
+import { parseSwapNotices } from '../firestore/boxDraft';
 import type { ChildDraft } from '../../components/family/familyDraft';
 import { remapLegacyCatalogIds, retireLegacyBoxLines } from '../box/legacyCatalogIds';
 
@@ -37,6 +38,8 @@ export type GuestSnapshotGuest = {
   practiceFrequencyScore?: number;
   lineItems: BoxLineItem[];
   wrapSelectedItemIds: string[];
+  /** Sold-out swaps not yet shown (the server's inventory watch adds these too). */
+  inventorySwapNotices?: InventorySwapNotice[];
   wishlistItemIds: string[];
   ravNotes: string;
   onboardingComplete: boolean;
@@ -79,6 +82,7 @@ function guestFromStore(): GuestSnapshotGuest {
     practiceFrequencyScore: s.practiceFrequencyScore,
     lineItems: s.lineItems,
     wrapSelectedItemIds: s.wrapSelectedItemIds,
+    inventorySwapNotices: s.inventorySwapNotices,
     wishlistItemIds: s.wishlistItemIds,
     ravNotes: s.ravNotes,
     onboardingComplete: s.onboardingComplete,
@@ -159,6 +163,7 @@ export function applyGuestSnapshot(snapshot: GuestSessionSnapshot): void {
     practiceFrequencyScore: typeof guest.practiceFrequencyScore === 'number' ? guest.practiceFrequencyScore : 50,
     lineItems: retired.lineItems,
     wrapSelectedItemIds: remapLegacyCatalogIds(guest.wrapSelectedItemIds ?? []),
+    inventorySwapNotices: parseSwapNotices(guest.inventorySwapNotices),
     wishlistItemIds: remapLegacyCatalogIds(guest.wishlistItemIds ?? []),
     ravNotes: guest.ravNotes ?? '',
     onboardingComplete: guest.onboardingComplete ?? false,

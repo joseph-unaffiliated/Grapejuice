@@ -18,7 +18,20 @@ import {
 import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
 import { emptySlotVotes } from '../services/box/slotVotes';
-import type { BoxLineItem, BoxDraft, ChildProfile, FamiliarityLevel, SlotVotes } from '../types/pilot';
+import {
+  isCatalogItemSoldOut,
+  mergeSwapNotices,
+  reconcileSoldOutLines,
+} from '../services/box/soldOutReconcile';
+import { ordersService } from '../services/firestore/orders';
+import type {
+  BoxLineItem,
+  BoxDraft,
+  ChildProfile,
+  FamiliarityLevel,
+  InventorySwapNotice,
+  SlotVotes,
+} from '../types/pilot';
 import type { ChildDraft } from '../components/family/familyDraft';
 
 function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
@@ -47,7 +60,10 @@ type AuthBoxDraftSnapshot = {
   wrapSelectedItemIds: string[];
   children: ChildProfile[];
   familiarity: FamiliarityLevel;
+  swapNotices: InventorySwapNotice[];
 };
+
+const SECURED_BOX_STATUSES = new Set<string>(['pending', 'committed', 'confirmed', 'shipped', 'delivered']);
 
 let authBoxDraftCache: AuthBoxDraftSnapshot | null = null;
 
@@ -157,6 +173,28 @@ async function fetchAuthBoxDraft({
   const repairedWoodIncluded = repairWoodDreidelIncluded(nextLines, catalog);
   if (repairedWoodIncluded.dirty) nextLines = repairedWoodIncluded.lineItems;
 
+  let swapNotices = draft?.inventorySwapNotices ?? [];
+  let soldOutDirty = false;
+  const byId = new Map(catalog.map((c) => [c.id, c]));
+  if (nextLines.some((li) => isCatalogItemSoldOut(byId.get(li.itemId)))) {
+    // A secured box's order holds its own units — only unsecured drafts get swapped.
+    const orders = await ordersService.listForHousehold(householdId).catch(() => null);
+    const secured =
+      orders == null ||
+      orders.some(
+        (o) =>
+          SECURED_BOX_STATUSES.has(o.status) && o.orderType !== 'marketplace' && o.orderType !== 'received_gift'
+      );
+    if (!secured) {
+      const swapped = reconcileSoldOutLines(nextLines, catalog, nextKids);
+      if (swapped.notices.length) {
+        nextLines = swapped.lines;
+        swapNotices = mergeSwapNotices(swapNotices, swapped.notices);
+        soldOutDirty = true;
+      }
+    }
+  }
+
   const wrapIds = draft?.wrapSelectedItemIds ?? [];
   const beforeWrap = nextLines;
   nextLines = syncWrappingPaperUnitCentsForWrapSelection(
@@ -172,7 +210,8 @@ async function fetchAuthBoxDraft({
     repairedWood.dirty ||
     repairedWoodIncluded.dirty ||
     repairedBooks.dirty ||
-    wrapDirty
+    wrapDirty ||
+    soldOutDirty
   ) {
     try {
       await boxDraftService.save(householdId, uid, nextLines, {
@@ -182,6 +221,7 @@ async function fetchAuthBoxDraft({
         wrapSelectedItemIds: draft?.wrapSelectedItemIds,
         sealedSectionIds: draft?.sealedSectionIds,
       });
+      if (soldOutDirty) await boxDraftService.saveSwapNotices(householdId, uid, swapNotices);
     } catch (e) {
       console.warn('[box] failed to persist box line repairs', e);
     }
@@ -195,6 +235,7 @@ async function fetchAuthBoxDraft({
     wrapSelectedItemIds: wrapIds,
     children: nextKids,
     familiarity: profileFamiliarity ?? draft?.familiarityLevel ?? 'moderate',
+    swapNotices,
   };
   writeAuthBoxDraftCache(snapshot);
   useBoxPresenceStore.getState().setHasBox(householdId, nextLines.length > 0);
@@ -286,6 +327,7 @@ export function useBoxDraft() {
   const guestWrapSelectedItemIds = useGuestSessionStore((s) => s.wrapSelectedItemIds);
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
   const setGuestWrapSelectedItemIds = useGuestSessionStore((s) => s.setWrapSelectedItemIds);
+  const guestSwapNotices = useGuestSessionStore((s) => s.inventorySwapNotices);
 
   const cached = peekAuthBoxDraft(household?.id);
   const [lineItems, setLineItems] = useState<BoxLineItem[]>(() => cached?.lineItems ?? []);
@@ -300,6 +342,7 @@ export function useBoxDraft() {
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>(
     () => cached?.familiarity ?? 'moderate'
   );
+  const [authSwapNotices, setAuthSwapNotices] = useState<InventorySwapNotice[]>(() => cached?.swapNotices ?? []);
   const [loading, setLoading] = useState(() => !cached);
   const [loadError, setLoadError] = useState(false);
 
@@ -337,6 +380,12 @@ export function useBoxDraft() {
             wrapIds.length,
             EXTRA_FLAT_CENTS
           );
+          const swapped = reconcileSoldOutLines(lines, catalog, kids);
+          if (swapped.notices.length) {
+            lines = swapped.lines;
+            const store = useGuestSessionStore.getState();
+            store.setInventorySwapNotices(mergeSwapNotices(store.inventorySwapNotices, swapped.notices));
+          }
         } catch (e) {
           console.warn('[box] guest extra book pricing repair skipped', e);
           const repairedIncluded = repairWoodDreidelIncluded(lines);
@@ -366,6 +415,7 @@ export function useBoxDraft() {
       setWrapSelectedItemIds(seeded.wrapSelectedItemIds);
       setChildren(seeded.children);
       setFamiliarity(seeded.familiarity);
+      setAuthSwapNotices(seeded.swapNotices);
       setLoading(false);
     } else {
       setLoading(true);
@@ -416,6 +466,7 @@ export function useBoxDraft() {
     setSealedSectionIds(snapshot.sealedSectionIds);
     setWrapSelectedItemIds(snapshot.wrapSelectedItemIds);
     setLineItems(snapshot.lineItems);
+    setAuthSwapNotices(snapshot.swapNotices);
     setLoading(false);
   }, [
     isAuthenticated,
@@ -462,6 +513,7 @@ export function useBoxDraft() {
         wrapSelectedItemIds: prev?.wrapSelectedItemIds ?? wrapSelectedItemIds,
         children: prev?.children ?? children,
         familiarity: prev?.familiarity ?? familiarity,
+        swapNotices: prev?.swapNotices ?? authSwapNotices,
       });
       useBoxPresenceStore.getState().setHasBox(household.id, next.length > 0);
       await boxDraftService.save(household.id, user.uid, next, {
@@ -480,6 +532,7 @@ export function useBoxDraft() {
       sealedSectionIds,
       wrapSelectedItemIds,
       children,
+      authSwapNotices,
       setGuestLineItems,
     ]
   );
@@ -506,6 +559,18 @@ export function useBoxDraft() {
     [isAuthenticated, household?.id, user?.uid, setGuestWrapSelectedItemIds]
   );
 
+  const dismissSwapNotices = useCallback(async () => {
+    if (!isAuthenticated) {
+      useGuestSessionStore.getState().setInventorySwapNotices([]);
+      return;
+    }
+    setAuthSwapNotices([]);
+    if (!household?.id || !user?.uid) return;
+    const prev = peekAuthBoxDraft(household.id);
+    if (prev) writeAuthBoxDraftCache({ ...prev, swapNotices: [] });
+    await boxDraftService.saveSwapNotices(household.id, user.uid, []);
+  }, [isAuthenticated, household?.id, user?.uid]);
+
   return {
     lineItems,
     slotVotes,
@@ -521,5 +586,8 @@ export function useBoxDraft() {
     persistSlotVotes,
     persistWrapSelection,
     refresh,
+    /** Sold-out items swapped out of this box since the shopper last saw the note. */
+    swapNotices: isAuthenticated ? authSwapNotices : guestSwapNotices,
+    dismissSwapNotices,
   };
 }

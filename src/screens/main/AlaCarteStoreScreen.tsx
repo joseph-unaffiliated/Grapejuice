@@ -20,6 +20,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import { semanticColors, spacing, typography, borderRadius, shadowsWeb } from '../../constants/theme';
 
 export function AlaCarteStoreScreen() {
@@ -70,7 +71,7 @@ function AlaCarteStoreBody() {
   };
 
   const addItem = async (item: CatalogItem) => {
-    if (locked || isInBox(item.id)) return;
+    if (locked || isInBox(item.id) || isCatalogItemSoldOut(item)) return;
     const tier = inferPricingTier(item);
     const next: BoxLineItem[] = [
       ...lineItems,

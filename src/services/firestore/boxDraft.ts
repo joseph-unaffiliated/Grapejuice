@@ -1,6 +1,6 @@
 import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { BoxDraft, BoxLineItem, SlotVotes } from '../../types/pilot';
+import type { BoxDraft, BoxLineItem, InventorySwapNotice, SlotVotes } from '../../types/pilot';
 import { HOLIDAY_ID } from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
 
@@ -25,7 +25,26 @@ function toDraft(data: Record<string, unknown>): BoxDraft {
     updatedAt: String(data.updatedAt ?? ''),
     updatedBy: String(data.updatedBy ?? ''),
     lockedAt: (data.lockedAt as string | null) ?? null,
+    inventorySwapNotices: parseSwapNotices(data.inventorySwapNotices),
   };
+}
+
+export function parseSwapNotices(raw: unknown): InventorySwapNotice[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((n) => {
+    if (!n || typeof n !== 'object') return [];
+    const r = n as Record<string, unknown>;
+    if (typeof r.fromItemId !== 'string' || !r.fromItemId) return [];
+    return [
+      {
+        fromItemId: r.fromItemId,
+        fromName: typeof r.fromName === 'string' ? r.fromName : r.fromItemId,
+        toItemId: typeof r.toItemId === 'string' ? r.toItemId : null,
+        toName: typeof r.toName === 'string' ? r.toName : null,
+        at: typeof r.at === 'string' ? r.at : '',
+      },
+    ];
+  });
 }
 
 /** Firestore rejects `undefined` anywhere in a document — drop those keys. */
@@ -121,6 +140,13 @@ export const boxDraftService = {
     const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
     const now = new Date().toISOString();
     await setDoc(ref, { wrapSelectedItemIds, updatedAt: now, updatedBy: uid }, { merge: true });
+  },
+
+  async saveSwapNotices(householdId: string, uid: string, notices: InventorySwapNotice[]): Promise<void> {
+    if (!db) throw new Error('Firestore not configured');
+    await ensureAuthTokenReady(uid);
+    const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
+    await setDoc(ref, { inventorySwapNotices: notices }, { merge: true });
   },
 
   /** Admin/tester helper — remove the holiday draft so curation can restart. */

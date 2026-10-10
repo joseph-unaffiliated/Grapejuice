@@ -158,6 +158,8 @@ export type BoxRulesCatalogRow = {
   inventory?: number | null;
   /** Units still free for boxes (inventory − box allocations − direct sales). */
   stockLeft?: number | null;
+  /** Units sitting in unsecured drafts (account drafts + signed-out boxes); they hold no stock. */
+  draftHeld?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
   memberPriceCents?: number;
@@ -219,6 +221,13 @@ export const STOCK_POLICY = {
    * available as a swap for shoppers who ask for it.
    */
   swapReserveFraction: 0.15,
+  /**
+   * Stop defaulting once this few units remain after real holds AND every
+   * unsecured draft. Drafts hold nothing, so the count can go below zero.
+   */
+  lowRemainingWithDrafts: 5,
+  /** Restockable: drafts don't count against these, only real holds (same 5-left line). */
+  draftCountExemptIds: ['latke-kit', 'sufganiyot-kit'] as readonly string[],
   /** Books: infinite / no hold (Hold inventory unchecked). */
   booksHoldInventory: false,
   dualHomeBrowseOk: true,
@@ -590,10 +599,35 @@ export function swapReserveUnits(row: BoxRulesCatalogRow): number {
   );
 }
 
-/** Above its swap reserve (or untracked) — OK to hand out as a default. */
+/**
+ * Units left after real holds and every unsecured draft. Internal only: it can
+ * go negative and never blocks adding or swapping. Null = untracked.
+ */
+export function rowRemainingWithDrafts(row: BoxRulesCatalogRow): number | null {
+  const left = rowStockLeft(row);
+  if (left == null) return null;
+  if (STOCK_POLICY.draftCountExemptIds.includes(row.id)) return left;
+  const held =
+    typeof row.draftHeld === 'number' && Number.isFinite(row.draftHeld) ? Math.max(0, Math.floor(row.draftHeld)) : 0;
+  return left - held;
+}
+
+/** Few enough left (counting drafts) to stop defaulting it and warn draft holders. */
+export function isLowWithDrafts(row: BoxRulesCatalogRow): boolean {
+  const remaining = rowRemainingWithDrafts(row);
+  return remaining != null && remaining <= STOCK_POLICY.lowRemainingWithDrafts;
+}
+
+/** Every unit is held by a secured box, paid gift, or purchase. */
+export function isSoldOutForBoxes(row: BoxRulesCatalogRow): boolean {
+  const left = rowStockLeft(row);
+  return left != null && left <= 0;
+}
+
+/** Above its swap reserve and not low counting drafts (or untracked) — OK to hand out as a default. */
 export function isDefaultEligible(row: BoxRulesCatalogRow): boolean {
   const left = rowStockLeft(row);
-  return left == null || left > swapReserveUnits(row);
+  return left == null || (left > swapReserveUnits(row) && !isLowWithDrafts(row));
 }
 
 /** Can spare a unit without handing out the last one. */
@@ -1068,6 +1102,147 @@ export function resolveGiftKind(
       Number(isDefaultEligible(b)) - Number(isDefaultEligible(a)) ||
       giftDefaultScore(b) - giftDefaultScore(a)
   )[0];
+}
+
+// —— Sold-out replacement ————————————————————————————————————————————————
+
+export type SoldOutLine = {
+  slotId: string;
+  itemId: string;
+  childId?: string;
+  /** Paid extras only swap within their own kind or slot (the price stays the same). */
+  unitCents?: number;
+};
+
+export type SoldOutReplacementOptions = {
+  /** Planner age of the child a per-kid line belongs to. */
+  age?: number;
+  /** Ids already elsewhere in the box (or claimed by an earlier swap). */
+  avoidIds?: Iterable<string>;
+};
+
+function giftKindOfRow(row: BoxRulesCatalogRow): GiftKindId | undefined {
+  const h = haystack(row);
+  return (Object.keys(GIFT_KIND_PATTERNS) as GiftKindId[]).find(
+    (kind) => kind !== 'extra-book' && GIFT_KIND_PATTERNS[kind].some((re) => re.test(h))
+  );
+}
+
+function isGiftLineSlot(slotId: string): boolean {
+  return slotId === 'gift' || slotId.startsWith('gift-');
+}
+
+function bestReplacement(rows: (BoxRulesCatalogRow | undefined)[]): BoxRulesCatalogRow | undefined {
+  const usable = rows.filter((r): r is BoxRulesCatalogRow => !!r && !isSoldOutForBoxes(r));
+  return usable.find(isDefaultEligible) ?? usable.find(canAssignUnit);
+}
+
+/**
+ * What replaces a sold-out line, by the same rules that build a box: the
+ * candles fallback for candles, the kid's next gift kind for gifts, the same
+ * default slot or gift kind otherwise. Prefers rows that pass the default rule,
+ * then anything that can spare a unit. Undefined → drop the line.
+ */
+export function soldOutReplacement(
+  catalog: BoxRulesCatalogRow[],
+  line: SoldOutLine,
+  options: SoldOutReplacementOptions = {}
+): BoxRulesCatalogRow | undefined {
+  const soldOut = catalog.find((r) => r.id === line.itemId);
+  if (!soldOut) return undefined;
+  const avoid = new Set([line.itemId, ...(options.avoidIds ?? [])]);
+  const pool = catalog.filter((r) => !avoid.has(r.id) && !isSoldOutForBoxes(r));
+  const paid = (line.unitCents ?? 0) > 0;
+
+  const candleKind = CANDLES_FALLBACK_ORDER.find((k) => resolveCandlesRow(catalog, k)?.id === line.itemId);
+  if (candleKind && !isGiftLineSlot(line.slotId)) {
+    return bestReplacement(
+      CANDLES_FALLBACK_ORDER.filter((k) => k !== candleKind)
+        .map((k) => resolveCandlesRow(catalog, k))
+        .filter((r) => r && !avoid.has(r.id))
+    );
+  }
+
+  const kind = giftKindOfRow(soldOut);
+  const age = options.age;
+  const sameKind = kind ? giftKindRows(pool, kind, age) : [];
+
+  if (isGiftLineSlot(line.slotId) && !paid) {
+    const kidAge = age ?? Number((soldOut.defaultGiftAges ?? [])[0] ?? 5);
+    const claimedKinds = new Set(
+      [...avoid].map((id) => catalog.find((r) => r.id === id)).flatMap((r) => (r ? [giftKindOfRow(r)] : []))
+    );
+    const otherKinds = giftKindFallbackOrder(kidAge, pool)
+      .filter((k) => k !== kind && !claimedKinds.has(k))
+      .map((k) => resolveGiftKind(pool, k, kidAge));
+    return bestReplacement([...sameKind, ...otherKinds]);
+  }
+
+  const slot = (Object.keys(DEFAULT_SLOT_PATTERNS) as DefaultSlotId[]).find(
+    (s) => resolveByDefaultSlot(catalog, s)?.id === line.itemId
+  );
+  const slotPeers = slot
+    ? pool
+        .map((r) => ({ r, score: scoreDefaultSlotCandidate(r, slot) }))
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((x) => x.r)
+    : [];
+  return bestReplacement([...sameKind, ...slotPeers]);
+}
+
+export type SoldOutSwap = { fromItemId: string; toItemId: string | null };
+
+type SwappableLine = SoldOutLine & { label?: string; curationNote?: string };
+
+/** Planner age for a kid's band or explicit planner age; undefined when unknown. */
+export function plannerAgeOf(kid: { plannerAge?: unknown; ageGroup?: unknown } | undefined): number | undefined {
+  if (!kid) return undefined;
+  if (typeof kid.plannerAge === 'number' && Number.isFinite(kid.plannerAge)) return Math.max(0, Math.floor(kid.plannerAge));
+  const band = kid.ageGroup;
+  return band === '0-2' || band === '3-5' || band === '6-8' || band === '9-12'
+    ? representativeAgeForBand(band)
+    : undefined;
+}
+
+/**
+ * Replace every truly sold-out line in a draft (see `soldOutReplacement`); lines
+ * with no replacement are dropped. Quantity and price stay as they were.
+ * Returns the same array when nothing changed.
+ */
+export function swapSoldOutLines<L extends SwappableLine>(
+  lines: L[],
+  catalog: BoxRulesCatalogRow[],
+  ageForChild: (childId: string | undefined) => number | undefined = () => undefined
+): { lines: L[]; swaps: SoldOutSwap[] } {
+  const byId = new Map(catalog.map((r) => [r.id, r]));
+  const soldOut = (id: string) => {
+    const row = byId.get(id);
+    return !!row && isSoldOutForBoxes(row);
+  };
+  if (!lines.some((l) => soldOut(l.itemId))) return { lines, swaps: [] };
+
+  const inBox = new Set(lines.map((l) => l.itemId));
+  const swaps: SoldOutSwap[] = [];
+  const out: L[] = [];
+  for (const line of lines) {
+    if (!soldOut(line.itemId)) {
+      out.push(line);
+      continue;
+    }
+    const replacement = soldOutReplacement(catalog, line, {
+      age: ageForChild(line.childId),
+      avoidIds: inBox,
+    });
+    if (!swaps.some((s) => s.fromItemId === line.itemId)) {
+      swaps.push({ fromItemId: line.itemId, toItemId: replacement?.id ?? null });
+    }
+    if (!replacement) continue;
+    inBox.add(replacement.id);
+    const { curationNote: _note, ...rest } = line;
+    out.push({ ...rest, itemId: replacement.id, label: replacement.name } as L);
+  }
+  return { lines: out, swaps };
 }
 
 export function annotateSlot(

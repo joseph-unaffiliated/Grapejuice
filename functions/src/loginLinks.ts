@@ -25,11 +25,13 @@ import { loginTokenStatus, ORDER_TOKEN_RETAIN_MS, ORDER_TOKEN_TTL_MS } from './l
 const SAVE_BOX_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const LOGIN_TOKEN_TTL_MS = 60 * 60 * 1000;
 const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Low-stock / swapped emails go out daily; a week covers anyone who opens one late. */
+const INVENTORY_ALERT_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const EMAIL_LIMIT_PER_WINDOW = 6;
 const IP_LIMIT_PER_WINDOW = 30;
 
-type LoginPurpose = 'save-box' | 'login' | 'invite' | 'order';
+type LoginPurpose = 'save-box' | 'login' | 'invite' | 'order' | 'inventory-alert';
 
 export const SET_PASSWORD_PATH = '/account/set-password';
 export const CONNECT_GOOGLE_PATH = '/account/connect-google';
@@ -99,6 +101,7 @@ const TOKEN_TTL_MS: Record<LoginPurpose, number> = {
   login: LOGIN_TOKEN_TTL_MS,
   invite: INVITE_TOKEN_TTL_MS,
   order: ORDER_TOKEN_TTL_MS,
+  'inventory-alert': INVENTORY_ALERT_TOKEN_TTL_MS,
 };
 
 async function mintLoginToken(
@@ -174,6 +177,26 @@ export async function orderViewUrl(
     logger.error('orderViewUrl: could not mint order link', { err: String(err) });
     return fallback;
   }
+}
+
+/**
+ * Signed links for the inventory emails ("Secure my box" → checkout, "Customize my box" → My Box).
+ * They go to the household owner's own address, so the link signs that account in. Single use,
+ * so each button gets its own token.
+ */
+export async function mintInventoryAlertUrl(
+  db: FirebaseFirestore.Firestore,
+  input: { uid: string; email: string; next: '/checkout' | '/box' }
+): Promise<string> {
+  const { next } = input;
+  const token = await mintLoginToken(db, {
+    uid: input.uid,
+    email: input.email,
+    purpose: 'inventory-alert',
+    next,
+    visitorId: null,
+  });
+  return loginUrl(token, next);
 }
 
 /** Accept-invite link for a collaborator invite email (createPartnerInvite). */

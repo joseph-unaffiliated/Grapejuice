@@ -33,6 +33,10 @@ const TEMPLATE_IDS: Record<string, number> = {
   'box-charge-failed': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED ?? '0', 10) || 17,
   /** Passwordless login / save-this-box link — transactional message 19 (sends fail until it's published). */
   'login-link': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK ?? '0', 10) || 19,
+  /** Draft box holds an almost-sold-out item — transactional message 21 (docs/customerio-inventory-low.html). */
+  'inventory-low': parseInt(process.env.CUSTOMERIO_TEMPLATE_INVENTORY_LOW ?? '0', 10) || 21,
+  /** Sold-out item swapped out of a draft box — transactional message 22 (docs/customerio-inventory-swapped.html). */
+  'inventory-swapped': parseInt(process.env.CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED ?? '0', 10) || 22,
 };
 
 /** Env vars for Customer.io transactional templates:
@@ -45,6 +49,7 @@ const TEMPLATE_IDS: Record<string, number> = {
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
  *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED, CUSTOMERIO_TEMPLATE_LOGIN_LINK
+ *  CUSTOMERIO_TEMPLATE_INVENTORY_LOW, CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
  */

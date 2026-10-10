@@ -1,4 +1,4 @@
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import type { AskPilotRavData, LineItem } from './types';
 import {
   isDefaultEligible,
@@ -42,6 +42,8 @@ type CatalogRow = {
   inventory?: number | null;
   /** inventory − box allocations − direct sales (live counters). */
   stockLeft?: number | null;
+  /** Units in unsecured drafts (inventory watch job); they hold no stock. */
+  draftHeld?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
   directSaleCapBeforeLock?: number | null;
@@ -173,8 +175,7 @@ function scoreRow(row: CatalogRow, priority: Set<string>, focusCategory?: string
 }
 
 /** Load catalog/hanukkah/items once for catalog + box-rules context. */
-export async function loadCatalogRows(): Promise<CatalogRow[]> {
-  const db = getFirestore();
+export async function loadCatalogRows(db: Firestore = getFirestore()): Promise<CatalogRow[]> {
   const catalogDoc = db.collection('catalog').doc(CATALOG_HOLIDAY);
   const [snap, invSnap] = await Promise.all([
     catalogDoc.collection('items').limit(200).get(),
@@ -183,18 +184,24 @@ export async function loadCatalogRows(): Promise<CatalogRow[]> {
   if (snap.empty) return [];
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
   const committed = new Map<string, number>();
+  const draftHeld = new Map<string, number>();
   for (const d of invSnap?.docs ?? []) {
     const c = d.data();
     committed.set(d.id, n(c.boxAllocatedQty) + n(c.directReservedQty) + n(c.directSoldQty));
+    draftHeld.set(d.id, n(c.draftHeldQty));
   }
   return snap.docs.map((d) => {
     const row = docToRow(d.id, d.data() as Record<string, unknown>);
     if (row.inventory == null) return row;
-    return { ...row, stockLeft: Math.max(0, Math.floor(row.inventory) - (committed.get(d.id) ?? 0)) };
+    return {
+      ...row,
+      stockLeft: Math.max(0, Math.floor(row.inventory) - (committed.get(d.id) ?? 0)),
+      draftHeld: draftHeld.get(d.id) ?? 0,
+    };
   });
 }
 
-function toBoxRulesRows(catalog: CatalogRow[]): BoxRulesCatalogRow[] {
+export function toBoxRulesRows(catalog: CatalogRow[]): BoxRulesCatalogRow[] {
   return catalog.map((r) => ({
     id: r.id,
     name: r.name,
@@ -207,6 +214,7 @@ function toBoxRulesRows(catalog: CatalogRow[]): BoxRulesCatalogRow[] {
     defaultFor: r.defaultFor,
     inventory: r.inventory,
     stockLeft: r.stockLeft,
+    draftHeld: r.draftHeld,
     holdInventory: r.holdInventory,
     wrappable: r.wrappable,
     memberPriceCents: r.memberPriceCents,

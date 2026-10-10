@@ -199,15 +199,21 @@ function inventoryCountersCollection() {
   return collection(doc(db, 'catalog', CATALOG_HOLIDAY), 'inventory');
 }
 
-/** Units committed per item from live counters (box allocations + direct sales). */
-type CommittedById = Map<string, number>;
+/**
+ * Per item from live counters: units committed (box allocations + direct sales)
+ * and units sitting in unsecured drafts (written by the inventory watch job).
+ */
+type CommittedById = Map<string, { committed: number; draftHeld: number }>;
 
 function committedFromSnap(docs: Array<{ id: string; data: () => Record<string, unknown> }>): CommittedById {
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
   const out: CommittedById = new Map();
   for (const d of docs) {
     const data = d.data();
-    out.set(d.id, n(data.boxAllocatedQty) + n(data.directReservedQty) + n(data.directSoldQty));
+    out.set(d.id, {
+      committed: n(data.boxAllocatedQty) + n(data.directReservedQty) + n(data.directSoldQty),
+      draftHeld: n(data.draftHeldQty),
+    });
   }
   return out;
 }
@@ -215,10 +221,14 @@ function committedFromSnap(docs: Array<{ id: string; data: () => Record<string, 
 function withBoxStockLeft(items: CatalogItem[], committed: CommittedById): CatalogItem[] {
   return items.map((item) => {
     if (item.inventory == null || !Number.isFinite(item.inventory)) {
-      return { ...item, boxStockLeft: null };
+      return { ...item, boxStockLeft: null, boxDraftHeld: null };
     }
-    const used = committed.get(item.id) ?? 0;
-    return { ...item, boxStockLeft: Math.max(0, Math.floor(item.inventory) - used) };
+    const counters = committed.get(item.id);
+    return {
+      ...item,
+      boxStockLeft: Math.max(0, Math.floor(item.inventory) - (counters?.committed ?? 0)),
+      boxDraftHeld: counters?.draftHeld ?? 0,
+    };
   });
 }
 

@@ -5,7 +5,8 @@ import { navigateMainStack } from './mainStackNavigation';
 import { navigateToAppPath } from './webBrowserHistory';
 import { openBoxSurface } from './boxEntry';
 import { GIFT_CUSTOMIZE_PATH, GIFT_GIVE_PATH } from './giftFlowLink';
-import { readResumeTokenFromBoot, scrubResumeUrl } from './resumeLink';
+import { readResumeNextFromBoot, readResumeTokenFromBoot, scrubResumeUrl } from './resumeLink';
+import { useAuthFlowStore } from '../stores/authFlowStore';
 import { adoptVisitorId } from '../services/guest/visitorId';
 import {
   applyGuestSnapshot,
@@ -38,10 +39,13 @@ function whenNavigationReady(): Promise<void> {
 export function ResumeLinkEffect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const pending = useRef(readResumeTokenFromBoot());
+  const nextRef = useRef(readResumeNextFromBoot());
 
   useEffect(() => {
     const token = pending.current;
+    const next = nextRef.current;
     if (!token || authLoading) return;
     pending.current = null;
     scrubResumeUrl();
@@ -62,7 +66,7 @@ export function ResumeLinkEffect() {
         return;
       }
       if (isAuthenticated) {
-        navigateMainStack('MyBox');
+        navigateMainStack(next === 'checkout' ? 'Checkout' : 'MyBox');
         return;
       }
 
@@ -71,11 +75,18 @@ export function ResumeLinkEffect() {
       trackMetaCustom('ResumeBox');
 
       const { gift, guest } = result.snapshot;
+      const hasBox = guest.boxRevealComplete || guest.lineItems.length > 0;
+      if (next === 'checkout' && hasBox) {
+        // Same as My Box's checkout button for a signed-out box: create the account, then pay.
+        navigateMainStack('MyBox');
+        startAuthFromGuest('Checkout', 'signup', 'SignUp');
+        return;
+      }
       if (gift?.draft && gift.status === 'incomplete') {
         navigateToAppPath(gift.kind === 'customize' ? GIFT_CUSTOMIZE_PATH : GIFT_GIVE_PATH);
         return;
       }
-      if (guest.boxRevealComplete || guest.lineItems.length > 0) {
+      if (hasBox) {
         navigateMainStack('MyBox');
         return;
       }
@@ -86,7 +97,7 @@ export function ResumeLinkEffect() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, isAuthenticated]);
+  }, [authLoading, isAuthenticated, startAuthFromGuest]);
 
   return null;
 }

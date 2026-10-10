@@ -204,6 +204,8 @@ export type CatalogItem = {
    * (live counters). null when inventory is untracked.
    */
   boxStockLeft?: number | null;
+  /** Units sitting in unsecured drafts (account + signed-out boxes). They hold no stock. */
+  boxDraftHeld?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
   /**
@@ -300,6 +302,17 @@ export type BoxDraft = {
   sealedSectionIds?: Array<'candles' | 'dreidel' | 'food' | 'presents' | 'story'>;
   /** Catalog item ids marked “to be wrapped” on My Box. */
   wrapSelectedItemIds?: string[];
+  /** Sold-out items swapped out of this draft; My Box shows each once, then clears them. */
+  inventorySwapNotices?: InventorySwapNotice[];
+};
+
+export type InventorySwapNotice = {
+  fromItemId: string;
+  fromName: string;
+  /** null when nothing could replace it and the line was removed. */
+  toItemId: string | null;
+  toName: string | null;
+  at: string;
 };
 
 export type ActiveProfile =

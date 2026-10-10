@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!--
+  Customer.io transactional message "inventory-swapped" (sold out, swapped), workspace 208456.
+  Same look as message 13 (marketplace order confirmed). Paste as the HTML body.
+  Subject: {{ trigger.item_title }} {{ trigger.is_are }} sold out. {% if trigger.has_replacement %}See what we swapped in instead.{% else %}We took {{ trigger.it_them }} out of your box.{% endif %}
+  Trigger data (functions/src/inventoryEmails.ts): item_title ("The Lego Menorah"), item_name,
+  is_are, it_them, image_url (sold-out item, 600px JPG), has_replacement, replacement_name,
+  replacement_image_url, cta_url ("Secure my box": signed checkout link or guest resume link to
+  checkout), customize_url ("Customize my box": the same, opening My Box).
+-->
+<html lang="en" dir="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="supported-color-schemes" content="light dark" />
+  <title>{{message.subject | default: ''}}</title>
+  <link media="screen" rel="stylesheet" href="https://fonts.googleapis.com/css?family=DM%20Sans:400,700" />
+  <style>
+    body { margin: 0; padding: 0 !important; }
+    h1, p, td { mso-hyphenate: none; }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#fefefe;">
+  <span style="display:none;max-height:0;max-width:0;overflow:hidden;font-size:1px;line-height:1px;color:transparent;">{% if trigger.has_replacement %}We swapped in the {{ trigger.replacement_name }}.{% else %}Add your shipping and payment info to secure the rest of your box.{% endif %}</span>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fefefe;font-family:'DM Sans',Helvetica,Arial,sans-serif;color:#2F2412;font-size:16px;line-height:1.6;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
+          <tr>
+            <td align="center" style="padding:32px 24px 8px;">
+              <a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email&amp;utm_campaign=inventory_swapped" style="text-decoration:none;display:inline-block;">
+                <img src="https://grapejuice.co/brand/grapejuice-wordmark.png" alt="Grapejuice" width="140" style="vertical-align:middle;max-width:100%;width:140px;border:0;" />
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 40px 36px;">
+              <h1 style="color:#2F2412;font-size:28px;line-height:1.2;letter-spacing:-0.02em;text-align:center;margin:0 0 28px;">{{ trigger.item_title }} {{ trigger.is_are }} sold out</h1>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;background:#F4EEE4;border-radius:6px;">
+                <tr>
+                  {% if trigger.image_url %}
+                  <td width="112" style="padding:16px 0 16px 16px;vertical-align:middle;">
+                    <img src="{{ trigger.image_url }}" alt="{{ trigger.item_name }}" width="96" height="96" style="display:block;width:96px;height:96px;border:0;border-radius:4px;background:#ffffff;opacity:0.6;" />
+                  </td>
+                  {% endif %}
+                  <td style="padding:16px 20px;vertical-align:middle;">
+                    <p style="color:#7A6F5E;font-size:12px;margin:0;">Sold out</p>
+                    <p style="color:#7A6F5E;font-size:16px;font-weight:700;margin:0;text-decoration:line-through;">{{ trigger.item_name }}</p>
+                  </td>
+                </tr>
+              </table>
+              {% if trigger.has_replacement %}
+              <p style="color:#2F2412;font-size:18px;font-weight:700;text-align:center;margin:0 0 12px;">Swapped in</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px;border:1px solid #E7DFD2;border-radius:6px;">
+                <tr>
+                  {% if trigger.replacement_image_url %}
+                  <td width="112" style="padding:16px 0 16px 16px;vertical-align:middle;">
+                    <a href="{{ trigger.customize_url | default: trigger.cta_url }}" style="text-decoration:none;"><img src="{{ trigger.replacement_image_url }}" alt="{{ trigger.replacement_name }}" width="96" height="96" style="display:block;width:96px;height:96px;border:0;border-radius:4px;background:#ffffff;" /></a>
+                  </td>
+                  {% endif %}
+                  <td style="padding:16px 20px;vertical-align:middle;">
+                    <p style="color:#7A6F5E;font-size:12px;margin:0;">Now in your box</p>
+                    <p style="color:#2F2412;font-size:16px;font-weight:700;margin:0;">{{ trigger.replacement_name }}</p>
+                  </td>
+                </tr>
+              </table>
+              {% else %}
+              <p style="color:#433C32;text-align:center;margin:0 0 28px;">We took {{ trigger.it_them }} out of your box.</p>
+              {% endif %}
+              <p style="color:#433C32;text-align:center;margin:0 0 14px;">Add your shipping and payment info to secure all the items in your box.</p>
+              <p style="color:#433C32;text-align:center;margin:0;">Without that information, when an item in your box sells out, it will be automatically swapped out.</p>
+              <div style="text-align:center;margin:28px 0 0;font-size:15px;">
+                <a href="{{ trigger.customize_url | default: 'https://grapejuice.co/box?utm_source=transactional&utm_medium=email&utm_campaign=inventory_swapped' }}" style="display:inline-block;margin:0 5px 10px;color:#141414;font-family:Helvetica,sans-serif;font-weight:700;text-decoration:none;text-align:center;background:#ffffff;border:2px solid #141414;border-radius:6px;"><span style="padding:11px 26px;display:block;">Customize my box</span></a>
+                <a href="{{ trigger.cta_url | default: 'https://grapejuice.co/checkout?utm_source=transactional&utm_medium=email&utm_campaign=inventory_swapped' }}" style="display:inline-block;margin:0 5px 10px;color:#ffffff;font-family:Helvetica,sans-serif;font-weight:700;text-decoration:none;text-align:center;background:#141414;border:2px solid #141414;border-radius:6px;"><span style="padding:11px 26px;display:block;">Secure my box</span></a>
+              </div>
+              <p style="color:#7A6F5E;font-size:14px;text-align:center;margin:28px 0 0;">Questions? Just reply to this email.</p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="background:#141414;padding:34px 32px 30px;">
+              <a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email&amp;utm_campaign=inventory_swapped" style="text-decoration:none;display:inline-block;margin:0 0 18px;">
+                <img src="https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/email/brand/grapejuice-wordmark-cream-v1.png" alt="Grapejuice" width="120" style="vertical-align:middle;max-width:100%;width:120px;border:0;" />
+              </a>
+              <p style="color:#F4EEE4;font-size:12px;text-align:center;margin:0 0 16px;"><a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email" style="color:#F4EEE4;text-decoration:none;">Shop</a> &nbsp;·&nbsp; <a href="https://grapejuice.co/story?utm_source=transactional&amp;utm_medium=email" style="color:#F4EEE4;text-decoration:none;">Our story</a> &nbsp;·&nbsp; <a href="https://grapejuice.co/privacy" style="color:#F4EEE4;text-decoration:none;">Privacy</a></p>
+              <p style="color:#A39A8A;font-size:12px;text-align:center;margin:0 0 10px;">Grapejuice by Untraditional · <a href="mailto:hello@grapejuice.co" style="color:#A39A8A;text-decoration:none;">hello@grapejuice.co</a></p>
+              <p style="color:#A39A8A;font-size:12px;text-align:center;margin:0;"><a href="{% unsubscribe_url %}" style="color:#A39A8A;text-decoration:underline;">Unsubscribe</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -378,6 +378,8 @@ export async function purgeExpiredGuestData(
     // loginLinks.ts — single-use login links and rate-limit windows.
     ['loginTokens', 'expiresAt', 'loginTokens'],
     ['rateLimits', 'expiresAt', 'rateLimits'],
+    // inventoryEmails.ts — cached lead matches for signed-out boxes.
+    ['inventoryAlertContacts', 'expireAt', 'sessions'],
   ] as const) {
     // Bounded per run; the schedule picks up the rest tomorrow.
     const snap = await db.collection(collection).where(field, '<=', cutoff).limit(400).get();
@@ -426,13 +428,26 @@ export const deleteGuestDataByEmail = onCall(
     }
     const hash = emailHash(data.email);
     const db = getFirestore();
-    const [sessions, tokens, events] = await Promise.all([
+    const [sessions, tokens, events, inventoryLog, inventoryLow, inventoryContacts] = await Promise.all([
       db.collection('guestSessions').where('lastLeadEmailHash', '==', hash).get(),
       db.collection('guestResumeTokens').where('emailHash', '==', hash).get(),
       db.collection('retentionLeadEvents').where('emailHash', '==', hash).get(),
+      // inventoryEmails.ts — daily send claims and per-item low-stock dedupe.
+      db.collection('inventoryEmailLog').where('emailHash', '==', hash).get(),
+      db.collection('inventoryLowSent').where('emailHash', '==', hash).get(),
+      db.collection('inventoryAlertContacts').where('emailHash', '==', hash).get(),
     ]);
     const batch = db.batch();
-    for (const d of [...sessions.docs, ...tokens.docs, ...events.docs]) batch.delete(d.ref);
+    for (const d of [
+      ...sessions.docs,
+      ...tokens.docs,
+      ...events.docs,
+      ...inventoryLog.docs,
+      ...inventoryLow.docs,
+      ...inventoryContacts.docs,
+    ]) {
+      batch.delete(d.ref);
+    }
     await batch.commit();
     let customerio = false;
     try {

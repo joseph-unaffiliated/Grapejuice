@@ -41,6 +41,7 @@ export function toRulesRow(item: CatalogItem): BoxRulesCatalogRow {
     defaultFor: item.defaultFor,
     inventory: item.inventory ?? null,
     stockLeft: item.boxStockLeft ?? null,
+    draftHeld: item.boxDraftHeld ?? null,
     holdInventory: item.holdInventory ?? null,
     wrappable: item.wrappable ?? null,
     memberPriceCents: item.memberPriceCents,

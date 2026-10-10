@@ -28,6 +28,7 @@ import { useEffectiveBoxLocked, usePreviewNow } from '../../hooks/useUserStatePr
 import type { MainStackParamList } from '../../navigation/types';
 import { startOwnBoxBuild } from '../../navigation/boxEntry';
 import { useCatalog } from '../../hooks/useCatalog';
+import { mergeSwapNotices, swapNoticeText } from '../../services/box/soldOutReconcile';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import {
   formatCatalogDollars,
@@ -59,7 +60,7 @@ import {
   boxALaCarteRetailValueCents,
   EXTRA_FLAT_CENTS,
 } from '../../services/box/pricing';
-import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import type { BoxLineItem, CatalogItem, InventorySwapNotice } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
 import {
@@ -215,8 +216,15 @@ export function MyBoxScreen() {
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
   const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
-  const { lineItems, slotVotes, sealedSectionIds, wrapSelectedItemIds, children, loading: draftLoading, error: draftError, persist, persistSlotVotes, persistWrapSelection, refresh: refreshDraft } =
+  const { lineItems, slotVotes, sealedSectionIds, wrapSelectedItemIds, children, loading: draftLoading, error: draftError, persist, persistSlotVotes, persistWrapSelection, refresh: refreshDraft, swapNotices, dismissSwapNotices } =
     useBoxDraft();
+  /** Shown for this visit only — stored notices clear as soon as they appear. */
+  const [shownSwapNotices, setShownSwapNotices] = useState<InventorySwapNotice[]>([]);
+  useEffect(() => {
+    if (!swapNotices.length || isChildProfile) return;
+    setShownSwapNotices((prev) => mergeSwapNotices(prev, swapNotices));
+    dismissSwapNotices().catch((e) => console.warn('[box] failed to clear swap notices', e));
+  }, [swapNotices, isChildProfile, dismissSwapNotices]);
   const { guestNeedsOnboarding, guestViewOnly, requireAuthToCustomize } = useGuestBoxFlow();
   const startBuildBox = useGuestSessionStore((s) => s.startBuildBox);
 
@@ -1698,6 +1706,27 @@ export function MyBoxScreen() {
       {!guestViewOnly && lockBanner ? (
         <View style={detailStyles.headerExtras}>{lockBanner}</View>
       ) : null}
+      {shownSwapNotices.length ? (
+        <View style={detailStyles.headerExtras}>
+          <View style={styles.swapNotice}>
+            <View style={styles.swapNoticeBody}>
+              {shownSwapNotices.map((n) => (
+                <Text key={n.fromItemId} style={styles.swapNoticeText}>
+                  {swapNoticeText(n)}
+                </Text>
+              ))}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss"
+              hitSlop={8}
+              onPress={() => setShownSwapNotices([])}
+            >
+              <Text style={styles.swapNoticeClose}>×</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </>
   );
 
@@ -2236,6 +2265,18 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
     marginBottom: spacing.md,
   },
   lockBannerClosed: { color: colors.textPrimary, fontWeight: '600' },
+  swapNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.brandLight,
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  swapNoticeBody: { flex: 1, gap: 4 },
+  swapNoticeText: { fontSize: typography.md, color: colors.textPrimary },
+  swapNoticeClose: { fontSize: typography.lg, lineHeight: typography.lg, color: colors.textSecondary },
   summaryFloat: {
     position: 'absolute',
     left: 0,

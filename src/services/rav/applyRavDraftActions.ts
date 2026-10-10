@@ -82,7 +82,7 @@ export function applyRavDraftActions(
       continue;
     }
 
-    if (!item) {
+    if (!item || (typeof item.boxStockLeft === 'number' && item.boxStockLeft <= 0)) {
       skipped.push(action);
       continue;
     }

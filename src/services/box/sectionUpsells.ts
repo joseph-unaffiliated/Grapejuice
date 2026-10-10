@@ -22,6 +22,14 @@ import type { AgeGroup, CatalogItem, ChildProfile } from '../../types/pilot';
 
 const ALL_AGE_BANDS: AgeGroup[] = ['0-2', '3-5', '6-8', '9-12'];
 
+/**
+ * Drop items whose every unit is held by a secured box, paid gift, or purchase. Drafts
+ * never count, so anything short of truly sold out stays addable and swappable.
+ */
+export function withoutSoldOut(catalog: CatalogItem[]): CatalogItem[] {
+  return catalog.filter((c) => !(typeof c.boxStockLeft === 'number' && c.boxStockLeft <= 0));
+}
+
 export function isBookishCatalogItem(item: CatalogItem): boolean {
   return (
     item.category === 'Book' ||
@@ -448,6 +456,7 @@ export function resolveSectionUpsellItems(
   excludeItemIds: ReadonlySet<string> | string[],
   limit = 8
 ): CatalogItem[] {
+  catalog = withoutSoldOut(catalog);
   if (!catalog.length || limit <= 0) return [];
   const exclude = excludeItemIds instanceof Set ? excludeItemIds : new Set(excludeItemIds);
 
@@ -513,6 +522,7 @@ export function resolveSectionSwapItems(
   currentItemId: string,
   limit = 6
 ): CatalogItem[] {
+  catalog = withoutSoldOut(catalog);
   if (!catalog.length || limit <= 0) return [];
   const exclude = new Set([currentItemId]);
   const kinds = collectSwapKinds(sectionId);
@@ -547,6 +557,7 @@ export function resolveFreeSlotAddOptions(
   catalog: CatalogItem[],
   limit = 8
 ): CatalogItem[] {
+  catalog = withoutSoldOut(catalog);
   if (!catalog.length || limit <= 0) return [];
   const kinds = collectSwapKinds(sectionId);
   return excludeBooksUnlessStory(sectionId, resolveKindsToCatalog(kinds, catalog, new Set(), limit));
@@ -563,6 +574,8 @@ export function resolveIncludedGiftOptions(
   excludeItemId?: string,
   limit = 6
 ): CatalogItem[] {
+  const current = excludeItemId ? catalog.find((c) => c.id === excludeItemId) : undefined;
+  catalog = withoutSoldOut(catalog);
   if (!catalog.length || limit <= 0) return [];
   const presents = SECTION_RULES.find((s) => s.id === 'presents');
   const giftSlot = presents?.slots.find((slot) => /^gift\b/i.test(cleanKindLabel(slot.defaultKind)));
@@ -571,7 +584,6 @@ export function resolveIncludedGiftOptions(
     .filter((s) => s.price === 'included')
     .map((s) => s.targetSlotOrKind);
   const exclude = new Set(excludeItemId ? [excludeItemId] : []);
-  const current = excludeItemId ? catalog.find((c) => c.id === excludeItemId) : undefined;
   const base = resolveKindsToCatalog(kinds, catalog, exclude, limit);
   if (!current) return base;
   const peers = openSwapPeers(current, catalog);
@@ -743,6 +755,7 @@ export function resolveSwapOptionsForItem(
   limit = 6,
   opts?: { includeSectionPeers?: boolean }
 ): CatalogItem[] {
+  catalog = withoutSoldOut(catalog);
   if (!catalog.length || limit <= 0) return [];
   const peers = openSwapPeers(item, catalog);
   if (peers) {

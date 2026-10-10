@@ -70,6 +70,7 @@ import {
   stripProductBlocksForBoxPane,
 } from '../../services/rav/ravCompanionIntent';
 import { resolveRavPaneToOpen } from '../../services/rav/resolveRavPane';
+import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import type { OpenRavCompanionPaneInput } from '../../types/ravPane';
 
 const MAX_HISTORY_TURNS = 10;
@@ -416,6 +417,10 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
       if (!guardMutation()) return;
       const exists = lineItems.some((li) => li.itemId === item.id);
       if (exists) return;
+      if (isCatalogItemSoldOut(item)) {
+        showBlockFeedback(`${item.name} is sold out.`);
+        return;
+      }
       await persist([
         ...lineItems,
         {

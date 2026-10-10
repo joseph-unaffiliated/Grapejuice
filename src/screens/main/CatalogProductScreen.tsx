@@ -43,6 +43,7 @@ import {
   resolveAvailability,
 } from '../../services/catalog/availability';
 import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
+import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import { trackMetaProduct } from '../../services/analytics/metaPixel';
 import {
   resolveFreeSwapUnitCents,
@@ -334,7 +335,7 @@ export function CatalogProductScreen() {
   };
 
   const addToBox = async () => {
-    if (!item || locked || inBox) return;
+    if (!item || locked || inBox || isCatalogItemSoldOut(item)) return;
     if (boxUnitCents > 0 && !guardMutation()) return;
     await persist([
       ...lineItems,
@@ -355,7 +356,7 @@ export function CatalogProductScreen() {
   };
 
   const swapIntoBox = async (source: BoxLineItem) => {
-    if (!item || locked || inBox) return;
+    if (!item || locked || inBox || isCatalogItemSoldOut(item)) return;
     const sourceItem = catalog.find((c) => c.id === source.itemId);
     const sectionId = displaySectionForCatalogItem(sourceItem ?? item);
     const unitCents =
@@ -470,11 +471,14 @@ export function CatalogProductScreen() {
 
   const isBoxOnly = availability?.status === 'box_only';
   const isSoldOut = availability?.status === 'sold_out';
+  /** Every unit held by secured boxes and purchases (drafts never count). */
+  const boxSoldOut = !inBox && isCatalogItemSoldOut(item ?? undefined);
   /** No box yet + box-only/sold-out: primary drives into a box (or disabled). */
-  const marketplaceBoxOnlyPath = !hasStartedBox && isBoxOnly;
-  const marketplaceBlocked = !hasStartedBox && isSoldOut;
+  const marketplaceBlocked = !hasStartedBox && (isSoldOut || (isBoxOnly && boxSoldOut));
+  const marketplaceBoxOnlyPath = !hasStartedBox && isBoxOnly && !marketplaceBlocked;
+  const boxBlocked = hasStartedBox && boxSoldOut;
 
-  const primaryLabel = marketplaceBlocked
+  const primaryLabel = marketplaceBlocked || boxBlocked
     ? 'Sold out'
     : marketplaceBoxOnlyPath
       ? memberCents > 0
@@ -510,7 +514,7 @@ export function CatalogProductScreen() {
 
   const showMarketplaceQty = !hasStartedBox && inMarketplaceCart && directOk;
   const showInBoxControls = hasStartedBox && inBox;
-  const showSecondary = marketplaceBlocked || marketplaceBoxOnlyPath
+  const showSecondary = marketplaceBlocked || marketplaceBoxOnlyPath || boxBlocked
     ? false
     : showInBoxControls
       ? inBoxSwapOptions.length > 0
@@ -526,9 +530,9 @@ export function CatalogProductScreen() {
 
   const marketplacePrimaryDisabled =
     marketplaceBlocked || saving || (!directOk && !marketplaceBoxOnlyPath);
-  const boxPrimaryDisabled = locked || saving;
+  const boxPrimaryDisabled = locked || saving || boxBlocked;
 
-  const onPrimaryPress = marketplaceBlocked
+  const onPrimaryPress = marketplaceBlocked || boxBlocked
     ? () => undefined
     : marketplaceBoxOnlyPath
       ? buyWithBox

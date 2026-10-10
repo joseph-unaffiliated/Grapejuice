@@ -101,6 +101,8 @@ export { retentionLead } from './retentionLead';
 export { unaffiliatedVisit } from './unaffiliated';
 export { adminPromotions, awardDebriefCredit, checkPromo, getMyInfluencerStats } from './promotions';
 export { scheduledFollowUpListAudience } from './followUpListAudience';
+export { scheduledInventoryWatch } from './inventoryWatch';
+export { scheduledInventoryEmails } from './inventoryEmails';
 
 initializeApp();
 const db = getFirestore();

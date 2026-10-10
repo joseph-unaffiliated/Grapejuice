@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { BoxLineItem, FamiliarityLevel } from '../types/pilot';
+import type { BoxLineItem, FamiliarityLevel, InventorySwapNotice } from '../types/pilot';
 import type { ChildDraft } from '../components/family/familyDraft';
 import { remapLegacyCatalogIds, retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 
@@ -56,6 +56,8 @@ type GuestSessionState = {
   ravNotes: string;
   /** Catalog item ids marked “to be wrapped” on My Box. */
   wrapSelectedItemIds: string[];
+  /** Sold-out items swapped out of the box; My Box shows each once. */
+  inventorySwapNotices: InventorySwapNotice[];
   onboardingComplete: boolean;
   boxRevealComplete: boolean;
   /** After guest reveal, open My Box once in main app */
@@ -77,6 +79,7 @@ type GuestSessionState = {
   setRavNotes: (notes: string) => void;
   setLineItems: (items: BoxLineItem[]) => void;
   setWrapSelectedItemIds: (ids: string[]) => void;
+  setInventorySwapNotices: (notices: InventorySwapNotice[]) => void;
   toggleWishlistItem: (itemId: string) => void;
   setOnboardingStep: (step: GuestOnboardingStep | null) => void;
   markStepReached: (step: keyof GuestStepsReached) => void;
@@ -106,6 +109,7 @@ const initialState = {
   practiceFrequencyScore: 50,
   lineItems: [] as BoxLineItem[],
   wrapSelectedItemIds: [] as string[],
+  inventorySwapNotices: [] as InventorySwapNotice[],
   wishlistItemIds: [] as string[],
   ravNotes: '',
   onboardingComplete: false,
@@ -141,6 +145,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       setRavNotes: (ravNotes) => set({ ravNotes }),
       setLineItems: (lineItems) => set({ lineItems }),
       setWrapSelectedItemIds: (wrapSelectedItemIds) => set({ wrapSelectedItemIds }),
+      setInventorySwapNotices: (inventorySwapNotices) => set({ inventorySwapNotices }),
       toggleWishlistItem: (itemId) => {
         const current = get().wishlistItemIds;
         set({
@@ -188,6 +193,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         set({
           lineItems: [],
           wrapSelectedItemIds: [],
+          inventorySwapNotices: [],
           onboardingComplete: false,
           boxRevealComplete: false,
           openMyBoxAfterReveal: false,
@@ -213,6 +219,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         practiceFrequencyScore: state.practiceFrequencyScore,
         lineItems: state.lineItems,
         wrapSelectedItemIds: state.wrapSelectedItemIds,
+        inventorySwapNotices: state.inventorySwapNotices,
         wishlistItemIds: state.wishlistItemIds,
         ravNotes: state.ravNotes,
         onboardingComplete: state.onboardingComplete,

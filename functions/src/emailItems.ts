@@ -37,9 +37,13 @@ function formatPrice(cents: unknown): string {
   return n % 100 === 0 ? `$${n / 100}` : `$${(n / 100).toFixed(2)}`;
 }
 
-async function emailImageUrl(itemId: string, sourceUrl: string): Promise<string | null> {
+/** `card`: 600px square on white (product shots). `hero`: 600px wide, original proportions (photos). */
+type ImageShape = 'card' | 'hero';
+
+async function emailImageUrl(itemId: string, sourceUrl: string, shape: ImageShape = 'card'): Promise<string | null> {
   const bucket = getStorage().bucket();
-  const path = `email/catalog/${itemId}-${createHash('sha1').update(sourceUrl).digest('hex').slice(0, 10)}.jpg`;
+  const hash = createHash('sha1').update(sourceUrl).digest('hex').slice(0, 10);
+  const path = `email/catalog/${itemId}-${hash}${shape === 'hero' ? '-hero' : ''}.jpg`;
   const publicUrl = `https://storage.googleapis.com/${bucket.name}/${path}`;
   const file = bucket.file(path);
   const [exists] = await file.exists();
@@ -51,7 +55,11 @@ async function emailImageUrl(itemId: string, sourceUrl: string): Promise<string 
   }
   const jpg = await sharp(Buffer.from(await res.arrayBuffer()))
     .rotate()
-    .resize({ width: IMAGE_PX, height: IMAGE_PX, fit: 'contain', background: '#ffffff' })
+    .resize(
+      shape === 'hero'
+        ? { width: IMAGE_PX, withoutEnlargement: true }
+        : { width: IMAGE_PX, height: IMAGE_PX, fit: 'contain', background: '#ffffff' }
+    )
     .flatten({ background: '#ffffff' })
     .jpeg({ quality: 82, mozjpeg: true })
     .toBuffer();
@@ -62,6 +70,27 @@ async function emailImageUrl(itemId: string, sourceUrl: string): Promise<string 
   });
   await file.makePublic().catch(() => undefined);
   return publicUrl;
+}
+
+/**
+ * 600px JPG of an item's secondary photo (`imageUrls[1]`, kept at its own proportions) or main
+ * photo (square card), falling back to the other.
+ */
+export async function catalogEmailImage(
+  id: string,
+  cat: CatalogDoc,
+  prefer: 'secondary' | 'primary'
+): Promise<string | null> {
+  const urls = Array.isArray(cat.imageUrls) ? cat.imageUrls.filter((u): u is string => typeof u === 'string') : [];
+  const primary = typeof cat.imageUrl === 'string' ? cat.imageUrl : urls[0];
+  const secondary = urls[1];
+  const order = prefer === 'secondary' ? [secondary, primary] : [primary, secondary];
+  for (const source of order) {
+    if (!source) continue;
+    const image = await emailImageUrl(id, source, prefer === 'secondary' && source === secondary ? 'hero' : 'card');
+    if (image) return image;
+  }
+  return null;
 }
 
 async function toEmailItem(
