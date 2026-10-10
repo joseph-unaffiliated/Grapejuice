@@ -163,6 +163,98 @@ export function buildRecipients(drafts: UnsecuredDraft[], leadEmails: Map<string
   return [...byHash.values()];
 }
 
+/** A secured box counts toward an email when it was secured within this long after the send. */
+export const CONVERSION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type SentInventoryEmail = {
+  emailHash: string;
+  kind: EmailPick['kind'];
+  sentMs: number;
+  clicked: boolean;
+  uid: string | null;
+  visitorId: string | null;
+  draftKeys: string[];
+};
+
+type KindStats = { sends: number; clicked: number; secured: number; securedAfterClick: number };
+
+export type InventoryEmailStats = {
+  sends: number;
+  people: number;
+  clickedPeople: number;
+  /** People whose box was secured within CONVERSION_WINDOW_MS of an inventory email. */
+  securedPeople: number;
+  /** ...of a send whose link they opened. */
+  securedAfterClickPeople: number;
+  /** Each secured person is credited to the latest send before it (last touch). */
+  byKind: Record<EmailPick['kind'], KindStats>;
+  windowDays: number;
+};
+
+/**
+ * Draft → secured conversions after inventory emails. A person's households: draft keys
+ * (`hh_<id>`), their account, and the account their signed-out session later became. Pure.
+ */
+export function inventoryEmailStats(input: {
+  sends: SentInventoryEmail[];
+  /** Committed (non-pending, non-test) Hanukkah box orders. */
+  securedBoxes: Array<{ householdId: string; securedMs: number }>;
+  householdsByOwner: Map<string, string[]>;
+  convertedUidByVisitor: Map<string, string>;
+}): InventoryEmailStats {
+  const emptyKind = (): KindStats => ({ sends: 0, clicked: 0, secured: 0, securedAfterClick: 0 });
+  const stats: InventoryEmailStats = {
+    sends: input.sends.length,
+    people: 0,
+    clickedPeople: 0,
+    securedPeople: 0,
+    securedAfterClickPeople: 0,
+    byKind: { low: emptyKind(), swapped: emptyKind() },
+    windowDays: CONVERSION_WINDOW_MS / (24 * 60 * 60 * 1000),
+  };
+  const securedByHousehold = new Map<string, number[]>();
+  for (const b of input.securedBoxes) {
+    securedByHousehold.set(b.householdId, [...(securedByHousehold.get(b.householdId) ?? []), b.securedMs]);
+  }
+  const byPerson = new Map<string, SentInventoryEmail[]>();
+  for (const s of input.sends) {
+    byPerson.set(s.emailHash, [...(byPerson.get(s.emailHash) ?? []), s]);
+    stats.byKind[s.kind].sends += 1;
+    if (s.clicked) stats.byKind[s.kind].clicked += 1;
+  }
+  stats.people = byPerson.size;
+
+  for (const sends of byPerson.values()) {
+    sends.sort((a, b) => a.sentMs - b.sentMs);
+    if (sends.some((s) => s.clicked)) stats.clickedPeople += 1;
+    const households = new Set<string>();
+    const uids = new Set<string>();
+    for (const s of sends) {
+      for (const key of s.draftKeys) if (key.startsWith('hh_')) households.add(key.slice(3));
+      if (s.uid) uids.add(s.uid);
+      const converted = s.visitorId ? input.convertedUidByVisitor.get(s.visitorId) : undefined;
+      if (converted) uids.add(converted);
+    }
+    for (const uid of uids) for (const hid of input.householdsByOwner.get(uid) ?? []) households.add(hid);
+    const firstSent = sends[0].sentMs;
+    const securedMs = [...households]
+      .flatMap((hid) => securedByHousehold.get(hid) ?? [])
+      .filter((t) => t >= firstSent)
+      .sort((a, b) => a - b)[0];
+    if (securedMs == null) continue;
+    const credited = [...sends].reverse().find((s) => s.sentMs <= securedMs && securedMs - s.sentMs <= CONVERSION_WINDOW_MS);
+    if (!credited) continue;
+    stats.securedPeople += 1;
+    stats.byKind[credited.kind].secured += 1;
+    const clickedSend = sends.some((s) => s.clicked && s.sentMs <= securedMs && securedMs - s.sentMs <= CONVERSION_WINDOW_MS);
+    if (clickedSend) {
+      stats.securedAfterClickPeople += 1;
+      stats.byKind[credited.kind].securedAfterClick += 1;
+    }
+  }
+  return stats;
+}
+
 /**
  * Retention lead email per signed-out visitor, keyed by email hash. Matches are cached in
  * inventoryAlertContacts/{visitorId} (functions only) and used when Customer.io can't be reached.
@@ -275,18 +367,43 @@ export async function emailDataFor(
   };
 }
 
-/** "Secure my box" opens checkout; "Customize my box" (swapped email only) opens My Box. */
-async function ctaLinksFor(db: Firestore, r: Recipient, withCustomize: boolean): Promise<CtaLinks> {
+/** UTMs on every link so the order's client attribution (lastTouch) names the email. */
+export function inventoryUtm(kind: EmailPick['kind'], button: 'secure' | 'customize'): Record<string, string> {
+  return {
+    utm_source: 'grapejuice',
+    utm_medium: 'email',
+    utm_campaign: kind === 'low' ? 'inventory_low' : 'inventory_swapped',
+    utm_content: button,
+  };
+}
+
+/**
+ * "Secure my box" opens checkout; "Customize my box" (swapped email only) opens My Box. Each link's
+ * token carries the log id so a click is recorded on that send (recordInventoryEmailClick).
+ */
+async function ctaLinksFor(
+  db: Firestore,
+  r: Recipient,
+  kind: EmailPick['kind'],
+  emailLogId: string
+): Promise<CtaLinks> {
+  const withCustomize = kind === 'swapped';
   if (r.kind === 'household' && r.uid) {
-    const account = { uid: r.uid, email: r.email };
+    const account = { uid: r.uid, email: r.email, emailLogId };
     return {
-      secure: await mintInventoryAlertUrl(db, { ...account, next: '/checkout' }),
-      customize: withCustomize ? await mintInventoryAlertUrl(db, { ...account, next: '/box' }) : undefined,
+      secure: await mintInventoryAlertUrl(db, { ...account, next: '/checkout', query: inventoryUtm(kind, 'secure') }),
+      customize: withCustomize
+        ? await mintInventoryAlertUrl(db, { ...account, next: '/box', query: inventoryUtm(kind, 'customize') })
+        : undefined,
     };
   }
   if (r.visitorId) {
-    const { url } = await mintResumeToken(db, r.visitorId, r.email);
-    return { secure: `${url}&next=checkout`, customize: withCustomize ? url : undefined };
+    const { url } = await mintResumeToken(db, r.visitorId, r.email, new Date(), emailLogId);
+    const withUtm = (button: 'secure' | 'customize') => `${url}&${new URLSearchParams(inventoryUtm(kind, button))}`;
+    return {
+      secure: `${withUtm('secure')}&next=checkout`,
+      customize: withCustomize ? withUtm('customize') : undefined,
+    };
   }
   throw new Error('recipient has no account or visitor id');
 }
@@ -301,6 +418,11 @@ async function claimDailySlot(db: Firestore, r: Recipient, date: string, pick: E
       date,
       kind: pick.kind,
       itemId: pick.kind === 'low' ? pick.itemId : pick.swap.fromItemId,
+      // Who got it, so dashboard conversion stats can find the box they later secured.
+      uid: r.uid ?? null,
+      visitorId: r.visitorId ?? null,
+      draftKeys: [...r.draftKeys],
+      clicks: 0,
       status: 'sending',
       createdAt: Timestamp.now(),
     });
@@ -425,7 +547,8 @@ export async function runInventoryEmails(
     if (!(await claimDailySlot(db, r, date, pick))) continue;
     const logRef = db.doc(`${INVENTORY_EMAIL_LOG}/${r.hash}_${date}`);
     try {
-      const { template, data } = await emailDataFor(pick, catalog, await ctaLinksFor(db, r, pick.kind === 'swapped'), imageFor);
+      const links = await ctaLinksFor(db, r, pick.kind, logRef.id);
+      const { template, data } = await emailDataFor(pick, catalog, links, imageFor);
       const status = await sendEmail({ to: r.email, template, data });
       if (status !== 'sent') throw new Error(`sendEmail ${status}`);
       if (pick.kind === 'low') {

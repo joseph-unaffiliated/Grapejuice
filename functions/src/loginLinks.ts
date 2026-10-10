@@ -4,7 +4,7 @@ import { getAuth, type UserRecord } from 'firebase-admin/auth';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { randomBytes } from 'crypto';
 import { sendEmail } from './email';
-import { appOrigin, emailHash, sha256Hex, VISITOR_ID_RE } from './guestSessions';
+import { appOrigin, emailHash, recordInventoryEmailClick, sha256Hex, VISITOR_ID_RE } from './guestSessions';
 import { requestIp } from './geo';
 import { metaContextFromCallable, sendMetaEvent } from './metaCapi';
 import { accountForCheckoutEmail, firstNameOf, guestHouseholdId } from './checkoutAccount';
@@ -115,6 +115,7 @@ async function mintLoginToken(
     visitorId: string | null;
     invitePath?: string;
     orderPath?: string;
+    emailLogId?: string;
   }
 ): Promise<string> {
   const token = randomBytes(32).toString('base64url');
@@ -132,6 +133,7 @@ async function mintLoginToken(
     // `expiresAt` drives the daily purge; order links stay readable past sign-in expiry to prefill the email.
     expiresAt: Timestamp.fromMillis(isOrder ? signInUntil + ORDER_TOKEN_RETAIN_MS : signInUntil),
     usedAt: null,
+    ...(input.emailLogId ? { emailLogId: input.emailLogId } : {}),
     ...(isOrder
       ? {
           signInUntil: Timestamp.fromMillis(signInUntil),
@@ -186,7 +188,14 @@ export async function orderViewUrl(
  */
 export async function mintInventoryAlertUrl(
   db: FirebaseFirestore.Firestore,
-  input: { uid: string; email: string; next: '/checkout' | '/box' }
+  input: {
+    uid: string;
+    email: string;
+    next: '/checkout' | '/box';
+    emailLogId?: string;
+    /** Extra query params (UTMs) so the order's client attribution names the email. */
+    query?: Record<string, string>;
+  }
 ): Promise<string> {
   const { next } = input;
   const token = await mintLoginToken(db, {
@@ -195,8 +204,9 @@ export async function mintInventoryAlertUrl(
     purpose: 'inventory-alert',
     next,
     visitorId: null,
+    emailLogId: input.emailLogId,
   });
-  return loginUrl(token, next);
+  return loginUrl(token, next, input.query);
 }
 
 /** Accept-invite link for a collaborator invite email (createPartnerInvite). */
@@ -263,8 +273,8 @@ async function acceptInviteFromLink(
   return user.uid;
 }
 
-function loginUrl(token: string, next: string | null): string {
-  const params = new URLSearchParams({ token });
+function loginUrl(token: string, next: string | null, query?: Record<string, string>): string {
+  const params = new URLSearchParams({ ...query, token });
   if (next) params.set('next', next);
   return `${appOrigin()}/login?${params.toString()}`;
 }
@@ -605,9 +615,11 @@ export const redeemLoginLink = onCall(
         invitePath: typeof tok.invitePath === 'string' ? tok.invitePath : null,
         next: typeof tok.next === 'string' ? tok.next : null,
         visitorId: typeof tok.visitorId === 'string' ? tok.visitorId : null,
+        emailLogId: tok.emailLogId,
       };
     });
     if (claimed.status !== 'ok') return claimed;
+    await recordInventoryEmailClick(db, claimed.emailLogId, new Date(now));
 
     const uid = claimed.invitePath
       ? await acceptInviteFromLink(db, claimed.invitePath, claimed.emailHash)

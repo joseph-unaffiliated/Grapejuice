@@ -232,6 +232,19 @@ export type MetaAdStats = {
   purchases: number;
 };
 
+type InventoryEmailKindStats = { sends: number; clicked: number; secured: number; securedAfterClick: number };
+
+/** Mirrors InventoryEmailStats in functions/src/inventoryEmails.ts. */
+export type InventoryEmailStats = {
+  sends: number;
+  people: number;
+  clickedPeople: number;
+  securedPeople: number;
+  securedAfterClickPeople: number;
+  byKind: { low: InventoryEmailKindStats; swapped: InventoryEmailKindStats };
+  windowDays: number;
+};
+
 export type BoxesDashboard = {
   generatedAt: string;
   lockAt: string | null;
@@ -254,6 +267,8 @@ export type BoxesDashboard = {
   adPeople?: DashAdPerson[];
   funnel?: DashFunnelPerson[];
   giftFunnel?: DashGiftFunnelPerson[];
+  /** Low-stock / swap emails → secured boxes. Missing until the server function is deployed. */
+  inventoryEmails?: InventoryEmailStats;
   /** Meta's per-ad results, keyed by ad name; null when Meta is unreachable. */
   metaByAd?: Record<string, MetaAdStats> | null;
 };

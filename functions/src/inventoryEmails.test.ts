@@ -7,10 +7,13 @@ import {
   buildRecipients,
   displayName,
   etDate,
+  inventoryEmailStats,
+  inventoryUtm,
   planInventoryEmails,
   subjectWords,
   type PlanInput,
   type Recipient,
+  type SentInventoryEmail,
 } from './inventoryEmails';
 import { countDraftHolds, guestDraftLines, guestKidAges, type UnsecuredDraft } from './inventoryWatch';
 import { emailHash } from './guestSessions';
@@ -178,6 +181,58 @@ function plan(over: Partial<PlanInput>) {
   });
   assert.equal(picks.length, 0);
   assert.deepEqual(unreachableSwapIds, ['hh_gone_lego-menorah']);
+}
+
+// —— Conversion tracking ———————————————————————————————————————————————————
+{
+  const utm = inventoryUtm('swapped', 'customize');
+  assert.equal(utm.utm_campaign, 'inventory_swapped');
+  assert.equal(utm.utm_content, 'customize');
+  assert.equal(inventoryUtm('low', 'secure').utm_campaign, 'inventory_low');
+}
+
+{
+  const DAY = 24 * 60 * 60 * 1000;
+  const t0 = Date.UTC(2026, 9, 11, 14);
+  const send = (over: Partial<SentInventoryEmail> & Pick<SentInventoryEmail, 'emailHash'>): SentInventoryEmail => ({
+    kind: 'low',
+    sentMs: t0,
+    clicked: false,
+    uid: null,
+    visitorId: null,
+    draftKeys: [],
+    ...over,
+  });
+  const stats = inventoryEmailStats({
+    sends: [
+      // Account: clicked the low email, secured next day.
+      send({ emailHash: 'a', uid: 'u-a', draftKeys: ['hh_A'], clicked: true }),
+      // Signed-out visitor who signed up (household via convertedUid) and secured after a later swap email.
+      send({ emailHash: 'g', visitorId: 'v-g', draftKeys: ['guest_v-g'] }),
+      send({ emailHash: 'g', kind: 'swapped', visitorId: 'v-g', draftKeys: ['guest_v-g'], sentMs: t0 + 2 * DAY }),
+      // Secured, but long after the window.
+      send({ emailHash: 'late', uid: 'u-late', draftKeys: ['hh_L'] }),
+      // Never secured.
+      send({ emailHash: 'n', uid: 'u-n', draftKeys: ['hh_N'], clicked: true }),
+      // Box secured before the email doesn't count.
+      send({ emailHash: 'b', uid: 'u-b', draftKeys: ['hh_B'] }),
+    ],
+    securedBoxes: [
+      { householdId: 'A', securedMs: t0 + DAY },
+      { householdId: 'G', securedMs: t0 + 3 * DAY },
+      { householdId: 'L', securedMs: t0 + 20 * DAY },
+      { householdId: 'B', securedMs: t0 - DAY },
+    ],
+    householdsByOwner: new Map([['u-g', ['G']]]),
+    convertedUidByVisitor: new Map([['v-g', 'u-g']]),
+  });
+  assert.equal(stats.sends, 6);
+  assert.equal(stats.people, 5);
+  assert.equal(stats.clickedPeople, 2);
+  assert.equal(stats.securedPeople, 2);
+  assert.equal(stats.securedAfterClickPeople, 1);
+  assert.deepEqual(stats.byKind.low, { sends: 5, clicked: 2, secured: 1, securedAfterClick: 1 });
+  assert.deepEqual(stats.byKind.swapped, { sends: 1, clicked: 0, secured: 1, securedAfterClick: 0 });
 }
 
 console.log('inventoryEmails tests passed');

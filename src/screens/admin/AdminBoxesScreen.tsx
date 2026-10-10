@@ -1837,6 +1837,7 @@ export function AdminBoxesScreen() {
   const realShop = shopOrders.filter((o) => !(hideTests && (o.test || o.playthrough)));
   const shopPaid = realShop.filter((o) => o.paid && o.status !== 'refunded');
   const testShop = shopOrders.filter((o) => o.test || o.playthrough).length;
+  const invEmails = data.inventoryEmails;
 
   return (
     <View ref={hostRef} style={hostStyle}>
@@ -1916,6 +1917,20 @@ export function AdminBoxesScreen() {
               styles={styles}
               colors={colors}
             />
+            {invEmails && invEmails.sends > 0 ? (
+              <Stat
+                value={String(invEmails.securedPeople)}
+                label={
+                  `Boxes secured within ${invEmails.windowDays} days of an inventory email · ` +
+                  `${invEmails.people} emailed, ${invEmails.clickedPeople} clicked, ${invEmails.securedAfterClickPeople} secured after clicking · ` +
+                  `low-stock ${invEmails.byKind.low.secured}/${invEmails.byKind.low.sends}, ` +
+                  `sold-out swap ${invEmails.byKind.swapped.secured}/${invEmails.byKind.swapped.sends}`
+                }
+                tone={invEmails.securedPeople ? 'success' : undefined}
+                styles={styles}
+                colors={colors}
+              />
+            ) : null}
           </View>
 
           <View style={styles.sectionDivider} />

@@ -294,7 +294,9 @@ export async function mintResumeToken(
   db: FirebaseFirestore.Firestore,
   visitorId: string,
   leadEmail: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** inventoryEmailLog doc this link went out in; a click is recorded there. */
+  emailLogId: string | null = null
 ): Promise<MintedResumeToken> {
   const token = randomBytes(32).toString('base64url');
   const hash = sha256Hex(token);
@@ -305,6 +307,7 @@ export async function mintResumeToken(
     expiresAt: expireAtFrom(now, RESUME_TOKEN_TTL_DAYS),
     usedCount: 0,
     lastUsedAt: null,
+    ...(emailLogId ? { emailLogId } : {}),
   });
   return { token, hash, url: `${APP_ORIGIN}/?resume=${token}` };
 }
@@ -312,6 +315,26 @@ export async function mintResumeToken(
 export type ResumeGuestSessionResult =
   | { status: 'ok'; visitorId: string; snapshot: JsonRecord; converted: boolean; hasBox: boolean }
   | { status: 'invalid' | 'expired' | 'gone' };
+
+/**
+ * A link from an inventory email (functions/src/inventoryEmails.ts) was opened: count it on that
+ * send's inventoryEmailLog doc. Never throws — tracking must not break sign-in or resume.
+ */
+export async function recordInventoryEmailClick(
+  db: FirebaseFirestore.Firestore,
+  emailLogId: unknown,
+  now: Date = new Date()
+): Promise<void> {
+  if (typeof emailLogId !== 'string' || !emailLogId || emailLogId.includes('/')) return;
+  try {
+    await db.doc(`inventoryEmailLog/${emailLogId}`).update({
+      clicks: FieldValue.increment(1),
+      lastClickedAt: Timestamp.fromDate(now),
+    });
+  } catch (err) {
+    logger.warn('recordInventoryEmailClick failed', { err: String(err).slice(0, 200) });
+  }
+}
 
 export async function resumeGuestSessionByToken(
   db: FirebaseFirestore.Firestore,
@@ -342,6 +365,7 @@ export async function resumeGuestSessionByToken(
       },
       { merge: true }
     ),
+    recordInventoryEmailClick(db, tok.emailLogId, now),
   ]);
   return {
     status: 'ok',

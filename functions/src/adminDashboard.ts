@@ -6,6 +6,7 @@ import { metaAdsAccessToken, metaStatsByAd, type MetaAdStats } from './metaAdsIn
 import { isTest } from './testAccounts';
 import { resolveAvailability, availabilityRemaining } from './catalogAvailability';
 import { buildShopOrder, type DashShopOrder } from './shopOrders';
+import { INVENTORY_EMAIL_LOG, inventoryEmailStats, type InventoryEmailStats } from './inventoryEmails';
 
 /**
  * Admin "Orders and Inventory" dashboard: one read-only snapshot of Hanukkah box orders,
@@ -252,6 +253,8 @@ export type BoxesDashboard = {
   adPeople: DashAdPerson[];
   funnel: DashFunnelPerson[];
   giftFunnel: DashGiftFunnelPerson[];
+  /** Low-stock / sold-out swap emails → secured boxes (inventoryEmails.ts). */
+  inventoryEmails: InventoryEmailStats;
   /** Meta's own per-ad results (Grapejuice campaigns), keyed by ad name; null when Meta is unreachable. */
   metaByAd: Record<string, MetaAdStats> | null;
 };
@@ -607,6 +610,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     receivedSnap,
     guestSnap,
     giftFunnelSnap,
+    inventoryEmailSnap,
   ] = await Promise.all([
       db.doc(`config/${HOLIDAY_ID}`).get(),
       db.collection('households').get(),
@@ -622,6 +626,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         .select('snapshot', 'entry', 'path', 'createdAt', 'updatedAt', 'convertedUid', 'convertedAt', 'lastLeadAt', 'gateEmailAt', 'resumeCount', 'saveCount', 'ipGeo')
         .get(),
       db.collection('giftFunnel').get(),
+      db.collection(INVENTORY_EMAIL_LOG).where('status', '==', 'sent').get(),
     ]);
   const guestDocs = guestSnap.docs.filter((d) => !d.id.startsWith('agenttest'));
   const config = configSnap.data() ?? {};
@@ -830,6 +835,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   const shopOrders: DashShopOrder[] = [];
   const liveBoxHouseholds = new Set<string>();
   const committedBoxHouseholds = new Set<string>();
+  const securedBoxes: Array<{ householdId: string; securedMs: number }> = [];
 
   for (const d of ordersSnap.docs) {
     const o = d.data();
@@ -870,7 +876,12 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     if (!isBox) continue;
     if (o.holidayId === HOLIDAY_ID && !playthrough && LIVE.includes(o.status)) addLines(boxHeld, o.lineItems);
     if (!playthrough && LIVE.includes(o.status)) liveBoxHouseholds.add(hid);
-    if (!playthrough && LIVE.includes(o.status) && o.status !== 'pending') committedBoxHouseholds.add(hid);
+    if (!playthrough && LIVE.includes(o.status) && o.status !== 'pending') {
+      committedBoxHouseholds.add(hid);
+      if (o.holidayId === HOLIDAY_ID) {
+        securedBoxes.push({ householdId: hid, securedMs: ms(o.committedAt) ?? ms(o.createdAt) ?? 0 });
+      }
+    }
     const c = customerFor(hid, str(o.userId));
     const lines = linesOf(o.lineItems, c.childNames);
     const addOnCents = addOnTotal(lines);
@@ -1142,6 +1153,34 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   gifts.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
   shopOrders.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
 
+  const householdsByOwner = new Map<string, string[]>();
+  for (const [hid, h] of households) {
+    const owner = str(h.ownerId);
+    if (owner) householdsByOwner.set(owner, [...(householdsByOwner.get(owner) ?? []), hid]);
+  }
+  const convertedUidByVisitor = new Map<string, string>();
+  for (const d of guestDocs) {
+    const uid = str(d.data().convertedUid);
+    if (uid) convertedUidByVisitor.set(d.id, uid);
+  }
+  const inventoryEmails = inventoryEmailStats({
+    sends: inventoryEmailSnap.docs.map((d) => {
+      const x = d.data();
+      return {
+        emailHash: String(x.emailHash ?? d.id),
+        kind: x.kind === 'swapped' ? ('swapped' as const) : ('low' as const),
+        sentMs: ms(x.sentAt) ?? ms(x.createdAt) ?? 0,
+        clicked: (num(x.clicks) ?? 0) > 0,
+        uid: str(x.uid),
+        visitorId: str(x.visitorId),
+        draftKeys: Array.isArray(x.draftKeys) ? x.draftKeys.filter((k: unknown): k is string => typeof k === 'string') : [],
+      };
+    }),
+    securedBoxes,
+    householdsByOwner,
+    convertedUidByVisitor,
+  });
+
   return {
     generatedAt: new Date(nowMs).toISOString(),
     lockAt: iso(config.lockAt),
@@ -1162,6 +1201,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     adPeople,
     funnel,
     giftFunnel,
+    inventoryEmails,
     metaByAd: null,
   };
 }
