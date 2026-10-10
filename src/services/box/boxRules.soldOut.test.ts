@@ -6,6 +6,7 @@ import {
   isDefaultEligible,
   isLowWithDrafts,
   isSoldOutForBoxes,
+  planCandlesDefault,
   planGifts,
   rowRemainingWithDrafts,
   swapSoldOutLines,
@@ -89,6 +90,17 @@ const find = (c: BoxRulesCatalogRow[], id: string) => c.find((r) => r.id === id)
 {
   const c = catalog({ 'airdry-clay-dreidel': { stockLeft: 300, draftHeld: 298 }, 'airdry-clay-menorah': { stockLeft: 300, draftHeld: 296 } });
   assert.notEqual(planGifts({ kids: [{ age: 6 }], catalog: c })[0].kind, 'airdry');
+}
+
+// Every candle option low: default to the one with the most real stock, whatever the preference.
+{
+  const c = catalog({
+    'beeswax-candles': { stockLeft: 95, draftHeld: 99 },
+    'roll-your-own-beeswax-candles': { stockLeft: 48, draftHeld: 138 },
+    'electric-candles': { stockLeft: 20, draftHeld: 17 },
+  });
+  assert.equal(planCandlesDefault(c, 'diy-candles'), 'candles');
+  assert.equal(planCandlesDefault(c, 'candles'), 'candles');
 }
 
 // Nothing sold out: same array back.

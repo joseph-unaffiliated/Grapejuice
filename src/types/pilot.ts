@@ -204,7 +204,7 @@ export type CatalogItem = {
    * (live counters). null when inventory is untracked.
    */
   boxStockLeft?: number | null;
-  /** Units sitting in unsecured drafts (account + signed-out boxes). They hold no stock. */
+  /** Units sitting in unsecured account drafts (signed-out boxes don't count). They hold no stock. */
   boxDraftHeld?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;

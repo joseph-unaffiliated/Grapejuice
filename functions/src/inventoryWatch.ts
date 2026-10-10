@@ -16,8 +16,8 @@ import { isTest } from './testAccounts';
 
 /**
  * Inventory watch (every 30 minutes):
- *  1. Counts units sitting in unsecured drafts — account drafts without a box order, plus
- *     signed-out boxes and gift drafts in guestSessions — into
+ *  1. Counts units sitting in account drafts without a box order (signed-out boxes and gift
+ *     drafts don't count) into
  *     catalog/hanukkah/inventory/{itemId}.draftHeldQty. Drafts hold no stock; the count only
  *     feeds the "low" rule (defaults + the low-stock email).
  *  2. Swaps truly sold-out items (every unit held by a real order) out of those drafts using the
@@ -84,11 +84,14 @@ function lineQty(line: DraftLine): number {
   return typeof line.quantity === 'number' && Number.isFinite(line.quantity) ? Math.max(0, Math.floor(line.quantity)) : 0;
 }
 
-/** Units per item across unsecured drafts (test accounts excluded). */
+/**
+ * Units per item across unsecured account drafts (test accounts excluded). Signed-out boxes
+ * and gift drafts rarely check out, so they don't count toward "low".
+ */
 export function countDraftHolds(drafts: UnsecuredDraft[]): Map<string, number> {
   const totals = new Map<string, number>();
   for (const d of drafts) {
-    if (d.test) continue;
+    if (d.test || d.kind !== 'household') continue;
     for (const line of [...d.lines, ...d.giftLines]) {
       const qty = lineQty(line);
       if (qty > 0) totals.set(line.itemId, (totals.get(line.itemId) ?? 0) + qty);

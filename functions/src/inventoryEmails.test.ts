@@ -32,7 +32,8 @@ function draft(over: Partial<UnsecuredDraft> & Pick<UnsecuredDraft, 'key' | 'kin
     draft({ key: 'guest_v', kind: 'guest', lines: [line('lego-menorah')], giftLines: [line('lego-menorah')] }),
     draft({ key: 'hh_t', kind: 'household', lines: [line('lego-menorah', 5)], test: true }),
   ]);
-  assert.equal(totals.get('lego-menorah'), 3);
+  // Only the account draft counts: signed-out boxes and test accounts don't.
+  assert.equal(totals.get('lego-menorah'), 1);
   assert.equal(totals.get('beeswax-candles'), 2);
 }
 

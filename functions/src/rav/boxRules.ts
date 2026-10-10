@@ -157,7 +157,7 @@ export type BoxRulesCatalogRow = {
   inventory?: number | null;
   /** Units still free for boxes (inventory − box allocations − direct sales). */
   stockLeft?: number | null;
-  /** Units sitting in unsecured drafts (account drafts + signed-out boxes); they hold no stock. */
+  /** Units sitting in unsecured account drafts (signed-out boxes don't count); they hold no stock. */
   draftHeld?: number | null;
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
@@ -222,7 +222,7 @@ export const STOCK_POLICY = {
   swapReserveFraction: 0.15,
   /**
    * Stop defaulting once this few units remain after real holds AND every
-   * unsecured draft. Drafts hold nothing, so the count can go below zero.
+   * unsecured account draft. Drafts hold nothing, so the count can go below zero.
    */
   lowRemainingWithDrafts: 5,
   /** Restockable: drafts don't count against these, only real holds (same 5-left line). */
@@ -599,7 +599,7 @@ export function swapReserveUnits(row: BoxRulesCatalogRow): number {
 }
 
 /**
- * Units left after real holds and every unsecured draft. Internal only: it can
+ * Units left after real holds and every unsecured account draft. Internal only: it can
  * go negative and never blocks adding or swapping. Null = untracked.
  */
 export function rowRemainingWithDrafts(row: BoxRulesCatalogRow): number | null {
@@ -702,8 +702,8 @@ const CANDLES_FALLBACK_ORDER: CandlesKind[] = ['candles', 'diy-candles', 'electr
 
 /**
  * Keep the preferred candles while it's above its swap reserve; then the next
- * option in beeswax → roll-your-own → electric order that is; then anything
- * that can still spare a unit.
+ * option in beeswax → roll-your-own → electric order that is; when none is,
+ * whichever has the most real stock left.
  */
 export function planCandlesDefault(
   catalog: BoxRulesCatalogRow[] | undefined,
@@ -716,7 +716,9 @@ export function planCandlesDefault(
     .filter((o): o is { kind: CandlesKind; row: BoxRulesCatalogRow } => !!o.row);
   return (
     options.find((o) => isDefaultEligible(o.row))?.kind ??
-    options.find((o) => canAssignUnit(o.row))?.kind ??
+    options
+      .filter((o) => canAssignUnit(o.row))
+      .sort((a, b) => (rowStockLeft(b.row) ?? Infinity) - (rowStockLeft(a.row) ?? Infinity))[0]?.kind ??
     preferred
   );
 }
