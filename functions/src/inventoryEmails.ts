@@ -1,7 +1,7 @@
 import { Timestamp, getFirestore, type Firestore } from 'firebase-admin/firestore';
 import * as logger from './logger';
 import { onSchedule } from './sentry';
-import { customerioAppApiKey, getCustomerioAppApiKey, sendEmail } from './email';
+import { getCustomerioAppApiKey, sendEmail } from './email';
 import { catalogEmailImage } from './emailItems';
 import { emailHash, mintResumeToken } from './guestSessions';
 import { mintInventoryAlertUrl } from './loginLinks';
@@ -452,7 +452,6 @@ export const scheduledInventoryEmails = onSchedule(
   {
     schedule: 'every day 10:00',
     timeZone: 'America/New_York',
-    secrets: [customerioAppApiKey],
     memory: '1GiB',
     timeoutSeconds: 540,
   },
