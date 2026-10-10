@@ -10,6 +10,7 @@ import {
   inventoryEmailStats,
   inventoryUtm,
   planInventoryEmails,
+  previousDate,
   subjectWords,
   type PlanInput,
   type Recipient,
@@ -118,6 +119,7 @@ function plan(over: Partial<PlanInput>) {
     swaps: [],
     lowAlreadySent: new Set(),
     sentToday: new Set(),
+    lowYesterday: new Set(),
     unsubscribed: new Set(),
     ...over,
   });
@@ -171,8 +173,27 @@ function plan(over: Partial<PlanInput>) {
     sentToday: new Set(['h-b']),
   });
   assert.deepEqual(picks.map((p) => p.hash), ['h-c']);
-  assert.deepEqual(skipped, { unsubscribed: 1, alreadyToday: 1, nothingNew: 1 });
+  assert.deepEqual(skipped, { unsubscribed: 1, alreadyToday: 1, lowCooldown: 0, nothingNew: 1 });
 }
+
+// Low-stock email yesterday: no low-stock email today, but a swap email still goes.
+{
+  const { picks, skipped } = plan({
+    recipients: [person('a', ['lego-menorah']), person('b', ['lego-menorah', 'electric-candles']), person('c', ['lego-menorah'])],
+    lowItemIds: ['lego-menorah'],
+    swaps: [{ id: 'hh_b_electric-candles', draftKey: 'hh_b', fromItemId: 'electric-candles', toItemId: null }],
+    lowYesterday: new Set(['h-a', 'h-b']),
+  });
+  assert.deepEqual(
+    picks.map((p) => `${p.hash}:${p.kind}`),
+    ['h-b:swapped', 'h-c:low']
+  );
+  assert.equal(skipped.lowCooldown, 1);
+}
+
+assert.equal(previousDate('2026-10-11'), '2026-10-10');
+assert.equal(previousDate('2026-11-01'), '2026-10-31');
+assert.equal(previousDate('2027-01-01'), '2026-12-31');
 
 // Swaps on drafts nobody can be emailed about are reported, not sent.
 {

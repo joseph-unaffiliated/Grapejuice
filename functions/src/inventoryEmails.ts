@@ -23,7 +23,8 @@ import {
  *   inventory-low      an item in their box is almost sold out (once per person per item,
  *                      inventoryLowSent/{emailHash}_{itemId})
  * At most one email per person per ET day (inventoryEmailLog/{emailHash}_{yyyy-mm-dd}, claimed in a
- * transaction). Swapped emails go first, then low-stock; the Lego Menorah leads each group.
+ * transaction), and no low-stock email the day after one (every other day at most). Swapped
+ * emails go first, then low-stock; the Lego Menorah leads each group.
  * Accounts get a signed checkout link; signed-out visitors (matched through their Retention lead in
  * Customer.io) get a resume link. Unsubscribed people and secured boxes are skipped.
  * Off unless GJ_INVENTORY_EMAILS_ENABLED=true; GJ_INVENTORY_EMAILS_START (yyyy-mm-dd, ET) holds the
@@ -65,12 +66,14 @@ export type PlanInput = {
   lowAlreadySent: Set<string>;
   /** Hashes that already got an inventory email today. */
   sentToday: Set<string>;
+  /** Hashes that got a low-stock email yesterday: no low-stock email today (swaps still go). */
+  lowYesterday: Set<string>;
   unsubscribed: Set<string>;
 };
 
 export type PlanResult = {
   picks: EmailPick[];
-  skipped: { unsubscribed: number; alreadyToday: number; nothingNew: number };
+  skipped: { unsubscribed: number; alreadyToday: number; lowCooldown: number; nothingNew: number };
   /** Swaps whose draft no longer belongs to anyone we can email (secured, converted, no lead). */
   unreachableSwapIds: string[];
 };
@@ -108,15 +111,20 @@ export function planInventoryEmails(input: PlanInput): PlanResult {
   const order = input.lowItemIds;
   const rank = (p: EmailPick) =>
     (p.kind === 'swapped' ? 0 : 1000) + itemRank(p.kind === 'swapped' ? p.swap.fromItemId : p.itemId, order);
-  const skipped = { unsubscribed: 0, alreadyToday: 0, nothingNew: 0 };
+  const skipped = { unsubscribed: 0, alreadyToday: 0, lowCooldown: 0, nothingNew: 0 };
   const picks: EmailPick[] = [];
   const seen = new Set<string>();
   for (const r of input.recipients) {
     if (seen.has(r.hash)) continue;
     seen.add(r.hash);
-    const mine = candidates.get(r.hash) ?? [];
-    if (!mine.length) {
+    const all = candidates.get(r.hash) ?? [];
+    if (!all.length) {
       skipped.nothingNew += 1;
+      continue;
+    }
+    const mine = input.lowYesterday.has(r.hash) ? all.filter((p) => p.kind !== 'low') : all;
+    if (!mine.length) {
+      skipped.lowCooldown += 1;
       continue;
     }
     if (input.unsubscribed.has(r.hash)) {
@@ -300,6 +308,13 @@ export function etDate(now: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(now);
 }
 
+/** yyyy-mm-dd → the calendar day before. */
+export function previousDate(date: string): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Catalog names carry quotes for brand words ("Lego" Menorah); emails drop them. */
 export function displayName(name: string): string {
   return name.replace(/["“”]/g, '').replace(/\s+/g, ' ').trim();
@@ -461,7 +476,7 @@ export async function runInventoryEmails(
     pendingSwaps: 0,
     swapsNoLongerDraft: 0,
     picks: {},
-    skipped: { unsubscribed: 0, alreadyToday: 0, nothingNew: 0 },
+    skipped: { unsubscribed: 0, alreadyToday: 0, lowCooldown: 0, nothingNew: 0 },
     sent: 0,
     failed: 0,
   };
@@ -470,12 +485,13 @@ export async function runInventoryEmails(
   const apiKey = getCustomerioAppApiKey();
   if (!apiKey) throw new Error('CUSTOMERIO_APP_API_KEY not set');
   const date = etDate(now);
-  const [drafts, rows, swapSnap, lowSentSnap, todaySnap] = await Promise.all([
+  const [drafts, rows, swapSnap, lowSentSnap, todaySnap, yesterdaySnap] = await Promise.all([
     loadUnsecuredDrafts(db),
     loadCatalogRows(db).then(toBoxRulesRows),
     db.collection(INVENTORY_SWAPS).where('emailed', '==', false).get(),
     db.collection(INVENTORY_LOW_SENT).select().get(),
     db.collection(INVENTORY_EMAIL_LOG).where('date', '==', date).select('emailHash').get(),
+    db.collection(INVENTORY_EMAIL_LOG).where('date', '==', previousDate(date)).select('emailHash', 'kind').get(),
   ]);
 
   const guestDrafts = drafts.filter((d) => d.kind === 'guest' && d.leadEmailHash);
@@ -511,6 +527,9 @@ export async function runInventoryEmails(
     swaps,
     lowAlreadySent: new Set(lowSentSnap.docs.map((d) => d.id)),
     sentToday: new Set(todaySnap.docs.map((d) => String(d.data().emailHash))),
+    lowYesterday: new Set(
+      yesterdaySnap.docs.filter((d) => d.data().kind === 'low').map((d) => String(d.data().emailHash))
+    ),
     unsubscribed,
   });
   result.skipped = plan.skipped;
