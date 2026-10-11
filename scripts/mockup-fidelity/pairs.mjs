@@ -37,7 +37,7 @@ export const PAIRS = [
   { id: 'box-member', mockup: 'box-v3.html?notice=1', app: '/box', member: true },
   { id: 'box-undo', mockup: 'box-v3.html', app: '/box', guest: true, firstOnly: true, steps: [{ click: 'Donate', first: true, wait: 2500 }, { click: 'Undo', wait: 2500 }] },
   { id: 'box-sheet', mockup: 'box-v3.html?sheet=candles&added=electric:candles:1', app: '/box', guest: true, steps: [{ click: 'Swap or add', first: true, wait: 2000 }], firstOnly: true },
-  { id: 'box-product', mockup: 'box-v3.html?sheet=product:electric&ctx=candles&prev=candles', app: '/box', guest: true, click: 'Open Beeswax Candles', firstOnly: true },
+  { id: 'box-product', mockup: 'box-v3.html?sheet=product:electric&ctx=candles&prev=candles', app: '/box', guest: true, steps: [{ click: 'Swap or add', first: true, wait: 2000 }, { click: 'Open Electric Candles', wait: 1500 }], firstOnly: true },
   { id: 'box-receipt', mockup: 'box-v3.html?sheet=receipt&added=electric:candles:1,lego:gifts:1&qty=dreidel:3', app: '/box', guest: true, click: 'Total', firstOnly: true },
   { id: 'box-menu', mockup: 'box-v3.html?menu=1', app: '/box', guest: true, click: 'Open menu', firstOnly: true },
   { id: 'checkout-member', mockup: 'checkout.html?s=1&added=claymenorah:gifts', app: '/checkout', member: true },

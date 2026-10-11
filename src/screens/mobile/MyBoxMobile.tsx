@@ -236,6 +236,13 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(item) } });
   };
 
+  /** Always a paid extra, even when the item could be swapped in. */
+  const addExtra = async (it: CatalogItem, sectionId: BoxDisplaySectionId) => {
+    e.setProductModalSection(sectionId);
+    await e.modalAddToBox(it);
+    setToast({ message: `Added ${it.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(it) } });
+  };
+
   const rowNote = (g: CoalescedBoxLine, item: CatalogItem | undefined) => lineNote(g, item, kidName);
 
   const Row = ({ g, sectionId }: { g: CoalescedBoxLine; sectionId: BoxDisplaySectionId }) => {
@@ -354,11 +361,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       rows.flatMap((g) => (g.unitCents > 0 || isWrapControlSlot(g.primary.slotId) ? [] : (e.swapOptionsBySlot[g.primary.slotId] ?? []).map((o) => o.id)))
     );
     const adds = (e.upsellsBySection[sectionId] ?? []).filter((it) => !rows.some((g) => g.itemId === it.id) && (e.locked || !altIds.has(it.id)));
-    const addOnTop = async (it: CatalogItem) => {
-      e.setProductModalSection(sectionId);
-      await e.modalAddToBox(it);
-      setToast({ message: `Added ${it.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(it) } });
-    };
+    const addOnTop = (it: CatalogItem) => addExtra(it, sectionId);
     return (
       <MobileSheet
         visible
@@ -478,6 +481,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const alts = group && group.unitCents === 0 ? (e.swapOptionsBySlot[group.primary.slotId] ?? []).filter((o) => o.id !== group.itemId) : [];
     const desc = (item.description ?? '').trim();
     const offer = offerFor(item, sectionId, rowsFor(sectionId));
+    const swapSource = !group && offer.swap && !e.locked ? findSwapSourceLine(item, e.lineItems, e.catalog, sectionId) : null;
+    const swapFrom = swapSource ? byId.get(swapSource.itemId) : undefined;
     return (
       <MobileSheet
         visible
@@ -492,7 +497,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
               </View>
               <MobileButton label="Done" onPress={() => setSheet(null)} height={46} style={{ width: 120 }} />
             </View>
-          ) : (
+          ) : swapSource ? null : (
             <MobileButton label={`${offer.swap ? 'Swap into' : 'Add to'} ${gift ? 'their' : 'my'} box${offer.swap ? '' : offer.free ? ' · included' : ` · +${formatCatalogDollars(offer.cents)}`}`} onPress={() => { void addItem(item, sectionId); setSheet(null); }} />
           )
         }
@@ -503,6 +508,24 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         </Text>
         {group ? <Text style={[mType.smallDark, { marginTop: 4 }]}>{metaFor(group, item) || `In ${yours} box`}</Text> : null}
         {desc ? <Text style={[mType.body, { marginTop: 10 }]}>{desc.length > 240 ? `${desc.slice(0, 237).trimEnd()}…` : desc}</Text> : null}
+        {swapSource ? (
+          <View style={{ gap: 10, marginTop: 16 }}>
+            <Pressable onPress={() => { void addItem(item, sectionId); setSheet(null); }} accessibilityRole="button" accessibilityLabel={`Swap ${item.name} into ${yours} box`} style={styles.opt}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optTitle}>Swap it in</Text>
+                <Text style={styles.optSub} numberOfLines={1}>Instead of {yours} {swapFrom?.name ?? 'current pick'}</Text>
+              </View>
+              <View style={styles.optPill}><Text style={styles.optPillText}>Included</Text></View>
+            </Pressable>
+            <Pressable onPress={() => { void addExtra(item, sectionId); setSheet(null); }} accessibilityRole="button" accessibilityLabel={`Add ${item.name} on top for ${formatCatalogDollars(offer.cents)}`} style={styles.opt}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optTitle}>Add one on top</Text>
+                <Text style={styles.optSub} numberOfLines={1}>Keeps everything already in {yours} box</Text>
+              </View>
+              <View style={styles.optPill}><Text style={styles.optPillText}>+ {formatCatalogDollars(offer.cents)}</Text></View>
+            </Pressable>
+          </View>
+        ) : null}
         <Pressable onPress={() => { setSheet(null); navigation.navigate('CatalogProduct', { slug: item.id }); }} accessibilityRole="button" style={{ marginTop: 10 }}>
           <Text style={styles.link}>See full details ›</Text>
         </Pressable>
@@ -778,11 +801,16 @@ const styles = StyleSheet.create({
   altHead: { fontSize: 13, color: m.muted, marginTop: 12, marginBottom: 8, ...mFont(400) },
   altRow: { gap: 10, paddingRight: 8 },
   alt: { width: 104, gap: 6 },
+  opt: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingHorizontal: 14, paddingVertical: 10, borderRadius: mRadius.md, borderWidth: 1, borderColor: m.gold, backgroundColor: m.white },
+  optTitle: { fontSize: 15.5, color: m.ink, ...mFont(400) },
+  optSub: { fontSize: 12.5, color: m.muted, marginTop: 2, ...mFont(400) },
+  optPill: { backgroundColor: m.ink, borderRadius: 999, paddingHorizontal: 14, height: 32, alignItems: 'center', justifyContent: 'center' },
+  optPillText: { fontSize: 13.5, color: m.gold, ...mFont(400) },
   altCard: { width: 128, gap: 6, padding: 6, borderRadius: mRadius.md, borderWidth: 1, borderColor: m.line, backgroundColor: m.white },
   altBtns: { flexDirection: 'row', gap: 6 },
   altName: { fontSize: 12.5, color: m.ink, lineHeight: 16, minHeight: 32, ...mFont(400) },
   addGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  sheetPhoto: { width: '100%', aspectRatio: 1, borderRadius: mRadius.lg, backgroundColor: m.img },
+  sheetPhoto: { width: 230, height: 230, alignSelf: 'center', borderRadius: mRadius.lg, backgroundColor: m.img },
   rcGroup: { marginBottom: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: m.line },
   rcHead: { fontSize: 14, color: m.ink, ...mFont(500) },
   rcRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
