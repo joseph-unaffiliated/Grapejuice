@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { TaskHeader } from '../../components/mobile/TaskHeader';
+import { MobileGiftClaim } from './MobileGiftRecipient';
+import { useBoxLockDay } from '../../hooks/useBoxLockDay';
 import {
   View,
   Text,
@@ -82,6 +84,8 @@ function GiftClaimBody() {
   const [giftKind, setGiftKind] = useState<GiftKind>('credit');
   const [creditCents, setCreditCents] = useState(0);
   const [peekNonce, setPeekNonce] = useState(0);
+  const mobileLayout = useMobileLayout();
+  const lockDay = useBoxLockDay();
 
   const goHome = () => navigation.navigate('StorefrontHome');
 
@@ -128,7 +132,10 @@ function GiftClaimBody() {
     setSurface('checking');
     void (async () => {
       try {
-        const peek = await peekGiftInvite(token);
+        // `?preview=gift-claim` (fidelity harness): a sample claimable box without a server invite.
+        const peek = token.startsWith('preview-')
+          ? ({ status: 'claimable', giverName: 'Grandma', giftKind: token.includes('credit') ? 'credit' : 'box', creditCents: 8000, hasGiverDraft: true } as const)
+          : await peekGiftInvite(token);
         if (cancelled) return;
         if (peek.status === 'not_found') {
           setSurface('not_found');
@@ -285,6 +292,18 @@ function GiftClaimBody() {
         </TouchableOpacity>
       </>
     );
+  }
+
+  if (mobileLayout) {
+    const openGift = () => {
+      if (isAuthenticated) {
+        void claim();
+        return;
+      }
+      useAuthFlowStore.getState().setPendingGiftClaimToken(token);
+      useAuthFlowStore.getState().startAuthFromGuest('GiftClaim', 'signup');
+    };
+    return <MobileGiftClaim giverName={fromName} kind={giftKind} creditCents={creditCents} lockDay={lockDay} guest={!isAuthenticated} onOpen={openGift} />;
   }
 
   const giftDescription =

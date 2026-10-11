@@ -1,7 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { TaskHeader } from '../../components/mobile/TaskHeader';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
+import { OrderSummary, type OrderLine } from '../../components/mobile/OrderSummary';
+import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
+import { primaryPhoto } from '../../components/mobile/catalogPhotos';
+import { m, mFont, mGutter, mType, balanceProps } from '../../components/mobile/mobileTheme';
+import { Icon } from '../../components/ui/Icon';
+import { icons } from '../../constants/icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -239,6 +246,70 @@ function GiftBoxCheckoutBody() {
     );
   }
 
+  if (mobileLayoutForHeader) {
+    const fields = (
+      <>
+        <CheckoutAddressFields address={address} onChange={onAddressChange} fieldErrors={addressFieldErrors} {...deliverability.fieldsProps} />
+        {formError ? <Text style={checkoutUi.fieldError}>{formError}</Text> : null}
+      </>
+    );
+    const busy = preparing || deliverability.checking;
+    if (surprise) {
+      return (
+        <View style={{ flex: 1, backgroundColor: m.white }}>
+          <TaskHeader back={{ label: 'Back', onPress: backToGiftBox }} title="Your gift" />
+          <ScrollView contentContainerStyle={{ paddingHorizontal: mGutter, paddingTop: 24, paddingBottom: STICKY_BAR_CLEARANCE + 24 }} keyboardShouldPersistTaps="handled">
+            <Text style={[mType.h1, { fontSize: 27 }]}>Where should we send it?</Text>
+            <Text style={mStyles.sub} {...balanceProps}>
+              {giverAddress ? `${giverName} added this address. Check it, and that's all we need.` : "It's a surprise, so that's all we need."}
+            </Text>
+            {fields}
+          </ScrollView>
+          <StickyBar layout="stack" label={`Covered by ${giverName}`} total="$0 to you" cta={{ label: 'Ship my gift', onPress: () => void startCheckout(), busy }} />
+        </View>
+      );
+    }
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    const thumbs = coalesceLinesByItemId(lineItems).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)) }));
+    const lines: OrderLine[] = [
+      { label: 'Hanukkah box', value: 'Covered' },
+      ...(subtotal > 0 ? [{ label: 'Your extras', value: formatDollars(subtotal) }] : []),
+      ...(priced.discountApplied > 0 ? [{ label: promo.discountLabel || 'Discount', value: `−${formatDollars(priced.discountApplied)}` }] : []),
+      ...(giftCreditApplied > 0 ? [{ label: 'Gift credit', value: `−${formatDollars(giftCreditApplied)}` }] : []),
+      ...(platformCreditApplied > 0 ? [{ label: 'Credit', value: `−${formatDollars(platformCreditApplied)}` }] : []),
+      { label: 'Shipping', value: shippingCents > 0 ? formatDollars(shippingCents) : 'Free' },
+      ...(taxCents > 0 ? [{ label: 'Estimated tax', value: formatDollars(taxCents) }] : []),
+    ];
+    return (
+      <View style={{ flex: 1, backgroundColor: m.white }}>
+        <TaskHeader back={{ label: 'Box', onPress: backToGiftBox }} title="Your box" right="Secure" />
+        <ScrollView contentContainerStyle={{ paddingHorizontal: mGutter, paddingTop: 16, paddingBottom: STICKY_BAR_CLEARANCE + 24 }} keyboardShouldPersistTaps="handled">
+          <View style={mStyles.assure}>
+            <Icon icon={icons.gift} size={14} color={m.goldDark} />
+            <Text style={mStyles.assureText}>
+              Your box is covered by {giverName}.{total > 0 ? ' Only what you added goes on your card.' : ''}
+            </Text>
+          </View>
+          <View style={{ marginTop: 14 }}>
+            <OrderSummary sub={`Covered by ${giverName}`} items={thumbs} lines={lines} totalLabel={total > 0 ? 'Paid today' : 'You pay'} total={formatDollars(total)} />
+          </View>
+          {subtotal > 0 ? <View style={{ marginTop: 12 }}><DiscountCodeField promo={promo} /></View> : null}
+          <View style={mStyles.sectionHead}>
+            <Text style={mType.h2}>Shipping</Text>
+            <Text style={mType.small}>U.S. only</Text>
+          </View>
+          {fields}
+        </ScrollView>
+        <StickyBar
+          layout="stack"
+          label={total > 0 ? 'Paid today' : `Covered by ${giverName}`}
+          total={total > 0 ? formatDollars(total) : '$0 to you'}
+          cta={{ label: total > 0 ? 'Continue to payment' : 'Confirm my box', onPress: () => void startCheckout(), busy }}
+        />
+      </View>
+    );
+  }
+
   if (surprise) {
     return (
       <SystemPage narrow onBack={backToGiftBox} header={mobileHeader('Your box', backToGiftBox)}>
@@ -323,4 +394,11 @@ export function GiftBoxCheckoutScreen() {
 const styles = StyleSheet.create({
   paymentElementWrap: { minHeight: 120, marginTop: spacing.xs },
   ctaSpacing: { marginTop: spacing.xl },
+});
+
+const mStyles = StyleSheet.create({
+  sub: { fontSize: 15.5, lineHeight: 23, color: m.body, marginTop: 8, marginBottom: 20, ...mFont(300) },
+  assure: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: m.beige, borderRadius: 12, padding: 12 },
+  assureText: { flex: 1, fontSize: 13.5, lineHeight: 19, color: m.ink, ...mFont(400) },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 26, marginBottom: 12 },
 });

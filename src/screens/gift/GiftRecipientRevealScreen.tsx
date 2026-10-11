@@ -1,6 +1,12 @@
 /** Figma rGzXYb1rNVxqGHz81835Jn — frame 17: recipient reveal after claim. */
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { TaskHeader } from '../../components/mobile/TaskHeader';
+import { MobileGiftCreditReady, MobileGiftReveal } from './MobileGiftRecipient';
+import { useReceivedGifts } from '../../hooks/useReceivedGifts';
+import { useCatalog } from '../../hooks/useCatalog';
+import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
+import { primaryPhoto } from '../../components/mobile/catalogPhotos';
+import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import React, { useMemo } from 'react';
 import {
   View,
@@ -50,6 +56,15 @@ function GiftRecipientRevealBody() {
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
   const lockDay = useBoxLockDay();
+  const mobileLayout = useMobileLayout();
+  const { gifts } = useReceivedGifts();
+  const { items: catalog } = useCatalog();
+  const { startBox } = useStorefrontActions();
+  const thumbs = useMemo(() => {
+    const lines = gifts.find((g) => g.giftInviteId === giftInviteId)?.lineItems ?? [];
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    return coalesceLinesByItemId(lines).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)) }));
+  }, [gifts, catalog, giftInviteId]);
 
   const chooseCustomize = () => {
     noteReceivedGiftViewedThisSession(giftInviteId);
@@ -62,6 +77,20 @@ function GiftRecipientRevealBody() {
     if (!user?.uid) return;
     navigation.replace('GiftBoxCheckout', { giftInviteId, surprise: true });
   };
+
+  if (mobileLayout) {
+    return hasGiverDraft ? (
+      <MobileGiftReveal giverName={giverName} message={message} thumbs={thumbs} onShow={chooseCustomize} onSurprise={chooseSurprise} />
+    ) : (
+      <MobileGiftCreditReady
+        giverName={giverName}
+        message={message}
+        creditCents={giftCreditCents || household?.giftCreditCents || 0}
+        lockDay={lockDay}
+        onBuild={startBox}
+      />
+    );
+  }
 
   if (!hasGiverDraft) {
     return (

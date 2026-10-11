@@ -296,7 +296,7 @@ export function applyDevPreview(key: string, search: URLSearchParams): void {
         giverName: search.get('giver') ?? 'Grandma',
         message: search.get('message') ?? 'Happy Hanukkah!',
         giftCreditCents: 8000,
-        hasGiverDraft: true,
+        hasGiverDraft: search.get('credit') !== '1',
       });
       break;
     case 'gift-sent':
