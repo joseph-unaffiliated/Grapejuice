@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
 import {
   View,
   Text,
@@ -340,8 +342,10 @@ function GiftClaimBody() {
 }
 
 export function GiftClaimScreen() {
+  const mobileLayout = useMobileLayout();
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav={mobileLayout} fillChromeHidden={mobileLayout}>
+      {mobileLayout ? <TaskHeader title="Your gift" /> : null}
       <GiftClaimBody />
     </StorefrontChrome>
   );

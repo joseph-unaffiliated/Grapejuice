@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
 import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -94,6 +96,9 @@ function WebPayStep({ onPaid }: { onPaid: () => void }) {
 
 function GiftBoxCheckoutBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const mobileLayoutForHeader = useMobileLayout();
+  const mobileHeader = (back: string, onPress: () => void) =>
+    mobileLayoutForHeader ? <TaskHeader back={{ label: back, onPress }} title="Checkout" right="Secure" /> : undefined;
   const route = useRoute<Route>();
   const { giftInviteId, surprise = false } = route.params;
   const { household, refresh: refreshSession } = useSession();
@@ -213,12 +218,12 @@ function GiftBoxCheckoutBody() {
     surprise ? navigation.navigate('MyGifts') : navigation.navigate('GiftBox', { giftInviteId });
 
   if (giftsLoading || !gift) {
-    return <SystemPage narrow loading onBack={backToGiftBox} />;
+    return <SystemPage narrow loading onBack={backToGiftBox} header={mobileHeader('Your box', backToGiftBox)} />;
   }
 
   if (paymentSecret && stripePromise && pendingOrderId) {
     return (
-      <SystemPage narrow onBack={() => setPaymentSecret(null)}>
+      <SystemPage narrow onBack={() => setPaymentSecret(null)} header={mobileHeader('Back', () => setPaymentSecret(null))}>
         <Text style={checkoutUi.title}>Payment</Text>
         <Text style={checkoutUi.lead}>
           The giver already paid for the curated box. This covers the add-ons you picked.
@@ -236,7 +241,7 @@ function GiftBoxCheckoutBody() {
 
   if (surprise) {
     return (
-      <SystemPage narrow onBack={backToGiftBox}>
+      <SystemPage narrow onBack={backToGiftBox} header={mobileHeader('Your box', backToGiftBox)}>
         <Text style={checkoutUi.title}>Where should it go?</Text>
         <Text style={checkoutUi.lead}>
           {giverAddress
@@ -264,7 +269,7 @@ function GiftBoxCheckoutBody() {
   }
 
   return (
-    <SystemPage narrow onBack={backToGiftBox}>
+    <SystemPage narrow onBack={backToGiftBox} header={mobileHeader('Your box', backToGiftBox)}>
       <Text style={checkoutUi.title}>Shipping</Text>
       <Text style={checkoutUi.lead}>
         The curated box was already paid by the giver. You only pay for add-ons you added (gift
@@ -307,8 +312,9 @@ function GiftBoxCheckoutBody() {
 }
 
 export function GiftBoxCheckoutScreen() {
+  const mobileLayout = useMobileLayout();
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav={mobileLayout} fillChromeHidden={mobileLayout}>
       <GiftBoxCheckoutBody />
     </StorefrontChrome>
   );

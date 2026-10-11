@@ -46,6 +46,8 @@ type PageProps = {
   hub?: AccountHubPage;
   /** Full-bleed content under the column (e.g. a carousel); spans the viewport edge to edge. */
   footer?: ReactNode;
+  /** Full-bleed header above the column (the phone task header). Replaces the back link. */
+  header?: ReactNode;
 };
 
 /**
@@ -61,6 +63,7 @@ export function SystemPage({
   loading = false,
   hub,
   footer,
+  header,
 }: PageProps) {
   const { isDesktop, layoutWidth, widePanelMaxWidth } = useWebLayout();
   const columnWidth = hub || narrow ? HUB_COLUMN : wide ? widePanelMaxWidth : layoutWidth;
@@ -96,7 +99,7 @@ export function SystemPage({
           <AccountHubHeader page={hub} />
           <View style={styles.hubDivider} />
         </>
-      ) : onBack ? (
+      ) : onBack && !header ? (
         <TouchableOpacity
           onPress={onBack}
           style={styles.back}
@@ -112,6 +115,7 @@ export function SystemPage({
 
   return (
     <SafeAreaView style={styles.safe} edges={[]}>
+      {header}
       <WebContentPanel
         flush={isDesktop}
         // With a footer the gutter moves onto the column so the footer can bleed edge to edge.

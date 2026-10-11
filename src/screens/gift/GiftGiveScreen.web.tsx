@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
 import { StyleSheet, Platform, View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -722,9 +724,21 @@ function GiftGiveBody() {
   };
 
   const paymentReady = step === 'pay' && payment && stripePromise;
+  const mobileLayout = useMobileLayout();
+  const taskStep = giftTaskStep(step, !!payment);
+  const mobileHeader = mobileLayout ? (
+    <TaskHeader
+      back={step === 'type' ? { label: 'Cancel', onPress: cancelGift } : { label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : cancelGift()) }}
+      title="Send a gift"
+      right={`Step ${taskStep.index + 1} of ${taskStep.labels.length}`}
+      steps={taskStep.labels}
+      on={taskStep.index}
+    />
+  ) : null;
   return (
     <SystemPage
       narrow
+      header={mobileHeader}
       footer={
         <>
           <View style={styles.footerGap} />
@@ -800,11 +814,19 @@ function GiftGiveBody() {
 }
 
 export function GiftGiveScreen() {
+  const mobileLayout = useMobileLayout();
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav={mobileLayout} fillChromeHidden={mobileLayout}>
       <GiftGiveBody />
     </StorefrontChrome>
   );
+}
+
+/** Phone: which of the four mockup steps a GiftGive step belongs to. */
+export function giftTaskStep(step: string, hasPayment: boolean): { index: number; labels: string[] } {
+  const labels = ['Their family', 'Their box', 'Note', 'Pay'];
+  const index = step === 'type' || step === 'kids' || step === 'email' ? 0 : step === 'customize' ? 1 : step === 'note' || step === 'send' ? 2 : 3;
+  return { index: hasPayment || step !== 'pay' ? index : 2, labels };
 }
 
 const styles = StyleSheet.create({

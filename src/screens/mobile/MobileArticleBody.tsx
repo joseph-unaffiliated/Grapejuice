@@ -7,6 +7,8 @@ import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../component
 type Props = {
   /** Secondary photo at the top (heroes may use secondary photography). */
   heroUri?: string | null;
+  /** Bundled image for the hero (require()). */
+  heroSource?: number;
   eyebrow?: string;
   title: string;
   lead?: string;
@@ -19,10 +21,10 @@ type Props = {
 };
 
 /** The phone article layout: photo, eyebrow, title, lead, a feature, then the same copy blocks the desktop article uses. */
-export function MobileArticleBody({ heroUri, eyebrow, title, lead, feature, blocks, after, cta }: Props) {
+export function MobileArticleBody({ heroUri, heroSource, eyebrow, title, lead, feature, blocks, after, cta }: Props) {
   return (
     <View style={styles.root}>
-      {heroUri ? <Image source={{ uri: heroUri }} style={styles.hero} resizeMode="cover" /> : null}
+      {heroSource ? <Image source={heroSource} style={styles.hero} resizeMode="cover" /> : heroUri ? <Image source={{ uri: heroUri }} style={styles.hero} resizeMode="cover" /> : null}
       <View style={styles.pad}>
         {eyebrow ? <Text style={mType.eyebrow}>{eyebrow}</Text> : null}
         <Text style={[mType.h1, { marginTop: 4 }]} {...balanceProps}>

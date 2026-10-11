@@ -1,4 +1,6 @@
 /** Figma rGzXYb1rNVxqGHz81835Jn — frame 17: recipient reveal after claim. */
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
 import React, { useMemo } from 'react';
 import {
   View,
@@ -29,8 +31,10 @@ import { CURATED_GIFT_BOX_LABEL, GIFT_CREDIT_SPEND_HINT } from '../../constants/
 type Route = RouteProp<MainStackParamList, 'GiftRecipientReveal'>;
 
 function GiftRecipientChrome({ children }: { children: React.ReactNode }) {
+  const mobileLayout = useMobileLayout();
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav={mobileLayout} fillChromeHidden={mobileLayout}>
+      {mobileLayout ? <TaskHeader title="Your gift" /> : null}
       {children}
     </StorefrontChrome>
   );

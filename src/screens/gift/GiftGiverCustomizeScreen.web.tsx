@@ -1,4 +1,6 @@
 /** Figma rGzXYb1rNVxqGHz81835Jn — frame 16: giver curates the box between the email and note steps (web). */
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
 import React from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -25,6 +27,7 @@ function latestCustomizeForm(fallback: GiftGiveFormValues): GiftGiveFormValues {
 }
 
 export function GiftGiverCustomizeScreen() {
+  const mobileLayout = useMobileLayout();
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<Route>();
   const { form, childDrafts, lineItems: restoredLineItems } = route.params;
@@ -121,7 +124,16 @@ export function GiftGiverCustomizeScreen() {
   };
 
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav fillChromeHidden={mobileLayout}>
+      {mobileLayout ? (
+        <TaskHeader
+          back={{ label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('GiftLanding')) }}
+          title="Send a gift"
+          right="Step 2 of 4"
+          steps={['Their family', 'Their box', 'Note', 'Pay']}
+          on={1}
+        />
+      ) : null}
       <GiftGiverCustomizeContent
         form={form}
         catalog={catalog}

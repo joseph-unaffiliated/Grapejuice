@@ -1,4 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { MobileArticleBody } from '../mobile/MobileArticleBody';
+import { MobileButton } from '../../components/mobile/MobileButton';
+const DOORSTEP = require('../../../assets/storefront/box-doorstep.jpg');
 import { Image, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -51,6 +56,7 @@ export function GiftLandingScreen() {
   const config = useHanukkahConfig();
   const closed = useBoxLockPassed();
   const { goCategory } = useStorefrontActions();
+  const mobileLayout = useMobileLayout();
 
   useEffect(() => {
     if (preferredGiftPath) {
@@ -73,6 +79,32 @@ export function GiftLandingScreen() {
   const give = (initialGiftPath: GiftPath) => navigation.navigate('GiftGive', { initialGiftPath });
   const giveBox = () => give('customize');
   const giveCredit = () => give('credit_only');
+
+  if (mobileLayout && !closed) {
+    const lockShort = boxLockDayLabel(config?.lockAt) ?? 'Nov 7';
+    return (
+      <StorefrontChrome>
+        <MobileArticleBody
+          heroSource={DOORSTEP}
+          eyebrow={`Send by ${lockShort}`}
+          title="Send Hanukkah to another family"
+          lead="A box with everything for eight nights, picked for their kids. Or send credit and let them choose."
+          feature={
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 10 }}>
+              <MobileButton label="Send a gift · from $80" onPress={giveBox} />
+              <MobileButton label="Or send gift credit" variant="secondary" onPress={giveCredit} />
+            </View>
+          }
+          blocks={[
+            { type: 'steps', heading: c.howItWorks.heading, items: c.howItWorks.steps },
+            { type: 'prose', body: c.howItWorks.after },
+            { type: 'beliefs', heading: c.faq.heading, items: c.faq.items },
+          ]}
+          cta={{ label: c.twoWays.primaryCta, onPress: giveBox }}
+        />
+      </StorefrontChrome>
+    );
+  }
 
   if (closed) {
     return (

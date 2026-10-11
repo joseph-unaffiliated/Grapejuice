@@ -1,4 +1,6 @@
 /** Post-payment confirmation for gift giver — checkout-adjacent visual language. */
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -134,8 +136,10 @@ function GiftSentConfirmationBody() {
 }
 
 export function GiftSentConfirmationScreen() {
+  const mobileLayout = useMobileLayout();
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav={mobileLayout} fillChromeHidden={mobileLayout}>
+      {mobileLayout ? <TaskHeader title="Gift sent" /> : null}
       <GiftSentConfirmationBody />
     </StorefrontChrome>
   );
