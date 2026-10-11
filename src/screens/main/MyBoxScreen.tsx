@@ -92,6 +92,8 @@ import {
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useMyBoxEditing } from '../../hooks/useMyBoxEditing';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MyBoxMobile } from '../mobile/MyBoxMobile';
 
 /** Clearance under scroll content for the floating order-summary card. */
 const SUMMARY_FLOAT_CLEARANCE = 140;
@@ -112,6 +114,8 @@ export function MyBoxScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   /** Filled once useBoxDetailScroll below exists; the hook's handlers scroll through it. */
   const scrollToSectionRef = useRef<(sectionId: BoxDisplaySectionId) => void>(() => {});
+  const editing = useMyBoxEditing({ navigation, scrollToSection: (sectionId) => scrollToSectionRef.current(sectionId) });
+  const mobileLayout = useMobileLayout();
   const {
     activeChild,
     addFreeItemToEmptySlot,
@@ -198,7 +202,7 @@ export function MyBoxScreen() {
     visibleSectionIds,
     voteOptionsFor,
     wrapSelectedIds,
-  } = useMyBoxEditing({ navigation, scrollToSection: (sectionId) => scrollToSectionRef.current(sectionId) });
+  } = editing;
 
   const {
     scrollRef,
@@ -985,6 +989,10 @@ export function MyBoxScreen() {
         variant="services"
       />
     ) : null;
+
+  if (mobileLayout && !isChildProfile && !loading && !draftLoading) {
+    return <MyBoxMobile editing={editing} navigation={navigation} />;
+  }
 
   return (
     <StorefrontChrome

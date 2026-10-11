@@ -1237,6 +1237,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     removeCoalesced,
     requireAuthToCustomize,
     restoreDonated,
+    saveOrderUpdates,
     savingOrder,
     sealedSectionIds,
     sessionLoading,

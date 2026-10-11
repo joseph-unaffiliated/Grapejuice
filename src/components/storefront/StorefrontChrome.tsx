@@ -63,6 +63,8 @@ type Props = {
   onShopLook?: () => void;
   /** Optional ref to the page ScrollView (e.g. home “scroll to look”). */
   scrollRef?: Ref<ScrollView>;
+  /** Observe page scroll (phone My Box chips). Called after the chrome's own handler. */
+  onPageScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   /**
    * Extra ScrollView contentContainerStyle. Avoid horizontal padding here —
    * it insets chrome + footer; put gutters on children instead (see /store).
@@ -226,6 +228,7 @@ function StorefrontChromeInner({
   servicesSlot,
   floatingFooter,
   fillChromeHidden = false,
+  onPageScroll,
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
@@ -647,6 +650,7 @@ function StorefrontChromeInner({
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      onPageScroll?.(e);
       if (!useOverlaySticky) return;
       const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastY.current;
@@ -693,6 +697,7 @@ function StorefrontChromeInner({
       }
     },
     [
+      onPageScroll,
       animateOverlay,
       clearTopFadeTimer,
       dismissStickyNearTop,
