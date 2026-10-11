@@ -117,6 +117,16 @@ export function boxAddOnUnitCents(item: CatalogItem): number {
   return 0;
 }
 
+/**
+ * Price of one more unit of an item that's already in the box (the `::x` extra-unit
+ * line from the quantity stepper). Member price when there is one, otherwise the flat
+ * extra price, so an extra unit is never $0 and never skips the payment check.
+ */
+export function extraUnitCents(item: CatalogItem): number {
+  const { memberCents } = resolveCatalogDisplayPrices(item);
+  return memberCents > 0 ? memberCents : EXTRA_FLAT_CENTS;
+}
+
 export function isSwappable(item: CatalogItem, tier: CatalogPricingTier): boolean {
   return tier === 'perKid' || (tier === 'included' && item.swapOptions.length > 0);
 }

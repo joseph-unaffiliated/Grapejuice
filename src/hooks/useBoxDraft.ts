@@ -14,6 +14,7 @@ import {
   repairExtraPerKidPricing,
   repairWoodDreidelHouseholdQty,
   repairWoodDreidelIncluded,
+  repairZeroExtraUnits,
 } from '../services/box/buildDefaultBox';
 import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
@@ -172,6 +173,9 @@ async function fetchAuthBoxDraft({
 
   const repairedWoodIncluded = repairWoodDreidelIncluded(nextLines, catalog);
   if (repairedWoodIncluded.dirty) nextLines = repairedWoodIncluded.lineItems;
+
+  const repairedExtraUnits = repairZeroExtraUnits(nextLines, catalog);
+  if (repairedExtraUnits.dirty) nextLines = repairedExtraUnits.lineItems;
 
   let swapNotices = draft?.inventorySwapNotices ?? [];
   let soldOutDirty = false;
@@ -374,6 +378,8 @@ export function useBoxDraft() {
           if (repairedBooks.dirty) lines = repairedBooks.lineItems;
           const repairedIncluded = repairWoodDreidelIncluded(lines, catalog);
           if (repairedIncluded.dirty) lines = repairedIncluded.lineItems;
+          const repairedExtraUnits = repairZeroExtraUnits(lines, catalog);
+          if (repairedExtraUnits.dirty) lines = repairedExtraUnits.lineItems;
           lines = syncWrappingPaperUnitCentsForWrapSelection(
             lines,
             catalog,

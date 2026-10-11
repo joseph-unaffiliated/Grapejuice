@@ -40,6 +40,7 @@ import {
   isHouseholdPracticeCatalogItem,
   repairExtraPerKidPricing,
   repairWoodDreidelIncluded,
+  repairZeroExtraUnits,
 } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
@@ -58,6 +59,7 @@ import {
   resolveCatalogDisplayPrices,
   boxAddOnUnitCents,
   boxALaCarteRetailValueCents,
+  extraUnitCents,
   EXTRA_FLAT_CENTS,
 } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, InventorySwapNotice } from '../../types/pilot';
@@ -331,6 +333,11 @@ export function MyBoxScreen() {
       next = wood.lineItems;
       dirty = true;
     }
+    const extraUnits = repairZeroExtraUnits(next, catalog);
+    if (extraUnits.dirty) {
+      next = extraUnits.lineItems;
+      dirty = true;
+    }
     if (dirty) void persist(next);
   }, [catalog, lineItems, draftLoading, locked, persist]);
 
@@ -594,8 +601,8 @@ export function MyBoxScreen() {
         );
         return;
       }
-      const price = resolveCatalogDisplayPrices(item).memberCents;
-      if (!guestViewOnly && price > 0 && !guardMutation()) return;
+      const price = extraUnitCents(item);
+      if (!guestViewOnly && !guardMutation()) return;
       const extra = lineItems.find(
         (li) => li.itemId === group.itemId && li.slotId.endsWith(EXTRA_UNIT_SUFFIX)
       );

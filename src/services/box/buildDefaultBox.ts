@@ -2,6 +2,7 @@ import type { BoxLineItem, CatalogItem, ChildProfile, PracticeLevel } from '../.
 import {
   ALA_CARTE_SLOT_IDS,
   boxAddOnUnitCents,
+  extraUnitCents,
   inferPricingTier,
   unitCentsForTier,
   chargeableLineTotal,
@@ -562,6 +563,29 @@ export function repairExtraPerKidPricing(
       slotId: li.slotId.startsWith('addon-') ? li.slotId : `addon-${li.itemId}`,
       childId: undefined,
     };
+  });
+  return { lineItems: next, dirty };
+}
+
+/**
+ * Re-price quantity-stepper extra units (`::x` lines) that were saved at $0 while the
+ * stepper used the member price for items that have none. Only touches `::x` lines.
+ */
+export function repairZeroExtraUnits(
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[]
+): { lineItems: BoxLineItem[]; dirty: boolean } {
+  let dirty = false;
+  const byId = new Map(catalog.map((c) => [c.id, c]));
+  const next = lineItems.map((li) => {
+    if (!li.slotId.endsWith('::x')) return li;
+    if ((li.unitCents ?? 0) > 0) return li;
+    const item = byId.get(li.itemId);
+    if (!item) return li;
+    const cents = extraUnitCents(item);
+    if (cents <= 0) return li;
+    dirty = true;
+    return { ...li, unitCents: cents };
   });
   return { lineItems: next, dirty };
 }
