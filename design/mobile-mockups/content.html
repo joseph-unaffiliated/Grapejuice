@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice content</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .c-hero img { width: 100%; height: 220px; object-fit: cover; display: block; }
+  .art { padding: 24px 16px 0; display: flex; flex-direction: column; gap: 14px; }
+  .art .h1 { font-size: 31px; letter-spacing: -0.9px; }
+  .art p { font-size: 16px; line-height: 1.6; color: #2b2b2b; font-weight: 300; }
+  .art .h2 { font-size: 21px; margin-top: 14px; }
+  .stat { padding: 18px 16px; border-radius: 16px; background: var(--gold-soft); display: flex; gap: 14px; align-items: center; }
+  .stat b { font-size: 40px; font-weight: 300; letter-spacing: -1.5px; color: #7D7148; }
+  .stat span { font-size: 14.5px; line-height: 1.45; color: #374151; }
+  .mission { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .mission:last-child { border-bottom: none; }
+  .mission .n { width: 30px; height: 30px; border-radius: 15px; background: var(--gold-soft); color: #7D7148; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .mission b { font-weight: 500; font-size: 16px; display: block; } .mission span { font-size: 14px; color: var(--muted); line-height: 1.45; }
+  .hk-stage { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 32px 12px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .hk-date { text-align: center; font-size: 14px; color: #7D7148; }
+  .nights { display: flex; justify-content: space-between; padding: 0 6px; }
+  .nights span { width: 34px; height: 34px; border-radius: 17px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #7D7148; background: #fff; box-shadow: inset 0 0 0 1px #E4DCC6; }
+  .nights span.past { background: var(--gold-soft); box-shadow: none; }
+  .nights span.on { background: var(--ink); color: var(--gold); }
+  .howto { display: flex; flex-direction: column; gap: 16px; margin-top: 4px; }
+  .howto div { display: flex; gap: 14px; }
+  .howto .n { width: 28px; height: 28px; border-radius: 14px; background: var(--gold-soft); color: #7D7148; display: flex; align-items: center; justify-content: center; font-size: 13.5px; flex-shrink: 0; }
+  .howto p { font-size: 15px; line-height: 1.5; }
+  .need { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .need .meta { flex: 1; } .need b { font-weight: 400; font-size: 15px; display: block; } .need span { font-size: 13px; color: var(--muted); }
+  .letters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .letters div { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+  .letters .he { font-size: 34px; line-height: 1; color: var(--ink); font-weight: 400; }
+  .letters b { font-weight: 500; font-size: 15px; } .letters span { font-size: 13px; color: var(--muted); line-height: 1.4; }
+  .reason { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; }
+  .reason svg { flex-shrink: 0; margin-top: 2px; }
+  .reason b { font-weight: 500; font-size: 16px; display: block; } .reason span { font-size: 14px; color: var(--muted); line-height: 1.45; }
+  .quote { padding: 22px 16px; border-radius: 16px; background: var(--gold-soft); }
+  .quote p { font-size: 19px; line-height: 1.45; letter-spacing: -0.3px; color: #2b2b2b; font-weight: 300; }
+  .quote span { display: block; margin-top: 10px; font-size: 13.5px; color: #7D7148; }
+  .toc { border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; }
+  .toc .list-row { min-height: 46px; } .toc .list-row:last-child { border-bottom: none; } .toc .t { font-size: 15px; }
+  .legal p { font-size: 15px; }
+  .closed { margin: 0 16px; padding: 18px 16px; border-radius: 16px; background: var(--gold-soft); display: flex; flex-direction: column; gap: 10px; }
+  .closed b { font-weight: 500; font-size: 18px; } .closed span { font-size: 14.5px; color: #374151; line-height: 1.45; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const P0 = new URLSearchParams(location.search).get('s') || '2';
+window.PAGE_TITLE = { 2: 'Light the candles', 3: 'Play dreidel', 8: 'Hanukkah, made easy' }[P0];
+</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+const STEP = P0;
+const CHECK_GOLD = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+const ctaBand = (t, s) => `<section class="band black" style="margin-top:32px"><div class="pad" style="display:flex;flex-direction:column;gap:10px"><div class="h2" style="color:#fff">${t}</div><div class="sub" style="color:#c9c9c9;font-size:14.5px">${s}</div><button class="cta fill" style="align-self:flex-start;margin-top:4px">Build my box · from $80</button></div></section>`;
+
+function candles() {
+  const n = Number(params.get('n') || 3);
+  const day = ['Friday, Dec 4', 'Saturday, Dec 5', 'Sunday, Dec 6', 'Monday, Dec 7', 'Tuesday, Dec 8', 'Wednesday, Dec 9', 'Thursday, Dec 10', 'Friday, Dec 11'][n - 1];
+  return `${siteHeader()}<div class="art"><div class="eyebrow">How to</div><div class="h1">Light the candles</div><p>One more candle each night, plus the shamash, the helper candle in the middle that lights the others.</p>
+    <div class="hk-stage">${hanukkiah(n, { width: 170 })}<div class="hk-date">Night ${n} · ${day}</div><div class="nights">${[1, 2, 3, 4, 5, 6, 7, 8].map(i => `<span class="${i === n ? 'on' : i < n ? 'past' : ''}">${i}</span>`).join('')}</div></div>
+    <div class="h2">Tonight</div>
+    <div class="howto"><div><span class="n">1</span><p>Put ${n === 1 ? 'one candle' : `${n} candles`} in on the right, then the shamash in the middle.</p></div><div><span class="n">2</span><p>Light the shamash and say the blessings.</p></div><div><span class="n">3</span><p>${n === 1 ? 'Use the shamash to light the candle.' : 'Light the newest candle first, moving left to right.'}</p></div><div><span class="n">4</span><p>Set the menorah in a window so people passing can see it.</p></div></div>
+    <button class="list-row" style="margin-top:6px"><div class="meta"><div class="t">The blessings</div><div class="s">Hebrew, transliteration and English</div></div><span class="c">›</span></button>
+    <div class="h2">What you need</div>
+    <div class="need">${thumb('beeswax', 52)}<div class="meta"><b>Beeswax Candles</b><span class="goldtxt">In your box</span></div></div>
+    <div class="need">${thumb('stemless', 52)}<div class="meta"><b>"Stemless" Menorah</b><span>$100</span></div><button class="pill dark sm">+ Add</button></div></div>
+    ${ctaBand('Everything for all eight nights', 'Candles, dreidels, gelt, food kits, a book and a present for each kid.')}${siteFooter()}`;
+}
+function dreidel() {
+  return `${siteHeader()}<div class="c-hero"><img src="${PHOTO.drawing}" alt=""></div><div class="art"><div class="eyebrow">How to</div><div class="h1">Play dreidel</div><p>Everyone starts with the same pile of gelt. Each player puts one in the middle, then takes turns spinning.</p>
+    <div class="letters"><div><span class="he">נ</span><b>Nun</b><span>Nothing happens</span></div><div><span class="he">ג</span><b>Gimmel</b><span>Take the whole pot</span></div><div><span class="he">ה</span><b>Hey</b><span>Take half the pot</span></div><div><span class="he">ש</span><b>Shin</b><span>Put one in</span></div></div>
+    <div class="h2">Good to know</div>
+    <div class="howto"><div><span class="n">1</span><p>When the pot is empty, everyone puts one in again.</p></div><div><span class="n">2</span><p>Out of gelt? You're out. Last player with gelt wins.</p></div><div><span class="n">3</span><p>Little kids can play for fun. Nobody has to lose their gelt.</p></div></div>
+    <div class="h2">What you need</div>
+    <div class="need">${thumb('wooden', 52)}<div class="meta"><b>Classic Wooden Dreidel</b><span class="goldtxt">In your box · 1 per person</span></div></div>
+    <div class="need">${thumb('biggelt', 52)}<div class="meta"><b>Big Bag of Gelt</b><span class="goldtxt">In your box</span></div></div></div>
+    ${ctaBand('Dreidels and gelt are in every box', `Plus candles, food kits, a book and a present for each kid. Change anything until ${LOCK_SHORT}.`)}${siteFooter()}`;
+}
+function closed() {
+  return `${siteHeader()}<div class="c-hero"><img src="${PHOTO.stemless}" alt=""></div><div class="art"><div class="h1">Hanukkah boxes are closed for 2026</div><p>Boxes locked on ${LOCK_LONG} and are on their way. Thank you for celebrating with us.</p></div>
+    <div class="closed" style="margin-top:18px"><b>Still need something?</b><span>Candles, dreidels, gelt and gifts ship on their own in 3 to 5 days.</span><button class="place" style="height:50px;font-size:16px">Shop the store</button></div>
+    <div class="art"><div class="opt-card" style="margin-top:4px"><b>Passover is next</b><p>Get one email when Passover boxes open.</p><div class="inrow"><div class="in ph">you@example.com</div><button class="pill dark">Notify me</button></div></div>
+    <button class="list-row"><div class="meta"><div class="t">Already ordered?</div><div class="s">Track your box in your account</div></div><span class="c">›</span></button></div><div style="height:30px"></div>${siteFooter()}`;
+}
+
+function render() {
+  const map = { 2: candles, 3: dreidel, 8: closed };
+  document.getElementById('root').innerHTML = `<div class="app" style="padding-bottom:0">${map[STEP]()}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

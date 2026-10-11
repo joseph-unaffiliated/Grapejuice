@@ -24,7 +24,7 @@ type Props = {
   linkLabel?: string;
 };
 
-function openIcs(event: CalendarEvent) {
+export function openIcs(event: CalendarEvent) {
   const body = icsContent(event);
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const blob = new Blob([body], { type: 'text/calendar;charset=utf-8' });

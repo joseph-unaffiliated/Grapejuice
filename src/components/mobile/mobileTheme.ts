@@ -44,7 +44,7 @@ export const mType = {
   smallDark: { fontSize: 13, lineHeight: 18, color: m.goldDark, ...mFont(400) } as TextStyle,
   tiny: { fontSize: 12, lineHeight: 16, color: m.muted, ...mFont(400) } as TextStyle,
   eyebrow: { fontSize: 13, lineHeight: 18, color: m.goldDark, ...mFont(500) } as TextStyle,
-  button: { fontSize: 16, lineHeight: 20, ...mFont(500) } as TextStyle,
+  button: { fontSize: 16, lineHeight: 20, ...mFont(400) } as TextStyle,
 };
 
 /** Text that should balance across lines on web (`.gj-mobile [data-balance]` in public/index.html). */

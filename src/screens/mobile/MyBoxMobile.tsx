@@ -5,16 +5,17 @@ import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
-import { BOX_DISPLAY_SECTIONS, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
+import { BOX_DISPLAY_SECTIONS, displaySectionForLineItem, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
+import { openIcs } from '../../components/holiday/AddToCalendarMenu';
+import { hanukkahCalendarEvents } from '../../utils/calendarLinks';
 import {
   childNamesForLines,
   coalesceLinesByItemId,
   formatBoxItemStatusMeta,
   fullCardLinesForSection,
-  giftBadgeLabelForLines,
-  bookBadgeLabelForLines,
   resolveBoxItemAttributionKind,
   isWrapControlSlot,
+  isGiftSlotLine,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
@@ -79,10 +80,23 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
   const daysLeft = daysUntilLock(e.lockAt);
   const donatedValue = e.donatedItems.reduce((t, d) => t + resolveCatalogDisplayPrices(d.item).memberCents * d.missing, 0);
 
+  /** Each kid's present sits under Gifts on the phone, whatever kind of thing it is. */
   const rowsFor = useCallback(
-    (sectionId: BoxDisplaySectionId) => coalesceLinesByItemId(fullCardLinesForSection(sectionId, e.grouped[sectionId] ?? [])),
+    (sectionId: BoxDisplaySectionId) => {
+      const isKidGift = (l: { slotId: string; childId?: string | null }) => isGiftSlotLine(l as never) && !!l.childId;
+      if (sectionId !== 'presents') return coalesceLinesByItemId((e.grouped[sectionId] ?? []).filter((l) => !isKidGift(l)));
+      const gifts = BOX_DISPLAY_SECTIONS.flatMap((s) => (e.grouped[s.id] ?? []).filter(isKidGift));
+      return coalesceLinesByItemId([...gifts, ...fullCardLinesForSection('presents', e.grouped.presents ?? [])]);
+    },
     [e.grouped]
   );
+  const sectionTitle = (id: BoxDisplaySectionId, fallback: string) =>
+    id === 'food' ? 'Eat & Drink' : id === 'presents' ? `Gifts for ${kids.length === 1 ? kids[0]?.name?.trim() || 'your kid' : 'the kids'}` : fallback;
+  const addToCalendar = () => {
+    const events = hanukkahCalendarEvents({ startsOn: e.startsOn ?? null, lockAt: e.lockAt ?? null, estimatedDeliveryBy: e.estimatedDeliveryBy ?? null });
+    const lock = events.find((ev) => /customize|lock/i.test(ev.title)) ?? events[0];
+    if (lock) openIcs(lock);
+  };
 
   const thumbs: BoxThumb[] = useMemo(() => {
     const out: BoxThumb[] = [];
@@ -128,9 +142,9 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
       g.includedQuantity
     );
 
-  const quantity = (g: CoalescedBoxLine, delta: 1 | -1, sectionId: BoxDisplaySectionId) => {
+  const quantity = (g: CoalescedBoxLine, delta: 1 | -1, _sectionId: BoxDisplaySectionId) => {
     const item = byId.get(g.itemId);
-    void e.changeBoxQuantity(g, delta, sectionId);
+    void e.changeBoxQuantity(g, delta, displaySectionForLineItem(g.primary, item));
     if (delta === -1 && g.quantity <= 1 && g.unitCents === 0 && item) {
       setToast({ message: `${item.name} donated to a family who couldn't otherwise celebrate`, action: { label: 'Undo', onPress: () => void e.restoreDonated(item.id) } });
     }
@@ -146,10 +160,10 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void e.modalRemoveFromBox(item) } });
   };
 
+  const rowNote = (g: CoalescedBoxLine, item: CatalogItem | undefined) => lineNote(g, item, kidName);
+
   const Row = ({ g, sectionId }: { g: CoalescedBoxLine; sectionId: BoxDisplaySectionId }) => {
     const item = byId.get(g.itemId);
-    const badge = giftBadgeLabelForLines(g.lines, kids) ?? bookBadgeLabelForLines(g.lines, kids);
-    const meta = metaFor(g, item);
     const atFloor = g.quantity <= 1;
     const donate = atFloor && g.unitCents === 0;
     return (
@@ -162,13 +176,13 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
             {item?.name ?? g.primary.label ?? g.itemId}
           </Text>
           <Text style={styles.rowMeta} numberOfLines={2}>
-            {badge ? `${badge}${meta ? ` · ${meta}` : ''}` : meta || (g.unitCents > 0 ? `Added · ${formatCatalogDollars(g.unitCents)}` : 'Included')}
+            {rowNote(g, item)}
           </Text>
         </View>
         {!e.locked ? (
           <View style={styles.stepper}>
             <Pressable onPress={() => quantity(g, -1, sectionId)} accessibilityRole="button" accessibilityLabel={atFloor ? (donate ? 'Donate' : 'Remove') : 'Decrease quantity'} style={styles.stepBtn} hitSlop={6}>
-              {donate ? <Icon icon={icons.gift} size={13} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
+              {donate ? <Icon icon={icons.donate} size={16} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
             </Pressable>
             <Text style={styles.stepQty}>{g.quantity}</Text>
             <Pressable onPress={() => quantity(g, 1, sectionId)} accessibilityRole="button" accessibilityLabel="Increase quantity" style={styles.stepBtn} hitSlop={6}>
@@ -183,19 +197,30 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
   const section = (s: (typeof BOX_DISPLAY_SECTIONS)[number]) => {
     const rows = rowsFor(s.id);
     const adds = (e.upsellsBySection[s.id] ?? []).slice(0, 6);
+    const hasExtra = rows.some((g) => g.unitCents > 0);
+    const suggestion = !hasExtra && !e.locked ? adds.find((it) => !rows.some((g) => g.itemId === it.id)) : undefined;
     return (
       <View key={s.id} onLayout={(ev) => (sectionY.current[s.id] = ev.nativeEvent.layout.y)} style={styles.section}>
         <View style={styles.sectionHead}>
-          <Icon icon={SECTION_ICON[s.id]} size={16} color={m.goldDark} />
-          <Text style={mType.h2}>{s.title}</Text>
+          <Icon icon={SECTION_ICON[s.id]} size={18} color={m.gold} />
+          <Text style={styles.sectionTitle}>{sectionTitle(s.id, s.title)}</Text>
         </View>
-        <Text style={[mType.small, { color: m.body, marginTop: 4, marginBottom: 6 }]} numberOfLines={3}>
-          {s.description.split('\n')[0]}
-        </Text>
         {rows.length ? rows.map((g) => <Row key={g.key} g={g} sectionId={s.id} />) : <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text>}
+        {suggestion ? (
+          <Pressable onPress={() => setSheet({ kind: 'product', item: suggestion, group: null, sectionId: s.id })} accessibilityRole="button" style={styles.sugg}>
+            <View style={styles.suggImage}>
+              <BoxItemImage size={48} imageUrl={suggestion.imageUrl} itemId={suggestion.id} />
+            </View>
+            <Text style={styles.suggName} numberOfLines={2}>
+              {suggestion.name}
+            </Text>
+            <Pressable onPress={() => void addItem(suggestion, s.id)} accessibilityRole="button" accessibilityLabel={`Add ${suggestion.name}`} style={styles.suggPill} hitSlop={6}>
+              <Text style={styles.suggPillText}>+ {formatCatalogDollars(priceToAdd(suggestion))}</Text>
+            </Pressable>
+          </Pressable>
+        ) : null}
         {!e.locked ? (
           <Pressable onPress={() => setSheet({ kind: 'tradition', sectionId: s.id })} accessibilityRole="button" style={styles.more}>
-            <Text style={styles.moreText}>{rows.length ? 'Swap or add' : 'Add something'}</Text>
             <View style={styles.minis}>
               {adds.slice(0, 3).map((it) => (
                 <View key={it.id} style={styles.mini}>
@@ -203,7 +228,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
                 </View>
               ))}
             </View>
-            <Text style={styles.chev}>›</Text>
+            <Text style={styles.moreText}>{rows.length ? (s.id === 'presents' ? 'Swap or add presents' : 'Swap or add') : 'Add something'}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -260,7 +285,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
                 {!e.locked ? (
                   <View style={styles.stepper}>
                     <Pressable onPress={() => quantity(g, -1, sectionId)} accessibilityRole="button" accessibilityLabel={g.quantity <= 1 ? (g.unitCents === 0 ? 'Donate' : 'Remove') : 'Decrease quantity'} style={styles.stepBtn}>
-                      {g.quantity <= 1 && g.unitCents === 0 ? <Icon icon={icons.gift} size={13} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
+                      {g.quantity <= 1 && g.unitCents === 0 ? <Icon icon={icons.donate} size={16} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
                     </Pressable>
                     <Text style={styles.stepQty}>{g.quantity}</Text>
                     <Pressable onPress={() => quantity(g, 1, sectionId)} accessibilityRole="button" accessibilityLabel="Increase quantity" style={styles.stepBtn}>
@@ -434,11 +459,16 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
       <View style={{ paddingBottom: STICKY_BAR_CLEARANCE + 12 }}>
         <View style={styles.head}>
           <Text style={mType.h1}>Your Hanukkah box</Text>
-          <Text style={[mType.body, { marginTop: 6 }]}>Everything for eight nights, picked for your family. Keep it as is, or change anything.</Text>
+          <Text style={styles.headSub} {...balanceProps}>Everything for eight nights, picked for your family. Keep it as is, or change anything.</Text>
           <View style={styles.lockLine}>
-            <Icon icon={icons.calendar} size={13} color={m.goldDark} />
+            <Icon icon={icons.calendar} size={13} color={m.gold} />
             <Text style={styles.lockText}>
-              {e.locked ? `Locked ${lockShort}` : `Change anything until ${lockShort}${daysLeft != null ? ` · ${daysLeft} days left` : ''}`}
+              {e.locked ? `Locked ${lockShort}` : `Change anything until ${lockShort}${daysLeft != null ? ` · ${daysLeft} days left` : ''} · `}
+              {e.locked ? null : (
+                <Text style={styles.lockLink} onPress={addToCalendar} accessibilityRole="link">
+                  Add to calendar
+                </Text>
+              )}
             </Text>
           </View>
         </View>
@@ -455,7 +485,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
           ) : null}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsBar} contentContainerStyle={styles.chips}>
           {BOX_DISPLAY_SECTIONS.map((s) => (
             <Pressable key={s.id} onPress={() => jumpTo(s.id)} accessibilityRole="button" accessibilityState={{ selected: active === s.id }} style={[styles.chip, active === s.id && styles.chipOn]}>
               <Text style={[styles.chipText, active === s.id && styles.chipTextOn]}>{SHORT[s.id]}</Text>
@@ -467,12 +497,20 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
 
         {mightLike.length ? (
           <View style={styles.like}>
-            <Text style={mType.h2}>Other things you might like</Text>
-            <Text style={[mType.small, { marginTop: 2, marginBottom: 12 }]}>Add them on top of your box.</Text>
+            <Text style={styles.sectionTitle}>Other things you might like</Text>
+            <Text style={styles.likeSub}>Add them on top of your box.</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               {mightLike.map((it) => {
                 const sectionId = BOX_DISPLAY_SECTIONS.find((s) => (e.upsellsBySection[s.id] ?? []).some((u) => u.id === it.id))?.id ?? 'presents';
-                return <ProductTileMobile key={it.id} item={it} width={150} onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })} action={{ label: `Add · +${formatCatalogDollars(priceToAdd(it))}`, onPress: () => void addItem(it, sectionId), variant: 'secondary' }} />;
+                return (
+                  <View key={it.id} style={{ width: 132, gap: 4 }}>
+                    <ProductTileMobile item={it} width={132} onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })} hidePrice />
+                    <Text style={styles.likePrice}>{formatCatalogDollars(priceToAdd(it))}</Text>
+                    <Pressable onPress={() => void addItem(it, sectionId)} accessibilityRole="button" accessibilityLabel={`Add ${it.name}`} style={styles.likeAdd}>
+                      <Text style={styles.likeAddText}>+ Add</Text>
+                    </Pressable>
+                  </View>
+                );
               })}
             </ScrollView>
           </View>
@@ -485,6 +523,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
         onSummaryPress={() => setSheet(donatedValue && !extras ? { kind: 'donated' } : { kind: 'receipt' })}
         cta={{ label: e.openOrder ? 'Save changes' : 'Checkout', onPress: e.openOrder && e.hasSessionEdits ? () => void e.saveOrderUpdates() : e.goToCheckout, disabled: e.savingOrder, busy: e.savingOrder }}
         testID="mobile-box-bar"
+        ctaFill={false}
       />
       {donatedValue ? (
         <Pressable onPress={() => setSheet({ kind: 'donated' })} accessibilityRole="button" accessibilityLabel={`Donated ${formatCatalogDollars(donatedValue)}`} style={styles.donatedChip}>
@@ -501,6 +540,16 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
   );
 }
 
+function lineNote(g: CoalescedBoxLine, item: CatalogItem | undefined, kidName: (id?: string | null) => string | null): string {
+  const kid = g.lines.map((l) => kidName(l.childId)).find(Boolean);
+  const forKid = kid ? ` for ${kid}` : '';
+  if (g.unitCents > 0) return `Added${forKid} · ${formatCatalogDollars(g.unitCents * g.quantity)}`;
+  const included = g.includedQuantity ?? g.quantity;
+  const extra = Math.max(0, g.quantity - included);
+  if (extra > 0 && item) return `Included${forKid} ×${included} · +${extra} for ${formatCatalogDollars(extra * resolveCatalogDisplayPrices(item).memberCents)}`;
+  return `Included${forKid}`;
+}
+
 function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={styles.line}>
@@ -511,34 +560,54 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
 }
 
 const styles = StyleSheet.create({
-  head: { paddingHorizontal: mGutter, paddingTop: 20 },
-  pad: { paddingHorizontal: mGutter, paddingTop: 16 },
-  lockLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
-  lockText: { fontSize: 13, color: m.goldDark, ...mFont(400) },
-  held: { fontSize: 12.5, color: m.goldDark, lineHeight: 17, marginTop: 10, ...mFont(400) },
+  head: { paddingHorizontal: mGutter, paddingTop: 28, paddingBottom: 8, gap: 12 },
+  headSub: { fontSize: 15, lineHeight: 22, color: m.muted, ...mFont(300) },
+  pad: { paddingHorizontal: mGutter, paddingTop: 8 },
+  lockLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  lockText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: m.muted, ...mFont(400) },
+  lockLink: { color: m.goldDark, textDecorationLine: 'underline' },
+  held: { fontSize: 13, color: m.goldDark, lineHeight: 19, marginTop: 16, ...mFont(400) },
   link: { fontSize: 13, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
-  chips: { paddingHorizontal: mGutter, gap: 8, paddingVertical: 16 },
+  chipsBar: {
+    marginTop: 12,
+    backgroundColor: m.white,
+    borderBottomWidth: 1,
+    borderBottomColor: m.line,
+    zIndex: 30,
+    ...(Platform.OS === 'web' ? ({ position: 'sticky', top: 0 } as object) : {}),
+  },
+  chips: { paddingHorizontal: mGutter, gap: 8, paddingVertical: 10 },
   chip: { height: 34, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: m.gold, alignItems: 'center', justifyContent: 'center', backgroundColor: m.white },
   chipOn: { backgroundColor: m.ink, borderColor: m.ink },
-  chipText: { fontSize: 13.5, color: m.ink, ...mFont(400) },
+  chipText: { fontSize: 13, color: m.ink, ...mFont(400) },
   chipTextOn: { color: m.gold },
-  section: { paddingHorizontal: mGutter, paddingTop: 24, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: m.line },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  section: { paddingHorizontal: mGutter, paddingTop: 32, paddingBottom: 28, borderBottomWidth: 1, borderBottomColor: m.line },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  sectionTitle: { flex: 1, fontSize: 20, lineHeight: 25, letterSpacing: -0.3, color: m.ink, ...mFont(400) },
+  sugg: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, paddingTop: 14, paddingBottom: 4, borderTopWidth: 1, borderTopColor: m.lineWarm, borderStyle: 'dashed' },
+  suggImage: { borderRadius: 8, overflow: 'hidden' },
+  suggName: { flex: 1, fontSize: 14, lineHeight: 18, color: m.ink, ...mFont(400) },
+  suggPill: { height: 30, paddingHorizontal: 11, borderRadius: 15, backgroundColor: m.ink, justifyContent: 'center' },
+  suggPillText: { fontSize: 12, color: m.gold, ...mFont(400) },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   rowImage: { borderRadius: mRadius.md, overflow: 'hidden' },
   rowImageMine: { borderWidth: 2, borderColor: m.gold },
-  rowName: { fontSize: 15, color: m.ink, lineHeight: 20, ...mFont(400) },
-  rowMeta: { fontSize: 12.5, color: m.goldDark, marginTop: 2, lineHeight: 17, ...mFont(400) },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: m.gold, borderRadius: 18, height: 36, backgroundColor: m.white },
-  stepBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  rowName: { fontSize: 15, color: m.ink, lineHeight: 19, letterSpacing: -0.2, ...mFont(400) },
+  rowMeta: { fontSize: 12.5, color: m.goldDark, marginTop: 3, lineHeight: 17, ...mFont(400) },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: m.gold, borderRadius: 20, height: 38, backgroundColor: m.white },
+  stepBtn: { width: 38, height: 36, alignItems: 'center', justifyContent: 'center' },
   stepText: { fontSize: 18, color: m.goldDark },
-  stepQty: { minWidth: 16, textAlign: 'center', fontSize: 14, color: m.ink, ...mFont(500) },
-  more: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 46, marginTop: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: m.gold, borderRadius: mRadius.md },
-  moreText: { flex: 1, fontSize: 14, color: m.ink, ...mFont(400) },
-  minis: { flexDirection: 'row' },
-  mini: { marginLeft: -8, borderWidth: 2, borderColor: m.white, borderRadius: 8, overflow: 'hidden' },
+  stepQty: { minWidth: 18, textAlign: 'center', fontSize: 15, color: m.ink, ...mFont(400) },
+  more: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, marginTop: 16, borderWidth: 1, borderColor: m.gold, borderRadius: 10 },
+  moreText: { fontSize: 14, color: m.ink, ...mFont(400) },
+  minis: { flexDirection: 'row', paddingLeft: 8 },
+  mini: { marginLeft: -8, borderWidth: 2, borderColor: m.white, borderRadius: 7, overflow: 'hidden' },
   chev: { fontSize: 20, color: m.goldDark },
-  like: { backgroundColor: m.beige, paddingLeft: mGutter, paddingVertical: 28, marginTop: 8 },
+  like: { backgroundColor: m.beige, paddingLeft: mGutter, paddingTop: 32, paddingBottom: 16 },
+  likeSub: { fontSize: 14, color: m.muted, marginTop: 6, marginBottom: 14, paddingRight: mGutter, ...mFont(300) },
+  likePrice: { fontSize: 12, color: m.muted, ...mFont(400) },
+  likeAdd: { alignSelf: 'flex-start', height: 34, paddingHorizontal: 14, borderRadius: 18, backgroundColor: m.ink, justifyContent: 'center', marginTop: 4 },
+  likeAddText: { fontSize: 13, color: m.gold, ...mFont(400) },
   sheetFoot: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   footLabel: { fontSize: 12, color: m.muted, ...mFont(300) },
   footTotal: { fontSize: 16, color: m.ink, ...mFont(500) },

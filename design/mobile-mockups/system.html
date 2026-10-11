@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice mobile design system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .ds { padding: 28px 16px 8px; border-bottom: 1px solid var(--line); }
+  .ds-h { font-size: 13px; color: #7D7148; font-weight: 500; margin-bottom: 14px; }
+  .ds-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+  .ds-note { font-size: 12px; color: var(--muted); margin: -6px 0 16px; line-height: 1.4; }
+  .sw { width: 78px; display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--muted); }
+  .sw i { height: 52px; border-radius: 10px; display: block; border: 1px solid var(--line); }
+  .ty { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px dashed #eee; }
+  .ty small { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .demo-sheet { border: 1px solid var(--line); border-radius: 18px 18px 0 0; padding: 0 16px 16px; box-shadow: 0 -6px 20px rgba(0,0,0,.06); }
+  .demo-bar { position: static; border-radius: 12px; }
+  .demo-bar .bar-inner { padding: 10px 12px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Design system';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+
+function render() {
+  let h = `${taskHeader({ title: 'Mobile design system' })}<div>`;
+  h += `<section class="ds" id="g-type"><div class="ds-h">Type · DM Sans, balanced wrapping</div>
+    <div class="ty"><span class="h1">Your Hanukkah box</span><small>29 / 400</small></div>
+    <div class="ty"><span class="h2" style="font-size:20px">Light the Candles</span><small>20 / 500</small></div>
+    <div class="ty"><span style="font-size:17px">Section label or list item</span><small>17 / 400</small></div>
+    <div class="ty"><span style="font-size:15px">Body and row names</span><small>15 / 400</small></div>
+    <div class="ty"><span class="sub" style="font-size:14px">Supporting text, light grey</span><small>14 / 300</small></div>
+    <div class="ty"><span class="eyebrow">Sentence-case eyebrow</span><small>13 / 500 gold</small></div>
+    <div class="ty"><span class="goldtxt" style="font-size:12.5px">Included for Sam</span><small>12.5 gold</small></div>
+    <div class="ds-note" style="margin-top:12px">No all-caps tracked text. Headlines never wrap to a single orphan word.</div>
+    <div class="ds-h" style="margin-top:20px">Color</div>
+    <div class="ds-row"><div class="sw"><i style="background:#111827"></i>Black #111827</div><div class="sw"><i style="background:#B8AC7F"></i>Gold #B8AC7F</div><div class="sw"><i style="background:#7D7148"></i>Gold text #7D7148</div><div class="sw"><i style="background:#F3F0E6"></i>Gold soft #F3F0E6</div></div>
+    <div class="ds-row"><div class="sw"><i style="background:#F3F0E6"></i>Cream #F3F0E6</div><div class="sw"><i style="background:#111827"></i>Ink #111827</div><div class="sw"><i style="background:#6B7280"></i>Muted #6B7280</div><div class="sw"><i style="background:#E5E7EB"></i>Line #E5E7EB</div></div>
+    <div class="ds-note">Gold soft marks "in your box". Cream only for full-width bands, never as a box behind onboarding content.</div>
+  </section>`;
+  h += `<section class="ds" id="g-buttons"><div class="ds-h">Buttons · 44px minimum tap area</div>
+    <button class="place" style="margin-bottom:10px">Primary · Place order</button>
+    <button class="place out" style="margin-bottom:14px">Secondary · Keep editing</button>
+    <div class="ds-row"><button class="cta fill">Continue</button><button class="cta" style="background:var(--ink)">Outline on black</button></div>
+    <div class="ds-row"><button class="pill dark">+ Add</button><button class="pill">Swap</button><button class="pill dark sm">+ $10</button><button class="link">Text link</button></div>
+    <div class="ds-h" style="margin-top:18px">Chips and status</div>
+    <div class="ds-row"><span class="chip on">Candles</span><span class="chip">Dreidel</span><span class="chip">Eat</span><span class="chip">Story</span></div>
+    <div class="ds-row"><span class="pill-status">Set · ships after Nov&nbsp;7</span><span class="pill-status warn">Needs payment</span><span class="pill-status ok">Delivered</span></div>
+    <div class="ds-row"><span class="corner" style="position:static">Low stock</span><span class="corner gold" style="position:static">New</span><span class="badge-inline">Sold out</span></div>
+    <div class="ds-h" style="margin-top:18px">Steppers</div>
+    <div class="ds-row">${stepper('gelt', 1)}${stepper('dreidel', 2)}</div>
+    <div class="ds-note">At 1, minus becomes the heart: donate it to a family who wouldn't otherwise celebrate.</div>
+  </section>`;
+  h += `<section class="ds" id="g-tiles"><div class="ds-h">Product tiles · same on store, box sheets, home and Rav</div>
+    <div class="pt-grid" style="padding:0">${productTile('shamash', 'inbox')}${productTile('lego')}${productTile('jelly', 'added')}${productTile('brass', 'sold')}</div>
+    <div class="ds-h" style="margin-top:28px">Rows</div>
+    ${lineRow('book')}
+    <div class="list-row"><div class="meta"><div class="t">Orders</div><div class="s">1 box, 1 gift</div></div><span class="c">›</span></div>
+  </section>`;
+  h += `<section class="ds" id="g-forms"><div class="ds-h">Fields</div>
+    ${field('Full name', 'Rachel Levin', { done: true })}${field('Email', 'you@example.com', { ph: true, hint: "We'll send a 6-digit code. No password needed." })}${field('Address', '120 Bedford|', { focus: true })}
+    <div class="ds-h" style="margin-top:20px">Sheet</div>
+    <div class="demo-sheet"><div class="grab"></div><div class="ps-top"><button class="ps-back">‹ Light the Candles</button><button class="ps-x">✕</button></div><div class="h2">Electric Candles</div><div class="sub" style="margin:6px 0 14px">Sheets open from the bottom, keep the page behind them, and have a back link when stacked.</div></div>
+    <div class="ds-h" style="margin-top:20px">Sticky bar</div>
+    <div class="bar demo-bar"><div class="bar-inner"><button class="sum"><span>Box $80 <span class="goldtxt">+ $10</span></span><b>Total $90 <span class="chev">⌃</span></b></button><button class="cta">Continue</button></div></div>
+    <div style="height:60px"></div>
+  </section>`;
+  h += `</div>`;
+  document.getElementById('root').innerHTML = `<div class="app" style="padding-bottom:var(--bottom-safe)">${h}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

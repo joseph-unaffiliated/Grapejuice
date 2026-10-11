@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice gift for you</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .r-hero img { width: 100%; height: 230px; object-fit: cover; display: block; }
+  .r-pad { padding: 22px 16px 0; display: flex; flex-direction: column; gap: 12px; }
+  .r-pad .h1 { font-size: 30px; letter-spacing: -0.8px; }
+  .note-card { background: var(--gold-soft); border-radius: 16px; padding: 18px 16px; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .note-card p { font-size: 16px; line-height: 1.55; color: #2b2b2b; font-weight: 300; }
+  .note-card .from { font-size: 13.5px; color: #7D7148; }
+  .choice { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 1px solid var(--line); border-radius: 16px; text-align: left; width: 100%; margin-bottom: 12px; }
+  .choice.on { border-color: var(--gold); background: var(--gold-soft); box-shadow: inset 0 0 0 1px var(--gold); }
+  .choice .dot { width: 20px; height: 20px; border-radius: 10px; border: 2px solid var(--gold); flex-shrink: 0; margin-top: 2px; }
+  .choice.on .dot { background: var(--gold); box-shadow: inset 0 0 0 3px var(--gold-soft); }
+  .choice b { font-weight: 500; font-size: 17px; display: block; } .choice p { font-size: 14px; color: var(--muted); line-height: 1.45; margin-top: 4px; }
+  .choice .bs-thumbs { margin-top: 12px; }
+  .wrapped { display: flex; gap: 6px; margin-top: 12px; }
+  .wrapped span { width: 38px; height: 38px; border-radius: 8px; background: var(--ink); position: relative; }
+  .wrapped span::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; margin-left: -2px; background: var(--gold); }
+  .wrapped span::after { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 4px; margin-top: -2px; background: var(--gold); }
+  .note-line { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; color: #374151; line-height: 1.45; margin-bottom: 14px; }
+  .note-line svg { flex-shrink: 0; margin-top: 1px; }
+  .credit-big { margin-top: 6px; padding: 22px 16px; border-radius: 16px; background: var(--ink); color: #fff; display: flex; flex-direction: column; gap: 6px; }
+  .credit-big .amt { font-size: 44px; font-weight: 300; letter-spacing: -1.5px; color: var(--gold); }
+  .credit-big span { font-size: 14px; color: #c9c9c9; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Your gift';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+const STEP = params.get('s') || '1';
+const NOTE = 'Happy Hanukkah! We hope the latkes come out crispy and the dreidel lands on gimmel. Love, Rachel & Dan';
+const bar = (label, sub, cta) => `<div class="cbar"><div class="cbar-top"><span>${label}</span><b>${sub}</b></div><button class="place">${cta}</button></div>`;
+
+function claim() {
+  return `${pageHeader('', '')}<div class="r-hero"><img src="${PHOTO.bedroom}" alt=""></div><div class="r-pad"><div class="gift-banner">${practiceIcon('gifts', '#7D7148')}<span>A gift from Rachel</span></div><div class="h1">Rachel sent your family Hanukkah</div><div class="lede">A box with everything for all eight nights, already paid for. Just tell us where to send it.</div>
+    <div class="note-card"><p>${NOTE}</p><span class="from">Rachel Levin</span></div>
+    <div class="note-line" style="margin-top:6px">${CAL_ICON}<span>Add your address by ${LOCK_LONG} so it arrives before Dec&nbsp;4.</span></div></div><div style="height:16px"></div>
+    ${bar('Covered by Rachel', '$0 to you', 'Open my gift')}`;
+}
+function reveal() {
+  return `${pageHeader('Your gift', 'Back')}<div class="r-pad" style="padding-top:26px"><div class="h1" style="font-size:27px">Peek inside, or keep it a surprise?</div><div class="ob-sub" style="margin-top:0;margin-bottom:12px">Either way it's covered. You can change your mind until ${LOCK_SHORT}.</div>
+    <button class="choice on"><span class="dot"></span><div><b>Show me what's inside</b><p>See everything Rachel picked. Swap the book or presents for Maya if you like.</p>${boxThumbRow()}</div></button>
+    <button class="choice"><span class="dot"></span><div><b>Keep it a surprise</b><p>Just add your address. We won't show what's in it, even in emails.</p><div class="wrapped"><span></span><span></span><span></span></div></div></button></div>
+    ${bar('Covered by Rachel', '$0 to you', 'Continue')}`;
+}
+function surprise() {
+  return `${pageHeader('Your gift', 'Back')}<div class="co" style="padding-top:24px"><div class="h1" style="font-size:27px">Where should we send it?</div><div class="ob-sub" style="margin:8px 0 20px">It's a surprise, so that's all we need.</div>
+    ${addressFields().replace('Rachel Levin', 'Dan Gold')}${field('Email', 'dan.gold@gmail.com', { done: true, hint: 'For tracking. We email you a code to sign in later, no password.' })}</div><div style="height:16px"></div>
+    ${bar('Covered by Rachel', '$0 to you', 'Send my gift')}`;
+}
+function checkout() {
+  let h = coHead('Your box') + `<div class="co"><div class="assure"><div>${CARD_ICON}<span>Your box is covered by Rachel. Only what you added goes on your card, charged when it ships.</span></div></div>`;
+  h += `<div style="margin:4px 0 18px">${orderSummary({ title: 'Your Hanukkah box', sub: 'Covered by Rachel', items: [...BOX_THUMBS.slice(0, 4), { id: 'lego', mine: true }, { id: 'jelly', mine: true }], lines: [['Hanukkah box for 1 kid', 'Covered'], ['"Lego" Menorah for Maya', 'Covered'], ['Jelly, the Sufganiyah Stuffie', '$10'], ['Shipping', 'Free'], ['Estimated tax', '$0.75']], totalLabel: 'You pay when it ships', total: '$10.75' })}</div>`;
+  h += `<section class="sec" style="padding-top:4px"><div class="sec-h"><div class="h2">Shipping</div><span class="muted">U.S. only</span></div>${addressFields().replace('Rachel Levin', 'Dan Gold')}</section>`;
+  h += `<section class="sec"><div class="sec-h"><div class="h2">Card for your extras</div></div>${stripeForm(true)}</section><div style="height:12px"></div></div>`;
+  h += bar('Charged when it ships', '$10.75', 'Confirm my box');
+  return h;
+}
+function done() {
+  return `${pageHeader('', '')}<div class="fin"><div class="badge">${BIG_CHECK}</div><div class="h1" style="margin-top:16px">Your box is set</div><div class="ob-sub">We'll let Rachel know it's on its way. You can still change things until ${LOCK_SHORT}.</div>
+    ${timeline([['Today', 'Your address is saved'], [`Until ${LOCK_SHORT}`, 'Swap the book and presents, or add more'], [`End of ${LOCK_SHORT}`, 'Your box locks'], ['When it ships', 'Your card is charged $10.75 for your extras'], ['Before Dec 4', 'It arrives, ready for the first night']])}
+    <button class="place" style="margin-top:6px">View my box</button><button class="place out" style="margin-top:10px">Send Rachel a thank you</button></div><div style="height:30px"></div>`;
+}
+function creditReady() {
+  return `${pageHeader('', '')}<div class="r-pad" style="padding-top:26px"><div class="gift-banner">${practiceIcon('gifts', '#7D7148')}<span>A gift from Rachel</span></div><div class="h1">Rachel sent you Hanukkah credit</div>
+    <div class="credit-big"><span>Your credit</span><div class="amt">$80</div><span>Enough for a full box for one kid. Use it by ${LOCK_LONG}.</span></div>
+    <div class="note-card"><p>${NOTE}</p><span class="from">Rachel Levin</span></div>
+    <div class="note-line" style="margin-top:6px">${EDIT_ICON}<span>Answer two quick questions and we'll pick everything. The credit comes off automatically.</span></div></div><div style="height:16px"></div>
+    ${bar('Credit from Rachel', '$80', 'Build my box')}`;
+}
+
+function render() {
+  const map = { 1: claim, 2: reveal, 4: surprise, 5: checkout, 6: done, 7: creditReady };
+  const h = map[STEP]();
+  const tall = STEP !== '6';
+  document.getElementById('root').innerHTML = `<div class="app ${tall ? 'co-app' : ''}" style="${tall ? '' : 'padding-bottom:var(--bottom-safe)'}">${h}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

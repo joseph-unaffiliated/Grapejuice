@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice account</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .acct { padding: 22px 16px 0; }
+  .acct .h1 { font-size: 30px; }
+  .acct .hi { font-size: 14px; color: var(--muted); margin-top: 4px; }
+  .alert { margin: 14px 0 0; padding: 14px; border-radius: 14px; background: #fdf0e7; display: flex; flex-direction: column; gap: 8px; }
+  .alert b { font-weight: 500; font-size: 15.5px; color: #7a3a0f; } .alert span { font-size: 13.5px; color: #7a3a0f; line-height: 1.45; }
+  .alert .place { height: 46px; font-size: 15.5px; background: #7a3a0f; color: #fff; }
+  .grp { margin-top: 26px; } .grp-h { font-size: 13px; color: #7D7148; font-weight: 500; margin-bottom: 2px; }
+  .grp .list-row .ic2 { width: 36px; height: 36px; border-radius: 10px; background: #fafaf7; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ord { display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .ord .meta { flex: 1; } .ord b { font-weight: 500; font-size: 15.5px; display: block; } .ord span { font-size: 13px; color: var(--muted); display: block; margin-top: 3px; }
+  .ord .stk { display: flex; } .ord .stk .thumb { border: 2px solid #fff; margin-left: -14px; } .ord .stk .thumb:first-child { margin-left: 0; }
+  .od-items .ord { padding: 10px 0; }
+  .act { display: flex; gap: 8px; margin-top: 14px; } .act button { flex: 1; height: 46px; border-radius: 10px; border: 1px solid var(--gold); font-size: 15px; }
+  .act .dark { background: var(--ink); color: var(--gold); border-color: var(--ink); }
+  .card-on { display: flex; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--line); border-radius: 14px; margin: 14px 0; }
+  .card-on .brand { width: 44px; height: 30px; border-radius: 6px; background: #1a1f71; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .card-on .meta { flex: 1; } .card-on b { font-weight: 400; font-size: 15px; display: block; } .card-on span { font-size: 13px; color: var(--muted); }
+  .kid-row { display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .kid-row .av { width: 40px; height: 40px; border-radius: 20px; background: var(--gold-soft); color: #7D7148; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .kid-row .meta { flex: 1; } .kid-row b { font-weight: 400; font-size: 16px; display: block; } .kid-row span { font-size: 13px; color: var(--muted); }
+  .warn-box { margin-top: 16px; padding: 14px; border-radius: 14px; background: var(--gold-soft); display: flex; gap: 10px; font-size: 13.5px; line-height: 1.45; color: #7D7148; }
+  .warn-box svg { flex-shrink: 0; margin-top: 1px; }
+  .gift-row { display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .gift-row .meta { flex: 1; } .gift-row b { font-weight: 500; font-size: 15.5px; display: block; } .gift-row span { font-size: 13px; color: var(--muted); display: block; margin-top: 3px; }
+  .gift-row .pill-status { display: inline-flex; }
+  .acct-tabs { display: flex; gap: 8px; margin: 16px 0 4px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Account';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+const STEP = params.get('s') || '1';
+const ic = (svg) => `<span class="ic2">${svg}</span>`;
+const I_BOX = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="1.8"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>`;
+const I_FAM = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 20c0-2 .8-4 3-4s3 2 3 4"/></svg>`;
+const I_GIFT = practiceIcon('gifts', '#7D7148');
+const I_KEY = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>`;
+const I_PIN = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="1.8"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>`;
+const I_COLLAB = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="1.8"><circle cx="9" cy="9" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5M16 11v8M12 15h8"/></svg>`;
+const row = (icon, t, s, warn) => `<button class="list-row">${ic(icon)}<div class="meta"><div class="t">${t}</div><div class="s">${s}</div></div>${warn ? '<span class="pill-status warn">Fix</span>' : '<span class="c">›</span>'}</button>`;
+
+function hub(failed) {
+  return `${siteHeader()}<div class="acct"><div class="h1">Hi, Rachel</div><div class="hi">rachel.levin@gmail.com</div>
+    ${failed ? `<div class="alert"><b>Your card didn't go through</b><span>Your box is ready to ship, but the charge for $102.13 was declined. Update your card by Nov 21 to keep your delivery date.</span><button class="place">Update payment</button></div>` : ''}
+    <div style="margin:18px 0 6px">${boxSummary({ total: '$95', body: `${failed ? `<span class="pill-status warn">Payment needed</span>` : `<span class="pill-status">Set · ships after ${LOCK_SHORT}</span><div class="bs-line">${EDIT_ICON}<span>Change anything until ${LOCK_LONG}</span></div>`}<button class="place">View my box</button>` })}</div>
+    <div class="grp"><div class="grp-h">Your account</div>${row(I_BOX, 'Orders', '1 box, 1 store order')}${row(CARD_ICON, 'Payment', failed ? 'Visa ending 4242 was declined' : 'Visa ending 4242', failed)}${row(I_FAM, 'Family', 'Sam, 5')}${row(I_PIN, 'Shipping address', '120 Bedford Ave, Brooklyn')}${row(I_GIFT, 'Gifts', '1 sent · 0 received')}${row(I_COLLAB, 'Box helpers', 'Let a partner edit your box')}${row(I_KEY, 'Sign-in', 'Email code · add a password')}</div>
+    <button class="link" style="margin:22px 0 36px">Sign out</button></div>`;
+}
+function orders() {
+  return `${pageHeader('Orders', 'Account')}<div class="acct"><div class="h1">Orders</div>
+    <div class="acct-tabs"><span class="chip on">This year</span><span class="chip">Past years</span></div>
+    <div class="ord"><div class="stk">${['beeswax', 'wooden', 'shamash'].map(x => thumb(x, 52)).join('')}</div><div class="meta"><b>Hanukkah box</b><span>Set · ships after ${LOCK_SHORT}</span><span>$95 · charged when it ships</span></div><span class="c" style="color:#7D7148;font-size:20px">›</span></div>
+    <div class="ord"><div class="stk">${['lego', 'brass'].map(x => thumb(x, 52)).join('')}</div><div class="meta"><b>Store order</b><span class="goldtxt" style="color:#2f6b34">Shipped Oct 3 · arrives Oct 8</span><span>$47.70 · paid</span></div><span class="c" style="color:#7D7148;font-size:20px">›</span></div>
+    <div class="ord"><div class="stk">${thumb('shamash', 52)}</div><div class="meta"><b>Gift for the Golds</b><span>Waiting for their address</span><span>$102.13 · paid</span></div><span class="c" style="color:#7D7148;font-size:20px">›</span></div></div>`;
+}
+function orderDetail() {
+  const it = (id, note) => `<div class="ord">${thumb(id, 48)}<div class="meta"><b style="font-weight:400;font-size:15px">${I[id].name}</b><span>${note}</span></div></div>`;
+  return `${pageHeader('Order', 'Orders')}<div class="acct"><div class="eyebrow">Order GJ-10482</div><div class="h1" style="font-size:27px;margin-top:4px">Store order</div>
+    <div style="margin-top:10px"><span class="pill-status ok">Shipped Oct 3</span></div>
+    ${timeline([['Ordered Sept 30', 'Paid $47.70 with Visa 4242'], ['Shipped Oct 3', 'USPS 9400 1000 0000 0000'], ['Arrives Oct 8', 'Estimated']])}
+    <div class="act" style="margin-top:0"><button class="dark">Track package</button><button>Get help</button></div>
+    <div class="grp"><div class="grp-h">Items</div><div class="od-items">${it('lego', '$15')}${it('brass', '$30')}</div></div>
+    <div class="rc-total" style="padding-top:14px"><div><span>Subtotal</span><span>$45</span></div><div><span>Shipping</span><span>Free</span></div><div><span>Tax</span><span>$2.70</span></div><div class="big"><span>Paid</span><span>$47.70</span></div></div><div style="height:30px"></div></div>`;
+}
+function payment(failed) {
+  return `${pageHeader('Payment', 'Account')}<div class="co" style="padding-top:22px"><div class="h1" style="font-size:27px">${failed ? 'Update your card' : 'Payment'}</div>
+    <div class="ob-sub" style="margin-bottom:6px">${failed ? 'We\'ll try again as soon as you save a new card. Your box ships the next day.' : 'Your box is charged when it ships, after ' + LOCK_SHORT + '.'}</div>
+    <div class="card-on"><span class="brand">VISA</span><div class="meta"><b>Visa ending 4242</b><span>${failed ? '<span style="color:#9a4d16">Declined Nov 8</span>' : 'Expires 08/28'}</span></div>${failed ? '' : '<button class="link">Replace</button>'}</div>
+    ${failed ? `<div class="sec-h" style="margin-top:8px"><div class="h2">New card</div></div>${stripeForm(true)}` : ''}</div>
+    ${failed ? `<div class="cbar"><div class="cbar-top"><span>Charged right away</span><b>$102.13</b></div><button class="place">Save card and pay</button></div>` : ''}`;
+}
+function gifts() {
+  return `${pageHeader('Gifts', 'Account')}<div class="acct"><div class="h1">Gifts</div><div class="acct-tabs"><span class="chip on">Sent</span><span class="chip">Received</span></div>
+    <div class="gift-row">${thumb('shamash', 52)}<div class="meta"><b>Hanukkah box for the Golds</b><span>Sent Oct 10 to dan.gold@gmail.com</span><span><span class="pill-status" style="margin-top:6px">Waiting for their address</span></span></div></div>
+    <div class="act"><button>Resend email</button><button>Add their address</button></div>
+    <div class="warn-box" style="margin-top:18px">${CLOCK_ICON}<span>If they haven't added an address by ${LOCK_LONG}, we'll email you to add it.</span></div>
+    <button class="place out" style="margin-top:22px">Send another gift</button></div>`;
+}
+function family() {
+  const kid = (n, name, age) => `<div class="kid-row"><span class="av">${name[0]}</span><div class="meta"><b>${name}</b><span>${age}</span></div><button class="link">Edit</button></div>`;
+  return `${pageHeader('Family', 'Account')}<div class="acct"><div class="h1">Family</div><div class="hi">Each kid gets a book and a present. Extra kids are $10.</div>
+    <div style="margin-top:10px">${kid(1, 'Sam', 'Age 5')}</div><button class="link" style="margin-top:14px">+ Add a kid · $10</button>
+    <div class="grp"><div class="grp-h">How you celebrate</div>${row(CAL_ICON, 'Hanukkah', 'Most nights')}${row(EDIT_ICON, 'Jewish life', 'Holidays and the occasional Shabbat')}</div>
+    <div class="warn-box">${CLOCK_ICON}<span>Changing a kid's age updates their book and present. Anything you swapped for them stays.</span></div></div>`;
+}
+
+function render() {
+  const map = { 1: () => hub(false), 2: orders, 3: orderDetail, 4: () => hub(true), 5: gifts, 6: family, 7: () => payment(true), 8: () => payment(false) };
+  const tall = STEP === '7';
+  document.getElementById('root').innerHTML = `<div class="app ${tall ? 'co-app' : ''}" style="${tall ? '' : 'padding-bottom:var(--bottom-safe)'}">${map[STEP]()}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

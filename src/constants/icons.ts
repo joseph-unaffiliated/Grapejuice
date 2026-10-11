@@ -46,6 +46,11 @@ import {
   faLocationDot,
   faGripVertical,
   faPen,
+  faCheck,
+  faHandHoldingDollar,
+  faCreditCard,
+  faLock,
+  faTruckFast,
 } from '@fortawesome/free-solid-svg-icons';
 import { faHeart as faHeartOutline } from '@fortawesome/free-regular-svg-icons';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
@@ -97,6 +102,11 @@ export const icons = {
   grip: faGripVertical,
   pen: faPen,
   instagram: faInstagram,
+  check: faCheck,
+  donate: faHandHoldingDollar,
+  card: faCreditCard,
+  lock: faLock,
+  truck: faTruckFast,
 } as const;
 
 export type IconName = keyof typeof icons;

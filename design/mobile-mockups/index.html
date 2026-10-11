@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Grapejuice: every mobile page</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'DM Sans', system-ui, sans-serif; background: #F3F0E6; margin: 0; padding: 32px; color: #111827; }
+  h1 { font-weight: 400; letter-spacing: -0.6px; margin: 0 0 6px; }
+  h2 { font-weight: 500; margin: 36px 0 12px; font-size: 20px; }
+  p { margin: 0 0 12px; color: #6B7280; font-weight: 300; max-width: 900px; }
+  .row { display: flex; gap: 32px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .col b { font-weight: 500; }
+  .col span { font-size: 13px; color: #6B7280; max-width: 390px; }
+  iframe { width: 390px; height: 844px; border: 10px solid #111827; border-radius: 44px; background: #fff; }
+  a { color: #7D7148; }
+</style>
+</head>
+<body>
+  <h1>Every mobile page, one design system</h1>
+  <p>Fully clickable, framed as the Instagram in-app browser. Add <code>&amp;ig=0</code> to drop the frame, or <code>&amp;inline=0</code> on the box to hide the inline add-on suggestions (the knob for a later add-on density test). Earlier rounds: <a href="box-v2.html?d=A">v2 box</a>, <a href="onboarding.html?s=1">v2 onboarding</a>, <a href="box.html?d=A">v1</a>.</p>
+  <p><a href="#home">Homepage</a> · <a href="#store">Store</a> · <a href="#gift">Send a gift</a> · <a href="#recipient">Gift recipient</a> · <a href="#content">Content</a> · <a href="#rav">Rav and sign-in</a> · <a href="#account">Account</a> · <a href="#system">Design system</a> · Box, onboarding and checkout are further down.</p>
+  <h2 id="system">Design system</h2>
+  <p>One set of parts for every mobile page: type, colors, buttons, product tiles, fields, sheets and the sticky bar. Every page below is built from these.</p>
+  <p><b>Icons are placeholders.</b> When building, keep the icons already on the site (the grapes logomark, the Rav icon, the favorite heart and the rest). Use the mockups for layout, color and type, not icon artwork.</p>
+  <p><b>Rules:</b> one beige, one gold for lines, one dark gold for text, and one black (ink). Gold outlines mark only what's yours or selected. Primary buttons are black with gold text. Bottom bars are white, with the total and a black button. Button labels say where they go ("Checkout · $95", "Next: Note"). The lock date reads "Change anything until Nov 7" everywhere. Browsing pages use the site header, and every flow uses the task header. One box summary comes in two sizes. Tiles use main product photos, and heroes use secondary photos.</p>
+  <div class="row">
+    <div class="col"><b>Type and color</b><iframe loading="lazy" src="system.html"></iframe></div>
+    <div class="col"><b>Buttons and status</b><iframe loading="lazy" src="system.html?at=buttons"></iframe></div>
+    <div class="col"><b>Product tiles</b><iframe loading="lazy" src="system.html?at=tiles"></iframe></div>
+    <div class="col"><b>Fields and sheet</b><iframe loading="lazy" src="system.html?at=forms"></iframe></div>
+  </div>
+  <h2 id="home">Homepage: direction B</h2>
+  <p>The mosaic hero with the homepage banner video (the full reel) in the big square, "Hanukkah, delivered to your door. One box, $80.", then "Eight nights, one box". The gift card uses the box on the doorstep. Directions A and C are still at <a href="home.html?v=a">?v=a</a> and <a href="home.html?v=c">?v=c</a>.</p>
+  <div class="row">
+    <div class="col"><b>First screen</b><iframe loading="lazy" src="home.html"></iframe></div>
+    <div class="col"><b>Eight nights, one box</b><iframe loading="lazy" src="home.html?at=box"></iframe></div>
+    <div class="col"><b>Shop</b><iframe loading="lazy" src="home.html?at=shop"></iframe></div>
+    <div class="col"><b>Gift, story, Rav</b><iframe loading="lazy" src="home.html?at=more"></iframe></div>
+    <div class="col"><b>Box waiting</b><iframe loading="lazy" src="home.html?state=draft"></iframe></div>
+    <div class="col"><b>Box set</b><iframe loading="lazy" src="home.html?state=set"></iframe></div>
+    <div class="col"><b>Menu, signed out</b><iframe loading="lazy" src="home.html?menu=1"></iframe></div>
+  </div>
+  <h2 id="store">Store</h2>
+  <p>Category and product pages that know about your box. New logic: every "Add" asks how it joins the box (swap in, add on top, or a present for a kid), and visitors without a box can start one with the item or buy just it.</p>
+  <div class="row">
+    <div class="col"><b>Category, with a box</b><span>Items already in your box are marked. A note says any stuffie can be the present, swapped in at no charge.</span><iframe loading="lazy" src="store.html?s=1"></iframe></div>
+    <div class="col"><b>Shop everything</b><span>Sections by category with chips on top.</span><iframe loading="lazy" src="store.html?s=2"></iframe></div>
+    <div class="col"><b>Product page</b><span>Big photo, price, low-stock tag, sticky "Add to my box".</span><iframe loading="lazy" src="store.html?s=3"></iframe></div>
+    <div class="col"><b>Product page, lower</b><span>Details rows and more from the category. The box pitch only shows to people without a box.</span><iframe loading="lazy" src="store.html?s=4&at=details"></iframe></div>
+    <div class="col"><b>How to add it</b><span>New: the chooser. Swap it in (included), add one on top, or a present for Sam.</span><iframe loading="lazy" src="store.html?s=5"></iframe></div>
+    <div class="col"><b>Added for the kid</b><span>The page turns into the in-box state with a stepper.</span><iframe loading="lazy" src="store.html?s=6"></iframe></div>
+    <div class="col"><b>From the box</b><span>Opened from a box line: back goes to "Gifts for Sam", and it says it's included.</span><iframe loading="lazy" src="store.html?s=7"></iframe></div>
+    <div class="col"><b>No box yet</b><span>The sticky bar is "Buy just this". The box pitch sits right under the description.</span><iframe loading="lazy" src="store.html?s=8"></iframe></div>
+    <div class="col"><b>Box pitch</b><span>Redesigned: the box contents with this item in it (gold outline), the math, one button.</span><iframe loading="lazy" src="store.html?s=8&at=pitch"></iframe></div>
+    <div class="col"><b>Cart</b><span>Store-only orders. The same box pitch, with both items in it.</span><iframe loading="lazy" src="store.html?s=9"></iframe></div>
+    <div class="col"><b>Buy just these</b><span>One-page checkout, charged today, ships in 3 to 5 days.</span><iframe loading="lazy" src="store.html?s=10"></iframe></div>
+    <div class="col"><b>Favorites</b><span>Saved on the phone until you sign in.</span><iframe loading="lazy" src="store.html?s=11"></iframe></div>
+    <div class="col"><b>Sold out</b><span>"Email me if it's back" and other options.</span><iframe loading="lazy" src="store.html?s=12"></iframe></div>
+  </div>
+  <h2 id="gift">Send a gift</h2>
+  <p>Same box editor as My Box, inside a four-step header. The giver pays in full today. New: a "Save your gift" code step so givers can come back, a note preview, and a choice between emailing the family or shipping as a surprise.</p>
+  <div class="row">
+    <div class="col"><b>Gift landing</b><span>/gift, the top Instagram landing after the homepage.</span><iframe loading="lazy" src="gift.html?s=1"></iframe></div>
+    <div class="col"><b>Box or credit</b><iframe loading="lazy" src="gift.html?s=2"></iframe></div>
+    <div class="col"><b>Their family</b><span>Kids and ages. "Not sure" is allowed; they can change the book and presents.</span><iframe loading="lazy" src="gift.html?s=3"></iframe></div>
+    <div class="col"><b>Save your gift</b><span>Email code, no password.</span><iframe loading="lazy" src="gift.html?s=4"></iframe></div>
+    <div class="col"><b>Code</b><iframe loading="lazy" src="gift.html?s=4b"></iframe></div>
+    <div class="col"><b>Their box</b><span>The real box editor in gift mode, with the gift lock line.</span><iframe loading="lazy" src="box-v3.html?mode=gift&kid=Maya&added=lego:gifts"></iframe></div>
+    <div class="col"><b>Swap presents</b><iframe loading="lazy" src="box-v3.html?mode=gift&kid=Maya&added=lego:gifts&sheet=gifts"></iframe></div>
+    <div class="col"><b>Note</b><span>Shows exactly what they'll see.</span><iframe loading="lazy" src="gift.html?s=7"></iframe></div>
+    <div class="col"><b>How they get it</b><span>Email them to add an address (they can swap things), or a surprise with the address now.</span><iframe loading="lazy" src="gift.html?s=8"></iframe></div>
+    <div class="col"><b>Pay</b><span>Paid today. They can add extras on their own card.</span><iframe loading="lazy" src="gift.html?s=9"></iframe></div>
+    <div class="col"><b>Sent</b><span>What happens next, including the Nov 7 fallback.</span><iframe loading="lazy" src="gift.html?s=10"></iframe></div>
+    <div class="col"><b>Credit amount</b><span>The credit path: amount, family, email.</span><iframe loading="lazy" src="gift.html?s=2b"></iframe></div>
+  </div>
+  <h2 id="recipient">Gift recipient</h2>
+  <p>From the email to a set box. Their box is covered; only what they add goes on their own card, charged when it ships. New: "peek or surprise", and giver extras shown as covered.</p>
+  <div class="row">
+    <div class="col"><b>From the email</b><iframe loading="lazy" src="gift-recipient.html?s=1"></iframe></div>
+    <div class="col"><b>Peek or surprise</b><iframe loading="lazy" src="gift-recipient.html?s=2"></iframe></div>
+    <div class="col"><b>Their box</b><span>Same editor. Lines say "Covered by gift"; the bar shows what they pay.</span><iframe loading="lazy" src="box-v3.html?mode=claim&kid=Maya&added=lego:gifts,jelly:gifts&covered=lego"></iframe></div>
+    <div class="col"><b>Presents for Maya</b><span>Rachel's Lego Menorah is covered; their own Jelly is $10.</span><iframe loading="lazy" src="box-v3.html?mode=claim&kid=Maya&added=lego:gifts,jelly:gifts&covered=lego&at=gifts"></iframe></div>
+    <div class="col"><b>Surprise address</b><iframe loading="lazy" src="gift-recipient.html?s=4"></iframe></div>
+    <div class="col"><b>Checkout for extras</b><iframe loading="lazy" src="gift-recipient.html?s=5"></iframe></div>
+    <div class="col"><b>Set</b><iframe loading="lazy" src="gift-recipient.html?s=6"></iframe></div>
+    <div class="col"><b>Credit gift</b><span>Credit goes into onboarding and comes off automatically.</span><iframe loading="lazy" src="gift-recipient.html?s=7"></iframe></div>
+  </div>
+  <h2 id="content">Content pages</h2>
+  <p>Trimmed to the how-tos and the closed state. Story, audience landings, Passover and terms are dropped from this round.</p>
+  <div class="row">
+    <div class="col"><b>Light the candles · night 1</b><span>The Stemless hanukkiah, drawn flat. Candles fill from the right; the shamash stands in the middle.</span><iframe loading="lazy" src="content.html?s=2&n=1"></iframe></div>
+    <div class="col"><b>Night 3</b><iframe loading="lazy" src="content.html?s=2&n=3"></iframe></div>
+    <div class="col"><b>Night 8</b><iframe loading="lazy" src="content.html?s=2&n=8"></iframe></div>
+    <div class="col"><b>Play dreidel</b><iframe loading="lazy" src="content.html?s=3"></iframe></div>
+    <div class="col"><b>Closed after the lock</b><iframe loading="lazy" src="content.html?s=8"></iframe></div>
+  </div>
+  <h2 id="rav">Rav and sign-in</h2>
+  <p>Rav as a full-screen chat that can see your box and propose changes you approve. Sign-in leads with an emailed code everywhere; passwords are a fallback. Inside Instagram, Google sign-in is hidden with a note.</p>
+  <div class="row">
+    <div class="col"><b>Ask Rav</b><iframe loading="lazy" src="rav.html?s=1"></iframe></div>
+    <div class="col"><b>Answer with products</b><iframe loading="lazy" src="rav.html?s=2"></iframe></div>
+    <div class="col"><b>Rav proposes changes</b><span>Nothing changes until you tap Update my box.</span><iframe loading="lazy" src="rav.html?s=3"></iframe></div>
+    <div class="col"><b>Sign in with a code</b><iframe loading="lazy" src="auth.html?s=1"></iframe></div>
+    <div class="col"><b>Code</b><iframe loading="lazy" src="auth.html?s=2"></iframe></div>
+    <div class="col"><b>Save your box</b><span>Sign-up is just a name and email, from the box.</span><iframe loading="lazy" src="auth.html?s=3"></iframe></div>
+    <div class="col"><b>Password fallback</b><iframe loading="lazy" src="auth.html?s=4"></iframe></div>
+    <div class="col"><b>Forgot password</b><iframe loading="lazy" src="auth.html?s=5"></iframe></div>
+    <div class="col"><b>Reset sent</b><iframe loading="lazy" src="auth.html?s=5b"></iframe></div>
+    <div class="col"><b>Inside Instagram</b><iframe loading="lazy" src="auth.html?s=6"></iframe></div>
+  </div>
+  <h2 id="account">Account</h2>
+  <p>A light pass: your box first, then plain rows. New: a card-declined state on the hub with a direct fix.</p>
+  <div class="row">
+    <div class="col"><b>Account</b><iframe loading="lazy" src="account.html?s=1"></iframe></div>
+    <div class="col"><b>Orders</b><iframe loading="lazy" src="account.html?s=2"></iframe></div>
+    <div class="col"><b>Order detail</b><iframe loading="lazy" src="account.html?s=3"></iframe></div>
+    <div class="col"><b>Card declined</b><span>Shows on the hub with the amount and the Nov 21 deadline.</span><iframe loading="lazy" src="account.html?s=4"></iframe></div>
+    <div class="col"><b>Update card</b><iframe loading="lazy" src="account.html?s=7"></iframe></div>
+    <div class="col"><b>Gifts sent</b><iframe loading="lazy" src="account.html?s=5"></iframe></div>
+    <div class="col"><b>Family</b><span>Adding a kid shows the $10.</span><iframe loading="lazy" src="account.html?s=6"></iframe></div>
+    <div class="col"><b>Payment</b><iframe loading="lazy" src="account.html?s=8"></iframe></div>
+  </div>
+  <h2 id="box">Box</h2>
+  <div class="row">
+    <div class="col"><b>Your box</b><span>A's list with B's "In your box" summary. Tap any tradition's "Swap or add" to open its sheet.</span><iframe src="box-v3.html?notice=1"></iframe></div>
+    <div class="col"><b>Tradition sheet</b><span>C's interaction inside the sheet: the pick with a stepper, alternatives with Swap in and +, then add-ons. Next walks through each tradition.</span><iframe src="box-v3.html?sheet=candles&added=electric:candles:1"></iframe></div>
+    <div class="col"><b>Product card</b><span>Tap anywhere on an item. Opened from a tradition sheet, it has a Back link to that sheet.</span><iframe src="box-v3.html?sheet=product:electric&ctx=candles&prev=candles"></iframe></div>
+    <div class="col"><b>Menu</b><span>Tap the menu icon. Shop opens in place.</span><iframe src="box-v3.html?menu=1"></iframe></div>
+    <div class="col"><b>Receipt</b><span>Tap the total in the black bar.</span><iframe src="box-v3.html?sheet=receipt&added=electric:candles:1,lego:gifts:1&qty=dreidel:3"></iframe></div>
+  </div>
+  <h2>Onboarding</h2>
+  <div class="row">
+    <div class="col"><b>1. Family</b><iframe src="onboarding-v3.html?s=1"></iframe></div>
+    <div class="col"><b>2. About you, untouched</b><iframe src="onboarding-v3.html?s=2"></iframe></div>
+    <div class="col"><b>2. About you, answered</b><iframe src="onboarding-v3.html?s=3"></iframe></div>
+    <div class="col"><b>3. Your box is ready</b><iframe src="onboarding-v3.html?s=4"></iframe></div>
+  </div>
+  <h2>Checkout</h2>
+  <div class="row">
+    <div class="col"><b>One page</b><span>Shipping and payment together, with one Place order button. Tap the box row to see what's inside.</span><iframe src="checkout.html?s=1&added=claymenorah:gifts"></iframe></div>
+    <div class="col"><b>Address as you type</b><span>New: suggestions from Google Places. Today the app only checks the address after it's typed.</span><iframe src="checkout.html?s=1&typing=1&added=claymenorah:gifts"></iframe></div>
+    <div class="col"><b>Payment in Safari</b><span>Apple Pay shows up outside Instagram. Inside Instagram it's just the card form.</span><iframe src="checkout.html?s=1&ig=0&wallet=1&added=claymenorah:gifts"></iframe></div>
+    <div class="col"><b>Signed out in Instagram</b><span>A 6-digit code instead of a password. An emailed link would open a different browser.</span><iframe src="checkout.html?s=2&added=claymenorah:gifts"></iframe></div>
+    <div class="col"><b>Code sent</b><iframe src="checkout.html?s=3&added=claymenorah:gifts"></iframe></div>
+    <div class="col"><b>Order placed</b><span>What happens next, and the text reminder opt-in moved here from the form.</span><iframe src="checkout.html?s=4&added=claymenorah:gifts"></iframe></div>
+  </div>
+</body>
+</html>

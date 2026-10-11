@@ -30,6 +30,7 @@ import { StorefrontHeader } from './StorefrontHeader';
 import { StorefrontServicesNav, type StorefrontServiceId } from './StorefrontServicesNav';
 import { StorefrontCategoryNav } from './StorefrontCategoryNav';
 import { StorefrontFooter } from './StorefrontFooter';
+import { MobileFooter } from '../mobile/MobileFooter';
 import { StorefrontRavDrawer } from './StorefrontRavDrawer';
 import {
   StorefrontRavProvider,
@@ -45,6 +46,7 @@ import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { semanticColors, spacing } from '../../constants/theme';
 import { HOW_TO_PAGES_PUBLISHED } from '../../constants/pdpHowToLink';
 import {
@@ -206,6 +208,15 @@ function stickyScrollThresholds(chromeH: number) {
  *
  * Fill mode: chrome stays pinned above the body (wizards / My Box).
  */
+const MOBILE_FOOTER_ROUTES = new Set([
+  'Home',
+  'StorefrontHome',
+  'GiftLanding',
+  'StorefrontOurStory',
+  'StorefrontHowToPlayDreidel',
+  'StorefrontHowToLightCandles',
+]);
+
 export function StorefrontChrome(props: Props) {
   const chrome = (
     <StorefrontRavProvider>
@@ -244,9 +255,12 @@ function StorefrontChromeInner({
   const tabBarHeight = useContext(BottomTabBarHeightContext);
   const inTabLayout = Platform.OS !== 'web' && tabBarHeight !== undefined;
   const pinnedHostHeight = useViewportPinnedHeight(hostRef, !inTabLayout);
+  /** Phone layouts are header-only: no promo strip, no category rail, footer only on editorial pages. */
+  const mobileLayout = useMobileLayout();
   /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
   const showPromoStrip =
-    !compact || route.name === 'Home' || route.name === 'StorefrontHome';
+    !mobileLayout && (!compact || route.name === 'Home' || route.name === 'StorefrontHome');
+  const showFooter = !mobileLayout || MOBILE_FOOTER_ROUTES.has(route.name);
   const [refreshing, setRefreshing] = useState(false);
   const [pullPx, setPullPx] = useState(0);
   const pullStartY = useRef<number | null>(null);
@@ -395,7 +409,7 @@ function StorefrontChromeInner({
     onLogoPress: goHome,
     onService,
     onCategory: goCategory,
-    hideServicesNav,
+    hideServicesNav: hideServicesNav || mobileLayout,
     hideSearchAndRav,
     servicesSlot,
     showPromoStrip,
@@ -1007,7 +1021,7 @@ function StorefrontChromeInner({
         clipping the bottom of long category pages.
       */}
       <View style={styles.footerPinSpacer} collapsable={false} />
-      <StorefrontFooter />
+      {showFooter ? mobileLayout ? <MobileFooter /> : <StorefrontFooter /> : null}
     </ScrollView>
   );
 

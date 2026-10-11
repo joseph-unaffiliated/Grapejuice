@@ -17,13 +17,15 @@ type Props = {
   /** Shown above the bar, e.g. "Move both sliders to continue". */
   hint?: string;
   testID?: string;
+  /** Row layout: the button fills the rest of the bar (product pages) or hugs its label (My Box). */
+  ctaFill?: boolean;
 };
 
 /** Always white: the total, then the black button. Labels say where they go. */
-export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID }: Props) {
+export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID, ctaFill = true }: Props) {
   const insets = useSafeAreaInsets();
   const summary = (
-    <Pressable onPress={onSummaryPress} disabled={!onSummaryPress} style={styles.summary} accessibilityRole={onSummaryPress ? 'button' : undefined}>
+    <Pressable onPress={onSummaryPress} disabled={!onSummaryPress} style={ctaFill ? styles.summary : styles.summaryFill} accessibilityRole={onSummaryPress ? 'button' : undefined}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       {total ? (
         <Text style={styles.total}>
@@ -33,14 +35,14 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
       ) : null}
     </Pressable>
   );
-  return (
+  return pinToViewport(
     <View style={[styles.root, { paddingBottom: 10 + insets.bottom }]} testID={testID}>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       {layout === 'row' ? (
         <View style={styles.row}>
           {summary}
-          <View style={styles.rowCta}>
-            <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={48} />
+          <View style={ctaFill ? styles.rowCta : null}>
+            <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={ctaFill ? 50 : 48} style={ctaFill ? null : styles.ctaHug} />
           </View>
         </View>
       ) : (
@@ -54,8 +56,18 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
           <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={54} />
         </>
       )}
-    </View>
+    </View>,
   );
+}
+
+/**
+ * On web the page scrolls inside a transformed container, which turns `position: fixed`
+ * into "fixed to the scroller", so the bar has to live directly under <body>.
+ */
+function pinToViewport(node: React.ReactElement): React.ReactElement {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return node;
+  const { createPortal } = require('react-dom') as { createPortal: (child: React.ReactNode, host: Element) => React.ReactElement };
+  return createPortal(node, document.body);
 }
 
 const styles = StyleSheet.create({
@@ -65,11 +77,13 @@ const styles = StyleSheet.create({
     backgroundColor: m.white, borderTopWidth: 1, borderTopColor: m.line,
     paddingHorizontal: 16, paddingTop: 10,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowCta: { minWidth: 150 },
-  summary: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowCta: { flex: 1 },
+  summary: { flexShrink: 1, maxWidth: '45%' },
+  summaryFill: { flex: 1 },
+  ctaHug: { width: 'auto', paddingHorizontal: 18, borderRadius: 8 },
   label: { fontSize: 12.5, color: m.muted, ...mFont(300), lineHeight: 16 },
-  total: { fontSize: 17, color: m.ink, ...mFont(500), lineHeight: 22 },
+  total: { fontSize: 18, color: m.ink, ...mFont(500), lineHeight: 23 },
   chev: { fontSize: 11, color: m.goldDark },
   stackTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
   stackTotal: { fontSize: 17, color: m.ink, ...mFont(500) },

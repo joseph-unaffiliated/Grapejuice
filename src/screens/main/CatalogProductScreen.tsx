@@ -272,6 +272,14 @@ export function CatalogProductScreen() {
     () => (item ? similarCatalogItems(item, catalog, 12) : []),
     [item, catalog]
   );
+
+  const similarAvailability = useMemo(() => {
+    const map: Record<string, ReturnType<typeof resolveAvailability>> = {};
+    for (const it of similar) {
+      map[it.id] = resolveAvailability(it, inventoryById[it.id] ?? emptyInventoryCounters(it.id), effectiveLockAtForAvail, previewNow);
+    }
+    return map;
+  }, [similar, inventoryById, effectiveLockAtForAvail, previewNow]);
   /**
    * Preview / empty-draft “has box” states still need something to swap against.
    * Prefer the live draft; otherwise seed a default curated box for detection only.
@@ -646,8 +654,8 @@ export function CatalogProductScreen() {
             onQuantity={(d) => void changeInBoxQuantity(d)}
             onBuyJustThis={directOk && !marketplaceBlocked ? async () => { await addToCart(); navigation.navigate('StorefrontCart'); } : undefined}
             onStartBoxWithIt={() => void buyWithBox()}
-            onBack={aisle ? () => goCategory(aisle.slug) : goHome}
-            backLabel={aisle?.label ?? 'Store'}
+            onSeeAll={aisle ? () => goCategory(aisle.slug) : undefined}
+            availabilityById={similarAvailability}
           />
         </MobileBoundary>
       </StorefrontChrome>

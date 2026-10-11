@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
-import { m, mRadius, mType } from './mobileTheme';
+import { m, mType } from './mobileTheme';
 
 type Props = {
   label: string;
@@ -18,6 +18,8 @@ type Props = {
 export function MobileButton({ label, onPress, variant = 'primary', disabled, busy, height = 52, style, accessibilityLabel }: Props) {
   const isPrimary = variant === 'primary';
   const isLink = variant === 'link';
+  /** Tile-sized buttons are pills with smaller text; full-width ones are 10px-radius blocks. */
+  const small = height <= 40;
   return (
     <Pressable
       onPress={onPress}
@@ -28,6 +30,7 @@ export function MobileButton({ label, onPress, variant = 'primary', disabled, bu
       style={({ pressed }) => [
         styles.base,
         { height },
+        small && { borderRadius: height / 2, paddingHorizontal: 12 },
         isPrimary && styles.primary,
         variant === 'secondary' && styles.secondary,
         isLink && styles.link,
@@ -42,6 +45,7 @@ export function MobileButton({ label, onPress, variant = 'primary', disabled, bu
         <Text
           style={[
             mType.button,
+            { fontSize: small ? 13.5 : height >= 50 ? 17 : 16 },
             isPrimary ? styles.primaryText : isLink ? styles.linkText : styles.secondaryText,
             disabled && styles.disabledText,
           ]}
@@ -55,7 +59,7 @@ export function MobileButton({ label, onPress, variant = 'primary', disabled, bu
 }
 
 const styles = StyleSheet.create({
-  base: { borderRadius: mRadius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, width: '100%' },
+  base: { borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, width: '100%' },
   primary: { backgroundColor: m.ink },
   primaryText: { color: m.gold },
   secondary: { backgroundColor: m.white, borderWidth: 1, borderColor: m.gold },

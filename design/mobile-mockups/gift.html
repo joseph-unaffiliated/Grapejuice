@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice gift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .g-hero img { width: 100%; height: 250px; object-fit: cover; display: block; }
+  .g-hero .in-pad { padding: 22px 16px 26px; display: flex; flex-direction: column; gap: 12px; }
+  .g-hero .h1 { font-size: 32px; letter-spacing: -1px; }
+  .path { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 1px solid var(--line); border-radius: 16px; margin: 0 16px 12px; text-align: left; width: calc(100% - 32px); }
+  .path.on { border-color: var(--gold); background: var(--gold-soft); box-shadow: inset 0 0 0 1px var(--gold); }
+  .path .meta { flex: 1; } .path b { font-weight: 500; font-size: 17px; display: block; letter-spacing: -0.2px; }
+  .path p { font-size: 14px; color: var(--muted); line-height: 1.45; margin-top: 4px; } .path .pr { font-size: 14px; margin-top: 10px; color: var(--ink); }
+  .path .bs-thumbs { margin-top: 12px; }
+  .path .dot { width: 20px; height: 20px; border-radius: 10px; border: 2px solid var(--gold); flex-shrink: 0; margin-top: 2px; }
+  .path.on .dot { background: var(--gold); box-shadow: inset 0 0 0 3px var(--gold-soft); }
+  .gw { padding: 24px 16px 0; }
+  .gw .h1 { font-size: 27px; }
+  .gw .ob-sub { margin-bottom: 22px; }
+  .kidrow { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .kidrow b { font-weight: 400; font-size: 16px; } .kidrow span { font-size: 13px; color: var(--muted); display: block; margin-top: 2px; }
+  .ages { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .ages .chip { height: 38px; }
+  .kid-card { padding: 14px 0 16px; border-bottom: 1px solid var(--line); }
+  .kid-card .t { font-size: 15px; display: flex; justify-content: space-between; } .kid-card .t span { color: var(--muted); font-size: 13px; }
+  .amounts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .amounts button { height: 64px; border-radius: 12px; border: 1px solid var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 19px; }
+  .amounts button span { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .amounts button.on { background: var(--ink); border-color: var(--ink); color: var(--gold); } .amounts button.on span { color: #bbb; }
+  .preview { margin-top: 18px; border-radius: 16px; background: var(--gold-soft); padding: 18px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .preview .lab { font-size: 12.5px; color: #7D7148; }
+  .preview .pv-card { background: #fff; border-radius: 12px; padding: 18px 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .preview .pv-card .h2 { font-size: 19px; } .preview .pv-card p { font-size: 14px; line-height: 1.5; color: #374151; font-weight: 300; }
+  .preview .pv-card .from { font-size: 13.5px; color: var(--muted); }
+  .preview .pv-card .fake { height: 40px; border-radius: 8px; background: var(--ink); color: var(--gold); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .ship-opt { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; text-align: left; width: 100%; }
+  .ship-opt.on { border-color: var(--gold); background: var(--gold-soft); }
+  .ship-opt .dot { width: 18px; height: 18px; border-radius: 9px; border: 2px solid var(--gold); flex-shrink: 0; margin-top: 2px; }
+  .ship-opt.on .dot { background: var(--gold); box-shadow: inset 0 0 0 3px var(--gold-soft); }
+  .ship-opt b { font-weight: 400; font-size: 15px; display: block; } .ship-opt span { font-size: 13px; color: var(--muted); line-height: 1.4; display: block; margin-top: 3px; }
+  .ship-opt span.rec { display: inline; margin-top: 0; font-size: 11.5px; color: #7D7148; background: #fff; border-radius: 10px; padding: 2px 8px; margin-left: 6px; vertical-align: 1px; }
+  .faq .list-row .t { font-size: 15.5px; }
+  .note-line { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; color: #374151; line-height: 1.45; margin-bottom: 14px; }
+  .note-line svg { flex-shrink: 0; margin-top: 1px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Send a gift';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+const STEP = params.get('s') || '1';
+const FAMILY = 'the Golds';
+const GIFT_ICON = practiceIcon('gifts', '#7D7148');
+
+function giftHead(on, steps = ['Their family', 'Their box', 'Note', 'Pay']) {
+  return taskHeader({ back: on === 0 ? 'Cancel' : 'Back', title: 'Send a gift', right: `Step ${on + 1} of ${steps.length}`, steps, on });
+}
+const bar = (label, sub, cta, disabled) => `<div class="cbar"><div class="cbar-top"><span>${label}</span><b>${sub}</b></div><button class="place" ${disabled ? 'disabled' : ''}>${cta}</button></div>`;
+
+function landing() {
+  return `${siteHeader()}<div class="g-hero"><img src="${PHOTO.doorstep}" alt=""><div class="in-pad"><div class="gift-banner">${GIFT_ICON}<span>Send by ${LOCK_SHORT}</span></div><div class="h1">Send Hanukkah to another family</div><div class="lede">A box with everything for eight nights, picked for their kids. Or send credit and let them choose.</div><button class="place">Send a gift · from $80</button></div></div>
+  <section class="band cream"><div class="pad"><div class="h2" style="margin-bottom:18px">How gifting works</div></div><div class="steps3"><div><span class="n">1</span><p><b>Tell us about their family</b><span>How many kids and their ages. We'll pick the rest.</span></p></div><div><span class="n">2</span><p><b>Make it yours, or don't</b><span>Swap anything in their box, then add a note.</span></p></div><div><span class="n">3</span><p><b>They add their address</b><span>We email them. Or keep it a surprise and ship it straight to them.</span></p></div></div></section>
+  <section class="band faq"><div class="pad"><div class="h2" style="margin-bottom:6px">Questions</div>${[['What if I don\'t know their kids\' ages?', 'Guess, and they can change the book and presents.'], ['Can they add more?', 'Yes, on their own card. You\'re never charged more.'], ['When is it charged?', 'Today, when you send it.']].map(([t, s]) => `<button class="list-row"><div class="meta"><div class="t">${t}</div><div class="s">${s}</div></div><span class="c">›</span></button>`).join('')}</div></section>
+  ${siteFooter()}`;
+}
+function choosePath() {
+  return `${pageHeader('Send a gift', 'Back')}<div class="gw"><div class="h1">What would you like to send?</div><div class="ob-sub">Either way, they get a note from you and everything arrives before ${'Dec&nbsp;4'}.</div></div>
+  <button class="path on"><span class="dot"></span><div class="meta"><b>A Hanukkah box</b><p>We pick everything for their family. You can swap anything before you send it.</p>${boxThumbRow()}<div class="pr">From $80</div></div></button>
+  <button class="path"><span class="dot"></span><div class="meta"><b>Hanukkah credit</b><p>They build their own box with it. Anything over the credit goes on their card.</p><div class="pr">$50, $80, $120 or any amount</div></div></button>
+  ${bar('A Hanukkah box', 'From $80', 'Continue')}`;
+}
+function family() {
+  const kid = (n, age, name) => `<div class="kid-card"><div class="t">${name || `Kid ${n}`}<span>${name ? 'Edit name' : 'Name optional'}</span></div><div class="ages">${['0-2', '3-5', '6-8', '9-12', 'Not sure'].map(a => `<span class="chip ${a === age ? 'on' : ''}">${a}</span>`).join('')}</div></div>`;
+  return `${giftHead(0)}<div class="gw"><div class="h1">Who is it for?</div><div class="ob-sub">We pick a book and a present for each kid, based on their age.</div>
+    ${field('Family name', 'The Golds', { done: true, hint: 'Shown on the note and the box' })}
+    <div class="kidrow"><div><b>Kids</b><span>Each kid gets a book and a present</span></div>${stepper('kids', 1)}</div>
+    ${kid(1, '3-5', 'Maya')}<button class="link" style="margin-top:12px">+ Add a kid · $10</button>
+    <div class="note-line" style="margin-top:14px">${EDIT_ICON}<span>Not sure? Guess. They can change the book and presents when they get your email.</span></div></div><div style="height:20px"></div>
+    ${bar('Gift box for 1 kid', '$80', 'Pick their box')}`;
+}
+function yourEmail(sent) {
+  return `${giftHead(0)}<div class="gw"><div class="h1">${sent ? 'Check your email' : 'Save your gift'}</div><div class="ob-sub">${sent ? 'Enter the 6&#8209;digit code we sent. No password needed.' : 'So you can come back to it on any device. We\'ll email you a code, no password.'}</div>
+    ${sent ? codeEntry(true) : `${field('Your name', 'Rachel', { done: true, hint: 'Shown on the note' })}${codeEntry(false, 'Email me a code')}`}
+    <div class="alt">${sent ? '' : 'Already have an account? <u>Sign in</u>'}</div></div>`;
+}
+function note() {
+  return `${giftHead(2)}<div class="gw"><div class="h1">Add a note</div><div class="ob-sub">They'll see it in the email and on a card in the box.</div>
+    ${field('Your note', 'Happy Hanukkah! We hope the latkes come out crispy and the dreidel lands on gimmel. Love, Rachel & Dan', { focus: true, extra: '' }).replace('class="in ', 'class="in area ')}
+    <div class="f-hint" style="margin:-4px 0 0;text-align:right">112 / 300</div>
+    <div class="preview"><div class="lab">What they'll see</div><div class="pv-card"><div class="eyebrow">A gift from Rachel</div><div class="h2">Your Hanukkah box is on the way</div><p>Happy Hanukkah! We hope the latkes come out crispy and the dreidel lands on gimmel. Love, Rachel & Dan</p><div class="fake">See your box</div></div></div></div><div style="height:20px"></div>
+    ${bar(`Gift for ${FAMILY}`, '$95', 'Continue')}`;
+}
+function howTheyGetIt() {
+  return `${giftHead(2)}<div class="gw"><div class="h1">How should they get it?</div><div class="ob-sub">Either way, it arrives before Dec&nbsp;4.</div>
+    <button class="ship-opt on"><span class="dot"></span><div><b>Email them to add their address <span class="rec">Easiest</span></b><span>They can also swap the book and presents. If they haven't added it by ${LOCK_SHORT}, we'll ask you.</span></div></button>
+    ${field('Their email', 'dan.gold@gmail.com', { done: true })}
+    <button class="ship-opt"><span class="dot"></span><div><b>Keep it a surprise</b><span>Enter their address now and we ship it straight to them.</span></div></button>
+    <div class="f" style="margin-top:14px"><label>When should we email them?</label><div class="in">Right away</div></div></div><div style="height:20px"></div>
+    ${bar(`Gift for ${FAMILY}`, '$95', 'Continue to payment')}`;
+}
+function credit() {
+  return `${giftHead(0, ['Amount', 'Note', 'Pay'])}<div class="gw"><div class="h1">How much credit?</div><div class="ob-sub">They build their own box with it. A box for one kid is $80.</div>
+    <div class="amounts"><button>$50<span>Extras</span></button><button class="on">$80<span>A box</span></button><button>$120<span>Box + extras</span></button></div>
+    ${field('Or another amount', '$', { ph: true })}
+    ${field('Family name', 'The Golds', { done: true })}${field('Their email', 'dan.gold@gmail.com', { done: true })}
+    <div class="note-line">${CLOCK_ICON}<span>Credit works until ${LOCK_LONG}. If they haven't used it, we'll remind them twice and then email you.</span></div></div><div style="height:20px"></div>
+    ${bar('Hanukkah credit', '$80', 'Continue')}`;
+}
+function pay() {
+  return `${giftHead(3)}<div class="co" style="padding-top:20px"><div class="h1" style="font-size:27px;margin-bottom:14px">Pay for the gift</div>
+    <div style="margin:4px 0 18px">${orderSummary({ title: `Hanukkah box for ${FAMILY}`, sub: 'Maya · 1 extra · note added', items: [...BOX_THUMBS.slice(0, 5), { id: 'lego', mine: true }], lines: [['Box for 1 kid', '$80'], ['"Lego" Menorah for Maya', '$15'], ['Shipping', 'Free'], ['Estimated tax', '$7.13']], totalLabel: 'Paid today', total: '$102.13' })}</div>
+    <div class="note-line">${CARD_ICON}<span>You're charged once, today. They can add extras later on their own card.</span></div>
+    <section class="sec" style="padding-top:8px"><div class="sec-h"><div class="h2">Payment</div></div>${stripeForm(true)}</section><div style="height:12px"></div></div>
+    ${bar('Paid today', '$102.13', 'Pay and send gift')}`;
+}
+function sent() {
+  return `${pageHeader('', '')}<div class="fin"><div class="badge">${BIG_CHECK}</div><div class="h1" style="margin-top:16px">Your gift is on its way to ${FAMILY}</div><div class="ob-sub">We emailed Dan your note. Your receipt is at ra•••@gmail.com.</div>
+    ${timeline([['Today', 'Dan gets your note and a link to their box'], [`Until ${LOCK_SHORT}`, 'They add their address and can swap the book and presents'], [`End of ${LOCK_SHORT}`, "If they haven't added an address, we'll email you"], ['Before Dec 4', 'Their box arrives, ready for the first night']])}
+    <button class="place" style="margin-top:6px">See your gift</button><button class="place out" style="margin-top:10px">Start a box for my family</button></div><div style="height:30px"></div>`;
+}
+
+function render() {
+  const map = { 1: landing, 2: choosePath, '2b': credit, 3: family, 4: () => yourEmail(false), '4b': () => yourEmail(true), 7: note, 8: howTheyGetIt, 9: pay, 10: sent };
+  const h = map[STEP]();
+  const tall = ['2', '2b', '3', '7', '8', '9'].includes(STEP);
+  document.getElementById('root').innerHTML = `<div class="app ${tall ? 'co-app' : ''}" style="${tall ? '' : 'padding-bottom:var(--bottom-safe)'}">${h}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

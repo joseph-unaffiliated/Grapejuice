@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .hero-img { height: 236px; overflow: hidden; background: var(--img); }
+  .hero-img img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; display: block; }
+  .hero { padding: 22px 16px 28px; display: flex; flex-direction: column; gap: 12px; }
+  .hero .h1 { font-size: 34px; letter-spacing: -1px; }
+  .hero .lede { margin-bottom: 6px; }
+  .trust { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .trust div { display: flex; gap: 10px; align-items: center; font-size: 13.5px; color: #374151; }
+  .trust svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .tr-row { display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .tr-row:last-of-type { border-bottom: none; }
+  .tr-row .meta { flex: 1; min-width: 0; }
+  .tr-row b { font-weight: 500; font-size: 16px; display: block; letter-spacing: -0.2px; }
+  .tr-row span { font-size: 13.5px; color: var(--muted); line-height: 1.4; font-weight: 300; }
+  .tr-thumbs { display: flex; } .tr-thumbs .thumb { border: 2px solid #fff; margin-left: -12px; border-radius: 10px; } .tr-thumbs .thumb:first-child { margin-left: 0; }
+  .gift-band { margin: 0 16px; border-radius: 16px; overflow: hidden; background: var(--gold-soft); }
+  .gift-band img { width: 100%; height: 170px; object-fit: cover; display: block; }
+  .gift-band .in-pad { padding: 18px 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+  .story { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+  .story .q { font-size: 24px; letter-spacing: -0.6px; line-height: 1.2; }
+  .ask { margin: 0 16px; display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; }
+  .ask .meta { flex: 1; } .ask b { font-weight: 500; font-size: 15.5px; display: block; } .ask span { font-size: 13px; color: var(--muted); }
+  .welcome { padding: 22px 16px 8px; }
+  .welcome .eyebrow { margin-bottom: 6px; }
+  .gap { height: 4px; }
+  /* A: photo-led */
+  .a-hero { height: 340px; overflow: hidden; background: var(--img); }
+  .a-hero img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
+  .pcards { display: flex; gap: 12px; overflow-x: auto; padding: 0 16px 4px; scrollbar-width: none; }
+  .pcard { width: 264px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+  .pcard .ph { height: 196px; border-radius: 14px; overflow: hidden; background: var(--img); position: relative; }
+  .pcard .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pcard .ph .n { position: absolute; left: 10px; top: 10px; background: #fff; border-radius: 12px; height: 24px; padding: 0 9px; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+  .pcard b { font-weight: 500; font-size: 16.5px; letter-spacing: -0.2px; } .pcard span { font-size: 13.5px; color: var(--muted); line-height: 1.4; font-weight: 300; }
+  /* B: mosaic + what $80 gets you */
+  .mosaic { display: grid; grid-template-columns: 1.25fr 1fr; grid-template-rows: 150px 150px; gap: 4px; }
+  .mosaic div { overflow: hidden; background: var(--img); } .mosaic img, .mosaic video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mosaic .big { grid-row: span 2; }
+  .mosaic .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: none; }
+  .b-hero { padding: 22px 16px 26px; display: flex; flex-direction: column; gap: 12px; }
+  .b-hero .h1 { font-size: 32px; letter-spacing: -1px; }
+  .b-hero .h1 em { font-style: normal; color: #7D7148; }
+  .rcpt { border: 1px solid var(--line); border-radius: 16px; padding: 4px 14px; }
+  .rcpt .r { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .rcpt .r:last-child { border-bottom: none; }
+  .rcpt .r .meta { flex: 1; } .rcpt .r b { font-weight: 500; font-size: 15px; display: block; } .rcpt .r span { font-size: 12.5px; color: var(--muted); }
+  .rcpt .tot { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0 12px; font-size: 15px; } .rcpt .tot b { font-size: 22px; font-weight: 400; letter-spacing: -0.5px; }
+  /* C: hanukkiah countdown */
+  .c-hero { background: var(--gold-soft); padding: 26px 16px 28px; display: flex; flex-direction: column; gap: 12px; }
+  .c-hero .count { align-self: center; font-size: 13px; color: #7D7148; background: #fff; border-radius: 14px; height: 28px; padding: 0 12px; display: flex; align-items: center; gap: 6px; }
+  .c-hero .h1 { font-size: 34px; letter-spacing: -1px; text-align: center; }
+  .c-hero .lede { text-align: center; margin-bottom: 6px; }
+  .c-hero .trust { flex-direction: row; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .c-hero .trust div { font-size: 12.5px; gap: 5px; } .c-hero .trust svg { width: 14px; height: 14px; }
+  .plist { display: flex; flex-direction: column; gap: 12px; padding: 0 16px; }
+  .plist .pr { display: flex; gap: 14px; align-items: center; }
+  .plist .pr .ph { width: 112px; height: 112px; border-radius: 14px; overflow: hidden; flex-shrink: 0; background: var(--img); }
+  .plist .pr .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .plist .pr .eyebrow { font-size: 12px; margin-bottom: 3px; } .plist .pr b { font-weight: 500; font-size: 16.5px; display: block; letter-spacing: -0.2px; } .plist .pr span { font-size: 13.5px; color: var(--muted); line-height: 1.4; font-weight: 300; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Hanukkah, made easy';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+S.menu = params.get('menu');
+const STATE = params.get('state') || 'new';
+const V = params.get('v') || 'b';
+const PRACTICE_PHOTO = { candles: PHOTO.rolling, dreidel: PHOTO.drawing, eat: PHOTO.latkes, story: PHOTO.dragon, gifts: PHOTO.shamash };
+const gTitle = (g) => g.title.replace(KID, 'each kid');
+const gLine = (g) => g.line.replace(`${KID}'s`, 'their');
+const TRUST = () => `<div class="trust"><div>${TRUCK}<span>Free shipping</span></div><div>${EDIT_ICON}<span>Change anything until ${LOCK_SHORT}</span></div><div>${CARD_ICON}<span>Charged when it ships</span></div></div>`;
+const TRUCK = `<svg viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="2"><path d="M2 6h11v9H2zM13 9h4l3 3v3h-7z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>`;
+
+function hero() {
+  if (STATE === 'draft' || STATE === 'set') {
+    const set = STATE === 'set';
+    return `<div class="welcome"><div class="eyebrow">Welcome back</div><div class="h1">${set ? 'Your box is set' : 'Your box is waiting'}</div></div>
+    <div style="margin:12px 16px 0">${boxSummary({ total: $(total()), body: `${set ? `<span class="pill-status">Set · ships after ${LOCK_SHORT}</span><div class="bs-line">${EDIT_ICON}<span>Change anything until ${LOCK_LONG}. Charged when it ships.</span></div>`
+        : `<div class="bs-line">${CAL_ICON}<span>Change anything until ${LOCK_SHORT}</span></div><div class="bs-held">${NOT_HELD}</div>`}
+      <button class="place">${set ? 'View my box' : 'Add shipping and payment'}</button><button class="place out">${set ? 'Shop extras' : 'Keep editing'}</button>` })}</div><div class="gap"></div>`;
+  }
+  if (V === 'b') return `<div class="mosaic"><div class="big"><video src="img/banner-reel.mp4" autoplay muted loop playsinline></video></div><div><img src="${PHOTO.latkes}" alt=""></div><div class="pair"><div><img src="${PHOTO.drawing}" alt=""></div><div><img src="${PHOTO.gimmel}" alt=""></div></div></div>
+    <div class="b-hero"><div class="h1">Hanukkah, delivered to your door. <em>One box, $80.</em></div><div class="lede">Candles, dreidels, gelt, food kits, a book and a present for each kid. Picked for your family, delivered before Dec 4.</div>
+    <button class="place">Build my box</button>${TRUST()}</div>`;
+  if (V === 'c') return `<div class="c-hero"><span class="count">${CAL_ICON}First candle in 54 days · Fri, Dec 4</span>${hanukkiah(8, { lit: false, width: 190 })}
+    <div class="h1">Hanukkah, made easy</div><div class="lede">Everything for all eight nights, picked for your family and delivered to your door.</div>
+    <button class="place">Build my box · from $80</button>${TRUST()}</div>`;
+  return `<div class="a-hero"><img src="${PHOTO.lighting}" alt=""></div>
+  <div class="hero"><div class="h1">Hanukkah, made easy</div><div class="lede">Everything for all eight nights, picked for your family and delivered to your door.</div>
+    <button class="place">Build my box · from $80</button><button class="place out">Shop the collection</button>${TRUST()}</div>`;
+}
+
+const HOW = () => `<section class="band cream"><div class="pad"><div class="h2" style="margin-bottom:18px">How it works</div></div><div class="steps3"><div><span class="n">1</span><p><b>Tell us about your family</b><span>Kids' ages and how you usually celebrate. Two minutes.</span></p></div><div><span class="n">2</span><p><b>We pick everything</b><span>Candles, dreidels, gelt, food kits, a book and a present for each kid.</span></p></div><div><span class="n">3</span><p><b>Swap anything until ${LOCK_SHORT}</b><span>Your card is charged when it ships, in time for the first night.</span></p></div></div></section>`;
+function inTheBox() {
+  const ids = (g) => [...new Set([...g.slots.map(s => s.def), ...g.slots.flatMap(s => s.alts)])].slice(0, 3);
+  if (V === 'x') {
+    const rows = GROUPS.map(g => `<div class="r">${practiceIcon(g.id)}<div class="meta"><b>${gTitle(g)}</b><span>${gLine(g)}</span></div><div class="tr-thumbs">${ids(g).map(id => thumb(id, 40)).join('')}</div></div>`).join('');
+    return `<section class="band" id="g-box" style="padding-top:8px"><div class="pad"><div class="h2" style="margin-bottom:12px">What $80 gets you</div><div class="rcpt">${rows}<div class="tot"><span>Your whole box<br><span class="muted small">+$10 for each extra kid</span></span><b>$80</b></div></div><button class="place" style="margin-top:16px">Build my box</button></div></section>${HOW()}`;
+  }
+  if (V === 'b' || V === 'c') {
+    const rows = GROUPS.map(g => `<div class="pr"><div class="ph"><img src="${PRACTICE_PHOTO[g.id]}" alt=""></div><div><b>${gTitle(g)}</b><span>${gLine(g)}</span></div></div>`).join('');
+    return `<section class="band" id="g-box"><div class="pad"><div class="h2">Eight nights, one box</div><div class="lede" style="margin:8px 0 18px;font-size:14.5px">Picked for your kids' ages and how your family celebrates. Swap anything you like.</div></div><div class="plist">${rows}</div><div class="pad"><button class="place" style="margin-top:22px">Build my box · from $80</button></div></section>${HOW()}`;
+  }
+  const cards = GROUPS.map(g => `<div class="pcard"><div class="ph"><img src="${PRACTICE_PHOTO[g.id]}" alt=""><span class="n">${practiceIcon(g.id, '#7D7148')}${g.short}</span></div><b>${gTitle(g)}</b><span>${gLine(g)}</span></div>`).join('');
+  return `<section class="band" id="g-box" style="border-top:1px solid var(--line)"><div class="pad"><div class="h2">What's in the box</div><div class="lede" style="margin:8px 0 16px;font-size:14.5px">Picked for your kids' ages and how your family celebrates. Swap anything you like.</div></div><div class="pcards">${cards}</div><div class="pad"><button class="place" style="margin-top:22px">Build my box · from $80</button></div></section>${HOW()}`;
+}
+
+function shop() {
+  const cats = [['Menorahs', PHOTO.stemless], ['Stuffies', PHOTO.shamashKid], ['Activities', PHOTO.clay], ['Candles', PHOTO.beeswax], ['Dreidels', PHOTO.brass], ['Food', PHOTO.cutters]];
+  return `<section class="band" id="g-shop">${sectionHead('Shop by category', 'Shop all')}<div class="cat-grid">${cats.map(([l, img]) => `<div class="cat-tile"><img src="${img}" alt=""><span>${l}</span></div>`).join('')}</div></section>
+  <section class="band" style="padding-top:8px">${sectionHead('Top picks', 'See all')}<div class="hscroll">${['lego', 'shamash', 'arch', 'jelly', 'brass'].map(id => productTile(id, '', { noBtn: true })).join('')}</div></section>`;
+}
+
+function more() {
+  return `<section class="band" id="g-more" style="padding-top:12px"><div class="gift-band"><img src="${PHOTO.doorstep}" alt=""><div class="in-pad"><div class="h2">Send a box to another family</div><div class="sub" style="font-size:14.5px">Pick what goes in, or send credit and let them choose.</div><button class="place" style="margin-top:8px;height:48px;font-size:16px">Send a gift</button></div></div></section>
+  <section class="band" style="padding-top:8px"><div class="story"><div class="eyebrow">Our story</div><div class="q">Making it your own doesn't mean doing it alone.</div><div class="lede" style="font-size:14.5px">We started Grapejuice so every family can celebrate Hanukkah their way, without the homework.</div><button class="link" style="align-self:flex-start">Read our story</button></div></section>
+  <section style="padding-bottom:36px"><div class="ask"><span class="ic gold">${KID_ICON}</span><div class="meta"><b>Questions? Ask Rav</b><span>What candles do we need? Can I swap the book?</span></div><span class="mn-c">›</span></div></section>
+  ${siteFooter()}`;
+}
+
+function bar() {
+  if (STATE !== 'new' || params.get('nobar')) return '';
+  return `<div class="sticky-cta"><span class="p"><span>Everything for eight nights</span><b>From $80</b></span><button class="place">Build my box</button></div>`;
+}
+
+function render() {
+  let h = siteHeader() + `<div>${hero()}`;
+  if (STATE === 'new') h += inTheBox();
+  h += shop();
+  h += more();
+  h += `</div>`;
+  if (params.get('at')) h += bar();
+  if (S.menu) h += menuPanel(STATE === 'new' ? 'none' : STATE);
+  document.getElementById('root').innerHTML = `<div class="app ${S.menu ? 'locked' : ''}" style="padding-bottom:0">${h}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .au { padding: 30px 16px 0; }
+  .au .h1 { font-size: 28px; }
+  .au .ob-sub { margin-bottom: 4px; }
+  .divider { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); margin: 18px 0; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .sso { width: 100%; height: 50px; border-radius: 10px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15.5px; margin-bottom: 10px; }
+  .sso.apple { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .ig-note { margin-top: 18px; padding: 14px; border-radius: 14px; background: var(--gold-soft); display: flex; gap: 10px; font-size: 13.5px; line-height: 1.45; color: #7D7148; }
+  .ig-note svg { flex-shrink: 0; margin-top: 1px; }
+  .ig-note b { font-weight: 500; }
+  .pw { position: relative; } .pw .show { position: absolute; right: 14px; top: 37px; font-size: 13.5px; color: #7D7148; }
+  .sent-ill { width: 64px; height: 64px; border-radius: 32px; background: var(--gold-soft); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Sign in';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+const STEP = params.get('s') || '1';
+const G = `<svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h5.9c-.3 1.4-1 2.5-2.2 3.3v2.7h3.6c2-1.9 3.2-4.7 3.2-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8C3.9 20.6 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.8 14.2c-.2-.7-.4-1.4-.4-2.2s.1-1.5.4-2.2V7H2.1C1.4 8.5 1 10.2 1 12s.4 3.5 1.1 5l3.7-2.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2C17.5 2.1 15 1 12 1 7.7 1 3.9 3.4 2.1 7l3.7 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>`;
+const MAIL = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg>`;
+const INFO = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7D7148" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>`;
+
+function signIn(ig) {
+  return `${pageHeader('Sign in', 'Back')}<div class="au"><div class="h1">Sign in</div><div class="ob-sub">We'll email you a 6&#8209;digit code. No password needed.</div>
+    ${codeEntry(false, 'Email me a code')}
+    ${ig ? `<div class="ig-note">${INFO}<span><b>Google sign-in doesn't work inside Instagram.</b> Use your email above, or open grapejuice.co in Safari from the ••• menu.</span></div>`
+      : `<div class="divider">or</div><button class="sso apple">${APPLE}Continue with Apple</button><button class="sso">${G}Continue with Google</button>`}
+    <div class="alt">New here? <u>Build a box</u> and we'll make your account as you go.<br><u>Use a password instead</u></div></div>`;
+}
+function code() {
+  return `${pageHeader('Sign in', 'Back')}<div class="au"><div class="sent-ill">${MAIL}</div><div class="h1">Check your email</div><div class="ob-sub">Enter the code we sent. It works for 10 minutes.</div>${codeEntry(true)}
+    <div class="alt" style="margin-top:22px">On this phone? Tap the link in the email instead.</div></div>`;
+}
+function signUp() {
+  return `${pageHeader('Save your box', 'Box')}<div class="au"><div class="h1">Save your box</div><div class="ob-sub">So it's here when you come back, on any device. No password, we'll email you a code.</div>
+    <div style="margin:22px 0 8px">${boxSummary({ size: 'sm', total: '$95' })}</div>
+    ${field('First name', 'Rachel', { done: true })}${codeEntry(false, 'Email me a code')}
+    <div class="alt">Already have an account? <u>Sign in</u></div></div>`;
+}
+function password() {
+  return `${pageHeader('Sign in', 'Back')}<div class="au"><div class="h1">Sign in with a password</div><div class="ob-sub">If you made one before. Otherwise, use a code.</div><div style="height:18px"></div>
+    ${field('Email', 'rachel.levin@gmail.com', { done: true })}<div class="pw">${field('Password', '••••••••••', { focus: true })}<button class="show">Show</button></div>
+    <button class="place" style="margin-top:8px">Sign in</button>
+    <div class="alt"><u>Forgot password?</u><br><u>Email me a code instead</u></div></div>`;
+}
+function forgot(sent) {
+  if (sent) return `${pageHeader('Reset password', 'Back')}<div class="au"><div class="sent-ill">${MAIL}</div><div class="h1">Check your email</div><div class="ob-sub">If there's an account for ra•••@gmail.com, we sent a link to reset your password.</div>
+    <button class="place out" style="margin-top:22px">Email me a sign-in code instead</button><div class="alt">Didn't get it? <u>Send again</u></div></div>`;
+  return `${pageHeader('Reset password', 'Back')}<div class="au"><div class="h1">Reset your password</div><div class="ob-sub">We'll email you a link. Or skip the password and sign in with a code.</div>
+    ${codeEntry(false, 'Send reset link')}<div class="alt"><u>Email me a sign-in code instead</u></div></div>`;
+}
+
+function render() {
+  const map = { 1: () => signIn(false), 2: code, 3: signUp, 4: password, 5: () => forgot(false), '5b': () => forgot(true), 6: () => signIn(true) };
+  document.getElementById('root').innerHTML = `<div class="app" style="padding-bottom:var(--bottom-safe)">${map[STEP]()}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

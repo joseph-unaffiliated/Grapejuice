@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice store</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .cat-head { padding: 22px 16px 4px; display: flex; flex-direction: column; gap: 6px; }
+  .cat-head .h1 { font-size: 30px; }
+  .cat-note { font-size: 13.5px; color: #7D7148; background: var(--gold-soft); border-radius: 12px; padding: 10px 12px; margin: 10px 16px 0; line-height: 1.4; }
+  .cat-bar { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 16px; font-size: 13px; color: var(--muted); }
+  .cat-bar .link { min-height: 0; }
+  .chips.static { position: static; border-bottom: none; padding-top: 14px; }
+  .coll-h { padding: 26px 16px 12px; display: flex; justify-content: space-between; align-items: baseline; }
+  .coll-h .h2 { font-size: 20px; }
+  .pp-img { position: relative; background: #fff; }
+  .pp-img img { width: 100%; aspect-ratio: 7 / 6; object-fit: cover; display: block; }
+  .pp-heart { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; color: #fff; display: flex; align-items: center; justify-content: center; }
+  .pp-heart svg { width: 26px; height: 26px; } .pp-heart svg path { stroke: #fff; stroke-width: 2; }
+  .pp-dots { display: flex; justify-content: center; gap: 6px; padding: 10px 0 0; }
+  .pp-dots i { width: 6px; height: 6px; border-radius: 3px; background: #d1d5db; } .pp-dots i.on { background: var(--ink); }
+  .pp-body { padding: 18px 16px 0; display: flex; flex-direction: column; gap: 8px; }
+  .pp-body .h1 { font-size: 27px; }
+  .pp-price { display: flex; align-items: center; gap: 10px; font-size: 18px; }
+  .pp-price s { color: var(--muted); font-size: 14px; font-weight: 300; }
+  .pp-desc { font-size: 15px; line-height: 1.55; color: #374151; font-weight: 300; }
+  .pp-desc .link { font-size: 14px; }
+  .pp-box { margin: 10px 16px 0; padding: 14px; border-radius: 14px; display: flex; align-items: center; gap: 12px; }
+  .pp-box .meta { flex: 1; } .pp-box b { font-weight: 500; font-size: 15px; display: block; } .pp-box span { font-size: 13px; color: var(--muted); }
+  .pp-box b svg { color: #7D7148; vertical-align: -1px; }
+  .details { margin: 24px 16px 0; border-top: 1px solid var(--line); }
+  .details .list-row { min-height: 54px; }
+  .partof { margin: 32px 16px 0; padding: 16px; border-radius: 16px; background: var(--ink); color: #fff; display: flex; flex-direction: column; gap: 10px; }
+  .partof .sub { color: #c9c9c9; font-size: 14px; } .partof .thumbs { display: flex; gap: 6px; }
+  .partof .cta { align-self: flex-start; }
+  .cart-row { display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .cart-row .meta { flex: 1; } .cart-row .name { font-size: 15px; } .cart-row .p { font-size: 13.5px; color: var(--muted); margin-top: 3px; }
+  .app.tall { padding-bottom: calc(180px + var(--bottom-safe)); }
+  .sticky-2 { flex-direction: column; align-items: stretch; gap: 8px; }
+  .sticky-2 .place { flex: none; }
+  .sold-box { margin: 12px 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .sold-box b { font-weight: 500; font-size: 15.5px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Shop';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+const STEP = Number(params.get('s') || 1);
+S.menu = params.get('menu');
+
+const CHIP_CATS = ['All', 'Menorahs', 'Candles', 'Dreidels', 'Gelt', 'Food', 'Books', 'Stuffies', 'Toys', 'Activities', 'On sale'];
+function catChips(active) { return `<div class="chips static">${CHIP_CATS.map(c => `<span class="chip ${c === active ? 'on' : ''}">${c}</span>`).join('')}</div>`; }
+
+function category() {
+  return `${siteHeader()}<div class="cat-head"><div class="h1">Stuffies</div><div class="sub">Soft, huggable and made for little hands.</div></div>${catChips('Stuffies')}
+    <div class="cat-note">Any stuffie can be ${KID}'s present. Swapping one in is included.</div>
+    <div class="cat-bar"><span>4 items</span><button class="link">Sort: Popular</button></div>
+    <div class="pt-grid">${productTile('shamash', 'inbox')}${productTile('crispy')}${productTile('jelly')}${productTile('gimmel')}</div><div style="height:40px"></div>`;
+}
+function collection() {
+  const sec = (t, ids) => `<div class="coll-h"><div class="h2">${t}</div><button class="link">See all</button></div><div class="pt-grid">${ids.map(([id, st]) => productTile(id, st || '')).join('')}</div>`;
+  return `${siteHeader()}<div class="cat-head"><div class="h1">Shop everything</div><div class="sub">Add anything to your box, or buy it on its own.</div></div>${catChips('All')}
+    ${sec('Menorahs', [['lego'], ['arch']])}${sec('Candles', [['beeswax', 'inbox'], ['electric']])}<div style="height:40px"></div>`;
+}
+
+const DETAILS = {
+  lego: 'What better way to bring in the holiday than to build your own hanukkiah? Snap the bricks together, add the candle cups, and it stands up to all eight nights.',
+  gimmel: 'Gimmel is a soft, round dreidel stuffie with a stitched letter on each side. Made for cuddles and pretend spinning.',
+  shamash: I.shamash.desc, jelly: I.jelly.desc, brass: I.brass.desc,
+};
+function productPage(id, { back, inBox, added, soldOut, toast, noBox } = {}) {
+  const it = I[id];
+  const head = back ? pageHeader('', back) : siteHeader();
+  let h = `<div class="pp-img"><img src="${it.img}" alt=""><span class="pp-heart">${HEART}</span></div><div class="pp-dots"><i class="on"></i><i></i><i></i><i></i></div>`;
+  h += `<div class="pp-body"><div class="eyebrow">${id === 'lego' || id === 'brass' ? (id === 'lego' ? 'Menorahs' : 'Dreidels') : 'Stuffies'}</div><div class="h1">${it.name}</div>
+    <div class="pp-price">${soldOut ? '<span class="pill-status warn">Sold out</span>' : `${$(it.price)}${it.badge ? `<span class="corner" style="position:static">${it.badge}</span>` : ''}`}</div>
+    <div class="pp-desc">${DETAILS[id] || it.desc || ''} <button class="link">More</button></div></div>`;
+  if (noBox) h += `<div style="height:20px"></div>${boxPitch([id], { title: `Everything for eight nights, with the ${it.name.replace(/"/g, '')} in it` })}`;
+  if (inBox) h += `<div class="pp-box inbox-look"><div class="meta"><b>${CHECK_ICON} In your box</b><span>Included as ${KID}'s present</span></div>${stepper('gift', 1)}</div>`;
+  if (added) h += `<div class="pp-box inbox-look"><div class="meta"><b>${CHECK_ICON} Added for ${KID}</b><span>On top of everything in your box · ${$(it.price)}</span></div>${extraStepper(id, 'gifts', 1)}</div>`;
+  if (soldOut) h += `<div class="sold-box"><b>This one sold out this year.</b><span class="sub">We'll email you if it comes back before ${LOCK_SHORT}.</span><button class="place out" style="height:48px;font-size:15.5px">Email me if it's back</button></div>`;
+  h += `<div class="details" id="g-details">${[['What\'s inside', 'Everything you see, ready to use'], ['Ages', id === 'lego' ? '5 and up' : 'All ages'], ['Size', id === 'lego' ? '8 × 3 in when built' : '7 in tall'], ['Shipping', 'Ships with your box, free']].map(([t, s]) => `<button class="list-row"><div class="meta"><div class="t">${t}</div><div class="s">${s}</div></div><span class="c">›</span></button>`).join('')}</div>`;
+  const more = soldOut ? ['wooden', 'slipcast', 'clay', 'draw'] : id === 'lego' ? ['arch', 'claymenorah', 'branches', 'slab'] : ['shamash', 'crispy', 'jelly', 'gimmel'].filter(x => x !== id);
+  h += `<section class="band" style="padding-bottom:8px">${sectionHead(soldOut ? 'Other dreidels' : id === 'lego' ? 'More menorahs' : 'More stuffies', 'See all')}<div class="hscroll">${more.map(x => productTile(x, '', { noBtn: true })).join('')}</div></section>`;
+  h += `<div style="height:40px"></div>`;
+  h = `${head}<div>${h}</div>`;
+  if (toast) h += `<div class="toast2">${CHECK_ICON}<span>${toast}</span><button class="link">Undo</button></div>`;
+  return h;
+}
+function ppBar(kind, id) {
+  const p = $(I[id].price);
+  if (kind === 'nobox') return `<div class="sticky-cta"><span class="p"><span>On its own</span><b>${p}</b></span><button class="place out">Buy just this</button></div>`;
+  if (kind === 'inbox') return `<div class="sticky-cta"><span class="p"><span class="goldtxt">In your box</span><b>Included</b></span><button class="place out">View my box</button></div>`;
+  if (kind === 'added') return `<div class="sticky-cta"><span class="p"><span class="goldtxt">Added for ${KID}</span><b>+${p}</b></span><button class="place out">View my box</button></div>`;
+  if (kind === 'sold') return '';
+  return `<div class="sticky-cta"><span class="p"><span>Add to your box</span><b>${p}</b></span><button class="place">Add to my box</button></div>`;
+}
+
+function cart() {
+  const row = (id) => `<div class="cart-row">${thumb(id, 72)}<div class="meta"><div class="name">${I[id].name}</div><div class="p">${$(I[id].price)}</div></div>${extraStepper(id, 'x', 1)}</div>`;
+  return `${pageHeader('Cart', 'Shop')}<div class="co"><div style="padding-top:8px">${row('lego')}${row('brass')}</div>
+    <div class="rc-total" style="padding-top:16px"><div><span>Subtotal</span><span>$45</span></div><div><span>Shipping</span><span>Free</span></div><div><span>Tax</span><span>At checkout</span></div></div>
+    <div style="margin:24px -16px 0">${boxPitch(['lego', 'brass'], { cta: 'Start a box with these', title: 'Getting these for Hanukkah? Put them in a box' })}</div></div>
+    <div class="cbar light"><div class="cbar-top"><span>Subtotal · charged today</span><b>$45</b></div><button class="place">Checkout</button></div>`;
+}
+function cartCheckout() {
+  let h = coHead('Cart') + `<div class="co"><div class="assure"><div>${CARD_ICON}<span>Charged today. Ships in 3 to 5 days.</span></div></div>`;
+  h += `<div class="osum"><div class="osum-top"><span class="minis">${thumb('lego', 34)}${thumb('brass', 34)}</span><span class="t">2 items<span>Show items ⌄</span></span><b>$47.70</b></div></div>`;
+  h += `<section class="sec"><div class="sec-h"><div class="h2">Shipping</div><span class="muted">Free · U.S. only</span></div>${addressFields()}</section>`;
+  h += `<section class="sec"><div class="sec-h"><div class="h2">Payment</div></div>${stripeForm(false)}<button class="disc">Have a discount code?</button></section><div style="height:12px"></div></div>`;
+  h += `<div class="cbar light"><div class="cbar-top"><span>Charged today</span><b>$47.70</b></div><button class="place">Pay $47.70</button></div>`;
+  return h;
+}
+function favorites() {
+  return `${siteHeader()}<div class="cat-head"><div class="h1">Favorites</div><div class="sub">Saved on this phone. Sign in to keep them everywhere.</div></div><div class="cat-bar"><span>4 items</span></div>
+    <div class="pt-grid">${productTile('lego', 'fav')}${productTile('brass', 'fav')}${productTile('jelly', 'fav')}${productTile('arch', 'fav')}</div><div style="height:40px"></div>`;
+}
+
+function render() {
+  let h = '', cls = 'co-app';
+  switch (STEP) {
+    case 1: h = category(); cls = ''; break;
+    case 2: h = collection(); cls = ''; break;
+    case 3: h = productPage('lego') + ppBar('add', 'lego'); break;
+    case 4: h = productPage('lego') + ppBar('add', 'lego'); break;
+    case 5: h = productPage('gimmel') + ppBar('add', 'gimmel') + roleChooser('gimmel', 2); S.sheet = 'role'; break;
+    case 6: h = productPage('gimmel', { added: true }) + ppBar('added', 'gimmel'); break;
+    case 7: h = productPage('shamash', { back: `Gifts for ${KID}`, inBox: true }) + ppBar('inbox', 'shamash'); break;
+    case 8: h = productPage('lego', { noBox: true }) + ppBar('nobox', 'lego'); break;
+    case 9: h = cart(); break;
+    case 10: h = cartCheckout(); break;
+    case 11: h = favorites(); cls = ''; break;
+    case 12: h = productPage('brass', { soldOut: true }); cls = ''; break;
+  }
+  if (S.menu) h += menuPanel('draft');
+  document.getElementById('root').innerHTML = `<div class="app ${cls} ${S.sheet || S.menu ? 'locked' : ''}" style="${cls ? '' : 'padding-bottom:var(--bottom-safe)'}">${h}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

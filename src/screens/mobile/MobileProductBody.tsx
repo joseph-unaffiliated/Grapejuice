@@ -7,7 +7,7 @@ import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { availabilityRemaining } from '../../services/catalog/availability';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileSheet } from '../../components/mobile/MobileSheet';
-import { ProductTileMobile } from '../../components/mobile/ProductTileMobile';
+import { ProductTileMobile, stockStatus } from '../../components/mobile/ProductTileMobile';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { BoxPitch } from '../../components/mobile/BoxPitch';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
@@ -48,8 +48,9 @@ type Props = {
   onBuyJustThis?: () => void;
   onStartBoxWithIt: () => void;
   onNotifyBack?: () => void;
-  backLabel?: string;
-  onBack?: () => void;
+  /** Opens the product's category ("See all" beside the similar rail). */
+  onSeeAll?: () => void;
+  availabilityById?: Record<string, CatalogAvailability>;
   /** Toast after an add. */
   lastAdded?: string | null;
 };
@@ -60,6 +61,8 @@ export function MobileProductBody(p: Props) {
   const [page, setPage] = useState(0);
   const [more, setMore] = useState(false);
   const [chooser, setChooser] = useState(false);
+  const [detail, setDetail] = useState<{ label: string; value: string } | null>(null);
+  const imageH = Math.round((width * 6) / 7);
   const scrollRef = useRef<ScrollView>(null);
   const photos = useMemo(() => (p.item.imageUrls?.length ? p.item.imageUrls : p.item.imageUrl ? [p.item.imageUrl] : []), [p.item]);
   const remaining = p.availability ? availabilityRemaining(p.availability) : null;
@@ -79,12 +82,6 @@ export function MobileProductBody(p: Props) {
 
   return (
     <View style={{ paddingBottom: STICKY_BAR_CLEARANCE }}>
-      {p.onBack ? (
-        <Pressable onPress={p.onBack} accessibilityRole="button" style={styles.back} hitSlop={8}>
-          <Text style={styles.backText}>‹ {p.backLabel ?? 'Back'}</Text>
-        </Pressable>
-      ) : null}
-
       <View style={styles.gallery}>
         <ScrollView
           ref={scrollRef}
@@ -96,39 +93,41 @@ export function MobileProductBody(p: Props) {
           scrollEventThrottle={64}
         >
           {photos.map((uri, i) => (
-            <Image key={uri} source={{ uri }} style={{ width, height: width, backgroundColor: m.img }} resizeMode="cover" accessibilityLabel={i === 0 ? p.item.name : undefined} />
+            <Image key={uri} source={{ uri }} style={{ width, height: imageH, backgroundColor: m.img }} resizeMode="cover" accessibilityLabel={i === 0 ? p.item.name : undefined} />
           ))}
         </ScrollView>
-        {p.inBox ? (
-          <View style={styles.inBoxTag}>
-            <Text style={styles.inBoxTagText}>✓ In your box</Text>
-          </View>
-        ) : null}
         <Pressable onPress={p.onToggleWishlist} accessibilityRole="button" accessibilityLabel={p.wishlisted ? 'Remove from favorites' : 'Save to favorites'} style={styles.heart} hitSlop={10}>
-          <Icon icon={p.wishlisted ? icons.heart : icons.heartOutline} size={22} color={m.white} />
+          <Icon icon={p.wishlisted ? icons.heart : icons.heartOutline} size={24} color={m.white} />
         </Pressable>
-        {photos.length > 1 ? (
-          <View style={styles.dots}>
-            {photos.map((_, i) => (
-              <View key={i} style={[styles.dot, i === page && styles.dotOn]} />
-            ))}
-          </View>
-        ) : null}
       </View>
+      {photos.length > 1 ? (
+        <View style={styles.dots}>
+          {photos.map((_, i) => (
+            <View key={i} style={[styles.dot, i === page && styles.dotOn]} />
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.pad}>
         {p.categoryLabel ? <Text style={mType.eyebrow}>{p.categoryLabel}</Text> : null}
-        <Text style={[mType.h1, { marginTop: 4 }]} {...balanceProps}>
+        <Text style={[mType.h1, { fontSize: 27, lineHeight: 31 }]} {...balanceProps}>
           {p.item.name}
         </Text>
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatCatalogDollars(p.priceCents)}</Text>
-          {p.hasBox && p.memberCents > 0 && p.memberCents < p.priceCents ? <Text style={styles.member}>{formatCatalogDollars(p.memberCents)} in your box</Text> : null}
-          {low ? <Text style={styles.low}>Low stock · {remaining} left</Text> : null}
-          {p.soldOut ? <Text style={styles.low}>Sold out</Text> : null}
+          {p.soldOut ? (
+            <Text style={styles.soldPill}>Sold out</Text>
+          ) : (
+            <Text style={styles.price}>{formatCatalogDollars(p.priceCents)}</Text>
+          )}
+          {!p.soldOut && p.hasBox && p.memberCents > 0 && p.memberCents < p.priceCents ? <Text style={styles.member}>{formatCatalogDollars(p.memberCents)} in your box</Text> : null}
+          {low ? (
+            <View style={styles.corner}>
+              <Text style={styles.cornerText}>Low stock</Text>
+            </View>
+          ) : null}
         </View>
         {desc ? (
-          <Text style={[mType.body, { marginTop: 12 }]}>
+          <Text style={styles.desc}>
             {shortDesc}
             {desc.length > 160 && !more ? (
               <Text style={styles.moreLink} onPress={() => setMore(true)}>
@@ -138,16 +137,20 @@ export function MobileProductBody(p: Props) {
             ) : null}
           </Text>
         ) : null}
+      </View>
 
-        {p.inBox ? (
+      {p.inBox ? (
           <View style={styles.inBoxCard}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.inBoxTitle}>✓ In your box</Text>
-              <Text style={styles.inBoxSub}>{p.inBoxUnitCents > 0 ? `Added${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''} · ${formatCatalogDollars(p.inBoxUnitCents)} each` : `Included${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''}`}</Text>
+              <View style={styles.inBoxTitleRow}>
+                <Icon icon={icons.check} size={12} color={m.goldDark} />
+                <Text style={styles.inBoxTitle}>{p.inBoxUnitCents > 0 ? `Added${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''}` : 'In your box'}</Text>
+              </View>
+              <Text style={styles.inBoxSub}>{p.inBoxUnitCents > 0 ? `On top of everything in your box · ${formatCatalogDollars(p.inBoxUnitCents)}` : p.kidNameForGift ? `Included as ${p.kidNameForGift}'s present` : 'Included'}</Text>
             </View>
             <View style={styles.stepper}>
               <Pressable onPress={() => p.onQuantity(-1)} disabled={p.locked} accessibilityRole="button" accessibilityLabel={p.boxQuantity <= 1 ? (p.inBoxUnitCents === 0 ? 'Donate' : 'Remove') : 'Decrease quantity'} style={styles.stepBtn}>
-                <Text style={styles.stepText}>{p.boxQuantity <= 1 && p.inBoxUnitCents === 0 ? '♡' : '−'}</Text>
+                {p.boxQuantity <= 1 && p.inBoxUnitCents === 0 ? <Icon icon={icons.donate} size={16} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
               </Pressable>
               <Text style={styles.stepQty}>{p.boxQuantity}</Text>
               <Pressable onPress={() => p.onQuantity(1)} disabled={p.locked} accessibilityRole="button" accessibilityLabel="Increase quantity" style={styles.stepBtn}>
@@ -157,36 +160,50 @@ export function MobileProductBody(p: Props) {
           </View>
         ) : null}
 
-        {!p.hasBox && !p.soldOut ? (
-          <View style={{ marginTop: 20, marginHorizontal: -mGutter }}>
-            <BoxPitch items={[p.item]} cta="Start a box with it" onPress={p.onStartBoxWithIt} />
-          </View>
-        ) : null}
-      </View>
-
-      {p.details.length ? (
-        <View style={[styles.pad, { paddingTop: 20 }]}>
-          {p.details.map((d) => (
-            <View key={d.label} style={styles.detail}>
-              <Text style={styles.detailLabel}>{d.label}</Text>
-              <Text style={styles.detailValue}>{d.value}</Text>
-            </View>
-          ))}
+      {!p.hasBox && !p.soldOut ? (
+        <View style={{ marginTop: 20 }}>
+          <BoxPitch items={[p.item]} cta="Start a box with it" onPress={p.onStartBoxWithIt} />
         </View>
       ) : null}
 
+      <View style={styles.details}>
+        {[...p.details, { label: 'Shipping', value: p.hasBox ? 'Ships with your box, free' : 'Free shipping in the U.S.' }].map((d) => (
+          <Pressable key={d.label} onPress={() => setDetail(d)} accessibilityRole="button" style={styles.listRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.listT}>{d.label}</Text>
+              <Text style={styles.listS} numberOfLines={1}>
+                {d.value.split('\n')[0]}
+              </Text>
+            </View>
+            <Text style={styles.listC}>›</Text>
+          </Pressable>
+        ))}
+      </View>
+
       {p.similar.length ? (
-        <View style={{ paddingTop: 28 }}>
-          <Text style={[mType.h2, { paddingHorizontal: mGutter }]}>{p.similarTitle}</Text>
+        <View style={{ paddingTop: 36, paddingBottom: 8 }}>
+          <View style={styles.secRow}>
+            <Text style={styles.secH2}>{p.similarTitle}</Text>
+            {p.onSeeAll ? (
+              <Pressable onPress={p.onSeeAll} accessibilityRole="button" hitSlop={8}>
+                <Text style={styles.moreLink}>See all</Text>
+              </Pressable>
+            ) : null}
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
             {p.similar.slice(0, 8).map((it) => (
-              <ProductTileMobile key={it.id} item={it} width={150} onPress={() => p.onOpenProduct(it.id)} />
+              <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(p.availabilityById?.[it.id])} onPress={() => p.onOpenProduct(it.id)} />
             ))}
           </ScrollView>
         </View>
       ) : null}
+      <View style={{ height: 40 }} />
 
       {bar}
+
+      <MobileSheet visible={detail != null} onClose={() => setDetail(null)} title={detail?.label ?? ''}>
+        <Text style={styles.desc}>{detail?.value}</Text>
+      </MobileSheet>
 
       <MobileSheet visible={chooser} onClose={() => setChooser(false)} title="How should it join your box?">
         {p.roleOptions.map((o) => (
@@ -213,32 +230,36 @@ export function MobileProductBody(p: Props) {
 }
 
 const styles = StyleSheet.create({
-  back: { height: 44, justifyContent: 'center', paddingHorizontal: mGutter },
-  backText: { fontSize: 14, color: m.goldDark, ...mFont(400) },
-  gallery: { position: 'relative', backgroundColor: m.img },
+  gallery: { position: 'relative', backgroundColor: m.white },
   heart: { position: 'absolute', top: 12, right: 12, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  inBoxTag: { position: 'absolute', top: 12, left: 12, backgroundColor: m.gold, borderRadius: 14, paddingHorizontal: 10, height: 28, justifyContent: 'center' },
-  inBoxTagText: { fontSize: 12.5, color: m.ink, ...mFont(500) },
-  dots: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(17,24,39,0.25)' },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingTop: 10 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#D1D5DB' },
   dotOn: { backgroundColor: m.ink },
-  pad: { paddingHorizontal: mGutter, paddingTop: 18 },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 8, flexWrap: 'wrap' },
+  pad: { paddingHorizontal: mGutter, paddingTop: 18, gap: 8 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   price: { fontSize: 18, color: m.ink, ...mFont(400) },
   member: { fontSize: 13, color: m.goldDark, ...mFont(400) },
-  low: { fontSize: 12.5, color: m.warn, ...mFont(400) },
-  moreLink: { color: m.goldDark, textDecorationLine: 'underline' },
-  inBoxCard: { marginTop: 18, padding: 14, borderRadius: mRadius.md, backgroundColor: m.beige, borderWidth: 1.5, borderColor: m.gold, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  inBoxTitle: { fontSize: 14.5, color: m.ink, ...mFont(500) },
-  inBoxSub: { fontSize: 12.5, color: m.goldDark, marginTop: 2, ...mFont(400) },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: m.gold, borderRadius: 18, height: 36, backgroundColor: m.white },
-  stepBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  corner: { backgroundColor: m.white, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  cornerText: { fontSize: 10.5, lineHeight: 13, color: m.ink, ...mFont(500) },
+  soldPill: { height: 24, lineHeight: 24, paddingHorizontal: 10, borderRadius: 12, overflow: 'hidden', fontSize: 12, color: '#9A4D16', backgroundColor: m.warnBg, ...mFont(400) },
+  desc: { fontSize: 15, lineHeight: 23, color: m.body, ...mFont(300) },
+  moreLink: { color: m.goldDark, fontSize: 14, textDecorationLine: 'underline', ...mFont(400) },
+  inBoxCard: { marginTop: 10, marginHorizontal: mGutter, padding: 14, borderRadius: 14, backgroundColor: m.beige, borderWidth: 1.5, borderColor: m.gold, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  inBoxTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  inBoxTitle: { fontSize: 15, color: m.ink, ...mFont(500) },
+  inBoxSub: { fontSize: 13, color: m.muted, marginTop: 2, ...mFont(400) },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: m.gold, borderRadius: 20, height: 38, backgroundColor: m.white },
+  stepBtn: { width: 38, height: 36, alignItems: 'center', justifyContent: 'center' },
   stepText: { fontSize: 18, color: m.goldDark },
-  stepQty: { minWidth: 18, textAlign: 'center', fontSize: 14, color: m.ink, ...mFont(500) },
-  detail: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: m.line },
-  detailLabel: { width: 110, fontSize: 13, color: m.muted, ...mFont(400) },
-  detailValue: { flex: 1, fontSize: 14, color: m.ink, lineHeight: 20, ...mFont(400) },
-  rail: { paddingHorizontal: mGutter, gap: 12, paddingTop: 14 },
+  stepQty: { minWidth: 18, textAlign: 'center', fontSize: 15, color: m.ink, ...mFont(400) },
+  details: { marginTop: 24, marginHorizontal: mGutter, borderTopWidth: 1, borderTopColor: m.line },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: m.line },
+  listT: { fontSize: 16, color: m.ink, ...mFont(400) },
+  listS: { fontSize: 13, color: m.muted, marginTop: 2, ...mFont(300) },
+  listC: { fontSize: 20, color: m.goldDark },
+  secRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: mGutter, marginBottom: 14 },
+  secH2: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(500) },
+  rail: { paddingHorizontal: mGutter, gap: 12, paddingBottom: 4 },
   role: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: m.line },
   rolePrice: { fontSize: 14.5, color: m.ink, ...mFont(500) },
 });

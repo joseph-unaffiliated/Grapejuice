@@ -6,16 +6,25 @@ import { icons } from '../../constants/icons';
 import { useWishlist } from '../../hooks/useWishlist';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
-import type { CatalogItem } from '../../types/pilot';
+import { availabilityRemaining } from '../../services/catalog/availability';
+import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import { MobileButton } from './MobileButton';
-import { m, mFont, mRadius } from './mobileTheme';
+import { balanceProps, m, mFont, mRadius } from './mobileTheme';
 
 export type TileStatus =
   | { kind: 'inbox'; text?: string }
   | { kind: 'added'; text: string }
-  | { kind: 'low'; text: string }
+  | { kind: 'low' }
   | { kind: 'sold' }
   | null;
+
+/** Sold out, or "Low stock" once a dozen or fewer are left. Shoppers never see the count. */
+export function stockStatus(avail: CatalogAvailability | undefined): TileStatus {
+  if (!avail) return null;
+  if (avail.status === 'sold_out') return { kind: 'sold' };
+  const left = availabilityRemaining(avail);
+  return left != null && left > 0 && left <= 12 ? { kind: 'low' } : null;
+}
 
 type Props = {
   item: CatalogItem;
@@ -39,21 +48,21 @@ export function ProductTileMobile({ item, width, onPress, status = null, action,
   const saved = isWishlisted(item.id);
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const price = nonMemberCents > 0 ? nonMemberCents : memberCents;
-  const inBox = status?.kind === 'inbox';
+  const inBox = status?.kind === 'inbox' || status?.kind === 'added';
   const sold = status?.kind === 'sold';
+  const corner = sold ? 'Sold out' : status?.kind === 'low' ? 'Low stock' : null;
 
   return (
     <View style={[styles.root, { width }, style]}>
       <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} style={[styles.imageWrap, inBox && styles.imageInBox]}>
-        <BoxItemImage size={width} imageUrl={item.imageUrl} itemId={item.id} style={styles.image} />
+        <BoxItemImage size={width} imageUrl={item.imageUrl} itemId={item.id} style={sold ? { ...styles.image, ...styles.imageSold } : styles.image} />
         {inBox ? (
           <View style={styles.check} accessibilityLabel="In your box">
-            <Text style={styles.checkMark}>✓</Text>
+            <Icon icon={icons.check} size={11} color={m.ink} />
           </View>
-        ) : null}
-        {sold ? (
-          <View style={styles.soldTag}>
-            <Text style={styles.soldText}>Sold out</Text>
+        ) : corner ? (
+          <View style={styles.corner}>
+            <Text style={styles.cornerText}>{corner}</Text>
           </View>
         ) : null}
         <Pressable
@@ -67,20 +76,20 @@ export function ProductTileMobile({ item, width, onPress, status = null, action,
         </Pressable>
       </Pressable>
       <Pressable onPress={onPress} accessibilityRole="button">
-        <Text style={styles.name} numberOfLines={2}>
+        <Text style={styles.name} numberOfLines={2} {...balanceProps}>
           {item.name}
         </Text>
         {status?.kind === 'inbox' ? (
           <Text style={styles.statusGold}>{status.text ?? 'In your box · included'}</Text>
         ) : status?.kind === 'added' ? (
           <Text style={styles.statusGold}>{status.text}</Text>
-        ) : status?.kind === 'low' ? (
-          <Text style={styles.statusLow}>{status.text}</Text>
+        ) : sold ? (
+          <Text style={styles.price}>Sold out</Text>
         ) : !hidePrice ? (
-          <Text style={[styles.price, sold && styles.priceSold]}>{formatCatalogDollars(price)}</Text>
+          <Text style={styles.price}>{formatCatalogDollars(price)}</Text>
         ) : null}
       </Pressable>
-      {action ? <MobileButton label={action.label} onPress={action.onPress} variant={action.variant ?? 'secondary'} height={40} style={styles.action} /> : null}
+      {action ? <MobileButton label={action.label} onPress={action.onPress} variant={action.variant ?? 'secondary'} height={38} style={styles.action} /> : null}
     </View>
   );
 }
@@ -90,15 +99,13 @@ const styles = StyleSheet.create({
   imageWrap: { borderRadius: mRadius.md, overflow: 'hidden', backgroundColor: m.img, position: 'relative' },
   imageInBox: { borderWidth: 2, borderColor: m.gold },
   image: { width: '100%', aspectRatio: 1, borderRadius: 0 },
+  imageSold: { opacity: 0.5 },
   check: { position: 'absolute', top: 6, left: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: m.gold, alignItems: 'center', justifyContent: 'center' },
-  checkMark: { color: m.ink, fontSize: 13, ...mFont(700) },
+  corner: { position: 'absolute', top: 6, left: 6, backgroundColor: m.white, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  cornerText: { fontSize: 10.5, lineHeight: 13, color: m.ink, ...mFont(500) },
   heart: { position: 'absolute', top: 9.5, right: 9, width: 15, height: 15, alignItems: 'center', justifyContent: 'center' },
-  soldTag: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: m.ink, paddingVertical: 3, alignItems: 'center' },
-  soldText: { color: m.white, fontSize: 10, ...mFont(500) },
-  name: { fontSize: 14.5, lineHeight: 19, color: m.ink, ...mFont(400), marginTop: 4, minHeight: 38 },
-  price: { fontSize: 13.5, color: m.muted, ...mFont(400), marginTop: 2 },
-  priceSold: { textDecorationLine: 'line-through' },
-  statusGold: { fontSize: 12.5, color: m.goldDark, ...mFont(400), marginTop: 2 },
-  statusLow: { fontSize: 12.5, color: m.warn, ...mFont(400), marginTop: 2 },
-  action: { marginTop: 4 },
+  name: { fontSize: 14, lineHeight: 18, color: m.ink, ...mFont(400), marginTop: 2 },
+  price: { fontSize: 13, lineHeight: 18, color: m.muted, ...mFont(400), marginTop: 6 },
+  statusGold: { fontSize: 13, lineHeight: 18, color: m.goldDark, ...mFont(400), marginTop: 6 },
+  action: { marginTop: 2 },
 });

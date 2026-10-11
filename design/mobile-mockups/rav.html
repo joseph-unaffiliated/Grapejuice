@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Ask Rav</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .rv-head { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #fff; }
+  .rv-head .mid { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; }
+  .rv-head button { font-size: 14px; color: #7D7148; min-width: 60px; text-align: left; } .rv-head button.r { text-align: right; }
+  .rv-av { width: 30px; height: 30px; border-radius: 15px; background: var(--gold); display: flex; align-items: center; justify-content: center; }
+  .rv-body { padding: 18px 16px 150px; display: flex; flex-direction: column; gap: 14px; }
+  .rv-welcome { padding: 34px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+  .rv-welcome .h1 { font-size: 30px; }
+  .sugg-q { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+  .sugg-q button { text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 14px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+  .sugg-q button span { color: #7D7148; font-size: 18px; }
+  .msg { max-width: 84%; font-size: 15.5px; line-height: 1.5; }
+  .msg.me { align-self: flex-end; background: var(--ink); color: #fff; padding: 11px 14px; border-radius: 18px 18px 4px 18px; }
+  .msg.from-rav { align-self: flex-start; color: #2b2b2b; font-weight: 300; }
+  .rail2 { display: flex; gap: 10px; overflow: hidden; margin: 2px -16px 0 0; }
+  .rail2 .pt { width: 130px; flex-shrink: 0; }
+  .change { background: var(--gold-soft); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; align-self: stretch; }
+  .change .t { font-size: 15px; font-weight: 500; } .change .s { font-size: 13px; color: var(--muted); }
+  .chg-row { display: flex; gap: 10px; align-items: center; font-size: 14px; background: #fff; border-radius: 10px; padding: 8px; }
+  .chg-row .meta { flex: 1; } .chg-row .meta span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .chg-row s { color: var(--muted); }
+  .change .btns { display: flex; gap: 8px; } .change .btns button { flex: 1; height: 44px; border-radius: 10px; font-size: 15px; }
+  .change .yes { background: var(--ink); color: var(--gold); } .change .no { background: #fff; border: 1px solid var(--line); }
+  .composer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); padding: 10px 16px calc(12px + var(--bottom-safe)); z-index: 40; }
+  .composer .cmp { display: flex; align-items: center; gap: 10px; border: 1px solid var(--gold); border-radius: 24px; height: 48px; padding: 0 6px 0 16px; font-size: 16px; color: #9ca3af; }
+  .composer .cmp span { flex: 1; } .composer .send { width: 36px; height: 36px; border-radius: 18px; background: var(--ink); color: var(--gold); display: flex; align-items: center; justify-content: center; }
+  html.shot .composer { right: auto; width: 390px; }
+  .composer .ctx { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Ask Rav';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+const STEP = params.get('s') || '1';
+const AV = `<span class="rv-av">${KID_ICON}</span>`;
+const head = () => taskHeader({ back: 'Back', title: 'Rav', right: 'New chat', mark: AV });
+const composer = (ctx) => `<div class="composer">${ctx ? `<div class="ctx">${CAL_ICON}<span>Rav can see your box and make changes you approve</span></div>` : ''}<div class="cmp"><span>Reply to Rav</span><button class="send">↑</button></div></div>`;
+
+function welcome() {
+  return `${head()}<div class="rv-welcome"><div class="h1">What's on your mind?</div><div class="ob-sub" style="margin-top:0">Ask about Hanukkah, your box or anything in the store.</div>
+    <div class="sugg-q">${['What candles do we need for eight nights?', 'Which book is best for a 4-year-old?', 'Can I swap the present for Sam?', 'How do we play dreidel?'].map(q => `<button>${q}<span>›</span></button>`).join('')}</div></div>${composer(true)}`;
+}
+function answer() {
+  return `${head()}<div class="rv-body"><div class="msg me">Which book is best for a 4-year-old?</div>
+    <div class="msg from-rav">For a 4-year-old, A Dragon for Hanukkah is a great pick: short, funny and easy to read aloud. It's already in your box. If you'd like something gentler, Clifford is a sweet first Hanukkah story.</div>
+    <div class="rail2">${productTile('dragon', 'inbox')}${productTile('clifford', '', { btn: 'Swap it in', sub: 'Swap in · included' })}${productTile('charlie', '', { btn: 'Swap it in', sub: 'Swap in · included' })}</div></div>${composer(true)}`;
+}
+function proposal() {
+  return `${head()}<div class="rv-body"><div class="msg me">Swap the book for Clifford and add a second dreidel</div>
+    <div class="msg from-rav">Done. Here's what will change. Nothing updates until you confirm.</div>
+    <div class="change"><div><div class="t">Review changes</div><div class="s">Confirm before updating your box</div></div>
+      <div class="chg-row">${thumb('clifford', 40)}<div class="meta">Clifford Celebrates Hanukkah<span>Replaces <s>A Dragon for Hanukkah</s> · included</span></div></div>
+      <div class="chg-row">${thumb('wooden', 40)}<div class="meta">Classic Wooden Dreidel<span>One more · +$3</span></div></div>
+      <div class="btns"><button class="no">Not now</button><button class="yes">Update my box</button></div></div></div>${composer(true)}`;
+}
+
+function render() {
+  const map = { 1: welcome, 2: answer, 3: proposal };
+  document.getElementById('root').innerHTML = `<div class="app" style="padding-bottom:0">${map[STEP]()}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

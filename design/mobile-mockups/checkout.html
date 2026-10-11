@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice checkout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = 'Checkout';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const STEP = Number(params.get('s') || 1);
+applyIgChrome(params);
+const S = initState(params);
+S.open = params.get('open') === '1';
+const WALLET = params.get('wallet') === '1';
+const TAX = 4.80;
+
+function summary() {
+  const t = total() + TAX;
+  const toggle = `<button class="link" style="min-height:0;text-align:left" onclick="S.open=!S.open;render()">${S.open ? 'Hide' : 'Show'} what's inside</button>`;
+  const inside = S.open ? `<div class="osum-body">${receiptBody(false).replace(/<div class="rc-total">[\s\S]*$/, '')}</div>` : '';
+  return `<div style="margin-top:16px">${orderSummary({ sub: toggle, extra: inside, lines: [['Box', $(BASE)], ['Extras', $(extraTotal())], ['Shipping', 'Free'], ['Estimated tax', $(TAX)]], totalLabel: 'Charged when it ships', total: $(t) })}</div>`;
+}
+
+function checkout() {
+  const typing = params.get('typing') === '1';
+  let h = coHead() + `<div class="co">`;
+  h += `<div class="assure"><div>${CARD_ICON}<span>Not charged until it ships · change anything until ${LOCK_SHORT}</span></div><div class="held-note">${NOT_HELD}</div></div>`;
+  h += summary();
+  h += `<section class="sec" id="g-ship"><div class="sec-h"><div class="h2">Shipping</div><span class="muted">Free · U.S. only</span></div>`;
+  if (typing) {
+    h += field('Full name', 'Rachel Levin', { done: true });
+    h += field('Address', '120 Bedford|', { focus: true, extra: `<div class="ac"><div>120 Bedford Ave<span>Brooklyn, NY 11249</span></div><div>120 Bedford St<span>New York, NY 10014</span></div><div>120 Bedford Rd<span>Chappaqua, NY 10514</span></div><div class="pw">Addresses by Google</div></div>` });
+    h += `<button class="addlink">+ Apt, suite or floor</button>`;
+    h += `<div class="row3">${field('City', '', { ph: true })}${field('State', '', { ph: true })}${field('ZIP', '', { ph: true })}</div>`;
+  } else h += addressFields();
+  h += `</section>`;
+  h += `<section class="sec" id="g-pay"><div class="sec-h"><div class="h2">Payment</div><span class="muted">Saved now, charged when it ships</span></div>`;
+  h += stripeForm(WALLET);
+  h += `<button class="disc">Have a discount code?</button>`;
+  h += `<div class="fine2">By placing your order you agree to Grapejuice's Terms and Privacy Policy. We'll remind you before your box locks on ${LOCK_LONG}, and charge your card when it ships.</div>`;
+  h += `</section><div style="height:12px"></div></div>`;
+  h += `<div class="cbar"><div class="cbar-top"><span>Charged when it ships</span><b>${$(total() + TAX)}</b></div><button class="place">Place order</button></div>`;
+  return h;
+}
+
+/* Instagram's browser often loses the session. A code typed in place keeps people in the flow; an emailed link would open a different browser. */
+function signedOut(sent) {
+  return coHead() + `<div class="gate">
+    <div class="h1">Pick up where you left off</div>
+    <div class="ob-sub">Your box is saved to your email. ${sent ? 'Enter the code we just sent.' : "We'll send a 6&#8209;digit code to sign you in. No password needed."}</div>
+    <div style="margin:22px 0 8px">${boxSummary({ size: 'sm', total: $(total()) })}</div>
+    ${codeEntry(sent)}${sent ? '' : `<div class="alt">Prefer a password? <u>Log in with password</u></div>`}
+  </div>`;
+}
+
+function done() {
+  return `${taskHeader()}<div class="fin">
+    <div class="badge">${BIG_CHECK}</div>
+    <div class="h1">Your box is set</div>
+    <div class="ob-sub">You can change anything until ${LOCK_LONG}. Nothing is charged until it ships.</div>
+    ${timeline([['Today', 'Order placed. Card saved, not charged.'], [`Until ${LOCK_SHORT}`, 'Swap, add or remove anything in My Box.'], [`End of ${LOCK_SHORT}`, 'Your box locks and we start packing.'], ['When it ships', 'Your card is charged and we email you tracking.'], ['Before Dec&nbsp;4', 'It arrives in time for the first night.']])}
+    <div class="opt-card"><b>Want a text before it locks?</b><p>One reminder a few days before ${LOCK_SHORT}, so you can make last changes.</p><div class="inrow"><div class="in ph">Mobile number</div><button class="pill dark">Text me</button></div></div>
+    <button class="place" style="margin-top:20px">Back to my box</button>
+    <button class="link" style="display:block;margin:12px auto 0">Add ${LOCK_SHORT} to my calendar</button>
+    <div style="height:40px"></div>
+  </div>`;
+}
+
+function render() {
+  const body = STEP === 1 ? checkout() : STEP === 2 ? signedOut(false) : STEP === 3 ? signedOut(true) : done();
+  document.getElementById('root').innerHTML = `<div class="app ${STEP === 1 ? 'co-app' : ''}" style="${STEP === 1 ? '' : 'padding-bottom:var(--bottom-safe)'}">${body}</div>`;
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

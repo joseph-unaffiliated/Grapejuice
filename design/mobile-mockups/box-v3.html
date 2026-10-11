@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice box v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .v-hero { padding: 28px 16px 8px; display: flex; flex-direction: column; gap: 12px; }
+  .v-hero .sub { font-size: 15px; line-height: 1.5; }
+  .notice { margin: 12px 16px 4px; }
+  .rail-wrap { margin: 16px 16px 20px; }
+  .v-group { padding: 32px 16px 28px; border-bottom: 1px solid var(--line); scroll-margin-top: calc(var(--top) + 56px); }
+  .v-ghead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .v-ghead .h2 { flex: 1; font-size: 20px; }
+  .v-group .row { padding: 12px 0; }
+  .sugg { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 14px 0 4px; border-top: 1px dashed #E4DCC6; }
+  .sugg .meta { flex: 1; min-width: 0; font-size: 14px; line-height: 1.3; }
+  .v-more { width: 100%; height: 46px; margin-top: 16px; border: 1px solid var(--gold); border-radius: 10px; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .wrap { margin-top: 16px; padding: 16px; }
+  .v-more .minis { display: flex; } .v-more .minis .thumb { border: 2px solid #fff; margin-left: -8px; border-radius: 7px; } .v-more .minis .thumb:first-child { margin-left: 0; }
+
+
+  .like { background: var(--gold-soft); padding: 32px 0 16px 16px; scroll-margin-top: calc(var(--top) + 56px); }
+  .like .h2 { margin-bottom: 6px; font-size: 20px; } .like .sub { padding-right: 16px; margin-bottom: 8px; }
+  .card.added { background: var(--gold-soft); box-shadow: inset 0 0 0 1.5px var(--gold); border-radius: 12px; padding: 6px 6px 8px; width: 132px; }
+  .card .thumb { position: relative; }
+
+  /* tradition sheet */
+  .sheet-body { padding: 12px 16px 24px; }
+  .ts-head { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0 8px; }
+  .ts-head .picon { margin-top: 3px; }
+  .ts-head > div { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .ts-head .h2 { font-size: 20px; }
+  .ts-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; font-weight: 500; margin: 26px 0 12px; }
+  .ts-label .muted { font-size: 12px; }
+  .ts-pick { display: flex; gap: 12px; padding: 10px; align-items: stretch; }
+  .ts-pick .thumb { position: relative; }
+  .ts-pick .meta { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ts-pick .name { font-size: 16px; letter-spacing: -0.2px; line-height: 1.2; }
+  .ts-pick .note { font-size: 12.5px; color: #7D7148; }
+  .ts-qty { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 6px; font-size: 12.5px; color: var(--muted); }
+  .ts-hint { font-size: 13px; color: var(--muted); margin: 18px 0 10px; }
+  .ts-tiles { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; }
+  .ts-tiles::-webkit-scrollbar { display: none; }
+  .ts-tile { width: 112px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; }
+  .ts-tile .thumb { width: 100%; aspect-ratio: 1; height: auto; position: relative; }
+  .ts-tile .tn { font-size: 12.5px; line-height: 1.2; min-height: 30px; }
+  .ts-tile.inbox-look { border-color: transparent; }
+  .acts { display: flex; gap: 6px; }
+  .acts button { flex: 1; height: 32px; border-radius: 16px; font-size: 13px; white-space: nowrap; padding: 0; }
+  .acts .swap { border: 1px solid var(--gold); background: #fff; }
+  .acts .add { background: var(--ink); color: var(--gold); }
+  .mini { display: flex; align-items: center; justify-content: space-between; height: 32px; border-radius: 16px; border: 1px solid var(--gold); background: #fff; }
+  .mini button { width: 32px; height: 30px; color: #7D7148; font-size: 17px; }
+  .mini span { font-size: 13px; }
+  .ts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+  .ts-grid .tile { padding: 6px; border: 1px solid transparent; border-radius: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .ts-grid .tile.inbox-look { border-color: transparent; }
+  .ts-grid .tile .thumb { position: relative; }
+  .ts-grid .tile .cname { margin: 2px 0 0; }
+  .ts-foot { display: flex; gap: 10px; align-items: center; }
+  .ts-foot .sum { flex: 1; display: flex; flex-direction: column; font-size: 12px; color: var(--muted); line-height: 1.3; }
+  .ts-foot .sum b { font-size: 16px; color: var(--ink); font-weight: 500; }
+  .ts-foot .done { height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.PAGE_TITLE = { gift: 'Send a gift', claim: 'Your gift' }[new URLSearchParams(location.search).get('mode')] || 'My Box';</script>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+applyIgChrome(params);
+const S = initState(params);
+S.menu = params.get('menu');
+S.prev = params.get('prev');
+const INLINE = params.get('inline') !== '0';
+
+const CARD = params.get('card') === '1';
+const MODE_GIFT = params.get('mode') === 'gift';
+const MODE_CLAIM = params.get('mode') === 'claim';
+const COVERED = new Set((params.get('covered') || '').split(',').filter(Boolean));
+function lockLine() {
+  if (MODE_GIFT) return `<div class="lockline">${CAL_ICON}<span>Send by ${LOCK_SHORT}</span></div>`;
+  if (MODE_CLAIM) return `<div class="lockline">${CAL_ICON}<span>Add your address by ${LOCK_LONG}</span></div>`;
+  return `<div class="lockline">${CAL_ICON}<span>Change anything until ${LOCK_SHORT} · ${DAYS_LEFT} days left · <button class="link" style="min-height:0">Add to calendar</button></span></div>`;
+}
+function heldLine() {
+  if (CARD || MODE_GIFT || MODE_CLAIM) return '';
+  return `<div class="held">${NOT_HELD} <button class="link">Add a card</button></div>`;
+}
+function notice() {
+  if (!params.get('notice')) return '';
+  return `<div class="notice"><b>Roll Your Own Beeswax Candles sold out.</b> We kept Beeswax Candles in your box. <button class="link" onclick="openSheet('candles')">Change</button></div>`;
+}
+function chips(active) {
+  return `<div class="chips">${GROUPS.map(g => `<span class="chip ${g.id === active ? 'on' : ''}" data-chip="${g.id}" onclick="jumpTo('${g.id}')">${g.short}</span>`).join('')}</div>`;
+}
+/* Lands the section heading just below the sticky chips, which also sit under the in-app browser bar. */
+function jumpTo(id) {
+  const el = document.getElementById('g-' + id); const chipsEl = document.querySelector('.chips');
+  const top = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--top')) || 0;
+  const target = () => Math.min(el.getBoundingClientRect().top + scrollY - top - chipsEl.offsetHeight + 1, document.documentElement.scrollHeight - innerHeight);
+  window.__jumping = true;
+  window.scrollTo({ top: target(), behavior: 'smooth' });
+  document.querySelectorAll('[data-chip]').forEach(c => c.classList.toggle('on', c.dataset.chip === id));
+  const done = () => {
+    removeEventListener('scrollend', done); clearTimeout(window.__jumpT);
+    if (Math.abs(target() - scrollY) > 4) window.scrollTo({ top: target(), behavior: 'instant' });
+    setTimeout(() => { window.__jumping = false; }, 50);
+  };
+  removeEventListener('scrollend', window.__jumpDone || done); window.__jumpDone = done;
+  addEventListener('scrollend', done);
+  clearTimeout(window.__jumpT); window.__jumpT = setTimeout(done, 1200);
+}
+function rail() {
+  const lines = Object.values(SLOTS).filter(s => S.qty[s.id] > 0);
+  const extras = Object.entries(S.extras);
+  const n = lines.length + extras.length;
+  const items = [...lines.map(s => ({ id: S.pick[s.id], count: S.qty[s.id] > 1 ? S.qty[s.id] : 0, on: `openSheet('${s.group}')` })), ...extras.map(([k, q]) => ({ id: k.split('|')[0], mine: true, count: `+${q}`, on: `openSheet('${k.split('|')[1]}')` }))];
+  return `<div class="rail-wrap">${boxSummary({ size: 'sm', title: 'In your box', sub: `${n} things · ${$(total())}`, link: `<button class="link" onclick="openSheet('receipt')">See list</button>`, items })}</div>`;
+}
+function addedRow(id, gid, q) {
+  const g = GROUPS.find(x => x.id === gid);
+  const note = COVERED.has(id) ? `From Rachel${g.gift ? ` for ${KID}` : ''} · covered` : `Added${g.gift ? ` for ${KID}` : ''} · ${$(I[id].price * q)}`;
+  return `<div class="row tappable" onclick="openProduct('${id}','${gid}')">${thumb(id, 64)}<div class="meta"><div class="name">${I[id].name}</div><div class="note goldtxt">${note}</div></div>${extraStepper(id, gid, q)}</div>`;
+}
+/* Candles always suggest the kid's clay menorah, which lands in Gifts like every present. */
+const SUGGEST = { candles: { id: 'claymenorah', gid: 'gifts' } };
+function suggestionFor(g) {
+  if (g.extras.some(x => S.extras[`${x}|${g.id}`])) return '';
+  const taken = new Set(Object.values(S.pick));
+  const { id, gid } = SUGGEST[g.id] || { id: g.extras.find(x => !taken.has(x)), gid: g.id };
+  if (!id || S.extras[`${id}|${gid}`]) return '';
+  return `<div class="sugg tappable" onclick="openProduct('${id}','${gid}')">${thumb(id, 48)}<div class="meta">${I[id].name}${I[id].badge ? `<div style="margin-top:4px"><span class="badge-inline">${I[id].badge}</span></div>` : ''}</div><button class="pill dark sm" onclick="event.stopPropagation();addExtra('${id}','${gid}')">+ ${$(I[id].price)}</button></div>`;
+}
+
+function renderBox() {
+  let h = MODE_GIFT ? giftHeader() : siteHeader();
+  h += MODE_GIFT
+    ? `<div class="v-hero"><div class="gift-banner">${practiceIcon('gifts', '#7D7148')}<span>A gift for the Golds</span></div><div class="h1">Their Hanukkah box</div><div class="sub">Everything for eight nights, picked for their family. Keep it as is, or change anything.</div>${lockLine()}</div>`
+    : MODE_CLAIM
+    ? `<div class="v-hero"><div class="gift-banner">${practiceIcon('gifts', '#7D7148')}<span>A gift from Rachel</span></div><div class="h1">Your Hanukkah box</div><div class="sub">Rachel picked everything for eight nights. Keep it as is, or swap the book and presents for ${KID}.</div>${lockLine()}</div>`
+    : `<div class="v-hero"><div class="h1">Your Hanukkah box</div><div class="sub">Everything for eight nights, picked for your family. Keep it as is, or change anything.</div>${lockLine()}</div>`;
+  h += notice();
+  h += rail();
+  h += heldLine();
+  h += chips(params.get('at') || 'candles');
+  for (const g of GROUPS) {
+    h += `<section class="v-group" id="g-${g.id}"><div class="v-ghead">${practiceIcon(g.id)}<div class="h2">${g.title}</div></div>`;
+    for (const s of g.slots) { if (s.id !== 'wrap') h += lineRow(s.id); }
+    for (const e of extrasIn(g.id)) h += addedRow(e.item, g.id, e.q);
+    if (g.gift) h += wrapBlock();
+    if (INLINE) h += suggestionFor(g);
+    const minis = [...new Set([...g.slots.flatMap(s => s.alts), ...g.extras])].slice(0, 3);
+    h += `<button class="v-more" onclick="openSheet('${g.id}')"><span class="minis">${minis.map(m => thumb(m, 26)).join('')}</span>${g.gift ? `Swap or add presents` : `Swap or add`}</button></section>`;
+  }
+  h += mightLike(['partygelt', 'jelly', 'slipcast', 'branches']);
+  h += `<div class="foot-links"><button class="link">Reset my box</button></div>`;
+  h += MODE_GIFT ? giftBar() : MODE_CLAIM ? claimBar() : stickyBar('Checkout', true, `location.href='checkout.html'`);
+  if (S.sheet === 'receipt') h += receiptSheet();
+  else if (S.sheet && S.sheet.startsWith('product:')) h += productSheet(S.sheet.slice(8), S.ctx);
+  else if (S.sheet && GROUPS.some(g => g.id === S.sheet)) h += traditionSheet(S.sheet);
+  if (S.menu) h += menuPanel(CARD ? 'set' : 'draft');
+  h += S.sheet || S.menu ? '' : toastHtml();
+  if (MODE_CLAIM) return h.replace(/goldtxt">Included/g, 'goldtxt">Covered by gift').replace(/Swapped in · included/g, 'Swapped in · covered');
+  return MODE_GIFT ? h.replace(/In your box/g, 'In their box').replace(/your box/g, 'their box').replace(/Your box/g, 'Their box') : h;
+}
+/* Gift mode: the giver edits the same box, inside the gift flow's progress header. */
+function giftHeader() {
+  return taskHeader({ back: 'Back', title: 'Send a gift', right: 'Step 2 of 4', steps: ['Their family', 'Their box', 'Note', 'Pay'], on: 1 });
+}
+/* Claim mode: the recipient's box is paid for; only what they add goes on their own card. */
+function claimBar() {
+  const x = extraTotal() - [...COVERED].reduce((t, id) => t + I[id].price, 0);
+  return `<div class="bar"><div class="bar-inner"><button class="sum" onclick="openSheet('receipt')"><span>Covered by Rachel's gift</span><b>${x ? `You pay ${$(x)}` : 'You pay $0'} <span class="chev">⌃</span></b></button><button class="cta fill">Add my address</button></div></div>`;
+}
+function giftBar() {
+  const x = extraTotal();
+  return `<div class="bar"><div class="bar-inner"><button class="sum" onclick="openSheet('receipt')"><span>Gift box ${$(BASE)}${x ? ` <span class="goldtxt">+ ${$(x)}</span>` : ''}</span><b>Total ${$(total())} <span class="chev">⌃</span></b></button><button class="cta fill">Next: Note</button></div></div>`;
+}
+
+function mightLike(ids) {
+  return `<section class="like" id="g-like"><div class="h2">Other things you might like</div><div class="sub">Add them on top of your box.</div><div class="shelf">${ids.map(id => {
+    const gid = GROUPS.find(g => g.extras.includes(id))?.id || 'gifts';
+    const q = S.extras[`${id}|${gid}`] || 0;
+    return `<div class="card tappable ${q ? 'added' : ''}" onclick="openProduct('${id}','${gid}')"><div class="thumb sq"><img src="${I[id].img}" alt="">${q ? `<span class="ck">${CHECK_ICON}</span>` : I[id].badge ? `<div class="corner">${I[id].badge}</div>` : ''}</div><div class="cname">${I[id].name}</div><div class="cprice">${q ? `<span class="goldtxt">Added · ${$(I[id].price * q)}</span>` : $(I[id].price)}</div>${q ? extraStepper(id, gid, q) : `<div class="actions"><button class="pill dark" onclick="event.stopPropagation();addExtra('${id}','${gid}')">+ Add</button></div>`}</div>`;
+  }).join('')}</div></section>`;
+}
+
+/* ---------- one sheet per tradition: the pick, included alternatives (swap or +), then add-ons ---------- */
+function traditionSheet(gid) {
+  const gi = GROUPS.findIndex(x => x.id === gid); const g = GROUPS[gi]; const next = GROUPS[gi + 1];
+  let b = `<div class="ts-head">${practiceIcon(g.id)}<div><div class="h2">${g.title}</div><div class="sub">${g.line}</div></div></div>`;
+  for (const s of g.slots) {
+    if (s.id === 'wrap') continue;
+    const id = S.pick[s.id]; const it = I[id]; const extra = Math.max(0, S.qty[s.id] - s.inc);
+    const choices = [s.def, ...s.alts];
+    b += `<div class="ts-label"><span>${s.label}</span><span class="muted">${s.inc} included${s.incNote ? ` · ${s.incNote}` : ''}</span></div>`;
+    b += `<div class="ts-pick inbox-look tappable" onclick="openProduct('${id}','${g.id}')"><div style="position:relative">${thumb(id, 84)}<span class="ck">${CHECK_ICON}</span></div><div class="meta"><div class="name">${it.name}</div><div class="note">In your box · ${extra ? `+${extra} extra, ${$(extra * it.price)}` : id !== s.def ? 'swapped in, included' : 'included'}${s.kid ? ` for ${KID}` : ''}</div><div class="ts-qty"><span>How many?</span>${stepper(s.id, S.qty[s.id], true)}</div></div></div>`;
+    const others = choices.filter(c => c !== id);
+    if (others.length) {
+      b += `<div class="ts-hint">Prefer a different one? Swapping is included.</div><div class="ts-tiles">${others.map(c => altTile(c, s.id, g.id)).join('')}</div>`;
+    }
+  }
+  if (g.gift) b += wrapBlock();
+  const ex = g.extras.filter(x => !g.slots.some(s => [s.def, ...s.alts].includes(x)));
+  if (ex.length) b += `<div class="ts-label" style="margin-top:32px"><span>${g.extrasLabel}</span></div><div class="ts-grid">${ex.map(x => addTile(x, g.id)).join('')}</div>`;
+  const x = extraTotal();
+  const foot = `<div class="ts-foot"><span class="sum"><span>Box ${$(BASE)}${x ? ` <span class="goldtxt">+ ${$(x)}</span>` : ''}</span><b>Total ${$(total())}</b></span><button class="done" onclick="closeSheet()">Done</button><button class="cta fill" onclick="${next ? `openSheet('${next.id}')` : `openSheet('receipt')`}">${next ? `Next: ${next.short}` : 'Review box'}</button></div>`;
+  return sheet(b, foot);
+}
+function mini(id, gid, q) {
+  return `<div class="mini"><button aria-label="Fewer" onclick="event.stopPropagation();addExtra('${id}','${gid}',-1)">−</button><span>${q}</span><button aria-label="More" onclick="event.stopPropagation();addExtra('${id}','${gid}',1)">+</button></div>`;
+}
+function altTile(id, slot, gid) {
+  const it = I[id]; const q = S.extras[`${id}|${gid}`] || 0;
+  return `<div class="ts-tile tappable ${q ? 'inbox-look' : ''}" onclick="openProduct('${id}','${gid}')"><div class="thumb"><img src="${it.img}" alt="">${q ? `<span class="ck">${CHECK_ICON}</span>` : ''}</div><div class="tn">${it.short || it.name}</div>${q ? mini(id, gid, q) : `<div class="acts"><button class="swap" onclick="event.stopPropagation();swapTo('${slot}','${id}')">Swap</button><button class="add" aria-label="Add one on top" onclick="event.stopPropagation();addExtra('${id}','${gid}')">+${$(it.price)}</button></div>`}</div>`;
+}
+function addTile(id, gid) {
+  const it = I[id]; const q = S.extras[`${id}|${gid}`] || 0;
+  return `<div class="tile tappable ${q ? 'inbox-look' : ''}" onclick="openProduct('${id}','${gid}')"><div class="thumb sq"><img src="${it.img}" alt="">${q ? `<span class="ck">${CHECK_ICON}</span>` : it.badge ? `<div class="corner">${it.badge}</div>` : ''}</div><div class="cname">${it.name}</div>${q ? mini(id, gid, q) : `<div class="acts"><button class="add" onclick="event.stopPropagation();addExtra('${id}','${gid}')">+${$(it.price)}</button></div>`}</div>`;
+}
+
+function render() {
+  const keep = document.querySelector('.sheet-body')?.scrollTop || 0;
+  document.getElementById('root').innerHTML = `<div class="app ${S.sheet || S.menu ? 'locked' : ''}">${renderBox()}</div>`;
+  const sb = document.querySelector('.sheet-body'); if (sb && window.__lastSheet === S.sheet) sb.scrollTop = keep;
+  window.__lastSheet = S.sheet;
+  if (params.get('shot') && params.get('sheetscroll') && sb) sb.scrollTop = Number(params.get('sheetscroll'));
+  afterRender(params);
+}
+render();
+</script>
+</body>
+</html>

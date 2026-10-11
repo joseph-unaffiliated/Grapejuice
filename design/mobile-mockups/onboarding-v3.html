@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grapejuice onboarding v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<link rel="stylesheet" href="pages.css" />
+<style>
+  .site-header { border-bottom: 1px solid var(--line); }
+
+  .ob { padding: 28px 16px 0; }
+  .ob .h1 { font-size: 30px; }
+  .ob-sub { font-size: 15px; color: #374151; font-weight: 300; line-height: 1.5; margin-top: 12px; }
+  .icons5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 26px 0 8px; }
+  .icons5 div { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; text-align: center; line-height: 1.15; white-space: nowrap; }
+  .icons5 .picon { width: 24px; height: 24px; }
+  .who { font-size: 17px; font-weight: 500; margin: 34px 0 14px; }
+  .person { border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .person-top { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 36px; height: 36px; border-radius: 18px; background: var(--ink); color: var(--gold); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .avatar.kid { background: var(--gold); color: var(--ink); }
+  .field { flex: 1; height: 44px; border: 1px solid var(--gold); border-radius: 10px; padding: 0 12px; display: flex; align-items: center; font-size: 16px; }
+  .role-tag, .rm { font-size: 12px; color: var(--muted); }
+  .lab { font-size: 12.5px; color: var(--muted); margin: 16px 0 8px; }
+  .ages { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-right: -12px; padding-right: 12px; }
+  .ages::-webkit-scrollbar { display: none; }
+  .age { min-width: 42px; height: 38px; border-radius: 19px; border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; padding: 0 10px; }
+  .age.on { background: var(--ink); border-color: var(--ink); color: var(--gold); }
+  .ints { display: flex; flex-wrap: wrap; gap: 6px; }
+  .int { height: 32px; border-radius: 16px; border: 1px solid var(--gold); padding: 0 12px; font-size: 13px; display: inline-flex; align-items: center; }
+  .int.on { background: var(--gold); }
+  .adds { display: flex; gap: 8px; margin-top: 4px; }
+  .adds .pill { height: 40px; padding: 0 16px; font-size: 14px; }
+  .preview { position: fixed; left: 0; width: 390px; bottom: calc(74px + var(--bottom-safe)); z-index: 39; background: #fff; border-top: 1px solid var(--line); padding: 12px 16px 4px; display: flex; align-items: center; gap: 10px; font-size: 12.5px; line-height: 1.35; }
+  html:not(.shot) .preview { right: 0; width: auto; }
+  .preview .thumbs { display: flex; } .preview .thumb { border: 2px solid #fff; margin-left: -8px; } .preview .thumb:first-child { margin-left: 0; }
+  .ob-bar { position: fixed; left: 0; bottom: 0; width: 390px; z-index: 40; background: #fff; padding: 10px 16px calc(10px + var(--bottom-safe)); }
+  html:not(.shot) .ob-bar { right: 0; width: auto; }
+  .ob-cta { width: 100%; height: 54px; border-radius: 8px; background: var(--ink); color: var(--gold); font-size: 17px; border: 1px solid var(--gold); }
+  .ob-cta:disabled { background: #f3f4f6; color: #9ca3af; border-color: #e5e7eb; }
+  .ob-hint { text-align: center; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+
+  .q { margin-top: 38px; }
+  .q-t { font-size: 17px; font-weight: 500; letter-spacing: -0.2px; line-height: 1.3; }
+  .slider { position: relative; height: 56px; margin: 8px 0 0; display: flex; align-items: center; }
+  .track { position: absolute; left: 0; right: 0; height: 6px; border-radius: 3px; background: var(--line); }
+  .fill { position: absolute; left: 0; height: 6px; border-radius: 3px; background: var(--gold); }
+  .knob { position: absolute; width: 30px; height: 30px; border-radius: 15px; background: #fff; border: 2px solid var(--gold); box-shadow: 0 2px 8px rgba(0,0,0,.15); transform: translateX(-50%); }
+  .knob.unset { width: 54px; height: 34px; border-radius: 17px; border: 1.5px solid #9ca3af; display: flex; align-items: center; justify-content: center; gap: 6px; color: #6b7280; }
+  .ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: -6px; }
+  .notes-lead { font-size: 14px; color: #374151; font-weight: 300; line-height: 1.5; margin-top: 44px; }
+  .notes { margin-top: 10px; border: 1px solid var(--gold); border-radius: 12px; height: 110px; padding: 12px; font-size: 15px; color: #9ca3af; font-weight: 300; line-height: 1.4; }
+
+  .gate-line { font-size: 14px; color: #374151; font-weight: 300; line-height: 1.45; }
+  .gate-line b { font-weight: 500; color: var(--ink); }
+  .email { height: 52px; border: 1px solid var(--gold); border-radius: 12px; display: flex; align-items: center; padding: 0 14px; font-size: 16px; margin-top: 24px; color: #9ca3af; }
+  .fine { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.45; margin-top: 10px; font-weight: 300; }
+  .fine u { text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="shared.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const STEP = Number(params.get('s') || 1);
+applyIgChrome(params);
+document.querySelector('.ig-title small') && (document.querySelector('.ig-title small').textContent = 'Grapejuice | Build your box');
+
+function header(active) {
+  return taskHeader({ back: active > 1 ? 'Back' : '', title: 'Build your box', right: `Step ${active} of 3`, steps: ['Family', 'About you', 'Your box'], on: active - 1 });
+}
+const bar = (label, { disabled, hint } = {}) => `<div class="ob-bar">${hint ? `<div class="ob-hint">${hint}</div>` : ''}<button class="ob-cta" ${disabled ? 'disabled' : ''}>${label}</button></div>`;
+
+function family() {
+  const ages = ['Under 1', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12+'];
+  const ints = ['Building', 'Cooking', 'Drawing', 'Singing', 'Reading', 'Dancing', 'Cuddling', 'Crafts', 'Games'];
+  const on = new Set(['Reading', 'Building']);
+  return header(1) + `<div class="ob">
+    <div class="h1">Eight nights. Your way.</div>
+    <div class="ob-sub">Tell us who's celebrating. We'll send everything for all eight nights, and you can change anything.</div>
+    <div class="icons5">${[['candles', 'Candles'], ['dreidel', 'Dreidel'], ['eat', 'Fried foods'], ['story', 'A story'], ['gifts', 'Presents']].map(([id, l]) => `<div>${practiceIcon(id)}<span>${l}</span></div>`).join('')}</div>
+    <div class="who">Who's celebrating?</div>
+    <div class="person"><div class="person-top"><div class="avatar">J</div><div class="field">Joseph</div><span class="role-tag">You</span></div></div>
+    <div class="person"><div class="person-top"><div class="avatar kid">S</div><div class="field">Sam</div><span class="rm">Remove</span></div>
+      <div class="lab">Age</div><div class="ages">${ages.map(a => `<span class="age ${a === '5' ? 'on' : ''}">${a}</span>`).join('')}</div>
+      <div class="lab">What's Sam into? <span style="opacity:.7">Optional</span></div><div class="ints">${ints.map(i => `<span class="int ${on.has(i) ? 'on' : ''}">${i}</span>`).join('')}</div></div>
+    <div class="adds"><button class="pill dark">+ Add a kid</button><button class="pill">+ Add an adult</button></div>
+    <div style="height:70px"></div>
+  </div>` + `<div class="preview"><span class="thumbs">${thumb('wooden', 34)}${thumb('dragon', 34)}${thumb('shamash', 34)}</span><span><b style="font-weight:500">Sam gets</b> a dreidel, an age-appropriate book, and a present. Plus candles, gelt, and latke and sufganiyot mixes.</span></div>` + bar('Next: About you');
+}
+
+/* Live questions and end labels from DetailsStepScreen. The grey handle counts as unanswered until it's moved, so nobody can leave it at the default. */
+function slider(question, min, max, value) {
+  const set = value != null;
+  return `<div class="q"><div class="q-t">${question}</div>
+    <div class="slider"><div class="track"></div>${set ? `<div class="fill" style="width:${value}%"></div><div class="knob" style="left:${value}%"></div>` : `<div class="knob unset" style="left:50%"><svg width="9" height="12" viewBox="0 0 9 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.5L2.5 6 7 10.5"/></svg><svg width="9" height="12" viewBox="0 0 9 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5L6.5 6 2 10.5"/></svg></div>`}</div>
+    <div class="ends"><span>${min}</span><span>${max}</span></div></div>`;
+}
+function about(answered) {
+  const a = answered ? [28, 12] : [null, null];
+  return header(2) + `<div class="ob">
+    <div class="h1">Each box is unique.</div>
+    <div class="ob-sub">Two quick questions so we explain the right amount. There are no wrong answers.</div>
+    ${slider('How has Hanukkah looked in recent years?', 'We don’t really do it', 'We do all eight nights', a[0])}
+    ${slider('How often do you do Jewish stuff?', 'Almost never', 'Every day', a[1])}
+    <div class="notes-lead">Worried about a picky eater? Never lit candles before? Tell us, or leave it blank.</div>
+    <div class="notes">e.g. My kid is nervous about fire. We are vegetarian.</div>
+    <div style="height:110px"></div>
+  </div>` + (answered ? bar('Build my box') : bar('Build my box', { disabled: true, hint: 'Move both sliders to continue' }));
+}
+
+function gate() {
+  const items = ['beeswax', 'wooden', 'biggelt', 'latke', 'sufg', 'dragon'];
+  return header(3) + `<div class="ob">
+    <div class="h1">Your box is ready</div>
+    <div style="margin:20px 0 4px">${boxSummary({ total: '$80', items: items.map((id, i) => ({ id, blur: i > 2, label: i === 5 ? '+2' : '' })), body: `<div class="gate-line">Candles, dreidels, gelt, latke and sufganiyot kits, and a book and a present for Sam.</div>` })}</div>
+    <div class="email">Email</div>
+    <button class="ob-cta" style="margin-top:12px">Show my box</button>
+    <div class="fine">We'll email you a link to your box, so you can open it later in any browser. No password needed.</div>
+    <div class="fine" style="margin-top:6px">By continuing you agree to Grapejuice's <u>Terms</u> and <u>Privacy Policy</u>.</div>
+    <div class="fine" style="margin-top:12px">Already have an account? <u style="color:#7D7148">Log in</u></div>
+  </div>`;
+}
+
+const SCREENS = { 1: family, 2: () => about(false), 3: () => about(true), 4: gate };
+document.getElementById('root').innerHTML = `<div class="app">${SCREENS[STEP]()}</div>`;
+</script>
+</body>
+</html>
