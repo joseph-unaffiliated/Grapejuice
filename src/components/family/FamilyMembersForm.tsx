@@ -22,6 +22,33 @@ function profileForAge(age: number): { ageGroup: AgeGroup; plannerAge: number } 
   };
 }
 
+/** Draft fields for a picked age chip. */
+export function kidAgePatch(choice: KidAgeChoice): Partial<ChildDraft> {
+  if (choice === '13-17') {
+    const mapped = profileForAge(15);
+    return { ageBand: '13-17', ageGroup: mapped.ageGroup, plannerAge: mapped.plannerAge };
+  }
+  if (choice === '18+') {
+    const mapped = profileForAge(18);
+    return { ageBand: '18+', ageGroup: mapped.ageGroup, plannerAge: mapped.plannerAge };
+  }
+  const mapped = profileForAge(choice);
+  return { ageBand: undefined, ageGroup: mapped.ageGroup, plannerAge: mapped.plannerAge };
+}
+
+export function kidAgeIsSelected(member: ChildDraft, choice: KidAgeChoice): boolean {
+  const age = member.plannerAge;
+  if (choice === '13-17') {
+    return member.ageBand === '13-17' || (typeof age === 'number' && age >= 13 && age <= 17);
+  }
+  if (choice === '18+') {
+    return member.ageBand === '18+' || (typeof age === 'number' && age >= 18);
+  }
+  if (typeof age !== 'number') return false;
+  if (age >= 13) return false;
+  return age === choice;
+}
+
 type Props = {
   members: ChildDraft[];
   onChange: (next: ChildDraft[]) => void;
@@ -59,32 +86,7 @@ export function FamilyMembersForm({
     });
   };
 
-  const setKidAge = (index: number, choice: KidAgeChoice) => {
-    if (choice === '13-17') {
-      const mapped = profileForAge(15);
-      updateMember(index, {
-        ageBand: '13-17',
-        ageGroup: mapped.ageGroup,
-        plannerAge: mapped.plannerAge,
-      });
-      return;
-    }
-    if (choice === '18+') {
-      const mapped = profileForAge(18);
-      updateMember(index, {
-        ageBand: '18+',
-        ageGroup: mapped.ageGroup,
-        plannerAge: mapped.plannerAge,
-      });
-      return;
-    }
-    const mapped = profileForAge(choice);
-    updateMember(index, {
-      ageBand: undefined,
-      ageGroup: mapped.ageGroup,
-      plannerAge: mapped.plannerAge,
-    });
-  };
+  const setKidAge = (index: number, choice: KidAgeChoice) => updateMember(index, kidAgePatch(choice));
 
   const addMember = (role: FamilyMemberRole) => {
     if (members.length >= MAX_MEMBERS) return;
@@ -96,18 +98,7 @@ export function FamilyMembersForm({
     onChange(members.filter((_, i) => i !== index));
   };
 
-  const kidAgeSelected = (member: ChildDraft, choice: KidAgeChoice) => {
-    const age = member.plannerAge;
-    if (choice === '13-17') {
-      return member.ageBand === '13-17' || (typeof age === 'number' && age >= 13 && age <= 17);
-    }
-    if (choice === '18+') {
-      return member.ageBand === '18+' || (typeof age === 'number' && age >= 18);
-    }
-    if (typeof age !== 'number') return false;
-    if (age >= 13) return false;
-    return age === choice;
-  };
+  const kidAgeSelected = kidAgeIsSelected;
 
   return (
     <View style={styles.copy}>

@@ -7,6 +7,7 @@ import {
 } from '../../components/onboarding/OnboardingScreenLayout';
 import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
 import { PracticeRowIcon } from '../../components/holiday/HanukkahPracticesOverview';
+import { MobileFamilyStep } from '../mobile/MobileFamilyStep';
 import {
   type ChildDraft,
   defaultFamilyMembers,
@@ -42,11 +43,15 @@ export function FamilyStepScreen({ onContinue, initialMembers, defaultName }: Pr
   );
   const namesComplete = useMemo(() => familyMembersComplete(members), [members]);
 
+  if (mobileLayout) {
+    return <MobileFamilyStep members={members} onChange={setMembers} canContinue={namesComplete} onContinue={() => onContinue(members)} />;
+  }
+
   return (
     <OnboardingScreenLayout
       title="Eight nights. Your way."
       centerHeader={false}
-      primaryLabel={mobileLayout ? 'Next: About you' : 'Continue'}
+      primaryLabel="Continue"
       onPrimary={() => onContinue(members)}
       primaryDisabled={!namesComplete}
       asideSide="right"

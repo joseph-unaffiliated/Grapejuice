@@ -61,6 +61,7 @@ export function MobileProductBody(p: Props) {
   const [page, setPage] = useState(0);
   const [more, setMore] = useState(false);
   const [chooser, setChooser] = useState(false);
+  const [role, setRole] = useState(0);
   const [detail, setDetail] = useState<{ label: string; value: string } | null>(null);
   const imageH = Math.round((width * 6) / 7);
   const scrollRef = useRef<ScrollView>(null);
@@ -75,7 +76,7 @@ export function MobileProductBody(p: Props) {
   ) : p.inBox ? (
     <StickyBar label={p.inBoxUnitCents > 0 ? `Added${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''}` : 'In your box'} total={p.inBoxUnitCents > 0 ? `+${formatCatalogDollars(p.inBoxUnitCents * p.boxQuantity)}` : 'Included'} cta={{ label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }} />
   ) : p.hasBox ? (
-    <StickyBar label="Add to your box" total={p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included'} cta={{ label: 'Add to my box', onPress: () => (p.roleOptions.length > 1 ? setChooser(true) : void p.roleOptions[0]?.onPress()), disabled: p.locked || p.saving, busy: p.saving }} />
+    <StickyBar label="Add to your box" total={p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included'} cta={{ label: 'Add to my box', onPress: () => (p.roleOptions.length > 1 ? (setRole(0), setChooser(true)) : void p.roleOptions[0]?.onPress()), disabled: p.locked || p.saving, busy: p.saving }} />
   ) : (
     <StickyBar label="On its own" total={formatCatalogDollars(p.priceCents)} cta={{ label: 'Add to Cart', onPress: p.onBuyJustThis ?? (() => {}), disabled: !p.onBuyJustThis || p.saving }} />
   );
@@ -205,25 +206,41 @@ export function MobileProductBody(p: Props) {
         <Text style={styles.desc}>{detail?.value}</Text>
       </MobileSheet>
 
-      <MobileSheet visible={chooser} onClose={() => setChooser(false)} title="How should it join your box?">
-        {p.roleOptions.map((o) => (
-          <Pressable
-            key={o.key}
+      <MobileSheet
+        visible={chooser}
+        onClose={() => setChooser(false)}
+        accessibilityLabel="How should it join your box?"
+        footer={
+          <MobileButton
+            label="Add to my box"
             onPress={() => {
+              const o = p.roleOptions[role];
               setChooser(false);
-              void o.onPress();
+              if (o) void o.onPress();
             }}
-            accessibilityRole="button"
-            style={styles.role}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={mType.bodyStrong}>{o.title}</Text>
-              <Text style={[mType.small, { color: m.body, marginTop: 2 }]}>{o.detail}</Text>
-            </View>
-            <Text style={styles.rolePrice}>{o.price}</Text>
-          </Pressable>
-        ))}
-        <MobileButton label="Cancel" variant="secondary" onPress={() => setChooser(false)} style={{ marginTop: 8 }} height={46} />
+          />
+        }
+      >
+        <View style={styles.roleHead}>
+          {photos[0] ? <Image source={{ uri: photos[0] }} style={styles.roleThumb} /> : null}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.roleEyebrow}>Add to your box as…</Text>
+            <Text style={styles.roleName} numberOfLines={2}>{p.item.name}</Text>
+          </View>
+        </View>
+        {p.roleOptions.map((o, i) => {
+          const on = i === role;
+          return (
+            <Pressable key={o.key} onPress={() => setRole(i)} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[styles.role, on && styles.roleOn]}>
+              <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.roleTitle}>{o.title}</Text>
+                <Text style={styles.roleDetail}>{o.detail}</Text>
+              </View>
+              <Text style={styles.rolePrice}>{o.price}</Text>
+            </Pressable>
+          );
+        })}
       </MobileSheet>
     </View>
   );
@@ -260,6 +277,16 @@ const styles = StyleSheet.create({
   secRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: mGutter, marginBottom: 14 },
   secH2: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(500) },
   rail: { paddingHorizontal: mGutter, gap: 12, paddingBottom: 4 },
-  role: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: m.line },
-  rolePrice: { fontSize: 14.5, color: m.ink, ...mFont(500) },
+  roleHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 6, paddingBottom: 14 },
+  roleThumb: { width: 60, height: 60, borderRadius: 10, backgroundColor: m.img },
+  roleEyebrow: { fontSize: 13.5, color: m.goldDark, ...mFont(400) },
+  roleName: { fontSize: 18, lineHeight: 23, color: m.ink, marginTop: 2, ...mFont(500) },
+  role: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10, borderRadius: 14, borderWidth: 1, borderColor: m.lineWarm, backgroundColor: m.white },
+  roleOn: { borderColor: m.gold, backgroundColor: m.beige },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: m.gold, alignItems: 'center', justifyContent: 'center', backgroundColor: m.white },
+  radioOn: { borderColor: m.goldDark },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: m.gold },
+  roleTitle: { fontSize: 15.5, color: m.ink, ...mFont(400) },
+  roleDetail: { fontSize: 12.5, color: m.muted, marginTop: 2, ...mFont(400) },
+  rolePrice: { fontSize: 14, color: m.ink, ...mFont(400) },
 });

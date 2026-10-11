@@ -10,8 +10,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m as mc, mFont, mType, balanceProps } from '../mobile/mobileTheme';
 import { useNavigationState } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
@@ -123,6 +125,8 @@ type Props = {
   overlay?: 'drawer' | 'tab' | 'none';
   /** After Rav (or a "Go to" link) opens another page — e.g. collapse the phone sheet. */
   onNavigated?: () => void;
+  /** Phone build: a task header sits above, and the welcome is question cards over a composer. */
+  phoneLayout?: boolean;
 };
 
 export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(function PilotAIChatSheet(
@@ -135,6 +139,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     bootstrapMessage,
     overlay = 'tab',
     onNavigated,
+    phoneLayout = false,
   },
   ref
 ) {
@@ -148,7 +153,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const startAuthForRav = useAuthFlowStore((s) => s.startAuthForRav);
   const recordGuestRavPrompt = useGuestSessionStore((s) => s.recordGuestRavPrompt);
   const guestFamiliarityLevel = useGuestSessionStore((s) => s.familiarityLevel);
-  const { lineItems, persist } = useBoxDraft();
+  const { lineItems, persist, children: boxKids } = useBoxDraft();
   const { household, profile } = useSession();
   const guestInterests = useGuestSessionStore((s) => s.interests);
   const { ids: wishlistIds } = useWishlist();
@@ -198,7 +203,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   /** 16px on the phone sheet — iOS Safari zooms inputs under 16. Desktop matches bubble text. */
   const replyFontSize = isDrawerOverlay && !isDesktop ? 16 : typography.lg;
   /** Phone sheet: history / collapse float over the top edge of the content. */
-  const floatingChrome = isDrawerOverlay && externalHistoryChrome && !isDesktop;
+  const floatingChrome = isDrawerOverlay && externalHistoryChrome && !isDesktop && !phoneLayout;
   const replyLineHeight = Math.round(replyFontSize * 1.35);
   const replyInputMaxHeight = 180;
   const [replyInputHeight, setReplyInputHeight] = useState(replyLineHeight);
@@ -778,6 +783,16 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     [recentChats]
   );
   const hasThreadHistory = !isGuest && !useKidRavThreads && historyThreads.length > 0;
+  const phoneQuestions = useMemo(() => {
+    const kid = boxKids.find((k) => k.name?.trim());
+    const age = kid && typeof kid.plannerAge === 'number' ? kid.plannerAge : null;
+    return [
+      'What candles do we need for eight nights?',
+      age != null && age > 0 ? `Which book is best for a ${age}-year-old?` : 'Which book is best for young kids?',
+      kid?.name ? `Can I swap the present for ${kid.name.trim()}?` : 'Can I swap a present in my box?',
+      'How do we play dreidel?',
+    ];
+  }, [boxKids]);
 
   const renderMessage = useCallback(
     ({ item }: { item: AIChatMessage; index: number }) => {
@@ -924,6 +939,59 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               )}
             </View>
           </ScrollView>
+        ) : showWelcomeUi && phoneLayout ? (
+          <View style={styles.flex}>
+            <ScrollView style={styles.scrollHost} contentContainerStyle={phoneStyles.welcome} keyboardShouldPersistTaps="handled">
+              <Text style={[mType.h1, { fontSize: 30 }]} {...balanceProps}>What&apos;s on your mind?</Text>
+              <Text style={phoneStyles.sub} {...balanceProps}>Ask about Hanukkah, your box or anything in the store.</Text>
+              <View style={phoneStyles.cards}>
+                {phoneQuestions.map((q) => (
+                  <Pressable key={q} onPress={() => sendMessage(q)} accessibilityRole="button" style={phoneStyles.card}>
+                    <Text style={phoneStyles.cardText}>{q}</Text>
+                    <Text style={phoneStyles.chev}>›</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {hasThreadHistory ? (
+                <View style={{ marginTop: 28 }}>
+                  <View style={phoneStyles.recentHead}>
+                    <Text style={phoneStyles.recentTitle}>Recent chats</Text>
+                    <Pressable onPress={showRecentChats} accessibilityRole="button" hitSlop={8}>
+                      <Text style={phoneStyles.link}>See all</Text>
+                    </Pressable>
+                  </View>
+                  {historyThreads.slice(0, 3).map((t) => (
+                    <Pressable key={t.id} onPress={() => void loadThread(t.id, false)} accessibilityRole="button" style={phoneStyles.recentRow}>
+                      <Text style={phoneStyles.recentRowTitle} numberOfLines={1}>{t.title}</Text>
+                      <Text style={phoneStyles.recentRowDate}>{formatThreadListDate(t.updatedAt)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </ScrollView>
+            <View style={[phoneStyles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+              <View style={phoneStyles.noteRow}>
+                <Icon icon={icons.calendar} size={12} color={mc.gold} />
+                <Text style={phoneStyles.note}>Rav can see your box and make changes you approve</Text>
+              </View>
+              <View style={phoneStyles.pill}>
+                <TextInput
+                  style={phoneStyles.input}
+                  placeholder="Reply to Rav"
+                  placeholderTextColor={mc.muted}
+                  value={input}
+                  onChangeText={setInput}
+                  onSubmitEditing={() => sendMessage(input)}
+                  onKeyPress={handleComposerKeyPress}
+                  returnKeyType="send"
+                  accessibilityLabel="Message Rav"
+                />
+                <Pressable onPress={() => sendMessage(input)} disabled={!hasInput || loading} accessibilityRole="button" accessibilityLabel="Send" style={phoneStyles.send}>
+                  <Icon icon={icons.arrowUp} size={13} color={mc.gold} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
         ) : showWelcomeUi ? (
           <ScrollView
             style={styles.scrollHost}
@@ -1056,7 +1124,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               contentContainerStyle={[
                 styles.threadContent,
                 styles.threadContentBottomUp,
-                isDrawerOverlay && styles.threadContentDrawer,
+                isDrawerOverlay && !phoneLayout && styles.threadContentDrawer,
                 {
                   // Drawer: leave room under the absolutely floated composer.
                   paddingBottom: isDrawerOverlay
@@ -1583,3 +1651,24 @@ function createPilotStyles(colors: SemanticColors) {
   },
   });
 }
+
+const phoneStyles = StyleSheet.create({
+  welcome: { paddingHorizontal: 16, paddingTop: 28, paddingBottom: 24 },
+  sub: { fontSize: 15, lineHeight: 22, color: mc.body, marginTop: 10, ...mFont(300) },
+  cards: { marginTop: 24, gap: 10 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 54, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: mc.lineWarm, backgroundColor: mc.white },
+  cardText: { flex: 1, fontSize: 15.5, color: mc.ink, ...mFont(400) },
+  chev: { fontSize: 18, color: mc.goldDark },
+  recentHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 },
+  recentTitle: { fontSize: 17, color: mc.ink, ...mFont(500) },
+  link: { fontSize: 13.5, color: mc.goldDark, textDecorationLine: 'underline', ...mFont(400) },
+  recentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 46, borderBottomWidth: 1, borderBottomColor: mc.line },
+  recentRowTitle: { flex: 1, fontSize: 15, color: mc.ink, ...mFont(400) },
+  recentRowDate: { fontSize: 12.5, color: mc.muted, ...mFont(400) },
+  bottom: { paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: mc.line, backgroundColor: mc.white, gap: 8 },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  note: { fontSize: 12.5, color: mc.muted, ...mFont(400) },
+  pill: { flexDirection: 'row', alignItems: 'center', height: 50, borderRadius: 25, borderWidth: 1, borderColor: mc.gold, paddingLeft: 16, paddingRight: 6 },
+  input: { flex: 1, minWidth: 0, fontSize: 16, color: mc.ink, ...mFont(400), ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null) },
+  send: { width: 38, height: 38, borderRadius: 19, backgroundColor: mc.ink, alignItems: 'center', justifyContent: 'center' },
+});

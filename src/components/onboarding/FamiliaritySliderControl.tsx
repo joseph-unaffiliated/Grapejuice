@@ -235,7 +235,7 @@ export function FamiliaritySliderControl({
             style={[
               styles.thumb,
               unset && styles.thumbUnset,
-              { left: Math.max(0, Math.min(Math.max(trackWidth - (unset ? THUMB * 1.8 : THUMB), 0), unset ? thumbLeft - THUMB * 0.4 : thumbLeft)) },
+              { left: Math.max(0, Math.min(Math.max(trackWidth - (unset ? THUMB * 1.9 : THUMB), 0), unset ? thumbLeft - THUMB * 0.45 : thumbLeft)) },
             ]}
           >
             {unset ? <Text style={styles.thumbArrows}>‹ ›</Text> : null}
@@ -320,13 +320,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   thumbUnset: {
-    width: THUMB * 1.8,
-    borderRadius: THUMB,
+    width: THUMB * 1.9,
+    height: 34,
+    top: -(34 - TRACK_H) / 2,
+    borderRadius: 17,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#9CA3AF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  thumbArrows: { color: '#6B7280', fontSize: 13, lineHeight: 15, fontWeight: '500' },
+  thumbArrows: { color: '#374151', fontSize: 20, lineHeight: 22, fontWeight: '400', letterSpacing: 2 },
 });

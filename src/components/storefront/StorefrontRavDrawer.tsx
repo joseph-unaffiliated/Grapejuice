@@ -9,6 +9,8 @@ import {
   Easing,
 } from 'react-native';
 import { Icon } from '../ui/Icon';
+import { RavTaskHeader } from '../mobile/RavTaskHeader';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { icons } from '../../constants/icons';
 import {
   PilotAIChatSheet,
@@ -69,6 +71,8 @@ export function StorefrontRavDrawer({
   topInset = 0,
   docked = true,
 }: Props) {
+  const mobileLayout = useMobileLayout();
+  const phone = mobileLayout && !docked;
   const slide = useRef(new Animated.Value(0)).current;
   const chatRef = useRef<PilotAIChatSheetRef>(null);
   const [mounted, setMounted] = useState(false);
@@ -277,6 +281,7 @@ export function StorefrontRavDrawer({
         bootstrapMessage={bootstrapMessage}
         onViewChange={onViewChange}
         onNavigated={docked ? undefined : onClose}
+        phoneLayout={phone}
       />
     </View>
   );
@@ -332,10 +337,26 @@ export function StorefrontRavDrawer({
       accessibilityLabel="Rav chat"
     >
       {/* Chat fills the sheet; floating circles sit on top so history reads to the edge. */}
-      <View style={styles.overlayInner}>
-        {chat}
-        {chrome}
-      </View>
+      {phone ? (
+        <View style={styles.overlayInner}>
+          <RavTaskHeader
+            back={historyOpen ? { label: 'Back', onPress: () => chatRef.current?.showWelcome() } : { label: 'Back', onPress: onClose }}
+            action={
+              ravView === 'thread'
+                ? { label: 'New chat', onPress: () => chatRef.current?.resetToWelcome() }
+                : ravView === 'welcome'
+                  ? { label: 'History', onPress: () => chatRef.current?.showRecentChats() }
+                  : null
+            }
+          />
+          {chat}
+        </View>
+      ) : (
+        <View style={styles.overlayInner}>
+          {chat}
+          {chrome}
+        </View>
+      )}
     </Animated.View>
   );
 }

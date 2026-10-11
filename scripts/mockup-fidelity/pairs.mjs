@@ -16,6 +16,7 @@ export const PAIRS = [
   { id: 'pdp-nobox', mockup: 'store.html?s=8', app: '/product/lego-menorah' },
   { id: 'cart', mockup: 'store.html?s=9', app: '/cart' },
   { id: 'onboarding-family', mockup: 'onboarding-v3.html?s=1', app: '/', click: 'Build my box', firstOnly: true },
+  { id: 'onboarding-about', mockup: 'onboarding-v3.html?s=2', app: '/', firstOnly: true, steps: [{ click: 'Build my box', wait: 3000 }, { fill: ['Name', 'Joseph'] }, { fill: ['Kid name', 'Sam'] }, { click: 'Next: About you', wait: 3000 }] },
   { id: 'box', mockup: 'box-v3.html', app: '/box', guest: true },
   { id: 'checkout', mockup: 'checkout.html', app: '/checkout', guest: true },
   { id: 'gift-landing', mockup: 'gift.html?s=1', app: '/gift' },
