@@ -19,6 +19,7 @@ import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import type { PendingMainNav } from '../../navigation/pendingMainNav';
@@ -60,6 +61,7 @@ export function StorefrontAccountMenu() {
   const startAuthInPlace = useAuthFlowStore((s) => s.startAuthInPlace);
   const isAuthenticated = usePreviewedIsAuthenticated();
   const { width: windowWidth, isCompact: compact } = useLayoutBreakpoint();
+  const mobileLayout = useMobileLayout();
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, right: MOBILE_GUTTER });
   const [drawerMounted, setDrawerMounted] = useState(false);
@@ -82,6 +84,11 @@ export function StorefrontAccountMenu() {
   }, [windowWidth]);
 
   const toggle = () => {
+    if (mobileLayout) {
+      if (leave) leave({ type: 'screen', nav: { screen: 'MainTabs', tab: 'Account' } });
+      else navigation.navigate('MainTabs', { screen: 'Account' });
+      return;
+    }
     if (open) {
       close();
       return;
@@ -238,8 +245,8 @@ export function StorefrontAccountMenu() {
           style={[styles.avatar, open && styles.avatarOpen]}
           onPress={toggle}
           accessibilityRole="button"
-          accessibilityLabel="Account menu"
-          accessibilityState={{ expanded: open }}
+          accessibilityLabel={mobileLayout ? 'Account' : 'Account menu'}
+          accessibilityState={mobileLayout ? undefined : { expanded: open }}
         >
           <Icon icon={icons.user} size={16} color={semanticColors.logoDark} />
         </TouchableOpacity>

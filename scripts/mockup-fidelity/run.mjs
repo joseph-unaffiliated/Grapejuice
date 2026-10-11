@@ -26,7 +26,7 @@ const base = arg('base', process.env.GJ_BASE_URL || 'http://localhost:8081').rep
 const outDir = path.resolve(arg('out', 'tmp/fidelity/latest'));
 const maxSteps = Number(arg('screens', 7));
 const mockDir = path.resolve('design/mobile-mockups');
-const fixtureFile = path.resolve('scripts/flows/fixtures/mockup-guest.storage.json');
+const fixtureFile = (name) => path.resolve(`scripts/flows/fixtures/${name}.storage.json`);
 
 const PHONE = {
   viewport: { width: 390, height: 844 },
@@ -43,10 +43,14 @@ const STEP = 724;
 const STABLE = `*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}
 #onetrust-consent-sdk,.ot-floating-button,#ot-sdk-btn-floating,[data-testid="gj-admin-fab"],[aria-label="Admin controls"]{display:none!important}`;
 
-/** The guest fixture (scripts/flows/guest-box.mjs mockup-guest) was saved on one origin; move it to the audited one. */
-function guestState() {
-  if (!fs.existsSync(fixtureFile)) return null;
-  const s = JSON.parse(fs.readFileSync(fixtureFile, 'utf8'));
+/**
+ * Fixtures were saved on one origin; move them to the audited one. `mockup-guest` is a draft
+ * box for Sam (scripts/flows/guest-box.mjs); `mockup-member` is that box signed in to a
+ * joseph+test account (scripts/flows/member-box.mjs).
+ */
+function fixtureState(name) {
+  if (!fs.existsSync(fixtureFile(name))) return null;
+  const s = JSON.parse(fs.readFileSync(fixtureFile(name), 'utf8'));
   const u = new URL(base);
   return {
     cookies: s.cookies.filter((c) => /^(127\.0\.0\.1|localhost)$/.test(c.domain)).map((c) => ({ ...c, domain: u.hostname })),
@@ -71,7 +75,23 @@ async function scrollTo(page, y) {
   }, y);
 }
 
-async function capture(browser, url, { storageState, click, firstOnly, label }) {
+async function tapByName(page, name, first = false) {
+  const pick = (l) => (first ? l.first() : l.last());
+  const t = page.getByRole('button', { name });
+  if (await t.count()) await pick(t).tap({ force: true }).catch(() => {});
+  else await pick(page.getByText(name)).tap({ force: true }).catch(() => {});
+}
+
+/** `steps`: `{ click }` taps by accessible name or text, `{ fill: [label, value] }` types into a field, `{ wait }` pauses. */
+async function runSteps(page, steps) {
+  for (const st of steps) {
+    if (st.click) await tapByName(page, st.click, st.first);
+    if (st.fill) await page.getByLabel(st.fill[0], { exact: true }).last().fill(st.fill[1], { force: true }).catch(() => {});
+    await page.waitForTimeout(st.wait ?? 1200);
+  }
+}
+
+async function capture(browser, url, { storageState, click, steps, firstOnly, label }) {
   const context = await browser.newContext({ ...PHONE, ...(storageState ? { storageState } : {}) });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
@@ -80,11 +100,10 @@ async function capture(browser, url, { storageState, click, firstOnly, label }) 
   await page.waitForTimeout(label === 'app' ? 4500 : 1500);
   await page.evaluate(() => (document.fonts ? document.fonts.ready : null)).catch(() => {});
   if (click) {
-    const t = page.getByRole('button', { name: click });
-    if (await t.count()) await t.last().tap({ force: true }).catch(() => {});
-    else await page.getByText(click).last().tap({ force: true }).catch(() => {});
+    await tapByName(page, click);
     await page.waitForTimeout(2500);
   }
+  if (steps) await runSteps(page, steps);
   const shots = [];
   for (let i = 0; i < (firstOnly ? 1 : maxSteps); i++) {
     const pos = await scrollTo(page, i * STEP);
@@ -108,7 +127,7 @@ function compositeHtml(id, n, left, right) {
 async function main() {
   fs.mkdirSync(path.join(outDir, 'raw'), { recursive: true });
   const browser = await chromium.launch();
-  const guest = guestState();
+  const states = { guest: fixtureState('mockup-guest'), member: fixtureState('mockup-member') };
   const cards = [];
   for (const pair of PAIRS) {
     if (only && !only.has(pair.id)) continue;
@@ -117,7 +136,13 @@ async function main() {
     const appUrl = `${base}${pair.app}${pair.app.includes('?') ? '&' : '?'}mbx=new`;
     const [mock, app] = await Promise.all([
       capture(browser, mockUrl, { firstOnly: pair.firstOnly, label: 'mock' }),
-      capture(browser, appUrl, { storageState: pair.guest ? guest : null, click: pair.click, firstOnly: pair.firstOnly, label: 'app' }),
+      capture(browser, appUrl, {
+        storageState: pair.member ? states.member : pair.guest ? states.guest : null,
+        click: pair.click,
+        steps: pair.steps,
+        firstOnly: pair.firstOnly,
+        label: 'app',
+      }),
     ]);
     const steps = Math.max(mock.length, app.length);
     const comp = await browser.newPage({ viewport: { width: 830, height: 890 } });

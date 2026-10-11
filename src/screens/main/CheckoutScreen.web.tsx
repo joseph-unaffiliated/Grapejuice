@@ -10,11 +10,10 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
-import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
-import { createPilotSetupIntent } from '../../services/checkout/createPilotSetupIntent';
+import { getStripePromise, takeSetupIntent } from '../../services/checkout/checkoutPrefetch';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
@@ -303,10 +302,7 @@ function CheckoutScreenBody() {
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
-  const stripePromise = useMemo(
-    () => (stripeKey ? loadStripe(stripeKey) : null),
-    [stripeKey]
-  );
+  const stripePromise = useMemo(() => getStripePromise(stripeKey), [stripeKey]);
   const cardOnFile = !!household?.cardOnFileAt;
   const skipShipStation = useMockFlowStore((s) => s.active);
   const { openOrder, loading: ordersLoading } = usePilotOrders(household?.id);
@@ -396,7 +392,7 @@ function CheckoutScreenBody() {
     setShippingConfirmed(true);
     setPreparing(true);
     try {
-      const result = await createPilotSetupIntent(household.id);
+      const result = await takeSetupIntent(household.id);
       if (!result.clientSecret) {
         notifyCheckout('Error', 'No setup secret returned.');
         if (!keepShipping) setShippingConfirmed(false);
@@ -424,7 +420,7 @@ function CheckoutScreenBody() {
     void (async () => {
       cardBeforeSetupRef.current = { at: household.cardOnFileAt, pm: household.stripeDefaultPaymentMethodId };
       try {
-        const result = await createPilotSetupIntent(household.id);
+        const result = await takeSetupIntent(household.id);
         if (result.clientSecret) {
           setupSecretRef.current = result.clientSecret;
           setSetupClientSecret(result.clientSecret);

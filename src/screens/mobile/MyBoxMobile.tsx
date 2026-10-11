@@ -1,11 +1,12 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Constants from 'expo-constants';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
-import { BOX_DISPLAY_SECTIONS, displaySectionForLineItem, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
+import { BOX_DISPLAY_SECTIONS, displaySectionForCatalogItem, displaySectionForLineItem, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { openIcs } from '../../components/holiday/AddToCalendarMenu';
 import { hanukkahCalendarEvents } from '../../utils/calendarLinks';
 import {
@@ -23,6 +24,8 @@ import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
+import { useSession } from '../../hooks/useSession';
+import { getStripePromise, prefetchSetupIntent } from '../../services/checkout/checkoutPrefetch';
 import type { MainStackParamList } from '../../navigation/types';
 import type { useMyBoxEditing } from '../../hooks/useMyBoxEditing';
 import { NOT_HELD_COPY, daysUntilLock, lockShortLabel } from '../../hooks/useBoxGlance';
@@ -74,6 +77,17 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
   const sectionY = useRef<Partial<Record<BoxDisplaySectionId, number>>>({});
   const byId = useMemo(() => new Map(e.catalog.map((c) => [c.id, c])), [e.catalog]);
   const kids = e.children;
+  const { household } = useSession();
+
+  const checkoutReady = !!household?.id && !e.guestViewOnly && !e.openOrder && !e.ordersLoading && !e.locked && e.lineItems.length > 0;
+  const needsCard = checkoutReady && !e.cardOnFile;
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !needsCard || !household?.id) return;
+    const key = (Constants.expoConfig?.extra as Record<string, string | undefined> | undefined)?.stripePublishableKey ?? '';
+    if (!key) return;
+    void getStripePromise(key)?.catch(() => undefined);
+    prefetchSetupIntent(household.id);
+  }, [needsCard, household?.id]);
   const kidName = (id?: string | null) => (id ? kids.find((c) => c.id === id)?.name?.trim() || 'your kid' : null);
 
   const extras = chargeableLineTotal(e.lineItems);
@@ -92,6 +106,17 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     },
     [e.grouped]
   );
+  /** Fully donated items keep a faded row in their section; partly donated ones note it on the live row. */
+  const donatedBySection = useMemo(() => {
+    const out: Partial<Record<BoxDisplaySectionId, { item: CatalogItem; missing: number }[]>> = {};
+    for (const d of e.donatedItems) {
+      const snap = e.donatedLineSnapshots.current.get(d.item.id)?.[0];
+      const sectionId: BoxDisplaySectionId = snap ? (isGiftSlotLine(snap as never) && snap.childId ? 'presents' : displaySectionForLineItem(snap, d.item)) : displaySectionForCatalogItem(d.item);
+      (out[sectionId] ??= []).push(d);
+    }
+    return out;
+  }, [e.donatedItems, e.donatedLineSnapshots]);
+  const donatedQty = useMemo(() => new Map(e.donatedItems.map((d) => [d.item.id, d.missing])), [e.donatedItems]);
   const sectionTitle = (id: BoxDisplaySectionId, fallback: string) =>
     id === 'food' ? 'Eat & Drink' : id === 'presents' ? 'Giving Gifts' : fallback;
   const addToCalendar = () => {
@@ -203,6 +228,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
           </Text>
           <Text style={styles.rowMeta} numberOfLines={2}>
             {rowNote(g, item)}
+            {g.unitCents === 0 && donatedQty.get(g.itemId) ? ` · donating ${donatedQty.get(g.itemId)}` : ''}
           </Text>
         </View>
         {!e.locked ? (
@@ -220,8 +246,30 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     );
   };
 
+  const DonatedRow = ({ item, missing }: { item: CatalogItem; missing: number }) => (
+    <View style={[styles.row, styles.rowDonated]} accessibilityLabel={`${item.name}, donating`}>
+      <View style={[styles.rowImage, styles.rowImageDonated]}>
+        <BoxItemImage size={64} imageUrl={item.imageUrl} itemId={item.id} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.rowName} numberOfLines={2}>
+          {item.name}
+        </Text>
+        <Text style={styles.rowMeta} numberOfLines={2}>
+          {missing > 1 ? `Donating ${missing}` : 'Donating'} · goes to a family who wouldn’t otherwise celebrate
+        </Text>
+      </View>
+      {!e.locked ? (
+        <Text style={styles.undo} onPress={() => void e.restoreDonated(item.id)} accessibilityRole="button" accessibilityLabel={`Undo donating ${item.name}`}>
+          Undo
+        </Text>
+      ) : null}
+    </View>
+  );
+
   const section = (s: (typeof BOX_DISPLAY_SECTIONS)[number]) => {
     const rows = rowsFor(s.id);
+    const donatedRows = (donatedBySection[s.id] ?? []).filter((d) => !rows.some((g) => g.itemId === d.item.id));
     const adds = (e.upsellsBySection[s.id] ?? []).slice(0, 6);
     const hasExtra = rows.some((g) => g.unitCents > 0);
     const suggestion = !hasExtra && !e.locked ? adds.find((it) => !rows.some((g) => g.itemId === it.id)) : undefined;
@@ -231,7 +279,9 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
           <Icon icon={SECTION_ICON[s.id]} size={18} color={m.gold} />
           <Text style={styles.sectionTitle}>{sectionTitle(s.id, s.title)}</Text>
         </View>
-        {rows.length ? rows.map((g) => <Row key={g.key} g={g} sectionId={s.id} />) : <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text>}
+        {rows.map((g) => <Row key={g.key} g={g} sectionId={s.id} />)}
+        {donatedRows.map((d) => <DonatedRow key={`donated:${d.item.id}`} item={d.item} missing={d.missing} />)}
+        {!rows.length && !donatedRows.length ? <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text> : null}
         {suggestion ? (
           <Pressable onPress={() => setSheet({ kind: 'product', item: suggestion, group: null, sectionId: s.id })} accessibilityRole="button" style={styles.sugg}>
             <View style={styles.suggImage}>
@@ -621,6 +671,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   rowImage: { borderRadius: mRadius.md, overflow: 'hidden' },
   rowImageMine: { borderWidth: 2, borderColor: m.gold },
+  rowDonated: { opacity: 0.75 },
+  rowImageDonated: Platform.OS === 'web' ? ({ filter: 'grayscale(1)' } as object) : {},
+  undo: { fontSize: 14, color: m.goldDark, textDecorationLine: 'underline', paddingHorizontal: 4, paddingVertical: 8, ...mFont(500) },
   rowName: { fontSize: 15, color: m.ink, lineHeight: 19, letterSpacing: -0.2, ...mFont(400) },
   rowMeta: { fontSize: 12.5, color: m.goldDark, marginTop: 3, lineHeight: 17, ...mFont(400) },
   stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: m.gold, borderRadius: 20, height: 38, backgroundColor: m.white },

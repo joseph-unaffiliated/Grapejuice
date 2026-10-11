@@ -13,6 +13,9 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 ### Category / collection
 
 ### My Box
+- [ ] Tradition sheet: short one-line sub under an icon title; "Candles · 1 included" subhead; alternatives as cards with Swap and "+$X" (add on top); "Add on top" should list other things (menorahs for the grown-ups), not the swap alternatives again.
+- [ ] Product card: smaller centered photo, close button, section eyebrow, "Swap it in" / "Add one on top" option rows with price pills, "See full details" row.
+- [ ] Receipt: phone section names (Eat & Drink, Giving Gifts) and rules between sections.
 - [ ] Wrapping: Paper / We wrap / No wrap segmented control with the "Enough paper for" checklist, instead of a Wrapping Paper row.
 - [ ] Suggestion row: "Low stock" outline tag under the name when it applies.
 
@@ -21,18 +24,40 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 - [ ] "Have a discount code?" sits in Payment, not under the summary.
 - [ ] "+ Apt, suite or floor" link instead of an always-visible Address line 2.
 
+### Account
+- [ ] Hub: "Hi, {name}" greeting; box card with a status pill, lock line and a black "View my box" button; "Your account" eyebrow; rows with icon tiles; Shipping address, Box helpers and Sign-in rows.
+- [ ] Orders: phone task header, This year / Past years chips, rows with stacked thumbs and status lines. App shows the desktop page with nav pills.
+- [ ] Gifts: Sent / Received chips, gift rows with a status pill, Resend / Add their address, lock note, "Send another gift". App shows the desktop page.
+- [ ] Family: its own page (kid rows with Edit, "+ Add a kid · $10", How you celebrate rows, note). App opens the old form in a sheet.
+- [ ] Payment: card on file with Replace. App goes straight to the Stripe form.
+
+### Rav
+- [ ] Task header (Back · Rav · New chat), left-aligned title and sub, four suggestion rows, and a pinned reply field with the "Rav can see your box" line. App shows the desktop chat with chip clouds.
+
+### Store
+- [ ] Role chooser: "Add to your box as…" with the item thumb, radio option cards with prices, then "Add to my box". App shows a plain list with Cancel.
+- [ ] Favorites: phone header and sub, item count, two-column tiles with "Add to my box". App shows the desktop page with nav pills.
+
 ### Onboarding
 - [ ] Family: short two-line intro, a five-icon row, "Who's celebrating?", member cards, the age pill row, interests pills, and the "Sam gets…" preview above the button. App still shows the long manifesto and the old form.
 - [ ] Primary button black/gold, not grey.
 
 ### Gift
-- [ ] Remaining steps (family, save your gift, note, how they get it, pay, sent) still use the desktop form inside the phone header and bar; add pairs (gift.html s=3,4,7,8,9,10) and restyle.
+- [ ] Their family: "Who is it for?", Family name field, Kids stepper, a card per kid with age chips, "+ Add a kid · $10", bar "Gift box for 1 kid · $80 · Pick their box". App shows the desktop form and $0.00.
+- [ ] Save your gift: name + email code entry. App shows "Enter your email to start curating".
+- [ ] Credit: "How much credit?" with $50 / $80 / $120 tiles, other amount, family name, their email.
+- [ ] Their box: the My Box editor with "A gift for {family}" pill. App shows the desktop curation list.
+- [ ] Note (with preview card), How they get it (two radio options), Pay, Sent: still the desktop form.
 
 ### Content
 
 ### Sign-in
 
 ## Done
+- [x] My Box: donated items stay in their section, faded with a grey photo, "Donating · goes to a family who wouldn't otherwise celebrate" and Undo.
+- [x] Header account button goes straight to the Account page on phones (it opened a drawer).
+- [x] Pinned bottom bars hide when their screen is covered (My Box's bar showed over Account).
+- [x] My Box warms checkout: loads Stripe.js and creates the SetupIntent so the card form is ready on arrival.
 - [x] Sticky bottom bars scroll with the page instead of staying pinned (product, home, My Box): `position: fixed` sits inside the transformed page scroller. Portal the bar to the document body.
 - [x] Browsing pages show the promo strip and the black category rail under the header. Mockup: the white site header only.
 - [x] Primary/secondary buttons: mockup text is 17px regular (400); app is 16px medium.
@@ -82,8 +107,9 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 - Long how-to copy stays reachable behind list rows rather than being cut.
 - Real prices and product data instead of the mockup's sample prices.
 - The site's icons instead of the mockup's placeholder icons.
+- Donations are remembered for the session only (same as desktop); a fully donated item drops off after a reload.
 - Headless capture can't play the mockup's mp4 reel, so the mockup's big mosaic cell is blank in composites.
 
 ## Blocked
 - Cart: the app redirects an empty cart; needs a cart fixture before it can be compared.
-- Account: needs a signed-in fixture.
+- Gift recipient (gift-recipient.html) and order detail need a real gift / order; content "Closed after the lock" can't be reached before the lock.

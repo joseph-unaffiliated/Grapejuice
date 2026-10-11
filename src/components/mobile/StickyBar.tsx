@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { NavigationContext } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MobileButton } from './MobileButton';
 import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
@@ -25,7 +26,9 @@ type Props = {
 /** Always white: the total, then the black button. Labels say where they go. */
 export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID, ctaFill = true }: Props) {
   const insets = useSafeAreaInsets();
-  const onLayout = useCookieButtonClearance(Platform.OS === 'web');
+  const focused = useScreenFocused();
+  const onLayout = useCookieButtonClearance(Platform.OS === 'web' && focused);
+  if (!focused) return null;
   const summary = (
     <Pressable onPress={onSummaryPress} disabled={!onSummaryPress} style={ctaFill ? styles.summary : styles.summaryFill} accessibilityRole={onSummaryPress ? 'button' : undefined}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -60,6 +63,23 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
       )}
     </View>,
   );
+}
+
+/** The bar is portaled out of its screen, so a screen left mounted underneath would keep showing it. */
+function useScreenFocused(): boolean {
+  const navigation = useContext(NavigationContext);
+  const [focused, setFocused] = useState(() => navigation?.isFocused() ?? true);
+  useEffect(() => {
+    if (!navigation) return;
+    setFocused(navigation.isFocused());
+    const offFocus = navigation.addListener('focus', () => setFocused(true));
+    const offBlur = navigation.addListener('blur', () => setFocused(false));
+    return () => {
+      offFocus();
+      offBlur();
+    };
+  }, [navigation]);
+  return focused;
 }
 
 /**

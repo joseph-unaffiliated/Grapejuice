@@ -2,7 +2,8 @@
  * Every phone screen with its approved mockup (design/mobile-mockups) and the app route
  * that should match it. `guest: true` loads the guest box fixture (a draft box for Sam),
  * `click` taps a button by its accessible name after load, `scroll` scrolls the app's
- * page scroller to the first element whose text matches.
+ * page scroller to the first element whose text matches. `member: true` loads the same box
+ * signed in to a joseph+test account; `steps` runs taps and fills in order (see run.mjs).
  */
 export const PAIRS = [
   { id: 'home-new', mockup: 'home.html', app: '/' },
@@ -22,4 +23,25 @@ export const PAIRS = [
   { id: 'candles', mockup: 'content.html?s=2&n=1', app: '/how-to/light-candles' },
   { id: 'dreidel', mockup: 'content.html?s=3', app: '/how-to/play-dreidel' },
   { id: 'login', mockup: 'auth.html?s=1', app: '/login' },
+
+  { id: 'home-member', mockup: 'home.html?state=draft', app: '/', member: true },
+  { id: 'menu-signedout', mockup: 'home.html?menu=1', app: '/', click: 'Open menu', firstOnly: true },
+  { id: 'pdp-role', mockup: 'store.html?s=5', app: '/product/lego-menorah', guest: true, click: 'Add to my box', firstOnly: true },
+  { id: 'favorites', mockup: 'store.html?s=11', app: '/store/favorites', guest: true },
+  { id: 'box-member', mockup: 'box-v3.html?notice=1', app: '/box', member: true },
+  { id: 'box-sheet', mockup: 'box-v3.html?sheet=candles&added=electric:candles:1', app: '/box', guest: true, steps: [{ click: 'Swap or add', first: true, wait: 2000 }], firstOnly: true },
+  { id: 'box-product', mockup: 'box-v3.html?sheet=product:electric&ctx=candles&prev=candles', app: '/box', guest: true, click: 'Open Beeswax Candles', firstOnly: true },
+  { id: 'box-receipt', mockup: 'box-v3.html?sheet=receipt&added=electric:candles:1,lego:gifts:1&qty=dreidel:3', app: '/box', guest: true, click: 'Total', firstOnly: true },
+  { id: 'box-menu', mockup: 'box-v3.html?menu=1', app: '/box', guest: true, click: 'Open menu', firstOnly: true },
+  { id: 'checkout-member', mockup: 'checkout.html?s=1&added=claymenorah:gifts', app: '/checkout', member: true },
+  { id: 'gift-family', mockup: 'gift.html?s=3', app: '/gift/give', steps: [{ click: 'A Hanukkah box' }, { click: 'Continue', wait: 2500 }] },
+  { id: 'gift-email', mockup: 'gift.html?s=4', app: '/gift/give', steps: [{ click: 'A Hanukkah box' }, { click: 'Continue', wait: 2500 }, { click: 'Continue', wait: 2500 }] },
+  { id: 'gift-credit', mockup: 'gift.html?s=2b', app: '/gift/give', steps: [{ click: 'Hanukkah credit' }, { click: 'Continue', wait: 2500 }] },
+  { id: 'gift-box', mockup: 'box-v3.html?mode=gift&kid=Maya&added=lego:gifts', app: '/gift/give', member: true, steps: [{ click: 'A Hanukkah box' }, { click: 'Continue', wait: 2500 }, { click: 'Continue', wait: 5000 }] },
+  { id: 'rav', mockup: 'rav.html?s=1', app: '/', click: 'Ask Rav', firstOnly: true },
+  { id: 'account', mockup: 'account.html?s=1', app: '/account', member: true },
+  { id: 'orders', mockup: 'account.html?s=2', app: '/orders', member: true },
+  { id: 'gifts-sent', mockup: 'account.html?s=5', app: '/my-gifts', member: true },
+  { id: 'family', mockup: 'account.html?s=6', app: '/account', member: true, click: 'Family', firstOnly: true },
+  { id: 'payment', mockup: 'account.html?s=8', app: '/account', member: true, click: 'Payment', firstOnly: true },
 ];
