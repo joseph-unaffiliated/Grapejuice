@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { MobileBoundary } from '../../components/mobile/MobileBoundary';
+import { MobileCartBody } from '../mobile/MobileCartBody';
 import {
   View,
   Text,
@@ -51,6 +55,8 @@ export function StorefrontCartScreen() {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= LAYOUT.BREAKPOINT_TABLET;
   const { goHome, goCategory, startBox } = useStorefrontActions();
+  const mobileLayout = useMobileLayout();
+  const hasStartedBoxForMobile = usePreviewedHasStartedBox();
   const lineItems = useMarketplaceCartStore((s) => s.items);
   const changeQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
   const setQuantity = useMarketplaceCartStore((s) => s.setQuantity);
@@ -139,6 +145,34 @@ export function StorefrontCartScreen() {
 
   const empty = lineItems.length === 0;
   const count = marketplaceCartCount(lineItems);
+
+  if (mobileLayout) {
+    const issues: Record<string, string | undefined> = {};
+    for (const [id, issue] of Object.entries(lineIssues)) issues[id] = issue.message;
+    return (
+      <StorefrontChrome hideServicesNav hideSearchAndRav>
+        <MobileBoundary screen="cart" fallback={<View style={styles.empty}><Text style={styles.title}>Cart</Text></View>}>
+          <MobileCartBody
+            lines={lineItems}
+            catalogById={catalogById}
+            issues={issues}
+            subtotalCents={subtotalCents}
+            onBack={() => goCategory('collection')}
+            onOpen={openProduct}
+            onQuantity={(li, delta) => {
+              const qty = Math.max(1, li.quantity || 1);
+              if (delta === -1 && qty <= 1) removeItem(li.itemId);
+              else changeQuantity(li.itemId, delta);
+            }}
+            onCheckout={() => navigation.navigate('MarketplaceCheckout')}
+            onStartBox={startBox}
+            onShop={() => goCategory('collection')}
+            hasBox={hasStartedBoxForMobile}
+          />
+        </MobileBoundary>
+      </StorefrontChrome>
+    );
+  }
 
   return (
     <StorefrontChrome>

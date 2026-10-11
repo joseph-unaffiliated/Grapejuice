@@ -51,7 +51,11 @@ import {
   resolveSwapOptionsForItem,
 } from '../../services/box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileBoundary } from '../../components/mobile/MobileBoundary';
+import { MobileProductBody, type RoleOption } from '../mobile/MobileProductBody';
 import {
+  assignKidGiftLines,
   isGiftSlotLine,
   transferLiveIncludedBaselineOnSwap,
 } from '../../components/box/boxLineDisplay';
@@ -120,6 +124,7 @@ export function CatalogProductScreen() {
   const changeCartQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
   const hasStartedBox = usePreviewedHasStartedBox();
   const { guardMutation } = usePaymentGate();
+  const mobileLayout = useMobileLayout();
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const recordBrowseView = useBrowsingHistoryStore((s) => s.recordView);
@@ -565,6 +570,86 @@ export function CatalogProductScreen() {
             <Text style={styles.missingLink}>Back to store</Text>
           </TouchableOpacity>
         </View>
+      </StorefrontChrome>
+    );
+  }
+
+  if (mobileLayout) {
+    const giftEligible =
+      !inBox && !locked && !isCatalogItemSoldOut(item) && resolveIncludedGiftOptions(catalog, item.id, 50).some((o) => o.id === item.id);
+    const roleOptions: RoleOption[] = [];
+    for (const source of swapSources.slice(0, 2)) {
+      const sourceItem = catalog.find((c) => c.id === source.itemId);
+      if (!sourceItem) continue;
+      const sectionId = displaySectionForCatalogItem(sourceItem);
+      const unit = resolveFreeSwapUnitCents(sourceItem, item, sectionId) ?? boxUnitCents;
+      const delta = Math.max(0, unit - (source.unitCents ?? 0));
+      roleOptions.push({
+        key: `swap:${source.slotId}`,
+        title: `Swap it in for ${sourceItem.name}`,
+        detail: 'Takes its place in your box',
+        price: delta > 0 ? `+${formatCatalogDollars(delta)}` : 'Included',
+        onPress: () => swapIntoBox(source),
+      });
+    }
+    if (giftEligible) {
+      for (const child of children.slice(0, 3)) {
+        const kid = child.name?.trim() || 'your kid';
+        roleOptions.push({
+          key: `gift:${child.id}`,
+          title: `Make it ${kid}'s present`,
+          detail: 'Replaces their included present',
+          price: 'Included',
+          onPress: async () => {
+            await persist(assignKidGiftLines(lineItems, child.id, item));
+            trackMetaProduct('AddToCart', { id: item.id, name: item.name, priceCents: 0 });
+            navigation.navigate('MyBox');
+          },
+        });
+      }
+    }
+    if (!inBox && !boxBlocked) {
+      roleOptions.push({
+        key: 'add',
+        title: 'Add it on top',
+        detail: 'Keeps everything already in your box',
+        price: boxUnitCents > 0 ? `+${formatCatalogDollars(boxUnitCents)}` : 'Included',
+        onPress: addToBox,
+      });
+    }
+    const kidForGift = inBoxPrimary?.childId ? children.find((c) => c.id === inBoxPrimary.childId)?.name?.trim() ?? null : null;
+    return (
+      <StorefrontChrome activeCategory={aisle?.slug} floatingFooter={guestFavoritesPrompt}>
+        <MobileBoundary screen="product" fallback={<View style={styles.centered}><Text style={styles.missing}>{item.name}</Text></View>}>
+          <MobileProductBody
+            item={item}
+            categoryLabel={aisle?.label}
+            availability={availability}
+            priceCents={nonMemberCents > 0 ? nonMemberCents : memberCents}
+            memberCents={memberCents}
+            details={details}
+            similar={similar}
+            similarTitle={aisle ? `More ${aisle.label.toLowerCase()}` : 'You may also like'}
+            hasBox={hasStartedBox}
+            inBox={inBox}
+            inBoxUnitCents={inBoxUnitCents}
+            boxQuantity={boxQuantity}
+            kidNameForGift={kidForGift}
+            locked={locked}
+            saving={saving}
+            soldOut={isSoldOut || boxSoldOut}
+            roleOptions={roleOptions}
+            wishlisted={wishlisted}
+            onToggleWishlist={() => void toggleWishlist(item.id)}
+            onOpenProduct={(s) => navigation.push('CatalogProduct', { slug: s })}
+            onViewBox={() => navigation.navigate('MyBox')}
+            onQuantity={(d) => void changeInBoxQuantity(d)}
+            onBuyJustThis={directOk && !marketplaceBlocked ? async () => { await addToCart(); navigation.navigate('StorefrontCart'); } : undefined}
+            onStartBoxWithIt={() => void buyWithBox()}
+            onBack={aisle ? () => goCategory(aisle.slug) : goHome}
+            backLabel={aisle?.label ?? 'Store'}
+          />
+        </MobileBoundary>
       </StorefrontChrome>
     );
   }

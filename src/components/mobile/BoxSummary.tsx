@@ -21,14 +21,14 @@ export function BoxThumbRow({ items, size = 'lg' }: { items: BoxThumb[]; size?: 
   const scroll = items.length > 6;
   const [rowWidth, setRowWidth] = React.useState(0);
   // Six cells per row whatever the count, so a three-item box doesn't get giant tiles.
-  const cellSize = scroll ? 48 : rowWidth > 0 ? Math.floor((rowWidth - 6 * 5) / 6) : undefined;
+  const cellSize = scroll ? 48 : rowWidth > 60 ? Math.floor((rowWidth - 6 * 5) / 6) : undefined;
   const cells = items.map((it) => (
     <Pressable
       key={it.id + (it.label ?? '')}
       onPress={it.onPress}
       disabled={!it.onPress}
       accessibilityRole={it.onPress ? 'button' : undefined}
-      style={[styles.cell, cellSize != null && { width: cellSize, height: cellSize, flex: 0 }, it.mine && styles.cellMine]}
+      style={[styles.cell, cellSize != null && { width: cellSize, height: cellSize, flexGrow: 0, flexShrink: 0, flexBasis: cellSize }, it.mine && styles.cellMine]}
     >
       {it.imageUrl ? (
         <Image
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   subSm: { fontSize: 12.5, color: m.muted },
   total: { fontSize: 17, color: m.ink, ...mFont(400) },
   totalSm: { fontSize: 14.5 },
-  grid: { flexDirection: 'row', gap: 6 },
+  grid: { flexDirection: 'row', gap: 6, width: '100%', alignSelf: 'stretch' },
   gridSm: { gap: 6 },
   scroll: { marginRight: -12 },
   scrollRow: { flexDirection: 'row', gap: 6, paddingRight: 12, paddingTop: 4 },

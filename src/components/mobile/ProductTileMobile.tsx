@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   heart: { position: 'absolute', top: 9.5, right: 9, width: 15, height: 15, alignItems: 'center', justifyContent: 'center' },
   soldTag: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: m.ink, paddingVertical: 3, alignItems: 'center' },
   soldText: { color: m.white, fontSize: 10, ...mFont(500) },
-  name: { fontSize: 14.5, lineHeight: 19, color: m.ink, ...mFont(400), marginTop: 4 },
+  name: { fontSize: 14.5, lineHeight: 19, color: m.ink, ...mFont(400), marginTop: 4, minHeight: 38 },
   price: { fontSize: 13.5, color: m.muted, ...mFont(400), marginTop: 2 },
   priceSold: { textDecorationLine: 'line-through' },
   statusGold: { fontSize: 12.5, color: m.goldDark, ...mFont(400), marginTop: 2 },

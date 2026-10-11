@@ -19,6 +19,11 @@ import {
   useStorefrontActions,
 } from '../../components/storefront/StorefrontChrome';
 import { StorefrontProductGrid } from '../../components/storefront/StorefrontProductGrid';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { useBoxDraft } from '../../hooks/useBoxDraft';
+import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { MobileBoundary } from '../../components/mobile/MobileBoundary';
+import { MobileCategoryBody } from '../mobile/MobileCategoryBody';
 import { StorefrontAskRavStrip } from '../../components/storefront/StorefrontAskRavStrip';
 import { StorefrontBuildBoxStrip } from '../../components/storefront/StorefrontBuildBoxStrip';
 import { useGuestFavoritesPrompt } from '../../components/storefront/GuestFavoritesAuthBanner';
@@ -254,6 +259,9 @@ export function StorefrontCategoryScreen() {
   const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
+  const mobileLayout = useMobileLayout();
+  const { lineItems: boxLines, children: boxKids } = useBoxDraft();
+  const hasStartedBoxForMobile = usePreviewedHasStartedBox();
   const [sort, setSort] = useState<SortKey>('relevant');
   const [facetFilters, setFacetFilters] = useState<Record<string, string>>({});
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
@@ -411,6 +419,55 @@ export function StorefrontCategoryScreen() {
       });
     }
   };
+
+  if (mobileLayout) {
+    const boxState = new Map<string, { paid: boolean; kid?: string | null }>();
+    if (hasStartedBoxForMobile) {
+      for (const li of boxLines) {
+        const prev = boxState.get(li.itemId);
+        const kid = li.childId ? boxKids.find((c) => c.id === li.childId)?.name?.trim() ?? null : null;
+        boxState.set(li.itemId, { paid: (prev?.paid ?? false) || (li.unitCents ?? 0) > 0, kid: prev?.kid ?? kid });
+      }
+    }
+    const sortIdx = SORT_OPTIONS.findIndex((o) => o.key === sort);
+    const emptyBlock = (
+      <View style={styles.empty}>
+        <Text style={styles.emptyTitle}>Nothing matches</Text>
+        <Text style={styles.emptyBody}>{searchQuery ? `No products matched “${searchQuery}”.` : 'Try another category, or ask Rav for ideas.'}</Text>
+      </View>
+    );
+    return (
+      <StorefrontChrome activeCategory={slug} floatingFooter={guestFavoritesPrompt}>
+        <MobileBoundary screen="category" fallback={<StorefrontProductGrid items={filtered} availabilityById={availabilityById} constrainWidth={false} />}>
+          <MobileCategoryBody
+            slug={slug}
+            title={title}
+            sub={searchQuery ? undefined : def?.description}
+            items={filtered}
+            availabilityById={availabilityById}
+            boxState={boxState}
+            hasBox={hasStartedBoxForMobile}
+            kidName={boxKids[0]?.name?.trim() || null}
+            sortLabel={SORT_OPTIONS[sortIdx]?.label ?? 'Featured'}
+            onCycleSort={() => setSort(SORT_OPTIONS[(sortIdx + 1) % SORT_OPTIONS.length]!.key)}
+            onCategory={(next) => goCategory(next)}
+            onOpen={(s) => navigation.navigate('CatalogProduct', { slug: s })}
+            onViewBox={() => navigation.navigate('MyBox')}
+            loading={loading}
+            empty={emptyBlock}
+          />
+        </MobileBoundary>
+        <StorefrontBuildBoxStrip
+          onPress={onStripPress}
+          headline={strip?.headline}
+          body={strip?.body}
+          ctaLabel={strip?.ctaLabel}
+          backgroundSource={strip?.backgroundSource}
+          variant="content"
+        />
+      </StorefrontChrome>
+    );
+  }
 
   return (
     <StorefrontChrome activeCategory={slug} floatingFooter={guestFavoritesPrompt}>
