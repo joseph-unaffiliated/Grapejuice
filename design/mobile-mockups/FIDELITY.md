@@ -3,57 +3,21 @@
 Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`; composites land in `tmp/fidelity/latest/`.
 
 ## Open
-
-### Shared
-
-### Home
-
-### Product page
-
-### Category / collection
-
-### My Box
-- [ ] Tradition sheet: short one-line sub under an icon title; "Candles · 1 included" subhead; alternatives as cards with Swap and "+$X" (add on top); "Add on top" should list other things (menorahs for the grown-ups), not the swap alternatives again.
-- [ ] Product card: smaller centered photo, close button, section eyebrow, "Swap it in" / "Add one on top" option rows with price pills, "See full details" row.
-- [ ] Receipt: phone section names (Eat & Drink, Giving Gifts) and rules between sections.
-- [ ] Wrapping: Paper / We wrap / No wrap segmented control with the "Enough paper for" checklist, instead of a Wrapping Paper row.
-- [ ] Suggestion row: "Low stock" outline tag under the name when it applies.
-
-### Checkout
-- [ ] Field labels: muted 12.5px, no bold or red asterisks; inputs 50px, gold border, 12px radius.
-- [ ] "Have a discount code?" sits in Payment, not under the summary.
-- [ ] "+ Apt, suite or floor" link instead of an always-visible Address line 2.
-
-### Account
-- [ ] Hub: "Hi, {name}" greeting; box card with a status pill, lock line and a black "View my box" button; "Your account" eyebrow; rows with icon tiles; Shipping address, Box helpers and Sign-in rows.
-- [ ] Orders: phone task header, This year / Past years chips, rows with stacked thumbs and status lines. App shows the desktop page with nav pills.
-- [ ] Gifts: Sent / Received chips, gift rows with a status pill, Resend / Add their address, lock note, "Send another gift". App shows the desktop page.
-- [ ] Family: its own page (kid rows with Edit, "+ Add a kid · $10", How you celebrate rows, note). App opens the old form in a sheet.
-- [ ] Payment: card on file with Replace. App goes straight to the Stripe form.
-
-### Rav
-- [ ] Task header (Back · Rav · New chat), left-aligned title and sub, four suggestion rows, and a pinned reply field with the "Rav can see your box" line. App shows the desktop chat with chip clouds.
-
-### Store
-- [ ] Role chooser: "Add to your box as…" with the item thumb, radio option cards with prices, then "Add to my box". App shows a plain list with Cancel.
-- [ ] Favorites: phone header and sub, item count, two-column tiles with "Add to my box". App shows the desktop page with nav pills.
-
-### Onboarding
-- [ ] Family: short two-line intro, a five-icon row, "Who's celebrating?", member cards, the age pill row, interests pills, and the "Sam gets…" preview above the button. App still shows the long manifesto and the old form.
-- [ ] Primary button black/gold, not grey.
-
-### Gift
-- [ ] Their family: "Who is it for?", Family name field, Kids stepper, a card per kid with age chips, "+ Add a kid · $10", bar "Gift box for 1 kid · $80 · Pick their box". App shows the desktop form and $0.00.
-- [ ] Save your gift: name + email code entry. App shows "Enter your email to start curating".
-- [ ] Credit: "How much credit?" with $50 / $80 / $120 tiles, other amount, family name, their email.
-- [ ] Their box: the My Box editor with "A gift for {family}" pill. App shows the desktop curation list.
-- [ ] Note (with preview card), How they get it (two radio options), Pay, Sent: still the desktop form.
-
-### Content
-
-### Sign-in
+- None found in the flows the harness can reach. See Blocked for flows that need real orders or gifts.
 
 ## Done
+- [x] My Box tradition sheet: icon title, alternatives as cards with Swap and "+$X", "Add on top" excludes the alternatives.
+- [x] My Box product sheet for an alternative: centered photo, "Swap it in · Included" and "Add one on top · +$X" rows, "See full details".
+- [x] Receipt rules between sections.
+- [x] Checkout fields: muted labels, 50px gold inputs, discount code in Payment, "+ Apt, suite or floor" link.
+- [x] Account suite: hub, orders, gifts, family, payment on phone pages.
+- [x] Rav: task header (Back · Rav · New chat / History), welcome with four questions, recent chats, pinned composer; thread with ink user bubbles.
+- [x] Store: role chooser with radio cards and prices; favorites page.
+- [x] Onboarding: family step, details gate with sliders, email step ("Step 3 of 3"), black/gold buttons.
+- [x] Gift steps: their family, save your gift, credit, their box, note, delivery, pay, sent.
+- [x] Gift recipient: claim, reveal (peek or surprise), credit ready, recipient checkout layout.
+- [x] Sign-in: code sent state with mail badge, password and forgot-password screens.
+- [x] Closed home after the season (Passover notify card, "Already ordered?").
 - [x] My Box: donated items stay in their section, faded with a grey photo, "Donating · goes to a family who wouldn't otherwise celebrate" and Undo.
 - [x] Header account button goes straight to the Account page on phones (it opened a drawer).
 - [x] Pinned bottom bars hide when their screen is covered (My Box's bar showed over Account).
@@ -101,7 +65,15 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 - [x] Collection: "Shop everything" with two picks per aisle and See all.
 
 ## Keep
-- Apple sign-in isn't offered on web (no Apple web provider configured); "Use a password instead" is omitted because phones have no password screen.
+- Apple sign-in isn't offered on web (no Apple web provider configured).
+- The code email has no sign-in link, so there's no "or tap the link" line.
+- Gift claim page has no note card: `peekGiftInvite` doesn't return the message. The note shows on the reveal step instead.
+- Passover notify uses a button, not an email field (guests sign in first).
+- Rav's product rail appears only when an answer includes products.
+- Receipt and tradition sheet keep the app's real tradition titles and descriptions over the mockup's short subs; "Add on top" stays generic (the mockup's "Add a menorah for the grown-ups" is sample copy).
+- Orders expand in place rather than opening a detail page.
+- No "ships in 3 to 5 days" claim (no source for it).
+- The mockup's wrapping segmented control and suggestion "Low stock" tag aren't in box-v3; My Box keeps the "We wrap the presents instead" option.
 - Gift type starts with nothing selected: preselecting would mark a gift as started for anyone who only looks.
 - Real Hanukkah dates from config (first night Dec 5 in the data) instead of the mockup's Dec 4.
 - Long how-to copy stays reachable behind list rows rather than being cut.
@@ -112,4 +84,5 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 
 ## Blocked
 - Cart: the app redirects an empty cart; needs a cart fixture before it can be compared.
-- Gift recipient (gift-recipient.html) and order detail need a real gift / order; content "Closed after the lock" can't be reached before the lock.
+- Order detail needs a real order (the test member has none).
+- Recipient checkout and done need a real claimed gift; code-reviewed only (automating the gift pay step would create a server invite).
