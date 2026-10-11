@@ -9,6 +9,9 @@ import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { View, Text, TextInput, StyleSheet, Platform, ScrollView } from 'react-native';
 import { OnboardingPrimaryButton } from '../../components/onboarding/OnboardingButtons';
+import { MobileButton } from '../../components/mobile/MobileButton';
+import { m, mFont, mGutter } from '../../components/mobile/mobileTheme';
+import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { isValidEmail } from '../../utils/formValidation';
 import { PRIVACY_PATH, TERMS_PATH } from '../../navigation/contentLink';
@@ -58,7 +61,8 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
   };
 
   const mobileLayout = useMobileLayout();
-  const { lineItems } = useBoxDraft();
+  const { lineItems, children } = useBoxDraft();
+  const startAuthInPlace = useAuthFlowStore((s) => s.startAuthInPlace);
   const { items: catalog } = useCatalog();
   const revealThumbs = useMemo((): BoxThumb[] => {
     const byId = new Map(catalog.map((c) => [c.id, c]));
@@ -69,6 +73,9 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
     return shown.map((id, i) => ({ id, imageUrl: primaryPhoto(byId.get(id)), blur: i > 2, label: i === 5 && hidden > 0 ? `+${hidden}` : undefined }));
   }, [lineItems, catalog]);
   const kidCount = Math.max(1, new Set(lineItems.map((l) => l.childId).filter(Boolean)).size);
+  const kidNames = children.map((c) => c.name?.trim()).filter((n): n is string => Boolean(n));
+  const forKids =
+    kidNames.length === 1 ? kidNames[0] : kidNames.length === 2 ? `${kidNames[0]} and ${kidNames[1]}` : 'each kid';
 
   return (
     <ScrollView
@@ -81,12 +88,12 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
         {mobileLayout ? (
           <>
             <Text style={[styles.title, styles.titleMobile]}>Your box is ready</Text>
-            <View style={{ width: '100%', marginTop: 16, marginBottom: 8 }}>
+            <View style={{ width: '100%', marginTop: 20, marginBottom: 24 }}>
               <BoxSummary
                 total={formatCatalogDollars(listBoxCentsForKids(kidCount))}
                 items={revealThumbs}
               >
-                <Text style={styles.gateLine}>Candles, dreidels, gelt, latke and sufganiyot kits, and a book and a present for each kid.</Text>
+                <Text style={styles.gateLine}>Candles, dreidels, gelt, latke and sufganiyot kits, and a book and a present for {forKids}.</Text>
               </BoxSummary>
             </View>
           </>
@@ -96,7 +103,7 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
           </Text>
         )}
         <TextInput
-          style={styles.input}
+          style={[styles.input, mobileLayout && styles.inputMobile]}
           value={email}
           onChangeText={(t) => {
             setEmail(t);
@@ -115,16 +122,24 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
           accessibilityLabel="Email"
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <OnboardingPrimaryButton
-          label={mobileLayout ? 'Show my box' : 'Continue'}
-          onPress={() => void submit()}
-          loading={submitting}
-          style={styles.button}
-        />
         {mobileLayout ? (
-          <Text style={styles.legal}>We'll email you a link to your box, so you can open it later in any browser. No password needed.</Text>
-        ) : null}
-        <Text style={styles.legal}>
+          <>
+            <MobileButton label="Show my box" onPress={() => void submit()} busy={submitting} style={{ alignSelf: 'stretch', marginTop: 12 }} />
+            <Text style={[styles.legal, styles.legalMobile]}>We'll email you a link to your box, so you can open it later in any browser. No password needed.</Text>
+            <Text style={[styles.legal, styles.legalMobile, { marginTop: 6 }]}>
+              By continuing you agree to Grapejuice’s{' '}
+              <Text style={styles.legalLink} onPress={() => openLegal(TERMS_PATH)} accessibilityRole="link">Terms</Text> and{' '}
+              <Text style={styles.legalLink} onPress={() => openLegal(PRIVACY_PATH)} accessibilityRole="link">Privacy Policy</Text>.
+            </Text>
+            <Text style={[styles.legal, styles.legalMobile, { marginTop: 12 }]}>
+              Already have an account?{' '}
+              <Text style={[styles.legalLink, { color: m.goldDark }]} onPress={() => startAuthInPlace('signin', 'SignInEmail')} accessibilityRole="link">Log in</Text>
+            </Text>
+          </>
+        ) : (
+          <OnboardingPrimaryButton label="Continue" onPress={() => void submit()} loading={submitting} style={styles.button} />
+        )}
+        {mobileLayout ? null : <Text style={styles.legal}>
           By clicking “Continue” you are agreeing to Grapejuice’s{' '}
           <Text style={styles.legalLink} onPress={() => openLegal(TERMS_PATH)} accessibilityRole="link">
             Terms
@@ -133,7 +148,7 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
           <Text style={styles.legalLink} onPress={() => openLegal(PRIVACY_PATH)} accessibilityRole="link">
             Privacy Policy
           </Text>
-        </Text>
+        </Text>}
       </View>
     </ScrollView>
   );
@@ -141,8 +156,10 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0, backgroundColor: semanticColors.bgPrimary },
-  contentMobile: { justifyContent: 'flex-start', paddingTop: 24 },
-  titleMobile: { fontSize: 29, lineHeight: 33, letterSpacing: -0.8, textAlign: 'left', alignSelf: 'stretch' },
+  contentMobile: { justifyContent: 'flex-start', paddingTop: 28, paddingHorizontal: mGutter },
+  inputMobile: { textAlign: 'left', height: 52, borderRadius: 14, borderWidth: 1, borderColor: m.gold, paddingHorizontal: 14 },
+  legalMobile: { maxWidth: 320, fontSize: 12.5, lineHeight: 18, color: m.muted, ...mFont(300) },
+  titleMobile: { fontSize: 29, lineHeight: 33, letterSpacing: -0.8, textAlign: 'left', alignSelf: 'stretch', marginBottom: 0 },
   gateLine: { fontSize: 14, color: '#374151', lineHeight: 20 },
   content: {
     flexGrow: 1,

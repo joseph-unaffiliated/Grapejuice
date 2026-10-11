@@ -755,7 +755,7 @@ export function OnboardingStack({
 
   if (mobileLayout) {
     // Phone: the task header (back, Build your box, step count, progress) instead of the browsing chrome.
-    const idx = Math.max(0, wizardNavStepIndex(step));
+    const idx = step === 'email' || step === 'building' || step === 'reveal' ? 2 : Math.max(0, wizardNavStepIndex(step));
     const labels = ['Family', 'About you', 'Your box'];
     const back =
       idx === 0

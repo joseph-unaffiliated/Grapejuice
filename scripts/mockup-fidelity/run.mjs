@@ -82,11 +82,15 @@ async function tapByName(page, name, first = false) {
   else await pick(page.getByText(name)).tap({ force: true }).catch(() => {});
 }
 
-/** `steps`: `{ click }` taps by accessible name or text, `{ fill: [label, value] }` types into a field, `{ wait }` pauses. */
+/** `steps`: `{ click }` taps by accessible name or text, `{ fill: [label, value] }` types into a field, `{ clickAt: [label, fraction] }` mouse-clicks across a control (sliders), `{ wait }` pauses. */
 async function runSteps(page, steps) {
   for (const st of steps) {
     if (st.click) await tapByName(page, st.click, st.first);
     if (st.fill) await page.getByLabel(st.fill[0], { exact: true }).last().fill(st.fill[1], { force: true }).catch(() => {});
+    if (st.clickAt) {
+      const box = await page.getByLabel(st.clickAt[0], { exact: true }).last().boundingBox().catch(() => null);
+      if (box) await page.mouse.click(box.x + box.width * st.clickAt[1], box.y + box.height / 2);
+    }
     await page.waitForTimeout(st.wait ?? 1200);
   }
 }

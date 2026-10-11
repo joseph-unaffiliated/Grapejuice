@@ -350,12 +350,21 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const rows = rowsFor(sectionId);
     const idx = BOX_DISPLAY_SECTIONS.findIndex((x) => x.id === sectionId);
     const next = BOX_DISPLAY_SECTIONS[idx + 1];
-    const adds = (e.upsellsBySection[sectionId] ?? []).filter((it) => !rows.some((g) => g.itemId === it.id));
+    const altIds = new Set(
+      rows.flatMap((g) => (g.unitCents > 0 || isWrapControlSlot(g.primary.slotId) ? [] : (e.swapOptionsBySlot[g.primary.slotId] ?? []).map((o) => o.id)))
+    );
+    const adds = (e.upsellsBySection[sectionId] ?? []).filter((it) => !rows.some((g) => g.itemId === it.id) && (e.locked || !altIds.has(it.id)));
+    const addOnTop = async (it: CatalogItem) => {
+      e.setProductModalSection(sectionId);
+      await e.modalAddToBox(it);
+      setToast({ message: `Added ${it.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(it) } });
+    };
     return (
       <MobileSheet
         visible
         onClose={() => setSheet(null)}
         title={s.title}
+        titleIcon={<Icon icon={SECTION_ICON[sectionId]} size={16} color={m.goldDark} />}
         footer={
           <View style={styles.sheetFoot}>
             <View style={{ flex: 1 }}>
@@ -402,20 +411,32 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                   <Text style={styles.altHead}>Prefer a different one? Swapping is included.</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.altRow}>
                     {alts.slice(0, 6).map((o) => (
-                      <View key={o.id} style={styles.alt}>
-                        <BoxItemImage size={104} imageUrl={o.imageUrl} itemId={o.id} />
+                      <View key={o.id} style={styles.altCard}>
+                        <Pressable onPress={() => setSheet({ kind: 'product', item: o, group: null, sectionId })} accessibilityRole="button" accessibilityLabel={`Open ${o.name}`}>
+                          <BoxItemImage size={116} imageUrl={o.imageUrl} itemId={o.id} />
+                        </Pressable>
                         <Text style={styles.altName} numberOfLines={2}>
                           {o.name}
                         </Text>
-                        <MobileButton
-                          label="Swap"
-                          variant="secondary"
-                          height={34}
-                          onPress={() => {
-                            void e.applySwap(g.lines.map((l) => l.slotId), o);
-                            setToast({ message: `Swapped in ${o.name}`, action: item ? { label: 'Undo', onPress: () => void live.current.applySwap(g.lines.map((l) => l.slotId), item) } : undefined });
-                          }}
-                        />
+                        <View style={styles.altBtns}>
+                          <MobileButton
+                            label="Swap"
+                            variant="secondary"
+                            height={32}
+                            style={{ width: 58, paddingHorizontal: 4 }}
+                            onPress={() => {
+                              void e.applySwap(g.lines.map((l) => l.slotId), o);
+                              setToast({ message: `Swapped in ${o.name}`, action: item ? { label: 'Undo', onPress: () => void live.current.applySwap(g.lines.map((l) => l.slotId), item) } : undefined });
+                            }}
+                          />
+                          <MobileButton
+                            label={`+${formatCatalogDollars(priceToAdd(o))}`}
+                            accessibilityLabel={`Add ${o.name} on top for ${formatCatalogDollars(priceToAdd(o))}`}
+                            height={32}
+                            style={{ width: 52, paddingHorizontal: 4 }}
+                            onPress={() => void addOnTop(o)}
+                          />
+                        </View>
                       </View>
                     ))}
                   </ScrollView>
@@ -757,10 +778,12 @@ const styles = StyleSheet.create({
   altHead: { fontSize: 13, color: m.muted, marginTop: 12, marginBottom: 8, ...mFont(400) },
   altRow: { gap: 10, paddingRight: 8 },
   alt: { width: 104, gap: 6 },
+  altCard: { width: 128, gap: 6, padding: 6, borderRadius: mRadius.md, borderWidth: 1, borderColor: m.line, backgroundColor: m.white },
+  altBtns: { flexDirection: 'row', gap: 6 },
   altName: { fontSize: 12.5, color: m.ink, lineHeight: 16, minHeight: 32, ...mFont(400) },
   addGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   sheetPhoto: { width: '100%', aspectRatio: 1, borderRadius: mRadius.lg, backgroundColor: m.img },
-  rcGroup: { marginBottom: 14 },
+  rcGroup: { marginBottom: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: m.line },
   rcHead: { fontSize: 14, color: m.ink, ...mFont(500) },
   rcRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   rcName: { flex: 1, fontSize: 14, color: m.ink, ...mFont(400) },

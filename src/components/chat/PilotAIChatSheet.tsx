@@ -798,9 +798,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
     ({ item }: { item: AIChatMessage; index: number }) => {
       if (item.role === 'user') {
         return (
-          <View style={styles.userChipWrap}>
-            <View style={styles.userChip}>
-              <Text style={styles.userChipText}>{item.content}</Text>
+          <View style={[styles.userChipWrap, phoneLayout && phoneStyles.userWrap]}>
+            <View style={[styles.userChip, phoneLayout && phoneStyles.userBubble]}>
+              <Text style={[styles.userChipText, phoneLayout && phoneStyles.userText]}>{item.content}</Text>
             </View>
           </View>
         );
@@ -808,7 +808,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
 
       return (
         <View style={styles.assistantWrap}>
-          <FormattedChatText text={item.content} style={styles.assistantText} />
+          <FormattedChatText text={item.content} style={phoneLayout ? [styles.assistantText, phoneStyles.answer] : styles.assistantText} />
           {item.blocks?.length ? (
             <RavBlockRenderer
               blocks={item.blocks}
@@ -834,7 +834,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         </View>
       );
     },
-    [lineItems, catalog, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation, goToRavLink, styles]
+    [lineItems, catalog, swapBlockItem, addBlockItem, boxLocked, paymentGated, guardMutation, goToRavLink, styles, phoneLayout]
   );
 
   const chatFooter = messages.length > 0 ? (
@@ -1123,8 +1123,9 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               keyExtractor={(_, i) => String(i)}
               contentContainerStyle={[
                 styles.threadContent,
-                styles.threadContentBottomUp,
+                !phoneLayout && styles.threadContentBottomUp,
                 isDrawerOverlay && !phoneLayout && styles.threadContentDrawer,
+                phoneLayout && phoneStyles.thread,
                 {
                   // Drawer: leave room under the absolutely floated composer.
                   paddingBottom: isDrawerOverlay
@@ -1147,6 +1148,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                 styles.inputBar,
                 isDrawerOverlay && styles.inputBarDrawer,
                 isDrawerOverlay && styles.inputBarDrawerFloat,
+                phoneLayout && phoneStyles.bottom,
                 {
                   paddingBottom: isDrawerOverlay
                     // Match horizontal gutter (spacing.md) so bottom gap equals left/right.
@@ -1165,11 +1167,17 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   : undefined
               }
             >
+              {phoneLayout ? (
+                <View style={phoneStyles.noteRow}>
+                  <Icon icon={icons.calendar} size={12} color={mc.gold} />
+                  <Text style={phoneStyles.note}>Rav can see your box and make changes you approve</Text>
+                </View>
+              ) : null}
               <View style={styles.composerRow} pointerEvents="box-none">
                 <View
                   style={[
                     styles.replyPill,
-                    goldGlow,
+                    phoneLayout ? phoneStyles.threadPill : goldGlow,
                     styles.replyPillFlex,
                     isDrawerOverlay && styles.replyPillDrawer,
                     replyInputHeight > replyLineHeight + 2 && styles.replyPillMultiline,
@@ -1206,15 +1214,15 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                   />
                   <View style={styles.replyActions}>
                     <TouchableOpacity
-                      style={styles.pillIconBtn}
+                      style={phoneLayout ? phoneStyles.send : styles.pillIconBtn}
                       onPress={() => sendMessage(input)}
                       disabled={!input.trim() || loading}
                       accessibilityLabel="Send message"
                     >
                       {loading ? (
-                        <ActivityIndicator size="small" color={colors.textPrimary} />
+                        <ActivityIndicator size="small" color={phoneLayout ? mc.gold : colors.textPrimary} />
                       ) : (
-                        <Icon icon={icons.arrowUp} size={14} color={colors.textPrimary} />
+                        <Icon icon={icons.arrowUp} size={phoneLayout ? 13 : 14} color={phoneLayout ? mc.gold : colors.textPrimary} />
                       )}
                     </TouchableOpacity>
                   </View>
@@ -1670,5 +1678,11 @@ const phoneStyles = StyleSheet.create({
   note: { fontSize: 12.5, color: mc.muted, ...mFont(400) },
   pill: { flexDirection: 'row', alignItems: 'center', height: 50, borderRadius: 25, borderWidth: 1, borderColor: mc.gold, paddingLeft: 16, paddingRight: 6 },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: mc.ink, ...mFont(400), ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null) },
+  userWrap: { alignItems: 'flex-end' },
+  userBubble: { backgroundColor: mc.ink, borderWidth: 0, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, maxWidth: '85%' },
+  userText: { color: mc.white, fontSize: 15.5, lineHeight: 22, ...mFont(400) },
+  answer: { fontSize: 16.5, lineHeight: 25, color: mc.ink, ...mFont(300) },
+  thread: { paddingHorizontal: 16, paddingTop: 18 },
+  threadPill: { borderWidth: 1, borderColor: mc.gold, backgroundColor: mc.white, minHeight: 50, borderRadius: 25 },
   send: { width: 38, height: 38, borderRadius: 19, backgroundColor: mc.ink, alignItems: 'center', justifyContent: 'center' },
 });

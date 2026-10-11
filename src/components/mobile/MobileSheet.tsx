@@ -7,6 +7,8 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   title?: string;
+  /** Small icon before the title (the tradition's icon). */
+  titleIcon?: React.ReactNode;
   /** Right-aligned link in the title row ("Keep editing"). */
   titleAction?: { label: string; onPress: () => void };
   children: React.ReactNode;
@@ -18,7 +20,7 @@ type Props = {
 };
 
 /** Bottom sheet for the phone layouts: scrim, grab handle, scrolling body, pinned footer. */
-export function MobileSheet({ visible, onClose, title, titleAction, children, footer, maxHeight = 0.9, accessibilityLabel }: Props) {
+export function MobileSheet({ visible, onClose, title, titleIcon, titleAction, children, footer, maxHeight = 0.9, accessibilityLabel }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -33,7 +35,7 @@ export function MobileSheet({ visible, onClose, title, titleAction, children, fo
           <View style={styles.grab} />
           {title || titleAction ? (
             <View style={styles.titleRow}>
-              <Text style={styles.title}>{title}</Text>
+              {titleIcon ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>{titleIcon}<Text style={styles.title}>{title}</Text></View> : <Text style={styles.title}>{title}</Text>}
               {titleAction ? (
                 <Pressable onPress={titleAction.onPress} accessibilityRole="button" hitSlop={8}>
                   <Text style={styles.titleAction}>{titleAction.label}</Text>
