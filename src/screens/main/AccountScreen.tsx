@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileCodeSignIn } from '../../components/mobile/MobileCodeSignIn';
+import { MobileAccountHub } from '../mobile/MobileAccountHub';
 import {
   View,
   Text,
@@ -368,6 +371,7 @@ function AccountScreenBody() {
   };
 
   const goUpdatePayment = () => navigation.navigate('UpdatePayment');
+  const mobileLayout = useMobileLayout();
 
   if (!fakeSignedIn && (sessionLoading || loading)) {
     return (
@@ -385,6 +389,13 @@ function AccountScreenBody() {
   } as const;
 
   if (!user) {
+    if (mobileLayout) {
+      return (
+        <ScrollView style={{ flex: 1, backgroundColor: '#FFFFFF' }} keyboardShouldPersistTaps="handled">
+          <MobileCodeSignIn title="Sign in" lead="Enter the email you used for your box. We'll send a 6-digit code. No password needed." />
+        </ScrollView>
+      );
+    }
     return (
       <WebContentPanel {...panelProps}>
         <GuestAuthPrompt returnTo="Account" />
@@ -394,6 +405,40 @@ function AccountScreenBody() {
 
   return (
     <WebContentPanel {...panelProps}>
+      {mobileLayout ? (
+        <MobileAccountHub
+          email={user?.email ?? 'Exploring as guest'}
+          displayName={profile?.displayName}
+          cardOnFile={cardOnFile}
+          creditLabel={creditCents > 0 ? formatDollars(creditCents) : null}
+          previewBanner={fakeSignedIn ? 'Preview — signed-in account (mock data)' : null}
+          family={{
+            members: familyMembers,
+            onChange: (next) => {
+              setFamilyMembers(next);
+              setFamilySaved(false);
+              setFamilyError(null);
+            },
+            onSave: onSaveFamilyPress,
+            busy: familyBusy,
+            dirty: familyDirty,
+            complete: familyComplete,
+            error: familyError,
+            saved: familySaved,
+          }}
+          onOpenBox={() => navigateMainStack('MyBox')}
+          onBuildBox={() => navigateMainStack('MyBox')}
+          onOrders={() => navigation.navigate('Orders')}
+          onGifts={() => navigation.navigate('MyGifts')}
+          onPayment={goUpdatePayment}
+          onFavorites={() => navigation.navigate('StorefrontFavorites')}
+          onHistory={() => navigation.navigate('History')}
+          onSendGift={() => navigation.navigate('GiftGive')}
+          onOps={isOpsAdmin(user) ? () => navigation.navigate('AdminCatalog') : undefined}
+          signOutLabel={fakeSignedIn ? 'Exit preview' : 'Sign out'}
+          onSignOut={onSignOut}
+        />
+      ) : (
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
         {fakeSignedIn ? (
           <Text style={styles.previewBanner}>Preview — signed-in account (mock data)</Text>
@@ -670,6 +715,7 @@ function AccountScreenBody() {
           textStyle={styles.logoutBtnText}
         />
       </ScrollView>
+      )}
 
       <Modal
         visible={rebuildModalOpen}

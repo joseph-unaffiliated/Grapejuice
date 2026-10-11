@@ -1,12 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../lib/firebase';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
-import { useAuthStore } from '../../stores/authStore';
-import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { useBoxGlance, NOT_HELD_COPY } from '../../hooks/useBoxGlance';
 import { trackMeta, metaEventIds } from '../../services/analytics/metaPixel';
 import { PAYMENT_ELEMENT_OPTIONS } from '../main/checkout/stripeAppearance';
@@ -16,136 +12,26 @@ import { OrderSummary, type OrderLine } from '../../components/mobile/OrderSumma
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
+import { MobileCodeSignIn, CodeEntry } from '../../components/mobile/MobileCodeSignIn';
+export { CodeEntry };
 
 /* ------------------------------------------------------------------ sign-in by code */
 
-type RedeemResult = { status: 'ok'; customToken: string; uid: string } | { status: 'invalid' | 'expired' | 'locked' };
-
-async function requestCode(email: string, createIfMissing = false, firstName?: string): Promise<void> {
-  await httpsCallable(functions, 'requestLoginCode')({ email, createIfMissing, firstName, purpose: 'login' });
-}
-async function redeemCode(email: string, code: string): Promise<RedeemResult> {
-  const { data } = await httpsCallable<{ email: string; code: string }, RedeemResult>(functions, 'redeemLoginCode')({ email, code });
-  return data;
-}
-
-function isValidEmail(v: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-}
-
-/** Six boxes; one hidden input drives them so iOS AutoFill can paste a code. */
-export function CodeEntry({ value, onChange, onComplete, disabled }: { value: string; onChange: (v: string) => void; onComplete?: (v: string) => void; disabled?: boolean }) {
-  const ref = useRef<TextInput>(null);
-  const digits = value.replace(/\D/g, '').slice(0, 6);
-  return (
-    <Pressable onPress={() => ref.current?.focus()} accessibilityRole="button" accessibilityLabel="Enter the 6-digit code" style={styles.codeRow}>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <View key={i} style={[styles.codeBox, i === digits.length && styles.codeBoxCur]}>
-          <Text style={styles.codeDigit}>{digits[i] ?? ''}</Text>
-        </View>
-      ))}
-      <TextInput
-        ref={ref}
-        value={digits}
-        onChangeText={(t) => {
-          const next = t.replace(/\D/g, '').slice(0, 6);
-          onChange(next);
-          if (next.length === 6) onComplete?.(next);
-        }}
-        keyboardType="number-pad"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        textContentType="oneTimeCode"
-        maxLength={6}
-        editable={!disabled}
-        autoFocus
-        style={styles.codeHidden}
-        accessibilityLabel="Code"
-      />
-    </Pressable>
-  );
-}
-
-/**
- * "Pick up where you left off": the small box summary, then an emailed 6-digit code
- * instead of a password. Signs in with the custom token and refreshes the session.
- */
 export function MobileCheckoutGate({ onBack }: { onBack: () => void }) {
   const glance = useBoxGlance();
-  const signInWithToken = useAuthStore((s) => s.signInWithToken);
-  const guestEmail = useGuestSessionStore((s) => s.pendingAccountEmail || s.interestEmail || '');
-  const [email, setEmail] = useState(guestEmail);
-  const [sent, setSent] = useState(false);
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const send = async () => {
-    if (!isValidEmail(email)) return setError('Enter a valid email address.');
-    setBusy(true);
-    setError(null);
-    try {
-      await requestCode(email.trim(), true);
-      setSent(true);
-    } catch {
-      setError('Could not send the code. Try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const redeem = async (c: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const r = await redeemCode(email.trim(), c);
-      if (r.status !== 'ok') {
-        setError(r.status === 'locked' ? 'Too many tries. Send a new code.' : r.status === 'expired' ? 'That code expired. Send a new one.' : "That code didn't match.");
-        setCode('');
-        return;
-      }
-      useGuestSessionStore.getState().setPendingAccountEmail('');
-      await signInWithToken(r.customToken);
-    } catch {
-      setError('Could not sign you in. Try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Box', onPress: onBack }} title="Checkout" right={<Secure />} />
-      <ScrollView contentContainerStyle={styles.gate} keyboardShouldPersistTaps="handled">
-        <Text style={mType.h1}>Pick up where you left off</Text>
-        <Text style={[mType.body, { marginTop: 8 }]}>{sent ? 'Enter the code we just sent.' : "Your box is saved to your email. We'll send a 6-digit code to sign you in. No password needed."}</Text>
-        <View style={{ marginVertical: 20 }}>
-          <BoxSummary size="sm" total={glance.totalLabel} items={glance.thumbs} />
-        </View>
-        {sent ? (
-          <>
-            <Text style={styles.sentTo}>
-              Sent to {email} ·{' '}
-              <Text style={styles.link} onPress={() => { setSent(false); setCode(''); }}>
-                Change
-              </Text>
-            </Text>
-            <CodeEntry value={code} onChange={setCode} onComplete={(c) => void redeem(c)} disabled={busy} />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Text style={[styles.sentTo, { marginTop: 14 }]}>
-              Didn't get it?{' '}
-              <Text style={styles.link} onPress={() => void send()}>
-                Send again
-              </Text>
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.label}>Email</Text>
-            <TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" style={styles.input} accessibilityLabel="Email" />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <MobileButton label="Email me a code" onPress={() => void send()} busy={busy} style={{ marginTop: 14 }} />
-          </>
-        )}
+      <ScrollView keyboardShouldPersistTaps="handled">
+        <MobileCodeSignIn
+          title="Pick up where you left off"
+          lead="Your box is saved to your email. We'll send a 6-digit code to sign you in. No password needed."
+          createIfMissing
+        >
+          <View style={{ marginVertical: 20 }}>
+            <BoxSummary size="sm" total={glance.totalLabel} items={glance.thumbs} />
+          </View>
+        </MobileCodeSignIn>
       </ScrollView>
     </View>
   );
@@ -338,7 +224,6 @@ export function useSetupOnLoad(enabled: boolean, start: () => Promise<void>) {
 
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: mGutter, paddingTop: 16 },
-  gate: { paddingHorizontal: mGutter, paddingTop: 22, paddingBottom: 40 },
   assure: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   assureText: { flex: 1, fontSize: 14, color: m.body, lineHeight: 20, ...mFont(400) },
   held: { fontSize: 12.5, color: m.goldDark, lineHeight: 17, marginTop: 6, paddingLeft: 22, ...mFont(400) },
@@ -348,11 +233,6 @@ const styles = StyleSheet.create({
   input: { height: 50, borderWidth: 1, borderColor: m.gold, borderRadius: mRadius.md, paddingHorizontal: 14, fontSize: 16, color: m.ink, ...mFont(400) },
   link: { fontSize: 13, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
   sentTo: { fontSize: 13, color: m.muted, marginBottom: 12, ...mFont(400) },
-  codeRow: { flexDirection: 'row', gap: 8, position: 'relative' },
-  codeBox: { flex: 1, height: 54, borderWidth: 1, borderColor: m.line, borderRadius: mRadius.md, alignItems: 'center', justifyContent: 'center' },
-  codeBoxCur: { borderColor: m.goldDark, borderWidth: 2 },
-  codeDigit: { fontSize: 22, color: m.ink, ...mFont(500) },
-  codeHidden: { position: 'absolute', opacity: 0.01, left: 0, top: 0, width: '100%', height: 54 },
   cardWrap: { minHeight: 120 },
   badge: { width: 52, height: 52, borderRadius: 26, backgroundColor: m.gold, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   badgeText: { color: m.ink, fontSize: 24, ...mFont(700) },

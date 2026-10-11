@@ -1,4 +1,6 @@
 import React from 'react';
+import { useMobileLayout } from '../hooks/useMobileLayout';
+import { MobileSignInScreen } from '../screens/mobile/MobileSignInScreen';
 import { createStackNavigator } from '@react-navigation/stack';
 import type { AuthStackParamList } from './types';
 import { WelcomeScreen } from '../screens/auth/WelcomeScreen';
@@ -18,6 +20,7 @@ type Props = {
 };
 
 export function AuthStack({ checkoutAuth = false }: Props) {
+  const mobileLayout = useMobileLayout();
   const authScreen = useAuthFlowStore((s) => s.authScreen);
   const authEntry = useAuthFlowStore((s) => s.authEntry);
   const restoreSignInEmail = useAuthFlowStore((s) => s.restoreSignInEmail);
@@ -45,10 +48,10 @@ export function AuthStack({ checkoutAuth = false }: Props) {
       initialRouteName={initialRoute}
     >
       <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ title: 'Welcome' }} />
-      <Stack.Screen name="SignIn" component={SignInScreen} options={{ title: 'Log in' }} />
+      <Stack.Screen name="SignIn" component={mobileLayout ? MobileSignInScreen : SignInScreen} options={{ title: 'Log in' }} />
       <Stack.Screen
         name="SignInEmail"
-        component={SignInEmailScreen}
+        component={mobileLayout ? MobileSignInScreen : SignInEmailScreen}
         options={{ title: 'Log in' }}
         initialParams={restoreSignInEmail ? { email: restoreSignInEmail } : undefined}
       />
@@ -63,10 +66,10 @@ export function AuthStack({ checkoutAuth = false }: Props) {
         options={{ title: 'Reset password' }}
         initialParams={passwordResetOobCode ? { oobCode: passwordResetOobCode } : undefined}
       />
-      <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Sign up' }} />
+      <Stack.Screen name="SignUp" component={mobileLayout ? MobileSignInScreen : SignUpScreen} options={{ title: 'Sign up' }} />
       <Stack.Screen
         name="SignUpEmail"
-        component={SignUpEmailScreen}
+        component={mobileLayout ? MobileSignInScreen : SignUpEmailScreen}
         options={{ title: 'Sign up' }}
       />
     </Stack.Navigator>
