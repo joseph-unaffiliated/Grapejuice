@@ -4,6 +4,7 @@ import type { OnboardingPreviewStep } from '../stores/devPreviewStore';
 import { useDevPreviewStore } from '../stores/devPreviewStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
+import { useUserStatePreviewStore } from '../stores/userStatePreviewStore';
 import { catalogService } from '../services/firestore/catalog';
 import { buildDefaultLineItems } from '../services/box/buildDefaultBox';
 import { ageGroupForNumericAge } from '../services/box/boxRules';
@@ -154,6 +155,8 @@ export function clearDevPreview(): void {
 
 /** Web-only `?preview=` routes for Figma / design review. See docs/FIGMA_DESIGN_INVENTORY.md */
 export function applyDevPreview(key: string, search: URLSearchParams): void {
+  const now = search.get('now');
+  if (now && /^\d{4}-\d{2}-\d{2}$/.test(now)) useUserStatePreviewStore.getState().setPreviewNowIso(now);
   switch (key) {
     case 'welcome':
       setAuth('Welcome');

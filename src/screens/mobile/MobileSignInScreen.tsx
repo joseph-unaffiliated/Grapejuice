@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton';
 import { TaskHeader } from '../../components/mobile/TaskHeader';
 import { MobileCodeSignIn } from '../../components/mobile/MobileCodeSignIn';
+import { MobilePasswordSignIn, type PasswordMode } from './MobilePasswordSignIn';
 import { m, mFont, mType } from '../../components/mobile/mobileTheme';
 
 /**
@@ -17,6 +18,16 @@ export function MobileSignInScreen() {
   const clearPending = useAuthFlowStore((s) => s.clearPending);
   const [busy, setBusy] = useState(false);
   const claimGift = pendingReturn === 'GiftClaim';
+  const [pwMode, setPwMode] = useState<PasswordMode | null>(null);
+
+  if (pwMode) {
+    return (
+      <ScrollView style={styles.root} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+        <TaskHeader back={{ label: 'Back', onPress: () => { clearError(); setPwMode(pwMode === 'password' ? null : 'password'); } }} title={pwMode === 'password' ? 'Sign in' : 'Reset password'} />
+        <MobilePasswordSignIn mode={pwMode} setMode={setPwMode} onUseCode={() => { clearError(); setPwMode(null); }} />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.root} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
@@ -49,6 +60,9 @@ export function MobileSignInScreen() {
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {claimGift ? null : <Text style={styles.alt}>New here? Same thing: your account is made when you enter the code.</Text>}
+            <Pressable onPress={() => { clearError(); setPwMode('password'); }} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: 8 }} hitSlop={6}>
+              <Text style={styles.pwLink}>Use a password instead</Text>
+            </Pressable>
           </View>
         }
       />
@@ -62,5 +76,6 @@ const styles = StyleSheet.create({
   divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 18 },
   rule: { flex: 1, height: 1, backgroundColor: m.line },
   or: { fontSize: 13, color: m.muted, ...mFont(400) },
+  pwLink: { fontSize: 13.5, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
   alt: { fontSize: 13.5, lineHeight: 21, color: m.muted, textAlign: 'center', marginTop: 16, ...mFont(400) },
 });

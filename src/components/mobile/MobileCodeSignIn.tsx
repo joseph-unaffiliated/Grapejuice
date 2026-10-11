@@ -6,6 +6,17 @@ import { useAuthStore } from '../../stores/authStore';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { m, mType, mFont, balanceProps } from './mobileTheme';
 import { MobileButton } from './MobileButton';
+import { Icon } from '../ui/Icon';
+import { icons } from '../../constants/icons';
+
+/** The envelope in a beige circle above "Check your email". */
+export function MailBadge() {
+  return (
+    <View style={styles.mail}>
+      <Icon icon={icons.envelope} size={24} color={m.goldDark} />
+    </View>
+  );
+}
 
 type RedeemResult = { status: 'ok'; customToken: string } | { status: 'invalid' | 'expired' | 'locked' };
 
@@ -119,9 +130,10 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
 
   return (
     <View style={[styles.root, style]}>
-      <Text style={[mType.h1, { fontSize: 28, lineHeight: 32 }]} {...balanceProps}>{title}</Text>
+      {sent ? <MailBadge /> : null}
+      <Text style={[mType.h1, { fontSize: 28, lineHeight: 32 }]} {...balanceProps}>{sent ? 'Check your email' : title}</Text>
       <Text style={styles.lede} {...balanceProps}>
-        {sent ? 'Enter the code we just sent.' : lead ?? "We'll email you a 6-digit code. No password needed."}
+        {sent ? 'Enter the code we sent. It works for 10 minutes.' : lead ?? "We'll email you a 6-digit code. No password needed."}
       </Text>
       {children}
       {sent ? (
@@ -134,7 +146,7 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
           </Text>
           <CodeEntry value={code} onChange={setCode} onComplete={(c) => void redeem(c)} disabled={busy} />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Text style={[styles.sentTo, { marginTop: 14 }]}>
+          <Text style={[styles.sentTo, { marginTop: 14, textAlign: 'center' }]}>
             Didn't get it?{' '}
             <Text style={styles.link} onPress={() => void send()}>
               Send again
@@ -161,12 +173,13 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
           <MobileButton label="Email me a code" onPress={() => void send()} busy={busy} height={54} style={{ marginTop: 20 }} />
         </>
       )}
-      {footer}
+      {sent ? null : footer}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mail: { width: 64, height: 64, borderRadius: 32, backgroundColor: m.beige, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   root: { paddingHorizontal: 16, paddingTop: 30, paddingBottom: 40, backgroundColor: m.white },
   lede: { fontSize: 15, lineHeight: 22, color: m.body, marginTop: 10, marginBottom: 4, ...mFont(300) },
   label: { fontSize: 12.5, color: m.muted, marginTop: 22, marginBottom: 6, ...mFont(400) },

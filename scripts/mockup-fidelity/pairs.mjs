@@ -22,9 +22,13 @@ export const PAIRS = [
   { id: 'checkout', mockup: 'checkout.html', app: '/checkout', guest: true },
   { id: 'gift-landing', mockup: 'gift.html?s=1', app: '/gift' },
   { id: 'gift-type', mockup: 'gift.html?s=2', app: '/gift/give' },
+  { id: 'closed', mockup: 'content.html?s=8', app: '/?preview=home&now=2026-12-20' },
   { id: 'candles', mockup: 'content.html?s=2&n=1', app: '/how-to/light-candles' },
   { id: 'dreidel', mockup: 'content.html?s=3', app: '/how-to/play-dreidel' },
   { id: 'login', mockup: 'auth.html?s=1', app: '/login' },
+  { id: 'auth-code', mockup: 'auth.html?s=2', app: '/login', steps: [{ fill: ['Email', 'joseph+test-fidelity@unaffiliated.co'] }, { click: 'Email me a code', wait: 10000 }] },
+  { id: 'auth-password', mockup: 'auth.html?s=4', app: '/login', steps: [{ click: 'Use a password instead', wait: 1500 }] },
+  { id: 'auth-forgot', mockup: 'auth.html?s=5', app: '/login', steps: [{ click: 'Use a password instead', wait: 1500 }, { click: 'Forgot password?', wait: 1500 }] },
 
   { id: 'home-member', mockup: 'home.html?state=draft', app: '/', member: true },
   { id: 'menu-signedout', mockup: 'home.html?menu=1', app: '/', click: 'Open menu', firstOnly: true },

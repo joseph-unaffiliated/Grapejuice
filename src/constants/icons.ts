@@ -55,7 +55,7 @@ import {
   faUserPlus,
   faKey,
 } from '@fortawesome/free-solid-svg-icons';
-import { faHeart as faHeartOutline } from '@fortawesome/free-regular-svg-icons';
+import { faHeart as faHeartOutline, faEnvelope } from '@fortawesome/free-regular-svg-icons';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
 
 export const icons = {
@@ -104,6 +104,7 @@ export const icons = {
   locationDot: faLocationDot,
   grip: faGripVertical,
   pen: faPen,
+  envelope: faEnvelope,
   instagram: faInstagram,
   check: faCheck,
   donate: faHandHoldingDollar,

@@ -60,6 +60,7 @@ import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxS
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileBoundary } from '../../components/mobile/MobileBoundary';
+import { MobileClosedHome } from '../mobile/MobileClosedHome';
 import { MobileHomeBody } from '../mobile/MobileHomeBody';
 import { usePreviewedIsAuthenticated, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
@@ -359,6 +360,15 @@ export function StorefrontHomeScreen() {
             />
           }
         >
+          {mode === 'passover' ? (
+            <MobileClosedHome
+              year={startsOn ? Number(startsOn.slice(0, 4)) : now.getFullYear()}
+              notified={passoverInterest.marked}
+              onNotify={passoverInterest.toggle}
+              onShop={() => goCategory('collection')}
+              onAccount={() => navigation.navigate('MainTabs', { screen: 'Account' })}
+            />
+          ) : (
           <MobileHomeBody
             items={items}
             startBox={startOwnBox}
@@ -368,6 +378,7 @@ export function StorefrontHomeScreen() {
             goGift={goGiftGive}
             startsOn={startsOn}
           />
+          )}
         </MobileBoundary>
       </StorefrontChrome>
     );
