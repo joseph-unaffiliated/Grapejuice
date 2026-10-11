@@ -46,6 +46,9 @@ import { restorePilotBoxOrder } from '../../services/checkout/restorePilotBoxOrd
 import { cancelPilotGift } from '../../services/gift/pendingGift';
 import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
 import { clearBoxDraftCache } from '../../hooks/useBoxDraft';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileOrdersBody, type MobileOrderAction } from '../mobile/MobileOrdersBody';
+import { goBackToAccount } from '../../navigation/goBackToAccount';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -344,6 +347,7 @@ function OrderCard({
 
 function OrdersScreenBody() {
   const navigation = useNavigation<Nav>();
+  const mobileLayout = useMobileLayout();
   const styles = useMemo(() => createOrdersStyles(), []);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, refresh: refreshSession } = useSession();
@@ -483,7 +487,28 @@ function OrdersScreenBody() {
     );
   }
 
-  if (loading) {
+  const mobileActions = (order: UnifiedOrder): MobileOrderAction[] => {
+    const pilot = order.pilotOrder;
+    const unpaidGift = order.giftInvite && isUnpaidGift(order.giftInvite);
+    const out: MobileOrderAction[] = [];
+    if (order.trackingNumber && pilot) out.push({ label: 'Track package', onPress: () => openOrderTracking(pilot), secondary: true });
+    if (order.kind === 'box' && pilot?.status === 'cancelled' && !hasActiveBox && !boxesLocked) {
+      out.push({ label: 'Restore box', onPress: () => restoreBox(order.id), busy: restoringOrderId === order.id });
+    }
+    if (unpaidGift) {
+      out.push({ label: 'Finish paying', onPress: () => navigation.navigate('GiftResumePayment', { giftInviteId: order.id }) });
+      out.push({ label: 'Cancel gift', onPress: () => setCancelGiftConfirmId(order.id), busy: cancellingGiftId === order.id, link: true });
+    }
+    if (pilot?.chargeFailureMessage && (order.kind === 'box' || order.kind === 'ala_carte')) {
+      out.push({ label: 'Update payment', onPress: () => navigation.navigate('UpdatePayment') });
+    }
+    if (order.kind === 'box' && (pilot?.status === 'committed' || pilot?.status === 'pending')) {
+      out.push({ label: 'Cancel this box', onPress: () => requestCancel(order.id), busy: cancellingOrderId === order.id, link: true });
+    }
+    return out;
+  };
+
+  if (loading && !mobileLayout) {
     return (
       <SystemPage hub="orders" loading />
     );
@@ -491,6 +516,18 @@ function OrdersScreenBody() {
 
   return (
     <>
+    {mobileLayout ? (
+      <MobileOrdersBody
+        orders={orders}
+        catalog={catalog}
+        loading={loading}
+        loadError={loadError}
+        onRetry={() => void refresh()}
+        onBack={() => goBackToAccount(navigation)}
+        onOpenItem={(slug) => navigation.navigate('CatalogProduct', { slug })}
+        actionsFor={mobileActions}
+      />
+    ) : (
     <SystemPage hub="orders">
         {loadError ? (
           <View style={page.section}>
@@ -555,6 +592,7 @@ function OrdersScreenBody() {
         )}
 
     </SystemPage>
+    )}
       <ConfirmModal
         visible={cancelConfirmOrderId != null}
         busy={!!cancellingOrderId}
@@ -648,6 +686,9 @@ function ConfirmModal({
 }
 
 export function OrdersScreen() {
+  const mobileLayout = useMobileLayout();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  if (mobileLayout && isAuthenticated) return <OrdersScreenBody />;
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav>
       <OrdersScreenBody />

@@ -426,8 +426,41 @@ function AccountScreenBody() {
             error: familyError,
             saved: familySaved,
           }}
+          helpers={
+            household?.id
+              ? {
+                  invites: invites.map((inv) => ({ id: inv.id, email: inv.invitedEmail, status: inv.status })),
+                  email: inviteEmail,
+                  onEmail: setInviteEmail,
+                  onSend: () => void sendInvite(),
+                  code: inviteCode,
+                  onCode: setInviteCode,
+                  onAccept: () => void acceptInvite(),
+                  busy: inviteSending || fakeSignedIn,
+                }
+              : null
+          }
+          signIn={{
+            hasPassword: !!user.hasPasswordProvider,
+            hasGoogle: !!user.hasGoogleProvider,
+            onSetPassword: () => navigation.navigate('SetPassword'),
+            onConnectGoogle: Platform.OS === 'web' && !fakeSignedIn ? () => navigation.navigate('ConnectGoogle') : undefined,
+            password: {
+              current: currentPassword,
+              next: nextPassword,
+              confirm: confirmPassword,
+              onCurrent: setCurrentPassword,
+              onNext: setNextPassword,
+              onConfirm: setConfirmPassword,
+              onSubmit: () => void onChangePassword(),
+              busy: passwordBusy,
+              error: passwordLocalError || authError || null,
+              success: passwordSuccess,
+            },
+          }}
           onOpenBox={() => navigateMainStack('MyBox')}
           onBuildBox={() => navigateMainStack('MyBox')}
+          onCheckout={() => navigateMainStack('Checkout')}
           onOrders={() => navigation.navigate('Orders')}
           onGifts={() => navigation.navigate('MyGifts')}
           onPayment={goUpdatePayment}

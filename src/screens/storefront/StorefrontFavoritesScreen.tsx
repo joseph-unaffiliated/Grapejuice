@@ -21,6 +21,12 @@ import { useWishlist } from '../../hooks/useWishlist';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { useBoxDraft } from '../../hooks/useBoxDraft';
+import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import { useAuthStore } from '../../stores/authStore';
+import { MobileFavoritesBody } from '../mobile/MobileFavoritesBody';
 import {
   borderRadius,
   semanticColors,
@@ -98,6 +104,12 @@ export function StorefrontFavoritesScreen() {
   const { ids } = useWishlist();
   const { goHome } = useStorefrontActions();
   const [sort, setSort] = useState<SortKey>('recent');
+  const mobileLayout = useMobileLayout();
+  const signedIn = useAuthStore((st) => st.isAuthenticated);
+  const hasBox = usePreviewedHasStartedBox();
+  const { lineItems: boxLines } = useBoxDraft();
+  const boxIds = useMemo(() => new Set(hasBox ? boxLines.map((li) => li.itemId) : []), [hasBox, boxLines]);
+  const { byId: availabilityById } = useCatalogAvailabilityMap();
 
   usePublishRavSurface({
     type: 'category',
@@ -114,6 +126,24 @@ export function StorefrontFavoritesScreen() {
     const matched = items.filter((item) => idSet.has(item.id));
     return sortItems(matched, sort, ids);
   }, [items, ids, sort]);
+
+  if (mobileLayout) {
+    return (
+      <StorefrontChrome bodyMode="fill" hideServicesNav>
+        <MobileFavoritesBody
+          items={favoriteItems}
+          loading={loading}
+          signedIn={signedIn}
+          hasBox={hasBox}
+          boxIds={boxIds}
+          availabilityById={availabilityById}
+          onOpen={(slug) => navigation.navigate('CatalogProduct', { slug })}
+          onViewBox={() => navigation.navigate('MyBox')}
+          onBrowse={goHome}
+        />
+      </StorefrontChrome>
+    );
+  }
 
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav>

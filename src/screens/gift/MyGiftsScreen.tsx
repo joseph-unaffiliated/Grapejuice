@@ -35,6 +35,12 @@ import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem, ReceivedGift } from '../../types/pilot';
 import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
 import { semanticColors, spacing, borderRadius, typeface, typography } from '../../constants/theme';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { giftInvitePaid, useUnifiedOrders } from '../../hooks/useUnifiedOrders';
+import { cancelPilotGift } from '../../services/gift/pendingGift';
+import { MobileGiftsBody, type MobileGiftRow } from '../mobile/MobileGiftsBody';
+import type { MobileOrderAction } from '../mobile/MobileOrdersBody';
+import { goBackToAccount } from '../../navigation/goBackToAccount';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -194,8 +200,15 @@ function GiftCard({
   );
 }
 
+function shortGiftDate(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function MyGiftsBody() {
   const navigation = useNavigation<Nav>();
+  const mobileLayout = useMobileLayout();
   const styles = useMemo(() => createGiftStyles(), []);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, loading: sessionLoading, refresh: refreshSession } = useSession();
@@ -205,6 +218,7 @@ function MyGiftsBody() {
   const { goCategory, startBox } = useStorefrontActions();
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const lockDay = useBoxLockDay();
 
   useFocusEffect(
     useCallback(() => {
@@ -309,6 +323,30 @@ function MyGiftsBody() {
     );
   }
 
+  if (mobileLayout) {
+    return (
+      <MobileGifts
+        received={gifts}
+        receivedLoading={sessionLoading || loading}
+        receivedError={error}
+        onRetry={() => void refresh()}
+        catalog={catalog}
+        creditCents={giftCreditCents + platformCreditCents}
+        lockDay={lockDay}
+        convertingId={convertingId}
+        reopeningId={reopeningId}
+        onView={openGift}
+        onEdit={openGiftBox}
+        onConvert={confirmConvert}
+        onReopen={(g) => void performReopen(g)}
+        onAddAddress={(g) => navigation.navigate('GiftBoxCheckout', { giftInviteId: g.giftInviteId, surprise: true })}
+        onBack={() => goBackToAccount(navigation)}
+        onSend={() => navigation.navigate('GiftGive')}
+        onResumePayment={(id) => navigation.navigate('GiftResumePayment', { giftInviteId: id })}
+      />
+    );
+  }
+
   if (sessionLoading || loading) {
     return (
       <SystemPage hub="gifts" loading />
@@ -409,7 +447,124 @@ function MyGiftsBody() {
   );
 }
 
+function MobileGifts(p: {
+  received: ReceivedGift[];
+  receivedLoading: boolean;
+  receivedError: string | null;
+  onRetry: () => void;
+  catalog: CatalogItem[];
+  creditCents: number;
+  lockDay: string;
+  convertingId: string | null;
+  reopeningId: string | null;
+  onView: (g: ReceivedGift) => void;
+  onEdit: (g: ReceivedGift) => void;
+  onConvert: (g: ReceivedGift) => void;
+  onReopen: (g: ReceivedGift) => void;
+  onAddAddress: (g: ReceivedGift) => void;
+  onBack: () => void;
+  onSend: () => void;
+  onResumePayment: (giftInviteId: string) => void;
+}) {
+  const { orders, loading, loadError, refresh } = useUnifiedOrders();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  const cancelGift = (id: string) => {
+    const title = 'Cancel this gift?';
+    const body = "You haven't paid for this gift yet, so nothing will be charged and they won't be emailed.";
+    const run = () => {
+      setCancellingId(id);
+      void cancelPilotGift(id)
+        .then(() => refresh())
+        .catch((e) => {
+          const msg = e instanceof Error ? e.message : 'Try again or contact support.';
+          if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(`Could not cancel gift\n\n${msg}`);
+          else Alert.alert('Could not cancel gift', msg);
+        })
+        .finally(() => setCancellingId(null));
+    };
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(`${title}\n\n${body}`)) run();
+      return;
+    }
+    Alert.alert(title, body, [{ text: 'Keep gift', style: 'cancel' }, { text: 'Cancel gift', onPress: run }]);
+  };
+
+  const sent: MobileGiftRow[] = orders
+    .filter((o) => o.kind === 'gift' && o.giftInvite && o.giftInvite.status !== 'cancelled')
+    .map((o) => {
+      const inv = o.giftInvite!;
+      const paid = giftInvitePaid(inv);
+      const date = shortGiftDate(inv.createdAt);
+      const isBox = (inv.lineItems?.length ?? 0) > 0;
+      const actions: MobileOrderAction[] = paid
+        ? []
+        : [
+            { label: 'Finish paying', onPress: () => p.onResumePayment(inv.id) },
+            { label: 'Cancel gift', onPress: () => cancelGift(inv.id), busy: cancellingId === inv.id, link: true },
+          ];
+      return {
+        id: inv.id,
+        title: o.title,
+        sub: `${paid ? 'Sent' : 'Started'}${date ? ` ${date}` : ''} to ${inv.recipientEmail}`,
+        status: inv.status === 'claimed' ? 'Opened' : paid ? 'Waiting for them to open it' : 'Not paid yet',
+        items: inv.lineItems ?? [],
+        note:
+          paid && inv.status !== 'claimed' && isBox
+            ? `They can open it, swap things and add their address until ${p.lockDay}.`
+            : null,
+        actions,
+      };
+    });
+
+  const received: MobileGiftRow[] = p.received.map((g) => {
+    const isBox = g.kind === 'box';
+    const available = isBox && g.status === 'available';
+    const needsAddress = isBox && g.status === 'accepted' && !g.checkoutOrderId;
+    const shipping = isBox && g.status === 'accepted' && Boolean(g.checkoutOrderId);
+    const actions: MobileOrderAction[] = [];
+    if (available) {
+      actions.push({ label: 'Open gift box', onPress: () => p.onEdit(g) });
+      actions.push({ label: 'See the reveal', onPress: () => p.onView(g), link: true });
+      actions.push({ label: `Turn into ${formatDollars(g.creditCents)} credit`, onPress: () => p.onConvert(g), busy: p.convertingId === g.giftInviteId, link: true });
+    }
+    if (needsAddress) {
+      actions.push({ label: 'Add shipping address', onPress: () => p.onAddAddress(g) });
+      actions.push({ label: 'Reopen to change it', onPress: () => p.onReopen(g), busy: p.reopeningId === g.giftInviteId, link: true });
+    }
+    return {
+      id: g.id,
+      title: isBox ? CURATED_GIFT_BOX_LABEL : `${formatDollars(g.creditCents)} ${GIFT_CREDIT_LABEL.toLowerCase()}`,
+      sub: `From ${g.giverName?.trim() || 'someone special'}`,
+      status: statusLabel(g),
+      items: shipping && !g.surprise ? (g.lineItems ?? []) : [],
+      note: g.message ? `“${g.message}”` : null,
+      actions,
+    };
+  });
+
+  return (
+    <MobileGiftsBody
+      sent={sent}
+      received={received}
+      catalog={p.catalog}
+      creditLine={p.creditCents > 0 ? `You have ${formatDollars(p.creditCents)} in credit. ${GIFT_CREDIT_SPEND_HINT}` : null}
+      loading={loading || p.receivedLoading}
+      error={loadError || p.receivedError}
+      onRetry={() => {
+        void refresh();
+        p.onRetry();
+      }}
+      onBack={p.onBack}
+      onSend={p.onSend}
+    />
+  );
+}
+
 export function MyGiftsScreen() {
+  const mobileLayout = useMobileLayout();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  if (mobileLayout && isAuthenticated) return <MyGiftsBody />;
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav>
       <MyGiftsBody />

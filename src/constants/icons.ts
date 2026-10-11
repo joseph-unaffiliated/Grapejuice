@@ -51,6 +51,9 @@ import {
   faCreditCard,
   faLock,
   faTruckFast,
+  faUsers,
+  faUserPlus,
+  faKey,
 } from '@fortawesome/free-solid-svg-icons';
 import { faHeart as faHeartOutline } from '@fortawesome/free-regular-svg-icons';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
@@ -107,6 +110,9 @@ export const icons = {
   card: faCreditCard,
   lock: faLock,
   truck: faTruckFast,
+  users: faUsers,
+  userPlus: faUserPlus,
+  key: faKey,
 } as const;
 
 export type IconName = keyof typeof icons;
