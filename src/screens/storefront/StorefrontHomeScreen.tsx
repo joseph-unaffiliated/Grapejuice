@@ -58,6 +58,9 @@ import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
 import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileBoundary } from '../../components/mobile/MobileBoundary';
+import { MobileHomeBody } from '../mobile/MobileHomeBody';
 import { usePreviewedIsAuthenticated, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -78,6 +81,7 @@ export function StorefrontHomeScreen() {
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
   const { isCompact: compact } = useLayoutBreakpoint();
+  const mobileLayout = useMobileLayout();
   const now = usePreviewNow();
   const collectionLimit = compact ? 4 : 3;
   /** Cap mobile rail length so we don’t hydrate dozens of catalog PNGs on first paint. */
@@ -338,6 +342,36 @@ export function StorefrontHomeScreen() {
   const scrollToLook = () => {
     scrollRef.current?.scrollTo({ y: Math.max(0, lookY.current - 24), animated: true });
   };
+
+  if (mobileLayout) {
+    return (
+      <StorefrontChrome scrollRef={scrollRef} floatingFooter={guestFavoritesPrompt}>
+        <MobileBoundary
+          screen="home"
+          fallback={
+            <StorefrontHero
+              mode={mode}
+              journey={journey}
+              onPrimary={onHeroPrimary}
+              onSecondary={onHeroSecondary}
+              signedIn={signedIn}
+              preRegisterLabel={passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined}
+            />
+          }
+        >
+          <MobileHomeBody
+            items={items}
+            startBox={startOwnBox}
+            goCategory={(slug) => goCategory(slug)}
+            goCheckout={goCheckout}
+            goMyBox={goMyBox}
+            goGift={goGiftGive}
+            startsOn={startsOn}
+          />
+        </MobileBoundary>
+      </StorefrontChrome>
+    );
+  }
 
   return (
     <StorefrontChrome

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -31,10 +31,38 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { Icon } from '../../components/ui/Icon';
+import { icons } from '../../constants/icons';
 
 type RavRoute = RouteProp<MainTabsParamList, 'Rav'>;
 
 export function RavScreen() {
+  const mobileLayout = useMobileLayout();
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
+  if (mobileLayout) {
+    // Phone: the task header (back, Rav, New chat) instead of the browsing chrome; the chat itself is unchanged.
+    return (
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <TaskHeader
+          back={{ label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')) }}
+          title="Rav"
+          mark={
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#B8AC7F', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon icon={icons.childReaching} size={15} color="#111827" />
+            </View>
+          }
+          right={
+            <Pressable onPress={() => navigation.setParams({ newChat: true, view: undefined, threadId: undefined } as never)} accessibilityRole="button" hitSlop={8}>
+              <Text style={{ fontSize: 13, color: '#7D7148' }}>New chat</Text>
+            </Pressable>
+          }
+        />
+        <RavScreenBody />
+      </View>
+    );
+  }
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav>
       <RavScreenBody />

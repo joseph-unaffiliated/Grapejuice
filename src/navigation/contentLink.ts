@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import type { NavigationState, PartialState } from '@react-navigation/native';
 import { HOW_TO_PAGES_PUBLISHED } from '../constants/pdpHowToLink';
+import { isMobileLayoutLikely } from '../services/mobileLayout/mobileLayoutConfig';
 import { PASSOVER_PAGE_PUBLISHED } from '../constants/pilotHolidays';
 
 export const STORY_PATH = '/story';
@@ -50,7 +51,8 @@ export function contentRouteFromPath(pathname: string): StorefrontContentRoute |
   const path = pathname.replace(/\/$/, '') || '/';
   const route = ROUTE_BY_PATH[path] ?? null;
   if (!route) return null;
-  if (!HOW_TO_PAGES_PUBLISHED && UNPUBLISHED_HOW_TO_ROUTES.has(route)) return null;
+  // The how-to pages ship on the phone layouts first; desktop deep links stay unpublished.
+  if (!HOW_TO_PAGES_PUBLISHED && UNPUBLISHED_HOW_TO_ROUTES.has(route) && !isMobileLayoutLikely()) return null;
   if (!PASSOVER_PAGE_PUBLISHED && route === 'StorefrontPassover') return 'StorefrontOurStory';
   return route;
 }

@@ -16,6 +16,8 @@ import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { StorefrontAccountMenu } from './StorefrontAccountMenu';
 import { StorefrontCartBoxButton } from './StorefrontCartBoxButton';
 import { StorefrontMobileNav } from './StorefrontMobileNav';
+import { MobileMenuPanel } from '../mobile/MobileMenuPanel';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useStorefrontRav } from './storefrontRavContext';
 import { useStorefrontLeave } from './storefrontLeaveContext';
 import type { MainStackParamList } from '../../navigation/types';
@@ -101,6 +103,7 @@ export function StorefrontHeader({
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [navOpen, setNavOpen] = useState(false);
+  const mobileLayout = useMobileLayout();
   const [searchFocused, setSearchFocused] = useState(false);
   const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { width, isCompact } = useLayoutBreakpoint();
@@ -309,7 +312,11 @@ export function StorefrontHeader({
         ]}
       >
         {mobileRow}
-        <StorefrontMobileNav visible={navOpen} onClose={() => setNavOpen(false)} />
+        {mobileLayout ? (
+          <MobileMenuPanel visible={navOpen} onClose={() => setNavOpen(false)} />
+        ) : (
+          <StorefrontMobileNav visible={navOpen} onClose={() => setNavOpen(false)} />
+        )}
       </View>
     );
   }

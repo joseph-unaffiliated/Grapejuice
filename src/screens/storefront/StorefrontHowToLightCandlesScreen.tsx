@@ -3,6 +3,8 @@ import { StorefrontArticlePage } from '../../components/storefront/StorefrontArt
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { HOW_TO_LIGHT_CANDLES_COPY } from '../../constants/storefrontHowToLightCandlesCopy';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileHowToLightCandles } from '../mobile/MobileHowToScreens';
 
 export function StorefrontHowToLightCandlesScreen() {
   const { goCategory } = useStorefrontActions();
@@ -12,6 +14,8 @@ export function StorefrontHowToLightCandlesScreen() {
     label: 'How to light Hanukkah candles',
   });
   const c = HOW_TO_LIGHT_CANDLES_COPY;
+  const mobileLayout = useMobileLayout();
+  if (mobileLayout) return <MobileHowToLightCandles />;
 
   return (
     <StorefrontArticlePage

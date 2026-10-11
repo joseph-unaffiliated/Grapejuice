@@ -3,6 +3,8 @@ import { StorefrontArticlePage } from '../../components/storefront/StorefrontArt
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { HOW_TO_PLAY_DREIDEL_COPY } from '../../constants/storefrontHowToPlayDreidelCopy';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileHowToPlayDreidel } from '../mobile/MobileHowToScreens';
 
 export function StorefrontHowToPlayDreidelScreen() {
   const { goCategory } = useStorefrontActions();
@@ -12,6 +14,8 @@ export function StorefrontHowToPlayDreidelScreen() {
     label: 'How to play dreidel',
   });
   const c = HOW_TO_PLAY_DREIDEL_COPY;
+  const mobileLayout = useMobileLayout();
+  if (mobileLayout) return <MobileHowToPlayDreidel />;
 
   return (
     <StorefrontArticlePage

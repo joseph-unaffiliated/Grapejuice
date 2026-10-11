@@ -12,6 +12,7 @@ import {
   MOBILE_OVERRIDE_STORAGE_KEY,
   mobileLayoutTag,
   parseMobileOverride,
+  resolveMobileLayout,
   type MobileOverride,
 } from './mobileLayoutRules';
 
@@ -36,6 +37,7 @@ export async function getMobileLayoutEnabled(): Promise<boolean> {
       const enabled = snap.exists() && snap.data()?.enabled === true;
       enabledCache = enabled;
       fetchedAt = Date.now();
+      rememberEnabledForBoot(enabled);
       listeners.forEach((l) => l(enabled));
       return enabled;
     } catch {
@@ -68,6 +70,35 @@ export function readMobileOverride(): MobileOverride {
   } catch {
     return null;
   }
+}
+
+const BOOT_CACHE_KEY = 'gj.mobile.enabled';
+
+function rememberEnabledForBoot(enabled: boolean): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(BOOT_CACHE_KEY, enabled ? '1' : '0');
+  } catch {}
+}
+
+/**
+ * Synchronous best guess for code that runs before React (web boot routing): phone width,
+ * the session override, and the switch value from the last visit. Unknown counts as off.
+ */
+export function isMobileLayoutLikely(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const isCompact = window.innerWidth < 768;
+  const override = readMobileOverride();
+  let enabled: boolean | null = enabledCache;
+  if (enabled == null) {
+    try {
+      const v = window.localStorage.getItem(BOOT_CACHE_KEY);
+      enabled = v === '1' ? true : v === '0' ? false : null;
+    } catch {
+      enabled = null;
+    }
+  }
+  return resolveMobileLayout({ isCompact, enabled, override });
 }
 
 /** For tests and the admin panel. */
