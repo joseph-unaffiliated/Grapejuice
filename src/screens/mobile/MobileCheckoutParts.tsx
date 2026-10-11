@@ -186,14 +186,27 @@ export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }
     void Linking.openURL(`data:text/calendar;charset=utf8,${encodeURIComponent(body)}`);
   };
   return (
+    <MobileDoneLayout title="Your box is set" lede={`You can change anything until ${lockShort}. Nothing is charged until it ships.`} steps={steps}>
+      <MobileButton label="View my box" onPress={onViewBox} />
+      <MobileButton label="Shop extras" variant="secondary" onPress={onShop} style={{ marginTop: 10 }} />
+      <Pressable onPress={ics} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: 16 }}>
+        <Text style={styles.link}>Add {lockShort} to my calendar</Text>
+      </Pressable>
+    </MobileDoneLayout>
+  );
+}
+
+/** Confirmation page: check badge, title, a dated timeline, then the actions. */
+export function MobileDoneLayout({ title, lede, steps, children }: { title: string; lede: string; steps: [string, string][]; children: React.ReactNode }) {
+  return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader />
       <ScrollView contentContainerStyle={[styles.pad, { paddingTop: 28, paddingBottom: 40 }]}>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>✓</Text>
         </View>
-        <Text style={mType.h1}>Your box is set</Text>
-        <Text style={[mType.body, { marginTop: 8 }]}>You can change anything until {lockShort}. Nothing is charged until it ships.</Text>
+        <Text style={mType.h1} {...balanceProps}>{title}</Text>
+        <Text style={[mType.body, { marginTop: 8 }]} {...balanceProps}>{lede}</Text>
         <View style={styles.timeline}>
           {steps.map(([t, d], i) => (
             <View key={t} style={styles.tlRow}>
@@ -208,11 +221,7 @@ export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }
             </View>
           ))}
         </View>
-        <MobileButton label="View my box" onPress={onViewBox} />
-        <MobileButton label="Shop extras" variant="secondary" onPress={onShop} style={{ marginTop: 10 }} />
-        <Pressable onPress={ics} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: 16 }}>
-          <Text style={styles.link}>Add {lockShort} to my calendar</Text>
-        </Pressable>
+        {children}
       </ScrollView>
     </View>
   );
@@ -241,11 +250,11 @@ const styles = StyleSheet.create({
   sentTo: { fontSize: 13, color: m.muted, marginBottom: 12, ...mFont(400) },
   cardWrap: { minHeight: 120 },
   badge: { width: 52, height: 52, borderRadius: 26, backgroundColor: m.gold, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  badgeText: { color: m.ink, fontSize: 24, ...mFont(700) },
+  badgeText: { color: m.ink, fontSize: 20, ...mFont(400) },
   timeline: { marginTop: 22, marginBottom: 10 },
   tlRow: { flexDirection: 'row', gap: 12 },
   tlRail: { width: 14, alignItems: 'center' },
-  tlDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: m.line, marginTop: 6 },
+  tlDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, borderColor: m.gold, backgroundColor: m.white, marginTop: 5 },
   tlDotOn: { backgroundColor: m.gold },
   tlLine: { flex: 1, width: 1, backgroundColor: m.line, marginTop: 4 },
 });

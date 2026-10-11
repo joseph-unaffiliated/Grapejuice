@@ -14,6 +14,13 @@ import { checkoutUi } from '../main/checkout/checkoutUi';
 import { PAYMENT_ELEMENT_OPTIONS } from '../main/checkout/stripeAppearance';
 import { metaEventIds, trackMeta, trackMetaCustom } from '../../services/analytics/metaPixel';
 import { revealField } from '../../utils/revealField';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { OrderSummary, type OrderLine } from '../../components/mobile/OrderSummary';
+import type { BoxThumb } from '../../components/mobile/BoxSummary';
+import { StickyBar } from '../../components/mobile/StickyBar';
+import { Icon } from '../../components/ui/Icon';
+import { icons } from '../../constants/icons';
+import { m, mFont, mType } from '../../components/mobile/mobileTheme';
 
 /** Stripe Elements appearance — closer to Grapejuice checkout than default purple Stripe. */
 export const GIFT_STRIPE_APPEARANCE = {
@@ -48,7 +55,14 @@ type Props = {
   /** Small "Cancel gift" link under Pay — wipes the incomplete gift. */
   onCancelGift?: () => void;
   completePurchase: (giftInviteId: string) => Promise<{ claimUrl: string }>;
+  /** Phone summary: box thumbnails, the base box price and how many kids it's for. */
+  thumbs?: BoxThumb[];
+  boxCents?: number;
+  kidCount?: number;
+  hasNote?: boolean;
 };
+
+const money = (cents: number) => (cents % 100 === 0 ? `$${cents / 100}` : formatDollars(cents));
 
 export function GiftPaymentPanel({
   giftInviteId,
@@ -64,7 +78,12 @@ export function GiftPaymentPanel({
   onError,
   onCancelGift,
   completePurchase,
+  thumbs = [],
+  boxCents,
+  kidCount = 1,
+  hasNote,
 }: Props) {
+  const mobileLayout = useMobileLayout();
   const dueCents = amountDueCents ?? amountCents;
   const stripe = useStripe();
   const elements = useElements();
@@ -126,6 +145,75 @@ export function GiftPaymentPanel({
 
   const fromLabel = giverName?.trim() && !/^you$/i.test(giverName.trim()) ? giverName.trim() : 'You';
 
+  const paymentElement = (
+    <View ref={paymentWrapRef} style={styles.paymentElementWrap}>
+      <PaymentElement
+        options={PAYMENT_ELEMENT_OPTIONS}
+        onReady={() => setElementState('ready')}
+        onChange={(event) => setCardComplete(event.complete)}
+        onLoadError={(event) => {
+          console.warn('[gift] PaymentElement failed to load', event.error);
+          setElementError(event.error?.message ?? null);
+          setElementState('error');
+        }}
+      />
+      {elementState === 'loading' ? (
+        <Text style={[checkoutUi.hint, styles.elementNote]}>Loading secure payment form…</Text>
+      ) : null}
+      {elementState === 'error' || elementState === 'slow' ? (
+        <Text style={[checkoutUi.fieldError, styles.elementNote]}>
+          {elementState === 'error'
+            ? `The payment form couldn't load${elementError ? ` (${elementError})` : ''}. Refresh the page or try another browser.`
+            : 'The payment form is taking a while. If it doesn’t appear, refresh the page or turn off content blockers for this site.'}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  if (mobileLayout) {
+    const kids = `${kidCount} ${kidCount === 1 ? 'kid' : 'kids'}`;
+    const base = customize ? Math.min(boxCents ?? amountCents, amountCents) : amountCents;
+    const lines: OrderLine[] = customize
+      ? [
+          { label: `Box for ${kids}`, value: money(base) },
+          ...(amountCents > base ? [{ label: 'Extras', value: money(amountCents - base) }] : []),
+          ...(discountCents > 0 ? [{ label: discountLabel, value: `−${money(discountCents)}` }] : []),
+          { label: 'Shipping', value: 'Free' },
+        ]
+      : [
+          { label: 'Hanukkah credit', value: money(amountCents) },
+          ...(discountCents > 0 ? [{ label: discountLabel, value: `−${money(discountCents)}` }] : []),
+        ];
+    const sub = [customize ? kids : null, `To ${recipientEmail}`, hasNote ? 'note added' : null].filter(Boolean).join(' · ');
+    return (
+      <View style={mStyles.wrap}>
+        <Text style={[mType.h1, mStyles.h1]}>Pay for the gift</Text>
+        <OrderSummary
+          title={customize ? 'Hanukkah box for their family' : giftCreditProductLabel(amountCents)}
+          sub={sub}
+          items={customize ? thumbs : []}
+          lines={lines}
+          totalLabel="Paid today"
+          total={money(dueCents)}
+        />
+        <View style={mStyles.note}>
+          <Icon icon={icons.card} size={14} color={m.gold} />
+          <Text style={mStyles.noteText}>
+            You're charged once, today. We'll email them a link to {customize ? 'their box' : 'the credit'}.
+          </Text>
+        </View>
+        <Text style={mStyles.h2}>Payment</Text>
+        {paymentElement}
+        <StickyBar
+          label="Paid today"
+          total={money(dueCents)}
+          layout="stack"
+          cta={{ label: 'Pay and send gift', onPress: () => void pay(), busy: paying, disabled: paying || elementState !== 'ready' }}
+        />
+      </View>
+    );
+  }
+
   return (
     <View>
       {onCancel ? (
@@ -179,28 +267,7 @@ export function GiftPaymentPanel({
       <View style={checkoutUi.divider} />
 
       <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
-      <View ref={paymentWrapRef} style={styles.paymentElementWrap}>
-        <PaymentElement
-          options={PAYMENT_ELEMENT_OPTIONS}
-          onReady={() => setElementState('ready')}
-          onChange={(event) => setCardComplete(event.complete)}
-          onLoadError={(event) => {
-            console.warn('[gift] PaymentElement failed to load', event.error);
-            setElementError(event.error?.message ?? null);
-            setElementState('error');
-          }}
-        />
-        {elementState === 'loading' ? (
-          <Text style={[checkoutUi.hint, styles.elementNote]}>Loading secure payment form…</Text>
-        ) : null}
-        {elementState === 'error' || elementState === 'slow' ? (
-          <Text style={[checkoutUi.fieldError, styles.elementNote]}>
-            {elementState === 'error'
-              ? `The payment form couldn't load${elementError ? ` (${elementError})` : ''}. Refresh the page or try another browser.`
-              : 'The payment form is taking a while. If it doesn’t appear, refresh the page or turn off content blockers for this site.'}
-          </Text>
-        ) : null}
-      </View>
+      {paymentElement}
 
       <GrapejuiceButton
         label={cardComplete ? 'Send your gift' : 'Continue'}
@@ -286,4 +353,12 @@ const styles = StyleSheet.create({
     color: semanticColors.textTertiary,
     textDecorationLine: 'underline',
   },
+});
+
+const mStyles = StyleSheet.create({
+  wrap: { paddingTop: 20 },
+  h1: { fontSize: 27, marginBottom: 14 },
+  note: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 16 },
+  noteText: { flex: 1, fontSize: 13.5, lineHeight: 19, color: m.body, ...mFont(400) },
+  h2: { fontSize: 22, color: m.ink, marginTop: 26, marginBottom: 12, ...mFont(400) },
 });

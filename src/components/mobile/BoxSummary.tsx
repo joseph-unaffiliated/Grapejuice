@@ -96,7 +96,7 @@ export function BoxSummary({ size = 'lg', title = 'Your Hanukkah box', sub, tota
         {total ? <Text style={[styles.total, sm && styles.totalSm]}>{total}</Text> : null}
         {link ?? null}
       </View>
-      <BoxThumbRow items={items} size={size} />
+      {items.length ? <BoxThumbRow items={items} size={size} /> : null}
       {children}
     </>
   );

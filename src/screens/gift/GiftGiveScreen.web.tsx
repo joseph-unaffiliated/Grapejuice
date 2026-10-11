@@ -11,6 +11,9 @@ import { Elements } from '@stripe/react-stripe-js';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { orderSubtotalCents } from '../../services/box/pricing';
 import { formatCatalogDollars, formatDollars } from '../../services/box/buildDefaultBox';
+import { useCatalog } from '../../hooks/useCatalog';
+import { primaryPhoto } from '../../components/mobile/catalogPhotos';
+import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
 import { usePromo } from '../../services/promo/usePromo';
 import { useBoxLockDay, useBoxLockPassed } from '../../hooks/useBoxLockDay';
 import { MobileGiftCredit, MobileGiftFamily, MobileGiftNote, MobileGiftSave, MobileGiftSend } from '../mobile/MobileGiftSteps';
@@ -180,6 +183,12 @@ function GiftGiveBody() {
     ? orderSubtotalCents(lineItems ?? [], listBoxCentsForKids(Math.max(1, childDrafts.length)))
     : listBoxCentsForKids(values.creditKids ?? 1);
   const promo = usePromo(amountCents);
+  const { items: catalogItems } = useCatalog();
+  const payThumbs = useMemo(() => {
+    if (!lineItems?.length) return [];
+    const byId = new Map(catalogItems.map((c) => [c.id, c]));
+    return coalesceLinesByItemId(lineItems).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)), count: r.quantity > 1 ? r.quantity : undefined }));
+  }, [lineItems, catalogItems]);
   /** Curated path collects the giver's email before the box; ask again only if we don't have it. */
   const askGiverEmailOnSend =
     !isAuthenticated && !(customize && isValidEmail(values.giverEmail?.trim() ?? ''));
@@ -898,6 +907,10 @@ function GiftGiveBody() {
             discountCents={payment.discountCents}
             discountLabel={payment.discountLabel}
             amountDueCents={payment.amountDueCents}
+            thumbs={payThumbs}
+            boxCents={listBoxCentsForKids(Math.max(1, childDrafts.length))}
+            kidCount={Math.max(1, childDrafts.length)}
+            hasNote={!!values.message.trim()}
             onPaid={({ claimUrl }) => {
               recordGiftFunnelStep('paid', { path: giftPath, inviteId: payment.giftInviteId });
               cancelledRef.current = true;

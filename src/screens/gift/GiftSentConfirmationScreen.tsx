@@ -1,6 +1,5 @@
 /** Post-payment confirmation for gift giver — checkout-adjacent visual language. */
 import { useMobileLayout } from '../../hooks/useMobileLayout';
-import { TaskHeader } from '../../components/mobile/TaskHeader';
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -21,6 +20,9 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthStore } from '../../stores/authStore';
+import { MobileDoneLayout } from '../mobile/MobileCheckoutParts';
+import { MobileButton } from '../../components/mobile/MobileButton';
+import { useBoxLockDay } from '../../hooks/useBoxLockDay';
 
 type Route = RouteProp<MainStackParamList, 'GiftSentConfirmation'>;
 
@@ -135,12 +137,40 @@ function GiftSentConfirmationBody() {
   );
 }
 
+function MobileGiftSent() {
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const { recipientEmail, customize, amountCents = DEFAULT_BOX_PRICE_CENTS } = useRoute<Route>().params;
+  const { goHome } = useStorefrontActions();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const lockDay = useBoxLockDay();
+  const steps: [string, string][] = customize
+    ? [
+        ['Today', 'They get your note and a link to their box'],
+        [`Until ${lockDay}`, 'They can open it and swap the book and presents'],
+        ['Before the first night', 'Their box arrives, ready to light the first candle'],
+      ]
+    : [
+        ['Today', `They get your note and ${formatDollars(amountCents).replace(/\.00$/, '')} in Hanukkah credit`],
+        [`Until ${lockDay}`, 'They put it toward a box or anything in the store'],
+      ];
+  return (
+    <MobileDoneLayout title="Your gift is on its way" lede={`We emailed ${recipientEmail} your note.`} steps={steps}>
+      {isAuthenticated ? <MobileButton label="See your gift" onPress={() => navigation.navigate('MyGifts')} /> : null}
+      <MobileButton
+        label={isAuthenticated ? 'Back to the store' : 'Start a box for my family'}
+        variant={isAuthenticated ? 'secondary' : 'primary'}
+        onPress={goHome}
+        style={isAuthenticated ? { marginTop: 10 } : undefined}
+      />
+    </MobileDoneLayout>
+  );
+}
+
 export function GiftSentConfirmationScreen() {
   const mobileLayout = useMobileLayout();
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav={mobileLayout} fillChromeHidden={mobileLayout}>
-      {mobileLayout ? <TaskHeader title="Gift sent" /> : null}
-      <GiftSentConfirmationBody />
+      {mobileLayout ? <MobileGiftSent /> : <GiftSentConfirmationBody />}
     </StorefrontChrome>
   );
 }
