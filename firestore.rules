@@ -115,6 +115,10 @@ service cloud.firestore {
     match /loginTokens/{tokenHash} {
       allow read, write: if false;
     }
+    /** Sign-in codes (functions/src/loginLinks.ts requestLoginCode) — functions only. */
+    match /loginCodes/{emailHash} {
+      allow read, write: if false;
+    }
     match /rateLimits/{keyHash} {
       allow read, write: if false;
     }

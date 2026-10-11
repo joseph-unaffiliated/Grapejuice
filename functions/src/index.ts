@@ -80,7 +80,7 @@ export {
 export { recordGiftStep } from './giftFunnel';
 export { restorePilotBoxOrder } from './orderRestore';
 export { cancelPilotGift, resumePilotGiftPayment } from './pendingGift';
-export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink } from './loginLinks';
+export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink, requestLoginCode, redeemLoginCode } from './loginLinks';
 import {
   enforceRateLimits,
   giverUidForEmail,

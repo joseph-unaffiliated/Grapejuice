@@ -37,6 +37,8 @@ const TEMPLATE_IDS: Record<string, number> = {
   'inventory-low': parseInt(process.env.CUSTOMERIO_TEMPLATE_INVENTORY_LOW ?? '0', 10) || 21,
   /** Sold-out item swapped out of a draft box — transactional message 22 (docs/customerio-inventory-swapped.html). */
   'inventory-swapped': parseInt(process.env.CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED ?? '0', 10) || 22,
+  /** Six-digit sign-in code — transactional message 23 (docs/customerio-login-code.html). */
+  'login-code': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_CODE ?? '0', 10) || 23,
 };
 
 /** Env vars for Customer.io transactional templates:

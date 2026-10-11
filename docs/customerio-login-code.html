@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" dir="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>{{message.subject | default: ''}}</title>
+  <link media="screen" rel="stylesheet" href="https://fonts.googleapis.com/css?family=DM%20Sans:400,400i,500,700">
+  <style>body { margin: 0; padding: 0 !important; background: #fefefe; } .code { font-family: 'DM Sans', Helvetica, Arial, sans-serif; }</style>
+</head>
+<body style="background: #fefefe;">
+<div role="article" aria-roledescription="email" aria-label="{{message.subject | default: ''}}" lang="en" style="font-size: 16px; color: #2F2412; background: #fefefe; line-height: 1.6; font-family: 'DM Sans', Helvetica, Arial, sans-serif;">
+  <span style="display: none; max-height: 0; overflow: hidden; font-size: 1px; color: rgba(0,0,0,0);">Your Grapejuice code is {{ trigger.code_spaced }}. It works for 10 minutes.</span>
+
+  <div style="max-width: 600px; margin: 0 auto; background: #fefefe;">
+    <div style="padding: 32px 24px 8px; text-align: center;">
+      <a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email" style="text-decoration: none; display: inline-block;"><img src="https://grapejuice.co/brand/grapejuice-wordmark.png" alt="Grapejuice" width="140" style="vertical-align: middle; max-width: 100%; width: 140px;"></a>
+    </div>
+
+    <div style="padding: 20px 40px 36px;">
+      <h1 style="color: #2F2412; font-size: 28px; line-height: 1.2; letter-spacing: -0.02em; text-align: center; margin: 0 0 24px;">Your sign-in code</h1>
+      <p style="color: #433C32; text-align: center; margin: 0 0 14px;">Hi {{ trigger.displayName | default: "there" }},</p>
+      <p style="color: #433C32; text-align: center; margin: 0 0 24px;">Enter this code on grapejuice.co to {% if trigger.variant == "save-box" %}save your box{% else %}sign in{% endif %}. It works for 10 minutes.</p>
+
+      <div style="text-align: center; margin: 0 0 24px;">
+        <span class="code" style="display: inline-block; padding: 16px 28px; border-radius: 10px; background: #F3F0E6; color: #111827; font-size: 34px; font-weight: 500; letter-spacing: 0.22em; line-height: 1;">{{ trigger.code_spaced }}</span>
+      </div>
+
+      <p style="color: #7A6F5E; font-size: 14px; text-align: center; margin: 0;">Didn&rsquo;t ask for this? You can ignore this email. Nobody can sign in without the code. Questions? Just reply to this email.</p>
+    </div>
+
+    <div style="background: #141414; padding: 34px 32px 30px; text-align: center;">
+      <div style="margin: 0 0 18px;"><a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email" style="text-decoration: none; display: inline-block;"><img src="https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/email/brand/grapejuice-wordmark-cream-v1.png" alt="Grapejuice" width="120" style="vertical-align: middle; max-width: 100%; width: 120px;"></a></div>
+      <p style="color: #F4EEE4; font-size: 12px; margin: 0 0 16px;"><a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email" style="color:#F4EEE4;text-decoration:none;">Shop</a> &nbsp;&middot;&nbsp; <a href="https://grapejuice.co/story?utm_source=transactional&amp;utm_medium=email" style="color:#F4EEE4;text-decoration:none;">Our story</a> &nbsp;&middot;&nbsp; <a href="https://grapejuice.co/privacy" style="color:#F4EEE4;text-decoration:none;">Privacy</a></p>
+      <p style="color: #A39A8A; font-size: 12px; margin: 0;">Grapejuice by Untraditional &middot; <a href="mailto:hello@grapejuice.co" style="color:#A39A8A;text-decoration:none;">hello@grapejuice.co</a></p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

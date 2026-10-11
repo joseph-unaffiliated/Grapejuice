@@ -9,6 +9,15 @@ import { requestIp } from './geo';
 import { metaContextFromCallable, sendMetaEvent } from './metaCapi';
 import { accountForCheckoutEmail, firstNameOf, guestHouseholdId } from './checkoutAccount';
 import { loginTokenStatus, ORDER_TOKEN_RETAIN_MS, ORDER_TOKEN_TTL_MS } from './loginTokenRules';
+import {
+  checkLoginCode,
+  clientStatusFor,
+  generateLoginCode,
+  hashLoginCode,
+  LOGIN_CODE_TTL_MS,
+  normalizeLoginCode,
+  spacedLoginCode,
+} from './loginCodeRules';
 
 /**
  * Passwordless accounts for the box builder's email gate, plus emailed login links.
@@ -645,5 +654,121 @@ export const redeemLoginLink = onCall(
       }
     }
     return { status: 'ok', customToken, uid, next: claimed.next, snapshot };
+  }
+);
+/* ------------------------------------------------------------------------------------------------
+ * Sign-in by emailed code (mobile checkout gate, sign-in and sign-up screens).
+ *
+ *   loginCodes/{emailHash}   one live code per email: salted sha256 of the code, uid, expiry,
+ *                            attempt count, usedAt. Replaced on every request. Functions only.
+ *
+ * The code proves the person owns the inbox, so no token is ever returned on email alone.
+ * ---------------------------------------------------------------------------------------------- */
+
+const LOGIN_CODE_EMAIL_LIMIT_PER_WINDOW = 8;
+
+export type RequestLoginCodeData = {
+  email?: unknown;
+  /** Sign-up: create a passwordless account for a new email so the code can sign it in. */
+  createIfMissing?: unknown;
+  firstName?: unknown;
+  /** Shown in the email copy: "sign in" or "save your box". */
+  purpose?: unknown;
+};
+
+/** Always ok. Never reveals whether the email has an account. */
+export const requestLoginCode = onCall(
+  { memory: '512MiB' },
+  async (request): Promise<{ ok: true }> => {
+    const data = (request.data ?? {}) as RequestLoginCodeData;
+    const email = normalizeEmail(data.email);
+    const db = getFirestore();
+    await enforceRateLimits(db, email, request.rawRequest, 'logincode:');
+    const emailKey = emailHash(email);
+    // On top of the shared email/IP limits: at most 8 codes per address per hour.
+    if (await hitRateLimit(db, `logincode-email:${emailKey}`, LOGIN_CODE_EMAIL_LIMIT_PER_WINDOW, Date.now())) {
+      logger.warn('requestLoginCode: too many codes for one email');
+      return { ok: true };
+    }
+    try {
+      let user: UserRecord | null = null;
+      try {
+        user = await getAuth().getUserByEmail(email);
+      } catch (err) {
+        if ((err as { code?: string })?.code !== 'auth/user-not-found') throw err;
+        user = await legacyGuestCheckoutUser(db, email);
+      }
+      if (!user && data.createIfMissing === true) {
+        const name = typeof data.firstName === 'string' ? data.firstName.trim().slice(0, 80) : null;
+        const { uid } = await accountForCheckoutEmail(db, email, name);
+        user = await getAuth().getUser(uid);
+      }
+      if (user) {
+        const code = generateLoginCode();
+        const now = Date.now();
+        await db.doc(`loginCodes/${emailKey}`).set({
+          codeHash: hashLoginCode(code, emailKey),
+          uid: user.uid,
+          expiresAt: Timestamp.fromMillis(now + LOGIN_CODE_TTL_MS),
+          attempts: 0,
+          usedAt: null,
+          createdAt: Timestamp.fromMillis(now),
+          purpose: data.purpose === 'save-box' ? 'save-box' : 'login',
+        });
+        await sendEmail({
+          to: email,
+          template: 'login-code',
+          data: {
+            variant: data.purpose === 'save-box' ? 'save-box' : 'login',
+            displayName: firstNameOf(user.displayName) ?? '',
+            code_spaced: spacedLoginCode(code),
+          },
+        });
+      }
+    } catch (err) {
+      logger.error('requestLoginCode failed', err);
+    }
+    return { ok: true };
+  }
+);
+
+export type RedeemLoginCodeResult =
+  | { status: 'ok'; customToken: string; uid: string }
+  | { status: 'invalid' | 'expired' | 'locked' };
+
+/** Unauthenticated. One live code per email; five wrong guesses lock it until a new one is requested. */
+export const redeemLoginCode = onCall(
+  { memory: '512MiB' },
+  async (request): Promise<RedeemLoginCodeResult> => {
+    const data = (request.data ?? {}) as { email?: unknown; code?: unknown };
+    const email = normalizeEmail(data.email);
+    const code = normalizeLoginCode(data.code);
+    const db = getFirestore();
+    await enforceRateLimits(db, email, request.rawRequest, 'logincode-redeem:');
+    if (!code) return { status: 'invalid' };
+    const emailKey = emailHash(email);
+    const ref = db.doc(`loginCodes/${emailKey}`);
+    const now = Date.now();
+    const guessHash = hashLoginCode(code, emailKey);
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const checked = checkLoginCode(snap.data(), guessHash, now);
+      if (checked.next) {
+        tx.update(ref, checked.status === 'ok' ? { usedAt: Timestamp.fromMillis(now) } : checked.next);
+      }
+      return { status: checked.status, uid: checked.status === 'ok' ? String(snap.data()?.uid ?? '') : null };
+    });
+    if (result.status !== 'ok' || !result.uid) return { status: clientStatusFor(result.status) as 'invalid' | 'expired' | 'locked' };
+
+    const auth = getAuth();
+    // Typing the code proves the inbox is theirs.
+    try {
+      await auth.updateUser(result.uid, { emailVerified: true });
+    } catch (err) {
+      if ((err as { code?: string })?.code === 'auth/user-not-found') return { status: 'invalid' };
+      logger.warn('redeemLoginCode: emailVerified update failed', { err: String(err) });
+    }
+    const customToken = await auth.createCustomToken(result.uid, { via: 'email-code' });
+    return { status: 'ok', customToken, uid: result.uid };
   }
 );
