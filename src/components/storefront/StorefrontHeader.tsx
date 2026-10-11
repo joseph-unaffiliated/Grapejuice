@@ -262,7 +262,7 @@ export function StorefrontHeader({
     const showSearch = !hideSearchAndRav;
     const expanded = showSearch && searchFocused;
     const mobileRow = (
-      <View style={styles.mobileRow}>
+      <View style={[styles.mobileRow, mobileLayout && styles.mobileRowPhone]}>
         <View
           style={[styles.mobileSide, styles.mobileSideLeft, expanded && styles.mobileSideLeftHidden]}
           pointerEvents={expanded ? 'none' : 'auto'}
@@ -303,6 +303,7 @@ export function StorefrontHeader({
         style={[
           styles.root,
           styles.rootMobile,
+          mobileLayout && styles.rootPhone,
           sticky && styles.stickyRoot,
           sticky
             ? { paddingTop: stickySafeTop }
@@ -345,6 +346,14 @@ const styles = StyleSheet.create({
   },
   rootMobile: {
     paddingHorizontal: MOBILE_HEADER_GUTTER,
+  },
+  /** Phone layouts (site-header in the mockups): 60px tall, no rule underneath. */
+  rootPhone: {
+    paddingVertical: 10,
+    borderBottomWidth: 0,
+  },
+  mobileRowPhone: {
+    minHeight: 40,
   },
   stickyRoot: {
     gap: 0,

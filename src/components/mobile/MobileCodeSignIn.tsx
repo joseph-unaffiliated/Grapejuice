@@ -119,8 +119,8 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
 
   return (
     <View style={[styles.root, style]}>
-      <Text style={mType.h1} {...balanceProps}>{title}</Text>
-      <Text style={[mType.body, { marginTop: 8 }]}>
+      <Text style={[mType.h1, { fontSize: 28, lineHeight: 32 }]} {...balanceProps}>{title}</Text>
+      <Text style={styles.lede} {...balanceProps}>
         {sent ? 'Enter the code we just sent.' : lead ?? "We'll email you a 6-digit code. No password needed."}
       </Text>
       {children}
@@ -148,6 +148,7 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
             value={email}
             onChangeText={setEmail}
             placeholder="you@example.com"
+            placeholderTextColor="#9CA3AF"
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -157,7 +158,7 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
             onSubmitEditing={() => void send()}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <MobileButton label="Email me a code" onPress={() => void send()} busy={busy} style={{ marginTop: 14 }} />
+          <MobileButton label="Email me a code" onPress={() => void send()} busy={busy} height={54} style={{ marginTop: 20 }} />
         </>
       )}
       {footer}
@@ -166,14 +167,15 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
 }
 
 const styles = StyleSheet.create({
-  root: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 40, backgroundColor: m.white },
-  label: { ...mType.small, color: m.ink, marginTop: 20, marginBottom: 6, ...mFont(500) },
-  input: { height: 48, borderWidth: 1, borderColor: m.line, borderRadius: 10, paddingHorizontal: 14, fontSize: 16, color: m.ink, ...mFont(400) },
+  root: { paddingHorizontal: 16, paddingTop: 30, paddingBottom: 40, backgroundColor: m.white },
+  lede: { fontSize: 15, lineHeight: 22, color: m.body, marginTop: 10, marginBottom: 4, ...mFont(300) },
+  label: { fontSize: 12.5, color: m.muted, marginTop: 22, marginBottom: 6, ...mFont(400) },
+  input: { height: 50, borderWidth: 1, borderColor: m.gold, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: m.ink, backgroundColor: m.white, ...mFont(400) },
   sentTo: { ...mType.small, marginTop: 20, marginBottom: 10 },
   link: { color: m.goldDark, textDecorationLine: 'underline' },
   error: { ...mType.small, color: m.warn, marginTop: 10 },
   codeRow: { flexDirection: 'row', gap: 8, position: 'relative' },
-  codeBox: { flex: 1, height: 54, borderWidth: 1, borderColor: m.line, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  codeBox: { flex: 1, height: 54, borderWidth: 1, borderColor: m.gold, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   codeBoxCur: { borderColor: m.goldDark, borderWidth: 2 },
   codeDigit: { fontSize: 22, color: m.ink, ...mFont(500) },
   codeHidden: { position: 'absolute', opacity: 0.01, left: 0, top: 0, width: '100%', height: 54 },

@@ -11,7 +11,6 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 ### Product page
 
 ### Category / collection
-- [ ] Collection ("Shop everything"): sections per category with "See all", instead of one 87-item grid.
 
 ### My Box
 - [ ] Wrapping: Paper / We wrap / No wrap segmented control with the "Enough paper for" checklist, instead of a Wrapping Paper row.
@@ -27,16 +26,11 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 - [ ] Primary button black/gold, not grey.
 
 ### Gift
-- [ ] Landing: photo 250px, "Send by Nov 7" pill, H1 at 29px, cream "How gifting works" band. App photo fills the first screen.
-- [ ] Type step: "What would you like to send?" with two radio cards (box with thumbnails / credit), white bottom bar with total and black Continue. No storefront footer.
-- [ ] Remaining steps: family, save your gift, note, how they get it, pay, sent.
+- [ ] Remaining steps (family, save your gift, note, how they get it, pay, sent) still use the desktop form inside the phone header and bar; add pairs (gift.html s=3,4,7,8,9,10) and restyle.
 
 ### Content
-- [ ] Light the candles: no hero photo; eyebrow, H1, lede, then the hanukkiah card.
-- [ ] Play dreidel: compare.
 
 ### Sign-in
-- [ ] "Sign in", one-line lede, muted label, gold-bordered input, Apple/Google buttons, "New here? Build a box" and "Use a password instead" links.
 
 ## Done
 - [x] Sticky bottom bars scroll with the page instead of staying pinned (product, home, My Box): `position: fixed` sits inside the transformed page scroller. Portal the bar to the document body.
@@ -70,7 +64,22 @@ Run by `/mockup-autopilot`. Capture with `node scripts/mockup-fidelity/run.mjs`;
 - [x] My Box: inline "+ $X" suggestion per section; might-like shelf uses "+ Add" pills; Checkout button hugs its label.
 - [x] Donate control uses a hand-with-coin icon (Font Awesome) instead of the gift/heart.
 
+- [x] Site header is 60px with no rule under it (10px padding, 40px row).
+- [x] Footer: Contact column sizes to the email like the mockup's grid instead of truncating it.
+- [x] Sign-in: "Sign in" header and H1, one-line lede, muted Email label, 50px gold-bordered input, "or" divider, 50px outlined Google button, new-here line.
+- [x] Shared code entry (checkout gate, account): same field and code-box styling.
+- [x] Menu: muted section heads, two-column Shop tiles with thumbnails and "Shop everything ›", gold Ask Rav icon, "Email us" row, Sign in row when signed out with no box.
+- [x] Gift landing: 250px photo, "Send by" pill, one CTA, cream "How gifting works" with three steps, Questions as rows that open the full answer.
+- [x] Gift type: "What would you like to send?", radio cards (box with sample thumbnails, credit), white stacked bar with Continue, no storefront footer, no step bar on this step.
+- [x] Light the candles: no hero; mockup header type; Tonight steps; longer copy behind rows (blessings, placement, after lighting); "What you need" rows; dark "Everything for all eight nights" band.
+- [x] Play dreidel: 220px hero, 2×2 letter cards, Good to know, rules and history behind rows, What you need, dark band with the lock date.
+- [x] Collection: "Shop everything" with two picks per aisle and See all.
+
 ## Keep
+- Apple sign-in isn't offered on web (no Apple web provider configured); "Use a password instead" is omitted because phones have no password screen.
+- Gift type starts with nothing selected: preselecting would mark a gift as started for anyone who only looks.
+- Real Hanukkah dates from config (first night Dec 5 in the data) instead of the mockup's Dec 4.
+- Long how-to copy stays reachable behind list rows rather than being cut.
 - Real prices and product data instead of the mockup's sample prices.
 - The site's icons instead of the mockup's placeholder icons.
 - Headless capture can't play the mockup's mp4 reel, so the mockup's big mosaic cell is blank in composites.

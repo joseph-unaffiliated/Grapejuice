@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,11 +60,11 @@ export function MobileFooter() {
       </View>
       <View style={styles.cols}>
         {columns.map((col) => (
-          <View key={col.heading} style={styles.col}>
+          <View key={col.heading} style={[styles.col, COL_MIN_CONTENT]}>
             <Text style={styles.heading}>{col.heading}</Text>
             {col.links.map((l) => (
               <Pressable key={l.label} onPress={l.onPress} accessibilityRole="link" hitSlop={4}>
-                <Text style={styles.link} numberOfLines={1}>
+                <Text style={styles.link}>
                   {l.label}
                 </Text>
               </Pressable>
@@ -75,6 +75,9 @@ export function MobileFooter() {
     </View>
   );
 }
+
+/** Like the mockup's 1fr grid: a column never shrinks below its longest link (the email). */
+const COL_MIN_CONTENT = (Platform.OS === 'web' ? { minWidth: 'auto' } : {}) as object;
 
 const styles = StyleSheet.create({
   root: { backgroundColor: m.ink, paddingHorizontal: mGutter, paddingTop: 32 },

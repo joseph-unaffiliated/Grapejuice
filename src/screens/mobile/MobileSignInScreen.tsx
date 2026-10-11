@@ -5,7 +5,7 @@ import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton';
 import { TaskHeader } from '../../components/mobile/TaskHeader';
 import { MobileCodeSignIn } from '../../components/mobile/MobileCodeSignIn';
-import { m, mType } from '../../components/mobile/mobileTheme';
+import { m, mFont, mType } from '../../components/mobile/mobileTheme';
 
 /**
  * Phone sign-in and sign-up: one screen, email → 6-digit code. Google stays as a
@@ -20,18 +20,19 @@ export function MobileSignInScreen() {
 
   return (
     <ScrollView style={styles.root} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
-      <TaskHeader back={{ label: 'Back', onPress: clearPending }} title="Grapejuice" />
+      <TaskHeader back={{ label: 'Back', onPress: clearPending }} title="Sign in" />
       <MobileCodeSignIn
-        title={claimGift ? 'Sign in to claim your gift' : 'Sign in or sign up'}
-        lead={
-          claimGift
-            ? "Use the email the gift was sent to. We'll send a 6-digit code."
-            : "Enter your email and we'll send a 6-digit code. No password needed. New here? Same thing: your account is made when you enter the code."
-        }
+        title={claimGift ? 'Sign in to claim your gift' : 'Sign in'}
+        lead={claimGift ? "Use the email the gift was sent to. We'll send a 6-digit code." : "We'll email you a 6-digit code. No password needed."}
         footer={
-          <View style={{ marginTop: 28, gap: 12 }}>
-            <Text style={[mType.small, { textAlign: 'center' }]}>or</Text>
+          <View>
+            <View style={styles.divider}>
+              <View style={styles.rule} />
+              <Text style={styles.or}>or</Text>
+              <View style={styles.rule} />
+            </View>
             <GoogleAuthButton
+              appearance="mobile"
               onPress={async () => {
                 clearError();
                 setBusy(true);
@@ -47,6 +48,7 @@ export function MobileSignInScreen() {
               loading={busy}
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
+            {claimGift ? null : <Text style={styles.alt}>New here? Same thing: your account is made when you enter the code.</Text>}
           </View>
         }
       />
@@ -56,5 +58,9 @@ export function MobileSignInScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: m.white },
-  error: { ...mType.small, color: m.warn, textAlign: 'center' },
+  error: { ...mType.small, color: m.warn, textAlign: 'center', marginTop: 10 },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 18 },
+  rule: { flex: 1, height: 1, backgroundColor: m.line },
+  or: { fontSize: 13, color: m.muted, ...mFont(400) },
+  alt: { fontSize: 13.5, lineHeight: 21, color: m.muted, textAlign: 'center', marginTop: 16, ...mFont(400) },
 });

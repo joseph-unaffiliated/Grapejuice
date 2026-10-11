@@ -405,6 +405,17 @@ export function StorefrontCategoryScreen() {
   }, [categoryItems, slug, facetFilters, sort, availabilityById]);
 
   const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';
+  const shopEverything = slug === 'collection' && !searchQuery;
+  /** Phone "Shop everything": two picks per aisle with See all, instead of one long grid. */
+  const collectionSections = useMemo(
+    () =>
+      shopEverything && !Object.values(facetFilters).some((v) => v && v !== 'all')
+        ? STOREFRONT_CATEGORIES.filter((c) => !['collection', 'other', 'on-sale'].includes(c.slug))
+            .map((c) => ({ slug: c.slug, title: c.label, items: filterByStorefrontCategory(filtered, c.slug) }))
+            .filter((sec) => sec.items.length > 0)
+        : undefined,
+    [shopEverything, facetFilters, filtered]
+  );
 
   const setFacet = (groupId: string, key: string) => {
     setFacetFilters((prev) => ({ ...prev, [groupId]: key }));
@@ -441,8 +452,9 @@ export function StorefrontCategoryScreen() {
         <MobileBoundary screen="category" fallback={<StorefrontProductGrid items={filtered} availabilityById={availabilityById} constrainWidth={false} />}>
           <MobileCategoryBody
             slug={slug}
-            title={title}
-            sub={searchQuery ? undefined : def?.description}
+            title={shopEverything ? 'Shop everything' : title}
+            sub={searchQuery ? undefined : shopEverything ? 'Add anything to your box, or buy it on its own.' : def?.description}
+            sections={collectionSections}
             items={filtered}
             availabilityById={availabilityById}
             boxState={boxState}

@@ -36,6 +36,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { giftPathToKind, useGiftIntentStore } from '../../stores/giftIntentStore';
 import { signInGiftGiver } from '../../services/auth/loginLinks';
 import { GiftCreditKidsField, GiftPathCards } from './GiftGiveForm';
+import { GIFT_PATH_LABEL, MobileGiftPathCards } from '../mobile/MobileGiftPathCards';
+import { StickyBar } from '../../components/mobile/StickyBar';
+import { formatShortMonthDay, HANUKKAH_STARTS_FALLBACK_ISO } from '../../constants/hanukkahBoxLock';
+import { peekHanukkahConfig } from '../../services/firestore/config';
 import { GiftGiverChildrenFields } from './GiftGiverChildrenFields';
 import {
   DEFAULT_GIFT_CHILDREN,
@@ -500,6 +504,7 @@ function GiftGiveBody() {
     }
   };
 
+  const mobileLayout = useMobileLayout();
   const cancelGift = () => {
     cancelledRef.current = true;
     useGiftIntentStore.getState().clear();
@@ -510,6 +515,19 @@ function GiftGiveBody() {
   const renderStep = () => {
     switch (step) {
       case 'type':
+        if (mobileLayout) {
+          return (
+            <View ref={pathRef}>
+              <MobileGiftPathCards
+                giftPath={giftPath}
+                onChange={(path) => patchValues({ giftPath: path })}
+                boxesClosed={boxesClosed}
+                arrivesBefore={formatShortMonthDay(peekHanukkahConfig()?.startsOn) ?? formatShortMonthDay(HANUKKAH_STARTS_FALLBACK_ISO)!}
+                hasError={!!stepError}
+              />
+            </View>
+          );
+        }
         return (
           <>
             <Text style={checkoutUi.title}>Send a gift</Text>
@@ -724,29 +742,48 @@ function GiftGiveBody() {
   };
 
   const paymentReady = step === 'pay' && payment && stripePromise;
-  const mobileLayout = useMobileLayout();
   const taskStep = giftTaskStep(step, !!payment);
   const mobileHeader = mobileLayout ? (
     <TaskHeader
       back={step === 'type' ? { label: 'Cancel', onPress: cancelGift } : { label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : cancelGift()) }}
       title="Send a gift"
-      right={`Step ${taskStep.index + 1} of ${taskStep.labels.length}`}
-      steps={taskStep.labels}
+      right={step === 'type' ? undefined : `Step ${taskStep.index + 1} of ${taskStep.labels.length}`}
+      steps={step === 'type' ? undefined : taskStep.labels}
       on={taskStep.index}
+    />
+  ) : null;
+  const busy = submitting || deliverability.checking;
+  const mobileBar = mobileLayout ? (
+    <StickyBar
+      layout="stack"
+      label={step === 'type' ? (giftPath ? GIFT_PATH_LABEL[giftPath] : 'Choose one') : customize ? 'Their box' : 'Gift credit'}
+      total={
+        step === 'type'
+          ? giftPath === 'customize'
+            ? `From ${formatDollars(listBoxCentsForKids(1))}`
+            : undefined
+          : formatDollars(amountCents)
+      }
+      cta={{ label: 'Continue', onPress: onContinue, busy, disabled: busy }}
     />
   ) : null;
   return (
     <SystemPage
       narrow
+      bleed={mobileLayout && step === 'type'}
       header={mobileHeader}
       footer={
-        <>
-          <View style={styles.footerGap} />
-          <StorefrontFooter />
-        </>
+        mobileLayout ? (
+          <View style={{ height: 120 }} />
+        ) : (
+          <>
+            <View style={styles.footerGap} />
+            <StorefrontFooter />
+          </>
+        )
       }
     >
-      <View ref={topRef} style={styles.topSpacer} />
+      <View ref={topRef} style={mobileLayout && step === 'type' ? null : styles.topSpacer} />
       {paymentReady ? (
         <Elements
           key={payment.clientSecret}
@@ -785,16 +822,20 @@ function GiftGiveBody() {
       ) : step === 'pay' ? null : (
         <>
           {renderStep()}
-          {stepError ? <Text style={[checkoutUi.fieldError, styles.stepError]}>{stepError}</Text> : null}
-          <GrapejuiceButton
-            label="Continue"
-            onPress={onContinue}
-            variant="filled"
-            loading={submitting || deliverability.checking}
-            disabled={submitting || deliverability.checking}
-            style={[checkoutUi.button, styles.ctaSpacing]}
-            textStyle={checkoutUi.buttonText}
-          />
+          {stepError ? <Text style={[checkoutUi.fieldError, styles.stepError, mobileLayout && { paddingHorizontal: 16 }]}>{stepError}</Text> : null}
+          {mobileLayout ? (
+            mobileBar
+          ) : (
+            <GrapejuiceButton
+              label="Continue"
+              onPress={onContinue}
+              variant="filled"
+              loading={busy}
+              disabled={busy}
+              style={[checkoutUi.button, styles.ctaSpacing]}
+              textStyle={checkoutUi.buttonText}
+            />
+          )}
           {step !== 'type' ? (
             <TouchableOpacity
               onPress={cancelGift}

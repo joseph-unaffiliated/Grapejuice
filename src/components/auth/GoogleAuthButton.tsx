@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { GrapejuiceButton } from '../ui/GrapejuiceButton';
 import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
 import { isSocialInAppBrowser, openInSystemBrowser, systemBrowserName } from '../../utils/inAppBrowser';
@@ -10,6 +10,8 @@ type Props = {
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
   label?: string;
+  /** Phone layouts: the 50px outlined block with the G mark, not the desktop pill. */
+  appearance?: 'pill' | 'mobile';
 };
 
 /**
@@ -22,6 +24,7 @@ export function GoogleAuthButton({
   loading,
   style,
   label = 'Continue with Google',
+  appearance = 'pill',
 }: Props) {
   const [inApp] = useState(isSocialInAppBrowser);
   const [showHelp, setShowHelp] = useState(false);
@@ -33,6 +36,19 @@ export function GoogleAuthButton({
     },
     []
   );
+
+  if (!inApp && appearance === 'mobile') {
+    return (
+      <Pressable onPress={onPress} disabled={disabled || loading} accessibilityRole="button" accessibilityLabel={label} style={[styles.mobile, style]}>
+        {loading ? <ActivityIndicator color="#111827" /> : (
+          <>
+            <Text style={styles.mobileG}>G</Text>
+            <Text style={styles.mobileText}>{label}</Text>
+          </>
+        )}
+      </Pressable>
+    );
+  }
 
   if (!inApp) {
     return (
@@ -48,21 +64,24 @@ export function GoogleAuthButton({
   }
 
   const browser = systemBrowserName();
+  const handOff = () => {
+    openInSystemBrowser();
+    // Still here after the hand-off attempt: the app blocked it.
+    if (helpTimer.current) clearTimeout(helpTimer.current);
+    helpTimer.current = setTimeout(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') setShowHelp(true);
+    }, 1500);
+  };
   return (
     <View style={[styles.wrap, style]}>
-      <GrapejuiceButton
-        label={`${label} in ${browser}`}
-        variant="pill"
-        onPress={() => {
-          openInSystemBrowser();
-          // Still here after the hand-off attempt: the app blocked it.
-          if (helpTimer.current) clearTimeout(helpTimer.current);
-          helpTimer.current = setTimeout(() => {
-            if (typeof document === 'undefined' || document.visibilityState === 'visible') setShowHelp(true);
-          }, 1500);
-        }}
-        disabled={disabled}
-      />
+      {appearance === 'mobile' ? (
+        <Pressable onPress={handOff} disabled={disabled} accessibilityRole="button" accessibilityLabel={`${label} in ${browser}`} style={styles.mobile}>
+          <Text style={styles.mobileG}>G</Text>
+          <Text style={styles.mobileText}>{`${label} in ${browser}`}</Text>
+        </Pressable>
+      ) : (
+        <GrapejuiceButton label={`${label} in ${browser}`} variant="pill" onPress={handOff} disabled={disabled} />
+      )}
       {showHelp ? (
         <Text style={styles.help}>
           {`Google sign-in doesn’t work inside this app. Tap ••• at the top and choose “Open in ${
@@ -76,6 +95,9 @@ export function GoogleAuthButton({
 
 const styles = StyleSheet.create({
   wrap: { alignSelf: 'stretch', width: '100%' },
+  mobile: { width: '100%', height: 50, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  mobileG: { fontSize: 17, color: '#4285F4', ...typeface('bold') },
+  mobileText: { fontSize: 15.5, color: '#111827', ...typeface('regular') },
   help: {
     ...typeface('regular'),
     marginTop: spacing.xs,

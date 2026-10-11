@@ -48,6 +48,8 @@ type PageProps = {
   footer?: ReactNode;
   /** Full-bleed header above the column (the phone task header). Replaces the back link. */
   header?: ReactNode;
+  /** Phone screens that lay out their own gutters and top spacing (edge-to-edge cards). */
+  bleed?: boolean;
 };
 
 /**
@@ -64,6 +66,7 @@ export function SystemPage({
   hub,
   footer,
   header,
+  bleed = false,
 }: PageProps) {
   const { isDesktop, layoutWidth, widePanelMaxWidth } = useWebLayout();
   const columnWidth = hub || narrow ? HUB_COLUMN : wide ? widePanelMaxWidth : layoutWidth;
@@ -129,12 +132,13 @@ export function SystemPage({
           contentContainerStyle={[
             hub ? styles.hubScrollContent : narrow ? styles.narrowScrollContent : styles.scrollContent,
             footer ? styles.scrollContentWithFooter : null,
+            bleed && !isDesktop ? { paddingTop: 0 } : null,
           ]}
           showsVerticalScrollIndicator={false}
         >
           {isDesktop ? (
             <View style={[styles.contentColumn, { maxWidth: columnWidth }]}>{body}</View>
-          ) : footer ? (
+          ) : footer && !bleed ? (
             <View style={styles.mobileGutter}>{body}</View>
           ) : (
             body

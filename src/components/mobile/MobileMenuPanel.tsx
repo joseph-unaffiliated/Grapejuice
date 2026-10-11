@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,8 @@ import { isSocialInAppBrowser } from '../../utils/inAppBrowser';
 import { requestLoginLink } from '../../services/auth/loginLinks';
 import { useAuthStore } from '../../stores/authStore';
 import { BoxSummary } from './BoxSummary';
+import { useCatalog } from '../../hooks/useCatalog';
+import { primaryPhoto } from './catalogPhotos';
 import { MobileButton } from './MobileButton';
 import { m, mFont, mType, TAP } from './mobileTheme';
 
@@ -44,6 +46,11 @@ function Panel({ onClose }: { onClose: () => void }) {
   const glance = useBoxGlance();
   const userEmail = useAuthStore((s) => s.user?.email ?? null);
   const [shopOpen, setShopOpen] = useState(false);
+  const { items: catalog } = useCatalog();
+  const catThumbs = useMemo(() => {
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    return Object.fromEntries(Object.entries(CAT_THUMB_IDS).map(([slug, id]) => [slug, primaryPhoto(byId.get(id))]));
+  }, [catalog]);
   const [linkSent, setLinkSent] = useState(false);
 
   const go = (fn: () => void) => {
@@ -102,18 +109,32 @@ function Panel({ onClose }: { onClose: () => void }) {
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 32 + insets.bottom }]}>
           {boxCard}
 
-          <Row label="Shop" chevron={shopOpen ? '⌄' : '›'} onPress={() => setShopOpen((v) => !v)} open={shopOpen} />
+          <Row label="Shop" chevron="⌄" onPress={() => setShopOpen((v) => !v)} open={shopOpen} />
           {shopOpen ? (
-            <View style={styles.cats}>
-              {STOREFRONT_CATEGORIES.filter((c) => c.slug !== 'collection').map((c) => (
-                <Pressable key={c.slug} onPress={() => goCategory(c.slug)} accessibilityRole="button" style={styles.cat}>
-                  <Text style={styles.catText}>{c.label}</Text>
-                </Pressable>
-              ))}
+            <>
+              <View style={styles.cats}>
+                {STOREFRONT_CATEGORIES.filter((c) => c.slug !== 'collection' && c.slug !== 'other').map((c) => {
+                  const thumb = catThumbs[c.slug];
+                  return (
+                    <Pressable key={c.slug} onPress={() => goCategory(c.slug)} accessibilityRole="button" style={styles.cat}>
+                      {c.slug === 'on-sale' ? (
+                        <View style={[styles.catThumb, styles.sale]}>
+                          <Text style={styles.saleText}>%</Text>
+                        </View>
+                      ) : thumb ? (
+                        <Image source={{ uri: thumb }} style={styles.catThumb} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.catThumb} />
+                      )}
+                      <Text style={styles.catText} numberOfLines={1}>{c.label === 'On Sale' ? 'On sale' : c.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <Pressable onPress={() => goCategory('collection')} accessibilityRole="button" style={styles.all}>
-                <Text style={styles.allText}>Shop all</Text>
+                <Text style={styles.allText}>Shop everything ›</Text>
               </Pressable>
-            </View>
+            </>
           ) : null}
 
           <Row label="Send a gift" sub="A box for another family" onPress={() => go(() => (leave ? leave({ type: 'service', id: 'gift' }) : navigation.navigate('GiftLanding')))} />
@@ -125,13 +146,18 @@ function Panel({ onClose }: { onClose: () => void }) {
 
           <Text style={styles.group}>You</Text>
           <Row
-            label="Account"
-            sub="Orders, family, payment"
+            label={isAuthenticated || glance.state !== 'none' ? 'Account' : 'Sign in'}
+            sub={isAuthenticated || glance.state !== 'none' ? 'Orders, family, payment' : 'We email you a code. No password needed.'}
             onPress={() => go(() => (leave ? leave({ type: 'screen', nav: { screen: 'MainTabs', tab: 'Account' } }) : navigation.navigate('MainTabs', { screen: 'Account' })))}
           />
           <Row
             label="Ask Rav"
             sub="Questions about your box or Hanukkah"
+            lead={
+              <View style={styles.ravIcon}>
+                <Icon icon={icons.childReaching} size={16} color={m.ink} />
+              </View>
+            }
             onPress={() =>
               go(() => {
                 if (isStorefrontRavOpenable()) return openRav();
@@ -139,7 +165,7 @@ function Panel({ onClose }: { onClose: () => void }) {
               })
             }
           />
-          <Row label="hello@grapejuice.co" onPress={() => void Linking.openURL('mailto:hello@grapejuice.co')} chevron="" />
+          <Row label="Email us" sub="hello@grapejuice.co" onPress={() => void Linking.openURL('mailto:hello@grapejuice.co')} />
 
           {isSocialInAppBrowser() && glance.hasBox && userEmail ? (
             <View style={styles.igCard}>
@@ -154,39 +180,57 @@ function Panel({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Main (grey) photos for the Shop tiles, as in the mockup's menu. */
+const CAT_THUMB_IDS: Record<string, string> = {
+  menorahs: 'arch-menorah',
+  candles: 'beeswax-candles',
+  dreidels: 'classic-wooden-dreidel',
+  gelt: 'big-bag-of-gelt',
+  food: 'latke-kit',
+  books: 'book-a-dragon-for-hanukkah',
+  stuffies: 'shamash-the-menorah-stuffie',
+  toys: 'lego-menorah',
+  activity: 'airdry-clay-dreidel',
+};
+
 function Chevron() {
   return <Text style={styles.chev}>›</Text>;
 }
 
-function Row({ label, sub, onPress, chevron = '›', open }: { label: string; sub?: string; onPress: () => void; chevron?: string; open?: boolean }) {
+function Row({ label, sub, onPress, chevron = '›', open, lead }: { label: string; sub?: string; onPress: () => void; chevron?: string; open?: boolean; lead?: React.ReactNode }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={open != null ? { expanded: open } : undefined} style={styles.row}>
+      {lead}
       <View style={styles.rowText}>
         <Text style={styles.rowLabel}>{label}</Text>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
-      {chevron ? <Text style={styles.chev}>{chevron}</Text> : null}
+      {chevron ? <Text style={[styles.chev, open && { transform: [{ rotate: '180deg' }] }]}>{chevron}</Text> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: m.white },
-  head: { height: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: m.line },
-  headTitle: { flex: 1, fontSize: 15, color: m.ink, ...mFont(500) },
+  head: { height: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: m.line },
+  headTitle: { flex: 1, fontSize: 16, color: m.ink, ...mFont(500) },
   close: { width: TAP, height: TAP, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   body: { padding: 16, gap: 0 },
   held: { ...mType.tiny, color: m.goldDark, lineHeight: 16 },
-  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: m.line },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: m.line },
   rowText: { flex: 1, gap: 2 },
   rowLabel: { fontSize: 17, letterSpacing: -0.2, color: m.ink, ...mFont(400) },
   rowSub: { fontSize: 13, color: m.muted, ...mFont(300) },
   chev: { fontSize: 20, color: m.goldDark, width: 20, textAlign: 'center' },
-  group: { ...mType.eyebrow, marginTop: 22, marginBottom: 2 },
-  cats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: m.line },
-  cat: { paddingHorizontal: 14, height: 36, borderRadius: 18, borderWidth: 1, borderColor: m.gold, alignItems: 'center', justifyContent: 'center' },
-  catText: { fontSize: 14, color: m.ink, ...mFont(400) },
-  all: { width: '100%', height: TAP, justifyContent: 'center' },
+  group: { fontSize: 13, lineHeight: 18, color: m.muted, marginTop: 28, marginBottom: 2, ...mFont(400) },
+  cats: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, paddingTop: 12, paddingBottom: 8 },
+  cat: { width: '48.8%', height: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, borderRadius: 12, borderWidth: 1, borderColor: m.line },
+  catThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: m.img },
+  sale: { backgroundColor: m.beige, alignItems: 'center', justifyContent: 'center' },
+  saleText: { fontSize: 15, color: m.goldDark, ...mFont(500) },
+  catText: { flex: 1, fontSize: 14.5, color: m.ink, ...mFont(400) },
+  ravIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: m.gold, alignItems: 'center', justifyContent: 'center' },
+  all: { width: '100%', height: TAP, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: m.line },
   allText: { fontSize: 14.5, color: m.goldDark, ...mFont(400) },
   igCard: { marginTop: 24, padding: 16, borderRadius: 14, backgroundColor: m.beige, gap: 8 },
   igTitle: { ...mType.h3 },
