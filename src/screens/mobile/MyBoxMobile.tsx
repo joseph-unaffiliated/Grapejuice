@@ -38,11 +38,28 @@ import { ProductTileMobile } from '../../components/mobile/ProductTileMobile';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
 
-type Editing = ReturnType<typeof useMyBoxEditing>;
+/** The slice of useMyBoxEditing the phone box uses; the gift flow supplies the same shape. */
+export type MobileBoxEditing = Pick<
+  ReturnType<typeof useMyBoxEditing>,
+  | 'locked' | 'lineItems' | 'donatedItems' | 'upsellsBySection' | 'applySwap' | 'openOrder' | 'grouped' | 'catalog'
+  | 'boxPriceCents' | 'restoreDonated' | 'lockAt' | 'goToCheckout' | 'children' | 'swapOptionsBySlot' | 'savingOrder'
+  | 'modalRemoveFromBox' | 'donatedLineSnapshots' | 'cardOnFile' | 'swapToPreWrap' | 'swapEligibleIdsBySection' | 'startsOn'
+  | 'setProductModalSection' | 'saveOrderUpdates' | 'ordersLoading' | 'modalAddToBox' | 'hasSessionEdits' | 'guestViewOnly'
+  | 'freeAddOptionsBySection' | 'estimatedDeliveryBy' | 'changeBoxQuantity' | 'addFreeItemToEmptySlot'
+>;
+
+/** Gift flow: their box under a task header, "Send by", and Next instead of Checkout. */
+export type MobileBoxGiftMode = {
+  header: React.ReactNode;
+  banner: string;
+  nextLabel: string;
+  onNext: () => void;
+};
 
 type Props = {
-  editing: Editing;
+  editing: MobileBoxEditing;
   navigation: StackNavigationProp<MainStackParamList>;
+  gift?: MobileBoxGiftMode;
 };
 
 type Sheet =
@@ -69,7 +86,11 @@ const SHORT: Record<BoxDisplaySectionId, string> = { candles: 'Candles', dreidel
  * white sticky bar. Sheets: tradition (pick, alternatives, add-ons), product card,
  * receipt, donated items.
  */
-export function MyBoxMobile({ editing: e, navigation }: Props) {
+export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
+  const yours = gift ? 'their' : 'your';
+  /** Toast actions outlive the render that created them. */
+  const live = useRef(e);
+  live.current = e;
   const [sheet, setSheet] = useState<Sheet>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const [active, setActive] = useState<BoxDisplaySectionId>('candles');
@@ -88,7 +109,11 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     void getStripePromise(key)?.catch(() => undefined);
     prefetchSetupIntent(household.id);
   }, [needsCard, household?.id]);
-  const kidName = (id?: string | null) => (id ? kids.find((c) => c.id === id)?.name?.trim() || 'your kid' : null);
+  const kidName = (id?: string | null) => {
+    if (!id) return null;
+    const i = kids.findIndex((c) => c.id === id);
+    return kids[i]?.name?.trim() || (gift ? (kids.length > 1 ? `kid ${i + 1}` : 'their kid') : 'your kid');
+  };
 
   const extras = chargeableLineTotal(e.lineItems);
   const total = e.boxPriceCents + extras;
@@ -173,7 +198,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     const item = byId.get(g.itemId);
     void e.changeBoxQuantity(g, delta, displaySectionForLineItem(g.primary, item));
     if (delta === -1 && g.quantity <= 1 && g.unitCents === 0 && item) {
-      setToast({ message: `${item.name} donated to a family who couldn't otherwise celebrate`, action: { label: 'Undo', onPress: () => void e.restoreDonated(item.id) } });
+      setToast({ message: `${item.name} donated to a family who couldn't otherwise celebrate`, action: { label: 'Undo', onPress: () => void live.current.restoreDonated(item.id) } });
     }
   };
 
@@ -191,7 +216,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     const offer = offerFor(item, sectionId, rowsFor(sectionId));
     if (offer.free) {
       await e.addFreeItemToEmptySlot(sectionId, item);
-      setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void e.modalRemoveFromBox(item) } });
+      setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(item) } });
       return;
     }
     if (offer.swap) {
@@ -201,14 +226,14 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
         await e.applySwap([source.slotId], item);
         setToast({
           message: `Swapped in ${item.name}`,
-          action: previous ? { label: 'Undo', onPress: () => void e.applySwap([source.slotId], previous) } : undefined,
+          action: previous ? { label: 'Undo', onPress: () => void live.current.applySwap([source.slotId], previous) } : undefined,
         });
         return;
       }
     }
     e.setProductModalSection(sectionId);
     await e.modalAddToBox(item);
-    setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void e.modalRemoveFromBox(item) } });
+    setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(item) } });
   };
 
   const rowNote = (g: CoalescedBoxLine, item: CatalogItem | undefined) => lineNote(g, item, kidName);
@@ -355,7 +380,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName}>{item?.name ?? g.itemId}</Text>
-                  <Text style={styles.rowMeta}>{metaFor(g, item) || 'In your box'}</Text>
+                  <Text style={styles.rowMeta}>{metaFor(g, item) || `In ${yours} box`}</Text>
                 </View>
                 {!e.locked ? (
                   <View style={styles.stepper}>
@@ -388,7 +413,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
                           height={34}
                           onPress={() => {
                             void e.applySwap(g.lines.map((l) => l.slotId), o);
-                            setToast({ message: `Swapped in ${o.name}`, action: item ? { label: 'Undo', onPress: () => void e.applySwap(g.lines.map((l) => l.slotId), item) } : undefined });
+                            setToast({ message: `Swapped in ${o.name}`, action: item ? { label: 'Undo', onPress: () => void live.current.applySwap(g.lines.map((l) => l.slotId), item) } : undefined });
                           }}
                         />
                       </View>
@@ -441,13 +466,13 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
           group ? (
             <View style={styles.sheetFoot}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.footLabel}>{group.unitCents > 0 ? `Added · ${formatCatalogDollars(group.unitCents)} each` : 'In your box · included'}</Text>
+                <Text style={styles.footLabel}>{group.unitCents > 0 ? `Added · ${formatCatalogDollars(group.unitCents)} each` : `In ${yours} box · included`}</Text>
                 <Text style={styles.footTotal}>Quantity {group.quantity}</Text>
               </View>
               <MobileButton label="Done" onPress={() => setSheet(null)} height={46} style={{ width: 120 }} />
             </View>
           ) : (
-            <MobileButton label={offer.swap ? 'Swap into my box' : offer.free ? 'Add to my box · included' : `Add to my box · +${formatCatalogDollars(offer.cents)}`} onPress={() => { void addItem(item, sectionId); setSheet(null); }} />
+            <MobileButton label={`${offer.swap ? 'Swap into' : 'Add to'} ${gift ? 'their' : 'my'} box${offer.swap ? '' : offer.free ? ' · included' : ` · +${formatCatalogDollars(offer.cents)}`}`} onPress={() => { void addItem(item, sectionId); setSheet(null); }} />
           )
         }
       >
@@ -455,7 +480,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
         <Text style={[mType.h2, { marginTop: 14 }]} {...balanceProps}>
           {item.name}
         </Text>
-        {group ? <Text style={[mType.smallDark, { marginTop: 4 }]}>{metaFor(group, item) || 'In your box'}</Text> : null}
+        {group ? <Text style={[mType.smallDark, { marginTop: 4 }]}>{metaFor(group, item) || `In ${yours} box`}</Text> : null}
         {desc ? <Text style={[mType.body, { marginTop: 10 }]}>{desc.length > 240 ? `${desc.slice(0, 237).trimEnd()}…` : desc}</Text> : null}
         <Pressable onPress={() => { setSheet(null); navigation.navigate('CatalogProduct', { slug: item.id }); }} accessibilityRole="button" style={{ marginTop: 10 }}>
           <Text style={styles.link}>See full details ›</Text>
@@ -481,7 +506,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
   };
 
   const receiptSheet = () => (
-    <MobileSheet visible onClose={() => setSheet(null)} title="Your box" titleAction={{ label: 'Keep editing', onPress: () => setSheet(null) }} footer={<MobileButton label={`Checkout · ${formatCatalogDollars(total)}`} onPress={() => { setSheet(null); e.goToCheckout(); }} />}>
+    <MobileSheet visible onClose={() => setSheet(null)} title={gift ? 'Their box' : 'Your box'} titleAction={{ label: 'Keep editing', onPress: () => setSheet(null) }} footer={<MobileButton label={`${gift ? gift.nextLabel : 'Checkout'} · ${formatCatalogDollars(total)}`} onPress={() => { setSheet(null); if (gift) gift.onNext(); else e.goToCheckout(); }} />}>
       {BOX_DISPLAY_SECTIONS.map((s) => {
         const rows = rowsFor(s.id);
         if (!rows.length) return null;
@@ -527,20 +552,26 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
             {item.name}
             {missing > 1 ? ` ×${missing}` : ''}
           </Text>
-          <MobileButton label="Restore" variant="secondary" height={34} style={{ width: 92 }} onPress={() => void e.restoreDonated(item.id)} accessibilityLabel={`Restore ${item.name} to your box`} />
+          <MobileButton label="Restore" variant="secondary" height={34} style={{ width: 92 }} onPress={() => void e.restoreDonated(item.id)} accessibilityLabel={`Restore ${item.name} to ${yours} box`} />
         </View>
       ))}
     </MobileSheet>
   );
 
-  return (
-    <StorefrontChrome scrollRef={scrollRef} onPageScroll={onScroll}>
+  const body = (
       <View style={{ paddingBottom: STICKY_BAR_CLEARANCE + 12 }}>
         <View style={styles.head}>
-          <Text style={mType.h1}>Your Hanukkah box</Text>
-          <Text style={styles.headSub} {...balanceProps}>Everything for eight nights, picked for your family. Keep it as is, or change anything.</Text>
+          {gift ? (
+            <View style={styles.giftBanner}>
+              <Icon icon={icons.gift} size={13} color={m.goldDark} />
+              <Text style={styles.giftBannerText}>{gift.banner}</Text>
+            </View>
+          ) : null}
+          <Text style={mType.h1}>{gift ? 'Their Hanukkah box' : 'Your Hanukkah box'}</Text>
+          <Text style={styles.headSub} {...balanceProps}>Everything for eight nights, picked for {yours} family. Keep it as is, or change anything.</Text>
           <View style={styles.lockLine}>
             <Icon icon={icons.calendar} size={13} color={m.gold} />
+            {gift ? <Text style={styles.lockText}>Send by {lockShort}</Text> : (
             <Text style={styles.lockText}>
               {e.locked ? `Locked ${lockShort}` : `Change anything until ${lockShort}${daysLeft != null ? ` · ${daysLeft} days left` : ''} · `}
               {e.locked ? null : (
@@ -549,11 +580,12 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
                 </Text>
               )}
             </Text>
+            )}
           </View>
         </View>
 
         <View style={styles.pad}>
-          <BoxSummary size="sm" title="In your box" sub={`${thingCount} things · ${formatCatalogDollars(total)}`} items={thumbs} link={<Pressable onPress={() => setSheet({ kind: 'receipt' })} accessibilityRole="button" hitSlop={8}><Text style={styles.link}>See list</Text></Pressable>} />
+          <BoxSummary size="sm" title={gift ? 'In their box' : 'In your box'} sub={`${thingCount} things · ${formatCatalogDollars(total)}`} items={thumbs} link={<Pressable onPress={() => setSheet({ kind: 'receipt' })} accessibilityRole="button" hitSlop={8}><Text style={styles.link}>See list</Text></Pressable>} />
           {!e.cardOnFile && !e.openOrder ? (
             <Text style={styles.held}>
               {NOT_HELD_COPY}{' '}
@@ -577,7 +609,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
         {mightLike.length ? (
           <View style={styles.like}>
             <Text style={styles.sectionTitle}>Other things you might like</Text>
-            <Text style={styles.likeSub}>Add them on top of your box.</Text>
+            <Text style={styles.likeSub}>Add them on top of {yours} box.</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               {mightLike.map((it) => {
                 const sectionId = BOX_DISPLAY_SECTIONS.find((s) => (e.upsellsBySection[s.id] ?? []).some((u) => u.id === it.id))?.id ?? 'presents';
@@ -595,12 +627,19 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
           </View>
         ) : null}
       </View>
+  );
 
+  const overlays = (
+    <>
       <StickyBar
-        label={`Box ${formatCatalogDollars(e.boxPriceCents)}${extras ? ` + ${formatCatalogDollars(extras)}` : ''}${donatedValue ? ` · Donated ${formatCatalogDollars(donatedValue)}` : ''}`}
+        label={`${gift ? 'Gift box' : 'Box'} ${formatCatalogDollars(e.boxPriceCents)}${extras ? ` + ${formatCatalogDollars(extras)}` : ''}${donatedValue ? ` · Donated ${formatCatalogDollars(donatedValue)}` : ''}`}
         total={`Total ${formatCatalogDollars(total)}`}
         onSummaryPress={() => setSheet(donatedValue && !extras ? { kind: 'donated' } : { kind: 'receipt' })}
-        cta={{ label: e.openOrder ? 'Save changes' : 'Checkout', onPress: e.openOrder && e.hasSessionEdits ? () => void e.saveOrderUpdates() : e.goToCheckout, disabled: e.savingOrder, busy: e.savingOrder }}
+        cta={
+          gift
+            ? { label: gift.nextLabel, onPress: gift.onNext }
+            : { label: e.openOrder ? 'Save changes' : 'Checkout', onPress: e.openOrder && e.hasSessionEdits ? () => void e.saveOrderUpdates() : e.goToCheckout, disabled: e.savingOrder, busy: e.savingOrder }
+        }
         testID="mobile-box-bar"
         ctaFill={false}
       />
@@ -615,6 +654,24 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
       {sheet?.kind === 'receipt' ? receiptSheet() : null}
       {sheet?.kind === 'donated' ? donatedSheet() : null}
       <MobileToast toast={toast} onDismiss={() => setToast(null)} />
+    </>
+  );
+
+  if (gift) {
+    return (
+      <View style={{ flex: 1, backgroundColor: m.white }}>
+        {gift.header}
+        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={32} style={{ flex: 1 }}>
+          {body}
+        </ScrollView>
+        {overlays}
+      </View>
+    );
+  }
+  return (
+    <StorefrontChrome scrollRef={scrollRef} onPageScroll={onScroll}>
+      {body}
+      {overlays}
     </StorefrontChrome>
   );
 }
@@ -640,6 +697,8 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
 
 const styles = StyleSheet.create({
   head: { paddingHorizontal: mGutter, paddingTop: 28, paddingBottom: 8, gap: 12 },
+  giftBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', backgroundColor: m.beige, borderRadius: 16, paddingHorizontal: 12, height: 32 },
+  giftBannerText: { fontSize: 13.5, color: m.goldDark, ...mFont(400) },
   headSub: { fontSize: 15, lineHeight: 22, color: m.muted, ...mFont(300) },
   pad: { paddingHorizontal: mGutter, paddingTop: 8 },
   lockLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },

@@ -10,9 +10,10 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { orderSubtotalCents } from '../../services/box/pricing';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { formatCatalogDollars, formatDollars } from '../../services/box/buildDefaultBox';
 import { usePromo } from '../../services/promo/usePromo';
-import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
+import { useBoxLockDay, useBoxLockPassed } from '../../hooks/useBoxLockDay';
+import { MobileGiftCredit, MobileGiftFamily, MobileGiftNote, MobileGiftSave, MobileGiftSend } from '../mobile/MobileGiftSteps';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   GIFT_CUSTOMIZE_PATH,
@@ -505,6 +506,7 @@ function GiftGiveBody() {
   };
 
   const mobileLayout = useMobileLayout();
+  const lockDay = useBoxLockDay();
   const cancelGift = () => {
     cancelledRef.current = true;
     useGiftIntentStore.getState().clear();
@@ -512,7 +514,87 @@ function GiftGiveBody() {
     goHome();
   };
 
+  const renderMobileStep = () => {
+    switch (step) {
+      case 'kids':
+        return customize ? (
+          <MobileGiftFamily kids={childDrafts} onChange={setChildDrafts} />
+        ) : (
+          <MobileGiftCredit creditKids={values.creditKids ?? 1} onChange={(creditKids) => patchValues({ creditKids })} />
+        );
+      case 'email':
+        return (
+          <MobileGiftSave
+            ref={emailRef}
+            name={values.giverName}
+            email={values.giverEmail ?? ''}
+            onName={(giverName) => patchValues({ giverName })}
+            onEmail={(giverEmail) => patchValues({ giverEmail })}
+            error={fieldErrors.email}
+            signedIn={isAuthenticated}
+            signedInEmail={signedInEmail}
+            onSubmit={onContinue}
+            busy={submitting}
+          />
+        );
+      case 'note':
+        return (
+          <MobileGiftNote
+            name={values.giverName}
+            message={values.message}
+            onName={(giverName) => patchValues({ giverName })}
+            onMessage={(message) => patchValues({ message })}
+            customize={customize}
+          />
+        );
+      case 'send':
+        return (
+          <MobileGiftSend
+            customize={customize}
+            lockShort={lockDay}
+            askGiverEmail={askGiverEmailOnSend}
+            giverEmail={values.giverEmail ?? ''}
+            onGiverEmail={(giverEmail) => patchValues({ giverEmail })}
+            giverEmailError={fieldErrors.giverEmail}
+            recipientEmail={values.recipientEmail}
+            onRecipientEmail={(recipientEmail) => patchValues({ recipientEmail })}
+            recipientError={fieldErrors.recipientEmail}
+            busy={submitting}
+            surprise={showAddress}
+            onSurprise={(on) => {
+              setShowAddress(on);
+              if (!on) patchValues({ shippingAddress: undefined });
+            }}
+            address={
+              <CheckoutAddressFields
+                address={giverAddress}
+                onChange={(patch) => patchValues({ shippingAddress: { ...giverAddress, ...patch } })}
+                fieldErrors={addressFieldErrors}
+                suggestion={deliverability.suggestion}
+                onUseSuggestion={deliverability.fieldsProps.onUseSuggestion}
+                heading=""
+                hint=""
+              />
+            }
+            addressError={addressError}
+            discount={<DiscountCodeField promo={promo} disabled={submitting} />}
+            discountNote={
+              promo.discountCents > 0
+                ? `${promo.discountLabel}: you pay ${formatDollars(amountCents - promo.discountCents)}; they still get the full ${formatDollars(amountCents)} gift.`
+                : null
+            }
+            giverEmailRef={giverEmailRef}
+            recipientRef={recipientRef}
+            addressRef={addressRef}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   const renderStep = () => {
+    if (mobileLayout && step !== 'type' && step !== 'pay') return renderMobileStep();
     switch (step) {
       case 'type':
         if (mobileLayout) {
@@ -742,7 +824,7 @@ function GiftGiveBody() {
   };
 
   const paymentReady = step === 'pay' && payment && stripePromise;
-  const taskStep = giftTaskStep(step, !!payment);
+  const taskStep = giftTaskStep(step, !!payment, customize);
   const mobileHeader = mobileLayout ? (
     <TaskHeader
       back={step === 'type' ? { label: 'Cancel', onPress: cancelGift } : { label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : cancelGift()) }}
@@ -753,24 +835,41 @@ function GiftGiveBody() {
     />
   ) : null;
   const busy = submitting || deliverability.checking;
+  const kidCount = Math.max(1, childDrafts.length);
+  const beforeBox = customize && !lineItems?.length;
+  const shownCents = beforeBox ? listBoxCentsForKids(kidCount) : amountCents;
+  const barLabel =
+    step === 'type'
+      ? giftPath ? GIFT_PATH_LABEL[giftPath] : 'Choose one'
+      : !customize
+        ? 'Hanukkah credit'
+        : beforeBox
+          ? `Gift box for ${kidCount} ${kidCount === 1 ? 'kid' : 'kids'}`
+          : 'Their box';
+  const barTotal =
+    step === 'type'
+      ? giftPath === 'customize' ? `From ${formatCatalogDollars(listBoxCentsForKids(1))}` : undefined
+      : formatCatalogDollars(shownCents);
+  const barCta =
+    step === 'kids' && customize && isAuthenticated
+      ? 'Pick their box'
+      : step === 'email'
+        ? 'Pick their box'
+        : step === 'send'
+          ? 'Continue to payment'
+          : 'Continue';
   const mobileBar = mobileLayout ? (
     <StickyBar
       layout="stack"
-      label={step === 'type' ? (giftPath ? GIFT_PATH_LABEL[giftPath] : 'Choose one') : customize ? 'Their box' : 'Gift credit'}
-      total={
-        step === 'type'
-          ? giftPath === 'customize'
-            ? `From ${formatDollars(listBoxCentsForKids(1))}`
-            : undefined
-          : formatDollars(amountCents)
-      }
-      cta={{ label: 'Continue', onPress: onContinue, busy, disabled: busy }}
+      label={barLabel}
+      total={barTotal}
+      cta={{ label: barCta, onPress: onContinue, busy, disabled: busy }}
     />
   ) : null;
   return (
     <SystemPage
       narrow
-      bleed={mobileLayout && step === 'type'}
+      bleed={mobileLayout && step !== 'pay'}
       header={mobileHeader}
       footer={
         mobileLayout ? (
@@ -783,7 +882,7 @@ function GiftGiveBody() {
         )
       }
     >
-      <View ref={topRef} style={mobileLayout && step === 'type' ? null : styles.topSpacer} />
+      <View ref={topRef} style={mobileLayout ? null : styles.topSpacer} />
       {paymentReady ? (
         <Elements
           key={payment.clientSecret}
@@ -836,7 +935,7 @@ function GiftGiveBody() {
               textStyle={checkoutUi.buttonText}
             />
           )}
-          {step !== 'type' ? (
+          {step !== 'type' && !mobileLayout ? (
             <TouchableOpacity
               onPress={cancelGift}
               disabled={submitting}
@@ -864,7 +963,12 @@ export function GiftGiveScreen() {
 }
 
 /** Phone: which of the four mockup steps a GiftGive step belongs to. */
-export function giftTaskStep(step: string, hasPayment: boolean): { index: number; labels: string[] } {
+export function giftTaskStep(step: string, hasPayment: boolean, customize = true): { index: number; labels: string[] } {
+  if (!customize) {
+    const labels = ['Amount', 'Note', 'Pay'];
+    const index = step === 'type' || step === 'kids' ? 0 : step === 'note' || step === 'send' ? 1 : 2;
+    return { index: hasPayment || step !== 'pay' ? index : 1, labels };
+  }
   const labels = ['Their family', 'Their box', 'Note', 'Pay'];
   const index = step === 'type' || step === 'kids' || step === 'email' ? 0 : step === 'customize' ? 1 : step === 'note' || step === 'send' ? 2 : 3;
   return { index: hasPayment || step !== 'pay' ? index : 2, labels };

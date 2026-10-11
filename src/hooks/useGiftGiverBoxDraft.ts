@@ -11,7 +11,7 @@ import {
   resolveFreeSwapUnitCents,
   resolveIncludedGiftOptions,
 } from '../services/box/sectionUpsells';
-import { boxAddOnUnitCents, EXTRA_FLAT_CENTS } from '../services/box/pricing';
+import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, extraUnitCents } from '../services/box/pricing';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -346,6 +346,45 @@ export function useGiftGiverBoxDraft(
     setLineItems((prev) => withCashDonationCents(prev, cents));
   }, []);
 
+  /** Phone stepper: + adds a paid extra unit; − drops an extra first, then an included unit, then the line. */
+  const changeQuantity = useCallback(
+    (group: CoalescedBoxLine, delta: 1 | -1) => {
+      const item = catalog.find((c) => c.id === group.itemId);
+      if (delta === 1) {
+        if (!item) return;
+        setLineItems((prev) => {
+          const extra = prev.find((li) => li.itemId === group.itemId && li.slotId.endsWith('::x'));
+          if (extra) return prev.map((li) => (li.slotId === extra.slotId ? { ...li, quantity: (li.quantity ?? 1) + 1 } : li));
+          return [
+            ...prev,
+            {
+              slotId: `${group.primary.slotId}::x`,
+              itemId: group.itemId,
+              quantity: 1,
+              unitCents: extraUnitCents(item),
+              label: group.primary.label ?? item.name,
+              ...(group.primary.displaySectionId ? { displaySectionId: group.primary.displaySectionId } : null),
+              ...(group.primary.childId ? { childId: group.primary.childId } : null),
+            } as BoxLineItem,
+          ];
+        });
+        return;
+      }
+      if (group.quantity <= 1) {
+        removeCoalesced(group);
+        return;
+      }
+      setLineItems((prev) => {
+        const extra = prev.find((li) => li.itemId === group.itemId && li.slotId.endsWith('::x'));
+        const target = extra ?? prev.find((li) => group.lines.some((g) => g.slotId === li.slotId) && (li.quantity ?? 1) > 1);
+        if (!target) return removeCoalescedGroup(prev, group);
+        if ((target.quantity ?? 1) <= 1) return prev.filter((li) => li.slotId !== target.slotId);
+        return prev.map((li) => (li.slotId === target.slotId ? { ...li, quantity: (li.quantity ?? 1) - 1 } : li));
+      });
+    },
+    [catalog, removeCoalesced]
+  );
+
   const swapOptionsFor = useCallback(
     (li: BoxLineItem): CatalogItem[] => swapOptionsBySlot[li.slotId] ?? [],
     [swapOptionsBySlot]
@@ -362,6 +401,8 @@ export function useGiftGiverBoxDraft(
     swapOptionsFor,
     swapOptionsBySlot,
     removeCoalesced,
+    changeQuantity,
+    updateLines: setLineItems,
     addItem,
     addFreeItem,
     setKidGift,

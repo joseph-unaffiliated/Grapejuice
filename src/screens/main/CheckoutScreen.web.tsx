@@ -43,7 +43,7 @@ import { StickyBar } from '../../components/mobile/StickyBar';
 import { lockShortLabel } from '../../hooks/useBoxGlance';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
-import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import { formatCatalogDollars, formatDollars } from '../../services/box/buildDefaultBox';
 import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { usePilotOrders } from '../../hooks/usePilotOrders';
 import { householdsService } from '../../services/firestore/households';
@@ -696,15 +696,16 @@ function CheckoutScreenBody() {
   if (mobileLayout) {
     const byId = new Map(catalog.map((c) => [c.id, c]));
     const thumbs = coalesceLinesByItemId(lineItems).slice(0, 6).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)), count: r.quantity > 1 ? r.quantity : undefined }));
+    const money = (cents: number) => (cents % 100 === 0 ? formatCatalogDollars(cents) : formatDollars(cents));
     const extrasCents = Math.max(0, subtotal - boxPriceCents);
     const lines = [
-      { label: 'Box', value: formatCatalogDollars(boxPriceCents) },
-      ...(extrasCents ? [{ label: 'Add-ons', value: formatCatalogDollars(extrasCents) }] : []),
-      ...(discountCents ? [{ label: promo.discountLabel ?? 'Discount', value: `−${formatCatalogDollars(discountCents)}` }] : []),
-      ...(giftCreditApplied ? [{ label: 'Gift credit', value: `−${formatCatalogDollars(giftCreditApplied)}` }] : []),
-      ...(platformCreditApplied ? [{ label: 'Credit', value: `−${formatCatalogDollars(platformCreditApplied)}` }] : []),
-      { label: 'Shipping', value: shippingCents > 0 ? formatCatalogDollars(shippingCents) : 'Free' },
-      { label: 'Estimated tax', value: formatCatalogDollars(taxCents) },
+      { label: 'Box', value: money(boxPriceCents) },
+      ...(extrasCents ? [{ label: 'Add-ons', value: money(extrasCents) }] : []),
+      ...(discountCents ? [{ label: promo.discountLabel ?? 'Discount', value: `−${money(discountCents)}` }] : []),
+      ...(giftCreditApplied ? [{ label: 'Gift credit', value: `−${money(giftCreditApplied)}` }] : []),
+      ...(platformCreditApplied ? [{ label: 'Credit', value: `−${money(platformCreditApplied)}` }] : []),
+      { label: 'Shipping', value: shippingCents > 0 ? money(shippingCents) : 'Free' },
+      { label: 'Estimated tax', value: money(taxCents) },
     ];
     const receipt = (
       <View style={{ paddingTop: 6 }}>
@@ -714,7 +715,7 @@ function CheckoutScreenBody() {
               {byId.get(r.itemId)?.name ?? r.itemId}
               {r.quantity > 1 ? ` ×${r.quantity}` : ''}
             </Text>
-            <Text style={{ fontSize: 13.5, color: r.unitCents > 0 ? '#111827' : '#6B7280' }}>{r.unitCents > 0 ? `+${formatCatalogDollars(r.unitCents * r.quantity)}` : 'Included'}</Text>
+            <Text style={{ fontSize: 13.5, color: r.unitCents > 0 ? '#111827' : '#6B7280' }}>{r.unitCents > 0 ? `+${money(r.unitCents * r.quantity)}` : 'Included'}</Text>
           </View>
         ))}
       </View>
@@ -726,7 +727,7 @@ function CheckoutScreenBody() {
       </>
     );
     const smsBlock = <CheckoutSmsOptIn phone={contactPhone} smsOptIn={smsOptIn} onPhoneChange={setContactPhone} onSmsOptInChange={setSmsOptIn} />;
-    const totalLabel = formatCatalogDollars(total);
+    const totalLabel = money(total);
     const needsCard = !cardReady;
     const payment =
       needsCard && setupClientSecret && stripePromise ? (

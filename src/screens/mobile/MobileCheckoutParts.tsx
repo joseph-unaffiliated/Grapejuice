@@ -11,7 +11,7 @@ import { BoxSummary } from '../../components/mobile/BoxSummary';
 import { OrderSummary, type OrderLine } from '../../components/mobile/OrderSummary';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
-import { m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
+import { m, mFont, mGutter, mRadius, mType, balanceProps } from '../../components/mobile/mobileTheme';
 import { MobileCodeSignIn, CodeEntry } from '../../components/mobile/MobileCodeSignIn';
 export { CodeEntry };
 
@@ -95,7 +95,6 @@ export function MobileCheckoutLayout(p: LayoutProps) {
               {open ? p.receipt : null}
             </OrderSummary>
           </View>
-          {p.discount}
         </View>
         <View style={[styles.pad, { paddingTop: 26 }]}>
           <View style={styles.sectionHead}>
@@ -106,9 +105,15 @@ export function MobileCheckoutLayout(p: LayoutProps) {
           {p.sms}
         </View>
         <View style={[styles.pad, { paddingTop: 26 }]}>
-          <Text style={mType.h2}>Payment</Text>
-          <Text style={[mType.small, { marginTop: 4, marginBottom: 12 }]}>Saved now, charged when your box ships.</Text>
+          <View style={styles.sectionHead}>
+            <Text style={mType.h2}>Payment</Text>
+            <Text style={mType.small}>Saved now, charged when it ships</Text>
+          </View>
           {p.payment}
+          {p.discount ? <View style={{ marginTop: 12 }}>{p.discount}</View> : null}
+          <Text style={styles.terms} {...balanceProps}>
+            By placing your order you agree to Grapejuice's Terms and Privacy Policy. Your card is charged when your box ships, after {p.lockShort}.
+          </Text>
         </View>
       </ScrollView>
       {p.bar}
@@ -229,6 +234,7 @@ const styles = StyleSheet.create({
   held: { fontSize: 12.5, color: m.goldDark, lineHeight: 17, marginTop: 6, paddingLeft: 22, ...mFont(400) },
   error: { fontSize: 13, color: m.warn, marginTop: 8, ...mFont(400) },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
+  terms: { fontSize: 12.5, lineHeight: 18, color: m.muted, marginTop: 18, ...mFont(400) },
   label: { fontSize: 12.5, color: m.muted, marginBottom: 6, ...mFont(400) },
   input: { height: 50, borderWidth: 1, borderColor: m.gold, borderRadius: mRadius.md, paddingHorizontal: 14, fontSize: 16, color: m.ink, ...mFont(400) },
   link: { fontSize: 13, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },

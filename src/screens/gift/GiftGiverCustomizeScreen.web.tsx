@@ -14,6 +14,10 @@ import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { pushBrowserPath } from '../../navigation/webBrowserHistory';
 import { GIFT_GIVE_PATH } from '../../navigation/giftFlowLink';
 import { GiftGiverCustomizeContent } from './GiftGiverCustomizeContent';
+import { MyBoxMobile } from '../mobile/MyBoxMobile';
+import { useGiftMobileBoxEditing } from './useGiftMobileBoxEditing';
+import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
+import { View } from 'react-native';
 import { recordGiftFunnelStep, trackGiftStep } from '../../services/analytics/giftFunnel';
 import type { GiftGiveFormValues } from './giftGiveTypes';
 
@@ -66,6 +70,7 @@ export function GiftGiverCustomizeScreen() {
     recordGiftFunnelStep('box', { path: 'customize' });
   }, [form, childDrafts, navigation, needsEmail]);
 
+  const draft = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
   const {
     catalog,
     lineItems,
@@ -82,7 +87,7 @@ export function GiftGiverCustomizeScreen() {
     setKidBook,
     persistWrapSelection,
     setCashDonation,
-  } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
+  } = draft;
 
   const cancelledRef = React.useRef(false);
 
@@ -123,17 +128,41 @@ export function GiftGiverCustomizeScreen() {
     navigation.navigate('StorefrontHome');
   };
 
+  const mobileEditing = useGiftMobileBoxEditing(draft, continueToNote);
+
+  if (mobileLayout) {
+    const header = (
+      <TaskHeader
+        back={{ label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('GiftLanding')) }}
+        title="Send a gift"
+        right="Step 2 of 4"
+        steps={['Their family', 'Their box', 'Note', 'Pay']}
+        on={1}
+      />
+    );
+    const kids = Math.max(1, children.length);
+    return (
+      <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav fillChromeHidden>
+        {loading || !lineItems.length ? (
+          <View style={{ flex: 1 }}>
+            {header}
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <BrandLoadingMark />
+            </View>
+          </View>
+        ) : (
+          <MyBoxMobile
+            editing={mobileEditing}
+            navigation={navigation}
+            gift={{ header, banner: `A gift for a family with ${kids === 1 ? 'one kid' : `${kids} kids`}`, nextLabel: 'Next: Note', onNext: continueToNote }}
+          />
+        )}
+      </StorefrontChrome>
+    );
+  }
+
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav fillChromeHidden={mobileLayout}>
-      {mobileLayout ? (
-        <TaskHeader
-          back={{ label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('GiftLanding')) }}
-          title="Send a gift"
-          right="Step 2 of 4"
-          steps={['Their family', 'Their box', 'Note', 'Pay']}
-          on={1}
-        />
-      ) : null}
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav>
       <GiftGiverCustomizeContent
         form={form}
         catalog={catalog}

@@ -3,7 +3,7 @@ import { boxLockDayLabel, HANUKKAH_BOX_LOCK_DATE } from '../constants/hanukkahBo
 import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
 import { usePreviewNow } from './useUserStatePreview';
 
-function useLockAt(): string | null {
+export function useLockAt(): string | null {
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
 
   useEffect(() => {

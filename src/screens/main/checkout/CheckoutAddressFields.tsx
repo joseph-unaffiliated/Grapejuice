@@ -1,10 +1,13 @@
-import React from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import type { ShippingAddress } from '../../../types/pilot';
 import type { ShippingAddressFieldErrors, ShippingRequiredField } from '../../../utils/formValidation';
 import type { SuggestedAddress } from '../../../services/checkout/validateAddressRemote';
 import { borderRadius, spacing, semanticColors, typeface, typography } from '../../../constants/theme';
 import { checkoutUi } from './checkoutUi';
+import { useMobileLayout } from '../../../hooks/useMobileLayout';
+import { MobileField } from '../../../components/mobile/MobileField';
+import { m, mFont, mType } from '../../../components/mobile/mobileTheme';
 
 type Props = {
   address: ShippingAddress;
@@ -36,6 +39,20 @@ export function CheckoutAddressFields({
   suggestion,
   onUseSuggestion,
 }: Props) {
+  const mobileLayout = useMobileLayout();
+  if (mobileLayout) {
+    return (
+      <MobileAddressFields
+        address={address}
+        onChange={onChange}
+        fieldErrors={fieldErrors}
+        heading={heading}
+        hint={hint === 'Fields marked * are required' ? '' : hint}
+        suggestion={suggestion}
+        onUseSuggestion={onUseSuggestion}
+      />
+    );
+  }
   const inputStyle = (key: ShippingRequiredField) => [
     checkoutUi.input,
     fieldErrors?.[key] ? checkoutUi.inputError : null,
@@ -146,7 +163,48 @@ export function CheckoutAddressFields({
   );
 }
 
+/** Phone (mockups/checkout s=1): plain labels, the apartment line behind a link, city · state · ZIP on one row. */
+function MobileAddressFields({ address, onChange, fieldErrors, heading, hint, suggestion, onUseSuggestion }: Props) {
+  const [aptOpen, setAptOpen] = useState(() => !!address.line2);
+  return (
+    <View>
+      {heading ? <Text style={[mType.h3, { marginBottom: hint ? 4 : 12 }]}>{heading}</Text> : null}
+      {hint ? <Text style={[mType.small, { marginBottom: 12 }]}>{hint}</Text> : null}
+      <MobileField label="Full name" value={address.name} onChangeText={(v) => onChange({ name: v })} autoComplete="name" error={fieldErrors?.name} />
+      <MobileField label="Address" value={address.line1} onChangeText={(v) => onChange({ line1: v })} autoComplete="street-address" error={fieldErrors?.line1} />
+      {aptOpen ? (
+        <MobileField label="Apt, suite or floor" value={address.line2 ?? ''} onChangeText={(v) => onChange({ line2: v })} autoComplete="address-line2" />
+      ) : (
+        <Pressable onPress={() => setAptOpen(true)} accessibilityRole="button" style={styles.mAptLink}>
+          <Text style={styles.mAptText}>+ Apt, suite or floor</Text>
+        </Pressable>
+      )}
+      <View style={styles.mRow}>
+        <MobileField style={{ flex: 1.6 }} label="City" value={address.city} onChangeText={(v) => onChange({ city: v })} autoComplete="postal-address-locality" error={fieldErrors?.city} />
+        <MobileField style={{ flex: 0.8 }} label="State" value={address.stateProvince} onChangeText={(v) => onChange({ stateProvince: v })} autoComplete="postal-address-region" autoCapitalize="characters" error={fieldErrors?.stateProvince} />
+        <MobileField style={{ flex: 1.1 }} label="ZIP" value={address.postalCode} onChangeText={(v) => onChange({ postalCode: v })} autoComplete="postal-code" keyboardType="number-pad" error={fieldErrors?.postalCode} />
+      </View>
+      {suggestion ? (
+        <View style={styles.mSuggestion} accessibilityLiveRegion="polite">
+          <Text style={[mType.bodyStrong, { fontSize: 14 }]}>Did you mean…?</Text>
+          <Text style={[mType.body, { fontSize: 14 }]}>
+            {[suggestion.line1, suggestion.line2].filter(Boolean).join(', ')}
+            {'\n'}
+            {`${suggestion.city}, ${suggestion.stateProvince} ${suggestion.postalCode}`}
+          </Text>
+          <Text style={styles.mAptText} onPress={onUseSuggestion} accessibilityRole="button">Use this address</Text>
+          <Text style={mType.tiny}>Or continue to keep yours.</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  mAptLink: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center', marginTop: -2, marginBottom: 8 },
+  mAptText: { fontSize: 14, color: m.goldDark, ...mFont(400) },
+  mRow: { flexDirection: 'row', gap: 8 },
+  mSuggestion: { backgroundColor: m.beige, borderRadius: 12, padding: 12, gap: 6, marginBottom: 12 },
   requiredHint: { marginBottom: spacing.xs },
   requiredMark: {
     color: semanticColors.error,

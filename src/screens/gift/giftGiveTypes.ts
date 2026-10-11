@@ -46,6 +46,8 @@ export type GiftChildDraft = {
   ageGroup: AgeGroup;
   /** Exact age for box planners (0–17). Matches onboarding Age chips. */
   plannerAge: number;
+  /** Phone: the giver picked "Not sure" (we plan for the default age). */
+  ageUnsure?: boolean;
 };
 
 export const DEFAULT_GIFT_CHILDREN: GiftChildDraft[] = [
