@@ -1,7 +1,7 @@
 /**
  * Desktop screenshot set for the "desktop doesn't change" gate.
  *
- *   node scripts/desktop-shots/shots.mjs <outDir> [baseUrl]
+ *   node scripts/desktop-shots/shots.mjs <outDir> [baseUrl] [--only id,id]
  *
  * Captures every screen in SCREENS at 1440x2200 (the app scrolls inside its own container, so a tall viewport is what covers a page) from the exported web
  * build served by serve.mjs. Videos are hidden and animations disabled so the
@@ -16,8 +16,11 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const outDir = path.resolve(process.argv[2] || 'tmp/desktop-shots/current');
-const baseUrl = process.argv[3] || 'http://127.0.0.1:5055';
+const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const onlyIdx = process.argv.indexOf('--only');
+const only = onlyIdx >= 0 ? new Set((process.argv[onlyIdx + 1] || '').split(',').filter(Boolean)) : null;
+const outDir = path.resolve(args[0] || 'tmp/desktop-shots/current');
+const baseUrl = args[1] || 'http://127.0.0.1:5055';
 const storagePath = path.resolve('scripts/flows/fixtures/guest-session.storage.json');
 const fixture = fs.existsSync(storagePath) ? storagePath : null;
 
@@ -65,6 +68,7 @@ async function main() {
   const browser = await chromium.launch();
   const results = [];
   for (const screen of SCREENS) {
+    if (only && !only.has(screen.id)) continue;
     if (screen.guest && !fixture) {
       results.push({ id: screen.id, skipped: 'no guest fixture' });
       continue;
@@ -105,7 +109,7 @@ async function main() {
     await context.close();
   }
   await browser.close();
-  fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(results, null, 2));
+  if (!only) fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(results, null, 2));
   for (const r of results) console.log(r.skipped ? `skip ${r.id} (${r.skipped})` : `ok   ${r.id}`);
 }
 
