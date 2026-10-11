@@ -16,8 +16,10 @@ import {
   resolveBoxItemAttributionKind,
   isWrapControlSlot,
   isGiftSlotLine,
+  includedPracticeSlotVacant,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
+import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
@@ -91,7 +93,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     [e.grouped]
   );
   const sectionTitle = (id: BoxDisplaySectionId, fallback: string) =>
-    id === 'food' ? 'Eat & Drink' : id === 'presents' ? `Gifts for ${kids.length === 1 ? kids[0]?.name?.trim() || 'your kid' : 'the kids'}` : fallback;
+    id === 'food' ? 'Eat & Drink' : id === 'presents' ? 'Giving Gifts' : fallback;
   const addToCalendar = () => {
     const events = hanukkahCalendarEvents({ startsOn: e.startsOn ?? null, lockAt: e.lockAt ?? null, estimatedDeliveryBy: e.estimatedDeliveryBy ?? null });
     const lock = events.find((ev) => /customize|lock/i.test(ev.title)) ?? events[0];
@@ -150,13 +152,37 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     }
   };
 
+  /** A book (or any included-policy item) is free only while its slot is empty. Otherwise it swaps the one you have, or it costs the add-on price. */
+  const offerFor = (item: CatalogItem, sectionId: BoxDisplaySectionId, sectionRows: CoalescedBoxLine[]) => {
+    const slotOpen = sectionRows.length === 0 || includedPracticeSlotVacant(sectionId, e.lineItems);
+    const free = slotOpen && (e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id);
+    const swap = !free && (e.swapEligibleIdsBySection[sectionId]?.has(item.id) ?? false);
+    const cents = resolveCatalogDisplayPrices(item).memberCents;
+    const label = free ? 'Add · included' : swap ? 'Swap' : `Add · +${formatCatalogDollars(cents)}`;
+    return { free, swap, label, cents };
+  };
+
   const addItem = async (item: CatalogItem, sectionId: BoxDisplaySectionId) => {
-    const free = (e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id);
-    if (free) await e.addFreeItemToEmptySlot(sectionId, item);
-    else {
-      e.setProductModalSection(sectionId);
-      await e.modalAddToBox(item);
+    const offer = offerFor(item, sectionId, rowsFor(sectionId));
+    if (offer.free) {
+      await e.addFreeItemToEmptySlot(sectionId, item);
+      setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void e.modalRemoveFromBox(item) } });
+      return;
     }
+    if (offer.swap) {
+      const source = findSwapSourceLine(item, e.lineItems, e.catalog, sectionId);
+      const previous = source ? e.catalog.find((c) => c.id === source.itemId) : undefined;
+      if (source) {
+        await e.applySwap([source.slotId], item);
+        setToast({
+          message: `Swapped in ${item.name}`,
+          action: previous ? { label: 'Undo', onPress: () => void e.applySwap([source.slotId], previous) } : undefined,
+        });
+        return;
+      }
+    }
+    e.setProductModalSection(sectionId);
+    await e.modalAddToBox(item);
     setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void e.modalRemoveFromBox(item) } });
   };
 
@@ -250,7 +276,6 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
     const idx = BOX_DISPLAY_SECTIONS.findIndex((x) => x.id === sectionId);
     const next = BOX_DISPLAY_SECTIONS[idx + 1];
     const adds = (e.upsellsBySection[sectionId] ?? []).filter((it) => !rows.some((g) => g.itemId === it.id));
-    const freeIds = new Set((e.freeAddOptionsBySection[sectionId] ?? []).map((i) => i.id));
     return (
       <MobileSheet
         visible
@@ -328,16 +353,19 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
           <>
             <Text style={[mType.h3, { marginTop: 8, marginBottom: 10 }]}>Add {rows.length ? 'on top' : 'something'}</Text>
             <View style={styles.addGrid}>
-              {adds.slice(0, 8).map((it) => (
-                <ProductTileMobile
-                  key={it.id}
-                  item={it}
-                  width={150}
-                  onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })}
-                  status={freeIds.has(it.id) ? { kind: 'inbox', text: 'Included' } : null}
-                  action={{ label: freeIds.has(it.id) ? 'Add · included' : `Add · +${formatCatalogDollars(e.catalog.length ? priceToAdd(it) : 0)}`, onPress: () => void addItem(it, sectionId), variant: 'secondary' }}
-                />
-              ))}
+              {adds.slice(0, 8).map((it) => {
+                const offer = offerFor(it, sectionId, rows);
+                return (
+                  <ProductTileMobile
+                    key={it.id}
+                    item={it}
+                    width={150}
+                    onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })}
+                    status={offer.free ? { kind: 'inbox', text: 'Included' } : null}
+                    action={{ label: offer.label, onPress: () => void addItem(it, sectionId), variant: 'secondary' }}
+                  />
+                );
+              })}
             </View>
           </>
         ) : null}
@@ -353,6 +381,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
   const productSheet = (item: CatalogItem, group: CoalescedBoxLine | null, sectionId: BoxDisplaySectionId) => {
     const alts = group && group.unitCents === 0 ? (e.swapOptionsBySlot[group.primary.slotId] ?? []).filter((o) => o.id !== group.itemId) : [];
     const desc = (item.description ?? '').trim();
+    const offer = offerFor(item, sectionId, rowsFor(sectionId));
     return (
       <MobileSheet
         visible
@@ -368,7 +397,7 @@ export function MyBoxMobile({ editing: e, navigation }: Props) {
               <MobileButton label="Done" onPress={() => setSheet(null)} height={46} style={{ width: 120 }} />
             </View>
           ) : (
-            <MobileButton label={`Add to my box · ${(e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id) ? 'included' : `+${formatCatalogDollars(priceToAdd(item))}`}`} onPress={() => { void addItem(item, sectionId); setSheet(null); }} />
+            <MobileButton label={offer.swap ? 'Swap into my box' : offer.free ? 'Add to my box · included' : `Add to my box · +${formatCatalogDollars(offer.cents)}`} onPress={() => { void addItem(item, sectionId); setSheet(null); }} />
           )
         }
       >

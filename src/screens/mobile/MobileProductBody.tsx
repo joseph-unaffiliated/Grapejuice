@@ -77,7 +77,7 @@ export function MobileProductBody(p: Props) {
   ) : p.hasBox ? (
     <StickyBar label="Add to your box" total={p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included'} cta={{ label: 'Add to my box', onPress: () => (p.roleOptions.length > 1 ? setChooser(true) : void p.roleOptions[0]?.onPress()), disabled: p.locked || p.saving, busy: p.saving }} />
   ) : (
-    <StickyBar label="On its own" total={formatCatalogDollars(p.priceCents)} cta={{ label: 'Buy just this', onPress: p.onBuyJustThis ?? (() => {}), variant: 'secondary', disabled: !p.onBuyJustThis || p.saving }} />
+    <StickyBar label="On its own" total={formatCatalogDollars(p.priceCents)} cta={{ label: 'Add to Cart', onPress: p.onBuyJustThis ?? (() => {}), disabled: !p.onBuyJustThis || p.saving }} />
   );
 
   return (

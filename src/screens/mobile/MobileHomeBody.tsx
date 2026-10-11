@@ -130,7 +130,8 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         <Text style={[mType.eyebrow, { marginBottom: 6 }]}>Welcome back</Text>
         <Text style={mType.h1}>{glance.state === 'set' ? 'Your box is set' : 'Your box is waiting'}</Text>
       </View>
-      <BoxSummary total={glance.totalLabel} items={glance.thumbs} style={{ marginTop: 12, marginHorizontal: mGutter }}>
+      <View style={{ paddingHorizontal: mGutter, marginTop: 12 }}>
+      <BoxSummary total={glance.totalLabel} items={glance.thumbs}>
         {glance.state === 'set' ? (
           <>
             <Text style={styles.pill}>Set · ships after {glance.lockShort}</Text>
@@ -145,6 +146,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         <MobileButton label={glance.state === 'set' ? 'View my box' : 'Add shipping and payment'} onPress={glance.state === 'set' ? goMyBox : goCheckout} height={54} />
         <MobileButton label={glance.state === 'set' ? 'Shop extras' : 'Keep editing'} onPress={glance.state === 'set' ? () => goCategory('collection') : goMyBox} variant="secondary" height={54} />
       </BoxSummary>
+      </View>
       <View style={{ height: 4 }} />
     </View>
   );

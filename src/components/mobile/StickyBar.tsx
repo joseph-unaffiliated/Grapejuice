@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MobileButton } from './MobileButton';
+import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
 import { m, mFont } from './mobileTheme';
 
 type Props = {
@@ -24,6 +25,7 @@ type Props = {
 /** Always white: the total, then the black button. Labels say where they go. */
 export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID, ctaFill = true }: Props) {
   const insets = useSafeAreaInsets();
+  const onLayout = useCookieButtonClearance(Platform.OS === 'web');
   const summary = (
     <Pressable onPress={onSummaryPress} disabled={!onSummaryPress} style={ctaFill ? styles.summary : styles.summaryFill} accessibilityRole={onSummaryPress ? 'button' : undefined}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -36,7 +38,7 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
     </Pressable>
   );
   return pinToViewport(
-    <View style={[styles.root, { paddingBottom: 10 + insets.bottom }]} testID={testID}>
+    <View onLayout={onLayout} style={[styles.root, { paddingBottom: 10 + insets.bottom }]} testID={testID}>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       {layout === 'row' ? (
         <View style={styles.row}>

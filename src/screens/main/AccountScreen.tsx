@@ -434,7 +434,15 @@ function AccountScreenBody() {
           onFavorites={() => navigation.navigate('StorefrontFavorites')}
           onHistory={() => navigation.navigate('History')}
           onSendGift={() => navigation.navigate('GiftGive')}
-          onOps={isOpsAdmin(user) ? () => navigation.navigate('AdminCatalog') : undefined}
+          ops={
+            isOpsAdmin(user)
+              ? [
+                  { label: 'Catalog', sub: 'Hanukkah SKUs', onPress: () => navigation.navigate('AdminCatalog') },
+                  { label: 'Boxes and Orders', sub: 'Live boxes, shop orders, gifts and inventory', onPress: () => navigation.navigate('AdminBoxes') },
+                  { label: 'Promotions', sub: 'Discount codes, credit and influencer links', onPress: () => navigation.navigate('AdminPromotions') },
+                ]
+              : undefined
+          }
           signOutLabel={fakeSignedIn ? 'Exit preview' : 'Sign out'}
           onSignOut={onSignOut}
         />

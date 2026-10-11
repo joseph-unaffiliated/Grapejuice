@@ -116,7 +116,7 @@ export function BoxSummary({ size = 'lg', title = 'Your Hanukkah box', sub, tota
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: m.beige, borderRadius: mRadius.lg, padding: 16, gap: 12, width: '100%' },
+  root: { backgroundColor: m.beige, borderRadius: mRadius.lg, padding: 16, gap: 12, alignSelf: 'stretch', maxWidth: '100%', minWidth: 0 },
   rootSm: { borderRadius: mRadius.md, padding: 12, gap: 10 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   titleWrap: { flex: 1, minWidth: 0, gap: 2 },
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   subSm: { fontSize: 12.5, color: m.muted },
   total: { fontSize: 17, color: m.ink, ...mFont(400) },
   totalSm: { fontSize: 14.5 },
-  grid: { flexDirection: 'row', gap: 6, width: '100%', alignSelf: 'stretch' },
+  grid: { flexDirection: 'row', gap: 6, width: '100%', alignSelf: 'stretch', minWidth: 0 },
   gridSm: { gap: 6 },
   scroll: { marginRight: -12 },
   scrollRow: { flexDirection: 'row', gap: 6, paddingRight: 12, paddingTop: 4 },

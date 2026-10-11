@@ -53,7 +53,7 @@ export function MobileFooter() {
     },
   ];
   return (
-    <View style={[styles.root, { paddingBottom: 40 + insets.bottom }]} role="contentinfo">
+    <View style={[styles.root, { paddingBottom: 104 + insets.bottom }]} role="contentinfo">
       <View style={styles.top}>
         <GrapejuiceBrandMark markOnly width={24} height={24} color={m.gold} decorative />
         <Text style={styles.tagline}>Hanukkah, made easy.</Text>

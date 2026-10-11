@@ -34,7 +34,8 @@ type Props = {
   onFavorites: () => void;
   onHistory: () => void;
   onSendGift: () => void;
-  onOps?: () => void;
+  /** Ops admin links. Phones used to offer only the catalog, so Boxes and Orders was unreachable. */
+  ops?: { label: string; sub: string; onPress: () => void }[];
   signOutLabel: string;
   onSignOut: () => void;
 };
@@ -80,7 +81,14 @@ export function MobileAccountHub(p: Props) {
         <Row label="Favorites" sub="Things you've hearted" onPress={p.onFavorites} />
         <Row label="History" sub="Past Hanukkahs" onPress={p.onHistory} />
         <Row label="Send a gift" sub="A box or credit for another family" onPress={p.onSendGift} />
-        {p.onOps ? <Row label="Ops" sub="Catalog, boxes, promotions" onPress={p.onOps} /> : null}
+        {p.ops?.length ? (
+          <>
+            <Text style={styles.opsHead}>Ops</Text>
+            {p.ops.map((row) => (
+              <Row key={row.label} label={row.label} sub={row.sub} onPress={row.onPress} />
+            ))}
+          </>
+        ) : null}
       </View>
 
       <MobileButton label={p.signOutLabel} variant="secondary" onPress={p.onSignOut} style={{ marginTop: 28 }} />
@@ -126,6 +134,7 @@ const styles = StyleSheet.create({
   emptyBox: { borderWidth: 1, borderColor: m.lineWarm, borderRadius: 14, padding: 16, backgroundColor: m.beige },
   link: { ...mType.small, color: m.goldDark, ...mFont(500) },
   rows: { marginTop: 24, borderTopWidth: 1, borderTopColor: m.line },
+  opsHead: { ...mType.eyebrow, marginTop: 22, marginBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: m.line, gap: 12 },
   chev: { fontSize: 22, color: m.muted, lineHeight: 24 },
   error: { ...mType.small, color: m.warn },
