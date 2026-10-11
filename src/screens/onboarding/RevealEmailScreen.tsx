@@ -1,4 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { useBoxDraft } from '../../hooks/useBoxDraft';
+import { useCatalog } from '../../hooks/useCatalog';
+import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
+import { BoxSummary, type BoxThumb } from '../../components/mobile/BoxSummary';
+import { primaryPhoto, SAMPLE_BOX_IDS } from '../../components/mobile/catalogPhotos';
+import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { View, Text, TextInput, StyleSheet, Platform, ScrollView } from 'react-native';
 import { OnboardingPrimaryButton } from '../../components/onboarding/OnboardingButtons';
 import { useWebLayout } from '../../hooks/useWebLayout';
@@ -49,17 +57,44 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
     }
   };
 
+  const mobileLayout = useMobileLayout();
+  const { lineItems } = useBoxDraft();
+  const { items: catalog } = useCatalog();
+  const revealThumbs = useMemo((): BoxThumb[] => {
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    const rows = coalesceLinesByItemId(lineItems);
+    const ids = rows.length ? rows.map((r) => r.itemId) : SAMPLE_BOX_IDS;
+    const shown = ids.slice(0, 6);
+    const hidden = Math.max(0, ids.length - 6);
+    return shown.map((id, i) => ({ id, imageUrl: primaryPhoto(byId.get(id)), blur: i > 2, label: i === 5 && hidden > 0 ? `+${hidden}` : undefined }));
+  }, [lineItems, catalog]);
+  const kidCount = Math.max(1, new Set(lineItems.map((l) => l.childId).filter(Boolean)).size);
+
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, mobileLayout && styles.contentMobile]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.column}>
-        <Text style={[styles.title, isDesktopWeb && styles.titleDesktop]}>
-          {'Enter your email\nto reveal your box'}
-        </Text>
+        {mobileLayout ? (
+          <>
+            <Text style={[styles.title, styles.titleMobile]}>Your box is ready</Text>
+            <View style={{ width: '100%', marginTop: 16, marginBottom: 8 }}>
+              <BoxSummary
+                total={formatCatalogDollars(listBoxCentsForKids(kidCount))}
+                items={revealThumbs}
+              >
+                <Text style={styles.gateLine}>Candles, dreidels, gelt, latke and sufganiyot kits, and a book and a present for each kid.</Text>
+              </BoxSummary>
+            </View>
+          </>
+        ) : (
+          <Text style={[styles.title, isDesktopWeb && styles.titleDesktop]}>
+            {'Enter your email\nto reveal your box'}
+          </Text>
+        )}
         <TextInput
           style={styles.input}
           value={email}
@@ -81,11 +116,14 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <OnboardingPrimaryButton
-          label="Continue"
+          label={mobileLayout ? 'Show my box' : 'Continue'}
           onPress={() => void submit()}
           loading={submitting}
           style={styles.button}
         />
+        {mobileLayout ? (
+          <Text style={styles.legal}>We'll email you a link to your box, so you can open it later in any browser. No password needed.</Text>
+        ) : null}
         <Text style={styles.legal}>
           By clicking “Continue” you are agreeing to Grapejuice’s{' '}
           <Text style={styles.legalLink} onPress={() => openLegal(TERMS_PATH)} accessibilityRole="link">
@@ -103,6 +141,9 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0, backgroundColor: semanticColors.bgPrimary },
+  contentMobile: { justifyContent: 'flex-start', paddingTop: 24 },
+  titleMobile: { fontSize: 29, lineHeight: 33, letterSpacing: -0.8, textAlign: 'left', alignSelf: 'stretch' },
+  gateLine: { fontSize: 14, color: '#374151', lineHeight: 20 },
   content: {
     flexGrow: 1,
     alignItems: 'center',

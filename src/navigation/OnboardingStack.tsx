@@ -31,9 +31,12 @@ import {
   wizardNavStepIndex,
   type OnboardingStep,
   type OnboardingWizardNavStepId,
+  ONBOARDING_WIZARD_NAV_STEPS,
 } from './onboardingSteps';
 import { OnboardingUnderStorefrontChromeContext } from '../components/onboarding/onboardingChromeContext';
 import { OnboardingWizardNav } from '../components/onboarding/OnboardingWizardNav';
+import { TaskHeader } from '../components/mobile/TaskHeader';
+import { useMobileLayout } from '../hooks/useMobileLayout';
 import {
   StorefrontChrome,
 } from '../components/storefront/StorefrontChrome';
@@ -152,6 +155,7 @@ export function OnboardingStack({
     })
   );
   const [maxWizardIndex, setMaxWizardIndex] = useState(0);
+  const mobileLayout = useMobileLayout();
   const [childDrafts, setChildDrafts] = useState<ChildDraft[]>(guestChildDrafts);
   const [childInterests, setChildInterests] = useState<string[]>(guestChildInterests);
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>(guestFamiliarityLevel);
@@ -747,6 +751,26 @@ export function OnboardingStack({
       break;
     default:
       return null;
+  }
+
+  if (mobileLayout) {
+    // Phone: the task header (back, Build your box, step count, progress) instead of the browsing chrome.
+    const idx = Math.max(0, wizardNavStepIndex(step));
+    const labels = ['Family', 'About you', 'Your box'];
+    const back =
+      idx === 0
+        ? { label: 'Cancel', onPress: () => leaveToStorefront({ type: 'home' }) }
+        : { label: 'Back', onPress: () => goToWizardNavStep(ONBOARDING_WIZARD_NAV_STEPS[idx - 1]!.id) };
+    return (
+      <OnboardingUnderStorefrontChromeContext.Provider value={true}>
+        <StorefrontChrome bodyMode="fill" onLeave={leaveToStorefront} hideServicesNav hideSearchAndRav fillChromeHidden>
+          <View style={{ flex: 1, backgroundColor: '#fff' }}>
+            <TaskHeader back={back} title="Build your box" right={`Step ${idx + 1} of ${labels.length}`} steps={labels} on={idx} />
+            {wrap(stepContent)}
+          </View>
+        </StorefrontChrome>
+      </OnboardingUnderStorefrontChromeContext.Provider>
+    );
   }
 
   return (

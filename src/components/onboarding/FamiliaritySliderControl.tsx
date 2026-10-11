@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  Text,
   View,
   StyleSheet,
   TouchableOpacity,
@@ -12,6 +13,8 @@ import { semanticColors, spacing } from '../../constants/theme';
 type Props = {
   value: number;
   onChange: (value: number) => void;
+  /** Phone onboarding: grey handle with arrows and no fill until the person moves it. */
+  unset?: boolean;
   accessibilityLabel?: string;
   /** Hide the 0/25/50/75/100 quick-pick dots under the track. */
   hideSteps?: boolean;
@@ -30,6 +33,7 @@ const AXIS_LOCK_DX = 8;
 export function FamiliaritySliderControl({
   value,
   onChange,
+  unset = false,
   accessibilityLabel = 'Practice level',
   hideSteps = false,
 }: Props) {
@@ -226,13 +230,16 @@ export function FamiliaritySliderControl({
         {...(Platform.OS === 'web' ? webProps : pan.panHandlers)}
       >
         <View style={styles.track} pointerEvents="none">
-          <View style={[styles.fill, { width: `${value}%` }]} />
+          {unset ? null : <View style={[styles.fill, { width: `${value}%` }]} />}
           <View
             style={[
               styles.thumb,
-              { left: Math.max(0, Math.min(Math.max(trackWidth - THUMB, 0), thumbLeft)) },
+              unset && styles.thumbUnset,
+              { left: Math.max(0, Math.min(Math.max(trackWidth - (unset ? THUMB * 1.8 : THUMB), 0), unset ? thumbLeft - THUMB * 0.4 : thumbLeft)) },
             ]}
-          />
+          >
+            {unset ? <Text style={styles.thumbArrows}>‹ ›</Text> : null}
+          </View>
         </View>
       </View>
       {hideSteps ? null : (
@@ -312,4 +319,14 @@ const styles = StyleSheet.create({
   stepDotOn: {
     backgroundColor: '#000000',
   },
+  thumbUnset: {
+    width: THUMB * 1.8,
+    borderRadius: THUMB,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#9CA3AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbArrows: { color: '#6B7280', fontSize: 13, lineHeight: 15, fontWeight: '500' },
 });

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { Text, StyleSheet, View } from 'react-native';
 import {
   OnboardingScreenLayout,
@@ -30,6 +31,7 @@ type Props = {
 };
 
 export function FamilyStepScreen({ onContinue, initialMembers, defaultName }: Props) {
+  const mobileLayout = useMobileLayout();
   const [members, setMembers] = useState<ChildDraft[]>(() =>
     initialMembers?.length
       ? ensureAdultLead(initialMembers, defaultName).map((m) => ({
@@ -44,7 +46,7 @@ export function FamilyStepScreen({ onContinue, initialMembers, defaultName }: Pr
     <OnboardingScreenLayout
       title="Eight nights. Your way."
       centerHeader={false}
-      primaryLabel="Continue"
+      primaryLabel={mobileLayout ? 'Next: About you' : 'Continue'}
       onPrimary={() => onContinue(members)}
       primaryDisabled={!namesComplete}
       asideSide="right"

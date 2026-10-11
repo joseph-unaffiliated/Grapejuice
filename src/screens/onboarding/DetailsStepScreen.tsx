@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { View, Text, StyleSheet, TextInput, Platform } from 'react-native';
 import type { FamiliarityLevel } from '../../types/pilot';
 import {
@@ -35,6 +36,7 @@ function SliderQuestion({
   maxLabel,
   value,
   onChange,
+  unset,
   last = false,
 }: {
   question: string;
@@ -42,13 +44,14 @@ function SliderQuestion({
   maxLabel: string;
   value: number;
   onChange: (value: number) => void;
+  unset?: boolean;
   last?: boolean;
 }) {
   return (
     <View style={[styles.section, last && styles.sectionLast]}>
       <Text style={[onboardingBodyText.lead, styles.sectionLead]}>{question}</Text>
       <View style={styles.sliderPullUp}>
-        <FamiliaritySliderControl value={value} onChange={onChange} accessibilityLabel={question} hideSteps />
+        <FamiliaritySliderControl value={value} onChange={onChange} accessibilityLabel={question} hideSteps unset={unset} />
       </View>
       <View style={[styles.sliderLabels, styles.sliderLabelsBelow]}>
         <Text style={styles.sliderLabel}>{minLabel}</Text>
@@ -69,6 +72,10 @@ export function DetailsStepScreen({
 }: Props) {
   const [score, setScore] = useState(initialScore);
   const [frequency, setFrequency] = useState(initialFrequency);
+  const mobileLayout = useMobileLayout();
+  // Phone: both sliders start unset so nobody leaves them at the default.
+  const [touched, setTouched] = useState<{ score: boolean; frequency: boolean }>({ score: initialScore !== 50, frequency: initialFrequency !== 50 });
+  const needsSliders = mobileLayout && !(touched.score && touched.frequency);
   const [notes, setNotes] = useState(initialNotes);
   const [inputHeight, setInputHeight] = useState(INPUT_MIN_HEIGHT);
   const atMax = inputHeight >= INPUT_MAX_HEIGHT;
@@ -87,7 +94,8 @@ export function DetailsStepScreen({
         })
       }
       primaryLoading={building}
-      primaryDisabled={building}
+      primaryDisabled={building || needsSliders}
+      primaryHint={needsSliders ? 'Move both sliders to continue' : undefined}
       primaryStyle={styles.primaryMatchInput}
       asideSide="right"
       inlineFooter
@@ -123,14 +131,22 @@ export function DetailsStepScreen({
         minLabel="We don’t really do it"
         maxLabel="We do all eight nights"
         value={score}
-        onChange={setScore}
+        onChange={(v) => {
+          setScore(v);
+          setTouched((t) => ({ ...t, score: true }));
+        }}
+        unset={mobileLayout && !touched.score}
       />
       <SliderQuestion
         question="How often do you do Jewish stuff?"
         minLabel="Almost never"
         maxLabel="Every day"
         value={frequency}
-        onChange={setFrequency}
+        onChange={(v) => {
+          setFrequency(v);
+          setTouched((t) => ({ ...t, frequency: true }));
+        }}
+        unset={mobileLayout && !touched.frequency}
         last
       />
     </OnboardingScreenLayout>

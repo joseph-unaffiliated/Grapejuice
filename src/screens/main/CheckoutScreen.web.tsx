@@ -37,6 +37,15 @@ import { CheckoutAuthGate } from './checkout/CheckoutAuthGate';
 import { CheckoutSmsOptIn } from './checkout/CheckoutSmsOptIn';
 import { CheckoutCongratsOverlay } from './checkout/CheckoutCongratsOverlay';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileBoundary } from '../../components/mobile/MobileBoundary';
+import { MobileCardAndPlaceOrder, MobileCheckoutDone, MobileCheckoutGate, MobileCheckoutLayout } from '../mobile/MobileCheckoutParts';
+import { StickyBar } from '../../components/mobile/StickyBar';
+import { lockShortLabel } from '../../hooks/useBoxGlance';
+import { primaryPhoto } from '../../components/mobile/catalogPhotos';
+import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
+import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { usePilotOrders } from '../../hooks/usePilotOrders';
 import { householdsService } from '../../services/firestore/households';
 import { CHECKOUT_PATH, checkoutPath, readCheckoutPaymentStepFromWindow } from '../../navigation/checkoutLink';
@@ -225,6 +234,15 @@ function CheckoutScreenBody() {
     discountCents,
   } = useCheckoutDraft(household?.id);
 
+  const mobileLayout = useMobileLayout();
+  const [startsOnForDone, setStartsOnForDone] = useState<string | null>(() => peekHanukkahConfig()?.startsOn ?? null);
+  useEffect(() => {
+    let alive = true;
+    void getHanukkahConfig().then((c) => alive && setStartsOnForDone(c.startsOn));
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
   /** Keeps the SetupIntent secret across shipping ↔ payment browser history. */
   const setupSecretRef = useRef<string | null>(null);
@@ -395,6 +413,27 @@ function CheckoutScreenBody() {
       setPreparing(false);
     }
   };
+
+  /** Phone one-page checkout: the card form sits under the address, so create the SetupIntent as soon as we know a card is needed. */
+  const mobileSetupStarted = useRef(false);
+  useEffect(() => {
+    if (!mobileLayout || mobileSetupStarted.current) return;
+    if (!isAuthenticated || !household?.id || loading || ordersLoading || !lineItems.length) return;
+    if (cardOnFile || awaitingCardOnFile || setupClientSecret || !stripeKey) return;
+    mobileSetupStarted.current = true;
+    void (async () => {
+      cardBeforeSetupRef.current = { at: household.cardOnFileAt, pm: household.stripeDefaultPaymentMethodId };
+      try {
+        const result = await createPilotSetupIntent(household.id);
+        if (result.clientSecret) {
+          setupSecretRef.current = result.clientSecret;
+          setSetupClientSecret(result.clientSecret);
+        }
+      } catch (e) {
+        notifyCheckout('Could not load payment', formatSetupIntentError(e));
+      }
+    })();
+  }, [mobileLayout, isAuthenticated, household, loading, ordersLoading, lineItems.length, cardOnFile, awaitingCardOnFile, setupClientSecret, stripeKey]);
 
   // Browser Back/Forward within /checkout ↔ /checkout?step=payment.
   useEffect(() => {
@@ -627,11 +666,17 @@ function CheckoutScreenBody() {
 
   const onPaymentStep = !!setupClientSecret && !cardReady;
 
+  const lockShort = lockShortLabel(lockAt);
   if (showCongrats) {
+    if (mobileLayout) {
+      const startsLabel = startsOnForDone ? new Date(startsOnForDone).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : null;
+      return <MobileCheckoutDone lockShort={lockShort} startsLabel={startsLabel} onViewBox={() => navigation.replace('MyBox')} onShop={() => navigation.replace('StorefrontCategory', { category: 'collection' })} />;
+    }
     return <CheckoutCongratsOverlay lockAt={lockAt} onDone={() => navigation.replace('MyBox')} />;
   }
 
   if (!isAuthenticated) {
+    if (mobileLayout) return <MobileCheckoutGate onBack={onBack} />;
     return <CheckoutAuthGate />;
   }
 
@@ -649,6 +694,113 @@ function CheckoutScreenBody() {
           Your box is empty. Finish onboarding or add items in My Box.
         </Text>
       </SystemPage>
+    );
+  }
+
+  if (mobileLayout) {
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    const thumbs = coalesceLinesByItemId(lineItems).slice(0, 6).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)), count: r.quantity > 1 ? r.quantity : undefined }));
+    const extrasCents = Math.max(0, subtotal - boxPriceCents);
+    const lines = [
+      { label: 'Box', value: formatCatalogDollars(boxPriceCents) },
+      ...(extrasCents ? [{ label: 'Add-ons', value: formatCatalogDollars(extrasCents) }] : []),
+      ...(discountCents ? [{ label: promo.discountLabel ?? 'Discount', value: `−${formatCatalogDollars(discountCents)}` }] : []),
+      ...(giftCreditApplied ? [{ label: 'Gift credit', value: `−${formatCatalogDollars(giftCreditApplied)}` }] : []),
+      ...(platformCreditApplied ? [{ label: 'Credit', value: `−${formatCatalogDollars(platformCreditApplied)}` }] : []),
+      { label: 'Shipping', value: shippingCents > 0 ? formatCatalogDollars(shippingCents) : 'Free' },
+      { label: 'Estimated tax', value: formatCatalogDollars(taxCents) },
+    ];
+    const receipt = (
+      <View style={{ paddingTop: 6 }}>
+        {coalesceLinesByItemId(lineItems).map((r) => (
+          <View key={r.key} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+            <Text style={{ flex: 1, fontSize: 13.5, color: '#374151' }} numberOfLines={1}>
+              {byId.get(r.itemId)?.name ?? r.itemId}
+              {r.quantity > 1 ? ` ×${r.quantity}` : ''}
+            </Text>
+            <Text style={{ fontSize: 13.5, color: r.unitCents > 0 ? '#111827' : '#6B7280' }}>{r.unitCents > 0 ? `+${formatCatalogDollars(r.unitCents * r.quantity)}` : 'Included'}</Text>
+          </View>
+        ))}
+      </View>
+    );
+    const addressBlock = (
+      <>
+        <CheckoutAddressFields address={address} onChange={onAddressChange} fieldErrors={addressFieldErrors} heading="" hint="" {...deliverability.fieldsProps} />
+        {addressFormError ? <Text style={checkoutUi.fieldError}>{addressFormError}</Text> : null}
+      </>
+    );
+    const smsBlock = <CheckoutSmsOptIn phone={contactPhone} smsOptIn={smsOptIn} onPhoneChange={setContactPhone} onSmsOptInChange={setSmsOptIn} />;
+    const totalLabel = formatCatalogDollars(total);
+    const needsCard = !cardReady;
+    const payment =
+      needsCard && setupClientSecret && stripePromise ? (
+        <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}>
+          <MobileCardAndPlaceOrder
+            total={totalLabel}
+            beforeConfirm={ensureAddressDeliverable}
+            onSaved={() => void onCardSaved()}
+            returnUrl={checkoutReturnUrl()}
+            disabled={locked || committing}
+            notify={notifyCheckout}
+          />
+        </Elements>
+      ) : needsCard ? (
+        <View style={styles.savingCardRow}>
+          <BrandLoadingMark large={false} color={colors.brand} />
+          <Text style={styles.savingCardCopy}>Loading the card form…</Text>
+        </View>
+      ) : awaitingCardOnFile ? (
+        <View style={styles.savingCardRow}>
+          <BrandLoadingMark large={false} color={colors.brand} />
+          <Text style={styles.savingCardCopy}>Saving your card…</Text>
+        </View>
+      ) : (
+        <View>
+          <Text style={checkoutUi.hint}>Card saved.</Text>
+          <TouchableOpacity onPress={() => void startSetup()} disabled={preparing || locked} accessibilityRole="button" accessibilityLabel="Change card" style={styles.changeCard}>
+            <Text style={page.link}>Change card</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    const bar =
+      needsCard && setupClientSecret ? null : (
+        <StickyBar
+          label="Charged when it ships"
+          total={totalLabel}
+          layout="stack"
+          cta={{
+            label: 'Place order',
+            onPress: () => {
+              void (async () => {
+                if (!(await ensureAddressDeliverable())) return;
+                setShippingConfirmed(true);
+                await handleCommit();
+              })();
+            },
+            busy: committing || deliverability.checking || awaitingCardOnFile,
+            disabled: needsCard || committing || locked || deliverability.checking || awaitingCardOnFile,
+          }}
+          testID="mobile-checkout-bar"
+        />
+      );
+    return (
+      <MobileBoundary screen="checkout" fallback={<SystemPage narrow onBack={onBack}>{orderSummary}{checkoutForm}</SystemPage>}>
+        <MobileCheckoutLayout
+          onBack={onBack}
+          lockShort={lockShort}
+          cardOnFile={cardReady}
+          thumbs={thumbs}
+          lines={lines}
+          total={totalLabel}
+          receipt={receipt}
+          discount={<DiscountCodeField promo={promo} disabled={committing || locked} />}
+          address={addressBlock}
+          sms={smsBlock}
+          payment={payment}
+          bar={bar}
+          lockedNote={locked ? 'Box customization is locked. Checkout is unavailable.' : null}
+        />
+      </MobileBoundary>
     );
   }
 
@@ -678,8 +830,9 @@ function CheckoutScreenBody() {
 }
 
 export function CheckoutScreen() {
+  const mobileLayout = useMobileLayout();
   return (
-    <StorefrontChrome bodyMode="fill" hideServicesNav>
+    <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav={mobileLayout} fillChromeHidden={mobileLayout}>
       <CheckoutScreenBody />
     </StorefrontChrome>
   );

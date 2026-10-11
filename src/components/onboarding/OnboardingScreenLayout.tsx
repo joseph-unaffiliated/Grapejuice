@@ -56,6 +56,8 @@ type Props = {
   onPrimary?: () => void;
   primaryLoading?: boolean;
   primaryDisabled?: boolean;
+  /** Small line above the primary button explaining why it's disabled. */
+  primaryHint?: string;
   primaryStyle?: StyleProp<ViewStyle>;
   secondaryLabel?: string;
   onSecondary?: () => void;
@@ -82,6 +84,7 @@ export function OnboardingScreenLayout({
   onPrimary,
   primaryLoading,
   primaryDisabled,
+  primaryHint,
   primaryStyle,
   secondaryLabel,
   onSecondary,
@@ -113,6 +116,9 @@ export function OnboardingScreenLayout({
 
   const ctas = showFooter ? (
     <>
+      {primaryHint ? (
+        <Text style={{ fontSize: 12.5, color: '#6B7280', textAlign: 'center', marginBottom: 8 }}>{primaryHint}</Text>
+      ) : null}
       <OnboardingPrimaryButton
         label={primaryLabel!}
         onPress={onPrimary!}

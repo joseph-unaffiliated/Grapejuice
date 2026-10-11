@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAuthFlowStore } from '../stores/authFlowStore';
 import { navigationRef } from './navigationRef';
 import { readCheckoutPathFromWindow } from './checkoutLink';
+import { isMobileLayoutLikely } from '../services/mobileLayout/mobileLayoutConfig';
 
 function navigateToCheckout(): void {
   if (!navigationRef.isReady()) return;
@@ -24,7 +25,8 @@ export function CheckoutLinkEffect() {
       if (!navigationRef.isReady()) return;
       clearInterval(id);
       pending.current = false;
-      if (!isAuthenticated) {
+      // The phone layout signs people in with an emailed code on the checkout screen itself.
+      if (!isAuthenticated && !isMobileLayoutLikely()) {
         startAuthFromGuest('Checkout', 'signin', 'SignInEmail');
         return;
       }
