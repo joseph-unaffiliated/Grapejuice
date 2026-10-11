@@ -11,6 +11,7 @@ import {
   type AttributionSnapshot,
 } from '../../stores/entryContextStore';
 import { setGaDisabled, trackGaForMetaEvent } from './googleAnalytics';
+import { currentMobileLayoutTag } from '../mobileLayout/mobileLayoutConfig';
 
 /** "Unaffiliated" dataset. Keep in sync with public/index.html and functions/src/metaCapi.ts. */
 export const META_PIXEL_ID = '809409995127436';
@@ -119,6 +120,12 @@ export function newMetaEventId(prefix: string): string {
 
 // `track` drops every PageView after the first per page load (SPA routes included);
 // `trackSingle` has no such dedup.
+/** `mobile_layout: new|control` on phone sessions once the layout is known; nothing on desktop. */
+function mobileLayoutParam(): { mobile_layout?: 'new' | 'control' } {
+  const tag = currentMobileLayoutTag();
+  return tag ? { mobile_layout: tag } : {};
+}
+
 function send(
   command: 'trackSingle' | 'trackSingleCustom',
   eventName: string,
@@ -136,7 +143,7 @@ function send(
       command,
       META_PIXEL_ID,
       eventName,
-      { ...params, content_category: CONTENT_CATEGORY },
+      { ...params, content_category: CONTENT_CATEGORY, ...mobileLayoutParam() },
       { eventID: eventId }
     );
     return eventId;

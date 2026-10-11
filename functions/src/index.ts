@@ -1,4 +1,5 @@
 import * as logger from './logger';
+import { isPlaythroughTestEmail } from './testAccounts';
 import { onRequest, onCall, HttpsError, onSchedule, reportWarning } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -1117,7 +1118,9 @@ export const createMarketplaceCheckout = onCall(async (request) => {
     const lockAt = await getLockAt(false);
 
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
-    const skipShipStation = data.skipShipStation === true;
+    const skipShipStation =
+      data.skipShipStation === true ||
+      isPlaythroughTestEmail(guestEmail || (typeof request.auth?.token.email === 'string' ? request.auth.token.email : ''));
     const metaCtx = metaContextFromCallable(request);
     const attribution = sanitizeAttribution(data.attribution);
 
@@ -1597,7 +1600,7 @@ export const commitPilotBox = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Order total is invalid.');
   }
 
-  const isPlaythrough = data.skipShipStation === true;
+  const isPlaythrough = data.skipShipStation === true || isPlaythroughTestEmail(buyerEmail);
   if (!isPlaythrough) {
     await assertBoxLinesWithinInventory(db, lineItems);
   }
@@ -3175,7 +3178,7 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = configSnap.data() ?? {};
     const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
-    const skipShipStation = request.data?.skipShipStation === true;
+    const skipShipStation = request.data?.skipShipStation === true || isPlaythroughTestEmail(buyerEmail);
     if (!skipShipStation) {
       await assertBoxLinesWithinInventory(db, lineItems, {
         creditLines: await heldReceivedGiftLines(db, householdId, giftInviteId, gift.lineItems),
