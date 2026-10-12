@@ -15,6 +15,7 @@ import {
 import {
   BOX_DISPLAY_SECTIONS,
   displaySectionForCatalogItem,
+  displaySectionForLineItem,
   groupLineItemsByDisplaySection,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
@@ -22,13 +23,20 @@ import {
   coalesceLinesByItemId,
   donatedItemQuantities,
   includedClaimAlreadyTaken,
+  includedClaimBlockedUnitCents,
   isGiftSlotLine,
   isWrapControlSlot,
   isWrappingPaperItem,
+  notePromotedIncludedSwap,
+  paidSiblingForIncludedPromotion,
+  removeCoalescedGroup,
+  revertPromotedIncludedSwap,
   seedIncludedBaselines,
   setLiveIncludedBaselines,
+  takePromotedIncludedUndo,
   transferIncludedBaselineOnSwap,
   type CoalescedBoxLine,
+  type IncludedPromotionUndo,
 } from '../../components/box/boxLineDisplay';
 import { slotIdAfterSwap } from '../../hooks/useMyBoxEditing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
@@ -42,6 +50,7 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
   const lockAt = useLockAt();
   const [productModalSection, setProductModalSection] = useState<BoxDisplaySectionId | null>(null);
   const donatedLineSnapshots = useRef<Map<string, BoxLineItem[]>>(new Map());
+  const promotionUndos = useRef<Map<string, IncludedPromotionUndo>>(new Map());
   const baselines = useRef<Map<string, number>>(new Map());
   useEffect(() => {
     setLiveIncludedBaselines(baselines.current);
@@ -68,10 +77,63 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     }
   };
 
+  /**
+   * If a paid same-section extra will be promoted, this removal is a swap:
+   * move the included baseline and remember it so Undo can put both back.
+   * Returns the promoted item id when that happens.
+   */
+  const finishRemoval = (group: CoalescedBoxLine): string | undefined => {
+    const prev = latest.current.lineItems;
+    const removed = removeCoalescedGroup(prev, group);
+    const removedItem = catalog.find((c) => c.id === group.itemId);
+    const sectionId =
+      (removedItem ? displaySectionForCatalogItem(removedItem) : undefined) ??
+      group.primary.displaySectionId;
+    const promotedBefore = sectionId
+      ? paidSiblingForIncludedPromotion(removed, sectionId, catalog, displaySectionForLineItem)
+      : undefined;
+    if (!promotedBefore) {
+      trackRemoval(group);
+      return undefined;
+    }
+    const free = group.lines.filter((li) => !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0);
+    const freeQty = free.reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+    const persisted = free.reduce((s, li) => s + Math.max(0, li.includedQty ?? 0), 0);
+    const map = baselines.current;
+    if (freeQty > 0 && (map.has(group.itemId) || persisted > 0)) {
+      map.set(group.itemId, Math.max(map.get(group.itemId) ?? 0, persisted, freeQty));
+    }
+    notePromotedIncludedSwap(
+      map,
+      donatedLineSnapshots.current,
+      promotionUndos.current,
+      group.itemId,
+      free,
+      promotedBefore
+    );
+    return promotedBefore.itemId;
+  };
+
   const restoreDonated = async (itemId: string, replacement?: CatalogItem) => {
     const item = catalog.find((c) => c.id === itemId);
+    if (!item) return;
+    const promotionUndo = !replacement
+      ? takePromotedIncludedUndo(promotionUndos.current, itemId, latest.current.lineItems)
+      : undefined;
+    if (promotionUndo) {
+      transferIncludedBaselineOnSwap(
+        baselines.current,
+        promotionUndo.promotedBefore.itemId,
+        itemId,
+        promotionUndo.movedQty,
+        0
+      );
+      donatedLineSnapshots.current.delete(itemId);
+      draft.updateLines((prev) => revertPromotedIncludedSwap(prev, promotionUndo));
+      return;
+    }
     const missing = latest.current.donatedItems.find((d) => d.item.id === itemId)?.missing ?? 0;
-    if (!item || missing <= 0) return;
+    if (missing <= 0) return;
     if (replacement) {
       const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
       donatedLineSnapshots.current.delete(itemId);
@@ -108,7 +170,7 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     donatedLineSnapshots.current.delete(itemId);
     const taken = includedClaimAlreadyTaken(item, snapshot, latest.current.lineItems, catalog);
     if (taken && !snapshot.length) {
-      const unit = boxAddOnUnitCents(item);
+      const unit = includedClaimBlockedUnitCents(item);
       draft.updateLines((prev) => [
         ...prev,
         {
@@ -131,7 +193,7 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
       const free = prev.find(isFree);
       if (free && !taken) return prev.map((li) => (li.slotId === free.slotId ? { ...li, quantity: (li.quantity ?? 1) + missing } : li));
       const used = new Set(prev.map((li) => li.slotId));
-      const unit = taken ? boxAddOnUnitCents(item) : 0;
+      const unit = taken ? includedClaimBlockedUnitCents(item) : 0;
       return [
         ...prev,
         ...snapshot
@@ -230,11 +292,15 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     modalRemoveFromBox: async (item) => {
       const group = coalesceLinesByItemId(lineItems.filter((li) => li.itemId === item.id))[0];
       if (!group) return;
-      trackRemoval(group);
+      finishRemoval(group);
       draft.removeCoalesced(group);
     },
     changeBoxQuantity: async (group, delta) => {
-      if (delta === -1 && group.quantity <= 1) trackRemoval(group);
+      if (delta === -1 && group.quantity <= 1) {
+        const promotedItemId = finishRemoval(group);
+        draft.changeQuantity(group, delta);
+        return promotedItemId ? { promotedItemId } : undefined;
+      }
       draft.changeQuantity(group, delta);
     },
     addFreeItemToEmptySlot: async (sectionId, item) => draft.addFreeItem(item, { displaySectionId: sectionId }),

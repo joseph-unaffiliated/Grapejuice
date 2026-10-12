@@ -59,6 +59,9 @@ import {
   isGiftSlotLine,
   isWrapControlSlot,
   isWrappingPaperItem,
+  notePromotedIncludedSwap,
+  paidSiblingForIncludedPromotion,
+  removeCoalescedGroup,
   kidsNeedingBook,
   kidsNeedingGift,
   resolveBoxItemAttributionKind,
@@ -78,6 +81,7 @@ import { SystemPage } from '../../components/layout/SystemPage';
 import {
   BOX_DISPLAY_SECTIONS,
   displaySectionForCatalogItem,
+  displaySectionForLineItem,
   groupLineItemsByDisplaySection,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
@@ -219,8 +223,25 @@ export function GiftGiverCustomizeContent({
       .filter((li) => !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0)
       .reduce((s, li) => s + Math.max(0, li.includedQty ?? 0), 0);
     const baselines = includedBaselineByItemId.current;
+    const afterRemoval = removeCoalescedGroup(lineItems, group);
+    const removedItem = catalog.find((c) => c.id === group.itemId);
+    const sectionId =
+      (removedItem ? displaySectionForCatalogItem(removedItem) : undefined) ??
+      group.primary.displaySectionId;
+    const promotedBefore = sectionId
+      ? paidSiblingForIncludedPromotion(afterRemoval, sectionId, catalog, displaySectionForLineItem)
+      : undefined;
+    const freeLines = group.lines.filter((li) => !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0);
     if (removingWrapPaper && havingItemsToWrap) {
       baselines.delete(group.itemId);
+    } else if (promotedBefore && freeQty > 0) {
+      if (baselines.has(group.itemId) || persistedBaseline > 0) {
+        baselines.set(
+          group.itemId,
+          Math.max(baselines.get(group.itemId) ?? 0, persistedBaseline, freeQty)
+        );
+      }
+      notePromotedIncludedSwap(baselines, null, null, group.itemId, freeLines, promotedBefore);
     } else if (freeQty > 0 && (baselines.has(group.itemId) || persistedBaseline > 0)) {
       baselines.set(
         group.itemId,

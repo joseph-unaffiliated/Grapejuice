@@ -148,21 +148,39 @@ function sectionFromBoxSections(boxSections?: string[]): BoxDisplaySectionId | n
   return null;
 }
 
+/**
+ * Dreidel Cookie Cutters (and any Food SKU whose name mentions dreidel) belong in
+ * Eat & Drink. A /dreidel/ name match must not beat an explicit Food category or
+ * a cookie-cutter identity. Real dreidels stay Dreidel — their category is Dreidel,
+ * and they are not cookie cutters.
+ */
+export function foodDespiteDreidelName(item: CatalogItem): boolean {
+  const hay = `${item.id} ${item.name}`;
+  if (!/dreidel/i.test(hay)) return false;
+  if (/cookie.?cutter/i.test(hay)) return true;
+  return (item.category ?? '').trim() === 'Food';
+}
+
 /** Practice section implied by a SKU's name/category (null when nothing matches). */
 function practiceSectionFromIdentity(item: CatalogItem): BoxDisplaySectionId | null {
   const hay = `${item.id} ${item.name} ${item.category ?? ''}`.toLowerCase();
   if (/book|story|maccabee/.test(hay) || item.category === 'Book') return 'story';
-  if (/dreidel|gelt/.test(hay) || item.category === 'Dreidel') return 'dreidel';
+  // Food category and cookie cutters before the dreidel name, so "Dreidel Cookie
+  // Cutters" does not land in Play Dreidel.
+  if (/cookie.?cutter/.test(hay) || item.category === 'Food') return 'food';
+  if (item.category === 'Dreidel' || item.category === 'Gelt') return 'dreidel';
+  if (/dreidel|gelt/.test(hay)) return 'dreidel';
   if (/menorah|hanukkiah|candle/.test(hay) || item.category === 'Menorah' || item.category === 'Candles') {
     return 'candles';
   }
-  if (/latke|sufgan|applesauce|napkin|cookie.?cutter|food|donut/.test(hay) || item.category === 'Food') return 'food';
+  if (/latke|sufgan|applesauce|napkin|donut/.test(hay)) return 'food';
   if (/wrap|paper|pre.?wrap/.test(hay)) return 'presents';
   return null;
 }
 
 /** Infer practice section from catalog facts when gift-* would otherwise land in Presents. */
 export function inferDisplaySectionForCatalogItem(item: CatalogItem): BoxDisplaySectionId {
+  if (foodDespiteDreidelName(item)) return 'food';
   if (GIFT_ITEM_SECTION[item.id]) return GIFT_ITEM_SECTION[item.id];
   const fromAirtable = sectionFromBoxSections(item.boxSections);
   if (fromAirtable) return fromAirtable;
@@ -187,6 +205,7 @@ export function inferDisplaySectionForCatalogItem(item: CatalogItem): BoxDisplay
  * card instead of vanishing into Presents (which shows no gift cards).
  */
 export function inferGiftDisplaySection(item: CatalogItem): BoxDisplaySectionId {
+  if (foodDespiteDreidelName(item)) return 'food';
   if (GIFT_ITEM_SECTION[item.id]) return GIFT_ITEM_SECTION[item.id];
   const fromAirtable = sectionFromBoxSections(item.boxSections);
   if (fromAirtable) return fromAirtable;
@@ -203,6 +222,9 @@ export function displaySectionForLineItem(
   li: BoxLineItem,
   item?: CatalogItem | null
 ): BoxDisplaySectionId {
+  // A stored 'dreidel' stamp from the name regex must not keep Dreidel Cookie
+  // Cutters out of Food.
+  if (item && foodDespiteDreidelName(item)) return 'food';
   if (li.displaySectionId) return li.displaySectionId;
   if (GIFT_ITEM_SECTION[li.itemId]) return GIFT_ITEM_SECTION[li.itemId];
   if (item) {

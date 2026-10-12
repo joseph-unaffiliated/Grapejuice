@@ -212,10 +212,20 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
 
   const quantity = (g: CoalescedBoxLine, delta: 1 | -1, _sectionId: BoxDisplaySectionId) => {
     const item = byId.get(g.itemId);
-    void e.changeBoxQuantity(g, delta, displaySectionForLineItem(g.primary, item));
-    if (delta === -1 && g.quantity <= 1 && g.unitCents === 0 && item) {
+    const removingIncluded = delta === -1 && g.quantity <= 1 && g.unitCents === 0 && !!item;
+    void (async () => {
+      const result = await e.changeBoxQuantity(g, delta, displaySectionForLineItem(g.primary, item));
+      if (!removingIncluded || !item) return;
+      if (result?.promotedItemId) {
+        const promoted = byId.get(result.promotedItemId);
+        setToast({
+          message: `${promoted?.name ?? 'The other one'} is included now`,
+          action: { label: 'Undo', onPress: () => void live.current.restoreDonated(item.id) },
+        });
+        return;
+      }
       setToast({ message: `${item.name} donated to a family who couldn't otherwise celebrate`, action: { label: 'Undo', onPress: () => void live.current.restoreDonated(item.id) } });
-    }
+    })();
   };
 
   /** A donated included item whose slot `item` can fill for free, e.g. cookie cutters in place of a donated Sufganiyot kit. */

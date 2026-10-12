@@ -61,8 +61,14 @@ import {
   setLiveIncludedBaselines,
   includedPracticeSlotVacant,
   includedClaimAlreadyTaken,
+  includedClaimBlockedUnitCents,
   uniqueSlotForFreeSectionAdd,
   promotePaidSiblingToIncludedPractice,
+  paidSiblingForIncludedPromotion,
+  notePromotedIncludedSwap,
+  takePromotedIncludedUndo,
+  revertPromotedIncludedSwap,
+  type IncludedPromotionUndo,
   wrappableLinesInBox,
   wrapControlLines,
 } from '../components/box/boxLineDisplay';
@@ -367,6 +373,8 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
   /** Free lines as they were when donated — so Restore puts them back in the same slot. */
   const donatedLineSnapshots = useRef<Map<string, BoxLineItem[]>>(new Map());
+  /** Included removal that promoted a paid extra — Undo restores both, it is not a donation. */
+  const promotionUndos = useRef<Map<string, IncludedPromotionUndo>>(new Map());
   useEffect(() => {
     setLiveIncludedBaselines(includedBaselineByItemId.current);
     return () => setLiveIncludedBaselines(null);
@@ -428,27 +436,39 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     const sectionId =
       (removedItem ? displaySectionForCatalogItem(removedItem) : undefined) ??
       group.primary.displaySectionId;
+    let promotedItemId: string | undefined;
     if (sectionId) {
       const before = next;
+      const promotedBefore = paidSiblingForIncludedPromotion(
+        before,
+        sectionId,
+        catalog,
+        displaySectionForLineItem
+      );
       next = promotePaidSiblingToIncludedPractice(
         next,
         sectionId,
         catalog,
         displaySectionForLineItem
       );
-      if (next !== before) {
-        for (const li of next) {
-          if ((li.unitCents ?? 0) !== 0 || isGiftSlotLine(li)) continue;
-          const wasPaid = before.some(
-            (b) => b.itemId === li.itemId && (b.unitCents ?? 0) > 0
-          );
-          if (wasPaid) {
-            baselines.set(li.itemId, Math.max(baselines.get(li.itemId) ?? 0, li.includedQty ?? 1));
-          }
-        }
+      if (promotedBefore && next !== before) {
+        // The paid extra took the included slot — move the baseline, don't donate.
+        const removedFree = group.lines.filter(
+          (li) => !li.slotId.endsWith(EXTRA_UNIT_SUFFIX) && (li.unitCents ?? 0) === 0
+        );
+        notePromotedIncludedSwap(
+          baselines,
+          donatedLineSnapshots.current,
+          promotionUndos.current,
+          group.itemId,
+          removedFree,
+          promotedBefore
+        );
+        promotedItemId = promotedBefore.itemId;
       }
     }
     await persist(next);
+    return promotedItemId;
   };
 
   /**
@@ -534,8 +554,8 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
 
     // delta === -1
     if (group.quantity <= 1) {
-      await removeCoalesced(group);
-      return;
+      const promotedItemId = await removeCoalesced(group);
+      return promotedItemId ? { promotedItemId } : undefined;
     }
     // 1) Remove a paid extra unit first.
     const extra = lineItems.find(
@@ -1109,6 +1129,21 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     if (locked) return;
     const item = catalog.find((c) => c.id === itemId);
     if (!item) return;
+    const promotionUndo = !replacement
+      ? takePromotedIncludedUndo(promotionUndos.current, itemId, lineItems)
+      : undefined;
+    if (promotionUndo) {
+      transferIncludedBaselineOnSwap(
+        includedBaselineByItemId.current,
+        promotionUndo.promotedBefore.itemId,
+        itemId,
+        promotionUndo.movedQty,
+        0
+      );
+      donatedLineSnapshots.current.delete(itemId);
+      await persist(revertPromotedIncludedSwap(lineItems, promotionUndo));
+      return;
+    }
     const missing =
       donatedItems.find((d) => d.item.id === itemId)?.missing ?? 0;
     if (missing <= 0) return;
@@ -1145,7 +1180,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     let unit = !replacement || giftSwap
       ? 0
       : resolveFreeSwapUnitCents(item, replacement, sectionId) ?? boxAddOnUnitCents(replacement);
-    if (claimTaken) unit = boxAddOnUnitCents(target);
+    if (claimTaken) unit = includedClaimBlockedUnitCents(target);
     if (!guestViewOnly && unit > 0 && !guardMutation()) return;
     const targetSection = displaySectionForCatalogItem(target);
     let next = lineItems;

@@ -1,7 +1,7 @@
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { WRAP_POLICY } from '../../services/box/boxRules';
-import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
+import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -1152,6 +1152,150 @@ export function syncWrappingPaperUnitCentsForWrapSelection(
 }
 
 /**
+ * Price for putting a SKU back when that section's included practice is already
+ * filled. Included-tier defaults (beeswax) are $0 from `boxAddOnUnitCents`, which
+ * would create a second free candle/dreidel/food line — charge the member price.
+ */
+export function includedClaimBlockedUnitCents(item: CatalogItem): number {
+  const addon = boxAddOnUnitCents(item);
+  if (addon > 0) return addon;
+  const { memberCents } = resolveCatalogDisplayPrices(item);
+  return memberCents > 0 ? memberCents : EXTRA_FLAT_CENTS;
+}
+
+type DisplaySectionFor = (
+  li: BoxLineItem,
+  item: CatalogItem | undefined
+) => BoxDisplaySectionId;
+
+/**
+ * Paid non-gift line `promotePaidSiblingToIncludedPractice` would convert after
+ * the included practice item is removed. Call with the lines *after* removal.
+ */
+export function paidSiblingForIncludedPromotion(
+  lineItemsAfterRemoval: BoxLineItem[],
+  sectionId: BoxDisplaySectionId,
+  catalog: readonly CatalogItem[],
+  displaySectionFor: DisplaySectionFor
+): BoxLineItem | undefined {
+  if (!includedPracticeSlotVacant(sectionId, lineItemsAfterRemoval)) return undefined;
+  return lineItemsAfterRemoval.find((li) => {
+    if (isGiftSlotLine(li)) return false;
+    if ((li.unitCents ?? 0) <= 0) return false;
+    const item = catalog.find((c) => c.id === li.itemId);
+    return displaySectionFor(li, item) === sectionId;
+  });
+}
+
+/** Enough to put the box back: included item restored, promoted extra priced again. */
+export type IncludedPromotionUndo = {
+  removedItemId: string;
+  removedLines: BoxLineItem[];
+  promotedBefore: BoxLineItem;
+  movedQty: number;
+};
+
+/**
+ * Removing the included item while a paid same-section extra exists is a swap:
+ * the extra becomes included, so the included baseline moves with it and the
+ * removed SKU is not donated.
+ */
+export function notePromotedIncludedSwap(
+  baselines: Map<string, number>,
+  snapshots: Map<string, BoxLineItem[]> | null,
+  undos: Map<string, IncludedPromotionUndo> | null,
+  removedItemId: string,
+  removedFreeLines: BoxLineItem[],
+  promotedBefore: BoxLineItem
+): void {
+  const freeQty = removedFreeLines.reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+  const from = Math.max(baselines.get(removedItemId) ?? 0, freeQty);
+  if (!removedItemId || !promotedBefore.itemId || from <= 0) return;
+  transferIncludedBaselineOnSwap(baselines, removedItemId, promotedBefore.itemId, from, 0);
+  snapshots?.delete(removedItemId);
+  undos?.set(removedItemId, {
+    removedItemId,
+    removedLines: removedFreeLines.map((li) => ({ ...li })),
+    promotedBefore: { ...promotedBefore },
+    movedQty: from,
+  });
+}
+
+/** True when the promoted extra is still the included fill and the removed SKU is still gone. */
+export function takePromotedIncludedUndo(
+  undos: Map<string, IncludedPromotionUndo>,
+  itemId: string,
+  lineItems: BoxLineItem[]
+): IncludedPromotionUndo | undefined {
+  const undo = undos.get(itemId);
+  if (!undo) return undefined;
+  const promotedId = undo.promotedBefore.itemId;
+  const stillIncluded = lineItems.some(
+    (li) =>
+      li.itemId === promotedId &&
+      (li.unitCents ?? 0) === 0 &&
+      !isGiftSlotLine(li) &&
+      !li.slotId.endsWith(EXTRA_UNIT_SUFFIX)
+  );
+  const removedBack = lineItems.some(
+    (li) => li.itemId === itemId && (li.unitCents ?? 0) === 0 && !li.slotId.endsWith(EXTRA_UNIT_SUFFIX)
+  );
+  undos.delete(itemId);
+  if (!stillIncluded || removedBack) return undefined;
+  return undo;
+}
+
+/** Inverse of promoting a paid sibling: prior included lines back, extra priced again. */
+export function revertPromotedIncludedSwap(
+  lineItems: BoxLineItem[],
+  undo: IncludedPromotionUndo
+): BoxLineItem[] {
+  const promotedId = undo.promotedBefore.itemId;
+  const beforeQty = undo.promotedBefore.quantity ?? 1;
+  let next = lineItems.slice();
+  if (beforeQty <= 1) {
+    next = next.filter(
+      (li) =>
+        !(
+          li.itemId === promotedId &&
+          (li.unitCents ?? 0) === 0 &&
+          !isGiftSlotLine(li) &&
+          !li.slotId.endsWith(EXTRA_UNIT_SUFFIX)
+        )
+    );
+    if (!next.some((li) => li.slotId === undo.promotedBefore.slotId && li.itemId === promotedId)) {
+      next = [...next, { ...undo.promotedBefore }];
+    } else {
+      next = next.map((li) =>
+        li.slotId === undo.promotedBefore.slotId && li.itemId === promotedId
+          ? { ...undo.promotedBefore }
+          : li
+      );
+    }
+  } else {
+    const freeSplit = next.find(
+      (li) =>
+        li.itemId === promotedId &&
+        (li.unitCents ?? 0) === 0 &&
+        !isGiftSlotLine(li) &&
+        li.slotId !== undo.promotedBefore.slotId &&
+        !li.slotId.endsWith(EXTRA_UNIT_SUFFIX)
+    );
+    next = next.filter((li) => li !== freeSplit);
+    next = next.map((li) =>
+      li.slotId === undo.promotedBefore.slotId ? { ...undo.promotedBefore } : li
+    );
+    if (!next.some((li) => li.slotId === undo.promotedBefore.slotId)) {
+      next = [...next, { ...undo.promotedBefore }];
+    }
+  }
+  for (const li of undo.removedLines) {
+    if (!next.some((x) => x.slotId === li.slotId)) next = [...next, { ...li }];
+  }
+  return next;
+}
+
+/**
  * After donating the included practice item, convert one paid same-section sibling
  * (non-gift) to included so the practice slot is filled and Add-ons drop.
  */
@@ -1159,19 +1303,9 @@ export function promotePaidSiblingToIncludedPractice(
   lineItems: BoxLineItem[],
   sectionId: BoxDisplaySectionId,
   catalog: readonly CatalogItem[],
-  displaySectionFor: (
-    li: BoxLineItem,
-    item: CatalogItem | undefined
-  ) => BoxDisplaySectionId
+  displaySectionFor: DisplaySectionFor
 ): BoxLineItem[] {
-  if (!includedPracticeSlotVacant(sectionId, lineItems)) return lineItems;
-
-  const paid = lineItems.find((li) => {
-    if (isGiftSlotLine(li)) return false;
-    if ((li.unitCents ?? 0) <= 0) return false;
-    const item = catalog.find((c) => c.id === li.itemId);
-    return displaySectionFor(li, item) === sectionId;
-  });
+  const paid = paidSiblingForIncludedPromotion(lineItems, sectionId, catalog, displaySectionFor);
   if (!paid) return lineItems;
 
   const item = catalog.find((c) => c.id === paid.itemId);
