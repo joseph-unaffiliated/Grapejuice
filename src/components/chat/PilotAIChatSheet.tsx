@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { m as mc, mFont, mType, balanceProps } from '../mobile/mobileTheme';
+import { MobileButton } from '../mobile/MobileButton';
 import { useNavigationState } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
@@ -871,6 +872,49 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
           <View style={styles.centered}>
             <BrandLoadingMark color={colors.brand} />
           </View>
+        ) : showRecentUi && phoneLayout ? (
+          <ScrollView style={styles.scrollHost} contentContainerStyle={[phoneStyles.welcome, { paddingBottom: bottomPad + 40 }]} keyboardShouldPersistTaps="handled">
+            {externalHistoryChrome ? null : (
+              <Pressable onPress={showWelcome} accessibilityRole="button" accessibilityLabel="Back to Rav" hitSlop={8} style={phoneStyles.back}>
+                <Icon icon={icons.arrowLeft} size={13} color={mc.goldDark} />
+                <Text style={phoneStyles.backText}>Rav</Text>
+              </Pressable>
+            )}
+            <Text style={mType.h1}>Recent chats</Text>
+            {isGuest ? (
+              <View style={phoneStyles.recentEmpty}>
+                <Text style={phoneStyles.sub} {...balanceProps}>Sign in to save and browse past Rav conversations.</Text>
+                <MobileButton label="Log in or create account" onPress={() => startAuthForRav('signin')} />
+              </View>
+            ) : historyThreads.length === 0 ? (
+              <View style={phoneStyles.recentEmpty}>
+                <Text style={phoneStyles.sub} {...balanceProps}>No chats yet. Ask Rav anything about Hanukkah, your box or the store.</Text>
+                <MobileButton label="New chat" onPress={() => startNewChat()} />
+              </View>
+            ) : (
+              <View style={phoneStyles.recentAll}>
+                {historyThreads.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => void loadThread(t.id, true)}
+                    accessibilityRole="button"
+                    style={[phoneStyles.recentCard, t.id === threadId && phoneStyles.recentCardOn]}
+                  >
+                    <View style={phoneStyles.recentCopy}>
+                      <View style={phoneStyles.recentCardTop}>
+                        <Text style={phoneStyles.recentCardTitle} numberOfLines={1}>{t.title}</Text>
+                        <Text style={phoneStyles.recentRowDate}>{formatThreadListDate(t.updatedAt)}</Text>
+                      </View>
+                      {t.preview ? (
+                        <Text style={phoneStyles.recentPreview} numberOfLines={2}>{t.preview}</Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                ))}
+                <MobileButton label="New chat" variant="secondary" onPress={() => startNewChat()} style={{ marginTop: 8 }} />
+              </View>
+            )}
+          </ScrollView>
         ) : showRecentUi ? (
           <ScrollView
             style={styles.scrollHost}
@@ -977,7 +1021,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
               <View style={phoneStyles.pill}>
                 <TextInput
                   style={phoneStyles.input}
-                  placeholder="Reply to Rav"
+                  placeholder="Ask anything"
                   placeholderTextColor={mc.muted}
                   value={input}
                   onChangeText={setInput}
@@ -1194,7 +1238,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                         lineHeight: replyLineHeight,
                       },
                     ]}
-                    placeholder="Reply to Rav"
+                    placeholder={messages.some((msg) => msg.role === 'assistant') ? 'Reply to Rav' : 'Ask anything'}
                     placeholderTextColor={colors.goldMuted}
                     value={input}
                     onChangeText={setInput}
@@ -1673,6 +1717,16 @@ const phoneStyles = StyleSheet.create({
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 46, borderBottomWidth: 1, borderBottomColor: mc.line },
   recentRowTitle: { flex: 1, fontSize: 15, color: mc.ink, ...mFont(400) },
   recentRowDate: { fontSize: 12.5, color: mc.muted, ...mFont(400) },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 14 },
+  backText: { fontSize: 14, color: mc.goldDark, ...mFont(400) },
+  recentEmpty: { marginTop: 4, gap: 20 },
+  recentAll: { marginTop: 20, gap: 10 },
+  recentCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: 'transparent', backgroundColor: mc.beige },
+  recentCardOn: { borderColor: mc.gold },
+  recentCopy: { flex: 1, minWidth: 0, gap: 4 },
+  recentCardTop: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  recentCardTitle: { flex: 1, fontSize: 15.5, color: mc.ink, ...mFont(500) },
+  recentPreview: { fontSize: 13.5, lineHeight: 19, color: mc.body, ...mFont(300) },
   bottom: { paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: mc.line, backgroundColor: mc.white, gap: 8 },
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   note: { fontSize: 12.5, color: mc.muted, ...mFont(400) },

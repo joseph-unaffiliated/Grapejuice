@@ -132,7 +132,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
           Hanukkah, delivered to your door. <Text style={styles.h1Gold}>One box, $80.</Text>
         </Text>
         <Text style={styles.lede} {...balanceProps}>
-          Candles, dreidels, gelt, food kits, a book and a present for each kid. Picked for your family, delivered before {beforeHanukkah && firstNight ? firstNight : 'the first night'}.
+          Candles, dreidels, gelt, food kits, a book and a present for each kid. Tailored for your family, delivered just more than a week before the first night{beforeHanukkah && firstNight ? ` (${firstNight})` : ''}.
         </Text>
         <MobileButton label="Build my box" onPress={startBox} height={54} />
         <View style={styles.trust}>

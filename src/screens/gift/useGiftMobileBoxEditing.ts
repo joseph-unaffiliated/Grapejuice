@@ -22,12 +22,15 @@ import {
   coalesceLinesByItemId,
   donatedItemQuantities,
   includedClaimAlreadyTaken,
+  isGiftSlotLine,
   isWrapControlSlot,
   isWrappingPaperItem,
   seedIncludedBaselines,
   setLiveIncludedBaselines,
+  transferIncludedBaselineOnSwap,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
+import { slotIdAfterSwap } from '../../hooks/useMyBoxEditing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import type { MobileBoxEditing } from '../mobile/MyBoxMobile';
 
@@ -65,10 +68,41 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     }
   };
 
-  const restoreDonated = async (itemId: string) => {
+  const restoreDonated = async (itemId: string, replacement?: CatalogItem) => {
     const item = catalog.find((c) => c.id === itemId);
     const missing = latest.current.donatedItems.find((d) => d.item.id === itemId)?.missing ?? 0;
     if (!item || missing <= 0) return;
+    if (replacement) {
+      const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
+      donatedLineSnapshots.current.delete(itemId);
+      const section = displaySectionForCatalogItem(replacement);
+      const giftSwap = snapshot[0] ? isGiftSlotLine(snapshot[0]) : false;
+      const unit = giftSwap ? 0 : resolveFreeSwapUnitCents(item, replacement, section) ?? boxAddOnUnitCents(replacement);
+      const templates: BoxLineItem[] = snapshot.length
+        ? snapshot
+        : [{ slotId: `addon-${replacement.id}`, itemId, quantity: missing, includedQty: missing, unitCents: 0, label: item.name } as BoxLineItem];
+      draft.updateLines((prev) => {
+        const used = new Set(prev.map((li) => li.slotId));
+        const added = templates.map((li, i) => {
+          let slotId = li.slotId ? slotIdAfterSwap(li.slotId, replacement) : '';
+          if (!slotId || used.has(slotId)) slotId = `addon-${replacement.id}-${i}`;
+          used.add(slotId);
+          return {
+            ...li,
+            slotId,
+            itemId: replacement.id,
+            label: replacement.name,
+            unitCents: unit,
+            ...(unit > 0 ? { includedQty: 0 } : null),
+            curationNote: undefined,
+            displaySectionId: giftSwap ? li.displaySectionId : section,
+          };
+        });
+        return [...prev, ...added];
+      });
+      transferIncludedBaselineOnSwap(baselines.current, itemId, replacement.id, missing, unit);
+      return;
+    }
     const isFree = (li: BoxLineItem) => li.itemId === itemId && !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0;
     const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
     donatedLineSnapshots.current.delete(itemId);

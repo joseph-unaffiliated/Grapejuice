@@ -25,6 +25,7 @@ import {
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveByDefaultSlot } from '../../services/box/boxRules';
+import { resolveFreeSwapUnitCents, resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import { useSession } from '../../hooks/useSession';
@@ -38,7 +39,7 @@ import { BoxSummary, type BoxThumb } from '../../components/mobile/BoxSummary';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileSheet } from '../../components/mobile/MobileSheet';
 import { MobileToast, type ToastState } from '../../components/mobile/MobileToast';
-import { StickyBar, STICKY_BAR_CLEARANCE, pinToViewport, useScreenFocused } from '../../components/mobile/StickyBar';
+import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { ProductTileMobile } from '../../components/mobile/ProductTileMobile';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
@@ -70,8 +71,7 @@ type Props = {
 type Sheet =
   | { kind: 'tradition'; sectionId: BoxDisplaySectionId }
   | { kind: 'product'; item: CatalogItem; group: CoalescedBoxLine | null; sectionId: BoxDisplaySectionId }
-  | { kind: 'receipt' }
-  | { kind: 'donated' }
+  | { kind: 'receipt'; donatedOpen?: boolean }
   | null;
 
 const SECTION_ICON: Record<Exclude<BoxDisplaySectionId, 'dreidel'>, (typeof icons)[keyof typeof icons]> = {
@@ -110,7 +110,6 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
-  const screenFocused = useScreenFocused();
   const [active, setActive] = useState<BoxDisplaySectionId>('candles');
   const scrollRef = useRef<ScrollView>(null);
   const sectionY = useRef<Partial<Record<BoxDisplaySectionId, number>>>({});
@@ -176,7 +175,6 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
           id: `${s.id}:${g.itemId}`,
           imageUrl: primaryPhoto(byId.get(g.itemId)),
           count: g.quantity > 1 ? g.quantity : undefined,
-          mine: g.unitCents > 0,
           onPress: () => setSheet({ kind: 'tradition', sectionId: s.id }),
         });
       }
@@ -220,17 +218,41 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     }
   };
 
+  /** A donated included item whose slot `item` can fill for free, e.g. cookie cutters in place of a donated Sufganiyot kit. */
+  const donatedStandIn = (item: CatalogItem) => {
+    const home = displaySectionForCatalogItem(item);
+    return e.donatedItems.find(({ item: gone }) => {
+      if (gone.id === item.id) return false;
+      const snap = e.donatedLineSnapshots.current.get(gone.id)?.[0];
+      if (snap && isGiftSlotLine(snap)) return resolveIncludedGiftOptions(e.catalog, gone.id, 48).some((o) => o.id === item.id);
+      return displaySectionForCatalogItem(gone) === home && resolveFreeSwapUnitCents(gone, item, home) === 0;
+    })?.item;
+  };
+
   /** A book (or any included-policy item) is free only while its slot is empty. Otherwise it swaps the one you have, or it costs the add-on price. */
   const offerFor = (item: CatalogItem, sectionId: BoxDisplaySectionId, sectionRows: CoalescedBoxLine[]) => {
     const slotOpen = sectionRows.length === 0 || includedPracticeSlotVacant(sectionId, e.lineItems);
-    const free = slotOpen && (e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id);
+    const free = !!donatedStandIn(item) || (slotOpen && (e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id));
     const swap = !free && (e.swapEligibleIdsBySection[sectionId]?.has(item.id) ?? false);
     const cents = resolveCatalogDisplayPrices(item).memberCents;
     const label = free ? 'Add · included' : swap ? 'Swap' : `Add · +${formatCatalogDollars(cents)}`;
     return { free, swap, label, cents };
   };
 
-  const addItem = async (item: CatalogItem, sectionId: BoxDisplaySectionId) => {
+  /** The aisle an item belongs in; only presents takes whatever section the button was in. */
+  const homeSection = (item: CatalogItem, sectionId: BoxDisplaySectionId) => {
+    const home = displaySectionForCatalogItem(item);
+    return home === 'presents' ? sectionId : home;
+  };
+
+  const addItem = async (item: CatalogItem, from: BoxDisplaySectionId) => {
+    const sectionId = homeSection(item, from);
+    const standIn = donatedStandIn(item);
+    if (standIn) {
+      await e.restoreDonated(standIn.id, item);
+      setToast({ message: `${item.name} takes the place of ${standIn.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(item) } });
+      return;
+    }
     const offer = offerFor(item, sectionId, rowsFor(sectionId));
     if (offer.free) {
       await e.addFreeItemToEmptySlot(sectionId, item);
@@ -255,14 +277,15 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   };
 
   /** Always a paid extra, even when the item could be swapped in. */
-  const addExtra = async (it: CatalogItem, sectionId: BoxDisplaySectionId) => {
-    e.setProductModalSection(sectionId);
+  const addExtra = async (it: CatalogItem, from: BoxDisplaySectionId) => {
+    e.setProductModalSection(homeSection(it, from));
     await e.modalAddToBox(it);
     setToast({ message: `Added ${it.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(it) } });
   };
 
   /** Price-labelled add buttons never swap; an empty included slot is still filled for free. */
-  const addOnTopOf = async (item: CatalogItem, sectionId: BoxDisplaySectionId) => {
+  const addOnTopOf = async (item: CatalogItem, from: BoxDisplaySectionId) => {
+    const sectionId = homeSection(item, from);
     if (offerFor(item, sectionId, rowsFor(sectionId)).free) return addItem(item, sectionId);
     return addExtra(item, sectionId);
   };
@@ -384,7 +407,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
               {suggestion.name}
             </Text>
             <Pressable onPress={() => void addOnTopOf(suggestion, s.id)} accessibilityRole="button" accessibilityLabel={`Add ${suggestion.name}`} style={styles.suggPill} hitSlop={6}>
-              <Text style={styles.suggPillText}>+ {formatCatalogDollars(priceToAdd(suggestion))}</Text>
+              <Text style={styles.suggPillText}>+ {offerFor(suggestion, s.id, rows).free ? 'Included' : formatCatalogDollars(priceToAdd(suggestion))}</Text>
             </Pressable>
           </Pressable>
         ) : null}
@@ -631,7 +654,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     );
   };
 
-  const receiptSheet = () => (
+  const receiptSheet = (donatedOpen: boolean) => (
     <MobileSheet visible onClose={() => setSheet(null)} title={gift ? 'Their box' : 'Your box'} titleAction={{ label: 'Keep editing', onPress: () => setSheet(null) }} footer={<MobileButton label={`${gift ? gift.nextLabel : 'Checkout'} · ${formatCatalogDollars(total)}`} onPress={() => { setSheet(null); if (gift) gift.onNext(); else e.goToCheckout(); }} />}>
       {BOX_DISPLAY_SECTIONS.map((s) => {
         const rows = rowsFor(s.id);
@@ -661,26 +684,36 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       <View style={styles.rcTotals}>
         <Line label={`Box${e.children.length > 1 ? ` (${e.children.length} kids)` : ''}`} value={formatCatalogDollars(e.boxPriceCents)} />
         {extras ? <Line label="Add-ons" value={`+${formatCatalogDollars(extras)}`} /> : null}
-        {donatedValue ? <Line label="Donated" value={formatCatalogDollars(donatedValue)} /> : null}
+        {donatedValue ? (
+          <Pressable onPress={() => setSheet({ kind: 'receipt', donatedOpen: !donatedOpen })} accessibilityRole="button" accessibilityState={{ expanded: donatedOpen }} accessibilityLabel={`Donated ${formatCatalogDollars(donatedValue)}`}>
+            <View style={styles.line}>
+              <View style={styles.donatedToggle}>
+                <Text style={styles.lineLabel}>Donated</Text>
+                <View style={donatedOpen ? styles.flip : undefined}>
+                  <Icon icon={icons.chevronDown} size={11} color={m.muted} />
+                </View>
+              </View>
+              <Text style={styles.lineValue}>{formatCatalogDollars(donatedValue)}</Text>
+            </View>
+          </Pressable>
+        ) : null}
+        {donatedValue && donatedOpen ? (
+          <View style={styles.donatedList}>
+            {e.donatedItems.map(({ item, missing }) => (
+              <View key={item.id} style={[styles.rcRow, styles.rowDonated]}>
+                <BoxItemImage size={32} imageUrl={item.imageUrl} itemId={item.id} />
+                <Text style={styles.rcName} numberOfLines={1}>
+                  {item.name}
+                  {missing > 1 ? ` ×${missing}` : ''}
+                </Text>
+              </View>
+            ))}
+            <Text style={mType.small}>These go to families who couldn't otherwise celebrate. Changed your mind? Tap Undo on the item in {yours} box.</Text>
+          </View>
+        ) : null}
         <Line label="Shipping" value="Free" />
         <Line label="Total" value={formatCatalogDollars(total)} strong />
       </View>
-    </MobileSheet>
-  );
-
-  const donatedSheet = () => (
-    <MobileSheet visible onClose={() => setSheet(null)} title="Your donated items" footer={<MobileButton label="Done" variant="secondary" onPress={() => setSheet(null)} />}>
-      <Text style={[mType.small, { marginBottom: 12 }]}>Unclaimed items go into Hanukkah kits for families who couldn't otherwise celebrate. Thank you.</Text>
-      {e.donatedItems.map(({ item, missing }) => (
-        <View key={item.id} style={styles.rcRow}>
-          <BoxItemImage size={40} imageUrl={item.imageUrl} itemId={item.id} />
-          <Text style={styles.rcName} numberOfLines={2}>
-            {item.name}
-            {missing > 1 ? ` ×${missing}` : ''}
-          </Text>
-          <MobileButton label="Restore" variant="secondary" height={34} style={{ width: 92 }} onPress={() => void e.restoreDonated(item.id)} accessibilityLabel={`Restore ${item.name} to ${yours} box`} />
-        </View>
-      ))}
     </MobileSheet>
   );
 
@@ -743,11 +776,12 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             <Text style={styles.likeSub}>Add them on top of {yours} box.</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               {mightLike.map((it) => {
-                const sectionId = BOX_DISPLAY_SECTIONS.find((s) => (e.upsellsBySection[s.id] ?? []).some((u) => u.id === it.id))?.id ?? 'presents';
+                const sectionId = displaySectionForCatalogItem(it);
+                const free = offerFor(it, sectionId, rowsFor(sectionId)).free;
                 return (
                   <View key={it.id} style={{ width: 132, gap: 4 }}>
                     <ProductTileMobile item={it} width={132} onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })} hidePrice />
-                    <Text style={styles.likePrice}>{formatCatalogDollars(priceToAdd(it))}</Text>
+                    <Text style={styles.likePrice}>{free ? 'Included' : formatCatalogDollars(priceToAdd(it))}</Text>
                     <Pressable onPress={() => void addOnTopOf(it, sectionId)} accessibilityRole="button" accessibilityLabel={`Add ${it.name}`} style={styles.likeAdd}>
                       <Text style={styles.likeAddText}>+ Add</Text>
                     </Pressable>
@@ -765,7 +799,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       <StickyBar
         label={`${gift ? 'Gift box' : 'Box'} ${formatCatalogDollars(e.boxPriceCents)}${extras ? ` + ${formatCatalogDollars(extras)}` : ''}${donatedValue ? ` · Donated ${formatCatalogDollars(donatedValue)}` : ''}`}
         total={`Total ${formatCatalogDollars(total)}`}
-        onSummaryPress={() => setSheet(donatedValue && !extras ? { kind: 'donated' } : { kind: 'receipt' })}
+        onSummaryPress={() => setSheet({ kind: 'receipt', donatedOpen: donatedValue > 0 })}
         cta={
           gift
             ? { label: gift.nextLabel, onPress: gift.onNext }
@@ -774,16 +808,10 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         testID="mobile-box-bar"
         ctaFill={false}
       />
-      {donatedValue && screenFocused ? pinToViewport(
-        <Pressable onPress={() => setSheet({ kind: 'donated' })} accessibilityRole="button" accessibilityLabel={`Donated ${formatCatalogDollars(donatedValue)}`} style={styles.donatedChip}>
-          <Text style={styles.donatedChipText}>Donated {formatCatalogDollars(donatedValue)} · see</Text>
-        </Pressable>,
-      ) : null}
 
       {sheet?.kind === 'tradition' ? traditionSheet(sheet.sectionId) : null}
       {sheet?.kind === 'product' ? productSheet(sheet.item, sheet.group, sheet.sectionId) : null}
-      {sheet?.kind === 'receipt' ? receiptSheet() : null}
-      {sheet?.kind === 'donated' ? donatedSheet() : null}
+      {sheet?.kind === 'receipt' ? receiptSheet(!!sheet.donatedOpen) : null}
       <MobileSheet
         visible={resetOpen}
         onClose={() => { if (!resetBusy) setResetOpen(false); }}
@@ -948,6 +976,7 @@ const styles = StyleSheet.create({
   lineLabel: { fontSize: 14, color: m.body, ...mFont(400) },
   lineValue: { fontSize: 14, color: m.ink, ...mFont(400) },
   lineStrong: { fontSize: 16, color: m.ink, ...mFont(500) },
-  donatedChip: { position: Platform.OS === 'web' ? ('fixed' as unknown as 'absolute') : 'absolute', right: 16, bottom: 104, backgroundColor: m.beige, borderRadius: 14, paddingHorizontal: 12, height: 28, justifyContent: 'center', zIndex: 41 },
-  donatedChipText: { fontSize: 12, color: m.goldDark, ...mFont(500) },
+  donatedToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  flip: { transform: [{ rotate: '180deg' }] },
+  donatedList: { paddingLeft: 4, paddingBottom: 6, gap: 2 },
 });
