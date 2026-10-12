@@ -2,6 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { ordersService } from '../services/firestore/orders';
 import type { PilotOrder } from '../types/pilot';
 
+/** Last orders list per household, so Checkout doesn't open on a spinner after My Box already loaded them. */
+const ordersMemory = new Map<string, PilotOrder[]>();
+
+export function peekHouseholdOrders(householdId: string | undefined): PilotOrder[] | null {
+  if (!householdId || !ordersMemory.has(householdId)) return null;
+  return ordersMemory.get(householdId) ?? null;
+}
+
+function rememberHouseholdOrders(householdId: string, orders: PilotOrder[]) {
+  ordersMemory.set(householdId, orders);
+}
+
 /** Pre-ship **Hanukkah box** order — household already committed a box for this pilot.
  * Marketplace / received-gift orders must not count (they were hijacking box checkout). */
 export function isOpenPilotOrder(order: PilotOrder): boolean {
@@ -15,10 +27,13 @@ export function isOpenPilotOrder(order: PilotOrder): boolean {
 }
 
 export function usePilotOrders(householdId: string | undefined) {
-  const [orders, setOrders] = useState<PilotOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<PilotOrder[]>(() => peekHouseholdOrders(householdId) ?? []);
+  const [loading, setLoading] = useState(() => peekHouseholdOrders(householdId) == null && !!householdId);
   /** Household the current `orders` belong to — until it matches, we're still loading. */
-  const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined);
+  const [loadedFor, setLoadedFor] = useState<string | null | undefined>(() => {
+    if (!householdId) return undefined;
+    return peekHouseholdOrders(householdId) ? householdId : undefined;
+  });
 
   const refresh = useCallback(async () => {
     if (!householdId) {
@@ -27,9 +42,11 @@ export function usePilotOrders(householdId: string | undefined) {
       setLoadedFor(null);
       return;
     }
-    setLoading(true);
+    if (peekHouseholdOrders(householdId) == null) setLoading(true);
     try {
-      setOrders(await ordersService.listForHousehold(householdId));
+      const next = await ordersService.listForHousehold(householdId);
+      rememberHouseholdOrders(householdId, next);
+      setOrders(next);
     } finally {
       setLoading(false);
       setLoadedFor(householdId);

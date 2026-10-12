@@ -62,6 +62,8 @@ type AuthBoxDraftSnapshot = {
   children: ChildProfile[];
   familiarity: FamiliarityLevel;
   swapNotices: InventorySwapNotice[];
+  /** Bumped on every local write so checkout won't paint an older server read over an edit. */
+  clientUpdatedAt: number;
 };
 
 const SECURED_BOX_STATUSES = new Set<string>(['pending', 'committed', 'confirmed', 'shipped', 'delivered']);
@@ -73,8 +75,13 @@ function peekAuthBoxDraft(householdId: string | null | undefined): AuthBoxDraftS
   return authBoxDraftCache;
 }
 
-function writeAuthBoxDraftCache(snapshot: AuthBoxDraftSnapshot) {
-  authBoxDraftCache = snapshot;
+/** The box My Box is already showing. Checkout paints from this instead of waiting on Firestore. */
+export function peekBoxDraftCache(householdId: string | null | undefined): AuthBoxDraftSnapshot | null {
+  return peekAuthBoxDraft(householdId);
+}
+
+function writeAuthBoxDraftCache(snapshot: Omit<AuthBoxDraftSnapshot, 'clientUpdatedAt'> & { clientUpdatedAt?: number }) {
+  authBoxDraftCache = { ...snapshot, clientUpdatedAt: Date.now() };
 }
 
 function clearAuthBoxDraftCache() {
@@ -240,6 +247,7 @@ async function fetchAuthBoxDraft({
     children: nextKids,
     familiarity: profileFamiliarity ?? draft?.familiarityLevel ?? 'moderate',
     swapNotices,
+    clientUpdatedAt: Date.now(),
   };
   writeAuthBoxDraftCache(snapshot);
   useBoxPresenceStore.getState().setHasBox(householdId, nextLines.length > 0);

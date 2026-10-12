@@ -13,7 +13,7 @@ import Constants from 'expo-constants';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useSession } from '../../hooks/useSession';
 import { useAuthStore } from '../../stores/authStore';
-import { getStripePromise, takeSetupIntent } from '../../services/checkout/checkoutPrefetch';
+import { getStripePromise, peekSavedCard, releaseSetupIntent, takeSetupIntent } from '../../services/checkout/checkoutPrefetch';
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
@@ -418,9 +418,8 @@ function CheckoutScreenBody() {
   useEffect(() => {
     if (!mobileLayout || !cardOnFile || !household?.id) return;
     let alive = true;
-    void getSavedCardSummary(household.id)
-      .then((card) => alive && setSavedCard(card))
-      .catch(() => undefined);
+    const pending = peekSavedCard(household.id) ?? getSavedCardSummary(household.id);
+    void pending.then((card) => alive && setSavedCard(card)).catch(() => undefined);
     return () => {
       alive = false;
     };
@@ -449,7 +448,7 @@ function CheckoutScreenBody() {
   const mobileSetupStarted = useRef(false);
   useEffect(() => {
     if (!mobileLayout || mobileSetupStarted.current) return;
-    if (!isAuthenticated || !household?.id || loading || ordersLoading || !lineItems.length) return;
+    if (!isAuthenticated || !household?.id || !lineItems.length) return;
     if (cardOnFile || awaitingCardOnFile || setupClientSecret || !stripeKey) return;
     mobileSetupStarted.current = true;
     void (async () => {
@@ -464,7 +463,7 @@ function CheckoutScreenBody() {
         notifyCheckout('Could not load payment', formatSetupIntentError(e));
       }
     })();
-  }, [mobileLayout, isAuthenticated, household, loading, ordersLoading, lineItems.length, cardOnFile, awaitingCardOnFile, setupClientSecret, stripeKey]);
+  }, [mobileLayout, isAuthenticated, household, lineItems.length, cardOnFile, awaitingCardOnFile, setupClientSecret, stripeKey]);
 
   // Browser Back/Forward within /checkout ↔ /checkout?step=payment.
   useEffect(() => {
@@ -534,6 +533,7 @@ function CheckoutScreenBody() {
     // Persist before URL/history changes so a remount still sees commit-only.
     setShippingConfirmed(true);
     setAwaitingCardOnFile(true);
+    if (household?.id) releaseSetupIntent(household.id);
     // Drop the payment history step without going "back" to shipping UX.
     replaceBrowserPath(CHECKOUT_PATH);
     setupSecretRef.current = null;
@@ -551,6 +551,7 @@ function CheckoutScreenBody() {
     replaceBrowserPath(CHECKOUT_PATH);
     setShippingConfirmed(true);
     setAwaitingCardOnFile(true);
+    if (household?.id) releaseSetupIntent(household.id);
     void waitForCardThenCommit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [household?.id, refreshSession]);
@@ -711,7 +712,9 @@ function CheckoutScreenBody() {
     return <CheckoutAuthGate />;
   }
 
-  if (loading || ordersLoading) {
+  // Orders and a catalog refresh can finish in the background. The address form and
+  // summary paint from the box already on screen; only an empty draft waits.
+  if ((loading || ordersLoading) && lineItems.length === 0) {
     return (
       <SystemPage narrow loading onBack={onBack} />
     );

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useSession } from '../../hooks/useSession';
+import { warmBoxCheckout } from '../../services/checkout/checkoutPrefetch';
 import { editUntilLockNote } from '../../services/hanukkah/dates';
 import type { MainStackParamList } from '../../navigation/types';
 import { swapNoticeText } from '../../services/box/soldOutReconcile';
@@ -203,6 +205,27 @@ export function MyBoxScreen() {
     voteOptionsFor,
     wrapSelectedIds,
   } = editing;
+  const { household } = useSession();
+
+  // Stripe.js + SetupIntent (or saved card) start while the box is on screen, not when Checkout mounts.
+  useEffect(() => {
+    if (guestViewOnly || locked || openOrder || !household?.id || !lineItems.length) return;
+    warmBoxCheckout({
+      householdId: household.id,
+      cardOnFile,
+      totalCents: boxPriceCents + chargeableLineTotal(lineItems),
+      paymentMethodId: household.stripeDefaultPaymentMethodId,
+    });
+  }, [
+    guestViewOnly,
+    locked,
+    openOrder,
+    household?.id,
+    household?.stripeDefaultPaymentMethodId,
+    cardOnFile,
+    boxPriceCents,
+    lineItems,
+  ]);
 
   const {
     scrollRef,

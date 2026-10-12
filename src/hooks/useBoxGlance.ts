@@ -9,6 +9,7 @@ import { useCatalog } from './useCatalog';
 import { usePaymentGate } from './usePaymentGate';
 import { useSession } from './useSession';
 import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
+import { warmBoxCheckout } from '../services/checkout/checkoutPrefetch';
 import { coalesceLinesByItemId } from '../components/box/boxLineDisplay';
 import { chargeableLineTotal } from '../services/box/pricing';
 import { listBoxCentsForKids } from '../services/box/boxRules';
@@ -34,7 +35,7 @@ export function useBoxGlance() {
   const { lineItems, children, loading: draftLoading } = useBoxDraft();
   const { items: catalog } = useCatalog();
   const { cardOnFile, openOrder, ordersLoading } = usePaymentGate();
-  const { loading: sessionLoading } = useSession();
+  const { household, loading: sessionLoading } = useSession();
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
 
   useEffect(() => {
@@ -52,6 +53,27 @@ export function useBoxGlance() {
     if (!hasBox) return listBoxCentsForKids(1);
     return listBoxCentsForKids(Math.max(1, children.length)) + chargeableLineTotal(lineItems);
   }, [hasBox, children.length, lineItems]);
+
+  // Home, the menu, and account all read this glance. Warm checkout while a draft box is on screen.
+  useEffect(() => {
+    if (sessionLoading || draftLoading) return;
+    if (state !== 'draft' || !household?.id || !lineItems.length) return;
+    warmBoxCheckout({
+      householdId: household.id,
+      cardOnFile,
+      totalCents,
+      paymentMethodId: household.stripeDefaultPaymentMethodId,
+    });
+  }, [
+    sessionLoading,
+    draftLoading,
+    state,
+    household?.id,
+    household?.stripeDefaultPaymentMethodId,
+    cardOnFile,
+    lineItems.length,
+    totalCents,
+  ]);
 
   /** Up to six thumbnails: real box rows when there is a box, the sample set otherwise. */
   const thumbs = useMemo((): BoxThumb[] => {

@@ -194,6 +194,17 @@ function sortItems(items: CatalogItem[]): CatalogItem[] {
   return [...items].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Last catalog snapshot (listener or getAll). Checkout paints from this instead of refetching. */
+let catalogMemory: CatalogItem[] | null = null;
+
+export function peekCatalogItems(): CatalogItem[] | null {
+  return catalogMemory && catalogMemory.length ? catalogMemory : null;
+}
+
+function rememberCatalog(items: CatalogItem[]) {
+  if (items.length) catalogMemory = items;
+}
+
 function inventoryCountersCollection() {
   if (!db) return null;
   return collection(doc(db, 'catalog', CATALOG_HOLIDAY), 'inventory');
@@ -243,7 +254,9 @@ export const catalogService = {
     ]);
     const items = snap.docs.map((d) => toItem(d.id, d.data() as Record<string, unknown>));
     const committed = committedFromSnap(invSnap?.docs ?? []);
-    return sortItems(withBoxStockLeft(items, committed));
+    const sorted = sortItems(withBoxStockLeft(items, committed));
+    rememberCatalog(sorted);
+    return sorted;
   },
 
   /**
@@ -262,7 +275,10 @@ export const catalogService = {
     let items: CatalogItem[] | null = null;
     let committed: CommittedById = new Map();
     const emit = () => {
-      if (items) onChange(sortItems(withBoxStockLeft(items, committed)));
+      if (!items) return;
+      const sorted = sortItems(withBoxStockLeft(items, committed));
+      rememberCatalog(sorted);
+      onChange(sorted);
     };
     const unsubItems = onSnapshot(
       col,

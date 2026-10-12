@@ -4,9 +4,11 @@ import { useAuthStore } from '../../../stores/authStore';
 import { useGuestSessionStore } from '../../../stores/guestSessionStore';
 import { useSession } from '../../../hooks/useSession';
 import { boxDraftService } from '../../../services/firestore/boxDraft';
-import { catalogService } from '../../../services/firestore/catalog';
+import { catalogService, peekCatalogItems } from '../../../services/firestore/catalog';
 import { childrenService } from '../../../services/firestore/children';
-import { getHanukkahConfig, isBoxLocked, effectiveLockAt } from '../../../services/firestore/config';
+import { getHanukkahConfig, isBoxLocked, effectiveLockAt, peekHanukkahConfig } from '../../../services/firestore/config';
+import { liveCatalogItems } from '../../../services/catalog/liveCatalog';
+import { peekBoxDraftCache } from '../../../hooks/useBoxDraft';
 import {
   totalCents,
   DEFAULT_BOX_PRICE_CENTS,
@@ -61,30 +63,87 @@ export function clearStoredCheckoutAddress(): void {
   }
 }
 
+function catalogAlreadyLoaded(): CatalogItem[] {
+  const peeked = peekCatalogItems();
+  if (peeked?.length) return peeked;
+  const live = liveCatalogItems.get();
+  return !live.loading && live.value.length ? live.value : [];
+}
+
+/** What My Box (or Home) already has in memory. Enough to paint address + summary with no spinner. */
+function readCheckoutSeed(householdId: string | undefined, isAuthenticated: boolean) {
+  const catalog = catalogAlreadyLoaded();
+  const config = peekHanukkahConfig();
+  const draft = isAuthenticated ? peekBoxDraftCache(householdId) : null;
+  const guest = useGuestSessionStore.getState();
+  const guestKids = guest.childDrafts.filter((d) => d.role !== 'adult').length;
+  const lineItems = draft?.lineItems ?? (isAuthenticated ? [] : guest.lineItems);
+  const kidCount = draft ? draft.children.length : guestKids;
+  const ready = !!config && catalog.length > 0 && lineItems.length > 0;
+  return { catalog, config, lineItems, kidCount, ready };
+}
+
 export function useCheckoutDraft(householdId: string | undefined) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const userId = useAuthStore((s) => s.user?.uid);
   const { household } = useSession();
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
+  const [seed] = useState(() => readCheckoutSeed(householdId, isAuthenticated));
 
-  const [lineItems, setLineItems] = useState<BoxLineItem[]>([]);
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [lineItems, setLineItems] = useState<BoxLineItem[]>(seed.lineItems);
+  const [catalog, setCatalog] = useState<CatalogItem[]>(seed.catalog);
   const [address, setAddress] = useState<ShippingAddress>(
     () => readStoredAddress() ?? emptyShippingAddress
   );
-  const [loading, setLoading] = useState(true);
-  const [locked, setLocked] = useState(false);
-  const [boxPriceCents, setBoxPriceCents] = useState(DEFAULT_BOX_PRICE_CENTS);
+  const [loading, setLoading] = useState(!seed.ready);
+  const [locked, setLocked] = useState(() =>
+    seed.config ? isBoxLocked(effectiveLockAt(seed.config, false)) : false
+  );
+  const [boxPriceCents, setBoxPriceCents] = useState(() =>
+    listBoxCentsForKids(Math.max(1, seed.kidCount || 1))
+  );
   const [hanukkahConfig, setHanukkahConfig] = useState<Awaited<
     ReturnType<typeof getHanukkahConfig>
-  > | null>(null);
+  > | null>(seed.config);
 
   const load = useCallback(async () => {
+    const freshSeed = readCheckoutSeed(householdId, isAuthenticated);
+    const paintNow = freshSeed.ready && !!freshSeed.config;
+    if (paintNow && freshSeed.config) {
+      setLineItems(freshSeed.lineItems);
+      setCatalog(freshSeed.catalog);
+      setHanukkahConfig(freshSeed.config);
+      setLocked(isBoxLocked(effectiveLockAt(freshSeed.config, false)));
+      setBoxPriceCents(listBoxCentsForKids(Math.max(1, freshSeed.kidCount || 1)));
+      setLoading(false);
+      void getHanukkahConfig()
+        .then((config) => {
+          setHanukkahConfig(config);
+          setLocked(isBoxLocked(effectiveLockAt(config, false)));
+        })
+        .catch(() => undefined);
+      if (isAuthenticated && userId) {
+        void childrenService
+          .list(userId)
+          .then((kids) => setBoxPriceCents(listBoxCentsForKids(Math.max(1, kids.length))))
+          .catch(() => undefined);
+      }
+      if (isAuthenticated && householdId && !peekBoxDraftCache(householdId)) {
+        void boxDraftService.get(householdId).then((draft) => {
+          if (peekBoxDraftCache(householdId)) return;
+          if (draft?.lineItems) setLineItems(draft.lineItems);
+        }).catch(() => undefined);
+      } else if (!isAuthenticated) {
+        setLineItems(useGuestSessionStore.getState().lineItems);
+      }
+      return;
+    }
+
     setLoading(true);
     const [config, items, kids] = await Promise.all([
-      getHanukkahConfig({ fresh: true }),
-      catalogService.getAll(),
+      getHanukkahConfig(),
+      freshSeed.catalog.length ? Promise.resolve(freshSeed.catalog) : catalogService.getAll(),
       isAuthenticated && userId ? childrenService.list(userId) : Promise.resolve(null),
     ]);
     setHanukkahConfig(config);
@@ -107,8 +166,11 @@ export function useCheckoutDraft(householdId: string | undefined) {
       return;
     }
 
+    const started = Date.now();
     const draft = await boxDraftService.get(householdId);
-    setLineItems(draft?.lineItems ?? []);
+    const latest = peekBoxDraftCache(householdId);
+    if (latest && latest.clientUpdatedAt >= started) setLineItems(latest.lineItems);
+    else setLineItems(draft?.lineItems ?? latest?.lineItems ?? []);
     setLoading(false);
   }, [householdId, isAuthenticated, userId, guestLineItems, guestDrafts]);
 
