@@ -6,12 +6,18 @@ import { DetailsStepScreen } from '../screens/onboarding/DetailsStepScreen';
 import { RevealEmailScreen } from '../screens/onboarding/RevealEmailScreen';
 import { BuildingBoxScreen } from '../screens/onboarding/BuildingBoxScreen';
 import { useAuthStore } from '../stores/authStore';
-import { useGuestSessionStore, familiarityLevelToScore } from '../stores/guestSessionStore';
+import { useGuestSessionStore, familiarityLevelToScore, familiarityScoreToLevel } from '../stores/guestSessionStore';
 import { useSession } from '../hooks/useSession';
 import { childrenService } from '../services/firestore/children';
 import { usersService } from '../services/firestore/users';
 import { householdsService } from '../services/firestore/households';
-import { catalogService } from '../services/firestore/catalog';
+import { catalogService, peekCatalogItems } from '../services/firestore/catalog';
+import {
+  readBoxBuildResume,
+  writeBoxBuildResume,
+  clearBoxBuildResume,
+  type BoxBuildResume,
+} from '../services/box/boxBuildResume';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildCuratedBox } from '../services/box/buildDefaultBox';
 import { curateBox, applyCurateBoxResult } from '../services/rav/curateBox';
@@ -80,16 +86,55 @@ function adultCountFromDrafts(drafts: ChildDraft[]): number | undefined {
 }
 
 async function ensureHouseholdId(uid: string, householdId: string | null | undefined): Promise<string> {
-  if (householdId) {
-    const existing = await householdsService.get(householdId);
-    if (existing && !existing.memberIds.includes(uid)) {
-      await householdsService.addMember(householdId, uid);
+  // React state lags the profile write. Re-read so we don't create a second,
+  // empty household and then open My Box against the wrong one.
+  let id = householdId || (await usersService.get(uid))?.householdId || readBoxBuildResume()?.householdId || null;
+  if (id) {
+    const existing = await householdsService.get(id);
+    if (existing) {
+      if (!existing.memberIds.includes(uid)) {
+        await householdsService.addMember(id, uid);
+      }
+      return id;
     }
-    return householdId;
   }
   const created = await householdsService.createForOwner(uid);
   await usersService.upsert(uid, { householdId: created.id });
   return created.id;
+}
+
+async function loadBuildCatalog() {
+  const cached = peekCatalogItems();
+  if (cached?.length) return cached;
+  return catalogService.getAll();
+}
+
+/** Survives an OnboardingStack remount; the custom token never goes to disk. */
+let pendingRevealToken: string | null = null;
+let pendingRevealSignIn: Promise<void> | null = null;
+
+function restoreResumeIntoGuest(): BoxBuildResume | null {
+  const resume = readBoxBuildResume();
+  if (!resume) return null;
+  const guest = useGuestSessionStore.getState();
+  const empty = guest.childDrafts.length === 0 && guest.lineItems.length === 0;
+  if (empty && (resume.childDrafts.length > 0 || resume.lineItems.length > 0)) {
+    useGuestSessionStore.setState({
+      childDrafts: resume.childDrafts,
+      childInterests: resume.childInterests,
+      familiarityScore: resume.familiarityScore,
+      familiarityLevel: familiarityScoreToLevel(resume.familiarityScore),
+      practiceFrequencyScore: resume.practiceFrequencyScore,
+      ravNotes: resume.ravNotes,
+      lineItems: resume.lineItems,
+      onboardingStep: resume.step,
+      onboardingComplete: resume.lineItems.length > 0,
+      buildBoxPath: true,
+      boxRevealComplete: false,
+      exploreStarted: true,
+    });
+  }
+  return resume;
 }
 
 function flattenKidInterests(members: ChildDraft[]): string[] {
@@ -124,8 +169,6 @@ export function OnboardingStack({
   const guestFamiliarityScore = useGuestSessionStore((s) => s.familiarityScore);
   const guestRavNotes = useGuestSessionStore((s) => s.ravNotes);
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
-  const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
-  const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const persistedOnboardingStep = useGuestSessionStore((s) => s.onboardingStep);
   const setGuestChildDrafts = useGuestSessionStore((s) => s.setChildDrafts);
   const setGuestChildInterests = useGuestSessionStore((s) => s.setChildInterests);
@@ -144,45 +187,97 @@ export function OnboardingStack({
   const { household, profile, refresh } = useSession();
   const guestMode = isGuest || !isAuthenticated;
 
-  const [step, setStep] = useState<OnboardingStep>(() =>
-    resolveOnboardingStep({
+  const [step, setStep] = useState<OnboardingStep>(() => {
+    const resume = restoreResumeIntoGuest();
+    const guest = useGuestSessionStore.getState();
+    return resolveOnboardingStep({
       revealOnly,
       previewStep: initialStep,
-      persistedStep: persistedOnboardingStep,
-      onboardingComplete: guestOnboardingComplete,
-      lineItemsCount: guestLineItems.length,
-      boxRevealComplete: guestBoxRevealComplete,
-    })
-  );
+      persistedStep: guest.onboardingStep ?? persistedOnboardingStep,
+      onboardingComplete: guest.onboardingComplete,
+      lineItemsCount: guest.lineItems.length,
+      boxRevealComplete: guest.boxRevealComplete,
+      resumeBuilding: !!resume && (resume.handingOff || resume.step === 'building' || resume.step === 'reveal'),
+    });
+  });
   const [maxWizardIndex, setMaxWizardIndex] = useState(0);
   const mobileLayout = useMobileLayout();
-  const [childDrafts, setChildDrafts] = useState<ChildDraft[]>(guestChildDrafts);
+  const [childDrafts, setChildDrafts] = useState<ChildDraft[]>(() => useGuestSessionStore.getState().childDrafts);
   const [childInterests, setChildInterests] = useState<string[]>(guestChildInterests);
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>(guestFamiliarityLevel);
   const [familiarityScore, setFamiliarityScore] = useState(guestFamiliarityScore);
   const [ravNotes, setRavNotes] = useState(guestRavNotes);
-  const [lineItems, setLineItems] = useState<BoxLineItem[]>(guestLineItems);
+  const [lineItems, setLineItems] = useState<BoxLineItem[]>(() => useGuestSessionStore.getState().lineItems);
   const [saving, setSaving] = useState(false);
-  /** Baseline persisted; Rav pass finished (or timed out). BuildingBoxScreen advances when true. */
-  const [buildingReady, setBuildingReady] = useState(
-    () => guestOnboardingComplete && guestLineItems.length > 0
-  );
-  /** New account from the email gate — sign in once the curated box is final. */
-  const pendingAccountTokenRef = useRef<string | null>(null);
+  /** Local box exists and the account save has finished. The loader advances when true. */
+  const [buildingReady, setBuildingReady] = useState(() => {
+    const guest = useGuestSessionStore.getState();
+    return (guest.onboardingComplete && guest.lineItems.length > 0) || (readBoxBuildResume()?.lineItems.length ?? 0) > 0;
+  });
   const [buildError, setBuildError] = useState<string | null>(null);
-  const [completingReveal, setCompletingReveal] = useState(false);
+  const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
+  const [handoffBusy, setHandoffBusy] = useState(false);
   const [loadingReveal, setLoadingReveal] = useState(revealOnly);
   const revealHandoffStarted = useRef(false);
-  const revealRetries = useRef(0);
+  const householdIdRef = useRef<string | null>(readBoxBuildResume()?.householdId ?? null);
+  const saveRef = useRef<Promise<void> | null>(null);
+  const lastBuildRef = useRef<{
+    level: FamiliarityLevel;
+    score: number;
+    kids: ChildDraft[];
+    interests: string[];
+    notes: string;
+  } | null>(null);
+
+  const rememberAnswers = useCallback((nextStep: OnboardingStep) => {
+    const guest = useGuestSessionStore.getState();
+    const prev = readBoxBuildResume();
+    const stayHandingOff =
+      prev?.handingOff === true && (nextStep === 'building' || nextStep === 'reveal');
+    writeBoxBuildResume({
+      step: nextStep,
+      childDrafts: guest.childDrafts.length ? guest.childDrafts : prev?.childDrafts ?? [],
+      childInterests: guest.childInterests.length ? guest.childInterests : prev?.childInterests ?? [],
+      familiarityScore: guest.familiarityScore || prev?.familiarityScore || 50,
+      practiceFrequencyScore: guest.practiceFrequencyScore || prev?.practiceFrequencyScore || 50,
+      ravNotes: guest.ravNotes || prev?.ravNotes || '',
+      lineItems: guest.lineItems.length ? guest.lineItems : prev?.lineItems ?? [],
+      handingOff: stayHandingOff,
+      householdId: householdIdRef.current ?? prev?.householdId ?? null,
+      savedAt: Date.now(),
+    });
+  }, []);
+
+  const markHandoff = useCallback(() => {
+    const guest = useGuestSessionStore.getState();
+    const prev = readBoxBuildResume();
+    writeBoxBuildResume({
+      step: 'building',
+      childDrafts: guest.childDrafts.length ? guest.childDrafts : prev?.childDrafts ?? [],
+      childInterests: guest.childInterests.length ? guest.childInterests : prev?.childInterests ?? [],
+      familiarityScore: guest.familiarityScore || prev?.familiarityScore || 50,
+      practiceFrequencyScore: guest.practiceFrequencyScore || prev?.practiceFrequencyScore || 50,
+      ravNotes: guest.ravNotes || prev?.ravNotes || '',
+      lineItems: guest.lineItems.length ? guest.lineItems : prev?.lineItems ?? [],
+      handingOff: true,
+      householdId: householdIdRef.current ?? prev?.householdId ?? null,
+      savedAt: Date.now(),
+    });
+  }, []);
 
   const goToStep = useCallback(
     (next: OnboardingStep) => {
       setStep(next);
       setGuestOnboardingStep(next);
+      rememberAnswers(next);
       if (isHistoryStep(next)) pushBoxBuilderStep(next);
     },
-    [setGuestOnboardingStep]
+    [rememberAnswers, setGuestOnboardingStep]
   );
+
+  useEffect(() => {
+    if (!peekCatalogItems()?.length) void catalogService.getAll().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const idx = wizardNavStepIndex(step);
@@ -323,11 +418,15 @@ export function OnboardingStack({
     interests: string[],
     notes: string
   ) => {
+    lastBuildRef.current = { level, score, kids, interests, notes };
     setBuildError(null);
+    setHandoffNotice(null);
     setSaving(true);
     setBuildingReady(false);
+    const onLoader = !guestMode;
+    if (onLoader) goToStep('building');
     try {
-      const catalog = await catalogService.getAll();
+      const catalog = await loadBuildCatalog();
       if (!catalog.length) {
         throw new Error(
           'We could not load the product catalog. Check your connection and try again, or email contact@grapejuice.co.'
@@ -373,24 +472,33 @@ export function OnboardingStack({
         return applyCurateBoxResult(baseline, catalog, result, curated.deviations);
       };
 
+      const publishCurated = (next: BoxLineItem[]) => {
+        setGuestLineItems(next);
+        setLineItems(next);
+        const prev = readBoxBuildResume();
+        if (prev) writeBoxBuildResume({ ...prev, lineItems: next, savedAt: Date.now() });
+        const hid = householdIdRef.current || readBoxBuildResume()?.householdId;
+        const uid = useAuthStore.getState().user?.uid;
+        if (hid && uid) {
+          void boxDraftService
+            .save(hid, uid, next, { familiarityLevel: level, childInterests: interests })
+            .catch((err) => console.warn('[onboarding] rav draft save failed', err));
+        }
+      };
+
       if (guestMode) {
         setGuestLineItems(items);
         completeGuestOnboarding();
         setFamiliarity(level);
         setFamiliarityScore(score);
         setLineItems(items);
-        // Curation keeps running while the guest types their email.
+        // The email screen covers Rav. The loader after it only waits a short splash.
+        setBuildingReady(true);
         goToStep('email');
         trackBoxBuilt(items.length);
-        // Fail-open Rav pass; the building screen after the email gate waits on it.
-        try {
-          items = await runRavPass(items, profiles);
-          setGuestLineItems(items);
-          setLineItems(items);
-        } catch (err) {
+        void runRavPass(items, profiles).then(publishCurated).catch((err) => {
           console.warn('[onboarding] curateBox failed (guest)', err);
-        }
-        setBuildingReady(true);
+        });
         return;
       }
 
@@ -398,9 +506,8 @@ export function OnboardingStack({
         throw new Error('You must be signed in to save your box. Try signing in and building again.');
       }
 
-      // Silent: keep the building splash up instead of flashing the boot spinner.
-      await refresh({ silent: true });
       const householdId = await ensureHouseholdId(user.uid, household?.id ?? profile?.householdId);
+      householdIdRef.current = householdId;
       const savedKids = await childrenService.replaceAll(
         user.uid,
         kids
@@ -413,13 +520,12 @@ export function OnboardingStack({
           }))
       );
       let remappedItems = remapGuestChildIds(items, savedKids);
-      // Remap deviation child ids to saved kids as well.
       const guestToSaved = new Map<string, string>();
       profiles.forEach((p, i) => {
         const saved = savedKids[i];
         if (saved) guestToSaved.set(p.id, saved.id);
       });
-      const remappedDeviations = curated.deviations.map((d) => ({
+      curated.deviations = curated.deviations.map((d) => ({
         ...d,
         childId: d.childId ? guestToSaved.get(d.childId) ?? d.childId : d.childId,
         slotId:
@@ -427,51 +533,52 @@ export function OnboardingStack({
             ? d.slotId.replace(d.childId, guestToSaved.get(d.childId)!)
             : d.slotId,
       }));
-      curated.deviations = remappedDeviations;
 
-      await boxDraftService.save(householdId, user.uid, remappedItems, {
-        familiarityLevel: level,
-        childInterests: interests,
-      });
-      await usersService.upsert(user.uid, {
-        familiarityLevel: level,
-        ravNotes: notes || undefined,
-        onboardingComplete: true,
-        boxRevealComplete: false,
-        lockReminderEligible: true,
-        lockReminderAttempts: 0,
-      });
-      await saveLastBoxAnswers(user.uid, {
-        childDrafts: kids as unknown as LastBoxAnswers['childDrafts'],
-        childInterests: interests,
-        familiarityScore: score,
-        familiarityLevel: level,
-        ravNotes: notes,
-      });
       setFamiliarity(level);
       setLineItems(remappedItems);
-      goToStep('building');
+      setGuestLineItems(remappedItems);
       trackBoxBuilt(remappedItems.length);
-
-      try {
-        remappedItems = await runRavPass(remappedItems, savedKids);
-        await boxDraftService.save(householdId, user.uid, remappedItems, {
+      // Both flags together. Writing boxRevealComplete false here is what bounced
+      // a slow reveal back into the questionnaire.
+      const save = Promise.all([
+        boxDraftService.save(householdId, user.uid, remappedItems, {
           familiarityLevel: level,
           childInterests: interests,
-        });
-        setLineItems(remappedItems);
-      } catch (err) {
+        }),
+        usersService.upsert(user.uid, {
+          familiarityLevel: level,
+          ravNotes: notes || undefined,
+          onboardingComplete: true,
+          boxRevealComplete: true,
+          lockReminderEligible: true,
+          lockReminderAttempts: 0,
+        }),
+        saveLastBoxAnswers(user.uid, {
+          childDrafts: kids as unknown as LastBoxAnswers['childDrafts'],
+          childInterests: interests,
+          familiarityScore: score,
+          familiarityLevel: level,
+          ravNotes: notes,
+        }),
+      ]).then(() => undefined);
+      saveRef.current = save;
+      void runRavPass(remappedItems, savedKids).then(publishCurated).catch((err) => {
         console.warn('[onboarding] curateBox failed', err);
-      }
+      });
+      await save;
+      rememberAnswers('building');
       setBuildingReady(true);
     } catch (error) {
       const message = onboardingErrorMessage(error);
       setBuildError(message);
+      setHandoffNotice(message);
       console.error('[onboarding] buildBox failed:', error);
-      if (Platform.OS === 'web') {
-        window.alert?.(message);
-      } else {
-        Alert.alert('Could not build your box', message);
+      if (!onLoader) {
+        if (Platform.OS === 'web') {
+          window.alert?.(message);
+        } else {
+          Alert.alert('Could not build your box', message);
+        }
       }
     } finally {
       setSaving(false);
@@ -479,74 +586,86 @@ export function OnboardingStack({
   };
 
   const completeReveal = useCallback(async () => {
-    if (revealHandoffStarted.current) return;
-    revealHandoffStarted.current = true;
-    setCompletingReveal(true);
-    let revealSaveFailed = false;
-    try {
-      // Destination is the live My Box screen (not the legacy reveal UI).
       queuePendingMainNav({ screen: 'MyBox' });
-      if (guestMode) {
+      const authed = useAuthStore.getState();
+      if (!authed.isAuthenticated || !authed.user?.uid) {
         completeGuestBoxReveal();
+        clearBoxBuildResume();
         clearDevPreview();
         onComplete?.();
         return;
       }
-      if (!user?.uid) {
-        revealHandoffStarted.current = false;
-        return;
-      }
-      const withTimeout = <T,>(p: Promise<T>, ms: number) =>
-        Promise.race([
-          p,
-          new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-        ]);
-      // Leaving before this is written sends the gate straight back into onboarding.
-      try {
-        await usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 });
-      } catch (err) {
-        console.warn('[onboarding] reveal save failed', err);
-        revealSaveFailed = true;
-      }
-      // Clear guest build intent so RootRoutes doesn't keep the onboarding gate.
+      await usersService.upsert(authed.user.uid, {
+        onboardingComplete: true,
+        boxRevealComplete: true,
+        lockReminderEligible: true,
+        lockReminderAttempts: 0,
+      });
+      markHandoff();
       useGuestSessionStore.setState({ buildBoxPath: false });
       // Silent: a full refresh flips sessionLoading and remounts Main (boot
       // spinner), which consumes pending MyBox nav then lands on StorefrontHome.
       try {
-        await withTimeout(refresh({ silent: true }), 8000);
+        await Promise.race([
+          refresh({ silent: true }),
+          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+        ]);
       } catch (err) {
         console.warn('[onboarding] reveal refresh timed out', err);
       }
       clearDevPreview();
       onComplete?.();
-    } catch {
-      revealSaveFailed = true;
-    } finally {
-      // A failed save lands them back on the reveal; let that attempt run again.
-      if (revealSaveFailed && revealRetries.current < 2) {
-        revealRetries.current += 1;
-        revealHandoffStarted.current = false;
-      }
-      setCompletingReveal(false);
-    }
-  }, [completeGuestBoxReveal, guestMode, onComplete, refresh, user?.uid]);
+  }, [completeGuestBoxReveal, markHandoff, onComplete, refresh]);
 
   /**
-   * After the build splash, open My Box — Box Reveal is no longer a separate screen.
-   * A new account from the email gate signs in here so the merge saves the final curated box.
+   * After the short splash, open My Box. A new account from the email gate signs
+   * in here; the guest box stays put until that save lands.
    */
   const goToReveal = useCallback(() => {
-    const token = pendingAccountTokenRef.current;
-    if (token && guestMode) {
-      pendingAccountTokenRef.current = null;
-      void signInWithToken(token).catch((err) => {
-        console.warn('[onboarding] sign-in after email gate failed', err);
-        void completeReveal();
-      });
-      return;
-    }
-    void completeReveal();
-  }, [completeReveal, guestMode, signInWithToken]);
+    if (revealHandoffStarted.current) return;
+    revealHandoffStarted.current = true;
+    setHandoffNotice(null);
+    setHandoffBusy(true);
+    const slow = setTimeout(() => {
+      setHandoffNotice('This is taking a moment. Your answers are saved on this device.');
+    }, 12000);
+    void (async () => {
+      try {
+        if (saveRef.current) await saveRef.current;
+        const stillGuest = !useAuthStore.getState().isAuthenticated;
+        if (stillGuest && (pendingRevealSignIn || pendingRevealToken)) {
+          markHandoff();
+          if (!pendingRevealSignIn && pendingRevealToken) {
+            const token = pendingRevealToken;
+            const signingIn = signInWithToken(token);
+            pendingRevealSignIn = signingIn;
+            void signingIn.catch((err) => console.warn('[onboarding] sign-in after email gate failed', err));
+          }
+          await pendingRevealSignIn;
+          pendingRevealToken = null;
+        } else if (!stillGuest) {
+          markHandoff();
+        }
+        await completeReveal();
+        setHandoffNotice(null);
+      } catch (err) {
+        revealHandoffStarted.current = false;
+        pendingRevealSignIn = null;
+        const prev = readBoxBuildResume();
+        if (prev?.handingOff) {
+          writeBoxBuildResume({ ...prev, handingOff: false, step: 'building' });
+        }
+        const message = err instanceof Error && err.message && err.message !== 'timeout'
+          ? err.message
+          : 'Something got stuck opening your box. Your answers are still here.';
+        setHandoffNotice(message);
+        console.warn('[onboarding] reveal handoff failed', err);
+      } finally {
+        clearTimeout(slow);
+        setHandoffBusy(false);
+      }
+    })();
+  }, [completeReveal, markHandoff, signInWithToken]);
 
   const submitRevealEmail = useCallback(
     async (email: string) => {
@@ -567,28 +686,63 @@ export function OnboardingStack({
         throw new Error('Something went wrong. Please try again.');
       }
       if (result.status === 'created') {
-        pendingAccountTokenRef.current = result.customToken;
+        pendingRevealToken = result.customToken;
         setGuestPendingAccountEmail('');
+        // Before sign-in, so the auth commit does not wipe the guest box.
+        markHandoff();
+        const signingIn = signInWithToken(result.customToken);
+        pendingRevealSignIn = signingIn;
+        void signingIn.catch((err) => console.warn('[onboarding] sign-in after email gate failed', err));
       } else {
         setGuestPendingAccountEmail(email);
       }
       goToStep('building');
     },
-    [childDrafts, goToStep, setGuestPendingAccountEmail]
+    [childDrafts, goToStep, markHandoff, setGuestPendingAccountEmail, signInWithToken]
   );
 
   // Signed in with a persisted email step (e.g. signed in elsewhere): the gate no longer applies.
   useEffect(() => {
-    if (step === 'email' && !guestMode) goToStep('reveal');
-  }, [step, guestMode, goToStep]);
+    if (step !== 'email' || guestMode) return;
+    if (lineItems.length || useGuestSessionStore.getState().lineItems.length) {
+      setBuildingReady(true);
+      goToStep('building');
+      return;
+    }
+    goToStep('reveal');
+  }, [step, guestMode, goToStep, lineItems.length]);
 
-  // Resume / reveal-only / wizard jump: hand off to My Box once draft is ready.
+  // Resume / reveal-only / wizard jump: hand off to My Box once. Failures stay
+  // on the loader; this must not re-enter and loop.
+  const revealKickRef = useRef(false);
   useEffect(() => {
-    if (step !== 'reveal' || loadingReveal || completingReveal) return;
-    void completeReveal();
-  }, [step, loadingReveal, completingReveal, completeReveal]);
+    if (step !== 'reveal' || loadingReveal || revealKickRef.current) return;
+    revealKickRef.current = true;
+    goToReveal();
+  }, [step, loadingReveal, goToReveal]);
+
+  // Remount mid-reveal: the new loader would otherwise wait out another splash.
+  useEffect(() => {
+    if (step !== 'building' || handoffNotice) return;
+    if (!readBoxBuildResume()?.handingOff || !buildingReady) return;
+    goToReveal();
+  }, [step, buildingReady, handoffNotice, goToReveal]);
+
+  const retryRef = useRef<() => void>(() => {});
+  retryRef.current = () => {
+    revealHandoffStarted.current = false;
+    pendingRevealSignIn = null;
+    setHandoffNotice(null);
+    if (!buildingReady && lastBuildRef.current) {
+      const last = lastBuildRef.current;
+      void buildBox(last.level, last.score, last.kids, last.interests, last.notes);
+      return;
+    }
+    goToReveal();
+  };
 
   const exitOnboarding = useCallback(async () => {
+    clearBoxBuildResume();
     clearDevPreview();
     // Leaving answers an inbound `/box` visit; don't hold that URL over the next screen.
     consumeInboundBoxUrlPreserve();
@@ -730,7 +884,13 @@ export function OnboardingStack({
       // instead of leaving the form on screen through the whole catalog fetch.
       stepContent =
         saving && !guestMode ? (
-          <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready={false} failsafe={false} />
+          <BuildingBoxScreen
+            onComplete={goToReveal}
+            hold={buildingPreviewHold}
+            ready={buildingReady}
+            notice={handoffNotice}
+            onRetry={handoffBusy ? undefined : () => retryRef.current()}
+          />
         ) : (
           <DetailsStepScreen
             key={`details-${seedVersion}`}
@@ -761,11 +921,20 @@ export function OnboardingStack({
           onComplete={goToReveal}
           hold={buildingPreviewHold}
           ready={buildingReady}
+          notice={handoffNotice}
+          onRetry={handoffBusy ? undefined : () => retryRef.current()}
         />
       );
       break;
     case 'reveal':
-      stepContent = (
+      stepContent = handoffNotice ? (
+        <BuildingBoxScreen
+          onComplete={goToReveal}
+          ready={false}
+          notice={handoffNotice}
+          onRetry={handoffBusy ? undefined : () => retryRef.current()}
+        />
+      ) : (
         <View style={styles.loading} accessibilityLabel="Opening your box">
           <BrandLoadingMark />
         </View>

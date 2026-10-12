@@ -22,6 +22,7 @@ import {
   type PersistGuestOptions,
 } from '../services/guest/persistGuestToAccount';
 import { useGuestSessionStore } from './guestSessionStore';
+import { boxRevealHandoffActive } from '../services/box/boxBuildResume';
 import { useBoxPresenceStore } from './boxPresenceStore';
 import type { AuthReturnRoute } from './authFlowStore';
 
@@ -61,7 +62,9 @@ function commitAuthenticatedUser(
   clearGuest: boolean
 ) {
   set({ user, isAuthenticated: true, isLoading: false, error: null });
-  if (clearGuest) {
+  // Mid box-reveal the guest store IS the box. Wiping it before the profile
+  // catches up remounts onboarding on Your Family.
+  if (clearGuest && !boxRevealHandoffActive()) {
     useGuestSessionStore.getState().reset();
   }
 }

@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BoxLineItem, FamiliarityLevel, InventorySwapNotice } from '../types/pilot';
 import type { ChildDraft } from '../components/family/familyDraft';
 import { remapLegacyCatalogIds, retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
+import { readBoxBuildResume } from '../services/box/boxBuildResume';
 
 export function familiarityScoreToLevel(score: number): FamiliarityLevel {
   if (score <= 33) return 'minimal';
@@ -243,6 +244,25 @@ export const useGuestSessionStore = create<GuestSessionState>()(
           if (wish !== state.wishlistItemIds) useGuestSessionStore.setState({ wishlistItemIds: wish });
           const wrap = remapLegacyCatalogIds(state.wrapSelectedItemIds ?? []);
           if (wrap !== state.wrapSelectedItemIds) state.setWrapSelectedItemIds(wrap);
+          // Sign-in resets this store; the session snapshot still has the answers.
+          const resume = readBoxBuildResume();
+          const empty = !(state.childDrafts?.length) && !(state.lineItems?.length);
+          if (resume && empty && (resume.childDrafts.length || resume.lineItems.length)) {
+            useGuestSessionStore.setState({
+              childDrafts: resume.childDrafts,
+              childInterests: resume.childInterests,
+              familiarityScore: resume.familiarityScore,
+              familiarityLevel: familiarityScoreToLevel(resume.familiarityScore),
+              practiceFrequencyScore: resume.practiceFrequencyScore,
+              ravNotes: resume.ravNotes,
+              lineItems: resume.lineItems,
+              onboardingStep: resume.step,
+              onboardingComplete: resume.lineItems.length > 0,
+              buildBoxPath: true,
+              boxRevealComplete: false,
+              exploreStarted: true,
+            });
+          }
         }
         state?.setHasHydrated(true);
       },

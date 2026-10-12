@@ -62,6 +62,7 @@ import {
   resetRootToMainScreen,
 } from './pendingMainNav';
 import { usersService } from '../services/firestore/users';
+import { boxRevealHandoffActive, clearBoxBuildResume } from '../services/box/boxBuildResume';
 
 /** Transparent theme so AuthHeroShell dimmed backdrop shows Main underneath. */
 const authOverlayTheme = {
@@ -222,7 +223,7 @@ function MainGate() {
 function RootRoutes() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
-  const { loading: sessionLoading, needsOnboarding, needsBoxReveal, refresh } = useSession();
+  const { loading: sessionLoading, needsOnboarding, needsBoxReveal, refresh, profile } = useSession();
   const guestHydrated = useGuestSessionStore((s) => s._hasHydrated);
   const exploreStarted = useGuestSessionStore((s) => s.exploreStarted);
   const buildBoxPath = useGuestSessionStore((s) => s.buildBoxPath);
@@ -262,6 +263,13 @@ function RootRoutes() {
 
   // Native (and web password-reset): wait for auth + session so we don’t paint
   // the wrong onboarding/main gate. Box draft finishes after first paint.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!profile?.onboardingComplete || !profile.boxRevealComplete) return;
+    if (!boxRevealHandoffActive()) return;
+    clearBoxBuildResume();
+  }, [isAuthenticated, profile?.onboardingComplete, profile?.boxRevealComplete]);
+
   const booting =
     !guestHydrated ||
     (!skipWebStorefrontBoot &&
@@ -304,7 +312,11 @@ function RootRoutes() {
       // Checkout / account / nav — stay on the page they were on, never open the box builder.
       authReturnSkipsBoxOnboarding(pendingAuth) ||
       (guestHasBox && pendingAuth != null);
-    if (resumeMainAfterAuth) {
+    // Reveal already wrote the box. A stale profile (onboarding still "open")
+    // must not remount the questionnaire on Your Family.
+    if (boxRevealHandoffActive()) {
+      gateKey = 'main';
+    } else if (resumeMainAfterAuth) {
       // Guest already revealed/customized a box (or mid gift/checkout auth) — don't restart onboarding.
       gateKey = 'main';
     } else if (buildBoxPath && !guestBoxRevealComplete) {

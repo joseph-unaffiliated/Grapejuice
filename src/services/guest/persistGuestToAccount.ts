@@ -14,6 +14,7 @@ import { peekPendingAuthReturn, type AuthUser } from '../auth/auth';
 import type { BoxLineItem, ChildProfile } from '../../types/pilot';
 import type { ChildDraft } from '../../components/family/familyDraft';
 import { getVisitorId } from './visitorId';
+import { readBoxBuildResume, writeBoxBuildResume } from '../box/boxBuildResume';
 import { markGuestSessionConvertedRemote } from './guestSessionSync';
 
 /**
@@ -168,11 +169,18 @@ export async function persistGuestToAccount(
   }
 
   // Own-box signals only — gift resume must not seed a household box or children.
+  // Re-read at save time: Rav can update line items while earlier awaits run,
+  // and a session snapshot survives a guest-store reset.
+  const liveGuest = () => useGuestSessionStore.getState();
+  const resume = readBoxBuildResume();
   const guestHasOwnBox =
     !giftResume &&
     (guest.boxRevealComplete ||
       guest.onboardingComplete ||
-      guest.lineItems.length > 0);
+      guest.lineItems.length > 0 ||
+      liveGuest().lineItems.length > 0 ||
+      !!resume?.handingOff ||
+      (resume?.lineItems.length ?? 0) > 0);
 
   let prof = await usersService.get(user.uid);
   if (!prof) {
@@ -195,11 +203,18 @@ export async function persistGuestToAccount(
     });
   }
 
-  let householdId = prof.householdId;
+  let householdId = prof.householdId || resume?.householdId || null;
+  if (householdId) {
+    const existingHh = await householdsService.get(householdId);
+    if (!existingHh) householdId = null;
+  }
   if (!householdId) {
     const hh = await householdsService.createForOwner(user.uid);
     householdId = hh.id;
     prof = await usersService.upsert(user.uid, { householdId });
+  }
+  if (resume) {
+    writeBoxBuildResume({ ...resume, householdId });
   }
 
   // Guest favorites only live in the session, so carry them onto the household
@@ -231,16 +246,18 @@ export async function persistGuestToAccount(
     }
   }
 
-  if (!giftResume && guest.lineItems.length) {
+  const linesToSave = liveGuest().lineItems.length ? liveGuest().lineItems : guest.lineItems;
+  if (!giftResume && linesToSave.length) {
     const existingDraft = await boxDraftService.get(householdId);
     const shouldSaveGuestDraft =
       !existingDraft?.lineItems?.length ||
       guest.buildBoxPath ||
+      liveGuest().buildBoxPath ||
       guest.boxRevealComplete ||
       guestHasOwnBox;
 
     if (shouldSaveGuestDraft) {
-      const lineItems = remapGuestChildIds(guest.lineItems, savedChildren);
+      const lineItems = remapGuestChildIds(linesToSave, savedChildren);
       await boxDraftService.save(householdId, user.uid, lineItems, {
         familiarityLevel: guest.familiarityLevel,
         childInterests: guest.childInterests.length ? guest.childInterests : undefined,

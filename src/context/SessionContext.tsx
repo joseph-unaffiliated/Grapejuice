@@ -9,6 +9,7 @@ import {
   useAuthFlowStore,
 } from '../stores/authFlowStore';
 import { peekPendingAuthReturn } from '../services/auth/auth';
+import { readBoxBuildResume } from '../services/box/boxBuildResume';
 import type { Household, UserProfile } from '../types/pilot';
 
 type SessionContextValue = {
@@ -74,19 +75,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         parseAuthReturnRoute(peekPendingAuthReturn());
       const skipBoxOnboardingNow =
         giftResumeNow || authReturnSkipsBoxOnboarding(pendingNow);
+      const resumeNow = readBoxBuildResume();
+      const resumeHasBox = !!resumeNow && (resumeNow.handingOff || resumeNow.lineItems.length > 0);
       if (!prof) {
         const guest = useGuestSessionStore.getState();
         const guestHasOwnBox =
           !giftResumeNow &&
           (guest.boxRevealComplete ||
             guest.onboardingComplete ||
-            guest.lineItems.length > 0);
+            guest.lineItems.length > 0 ||
+            resumeHasBox);
         prof = await usersService.upsert(user.uid, {
           email: user.email,
           displayName: user.displayName,
           role: 'parent',
           onboardingComplete: guestHasOwnBox || skipBoxOnboardingNow,
           boxRevealComplete: guestHasOwnBox || skipBoxOnboardingNow,
+        });
+      } else if (resumeHasBox && (!prof.onboardingComplete || !prof.boxRevealComplete)) {
+        // A reveal just saved this box. Never downgrade it to "not started".
+        prof = await usersService.upsert(user.uid, {
+          onboardingComplete: true,
+          boxRevealComplete: true,
         });
       } else if (skipBoxOnboardingNow && !prof.onboardingComplete) {
         // Never mark a household box as started — boxRevealComplete stays true so
@@ -102,6 +112,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         hh = await householdsService.get(prof.householdId);
       }
       if (!hh && prof.role === 'parent') {
+        // The box build may have attached a household after this read started.
+        const again = await usersService.get(user.uid);
+        const resumeHouseholdId = again?.householdId || readBoxBuildResume()?.householdId;
+        if (resumeHouseholdId) {
+          hh = await householdsService.get(resumeHouseholdId);
+          if (hh && prof.householdId !== hh.id) {
+            prof = await usersService.upsert(user.uid, { householdId: hh.id });
+            setProfile(prof);
+          }
+        }
+      }
+      if (!hh && prof.role === 'parent' && !readBoxBuildResume()?.handingOff) {
         hh = await householdsService.createForOwner(user.uid);
         prof = await usersService.upsert(user.uid, { householdId: hh.id });
         setProfile(prof);

@@ -61,13 +61,25 @@ export function resolveOnboardingStep(options: {
   onboardingComplete: boolean;
   lineItemsCount: number;
   boxRevealComplete: boolean;
+  /** Session snapshot says the box was already built — never reopen Your Family. */
+  resumeBuilding?: boolean;
 }): OnboardingStep {
-  const { revealOnly, previewStep, persistedStep, onboardingComplete, lineItemsCount, boxRevealComplete } =
-    options;
+  const {
+    revealOnly,
+    previewStep,
+    persistedStep,
+    onboardingComplete,
+    lineItemsCount,
+    boxRevealComplete,
+    resumeBuilding,
+  } = options;
 
   if (previewStep) return normalizeOnboardingStep(previewStep);
   if (revealOnly) return 'reveal';
   const persisted = persistedStep ? normalizeOnboardingStep(persistedStep) : null;
+  // A remount mid-reveal (auth reset the in-memory step) continues the loader.
+  if (resumeBuilding && lineItemsCount > 0) return 'building';
+  if (persisted === 'building' && lineItemsCount > 0) return 'building';
   if (onboardingComplete && lineItemsCount > 0 && !boxRevealComplete) {
     // Built but not revealed: guests are still behind the email gate. Signed-in users
     // land here too and OnboardingStack forwards them straight to the reveal.

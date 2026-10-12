@@ -5,6 +5,7 @@ import { usersService } from '../services/firestore/users';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { saveLastBoxAnswers } from '../services/box/lastBoxAnswers';
 import { clearBoxDraftCache } from '../hooks/useBoxDraft';
+import { boxRevealHandoffActive, clearBoxBuildResume } from '../services/box/boxBuildResume';
 import { navigateMainStack } from './mainStackNavigation';
 
 export type StartOwnBoxBuildRefresh = (options?: { silent?: boolean }) => Promise<void>;
@@ -23,6 +24,11 @@ export async function startOwnBoxBuild(
   refreshSession?: StartOwnBoxBuildRefresh,
   householdId?: string | null
 ): Promise<void> {
+  // My Box calls this when it sees an empty draft. During the reveal handoff that
+  // empty read is the save still landing — wiping onboarding here is the bounce
+  // back to Your Family.
+  if (boxRevealHandoffActive()) return;
+  clearBoxBuildResume();
   useGiftIntentStore.getState().clear();
   const { isAuthenticated, user } = useAuthStore.getState();
 
