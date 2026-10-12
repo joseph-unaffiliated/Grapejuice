@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,8 @@ import {
   typography,
   typeface,
 } from '../../constants/theme';
+import { pinToViewport } from '../mobile/StickyBar';
+import { useRavSurfaceStore } from '../../stores/ravSurfaceStore';
 
 type Props = {
   visible: boolean;
@@ -187,13 +189,29 @@ export function StorefrontRavDrawer({
     };
   }, [docked, visible]);
 
+  // Phone sheet covers the viewport (including the close fade). Hide body-portaled
+  // bars before paint so they never sit on the composer, and put them back as the
+  // sheet unmounts so the return doesn't flash over a still-visible Rav.
+  useLayoutEffect(() => {
+    const covering = !docked && mounted;
+    const store = useRavSurfaceStore.getState();
+    if (store.phoneSheetCovering !== covering) store.setPhoneSheetCovering(covering);
+  }, [docked, mounted]);
+
+  useLayoutEffect(() => {
+    return () => {
+      useRavSurfaceStore.getState().setPhoneSheetCovering(false);
+    };
+  }, []);
+
   // Hide OneTrust cookie FAB while mobile Rav is open (keyboard detection is unreliable
   // with interactive-widget=resizes-content — layout height shrinks with the keyboard).
+  // Keep it hidden through the close animation (mounted), not only while `visible`.
   useEffect(() => {
     if (docked || Platform.OS !== 'web' || typeof document === 'undefined') {
       return;
     }
-    if (!visible) {
+    if (!visible && !mounted) {
       document.body.classList.remove('rav-sheet-open', 'rav-keyboard-open');
       return;
     }
@@ -220,7 +238,7 @@ export function StorefrontRavDrawer({
       v?.removeEventListener('scroll', syncKeyboard);
       window.removeEventListener('resize', syncKeyboard);
     };
-  }, [docked, visible]);
+  }, [docked, visible, mounted]);
 
   if (!mounted) return null;
 
@@ -318,7 +336,7 @@ export function StorefrontRavDrawer({
   const sheetHeight =
     Platform.OS === 'web' ? Math.max(160, vv.height - insetPx) : undefined;
 
-  return (
+  const sheet = (
     <Animated.View
       style={[
         styles.overlaySheet,
@@ -359,6 +377,13 @@ export function StorefrontRavDrawer({
       )}
     </Animated.View>
   );
+
+  // The nav card is transformed, so `position: fixed` here would stick to the
+  // scroller and sit under body-portaled bars. Portal the phone sheet to <body>
+  // (above those bars) so the composer tracks the visual viewport, including
+  // when the keyboard shrinks it.
+  if (Platform.OS === 'web') return pinToViewport(sheet, 'sheet');
+  return sheet;
 }
 
 const styles = StyleSheet.create({

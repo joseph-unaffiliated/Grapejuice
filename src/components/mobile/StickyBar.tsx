@@ -4,6 +4,7 @@ import { NavigationContext } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MobileButton } from './MobileButton';
 import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
+import { useRavSurfaceStore } from '../../stores/ravSurfaceStore';
 import { m, mFont } from './mobileTheme';
 
 type Props = {
@@ -82,14 +83,26 @@ export function useScreenFocused(): boolean {
   return focused;
 }
 
+type PinLayer = 'bar' | 'sheet';
+
 /**
  * On web the page scrolls inside a transformed container, which turns `position: fixed`
- * into "fixed to the scroller", so the bar has to live directly under <body>.
+ * into "fixed to the scroller", so pinned UI has to live directly under <body>.
+ *
+ * `bar` (sticky totals, toasts) hides while the phone Rav sheet is open — those
+ * portals paint above the nav card and would cover Rav's composer. `sheet` is the
+ * Rav overlay itself: always portaled, and above the bars.
  */
-export function pinToViewport(node: React.ReactElement): React.ReactElement {
+function ViewportPin({ node, layer }: { node: React.ReactElement; layer: PinLayer }) {
+  const ravCovering = useRavSurfaceStore((s) => s.phoneSheetCovering);
+  if (layer === 'bar' && ravCovering) return null;
   if (Platform.OS !== 'web' || typeof document === 'undefined') return node;
   const { createPortal } = require('react-dom') as { createPortal: (child: React.ReactNode, host: Element) => React.ReactElement };
   return createPortal(node, document.body);
+}
+
+export function pinToViewport(node: React.ReactElement, layer: PinLayer = 'bar'): React.ReactElement {
+  return <ViewportPin node={node} layer={layer} />;
 }
 
 const styles = StyleSheet.create({
