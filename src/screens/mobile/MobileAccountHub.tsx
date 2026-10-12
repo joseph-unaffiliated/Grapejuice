@@ -58,6 +58,8 @@ type Props = {
   email: string;
   displayName?: string | null;
   cardOnFile: boolean;
+  /** "Visa •••• 4242" when we know the saved card. */
+  cardLabel?: string | null;
   creditLabel?: string | null;
   family: MobileAccountFamily;
   helpers?: MobileAccountHelpers | null;
@@ -149,7 +151,7 @@ export function MobileAccountHub(p: Props) {
         <Row
           icon={icons.card}
           label="Payment"
-          sub={p.cardOnFile ? (p.creditLabel ? `Card on file · ${p.creditLabel} credit` : 'Card on file') : 'No card yet'}
+          sub={p.cardOnFile ? (p.cardLabel ? (p.creditLabel ? `${p.cardLabel} · ${p.creditLabel} credit` : p.cardLabel) : (p.creditLabel ? `Card on file · ${p.creditLabel} credit` : 'Card on file')) : 'No card yet'}
           warn={!p.cardOnFile && glance.state === 'draft'}
           onPress={() => setSheet('payment')}
         />
@@ -250,7 +252,7 @@ export function MobileAccountHub(p: Props) {
             <Icon icon={icons.card} size={16} color={m.goldDark} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.memberName}>{p.cardOnFile ? 'Card on file' : 'No card yet'}</Text>
+            <Text style={styles.memberName}>{p.cardOnFile ? (p.cardLabel ?? 'Card on file') : 'No card yet'}</Text>
             <Text style={styles.memberSub}>
               {p.cardOnFile ? 'Used for your box and checkout' : 'Add one to hold your box'}
             </Text>

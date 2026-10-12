@@ -32,7 +32,7 @@ export function MobileCartBody(p: Props) {
         <TaskHeader back={{ label: 'Shop', onPress: p.onBack }} title="Cart" />
         <View style={styles.empty}>
           <Text style={mType.h2}>Your cart is empty</Text>
-          <Text style={[mType.body, { marginTop: 6, textAlign: 'center' }]}>Everything for eight nights comes in the Hanukkah box, or shop the collection piece by piece.</Text>
+          <Text style={[mType.body, { marginTop: 6, textAlign: 'center' }]}>The Hanukkah box has what you need, or shop the collection piece by piece.</Text>
           <MobileButton label="Build my box" onPress={p.onStartBox} style={{ marginTop: 18 }} />
           <MobileButton label="Shop the collection" onPress={p.onShop} variant="secondary" style={{ marginTop: 10 }} />
         </View>

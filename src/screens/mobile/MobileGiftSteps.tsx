@@ -14,6 +14,7 @@ const AGE_BANDS: { label: string; age: number }[] = [
   { label: '3-5', age: 4 },
   { label: '6-8', age: 7 },
   { label: '9-12', age: 10 },
+  { label: '13+', age: 15 },
 ];
 const UNSURE_AGE = 6;
 
@@ -63,13 +64,17 @@ function NoteLine({ icon, text }: { icon: (typeof icons)[keyof typeof icons]; te
 export function MobileGiftFamily({
   kids,
   familyName,
+  adults,
   onChange,
   onFamilyName,
+  onAdults,
 }: {
   kids: GiftChildDraft[];
   familyName: string;
+  adults: number;
   onChange: (next: GiftChildDraft[]) => void;
   onFamilyName: (v: string) => void;
+  onAdults: (n: number) => void;
 }) {
   const [naming, setNaming] = React.useState<number | null>(null);
   const setCount = (n: number) => {
@@ -101,6 +106,13 @@ export function MobileGiftFamily({
           </View>
           <Stepper value={kids.length} min={1} max={MAX_GIFT_KIDS} onChange={setCount} label="kids" />
         </View>
+        <View style={styles.kidRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Adults</Text>
+            <Text style={styles.rowSub}>Dreidels and gelt for everyone</Text>
+          </View>
+          <Stepper value={adults} min={1} max={8} onChange={onAdults} label="adults" />
+        </View>
         {kids.map((kid, i) => {
           const named = kid.name?.trim();
           return (
@@ -115,9 +127,10 @@ export function MobileGiftFamily({
               <MobileField label="Name" value={kid.name ?? ''} onChangeText={(name) => setName(i, name)} placeholder="Maya" autoComplete="off" style={{ marginBottom: 10 }} />
             ) : null}
             <View style={styles.chips}>
-              {AGE_BANDS.map((b) => (
-                <Chip key={b.label} label={b.label} on={!kid.ageUnsure && kid.ageGroup === giftChildFromAge(b.age).ageGroup} onPress={() => setAge(i, b.age)} />
-              ))}
+              {AGE_BANDS.map((b) => {
+                const on = !kid.ageUnsure && (b.age >= 13 ? kid.plannerAge >= 13 : kid.plannerAge < 13 && kid.ageGroup === giftChildFromAge(b.age).ageGroup);
+                return <Chip key={b.label} label={b.label} on={on} onPress={() => setAge(i, b.age)} />;
+              })}
               <Chip label="Not sure" on={!!kid.ageUnsure} onPress={() => setAge(i, null)} />
             </View>
           </View>

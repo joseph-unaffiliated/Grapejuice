@@ -63,6 +63,13 @@ export function BuildingBoxScreen({ onComplete, hold = false, ready = true }: Pr
     return () => clearTimeout(doneTimer);
   }, [hold, ready]);
 
+  // Never leave them on the loader if the box build or Rav pass hangs.
+  useEffect(() => {
+    if (hold) return;
+    const cap = setTimeout(() => onCompleteRef.current(), 20000);
+    return () => clearTimeout(cap);
+  }, [hold]);
+
   return (
     <View style={styles.fill}>
       <Animated.View style={{ opacity: contentOpacity }}>

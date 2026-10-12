@@ -79,7 +79,7 @@ export function WebContentPanel({
 }
 
 const styles = StyleSheet.create({
-  native: { flex: 1, width: '100%', overflow: 'visible' as const },
+  native: { flex: 1, width: '100%', minHeight: 0, overflow: 'visible' as const },
   nativeGutter: { paddingHorizontal: MOBILE_GUTTER },
   desktopOuter: {
     flex: 1,

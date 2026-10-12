@@ -61,7 +61,7 @@ export function MobileHowToLightCandles() {
         eyebrow="How to"
         title="Light the candles"
         lead="One more candle each night, plus the shamash, the helper candle in the middle that lights the others."
-        band={{ title: 'Everything for all eight nights', sub: 'Candles, dreidels, gelt, food kits, a book and a present for each kid.', cta: { label: 'Build my box · from $80', onPress: startBox } }}
+        band={{ title: 'Everything you need for Hanukkah', sub: 'Candles, dreidels, gelt, food kits, a book and a present for each kid.', cta: { label: 'Build my box · from $80', onPress: startBox } }}
       >
         <View style={styles.stage}>
           <Hanukkiah night={night} width={170} label={`Night ${night}`} />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ChildDraft } from '../../components/family/familyDraft';
 import { makeAdultDraft, makeKidDraft } from '../../components/family/familyDraft';
@@ -32,6 +32,7 @@ type Props = {
 
 /** Onboarding step 1 on the phone (onboarding-v3 s=1): who's celebrating, one card per person. */
 export function MobileFamilyStep({ members, onChange, canContinue, onContinue }: Props) {
+  const [keyboard, setKeyboard] = useState(false);
   const update = (i: number, patch: Partial<ChildDraft>) => onChange(members.map((mem, j) => (j === i ? { ...mem, ...patch } : mem)));
   const toggleInterest = (i: number, id: ChildInterestId) => {
     const cur = members[i].interests ?? [];
@@ -52,7 +53,7 @@ export function MobileFamilyStep({ members, onChange, canContinue, onContinue }:
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[mType.h1, { fontSize: 30 }]} {...balanceProps}>Eight nights. Your way.</Text>
         <Text style={styles.sub} {...balanceProps}>
-          Tell us who's celebrating. We'll send everything for all eight nights, and you can change anything.
+          Tell us who's celebrating. We'll send everything you need for Hanukkah, and you can change anything.
         </Text>
         <View style={styles.icons}>
           {PRACTICES.map((pr) => (
@@ -81,6 +82,8 @@ export function MobileFamilyStep({ members, onChange, canContinue, onContinue }:
                   style={styles.field}
                   value={mem.name}
                   onChangeText={(t) => update(i, { name: t })}
+                  onFocus={() => setKeyboard(true)}
+                  onBlur={() => setKeyboard(false)}
                   placeholder={kid ? 'Their name' : i === 0 ? 'Your name' : 'Name'}
                   placeholderTextColor={m.muted}
                   accessibilityLabel={kid ? 'Kid name' : 'Name'}
@@ -138,12 +141,14 @@ export function MobileFamilyStep({ members, onChange, canContinue, onContinue }:
       </ScrollView>
 
       <View style={styles.bottom}>
+        {keyboard ? null : (
         <View style={styles.preview}>
           <View style={styles.previewIcon}>
             <Icon icon={icons.gift} size={15} color={m.goldDark} />
           </View>
           <Text style={styles.previewText}>{preview}</Text>
         </View>
+        )}
         <MobileButton label="Next: About you" onPress={onContinue} disabled={!canContinue} />
         {!canContinue ? <Text style={styles.hint}>Add a name for everyone to continue</Text> : null}
       </View>

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +36,11 @@ export function MobileMenuPanel({ visible, onClose }: Props) {
 }
 
 function Panel({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.body.classList.add('gj-menu-open');
+    return () => document.body.classList.remove('gj-menu-open');
+  }, []);
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const leave = useStorefrontLeave();
@@ -82,7 +87,7 @@ function Panel({ onClose }: { onClose: () => void }) {
 
   const boxCard =
     glance.state === 'none' ? (
-      <BoxSummary size="sm" title="Build my box" sub="Everything for eight nights, from $80" items={glance.thumbs} onPress={startBox} link={<Chevron />} />
+      <BoxSummary size="sm" title="Build my box" sub="Hanukkah delivered to your door, from $80" items={glance.thumbs} onPress={startBox} link={<Chevron />} />
     ) : (
       <BoxSummary
         size="sm"
@@ -106,7 +111,7 @@ function Panel({ onClose }: { onClose: () => void }) {
             <Icon icon={icons.close} size={18} color={m.ink} />
           </Pressable>
         </View>
-        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 32 + insets.bottom }]}>
+        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 140 + insets.bottom }]}>
           {boxCard}
 
           <Row label="Shop" chevron="⌄" onPress={() => setShopOpen((v) => !v)} open={shopOpen} />

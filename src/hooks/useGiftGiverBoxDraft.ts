@@ -60,7 +60,8 @@ function uniqueAddSlotId(item: CatalogItem, existing: BoxLineItem[]): string {
 /** Local in-memory box draft for giver customization before purchase. */
 export function useGiftGiverBoxDraft(
   childDrafts: GiftChildDraft[],
-  initialLineItems?: BoxLineItem[]
+  initialLineItems?: BoxLineItem[],
+  adults = 1
 ) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [lineItems, setLineItems] = useState<BoxLineItem[]>(() => initialLineItems ?? []);
@@ -79,10 +80,10 @@ export function useGiftGiverBoxDraft(
         keepInitialRef.current = false;
         return prev;
       }
-      return buildDefaultLineItems(items, children);
+      return buildDefaultLineItems(items, children, [], adults);
     });
     setLoading(false);
-  }, [children]);
+  }, [children, adults]);
 
   useEffect(() => {
     void load();

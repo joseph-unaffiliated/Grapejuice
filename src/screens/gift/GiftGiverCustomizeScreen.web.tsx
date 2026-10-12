@@ -70,7 +70,7 @@ export function GiftGiverCustomizeScreen() {
     recordGiftFunnelStep('box', { path: 'customize' });
   }, [form, childDrafts, navigation, needsEmail]);
 
-  const draft = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
+  const draft = useGiftGiverBoxDraft(childDrafts, restoredLineItems, form.giftAdults ?? 1);
   const {
     catalog,
     lineItems,

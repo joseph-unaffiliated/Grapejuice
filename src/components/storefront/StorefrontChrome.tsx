@@ -927,8 +927,11 @@ function StorefrontChromeInner({
   }, [refresh, refreshing]);
 
   const onPullTouchStart = useCallback(
-    (e: { nativeEvent: { pageY: number } }) => {
+    (e: { nativeEvent: { pageY: number; target?: unknown } }) => {
       if (fillBody || refreshing) return;
+      if (Platform.OS === 'web' && typeof document !== 'undefined' && document.body.classList.contains('gj-sheet-open')) return;
+      const target = e.nativeEvent.target as { closest?: (sel: string) => unknown } | null;
+      if (target?.closest?.('[data-panx="1"]')) return;
       if (lastY.current > 4) {
         pullStartY.current = null;
         return;
@@ -947,9 +950,11 @@ function StorefrontChromeInner({
         return;
       }
       const dy = e.nativeEvent.pageY - pullStartY.current;
-      setPullPx(dy > 0 ? Math.min(dy * 0.45, 72) : 0);
+      // On a phone, a few pixels of drift (pressing a thumbnail) must not shift the page.
+      const pulled = compact ? dy - 28 : dy;
+      setPullPx(pulled > 0 ? Math.min(pulled * 0.45, 72) : 0);
     },
-    [fillBody, refreshing]
+    [compact, fillBody, refreshing]
   );
 
   const onPullTouchEnd = useCallback(() => {
@@ -994,7 +999,7 @@ function StorefrontChromeInner({
       onScroll={onScroll}
       onScrollEndDrag={dismissStickyIfNearTop}
       onMomentumScrollEnd={dismissStickyIfNearTop}
-      onTouchStart={Platform.OS === 'web' ? onPullTouchStart : undefined}
+      onTouchStart={Platform.OS === 'web' ? (onPullTouchStart as (e: { nativeEvent: { pageY: number } }) => void) : undefined}
       onTouchMove={Platform.OS === 'web' ? onPullTouchMove : undefined}
       onTouchEnd={Platform.OS === 'web' ? onPullTouchEnd : undefined}
       onTouchCancel={Platform.OS === 'web' ? onPullTouchEnd : undefined}

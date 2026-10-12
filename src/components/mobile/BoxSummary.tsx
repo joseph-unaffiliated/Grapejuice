@@ -52,15 +52,26 @@ export function BoxThumbRow({ items, size = 'lg' }: { items: BoxThumb[]; size?: 
       ) : null}
     </Pressable>
   ));
+  const panMark = Platform.OS === 'web' ? ({ dataSet: { panx: '1' } } as object) : null;
   if (scroll) {
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollRow} style={styles.scroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollRow}
+        style={[styles.scroll, Platform.OS === 'web' ? ({ touchAction: 'pan-x', overscrollBehavior: 'contain' } as object) : null]}
+        {...panMark}
+      >
         {cells}
       </ScrollView>
     );
   }
   return (
-    <View style={[styles.grid, size === 'sm' && styles.gridSm]} onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}>
+    <View
+      style={[styles.grid, size === 'sm' && styles.gridSm, Platform.OS === 'web' ? ({ touchAction: 'pan-x' } as object) : null]}
+      onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+      {...panMark}
+    >
       {cells}
     </View>
   );

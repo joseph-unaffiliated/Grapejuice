@@ -157,9 +157,9 @@ export function RevealEmailScreen({ initialEmail = '', onSubmit }: Props) {
 const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0, backgroundColor: semanticColors.bgPrimary },
   contentMobile: { justifyContent: 'flex-start', paddingTop: 28, paddingHorizontal: mGutter },
-  inputMobile: { textAlign: 'left', height: 52, borderRadius: 14, borderWidth: 1, borderColor: m.gold, paddingHorizontal: 14 },
+  inputMobile: { textAlign: 'left', height: 52, borderRadius: 14, borderWidth: 1, borderColor: m.gold, paddingHorizontal: 14, color: m.ink },
   legalMobile: { maxWidth: 320, fontSize: 12.5, lineHeight: 18, color: m.muted, ...mFont(300) },
-  titleMobile: { fontSize: 29, lineHeight: 33, letterSpacing: -0.8, textAlign: 'left', alignSelf: 'stretch', marginBottom: 0 },
+  titleMobile: { fontSize: 29, lineHeight: 33, letterSpacing: -0.8, textAlign: 'left', alignSelf: 'stretch', marginBottom: 0, color: m.ink },
   gateLine: { fontSize: 14, color: '#374151', lineHeight: 20 },
   content: {
     flexGrow: 1,

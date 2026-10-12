@@ -1,5 +1,6 @@
 import React, { type ReactNode } from 'react';
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +20,7 @@ import {
   typography,
 } from '../../constants/theme';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { AccountHubHeader, type AccountHubPage } from '../account/AccountHubHeader';
 import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 
@@ -69,6 +71,7 @@ export function SystemPage({
   bleed = false,
 }: PageProps) {
   const { isDesktop, layoutWidth, widePanelMaxWidth } = useWebLayout();
+  const mobileLayout = useMobileLayout();
   const columnWidth = hub || narrow ? HUB_COLUMN : wide ? widePanelMaxWidth : layoutWidth;
 
   if (loading) {
@@ -128,7 +131,7 @@ export function SystemPage({
         style={[styles.panel, footer && isDesktop ? styles.panelNoSidePad : null]}
       >
         <ScrollView
-          style={styles.root}
+          style={[styles.root, mobileLayout && Platform.OS === 'web' ? ({ overflowY: 'auto', minHeight: 0 } as object) : null]}
           contentContainerStyle={[
             hub ? styles.hubScrollContent : narrow ? styles.narrowScrollContent : styles.scrollContent,
             footer ? styles.scrollContentWithFooter : null,

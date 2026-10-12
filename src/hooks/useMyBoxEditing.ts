@@ -42,6 +42,7 @@ import {
   resolveIncludedGiftOptions,
   kidPlannerAges,
   filterBooksForKidAges,
+  isBookishCatalogItem,
 } from '../services/box/sectionUpsells';
 import { boxAddOnUnitCents, extraUnitCents, EXTRA_FLAT_CENTS } from '../services/box/pricing';
 import type { BoxLineItem, CatalogItem, InventorySwapNotice } from '../types/pilot';
@@ -59,6 +60,7 @@ import {
   transferIncludedBaselineOnSwap,
   setLiveIncludedBaselines,
   includedPracticeSlotVacant,
+  includedClaimAlreadyTaken,
   uniqueSlotForFreeSectionAdd,
   promotePaidSiblingToIncludedPractice,
   wrappableLinesInBox,
@@ -320,7 +322,13 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
     const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined;
     // Per-kid gift swaps stay free regardless of the target's catalog tier.
-    const nextUnit = sourceLine && isGiftSlotLine(sourceLine)
+    const bookSwap =
+      !!sourceItem &&
+      !!sourceLine &&
+      (sourceLine.unitCents ?? 0) === 0 &&
+      isBookishCatalogItem(sourceItem) &&
+      isBookishCatalogItem(newItem);
+    const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || bookSwap)
       ? 0
       : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
         boxAddOnUnitCents(newItem);
@@ -989,7 +997,8 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
         const source = findSwapSourceLine(item, lineItems, catalog, section.id);
         if (!source) continue;
         const sourceItem = catalog.find((c) => c.id === source.itemId);
-        if (resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
+        const bookSwap = !!sourceItem && isBookishCatalogItem(sourceItem) && isBookishCatalogItem(item);
+        if (!bookSwap && resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
         eligible.add(item.id);
       }
       map[section.id] = eligible;
@@ -1118,15 +1127,17 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       return;
     }
     const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
-    if (!replacement && !snapshot.length) {
+    const claimTaken = !replacement && includedClaimAlreadyTaken(item, snapshot, lineItems, catalog);
+    if (!replacement && !snapshot.length && !claimTaken) {
       await addFreeItemToEmptySlot(sectionId, item);
       return;
     }
     const target = replacement ?? item;
     const giftSwap = snapshot[0] ? isGiftSlotLine(snapshot[0]) : false;
-    const unit = !replacement || giftSwap
+    let unit = !replacement || giftSwap
       ? 0
       : resolveFreeSwapUnitCents(item, replacement, sectionId) ?? boxAddOnUnitCents(replacement);
+    if (claimTaken) unit = boxAddOnUnitCents(target);
     if (!guestViewOnly && unit > 0 && !guardMutation()) return;
     const targetSection = displaySectionForCatalogItem(target);
     let next = lineItems;
@@ -1161,6 +1172,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
           itemId: target.id,
           label: target.name,
           unitCents: unit,
+          ...(unit > 0 ? { includedQty: 0 } : null),
           curationNote: undefined,
           ...(replacement ? { displaySectionId: giftSwap ? li.displaySectionId : targetSection } : null),
         },

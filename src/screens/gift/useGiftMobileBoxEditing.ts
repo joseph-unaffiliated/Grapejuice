@@ -3,10 +3,12 @@ import type { useGiftGiverBoxDraft } from '../../hooks/useGiftGiverBoxDraft';
 import { useLockAt } from '../../hooks/useBoxLockDay';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
+import { boxAddOnUnitCents } from '../../services/box/pricing';
 import {
   filterBooksForKidAges,
   kidPlannerAges,
   resolveFreeSlotAddOptions,
+  isBookishCatalogItem,
   resolveFreeSwapUnitCents,
   resolveSectionUpsellItems,
 } from '../../services/box/sectionUpsells';
@@ -19,6 +21,7 @@ import {
 import {
   coalesceLinesByItemId,
   donatedItemQuantities,
+  includedClaimAlreadyTaken,
   isWrappingPaperItem,
   seedIncludedBaselines,
   setLiveIncludedBaselines,
@@ -68,15 +71,44 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     const isFree = (li: BoxLineItem) => li.itemId === itemId && !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0;
     const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
     donatedLineSnapshots.current.delete(itemId);
-    if (!latest.current.lineItems.some(isFree) && !snapshot.length) {
+    const taken = includedClaimAlreadyTaken(item, snapshot, latest.current.lineItems, catalog);
+    if (taken && !snapshot.length) {
+      const unit = boxAddOnUnitCents(item);
+      draft.updateLines((prev) => [
+        ...prev,
+        {
+          slotId: `addon-${item.id}`,
+          itemId: item.id,
+          quantity: missing,
+          includedQty: 0,
+          unitCents: unit,
+          label: item.name,
+          displaySectionId: displaySectionForCatalogItem(item),
+        },
+      ]);
+      return;
+    }
+    if (!latest.current.lineItems.some(isFree) && !snapshot.length && !taken) {
       draft.addFreeItem(item, { displaySectionId: displaySectionForCatalogItem(item) });
       return;
     }
     draft.updateLines((prev) => {
       const free = prev.find(isFree);
-      if (free) return prev.map((li) => (li.slotId === free.slotId ? { ...li, quantity: (li.quantity ?? 1) + missing } : li));
+      if (free && !taken) return prev.map((li) => (li.slotId === free.slotId ? { ...li, quantity: (li.quantity ?? 1) + missing } : li));
       const used = new Set(prev.map((li) => li.slotId));
-      return [...prev, ...snapshot.filter((li) => !used.has(li.slotId))];
+      const unit = taken ? boxAddOnUnitCents(item) : 0;
+      return [
+        ...prev,
+        ...snapshot
+          .filter((li) => taken || !used.has(li.slotId))
+          .map((li, i) => {
+            if (!taken) return li;
+            let slotId = `${li.slotId}::x`;
+            if (used.has(slotId)) slotId = `addon-${item.id}-${i}`;
+            used.add(slotId);
+            return { ...li, slotId, unitCents: unit, includedQty: 0 };
+          }),
+      ];
     });
   };
 
@@ -113,7 +145,8 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
         const source = findSwapSourceLine(item, lineItems, catalog, section.id);
         if (!source) continue;
         const sourceItem = catalog.find((c) => c.id === source.itemId);
-        if (resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
+        const bookSwap = !!sourceItem && isBookishCatalogItem(sourceItem) && isBookishCatalogItem(item);
+        if (!bookSwap && resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
         eligible.add(item.id);
       }
       map[section.id] = eligible;

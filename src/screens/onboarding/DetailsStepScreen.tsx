@@ -141,7 +141,7 @@ export function DetailsStepScreen({
             personalize your box{isAuthenticated ? ' (Rav can reference it in chat)' : ''}.
           </Text>
           <TextInput
-            style={[styles.input, { height: inputHeight }, atMax && styles.inputScrollable]}
+            style={[styles.input, mobileLayout && { color: m.ink }, { height: inputHeight }, atMax && styles.inputScrollable]}
             placeholder="e.g. My kid is nervous about fire. We are vegetarian."
             placeholderTextColor={semanticColors.textTertiary}
             value={notes}

@@ -332,6 +332,17 @@ geq.load("X2JHJ4WE");}();
           display: none !important;
         }
       }
+      /* Phones: a bottom bar or the menu covers the cookie, so hide it instead of sitting on the price or Email us. */
+      @media (max-width: 767px) {
+        body.gj-bottom-bar #ot-sdk-btn-floating,
+        body.gj-bottom-bar .ot-floating-button,
+        body.gj-bottom-bar [id^="ot-sdk-btn"],
+        body.gj-menu-open #ot-sdk-btn-floating,
+        body.gj-menu-open .ot-floating-button,
+        body.gj-menu-open [id^="ot-sdk-btn"] {
+          display: none !important;
+        }
+      }
       /* Full-width bottom bar (gift box summary on phones): lift the cookie FAB above it. */
       body.gj-bottom-bar #ot-sdk-btn-floating,
       body.gj-bottom-bar #ot-sdk-btn-floating.ot-floating-button,
@@ -508,6 +519,18 @@ geq.load("X2JHJ4WE");}();
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <script>
+      document.addEventListener('focusin', function (e) {
+        if (window.innerWidth > 767) return;
+        var t = e.target;
+        if (!t || !t.closest || !t.closest('#root')) return;
+        var field = t.matches && t.matches('input, textarea, select') ? t : (t.tagName === 'IFRAME' ? t : null);
+        if (!field) return;
+        setTimeout(function () {
+          try { field.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' }); } catch (err) {}
+        }, 280);
+      });
+    </script>
     <script id="gj-boot-defer">
       (function () {
         var loaded = false;

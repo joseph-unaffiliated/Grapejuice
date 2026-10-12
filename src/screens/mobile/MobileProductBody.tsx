@@ -62,7 +62,6 @@ export function MobileProductBody(p: Props) {
   const [more, setMore] = useState(false);
   const [chooser, setChooser] = useState(false);
   const [role, setRole] = useState(0);
-  const [detail, setDetail] = useState<{ label: string; value: string } | null>(null);
   const imageH = Math.round((width * 6) / 7);
   const scrollRef = useRef<ScrollView>(null);
   const photos = useMemo(() => (p.item.imageUrls?.length ? p.item.imageUrls : p.item.imageUrl ? [p.item.imageUrl] : []), [p.item]);
@@ -169,15 +168,10 @@ export function MobileProductBody(p: Props) {
 
       <View style={styles.details}>
         {[...p.details, { label: 'Shipping', value: p.hasBox ? 'Ships with your box, free' : 'Free shipping in the U.S.' }].map((d) => (
-          <Pressable key={d.label} onPress={() => setDetail(d)} accessibilityRole="button" style={styles.listRow}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.listT}>{d.label}</Text>
-              <Text style={styles.listS} numberOfLines={1}>
-                {d.value.split('\n')[0]}
-              </Text>
-            </View>
-            <Text style={styles.listC}>›</Text>
-          </Pressable>
+          <View key={d.label} style={styles.listRow}>
+            <Text style={styles.listT}>{d.label}</Text>
+            <Text style={[styles.listS, { marginTop: 2 }]}>{d.value}</Text>
+          </View>
         ))}
       </View>
 
@@ -201,10 +195,6 @@ export function MobileProductBody(p: Props) {
       <View style={{ height: 40 }} />
 
       {bar}
-
-      <MobileSheet visible={detail != null} onClose={() => setDetail(null)} title={detail?.label ?? ''}>
-        <Text style={styles.desc}>{detail?.value}</Text>
-      </MobileSheet>
 
       <MobileSheet
         visible={chooser}

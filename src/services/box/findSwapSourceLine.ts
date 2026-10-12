@@ -12,7 +12,7 @@
  * Light the Candles cannot swap a menorah, but may swap from Play Dreidel.
  */
 
-import { resolveIncludedGiftOptions, resolveSwapOptionsForItem } from './sectionUpsells';
+import { isBookishCatalogItem, resolveIncludedGiftOptions, resolveSwapOptionsForItem } from './sectionUpsells';
 import { isGiftSlotLine } from '../../components/box/boxLineDisplay';
 import {
   displaySectionForLineItem,
@@ -55,8 +55,33 @@ export function findSwapSourceLines(
     }
   }
 
+  if (!matches.length) {
+    const book = includedBookLine(item, lineItems, catalog, withinSection);
+    if (book) matches.push(book);
+  }
+
   matches.sort((a, b) => (a.unitCents ?? 0) - (b.unitCents ?? 0));
   return matches;
+}
+
+/** Any other included book can be swapped for this one. Books aren't in the slot swap graph. */
+function includedBookLine(
+  item: CatalogItem,
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[],
+  withinSection?: BoxDisplaySectionId | null
+): BoxLineItem | null {
+  if (withinSection && withinSection !== 'story') return null;
+  if (!isBookishCatalogItem(item)) return null;
+  for (const li of lineItems) {
+    if (li.itemId === item.id) continue;
+    if ((li.unitCents ?? 0) > 0) continue;
+    const current = catalog.find((c) => c.id === li.itemId);
+    if (!current || !isBookishCatalogItem(current)) continue;
+    if (displaySectionForLineItem(li, current) !== 'story') continue;
+    return li;
+  }
+  return null;
 }
 
 /**

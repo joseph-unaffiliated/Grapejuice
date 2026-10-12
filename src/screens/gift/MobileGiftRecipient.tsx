@@ -74,7 +74,7 @@ export function MobileGiftClaim({
             {box ? `${giverName} sent your family Hanukkah` : `${giverName} sent you Hanukkah credit`}
           </Text>
           {box ? (
-            <Text style={styles.lede} {...balanceProps}>A box with everything for all eight nights, already paid for. Just tell us where to send it.</Text>
+            <Text style={styles.lede} {...balanceProps}>A box with everything you need for Hanukkah, already paid for. Just tell us where to send it.</Text>
           ) : (
             <View style={{ marginTop: 16 }}>
               <CreditCard cents={creditCents} lockDay={lockDay} />

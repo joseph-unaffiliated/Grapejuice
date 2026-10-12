@@ -38,7 +38,7 @@ export function BoxPitch({ items, title, cta = 'Start a box with it', onPress }:
   const label = items.length === 1 ? items[0]!.name : `These ${items.length} items`;
   return (
     <View style={styles.wrap}>
-      <BoxSummary title={title ?? `Everything for eight nights, with ${items.length === 1 ? 'this' : 'these'} in it`} sub="Get it in the Hanukkah box" items={thumbs}>
+      <BoxSummary title={title ?? `Everything you need for Hanukkah, with ${items.length === 1 ? 'this' : 'these'} in it`} sub="Get it in the Hanukkah box" items={thumbs}>
         <View style={styles.lines}>
           <View style={styles.line}>
             <View style={{ flex: 1 }}>

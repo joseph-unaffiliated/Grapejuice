@@ -26,6 +26,8 @@ import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import { useSession } from '../../hooks/useSession';
+import { abandonOwnBox, startOwnBoxBuild } from '../../navigation/boxEntry';
+import { navigateMainStack } from '../../navigation/mainStackNavigation';
 import { getStripePromise, prefetchSetupIntent } from '../../services/checkout/checkoutPrefetch';
 import type { MainStackParamList } from '../../navigation/types';
 import type { useMyBoxEditing } from '../../hooks/useMyBoxEditing';
@@ -96,13 +98,15 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const live = useRef(e);
   live.current = e;
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [active, setActive] = useState<BoxDisplaySectionId>('candles');
   const scrollRef = useRef<ScrollView>(null);
   const sectionY = useRef<Partial<Record<BoxDisplaySectionId, number>>>({});
   const byId = useMemo(() => new Map(e.catalog.map((c) => [c.id, c])), [e.catalog]);
   const kids = e.children;
-  const { household } = useSession();
+  const { household, refresh } = useSession();
 
   const checkoutReady = !!household?.id && !e.guestViewOnly && !e.openOrder && !e.ordersLoading && !e.locked && e.lineItems.length > 0;
   const needsCard = checkoutReady && !e.cardOnFile;
@@ -458,15 +462,23 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             <View style={styles.addGrid}>
               {adds.slice(0, 8).map((it) => {
                 const offer = offerFor(it, sectionId, rows);
+                const storyChoice = sectionId === 'story' && offer.swap && !offer.free;
                 return (
-                  <ProductTileMobile
-                    key={it.id}
-                    item={it}
-                    width={150}
-                    onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })}
-                    status={offer.free ? { kind: 'inbox', text: 'Included' } : null}
-                    action={{ label: offer.label, onPress: () => void addItem(it, sectionId), variant: 'secondary' }}
-                  />
+                  <View key={it.id} style={{ width: 150, gap: 8 }}>
+                    <ProductTileMobile
+                      item={it}
+                      width={150}
+                      onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })}
+                      status={offer.free ? { kind: 'inbox', text: 'Included' } : null}
+                      action={storyChoice ? undefined : { label: offer.label, onPress: () => void addItem(it, sectionId), variant: 'secondary' }}
+                    />
+                    {storyChoice ? (
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <MobileButton label="Swap" variant="secondary" height={32} style={{ flex: 1, width: undefined, paddingHorizontal: 4 }} onPress={() => void addItem(it, sectionId)} />
+                        <MobileButton label={`+${formatCatalogDollars(offer.cents)}`} accessibilityLabel={`Add ${it.name} on top for ${formatCatalogDollars(offer.cents)}`} height={32} style={{ flex: 1, width: undefined, paddingHorizontal: 4 }} onPress={() => void addOnTop(it)} />
+                      </View>
+                    ) : null}
+                  </View>
                 );
               })}
             </View>
@@ -616,7 +628,12 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             </View>
           ) : null}
           <Text style={mType.h1}>{gift ? 'Their Hanukkah box' : 'Your Hanukkah box'}</Text>
-          <Text style={styles.headSub} {...balanceProps}>Everything for eight nights, picked for {yours} family. Keep it as is, or change anything.</Text>
+          <Text style={styles.headSub} {...balanceProps}>Everything you need for Hanukkah, picked for {yours} family. Keep it as is, or change anything.</Text>
+          {!gift && !e.locked && !e.guestViewOnly ? (
+            <Text style={styles.lockLink} onPress={() => setResetOpen(true)} accessibilityRole="button">
+              Reset my box
+            </Text>
+          ) : null}
           <View style={styles.lockLine}>
             <Icon icon={icons.calendar} size={13} color={m.gold} />
             {gift ? <Text style={styles.lockText}>Send by {lockShort}</Text> : (
@@ -701,6 +718,41 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       {sheet?.kind === 'product' ? productSheet(sheet.item, sheet.group, sheet.sectionId) : null}
       {sheet?.kind === 'receipt' ? receiptSheet() : null}
       {sheet?.kind === 'donated' ? donatedSheet() : null}
+      <MobileSheet
+        visible={resetOpen}
+        onClose={() => { if (!resetBusy) setResetOpen(false); }}
+        title="Reset my box"
+        accessibilityLabel="Reset my box"
+      >
+        <Text style={[mType.body, { marginBottom: 16 }]}>This clears what you picked. You can start the questions again, or leave with no box.</Text>
+        <View style={{ gap: 10 }}>
+          <MobileButton
+            label="Start fresh"
+            busy={resetBusy}
+            onPress={() => {
+              setResetBusy(true);
+              void startOwnBoxBuild((opts) => refresh(opts), household?.id).finally(() => {
+                setResetBusy(false);
+                setResetOpen(false);
+              });
+            }}
+          />
+          <MobileButton
+            label="I don't want a box"
+            variant="secondary"
+            disabled={resetBusy}
+            onPress={() => {
+              setResetBusy(true);
+              void abandonOwnBox(household?.id, (opts) => refresh(opts)).finally(() => {
+                setResetBusy(false);
+                setResetOpen(false);
+                navigateMainStack('StorefrontHome');
+              });
+            }}
+          />
+          <MobileButton label="Cancel" variant="secondary" disabled={resetBusy} onPress={() => setResetOpen(false)} />
+        </View>
+      </MobileSheet>
       <MobileToast toast={toast} onDismiss={() => setToast(null)} />
     </>
   );

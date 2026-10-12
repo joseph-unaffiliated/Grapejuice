@@ -18,9 +18,21 @@ import {
 } from '../services/mobileLayout/mobileLayoutConfig';
 import { resolveMobileLayout } from '../services/mobileLayout/mobileLayoutRules';
 
+function readBootEnabled(): boolean | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const v = window.localStorage.getItem('gj.mobile.enabled');
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function useMobileLayout(): boolean {
   const { isCompact } = useLayoutBreakpoint();
-  const [enabled, setEnabled] = useState<boolean | null>(() => peekMobileLayoutEnabled());
+  const [enabled, setEnabled] = useState<boolean | null>(() => peekMobileLayoutEnabled() ?? readBootEnabled());
   const [override] = useState(() => readMobileOverride());
 
   useEffect(() => {
@@ -34,7 +46,10 @@ export function useMobileLayout(): boolean {
     };
   }, [isCompact]);
 
-  const isNew = resolveMobileLayout({ isCompact, enabled, override });
+  const resolved = resolveMobileLayout({ isCompact, enabled, override });
+  // While the switch is still unknown, stay on the phone layout so the desktop
+  // page never flashes in before config loads.
+  const isNew = resolved || (isCompact && enabled == null && override !== 'control');
   useEffect(() => {
     if (!isCompact) return;
     rememberLayoutForAnalytics(isNew);

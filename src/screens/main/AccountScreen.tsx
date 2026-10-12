@@ -40,6 +40,8 @@ import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { getSavedCardSummary } from '../../services/checkout/createMarketplaceCheckout';
+import { savedCardLabel } from '../storefront/MarketplacePaymentPanel.web';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { AccountHubHeader } from '../../components/account/AccountHubHeader';
 import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
@@ -120,6 +122,7 @@ function AccountScreenBody() {
   const toggleGuestHidden = useGuestSessionStore((s) => s.toggleHiddenHoliday);
   const previewKey = useDevPreviewStore((s) => s.previewKey);
   const fakeSignedIn = previewKey === 'account-signed-in';
+  const mobileLayout = useMobileLayout();
 
   const user = fakeSignedIn ? PREVIEW_SIGNED_IN_USER : authUser;
   const household = fakeSignedIn ? PREVIEW_HOUSEHOLD : sessionHousehold;
@@ -153,6 +156,24 @@ function AccountScreenBody() {
   const familyDirty = familyMembersFingerprint(familyMembers) !== familyBaseline;
   const familyComplete = familyMembersComplete(familyMembers);
   const cardOnFile = Boolean(household?.cardOnFileAt);
+  const [cardLabel, setCardLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mobileLayout || !cardOnFile || !household?.id || fakeSignedIn) {
+      setCardLabel(null);
+      return;
+    }
+    let alive = true;
+    void getSavedCardSummary(household.id)
+      .then((card) => {
+        if (alive) setCardLabel(card ? savedCardLabel(card) : null);
+      })
+      .catch(() => {
+        if (alive) setCardLabel(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [mobileLayout, cardOnFile, household?.id, fakeSignedIn]);
   const creditCents = (household?.giftCreditCents ?? 0) + (household?.platformCreditCents ?? 0);
 
   const load = useCallback(async () => {
@@ -371,7 +392,6 @@ function AccountScreenBody() {
   };
 
   const goUpdatePayment = () => navigation.navigate('UpdatePayment');
-  const mobileLayout = useMobileLayout();
 
   if (!fakeSignedIn && (sessionLoading || loading)) {
     return (
@@ -410,6 +430,7 @@ function AccountScreenBody() {
           email={user?.email ?? 'Exploring as guest'}
           displayName={profile?.displayName}
           cardOnFile={cardOnFile}
+          cardLabel={cardLabel}
           creditLabel={creditCents > 0 ? formatDollars(creditCents) : null}
           previewBanner={fakeSignedIn ? 'Preview — signed-in account (mock data)' : null}
           family={{

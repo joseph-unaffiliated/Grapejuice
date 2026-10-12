@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../../components/ui/Icon';
@@ -17,6 +17,7 @@ import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap
 import { StickyBar } from '../../components/mobile/StickyBar';
 import { byId, homePhoto, TOP_PICK_IDS } from '../../components/mobile/catalogPhotos';
 import { balanceProps, m, mFont, mGutter, mType } from '../../components/mobile/mobileTheme';
+import { OUR_STORY_STRIP_BODY } from '../../components/storefront/StorefrontOurStoryStrip';
 import { isStorefrontRavOpenable, useStorefrontRav } from '../../components/storefront/storefrontRavContext';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
 
@@ -61,7 +62,23 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
   const endRef = useRef<View>(null);
   const [atEnd, setAtEnd] = useState(false);
   const inner = width - mGutter * 2;
-  const isNew = glance.state === 'none';
+  const settled = !glance.loading;
+  const hasBox = settled && glance.state !== 'none';
+  const isNew = settled && glance.state === 'none';
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const sawBox = useRef(false);
+  useEffect(() => {
+    if (!hasBox) {
+      cardOpacity.setValue(0);
+      sawBox.current = false;
+      return;
+    }
+    if (!sawBox.current) {
+      cardOpacity.setValue(0);
+      Animated.timing(cardOpacity, { toValue: 1, duration: 320, useNativeDriver: false }).start();
+    }
+    sawBox.current = true;
+  }, [hasBox, cardOpacity]);
 
   // The sticky "Build my box" bar shows between the hero and the gift band, so it never covers the footer.
   useEffect(() => {
@@ -78,7 +95,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
     io.observe(hero);
     if (end) io.observe(end);
     return () => io.disconnect();
-  }, [glance.state]);
+  }, [isNew]);
   const showBar = isNew && heroGone && !atEnd;
 
   const firstNight = useMemo(() => {
@@ -95,7 +112,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
   };
 
   const bigW = Math.round(((width - 4) * 1.25) / 2.25);
-  const hero = isNew ? (
+  const hero = (
     <View ref={heroRef} collapsable={false}>
       <View style={styles.mosaic}>
         <View style={[styles.mosaicBig, { width: bigW }]}>
@@ -109,6 +126,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
           </View>
         </View>
       </View>
+      {isNew ? (
       <View style={styles.hero}>
         <Text style={styles.heroH1} {...balanceProps}>
           Hanukkah, delivered to your door. <Text style={styles.h1Gold}>One box, $80.</Text>
@@ -123,9 +141,9 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
           <Trust icon={icons.card} text={`Nothing charged until ${glance.lockShort}`} />
         </View>
       </View>
-    </View>
-  ) : (
-    <View ref={heroRef} collapsable={false}>
+      ) : null}
+      {hasBox ? (
+      <Animated.View style={{ opacity: cardOpacity }}>
       <View style={styles.welcome}>
         <Text style={[mType.eyebrow, { marginBottom: 6 }]}>Welcome back</Text>
         <Text style={mType.h1}>{glance.state === 'set' ? 'Your box is set' : 'Your box is waiting'}</Text>
@@ -148,6 +166,8 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
       </BoxSummary>
       </View>
       <View style={{ height: 4 }} />
+      </Animated.View>
+      ) : null}
     </View>
   );
 
@@ -238,7 +258,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         <View style={styles.story}>
           <Text style={mType.eyebrow}>Our story</Text>
           <Text style={styles.quote} {...balanceProps}>Making it your own doesn't mean doing it alone.</Text>
-          <Text style={[styles.lede, { fontSize: 14.5 }]}>We started Grapejuice so every family can celebrate Hanukkah their way, without the homework.</Text>
+          <Text style={[styles.lede, { fontSize: 14.5 }]}>{OUR_STORY_STRIP_BODY}</Text>
           <Pressable onPress={() => navigation.navigate('StorefrontOurStory')} accessibilityRole="link" hitSlop={8} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' }}>
             <Text style={styles.link}>Read our story</Text>
           </Pressable>
@@ -259,7 +279,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
       </View>
 
       {showBar ? (
-        <StickyBar label="Everything for eight nights" total="From $80" cta={{ label: 'Build my box', onPress: startBox }} testID="mobile-home-bar" />
+        <StickyBar label="Hanukkah delivered to your door" total="From $80" cta={{ label: 'Build my box', onPress: startBox }} testID="mobile-home-bar" />
       ) : null}
     </View>
   );

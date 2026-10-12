@@ -494,12 +494,28 @@ export function OnboardingStack({
         revealHandoffStarted.current = false;
         return;
       }
-      await usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 });
+      const withTimeout = <T,>(p: Promise<T>, ms: number) =>
+        Promise.race([
+          p,
+          new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+        ]);
+      try {
+        await withTimeout(
+          usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 }),
+          12000
+        );
+      } catch (err) {
+        console.warn('[onboarding] reveal save timed out', err);
+      }
       // Clear guest build intent so RootRoutes doesn't keep the onboarding gate.
       useGuestSessionStore.setState({ buildBoxPath: false });
       // Silent: a full refresh flips sessionLoading and remounts Main (boot
       // spinner), which consumes pending MyBox nav then lands on StorefrontHome.
-      await refresh({ silent: true });
+      try {
+        await withTimeout(refresh({ silent: true }), 8000);
+      } catch (err) {
+        console.warn('[onboarding] reveal refresh timed out', err);
+      }
       clearDevPreview();
       onComplete?.();
     } catch {

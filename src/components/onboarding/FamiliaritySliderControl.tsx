@@ -9,6 +9,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { semanticColors, spacing } from '../../constants/theme';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { m } from '../mobile/mobileTheme';
 
 type Props = {
   value: number;
@@ -37,6 +39,8 @@ export function FamiliaritySliderControl({
   accessibilityLabel = 'Practice level',
   hideSteps = false,
 }: Props) {
+  const mobileLayout = useMobileLayout();
+  const ink = mobileLayout ? { backgroundColor: m.ink } : null;
   const [trackWidth, setTrackWidth] = useState(0);
   const trackWidthRef = useRef(0);
   const trackLeftRef = useRef(0);
@@ -230,10 +234,11 @@ export function FamiliaritySliderControl({
         {...(Platform.OS === 'web' ? webProps : pan.panHandlers)}
       >
         <View style={styles.track} pointerEvents="none">
-          {unset ? null : <View style={[styles.fill, { width: `${value}%` }]} />}
+          {unset ? null : <View style={[styles.fill, { width: `${value}%` }, ink]} />}
           <View
             style={[
               styles.thumb,
+              !unset && ink,
               unset && styles.thumbUnset,
               { left: Math.max(0, Math.min(Math.max(trackWidth - (unset ? THUMB * 1.9 : THUMB), 0), unset ? thumbLeft - THUMB * 0.45 : thumbLeft)) },
             ]}
@@ -256,6 +261,7 @@ export function FamiliaritySliderControl({
                 style={[
                   styles.stepDot,
                   value >= step - 5 && value <= step + 5 && styles.stepDotOn,
+                  value >= step - 5 && value <= step + 5 && ink,
                 ]}
               />
             </TouchableOpacity>

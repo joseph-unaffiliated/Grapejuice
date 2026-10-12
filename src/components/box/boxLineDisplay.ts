@@ -2,7 +2,11 @@ import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { WRAP_POLICY } from '../../services/box/boxRules';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
-import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
+import {
+  displaySectionForCatalogItem,
+  displaySectionForLineItem,
+  type BoxDisplaySectionId,
+} from '../../constants/boxDisplaySections';
 
 /** One UI row after coalescing duplicate catalog SKUs. */
 export type CoalescedBoxLine = {
@@ -677,6 +681,41 @@ export function includedPracticeSlotVacant(
     if ((li.unitCents ?? 0) > 0) return false;
     return slots.includes(catalogSlotId(li.slotId));
   });
+}
+
+/**
+ * True when putting `item` back at $0 would be a second included item for that
+ * category — the slot, the kid's present, or the included book is already filled
+ * by something else.
+ */
+export function includedClaimAlreadyTaken(
+  item: CatalogItem,
+  snapshot: BoxLineItem[],
+  lineItems: BoxLineItem[],
+  catalog: CatalogItem[]
+): boolean {
+  const sectionId = displaySectionForCatalogItem(item);
+  if (sectionId === 'candles' || sectionId === 'dreidel' || sectionId === 'food') {
+    return !includedPracticeSlotVacant(sectionId, lineItems);
+  }
+  const snap = snapshot[0];
+  if (snap && isGiftSlotLine(snap)) {
+    const childId = snap.childId || childIdFromSlot(snap.slotId);
+    if (!childId) return false;
+    return lineItems.some((li) => {
+      if ((li.unitCents ?? 0) > 0 || li.itemId === item.id) return false;
+      const cid = li.childId || childIdFromSlot(li.slotId);
+      return isGiftSlotLine(li) && cid === childId;
+    });
+  }
+  if (sectionId === 'story') {
+    return lineItems.some((li) => {
+      if ((li.unitCents ?? 0) > 0 || li.itemId === item.id || isGiftSlotLine(li)) return false;
+      const current = catalog.find((c) => c.id === li.itemId);
+      return !!current && displaySectionForLineItem(li, current) === 'story';
+    });
+  }
+  return false;
 }
 
 /**

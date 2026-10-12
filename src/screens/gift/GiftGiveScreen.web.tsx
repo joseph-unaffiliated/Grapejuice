@@ -531,8 +531,10 @@ function GiftGiveBody() {
           <MobileGiftFamily
             kids={childDrafts}
             familyName={values.familyName ?? ''}
+            adults={values.giftAdults ?? 1}
             onChange={setChildDrafts}
             onFamilyName={(familyName) => patchValues({ familyName })}
+            onAdults={(giftAdults) => patchValues({ giftAdults })}
           />
         ) : (
           <MobileGiftCredit creditKids={values.creditKids ?? 1} onChange={(creditKids) => patchValues({ creditKids })} />

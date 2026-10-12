@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,6 +16,10 @@ import {
   systemPageStyles as page,
 } from '../../components/layout/SystemPage';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { TaskHeader } from '../../components/mobile/TaskHeader';
+import { MobileButton } from '../../components/mobile/MobileButton';
+import { m, mFont, mType } from '../../components/mobile/mobileTheme';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
@@ -43,6 +49,7 @@ export function HistoryScreen() {
 }
 
 function HistoryScreenBody() {
+  const mobileLayout = useMobileLayout();
   const navigation = useNavigation<Nav>();
   const user = useAuthStore((s) => s.user);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
@@ -104,6 +111,72 @@ function HistoryScreenBody() {
   };
 
   const signIn = () => startAuthFromGuest('History', 'signin');
+
+  if (mobileLayout) {
+    return (
+      <View style={{ flex: 1, minHeight: 0, backgroundColor: m.white }}>
+        <TaskHeader back={{ label: 'Account', onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }) }} title="History" />
+        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, paddingBottom: 48, gap: 28 }}>
+          <View>
+            <Text style={mType.h1}>History</Text>
+            <Text style={[mType.body, { marginTop: 8 }]}>Chats with Rav and pages you’ve browsed.</Text>
+          </View>
+          <View style={{ gap: 10 }}>
+            <Text style={mType.h3}>Chat history</Text>
+            <Text style={mType.small}>Recent conversations with Rav</Text>
+            {isGuest ? (
+              <View style={{ gap: 12, alignItems: 'flex-start' }}>
+                <Text style={mType.body}>Sign in to save and browse past Rav conversations.</Text>
+                <MobileButton label="Log in / create account" onPress={signIn} style={{ width: 'auto', alignSelf: 'flex-start', paddingHorizontal: 18 }} />
+              </View>
+            ) : threadsLoading ? (
+              <SystemPageSpinner />
+            ) : threads.length === 0 ? (
+              <View style={{ gap: 12, alignItems: 'flex-start' }}>
+                <Text style={mType.body}>No chats yet. Start a conversation with Rav.</Text>
+                <MobileButton label="Open Rav" variant="secondary" onPress={() => navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } })} style={{ width: 'auto', alignSelf: 'flex-start', paddingHorizontal: 18 }} />
+              </View>
+            ) : (
+              threads.map((t) => (
+                <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: m.line }}>
+                  <Pressable onPress={() => openThread(t.id)} accessibilityRole="button" style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 16, color: m.ink, ...mFont(500) }} numberOfLines={1}>{t.title}</Text>
+                    {t.preview ? <Text style={[mType.small, { marginTop: 2 }]} numberOfLines={2}>{t.preview}</Text> : null}
+                    <Text style={[mType.tiny, { marginTop: 4 }]}>{formatThreadListDate(t.updatedAt)}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => void archiveThread(t.id)} disabled={archivingId === t.id} accessibilityRole="button" hitSlop={8}>
+                    <Text style={{ fontSize: 13, color: m.goldDark, ...mFont(400) }}>{archivingId === t.id ? '…' : 'Archive'}</Text>
+                  </Pressable>
+                </View>
+              ))
+            )}
+          </View>
+          <View style={{ gap: 10 }}>
+            <Text style={mType.h3}>Browsing history</Text>
+            <Text style={mType.small}>Products you’ve viewed recently</Text>
+            {browsingRows.length === 0 ? (
+              <Text style={mType.body}>No browsing history yet. Open a product to start a trail.</Text>
+            ) : (
+              browsingRows.map((e) => (
+                <View key={e.itemId} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+                  <Pressable onPress={() => openProduct(e.itemId)} accessibilityRole="link" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    <BoxItemImage size={56} itemId={e.itemId} imageUrl={e.imageUrl} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 15, color: m.ink, ...mFont(500) }} numberOfLines={2}>{e.name}</Text>
+                      <Text style={[mType.small, { marginTop: 2 }]}>View product</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable onPress={() => dismissBrowse(e.itemId)} accessibilityRole="button" accessibilityLabel={`Remove ${e.name} from browsing history`} hitSlop={8}>
+                    <Icon icon={icons.close} size={14} color={m.muted} />
+                  </Pressable>
+                </View>
+              ))
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <SystemPage hub="history">

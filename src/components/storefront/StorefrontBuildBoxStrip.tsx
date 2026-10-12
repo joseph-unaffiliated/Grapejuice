@@ -23,6 +23,8 @@ import {
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { DreidelIcon } from '../ui/DreidelIcon';
 import { Icon } from '../ui/Icon';
+import { MobileButton } from '../mobile/MobileButton';
+import { m, mFont, mType } from '../mobile/mobileTheme';
 import { StorefrontWebVideo } from './StorefrontWebVideo';
 
 /** How it Works / HANUKKAH_PRACTICES order — icons match practices accordion. */
@@ -147,6 +149,39 @@ export function StorefrontBuildBoxStrip({
     (inclusionItems.length > 0 ? DEFAULT_INCLUDES_LABEL : undefined);
   const showIncludesSection = Boolean(includesHeading && inclusionItems.length > 0);
 
+  if (isCompact) {
+    return (
+      <View style={[styles.outer, styles.outerCompact, flushBottom && styles.outerFlushBottom]}>
+        <View style={styles.mobileMedia}>
+          {playVideoOnWeb ? (
+            <StorefrontWebVideo src={videoUri!} poster={stillSource} load="lazy" />
+          ) : (
+            <Image source={stillSource} style={styles.bgImage} resizeMode="cover" />
+          )}
+        </View>
+        <View style={styles.mobileCopy}>
+          <Text style={mType.h2}>{headline}</Text>
+          {body ? <Text style={styles.mobileBody}>{body}</Text> : null}
+          <MobileButton label={ctaLabel} onPress={onPress} />
+          {showIncludesSection ? (
+            <View style={{ gap: 10, marginTop: 8 }}>
+              <Text style={styles.mobileIncludes}>{includesHeading}</Text>
+              {inclusionItems.map((item) => (
+                <View key={item.practiceId} style={styles.mobileIncludeRow}>
+                  <IncludePracticeIcon practiceId={item.practiceId} />
+                  <Text style={styles.mobileIncludeText}>
+                    <Text style={{ ...mFont(500), color: m.ink }}>{item.lead}</Text>
+                    {item.rest ? ` ${item.rest}` : ''}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View
       style={[styles.outer, isCompact && styles.outerCompact, flushBottom && styles.outerFlushBottom]}
@@ -229,6 +264,12 @@ const styles = StyleSheet.create({
   outerFlushBottom: {
     marginBottom: 0,
   },
+  mobileMedia: { width: '100%', height: 210, overflow: 'hidden', backgroundColor: m.img },
+  mobileCopy: { backgroundColor: m.beige, paddingHorizontal: 16, paddingVertical: 20, gap: 12 },
+  mobileBody: { fontSize: 15, lineHeight: 22, color: m.body, ...mFont(300) },
+  mobileIncludes: { fontSize: 13, color: m.goldDark, marginTop: 4, ...mFont(500) },
+  mobileIncludeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  mobileIncludeText: { flex: 1, fontSize: 14, lineHeight: 20, color: m.body, ...mFont(400) },
   /** Full-bleed media + more space after the paper card above. */
   outerCompact: {
     maxWidth: '100%',

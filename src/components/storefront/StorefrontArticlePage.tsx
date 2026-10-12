@@ -37,6 +37,8 @@ import {
   typography,
 } from '../../constants/theme';
 import { preventWidow } from '../../utils/typography';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { m } from '../mobile/mobileTheme';
 
 const COLUMN_MAX = 720;
 
@@ -935,7 +937,8 @@ function ArticleProseParagraph({
   lines: NormalizedProseLine[];
   left?: boolean;
 }) {
-  const bodyStyle = [styles.blockBody, left ? styles.textLeft : null];
+  const mobileLayout = useMobileLayout();
+  const bodyStyle = [styles.blockBody, left ? styles.textLeft : null, mobileLayout && { color: m.body }];
   if (lines.length === 1 && !lines[0].href) {
     const line = lines[0];
     return (
@@ -1420,6 +1423,7 @@ export function StorefrontArticlePage({
   beforeFooterStrips,
 }: Props) {
   const { askRav, startBox, goCategory } = useStorefrontActions();
+  const mobileLayout = useMobileLayout();
   const mediumPrimary = primaryCtaSize === 'medium';
   const largePrimary = primaryCtaSize === 'large';
 
@@ -1434,7 +1438,7 @@ export function StorefrontArticlePage({
           ]}
         >
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-          <Text style={[styles.title, titleLarge ? styles.titleLarge : null]}>{title}</Text>
+          <Text style={[styles.title, titleLarge ? styles.titleLarge : null, mobileLayout && styles.titleMobile]}>{title}</Text>
           <View
             style={[
               styles.leadStack,
@@ -1446,7 +1450,7 @@ export function StorefrontArticlePage({
                 {segment.heading ? (
                   <Text style={styles.blockHeading}>{segment.heading}</Text>
                 ) : null}
-                <Text style={[styles.lead, leadBalance ? styles.leadBalanced : null]}>
+                <Text style={[styles.lead, leadBalance ? styles.leadBalanced : null, mobileLayout && styles.leadMobile]}>
                   {preventWidow(segment.body)}
                 </Text>
               </View>
@@ -1465,6 +1469,7 @@ export function StorefrontArticlePage({
                 <TouchableOpacity
                   style={[
                     styles.ctaPrimary,
+                    mobileLayout && styles.ctaPrimaryMobile,
                     mediumPrimary ? styles.ctaPrimaryMedium : null,
                     largePrimary ? styles.ctaPrimaryLarge : null,
                     primaryCta.disabled ? styles.ctaDisabled : null,
@@ -1478,6 +1483,7 @@ export function StorefrontArticlePage({
                   <Text
                     style={[
                       styles.ctaPrimaryText,
+                      mobileLayout && styles.ctaPrimaryTextMobile,
                       mediumPrimary ? styles.ctaPrimaryTextMedium : null,
                       largePrimary ? styles.ctaPrimaryTextLarge : null,
                     ]}
@@ -1618,6 +1624,25 @@ const styles = StyleSheet.create({
     fontSize: 40,
     lineHeight: 42,
     letterSpacing: -0.2,
+  },
+  titleMobile: {
+    fontSize: 29,
+    lineHeight: 33,
+    letterSpacing: -0.8,
+    color: m.ink,
+    fontWeight: '400',
+  },
+  leadMobile: {
+    color: m.body,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  ctaPrimaryMobile: {
+    backgroundColor: m.ink,
+    borderRadius: 10,
+  },
+  ctaPrimaryTextMobile: {
+    color: m.gold,
   },
   leadStack: {
     gap: spacing.md,

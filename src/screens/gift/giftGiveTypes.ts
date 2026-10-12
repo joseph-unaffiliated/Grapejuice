@@ -17,6 +17,8 @@ export type GiftGiveFormValues = {
   creditKids?: number;
   /** Optional label for their household, shown on the box and the note preview. */
   familyName?: string;
+  /** Adults in their household. Dreidels and gelt are one per person. Defaults to 1. */
+  giftAdults?: number;
 };
 
 export const MAX_GIFT_CREDIT_KIDS = 8;

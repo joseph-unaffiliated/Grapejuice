@@ -40,7 +40,7 @@ export function MobileGiftLandingBody({ lockShort, faq, onGive }: Props) {
           Send Hanukkah to another family
         </Text>
         <Text style={styles.lede} {...balanceProps}>
-          A box with everything for eight nights, picked for their kids. Or send credit and let them choose.
+          A box tailored just for their family, with everything they need for Hanukkah. Or send credit and let them choose.
         </Text>
         <MobileButton label="Send a gift · from $80" onPress={onGive} height={54} />
       </View>

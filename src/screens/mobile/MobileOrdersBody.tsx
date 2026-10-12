@@ -61,9 +61,9 @@ export function MobileOrdersBody(p: Props) {
   const shown = p.orders.filter((o) => (past ? isPast(o) : !isPast(o)));
 
   return (
-    <View style={{ flex: 1, backgroundColor: m.white }}>
+    <View style={{ flex: 1, minHeight: 0, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Account', onPress: p.onBack }} title="Orders" />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={styles.content}>
         <Text style={styles.h1}>Orders</Text>
         {hasPast ? (
           <View style={styles.chips}>

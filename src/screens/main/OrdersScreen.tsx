@@ -688,7 +688,13 @@ function ConfirmModal({
 export function OrdersScreen() {
   const mobileLayout = useMobileLayout();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  if (mobileLayout && isAuthenticated) return <OrdersScreenBody />;
+  if (mobileLayout && isAuthenticated) {
+    return (
+      <StorefrontChrome bodyMode="fill" hideServicesNav fillChromeHidden>
+        <OrdersScreenBody />
+      </StorefrontChrome>
+    );
+  }
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav>
       <OrdersScreenBody />

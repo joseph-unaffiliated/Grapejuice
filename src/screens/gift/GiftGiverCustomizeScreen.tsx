@@ -81,7 +81,7 @@ function GiftGiverCustomizeBody() {
     setKidBook,
     persistWrapSelection,
     setCashDonation,
-  } = useGiftGiverBoxDraft(childDrafts, restoredLineItems);
+  } = useGiftGiverBoxDraft(childDrafts, restoredLineItems, form.giftAdults ?? 1);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const startAuthForGiftCustomize = useAuthFlowStore((s) => s.startAuthForGiftCustomize);

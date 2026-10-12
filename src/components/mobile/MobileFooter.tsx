@@ -56,7 +56,6 @@ export function MobileFooter() {
     <View style={[styles.root, { paddingBottom: 104 + insets.bottom }]} role="contentinfo">
       <View style={styles.top}>
         <GrapejuiceBrandMark markOnly width={24} height={24} color={m.gold} decorative />
-        <Text style={styles.tagline}>Hanukkah, made easy.</Text>
       </View>
       <View style={styles.cols}>
         {columns.map((col) => (
@@ -80,9 +79,13 @@ export function MobileFooter() {
 const COL_MIN_CONTENT = (Platform.OS === 'web' ? { minWidth: 'auto' } : {}) as object;
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: m.ink, paddingHorizontal: mGutter, paddingTop: 32 },
+  root: {
+    backgroundColor: m.ink,
+    paddingHorizontal: mGutter,
+    paddingTop: 32,
+    ...(Platform.OS === 'web' ? ({ boxShadow: '0 2px 0 0 #111827', marginBottom: -1 } as object) : null),
+  },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 24 },
-  tagline: { fontSize: 15, color: m.white, ...mFont(400) },
   cols: { flexDirection: 'row', gap: 12 },
   col: { flex: 1, gap: 10 },
   heading: { fontSize: 13.5, color: m.white, marginBottom: 2, ...mFont(500) },
