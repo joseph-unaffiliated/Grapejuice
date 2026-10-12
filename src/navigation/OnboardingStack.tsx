@@ -632,18 +632,34 @@ export function OnboardingStack({
     void (async () => {
       try {
         if (saveRef.current) await saveRef.current;
-        const stillGuest = !useAuthStore.getState().isAuthenticated;
-        if (stillGuest && (pendingRevealSignIn || pendingRevealToken)) {
+        // The box is already complete on this device. Do not hold the reveal behind
+        // account creation + the guest-to-account Firestore merge (several serial
+        // reads/writes on a cold mobile connection can take 30s+). Open My Box now
+        // from the guest draft; authStore keeps that draft until the background
+        // merge finishes, and RootNavigator clears this resume marker afterward.
+        if (pendingRevealSignIn || pendingRevealToken) {
           markHandoff();
+          queuePendingMainNav({ screen: 'MyBox' });
+          completeGuestBoxReveal();
+          clearDevPreview();
+          onComplete?.();
+
           if (!pendingRevealSignIn && pendingRevealToken) {
             const token = pendingRevealToken;
+            pendingRevealToken = null;
             const signingIn = signInWithToken(token);
             pendingRevealSignIn = signingIn;
-            void signingIn.catch((err) => console.warn('[onboarding] sign-in after email gate failed', err));
+            void signingIn
+              .catch((err) => console.warn('[onboarding] sign-in after email gate failed', err))
+              .finally(() => {
+                if (pendingRevealSignIn === signingIn) pendingRevealSignIn = null;
+              });
           }
-          await pendingRevealSignIn;
-          pendingRevealToken = null;
-        } else if (!stillGuest) {
+          setHandoffNotice(null);
+          return;
+        }
+        const stillGuest = !useAuthStore.getState().isAuthenticated;
+        if (!stillGuest) {
           markHandoff();
         }
         await completeReveal();
@@ -688,17 +704,15 @@ export function OnboardingStack({
       if (result.status === 'created') {
         pendingRevealToken = result.customToken;
         setGuestPendingAccountEmail('');
-        // Before sign-in, so the auth commit does not wipe the guest box.
+        // Preserve the guest draft, but defer the slow account merge until the
+        // short build splash hands off to My Box.
         markHandoff();
-        const signingIn = signInWithToken(result.customToken);
-        pendingRevealSignIn = signingIn;
-        void signingIn.catch((err) => console.warn('[onboarding] sign-in after email gate failed', err));
       } else {
         setGuestPendingAccountEmail(email);
       }
       goToStep('building');
     },
-    [childDrafts, goToStep, markHandoff, setGuestPendingAccountEmail, signInWithToken]
+    [childDrafts, goToStep, markHandoff, setGuestPendingAccountEmail]
   );
 
   // Signed in with a persisted email step (e.g. signed in elsewhere): the gate no longer applies.
