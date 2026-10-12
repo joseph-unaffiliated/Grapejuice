@@ -12,6 +12,11 @@ type Props = {
   hold?: boolean;
   /** Box data is ready; advance to the reveal once the minimum splash elapses. */
   ready?: boolean;
+  /**
+   * Advance after 20s even if `ready` never comes. Off while the base box is still
+   * saving: leaving then would reveal a box that isn't written yet.
+   */
+  failsafe?: boolean;
 };
 
 const BUILD_STEPS = [
@@ -31,7 +36,7 @@ const MIN_SPLASH_MS = 4800;
  * Mounts the moment the build starts; advances to the reveal once the box data
  * is `ready` and the minimum splash has elapsed.
  */
-export function BuildingBoxScreen({ onComplete, hold = false, ready = true }: Props) {
+export function BuildingBoxScreen({ onComplete, hold = false, ready = true, failsafe = true }: Props) {
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const onCompleteRef = useRef(onComplete);
   const mountedAt = useRef(Date.now());
@@ -65,10 +70,10 @@ export function BuildingBoxScreen({ onComplete, hold = false, ready = true }: Pr
 
   // Never leave them on the loader if the box build or Rav pass hangs.
   useEffect(() => {
-    if (hold) return;
+    if (hold || !failsafe) return;
     const cap = setTimeout(() => onCompleteRef.current(), 20000);
     return () => clearTimeout(cap);
-  }, [hold]);
+  }, [hold, failsafe]);
 
   return (
     <View style={styles.fill}>

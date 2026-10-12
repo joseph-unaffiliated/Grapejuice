@@ -526,6 +526,8 @@ geq.load("X2JHJ4WE");}();
         if (!t || !t.closest || !t.closest('#root')) return;
         var field = t.matches && t.matches('input, textarea, select') ? t : (t.tagName === 'IFRAME' ? t : null);
         if (!field) return;
+        // Leave the field's label and some breathing room above it.
+        field.style.scrollMarginTop = '64px';
         setTimeout(function () {
           try { field.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' }); } catch (err) {}
         }, 280);

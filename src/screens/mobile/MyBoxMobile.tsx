@@ -36,7 +36,7 @@ import { BoxSummary, type BoxThumb } from '../../components/mobile/BoxSummary';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileSheet } from '../../components/mobile/MobileSheet';
 import { MobileToast, type ToastState } from '../../components/mobile/MobileToast';
-import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
+import { StickyBar, STICKY_BAR_CLEARANCE, pinToViewport, useScreenFocused } from '../../components/mobile/StickyBar';
 import { ProductTileMobile } from '../../components/mobile/ProductTileMobile';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
@@ -101,6 +101,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+  const screenFocused = useScreenFocused();
   const [active, setActive] = useState<BoxDisplaySectionId>('candles');
   const scrollRef = useRef<ScrollView>(null);
   const sectionY = useRef<Partial<Record<BoxDisplaySectionId, number>>>({});
@@ -251,6 +252,12 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     setToast({ message: `Added ${it.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(it) } });
   };
 
+  /** Price-labelled add buttons never swap; an empty included slot is still filled for free. */
+  const addOnTopOf = async (item: CatalogItem, sectionId: BoxDisplaySectionId) => {
+    if (offerFor(item, sectionId, rowsFor(sectionId)).free) return addItem(item, sectionId);
+    return addExtra(item, sectionId);
+  };
+
   const rowNote = (g: CoalescedBoxLine, item: CatalogItem | undefined) => lineNote(g, item, kidName);
 
   const Row = ({ g, sectionId }: { g: CoalescedBoxLine; sectionId: BoxDisplaySectionId }) => {
@@ -330,7 +337,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             <Text style={styles.suggName} numberOfLines={2}>
               {suggestion.name}
             </Text>
-            <Pressable onPress={() => void addItem(suggestion, s.id)} accessibilityRole="button" accessibilityLabel={`Add ${suggestion.name}`} style={styles.suggPill} hitSlop={6}>
+            <Pressable onPress={() => void addOnTopOf(suggestion, s.id)} accessibilityRole="button" accessibilityLabel={`Add ${suggestion.name}`} style={styles.suggPill} hitSlop={6}>
               <Text style={styles.suggPillText}>+ {formatCatalogDollars(priceToAdd(suggestion))}</Text>
             </Pressable>
           </Pressable>
@@ -682,7 +689,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                   <View key={it.id} style={{ width: 132, gap: 4 }}>
                     <ProductTileMobile item={it} width={132} onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })} hidePrice />
                     <Text style={styles.likePrice}>{formatCatalogDollars(priceToAdd(it))}</Text>
-                    <Pressable onPress={() => void addItem(it, sectionId)} accessibilityRole="button" accessibilityLabel={`Add ${it.name}`} style={styles.likeAdd}>
+                    <Pressable onPress={() => void addOnTopOf(it, sectionId)} accessibilityRole="button" accessibilityLabel={`Add ${it.name}`} style={styles.likeAdd}>
                       <Text style={styles.likeAddText}>+ Add</Text>
                     </Pressable>
                   </View>
@@ -708,10 +715,10 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         testID="mobile-box-bar"
         ctaFill={false}
       />
-      {donatedValue ? (
+      {donatedValue && screenFocused ? pinToViewport(
         <Pressable onPress={() => setSheet({ kind: 'donated' })} accessibilityRole="button" accessibilityLabel={`Donated ${formatCatalogDollars(donatedValue)}`} style={styles.donatedChip}>
           <Text style={styles.donatedChipText}>Donated {formatCatalogDollars(donatedValue)} · see</Text>
-        </Pressable>
+        </Pressable>,
       ) : null}
 
       {sheet?.kind === 'tradition' ? traditionSheet(sheet.sectionId) : null}

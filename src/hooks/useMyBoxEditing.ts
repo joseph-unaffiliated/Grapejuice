@@ -44,7 +44,7 @@ import {
   filterBooksForKidAges,
   isBookishCatalogItem,
 } from '../services/box/sectionUpsells';
-import { boxAddOnUnitCents, extraUnitCents, EXTRA_FLAT_CENTS } from '../services/box/pricing';
+import { boxAddOnUnitCents, extraUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../services/box/pricing';
 import type { BoxLineItem, CatalogItem, InventorySwapNotice } from '../types/pilot';
 import {
   assignKidBookLines,
@@ -776,6 +776,16 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     // included paper (inverse of that swap). Paper on top of an active wrap list is +$extra.
     if (nextUnit === 0 && isPaper && wrapSelectedIds.size > 0) {
       nextUnit = EXTRA_FLAT_CENTS;
+    }
+    // A second candle/dreidel/food choice next to the included one is an add-on at its price.
+    if (
+      nextUnit === 0 &&
+      !isPaper &&
+      (sectionId === 'candles' || sectionId === 'dreidel' || sectionId === 'food') &&
+      !includedPracticeSlotVacant(sectionId, lineItems)
+    ) {
+      const { memberCents } = resolveCatalogDisplayPrices(item);
+      nextUnit = memberCents > 0 ? memberCents : EXTRA_FLAT_CENTS;
     }
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     if (lineItems.some((li) => li.itemId === item.id)) return;

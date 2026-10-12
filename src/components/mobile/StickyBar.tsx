@@ -66,7 +66,7 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
 }
 
 /** The bar is portaled out of its screen, so a screen left mounted underneath would keep showing it. */
-function useScreenFocused(): boolean {
+export function useScreenFocused(): boolean {
   const navigation = useContext(NavigationContext);
   const [focused, setFocused] = useState(() => navigation?.isFocused() ?? true);
   useEffect(() => {
@@ -86,7 +86,7 @@ function useScreenFocused(): boolean {
  * On web the page scrolls inside a transformed container, which turns `position: fixed`
  * into "fixed to the scroller", so the bar has to live directly under <body>.
  */
-function pinToViewport(node: React.ReactElement): React.ReactElement {
+export function pinToViewport(node: React.ReactElement): React.ReactElement {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return node;
   const { createPortal } = require('react-dom') as { createPortal: (child: React.ReactNode, host: Element) => React.ReactElement };
   return createPortal(node, document.body);

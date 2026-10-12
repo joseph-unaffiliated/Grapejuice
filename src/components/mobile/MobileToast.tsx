@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { m, mFont } from './mobileTheme';
+import { pinToViewport, useScreenFocused } from './StickyBar';
 
 export type ToastState = { message: string; action?: { label: string; onPress: () => void } } | null;
 
@@ -10,13 +11,14 @@ type Props = { toast: ToastState; onDismiss: () => void; bottomOffset?: number; 
 /** "Added for Sam · Undo" above the sticky bar. Auto-dismisses. */
 export function MobileToast({ toast, onDismiss, bottomOffset = 84, durationMs = 4000 }: Props) {
   const insets = useSafeAreaInsets();
+  const focused = useScreenFocused();
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(onDismiss, durationMs);
     return () => clearTimeout(t);
   }, [toast, onDismiss, durationMs]);
-  if (!toast) return null;
-  return (
+  if (!toast || !focused) return null;
+  return pinToViewport(
     <View style={[styles.root, { bottom: bottomOffset + insets.bottom }]} pointerEvents="box-none">
       <View style={styles.toast} accessibilityLiveRegion="polite">
         <Text style={styles.text} numberOfLines={2}>
@@ -35,7 +37,7 @@ export function MobileToast({ toast, onDismiss, bottomOffset = 84, durationMs = 
           </Pressable>
         ) : null}
       </View>
-    </View>
+    </View>,
   );
 }
 

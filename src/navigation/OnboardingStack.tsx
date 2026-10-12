@@ -173,6 +173,7 @@ export function OnboardingStack({
   const [completingReveal, setCompletingReveal] = useState(false);
   const [loadingReveal, setLoadingReveal] = useState(revealOnly);
   const revealHandoffStarted = useRef(false);
+  const revealRetries = useRef(0);
 
   const goToStep = useCallback(
     (next: OnboardingStep) => {
@@ -481,6 +482,7 @@ export function OnboardingStack({
     if (revealHandoffStarted.current) return;
     revealHandoffStarted.current = true;
     setCompletingReveal(true);
+    let revealSaveFailed = false;
     try {
       // Destination is the live My Box screen (not the legacy reveal UI).
       queuePendingMainNav({ screen: 'MyBox' });
@@ -499,13 +501,12 @@ export function OnboardingStack({
           p,
           new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
         ]);
+      // Leaving before this is written sends the gate straight back into onboarding.
       try {
-        await withTimeout(
-          usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 }),
-          12000
-        );
+        await usersService.upsert(user.uid, { boxRevealComplete: true, lockReminderEligible: true, lockReminderAttempts: 0 });
       } catch (err) {
-        console.warn('[onboarding] reveal save timed out', err);
+        console.warn('[onboarding] reveal save failed', err);
+        revealSaveFailed = true;
       }
       // Clear guest build intent so RootRoutes doesn't keep the onboarding gate.
       useGuestSessionStore.setState({ buildBoxPath: false });
@@ -519,8 +520,13 @@ export function OnboardingStack({
       clearDevPreview();
       onComplete?.();
     } catch {
-      revealHandoffStarted.current = false;
+      revealSaveFailed = true;
     } finally {
+      // A failed save lands them back on the reveal; let that attempt run again.
+      if (revealSaveFailed && revealRetries.current < 2) {
+        revealRetries.current += 1;
+        revealHandoffStarted.current = false;
+      }
       setCompletingReveal(false);
     }
   }, [completeGuestBoxReveal, guestMode, onComplete, refresh, user?.uid]);
@@ -724,7 +730,7 @@ export function OnboardingStack({
       // instead of leaving the form on screen through the whole catalog fetch.
       stepContent =
         saving && !guestMode ? (
-          <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready={false} />
+          <BuildingBoxScreen onComplete={goToReveal} hold={buildingPreviewHold} ready={false} failsafe={false} />
         ) : (
           <DetailsStepScreen
             key={`details-${seedVersion}`}
