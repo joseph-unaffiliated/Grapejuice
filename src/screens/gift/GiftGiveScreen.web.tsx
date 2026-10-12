@@ -63,15 +63,15 @@ import {
 import { revealField, scrollContainerToTop } from '../../utils/revealField';
 import { recordGiftFunnelStep, trackGiftStep } from '../../services/analytics/giftFunnel';
 
-/** `box` is the curated box editor, its own route between `email` and `note`. */
+/** `box` is the curated box editor, its own route between family and note. */
 type FlowTarget = GiftStep | 'box';
 
-function stepAfter(step: GiftStep, path: GiftPath | null, signedIn: boolean): FlowTarget {
+function stepAfter(step: GiftStep, path: GiftPath | null): FlowTarget {
   switch (step) {
     case 'type':
       return 'kids';
     case 'kids':
-      return path === 'customize' ? (signedIn ? 'box' : 'email') : 'note';
+      return path === 'customize' ? 'box' : 'note';
     case 'email':
       return 'box';
     case 'note':
@@ -90,7 +90,8 @@ function reachableStep(
   hasPayment: boolean
 ): FlowTarget {
   if (!path) return 'type';
-  if (step === 'email' && path !== 'customize') return 'kids';
+  // Retired pre-box email URLs/drafts skip directly to the curated box.
+  if (step === 'email') return path === 'customize' ? 'box' : 'kids';
   const afterBox = step === 'note' || step === 'send' || step === 'pay';
   if (afterBox && path === 'customize' && !hasLineItems) return 'box';
   if (step === 'pay' && !hasPayment) return 'send';
@@ -189,9 +190,8 @@ function GiftGiveBody() {
     const byId = new Map(catalogItems.map((c) => [c.id, c]));
     return coalesceLinesByItemId(lineItems).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)), count: r.quantity > 1 ? r.quantity : undefined }));
   }, [lineItems, catalogItems]);
-  /** Curated path collects the giver's email before the box; ask again only if we don't have it. */
-  const askGiverEmailOnSend =
-    !isAuthenticated && !(customize && isValidEmail(values.giverEmail?.trim() ?? ''));
+  /** Signed-out givers create their account alongside the recipient details, after curation. */
+  const askGiverEmailOnSend = !isAuthenticated;
 
   useEffect(() => {
     if (boxesClosed && values.giftPath === 'customize') {
@@ -373,7 +373,7 @@ function GiftGiveBody() {
       revealField(pathRef.current, { focus: false });
       return;
     }
-    goTo(stepAfter('type', giftPath, isAuthenticated));
+    goTo(stepAfter('type', giftPath));
   };
 
   const continueFromEmail = async () => {
@@ -448,7 +448,10 @@ function GiftGiveBody() {
         }
       }
       if (giftPath) trackGiftStep('GiftDetails', giftPath);
-      if (askGiverEmailOnSend) await signInGiver(giverEmail);
+      if (askGiverEmailOnSend) {
+        recordGiftFunnelStep('email', { path: giftPath });
+        await signInGiver(giverEmail);
+      }
 
       const form: GiftGiveFormValues = {
         ...values,
@@ -499,7 +502,7 @@ function GiftGiveBody() {
         return;
       case 'kids':
         recordGiftFunnelStep('family', { path: giftPath });
-        goTo(stepAfter('kids', giftPath, isAuthenticated));
+        goTo(stepAfter('kids', giftPath));
         return;
       case 'email':
         void continueFromEmail();
@@ -869,7 +872,7 @@ function GiftGiveBody() {
       ? giftPath === 'customize' ? `From ${formatCatalogDollars(listBoxCentsForKids(1))}` : undefined
       : formatCatalogDollars(shownCents);
   const barCta =
-    step === 'kids' && customize && isAuthenticated
+    step === 'kids' && customize
       ? 'Pick their box'
       : step === 'email'
         ? 'Pick their box'

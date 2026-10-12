@@ -1,4 +1,4 @@
-/** Figma rGzXYb1rNVxqGHz81835Jn — frame 16: giver curates the box between the email and note steps (web). */
+/** Figma rGzXYb1rNVxqGHz81835Jn — frame 16: giver curates the box between family details and note (web). */
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { TaskHeader } from '../../components/mobile/TaskHeader';
 import React from 'react';
@@ -8,8 +8,6 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import type { MainStackParamList } from '../../navigation/types';
 import { useGiftGiverBoxDraft } from '../../hooks/useGiftGiverBoxDraft';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
-import { useAuthStore } from '../../stores/authStore';
-import { isValidEmail } from '../../utils/formValidation';
 import { useGiftIntentStore } from '../../stores/giftIntentStore';
 import { pushBrowserPath } from '../../navigation/webBrowserHistory';
 import { GIFT_GIVE_PATH } from '../../navigation/giftFlowLink';
@@ -35,15 +33,7 @@ export function GiftGiverCustomizeScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<Route>();
   const { form, childDrafts, lineItems: restoredLineItems } = route.params;
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const authLoading = useAuthStore((s) => s.isLoading);
   const draftHydrated = useGiftIntentStore((s) => s._hasHydrated);
-  // After a reload, wait for the session and saved draft before deciding the email is missing.
-  const needsEmail =
-    !authLoading &&
-    draftHydrated &&
-    !isAuthenticated &&
-    !isValidEmail(latestCustomizeForm(form).giverEmail?.trim() ?? '');
 
   React.useEffect(() => {
     // Credit-only gifts never land on the box editor.
@@ -56,19 +46,9 @@ export function GiftGiverCustomizeScreen() {
       });
       return;
     }
-    // The box is revealed after the email step.
-    if (needsEmail) {
-      navigation.replace('GiftGive', {
-        form: latestCustomizeForm(form),
-        childDrafts,
-        initialGiftPath: 'customize',
-        step: 'email',
-      });
-      return;
-    }
     trackGiftStep('GiftCustomize', 'customize');
     recordGiftFunnelStep('box', { path: 'customize' });
-  }, [form, childDrafts, navigation, needsEmail]);
+  }, [form, childDrafts, navigation]);
 
   const draft = useGiftGiverBoxDraft(childDrafts, restoredLineItems, form.giftAdults ?? 1);
   const {

@@ -25,7 +25,7 @@ export const MAX_GIFT_CREDIT_KIDS = 8;
 
 /**
  * Web gift flow, one screen per step (`/gift/give?step=`). The curated box editor sits
- * between `email` and `note` on its own route (`/gift/customize`).
+ * between family details and `note` on its own route (`/gift/customize`).
  */
 export type GiftStep = 'type' | 'kids' | 'email' | 'note' | 'send' | 'pay';
 
