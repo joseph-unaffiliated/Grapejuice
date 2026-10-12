@@ -638,7 +638,7 @@ export function CatalogProductScreen() {
             memberCents={memberCents}
             details={details}
             similar={similar}
-            similarTitle={aisle ? `More ${aisle.label.toLowerCase()}` : 'You may also like'}
+            similarTitle="You might also like..."
             hasBox={hasStartedBox}
             inBox={inBox}
             inBoxUnitCents={inBoxUnitCents}
