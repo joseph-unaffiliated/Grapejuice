@@ -59,8 +59,8 @@ const now = new Date('2026-10-01T12:00:00.000Z');
     sellAfterLock: 'yes',
   });
   const a = resolveAvailability(menorah, emptyInventoryCounters(menorah.id), preLock, now);
-  assert.equal(a.status, 'limited');
-  if (a.status === 'limited') assert.equal(a.remaining, 6);
+  assert.equal(a.status, 'direct');
+  if (a.status === 'direct') assert.equal(a.remaining, 6);
 }
 
 {
@@ -129,8 +129,8 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   });
   const counters = { ...emptyInventoryCounters(menorah.id), boxAllocatedQty: 100 };
   const a = resolveAvailability(menorah, counters, preLock, now);
-  assert.equal(a.status, 'limited');
-  if (a.status === 'limited') assert.equal(a.remaining, 6);
+  assert.equal(a.status, 'direct');
+  if (a.status === 'direct') assert.equal(a.remaining, 6);
 }
 
 // Post-lock FBA yes → leftover

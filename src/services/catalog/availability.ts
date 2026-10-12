@@ -28,6 +28,9 @@ export function emptyInventoryCounters(itemId = ''): CatalogInventoryCounters {
   };
 }
 
+/** Shoppers see "Low stock" / "Only N left" at this many left or fewer. Never show a higher count as scarce. */
+export const LOW_STOCK_AT = 4;
+
 function nonNeg(n: number | null | undefined): number {
   if (typeof n !== 'number' || !Number.isFinite(n)) return 0;
   return Math.max(0, Math.floor(n));
@@ -75,8 +78,8 @@ export function resolveAvailability(
     if (remaining <= 0) {
       return { status: 'box_only', reason: 'cap_exhausted' };
     }
-    // Treat remaining > 10 as "direct" (open), else "limited" for urgency UI.
-    if (remaining > 10) {
+    // Scarcity copy ("Low stock", "Only N left") starts at 4 left. Above that, sell normally.
+    if (remaining > LOW_STOCK_AT) {
       return { status: 'direct', remaining };
     }
     return { status: 'limited', remaining };
@@ -95,7 +98,7 @@ export function resolveAvailability(
   if (remaining <= 0) {
     return { status: 'sold_out' };
   }
-  if (remaining > 10) {
+  if (remaining > LOW_STOCK_AT) {
     return { status: 'direct', remaining };
   }
   return { status: 'limited', remaining };

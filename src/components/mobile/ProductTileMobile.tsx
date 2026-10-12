@@ -6,7 +6,7 @@ import { icons } from '../../constants/icons';
 import { useWishlist } from '../../hooks/useWishlist';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
-import { availabilityRemaining } from '../../services/catalog/availability';
+import { availabilityRemaining, LOW_STOCK_AT } from '../../services/catalog/availability';
 import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import { MobileButton } from './MobileButton';
 import { balanceProps, m, mFont, mRadius } from './mobileTheme';
@@ -18,12 +18,12 @@ export type TileStatus =
   | { kind: 'sold' }
   | null;
 
-/** Sold out, or "Low stock" once a dozen or fewer are left. Shoppers never see the count. */
+/** Sold out, or "Low stock" once 4 or fewer are left. Shoppers never see the count. */
 export function stockStatus(avail: CatalogAvailability | undefined): TileStatus {
   if (!avail) return null;
   if (avail.status === 'sold_out') return { kind: 'sold' };
   const left = availabilityRemaining(avail);
-  return left != null && left > 0 && left <= 12 ? { kind: 'low' } : null;
+  return left != null && left > 0 && left <= LOW_STOCK_AT ? { kind: 'low' } : null;
 }
 
 type Props = {

@@ -28,7 +28,7 @@ export function daysUntilLock(lockAt: string | null, now = Date.now()): number |
   return Math.max(0, Math.ceil((new Date(lockAt).getTime() - now) / 86_400_000));
 }
 
-export const NOT_HELD_COPY = "Items aren't held until you add a card. Popular ones can sell out.";
+export const NOT_HELD_COPY = "Until you add shipping and payment, your items aren't secured and may sell out.";
 
 export function useBoxGlance() {
   const { lineItems, children, loading: draftLoading } = useBoxDraft();

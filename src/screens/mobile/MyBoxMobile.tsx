@@ -17,12 +17,14 @@ import {
   fullCardLinesForSection,
   resolveBoxItemAttributionKind,
   isWrapControlSlot,
+  isWrappingPaperItem,
   isGiftSlotLine,
   includedPracticeSlotVacant,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
+import { resolveByDefaultSlot } from '../../services/box/boxRules';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import { useSession } from '../../hooks/useSession';
@@ -84,6 +86,13 @@ function SectionIcon({ id, size, color }: { id: BoxDisplaySectionId; size: numbe
 }
 
 const SHORT: Record<BoxDisplaySectionId, string> = { candles: 'Candles', dreidel: 'Dreidel', food: 'Eat', story: 'Story', presents: 'Gifts' };
+const BROWSE_AISLE: Record<BoxDisplaySectionId, { slug: string; label: string }> = {
+  story: { slug: 'books', label: 'Browse all books' },
+  candles: { slug: 'candles', label: 'Browse all candles' },
+  dreidel: { slug: 'dreidels', label: 'Browse all dreidels' },
+  food: { slug: 'food', label: 'Browse all food' },
+  presents: { slug: 'toys', label: 'Browse all gifts' },
+};
 
 /**
  * My Box for the phone (mockups box-v3.html), on the same useMyBoxEditing hook as
@@ -314,9 +323,45 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     </View>
   );
 
+  const wrappingPaperItem = () => {
+    const row = resolveByDefaultSlot(e.catalog, 'wrapping-paper');
+    return (
+      (row ? e.catalog.find((c) => c.id === row.id) : undefined) ??
+      e.catalog.find((c) => isWrappingPaperItem(c.id, e.catalog))
+    );
+  };
+
+  /** Pre-wrap is a choice, not a donation: say the presents come wrapped, and offer the paper back. */
+  const wrappedNote = (rows: CoalescedBoxLine[], donated: { item: CatalogItem }[]) => {
+    if (e.locked) return null;
+    if (rows.some((g) => isWrappingPaperItem(g.itemId, e.catalog, g.primary))) return null;
+    if (donated.some((d) => isWrappingPaperItem(d.item.id, e.catalog))) return null;
+    if (!rows.some((g) => isGiftSlotLine(g.primary))) return null;
+    const paper = wrappingPaperItem();
+    return (
+      <View style={styles.wrapped}>
+        <Text style={styles.wrappedText}>Your presents will come wrapped. Swap back to wrapping paper instead.</Text>
+        {paper ? (
+          <MobileButton
+            label="Swap back to wrapping paper"
+            variant="secondary"
+            height={40}
+            style={{ marginTop: 10 }}
+            onPress={() => {
+              e.setProductModalSection('presents');
+              void e.modalAddToBox(paper);
+              setToast({ message: 'Wrapping paper is back in your box' });
+            }}
+          />
+        ) : null}
+      </View>
+    );
+  };
+
   const section = (s: (typeof BOX_DISPLAY_SECTIONS)[number]) => {
     const rows = rowsFor(s.id);
     const donatedRows = (donatedBySection[s.id] ?? []).filter((d) => !rows.some((g) => g.itemId === d.item.id));
+    const wrapped = s.id === 'presents' ? wrappedNote(rows, donatedRows) : null;
     const adds = (e.upsellsBySection[s.id] ?? []).slice(0, 6);
     const hasExtra = rows.some((g) => g.unitCents > 0);
     const suggestion = !hasExtra && !e.locked ? adds.find((it) => !rows.some((g) => g.itemId === it.id)) : undefined;
@@ -328,7 +373,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         </View>
         {rows.map((g) => <Row key={g.key} g={g} sectionId={s.id} />)}
         {donatedRows.map((d) => <DonatedRow key={`donated:${d.item.id}`} item={d.item} missing={d.missing} />)}
-        {!rows.length && !donatedRows.length ? <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text> : null}
+        {wrapped}
+        {!rows.length && !donatedRows.length && !wrapped ? <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text> : null}
         {suggestion ? (
           <Pressable onPress={() => setSheet({ kind: 'product', item: suggestion, group: null, sectionId: s.id })} accessibilityRole="button" style={styles.sugg}>
             <View style={styles.suggImage}>
@@ -428,7 +474,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                 <>
                   <Text style={styles.altHead}>Prefer a different one? Swapping is included.</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.altRow}>
-                    {alts.slice(0, 6).map((o) => (
+                    {(alts.length > 2 ? alts.slice(0, 2) : alts).map((o) => (
                       <View key={o.id} style={styles.altCard}>
                         <Pressable onPress={() => setSheet({ kind: 'product', item: o, group: null, sectionId })} accessibilityRole="button" accessibilityLabel={`Open ${o.name}`}>
                           <BoxItemImage size={116} imageUrl={o.imageUrl} itemId={o.id} />
@@ -457,6 +503,19 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                         </View>
                       </View>
                     ))}
+                    {alts.length > 2 ? (
+                      <Pressable
+                        onPress={() => {
+                          setSheet(null);
+                          navigateMainStack('StorefrontCategory', { category: BROWSE_AISLE[sectionId].slug });
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={BROWSE_AISLE[sectionId].label}
+                        style={styles.browseCard}
+                      >
+                        <Text style={styles.browseTitle}>{BROWSE_AISLE[sectionId].label}</Text>
+                      </Pressable>
+                    ) : null}
                   </ScrollView>
                 </>
               ) : null}
@@ -658,11 +717,11 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
 
         <View style={styles.pad}>
           <BoxSummary size="sm" title={gift ? 'In their box' : 'In your box'} sub={`${thingCount} things · ${formatCatalogDollars(total)}`} items={thumbs} link={<Pressable onPress={() => setSheet({ kind: 'receipt' })} accessibilityRole="button" hitSlop={8}><Text style={styles.link}>See list</Text></Pressable>} />
-          {!e.cardOnFile && !e.openOrder ? (
+          {!gift && !e.openOrder ? (
             <Text style={styles.held}>
               {NOT_HELD_COPY}{' '}
               <Text style={styles.link} onPress={e.goToCheckout}>
-                Add a card
+                Add shipping and payment
               </Text>
             </Text>
           ) : null}
@@ -870,6 +929,10 @@ const styles = StyleSheet.create({
   optPill: { backgroundColor: m.ink, borderRadius: 999, paddingHorizontal: 14, height: 32, alignItems: 'center', justifyContent: 'center' },
   optPillText: { fontSize: 13.5, color: m.gold, ...mFont(400) },
   altCard: { width: 128, gap: 6, padding: 6, borderRadius: mRadius.md, borderWidth: 1, borderColor: m.line, backgroundColor: m.white },
+  browseCard: { width: 128, minHeight: 210, borderRadius: mRadius.md, backgroundColor: m.beige, alignItems: 'center', justifyContent: 'center', padding: 14 },
+  browseTitle: { fontSize: 15, lineHeight: 20, color: m.ink, textAlign: 'center', ...mFont(500) },
+  wrapped: { marginTop: 8, padding: 14, borderRadius: mRadius.md, backgroundColor: m.beige },
+  wrappedText: { fontSize: 14, lineHeight: 20, color: m.ink, ...mFont(400) },
   altBtns: { flexDirection: 'row', gap: 6 },
   altName: { fontSize: 12.5, color: m.ink, lineHeight: 16, minHeight: 32, ...mFont(400) },
   addGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

@@ -134,11 +134,11 @@ export function MobileAccountHub(p: Props) {
             ) : (
               <>
                 <Line icon={icons.calendar} text={`Change anything until ${glance.lockShort}`} />
-                {!glance.cardOnFile ? <Text style={styles.held}>{NOT_HELD_COPY}</Text> : null}
+                <Text style={styles.held}>{NOT_HELD_COPY}</Text>
               </>
             )}
             <MobileButton label="View my box" onPress={p.onOpenBox} height={54} />
-            {glance.state === 'draft' && !glance.cardOnFile ? (
+            {glance.state === 'draft' ? (
               <MobileButton label="Add shipping and payment" onPress={p.onCheckout} variant="secondary" height={54} />
             ) : null}
           </BoxSummary>

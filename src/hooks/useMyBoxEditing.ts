@@ -377,15 +377,13 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const swapToPreWrap = async (slotIds: string[]) => {
     if (locked) return;
     const idSet = new Set(slotIds);
-    // Drop wrapping paper entirely — pre-wrap is a mode (checklist shows Included),
-    // and paper reappears first in Add More when it's not in the box.
-    // While presents are marked to wrap, dropping paper is not a donation.
-    if (wrapSelectedIds.size > 0) {
-      for (const li of lineItems) {
-        if (idSet.has(li.slotId) || isWrapControlSlot(li.slotId)) {
-          if (isWrappingPaperItem(li.itemId, catalog, li)) {
-            includedBaselineByItemId.current.delete(li.itemId);
-          }
+    // Pre-wrap replaces the paper. It is not a donation: the presents come wrapped,
+    // and the paper can be swapped back in.
+    for (const li of lineItems) {
+      if (idSet.has(li.slotId) || isWrapControlSlot(li.slotId)) {
+        if (isWrappingPaperItem(li.itemId, catalog, li)) {
+          includedBaselineByItemId.current.delete(li.itemId);
+          donatedLineSnapshots.current.delete(li.itemId);
         }
       }
     }

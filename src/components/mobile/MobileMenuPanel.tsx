@@ -97,7 +97,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         onPress={goMyBox}
         link={<Chevron />}
       >
-        {glance.state === 'draft' && !glance.cardOnFile ? <Text style={styles.held}>{NOT_HELD_COPY}</Text> : null}
+        {glance.state === 'draft' ? <Text style={styles.held}>{NOT_HELD_COPY}</Text> : null}
       </BoxSummary>
     );
 

@@ -22,6 +22,7 @@ import {
   coalesceLinesByItemId,
   donatedItemQuantities,
   includedClaimAlreadyTaken,
+  isWrapControlSlot,
   isWrappingPaperItem,
   seedIncludedBaselines,
   setLiveIncludedBaselines,
@@ -181,7 +182,15 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     estimatedDeliveryBy: null,
     setProductModalSection,
     applySwap: async (slotIds, item) => draft.applySwap(slotIds, item),
-    swapToPreWrap: async (slotIds) => draft.swapToPreWrap(slotIds),
+    swapToPreWrap: async (slotIds) => {
+      const idSet = new Set(slotIds);
+      for (const li of latest.current.lineItems) {
+        if (idSet.has(li.slotId) || isWrapControlSlot(li.slotId)) {
+          if (isWrappingPaperItem(li.itemId, catalog, li)) baselines.current.delete(li.itemId);
+        }
+      }
+      draft.swapToPreWrap(slotIds);
+    },
     modalAddToBox: async (item) =>
       draft.addItem(item, { displaySectionId: productModalSection ?? displaySectionForCatalogItem(item) }),
     modalRemoveFromBox: async (item) => {

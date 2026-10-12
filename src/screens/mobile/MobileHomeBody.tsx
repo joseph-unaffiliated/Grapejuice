@@ -158,7 +158,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         ) : (
           <>
             <Line icon={icons.calendar} text={`Change anything until ${glance.lockShort}`} />
-            {!glance.cardOnFile ? <Text style={styles.held}>{NOT_HELD_COPY}</Text> : null}
+            <Text style={styles.held}>{NOT_HELD_COPY}</Text>
           </>
         )}
         <MobileButton label={glance.state === 'set' ? 'View my box' : 'Add shipping and payment'} onPress={glance.state === 'set' ? goMyBox : goCheckout} height={54} />

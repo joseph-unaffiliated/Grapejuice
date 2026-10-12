@@ -97,7 +97,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
             <Icon icon={icons.calendar} size={14} color={m.goldDark} />
             <Text style={styles.assureText}>Changes allowed until {p.lockShort} · Nothing charged until then</Text>
           </View>
-          {!p.cardOnFile ? <Text style={styles.held}>{NOT_HELD_COPY}</Text> : null}
+          <Text style={styles.held}>{NOT_HELD_COPY}</Text>
           {p.lockedNote ? <Text style={styles.error}>{p.lockedNote}</Text> : null}
           <View style={{ marginTop: 14 }}>
             <OrderSummary

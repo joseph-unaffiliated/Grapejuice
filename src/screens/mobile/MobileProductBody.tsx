@@ -4,7 +4,7 @@ import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
-import { availabilityRemaining } from '../../services/catalog/availability';
+import { availabilityRemaining, LOW_STOCK_AT } from '../../services/catalog/availability';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileSheet } from '../../components/mobile/MobileSheet';
 import { ProductTileMobile, stockStatus } from '../../components/mobile/ProductTileMobile';
@@ -66,7 +66,7 @@ export function MobileProductBody(p: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const photos = useMemo(() => (p.item.imageUrls?.length ? p.item.imageUrls : p.item.imageUrl ? [p.item.imageUrl] : []), [p.item]);
   const remaining = p.availability ? availabilityRemaining(p.availability) : null;
-  const low = !p.soldOut && remaining != null && remaining > 0 && remaining <= 12;
+  const low = !p.soldOut && remaining != null && remaining > 0 && remaining <= LOW_STOCK_AT;
   const desc = (p.item.description ?? '').trim();
   const shortDesc = desc.length > 160 && !more ? `${desc.slice(0, 157).trimEnd()}…` : desc;
 
