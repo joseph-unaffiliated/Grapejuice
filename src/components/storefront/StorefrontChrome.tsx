@@ -108,6 +108,11 @@ type Props = {
    * drives this from its own scroller — hide on scroll down, show on scroll up).
    */
   fillChromeHidden?: boolean;
+  /**
+   * Phone only: omit the site footer. Use when this screen has a persistent
+   * sticky bottom bar (the bar owns the bottom; no clearance is reserved).
+   */
+  hideFooter?: boolean;
 };
 
 type ChromeProps = {
@@ -208,13 +213,29 @@ function stickyScrollThresholds(chromeH: number) {
  *
  * Fill mode: chrome stays pinned above the body (wizards / My Box).
  */
-const MOBILE_FOOTER_ROUTES = new Set([
-  'Home',
-  'StorefrontHome',
-  'GiftLanding',
-  'StorefrontOurStory',
-  'StorefrontHowToPlayDreidel',
-  'StorefrontHowToLightCandles',
+/**
+ * Phone routes that keep a persistent sticky bottom bar, or are a task where a
+ * site footer would be noise (checkout, product add, Rav, auth, wizards).
+ * Home is not listed: its "Build my box" bar dismisses before the footer.
+ * Browse pages (shop, categories, search, story, legal) keep the footer.
+ */
+const MOBILE_NO_FOOTER_ROUTES = new Set([
+  'CatalogProduct',
+  'MyBox',
+  'Checkout',
+  'MarketplaceCheckout',
+  'GiftGive',
+  'GiftBoxCheckout',
+  'GiftResumePayment',
+  'GiftClaim',
+  'GiftRecipientReveal',
+  'GiftGiverCustomize',
+  'UpdatePayment',
+  'SetPassword',
+  'ConnectGoogle',
+  'Rav',
+  'Reflection',
+  'HanukkahFeedback',
 ]);
 
 export function StorefrontChrome(props: Props) {
@@ -240,6 +261,7 @@ function StorefrontChromeInner({
   floatingFooter,
   fillChromeHidden = false,
   onPageScroll,
+  hideFooter = false,
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
@@ -255,12 +277,13 @@ function StorefrontChromeInner({
   const tabBarHeight = useContext(BottomTabBarHeightContext);
   const inTabLayout = Platform.OS !== 'web' && tabBarHeight !== undefined;
   const pinnedHostHeight = useViewportPinnedHeight(hostRef, !inTabLayout);
-  /** Phone layouts are header-only: no promo strip, no category rail, footer only on editorial pages. */
+  /** Phone: no promo strip or category rail. Footer on pages without a sticky bottom bar. */
   const mobileLayout = useMobileLayout();
   /** Mobile: free-shipping strip only on Home; desktop keeps it everywhere. */
   const showPromoStrip =
     !mobileLayout && (!compact || route.name === 'Home' || route.name === 'StorefrontHome');
-  const showFooter = !mobileLayout || MOBILE_FOOTER_ROUTES.has(route.name);
+  const showFooter =
+    !mobileLayout || (!hideFooter && !MOBILE_NO_FOOTER_ROUTES.has(route.name));
   const [refreshing, setRefreshing] = useState(false);
   const [pullPx, setPullPx] = useState(0);
   const pullStartY = useRef<number | null>(null);

@@ -11,6 +11,7 @@ import { formatDollars } from '../../services/box/buildDefaultBox';
 import { orderItemName } from '../../components/orders/OrderPurchaseMedia';
 import { giftInvitePaid, type UnifiedOrder } from '../../hooks/useUnifiedOrders';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import { MobileFooterBleed, MobileFooterSpacer, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 
 export type MobileOrderAction = { label: string; onPress: () => void; busy?: boolean; secondary?: boolean; link?: boolean };
 
@@ -63,7 +64,7 @@ export function MobileOrdersBody(p: Props) {
   return (
     <View style={{ flex: 1, minHeight: 0, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Account', onPress: p.onBack }} title="Orders" />
-      <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={styles.content}>
+      <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={[styles.content, mobileFooterScrollStyle, { paddingBottom: 0 }]}>
         <Text style={styles.h1}>Orders</Text>
         {hasPast ? (
           <View style={styles.chips}>
@@ -168,6 +169,8 @@ export function MobileOrdersBody(p: Props) {
             })}
           </View>
         )}
+        <MobileFooterSpacer />
+        <MobileFooterBleed inset={16} />
       </ScrollView>
     </View>
   );

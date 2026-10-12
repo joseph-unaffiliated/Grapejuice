@@ -11,6 +11,30 @@ import { m, mFont, mGutter } from './mobileTheme';
 type Nav = StackNavigationProp<MainStackParamList>;
 type Link = { label: string; onPress: () => void };
 
+/**
+ * Grows inside a phone ScrollView so a short page pins the footer to the
+ * viewport bottom (empty space above the footer). Long pages leave it at 0.
+ */
+export function MobileFooterSpacer() {
+  return <View style={styles.spacer} collapsable={false} />;
+}
+
+/** Site footer pulled to the screen edges when the scroll content is horizontally padded. */
+export function MobileFooterBleed({ inset = 0 }: { inset?: number }) {
+  return (
+    <View style={inset ? { marginHorizontal: -inset } : undefined}>
+      <MobileFooter />
+    </View>
+  );
+}
+
+/** contentContainerStyle for a phone scroll that pins MobileFooter on short pages. */
+export const mobileFooterScrollStyle = {
+  flexGrow: 1,
+  flexDirection: 'column' as const,
+  ...(Platform.OS === 'web' ? { minHeight: '100%' as const } : null),
+};
+
 /** The phone site footer: mark and tagline, then Shop, Company and Contact columns on ink. */
 export function MobileFooter() {
   const navigation = useNavigation<Nav>();
@@ -79,6 +103,12 @@ export function MobileFooter() {
 const COL_MIN_CONTENT = (Platform.OS === 'web' ? { minWidth: 'auto' } : {}) as object;
 
 const styles = StyleSheet.create({
+  spacer: {
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: 0,
+    minHeight: 0,
+  },
   root: {
     backgroundColor: m.ink,
     paddingHorizontal: mGutter,

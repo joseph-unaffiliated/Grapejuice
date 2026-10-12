@@ -135,7 +135,7 @@ export function StorefrontCartScreen() {
 
   if (catalogLoading) {
     return (
-      <StorefrontChrome>
+      <StorefrontChrome hideFooter>
         <View style={[styles.centered, { minHeight: Math.round(height * 0.65) }]}>
           <BrandLoadingMark />
         </View>
@@ -150,7 +150,7 @@ export function StorefrontCartScreen() {
     const issues: Record<string, string | undefined> = {};
     for (const [id, issue] of Object.entries(lineIssues)) issues[id] = issue.message;
     return (
-      <StorefrontChrome hideServicesNav hideSearchAndRav>
+      <StorefrontChrome hideServicesNav hideSearchAndRav hideFooter={lineItems.length > 0}>
         <MobileBoundary screen="cart" fallback={<View style={styles.empty}><Text style={styles.title}>Cart</Text></View>}>
           <MobileCartBody
             lines={lineItems}

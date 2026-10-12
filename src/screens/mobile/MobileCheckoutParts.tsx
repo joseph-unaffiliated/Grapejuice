@@ -14,6 +14,7 @@ import { BoxSummary } from '../../components/mobile/BoxSummary';
 import { OrderSummary, type OrderLine } from '../../components/mobile/OrderSummary';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
+import { MobileFooterBleed, MobileFooterSpacer, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 import { m, mFont, mGutter, mRadius, mType, balanceProps } from '../../components/mobile/mobileTheme';
 import { MobileCodeSignIn, CodeEntry } from '../../components/mobile/MobileCodeSignIn';
 export { CodeEntry };
@@ -246,7 +247,7 @@ export function MobileDoneLayout({ title, lede, steps, children }: { title: stri
   return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader />
-      <ScrollView contentContainerStyle={[styles.pad, { paddingTop: 28, paddingBottom: 40 }]}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.pad, mobileFooterScrollStyle, { paddingTop: 28, paddingBottom: 0 }]}>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>✓</Text>
         </View>
@@ -267,6 +268,8 @@ export function MobileDoneLayout({ title, lede, steps, children }: { title: stri
           ))}
         </View>
         {children}
+        <MobileFooterSpacer />
+        <MobileFooterBleed inset={mGutter} />
       </ScrollView>
     </View>
   );

@@ -9,6 +9,8 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { spacing, typography, MOBILE_GUTTER } from '../../constants/theme';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { MobileFooterBleed, MobileFooterSpacer, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 
 /** Light in-app primer (panel Jun 10/17) — print guide still ships in box. */
 export function AboutHanukkahScreen() {
@@ -23,6 +25,7 @@ function AboutHanukkahBody() {
   const navigation = useNavigation();
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
+  const mobileLayout = useMobileLayout();
   const styles = useMemo(() => createAboutStyles(colors, isDesktop), [colors, isDesktop]);
 
   const body = (
@@ -58,7 +61,7 @@ function AboutHanukkahBody() {
       >
         <ScrollView
           style={styles.root}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, mobileLayout ? mobileFooterScrollStyle : null, mobileLayout ? { paddingBottom: 0 } : null]}
           showsVerticalScrollIndicator={false}
         >
           {isDesktop ? (
@@ -66,6 +69,12 @@ function AboutHanukkahBody() {
           ) : (
             body
           )}
+          {mobileLayout ? (
+            <>
+              <MobileFooterSpacer />
+              <MobileFooterBleed inset={MOBILE_GUTTER} />
+            </>
+          ) : null}
         </ScrollView>
       </WebContentPanel>
     </SafeAreaView>

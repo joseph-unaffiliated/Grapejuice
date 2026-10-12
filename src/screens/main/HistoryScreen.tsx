@@ -19,6 +19,7 @@ import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { TaskHeader } from '../../components/mobile/TaskHeader';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { m, mFont, mType } from '../../components/mobile/mobileTheme';
+import { MobileFooter, MobileFooterSpacer, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
@@ -116,7 +117,8 @@ function HistoryScreenBody() {
     return (
       <View style={{ flex: 1, minHeight: 0, backgroundColor: m.white }}>
         <TaskHeader back={{ label: 'Account', onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }) }} title="History" />
-        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, paddingBottom: 48, gap: 28 }}>
+        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={mobileFooterScrollStyle}>
+          <View style={{ padding: 16, paddingBottom: 8, gap: 28 }}>
           <View>
             <Text style={mType.h1}>History</Text>
             <Text style={[mType.body, { marginTop: 8 }]}>Chats with Rav and pages you’ve browsed.</Text>
@@ -173,6 +175,9 @@ function HistoryScreenBody() {
               ))
             )}
           </View>
+          </View>
+          <MobileFooterSpacer />
+          <MobileFooter />
         </ScrollView>
       </View>
     );

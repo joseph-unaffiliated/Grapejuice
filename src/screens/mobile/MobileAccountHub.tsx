@@ -12,6 +12,7 @@ import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
 import { makeKidDraft, type ChildDraft } from '../../components/family/familyDraft';
 import { PRICING_POLICY } from '../../services/box/boxRules';
 import { formatDollars } from '../../services/box/buildDefaultBox';
+import { MobileFooterBleed, MobileFooterSpacer, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 
 export type MobileAccountFamily = {
   members: ChildDraft[];
@@ -139,7 +140,7 @@ export function MobileAccountHub(p: Props) {
   const listed = p.family.members.filter((d) => d.role !== 'adult' || d.name.trim());
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: m.white }} contentContainerStyle={styles.content}>
+    <ScrollView style={{ flex: 1, backgroundColor: m.white }} contentContainerStyle={[styles.content, mobileFooterScrollStyle, { paddingBottom: 0 }]}>
       {p.previewBanner ? <Text style={styles.preview}>{p.previewBanner}</Text> : null}
       <Text style={styles.hi} {...balanceProps}>{firstName ? `Hi, ${firstName}` : 'Your account'}</Text>
       <Text style={styles.email}>{p.email}</Text>
@@ -216,6 +217,9 @@ export function MobileAccountHub(p: Props) {
         <Icon icon={icons.signOut} size={14} color={m.goldDark} />
         <Text style={styles.signOutText}>{p.signOutLabel}</Text>
       </Pressable>
+
+      <MobileFooterSpacer />
+      <MobileFooterBleed inset={16} />
 
       <MobileSheet
         visible={sheet === 'family'}
