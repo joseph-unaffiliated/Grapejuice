@@ -406,7 +406,7 @@ export function StorefrontCategoryScreen() {
 
   const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';
   const shopEverything = slug === 'collection' && !searchQuery;
-  /** Phone "Shop everything": two picks per aisle with See all, instead of one long grid. */
+  /** Phone "Shop everything": a horizontal rail of each aisle, with See all. */
   const collectionSections = useMemo(
     () =>
       shopEverything && !Object.values(facetFilters).some((v) => v && v !== 'all')

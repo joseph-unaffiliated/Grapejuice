@@ -25,7 +25,8 @@ import {
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveByDefaultSlot } from '../../services/box/boxRules';
-import { resolveFreeSwapUnitCents, resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
+import { kidPlannerAges, resolveFreeSwapUnitCents, resolveIncludedGiftOptions, storySwapShelf } from '../../services/box/sectionUpsells';
+import { HorizontalDragScrollView } from '../../components/home/HorizontalDragScrollView';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import { useSession } from '../../hooks/useSession';
@@ -478,6 +479,9 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
           const item = byId.get(g.itemId);
           const wrapping = isWrapControlSlot(g.primary.slotId);
           const alts = g.unitCents > 0 || wrapping ? [] : (e.swapOptionsBySlot[g.primary.slotId] ?? []).filter((o) => o.id !== g.itemId);
+          const kidAges = kidPlannerAges(kids);
+          const preview =
+            sectionId === 'story' ? storySwapShelf(alts, kidAges) : alts.length > 2 ? alts.slice(0, 2) : alts;
           return (
             <View key={g.key} style={styles.pickBlock}>
               <View style={styles.pick}>
@@ -506,8 +510,13 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
               {alts.length && !e.locked ? (
                 <>
                   <Text style={styles.altHead}>Prefer a different one? Swapping is included.</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.altRow}>
-                    {(alts.length > 2 ? alts.slice(0, 2) : alts).map((o) => (
+                  <HorizontalDragScrollView
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.altScroll}
+                    contentContainerStyle={styles.altRow}
+                    accessibilityLabel={sectionId === 'story' ? 'Other books' : 'Other options'}
+                  >
+                    {preview.map((o) => (
                       <View key={o.id} style={styles.altCard}>
                         <Pressable onPress={() => setSheet({ kind: 'product', item: o, group: null, sectionId })} accessibilityRole="button" accessibilityLabel={`Open ${o.name}`}>
                           <BoxItemImage size={116} imageUrl={o.imageUrl} itemId={o.id} />
@@ -536,7 +545,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                         </View>
                       </View>
                     ))}
-                    {alts.length > 2 ? (
+                    {sectionId === 'story' || alts.length > 2 ? (
                       <Pressable
                         onPress={() => {
                           setSheet(null);
@@ -549,7 +558,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                         <Text style={styles.browseTitle}>{BROWSE_AISLE[sectionId].label}</Text>
                       </Pressable>
                     ) : null}
-                  </ScrollView>
+                  </HorizontalDragScrollView>
                 </>
               ) : null}
             </View>
@@ -559,7 +568,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
           <>
             <Text style={[mType.h3, { marginTop: 8, marginBottom: 10 }]}>Add {rows.length ? 'on top' : 'something'}</Text>
             <View style={styles.addGrid}>
-              {adds.slice(0, 8).map((it) => {
+              {(sectionId === 'story' ? storySwapShelf(adds, kidPlannerAges(kids), 8) : adds.slice(0, 8)).map((it) => {
                 const offer = offerFor(it, sectionId, rows);
                 const storyChoice = sectionId === 'story' && offer.swap && !offer.free;
                 return (
@@ -959,7 +968,8 @@ const styles = StyleSheet.create({
   pickBlock: { marginBottom: 18, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: m.line },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: mRadius.md, backgroundColor: m.beige, borderWidth: 1.5, borderColor: m.gold },
   altHead: { fontSize: 13, color: m.muted, marginTop: 12, marginBottom: 8, ...mFont(400) },
-  altRow: { gap: 10, paddingRight: 8 },
+  altScroll: { width: '100%', flexGrow: 0, flexShrink: 0 },
+  altRow: { gap: 10, paddingRight: 8, paddingVertical: 2 },
   alt: { width: 104, gap: 6 },
   opt: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingHorizontal: 14, paddingVertical: 10, borderRadius: mRadius.md, borderWidth: 1, borderColor: m.gold, backgroundColor: m.white },
   optTitle: { fontSize: 15.5, color: m.ink, ...mFont(400) },

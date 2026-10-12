@@ -3,7 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import { ProductTileMobile, stockStatus, type TileStatus } from '../../components/mobile/ProductTileMobile';
-import { m, mFont, mGutter, mType } from '../../components/mobile/mobileTheme';
+import { HorizontalDragScrollView } from '../../components/home/HorizontalDragScrollView';
+import { m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
+
+/** Shop All rail card. Wide enough for “Add to my box”, with a peek of the next card. */
+const RAIL_TILE = 156;
+const RAIL_GAP = 12;
 
 type Props = {
   slug: string;
@@ -24,11 +29,11 @@ type Props = {
   onViewBox: () => void;
   loading?: boolean;
   empty?: React.ReactNode;
-  /** Collection page: two picks per aisle under a See all heading (store.html s=2). */
+  /** Shop All: one horizontal rail per aisle. Omitted on a single category page. */
   sections?: { slug: string; title: string; items: CatalogItem[] }[];
 };
 
-/** Category page for the phone layouts: title, count, scrolling chips, two-column tiles with box status. */
+/** Category page for the phone layouts: title, count, scrolling chips, tiles with box status. */
 export function MobileCategoryBody(p: Props) {
   const { width } = useWindowDimensions();
   const tile = Math.floor((width - mGutter * 2 - 12) / 2);
@@ -51,7 +56,7 @@ export function MobileCategoryBody(p: Props) {
       </ScrollView>
     </>
   );
-  const renderTile = (it: CatalogItem) => {
+  const renderTile = (it: CatalogItem, tileWidth: number, inRail: boolean) => {
     const avail = p.availabilityById[it.id];
     const inBox = p.boxState.get(it.id);
     let status: TileStatus = null;
@@ -61,7 +66,7 @@ export function MobileCategoryBody(p: Props) {
       <ProductTileMobile
         key={it.id}
         item={it}
-        width={tile}
+        width={tileWidth}
         status={status}
         onPress={() => p.onOpen(it.id)}
         action={
@@ -71,7 +76,7 @@ export function MobileCategoryBody(p: Props) {
               ? { label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }
               : undefined
         }
-        style={{ marginBottom: 8 }}
+        style={inRail ? undefined : { marginBottom: 8 }}
       />
     );
   };
@@ -89,7 +94,25 @@ export function MobileCategoryBody(p: Props) {
                     <Text style={styles.seeAll}>See all</Text>
                   </Pressable>
                 </View>
-                <View style={styles.grid}>{inBoxFirst(sec.items, p.boxState).slice(0, 2).map(renderTile)}</View>
+                <HorizontalDragScrollView
+                  showsHorizontalScrollIndicator={false}
+                  nestedScrollEnabled
+                  directionalLockEnabled
+                  accessibilityLabel={`${sec.title} products`}
+                  style={styles.railScroll}
+                  contentContainerStyle={styles.rail}
+                >
+                  {inBoxFirst(sec.items, p.boxState).map((it) => renderTile(it, RAIL_TILE, true))}
+                  <Pressable
+                    onPress={() => p.onCategory(sec.slug)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`See all ${sec.title}`}
+                    style={styles.seeAllCard}
+                  >
+                    <Text style={styles.seeAllCardTitle}>See all</Text>
+                    <Text style={styles.seeAllCardSub}>{sec.title}</Text>
+                  </Pressable>
+                </HorizontalDragScrollView>
               </View>
             ))}
           </View>
@@ -114,7 +137,7 @@ export function MobileCategoryBody(p: Props) {
       {p.loading ? null : p.items.length === 0 ? (
         p.empty
       ) : (
-        <View style={styles.grid}>{inBoxFirst(p.items, p.boxState).map(renderTile)}</View>
+        <View style={styles.grid}>{inBoxFirst(p.items, p.boxState).map((it) => renderTile(it, tile, false))}</View>
       )}
     </View>
   );
@@ -143,5 +166,24 @@ const styles = StyleSheet.create({
   secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: mGutter, paddingBottom: 14 },
   secTitle: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(400) },
   seeAll: { fontSize: 13.5, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
+  railScroll: { width: '100%', flexGrow: 0, flexShrink: 0 },
+  rail: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: RAIL_GAP,
+    paddingHorizontal: mGutter,
+    paddingBottom: 4,
+  },
+  seeAllCard: {
+    width: RAIL_TILE,
+    borderRadius: mRadius.md,
+    backgroundColor: m.beige,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    gap: 6,
+  },
+  seeAllCardTitle: { fontSize: 16, lineHeight: 21, color: m.ink, textAlign: 'center', ...mFont(500) },
+  seeAllCardSub: { fontSize: 13, lineHeight: 18, color: m.goldDark, textAlign: 'center', ...mFont(400) },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 12, paddingHorizontal: mGutter },
 });

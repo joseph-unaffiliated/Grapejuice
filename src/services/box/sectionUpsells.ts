@@ -7,6 +7,7 @@ import {
   SECTION_RULES,
   ageGroupForNumericAge,
   representativeAgeForBand,
+  resolveBookForAge,
   type BoxSectionId,
   type DefaultSlotId,
   type GiftKindId,
@@ -80,6 +81,113 @@ export function filterBooksForKidAges(
       ? items.filter((item) => catalogBookFitsAnyKidAge(item, kidAges))
       : items;
   return limit != null ? filtered.slice(0, limit) : filtered;
+}
+
+/** Phone Tell the Story sheet: book cards shown before “Browse all books”. */
+export const STORY_SWAP_PREVIEW = 12;
+
+function bookAgeNumbers(item: CatalogItem): number[] {
+  return (item.defaultBookAges ?? [])
+    .map((a) => (typeof a === 'number' ? a : parseInt(String(a), 10)))
+    .filter((n) => Number.isFinite(n));
+}
+
+function explicitDefaultForAge(item: CatalogItem, age: number): boolean {
+  const ageStr = String(Math.floor(age));
+  return (item.defaultBookAges ?? []).map(String).includes(ageStr);
+}
+
+/** Distance from a book’s default ages (or age-band midpoint) to the nearest kid. */
+function kidAgeDistance(item: CatalogItem, ages: readonly number[]): number {
+  if (!ages.length) {
+    const nums = bookAgeNumbers(item);
+    return nums.length ? Math.min(...nums) : Number.POSITIVE_INFINITY;
+  }
+  const nums = bookAgeNumbers(item);
+  if (nums.length) {
+    return Math.min(...ages.flatMap((age) => nums.map((n) => Math.abs(n - age))));
+  }
+  const reps = [...(item.defaultFor ?? []), ...(item.ageGroups ?? [])]
+    .map((band) => representativeAgeForBand(band))
+    .filter((n) => Number.isFinite(n));
+  if (!reps.length) return Number.POSITIVE_INFINITY;
+  return Math.min(...ages.flatMap((age) => reps.map((n) => Math.abs(n - age))));
+}
+
+/**
+ * Tell the Story swap/add order.
+ *
+ * The default for a kid is the same book `buildDefaultBox` would assign via
+ * `resolveBookForAge`: the first catalog row whose Default book ages include
+ * that age, otherwise story rows tagged `defaultFor` for the age band, otherwise
+ * `ageGroups`. Those defaults lead (younger kids first). Other books that fit
+ * the family’s ages come next, then the rest of the any-book swap set, nearer
+ * ages before farther ones. Alphabetical name order is not the sort.
+ * Sold-out rows are not dropped here — callers already apply `withoutSoldOut`.
+ */
+export function orderStorySwapBooks(books: CatalogItem[], kidAges: readonly number[]): CatalogItem[] {
+  if (books.length < 2) return books.slice();
+  const ages = [...new Set(kidAges.map((a) => Math.max(0, Math.floor(a))).filter((n) => Number.isFinite(n)))].sort(
+    (a, b) => a - b
+  );
+  const index = new Map(books.map((b, i) => [b.id, i]));
+  const defaultRank = new Map<string, number>();
+  const remember = (id: string, rank: number) => {
+    const prev = defaultRank.get(id);
+    if (prev == null || rank < prev) defaultRank.set(id, rank);
+  };
+
+  ages.forEach((age, ageIndex) => {
+    const base = ageIndex * 100;
+    const explicit = books.filter((b) => explicitDefaultForAge(b, age));
+    if (explicit.length) {
+      explicit.forEach((b, i) => remember(b.id, base + i));
+      return;
+    }
+    const band = ageGroupForNumericAge(age);
+    const forBand = books.filter((b) => (b.defaultFor ?? []).includes(band));
+    const pool = forBand.length
+      ? forBand
+      : books.filter((b) => (b.ageGroups ?? []).includes(band));
+    // Same winner `resolveBookForAge` would return, then the other rows at that tier.
+    const picked = resolveBookForAge(books, age);
+    const ordered = picked ? [picked, ...pool.filter((b) => b.id !== picked.id)] : pool;
+    ordered.forEach((b, i) => remember(b.id, base + i));
+  });
+
+  if (!ages.length) {
+    for (const b of books) {
+      if (bookAgeNumbers(b).length) remember(b.id, kidAgeDistance(b, ages));
+    }
+  }
+
+  const tier = (item: CatalogItem): number => {
+    if (defaultRank.has(item.id)) return 0;
+    if (ages.length && catalogBookFitsAnyKidAge(item, ages)) return 1;
+    return 2;
+  };
+
+  return [...books].sort((a, b) => {
+    const td = tier(a) - tier(b);
+    if (td) return td;
+    if (tier(a) === 0) {
+      const rd = (defaultRank.get(a.id) ?? 0) - (defaultRank.get(b.id) ?? 0);
+      if (rd) return rd;
+    } else {
+      const cd = kidAgeDistance(a, ages) - kidAgeDistance(b, ages);
+      if (cd) return cd;
+    }
+    return (index.get(a.id) ?? 0) - (index.get(b.id) ?? 0);
+  });
+}
+
+/** Ordered story shelf, capped for the phone swap row (Browse all follows in the UI). */
+export function storySwapShelf(
+  books: CatalogItem[],
+  kidAges: readonly number[],
+  limit = STORY_SWAP_PREVIEW
+): CatalogItem[] {
+  return orderStorySwapBooks(books, kidAges).slice(0, Math.max(0, limit));
 }
 
 /** Small gold label under book titles — “For Sam” / “For Sam or Riley” when kids fit.
