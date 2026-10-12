@@ -14,7 +14,13 @@ import {
   processShipStationShipNotify,
   verifyShipStationWebhookSecret,
 } from './shipstation';
-import { finalizeGiftInvitePayment, resolveGiftInviteKind, type GiftInviteRecord } from './giftPayment';
+import {
+  finalizeGiftInvitePayment,
+  resolveGiftInviteKind,
+  sanitizeGiftChildren,
+  sanitizeGiftFamilyName,
+  type GiftInviteRecord,
+} from './giftPayment';
 import { runDebriefReminderBatch } from './debriefReminders';
 import { runLockReminderBatch } from './lockReminders';
 import { deliveryDateLabel, lockDateLabel, runSetupNudgeBatch } from './setupNudge';
@@ -2476,6 +2482,8 @@ export const purchasePilotGift = onCall(async (request) => {
   const lineItems = Array.isArray(request.data?.lineItems) ? request.data.lineItems : undefined;
   const childInterests = Array.isArray(request.data?.childInterests) ? request.data.childInterests : undefined;
   const childAgeGroups = Array.isArray(request.data?.childAgeGroups) ? request.data.childAgeGroups : undefined;
+  const familyName = sanitizeGiftFamilyName(request.data?.familyName);
+  const giftChildren = customize ? sanitizeGiftChildren(request.data?.giftChildren) : undefined;
 
   if (!isValidEmail(recipientEmail)) {
     throw new HttpsError('invalid-argument', 'A valid recipient email is required.');
@@ -2557,6 +2565,8 @@ export const purchasePilotGift = onCall(async (request) => {
     ...(giftKind === 'box' && lineItems ? { lineItems } : {}),
     ...(giftKind === 'box' && childInterests ? { childInterests } : {}),
     ...(giftKind === 'box' && childAgeGroups ? { childAgeGroups } : {}),
+    ...(familyName ? { familyName } : {}),
+    ...(giftKind === 'box' && giftChildren ? { giftChildren } : {}),
     ...(giverShippingAddress ? { shippingAddress: giverShippingAddress } : {}),
     ...(Object.keys(metaContext).length ? { metaContext } : {}),
     ...(attribution ? { attribution } : {}),
@@ -2838,6 +2848,8 @@ export const claimGiftInvite = onCall(async (request) => {
     prepaidAddOnCents,
     lineItems: giftKind === 'box' ? invite.lineItems ?? [] : [],
     childInterests: giftKind === 'box' ? invite.childInterests ?? [] : [],
+    ...(invite.familyName ? { familyName: invite.familyName } : {}),
+    ...(giftKind === 'box' && invite.giftChildren ? { giftChildren: invite.giftChildren } : {}),
     giverShippingAddress: giftKind === 'box' ? invite.shippingAddress ?? null : null,
     status: autoShipped ? 'accepted' : 'available',
     ...(autoShipped
@@ -2949,6 +2961,8 @@ async function backfillReceivedGiftFromInvite(
     prepaidAddOnCents: giftKind === 'box' ? chargeableLineTotal(boxLines) : 0,
     lineItems: giftKind === 'box' ? invite.lineItems ?? [] : [],
     childInterests: giftKind === 'box' ? invite.childInterests ?? [] : [],
+    ...(invite.familyName ? { familyName: invite.familyName } : {}),
+    ...(giftKind === 'box' && invite.giftChildren ? { giftChildren: invite.giftChildren } : {}),
     giverShippingAddress: giftKind === 'box' ? invite.shippingAddress ?? null : null,
     status: 'available',
     claimedAt: invite.claimedAt ?? now,

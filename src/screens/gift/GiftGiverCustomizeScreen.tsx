@@ -135,6 +135,7 @@ function GiftGiverCustomizeBody() {
         customize: true,
         lineItems,
         childAgeGroups,
+        giftChildren: childDrafts,
         amountCents,
       });
 

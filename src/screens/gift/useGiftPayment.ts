@@ -3,13 +3,15 @@ import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
 import { trackMeta } from '../../services/analytics/metaPixel';
 import { useAuthStore } from '../../stores/authStore';
 import type { AgeGroup, BoxLineItem } from '../../types/pilot';
-import { hasGiverAddress, type GiftGiveFormValues } from './giftGiveTypes';
+import { giftChildrenForServer, hasGiverAddress, type GiftChildDraft, type GiftGiveFormValues } from './giftGiveTypes';
 
 export type GiftPurchaseInput = {
   form: GiftGiveFormValues;
   customize: boolean;
   lineItems?: BoxLineItem[];
   childAgeGroups?: AgeGroup[];
+  /** Curated box: ages and optional names, stored on the invite. */
+  giftChildren?: GiftChildDraft[];
   /** Charged amount — defaults to flat box price for credit-only gifts. */
   amountCents?: number;
 };
@@ -53,6 +55,8 @@ export async function startGiftPurchase(input: GiftPurchaseInput): Promise<GiftP
     customize: input.customize,
     lineItems: input.customize ? input.lineItems : undefined,
     childAgeGroups: input.customize ? input.childAgeGroups : undefined,
+    familyName: input.form.familyName?.trim() || undefined,
+    giftChildren: input.customize && input.giftChildren ? giftChildrenForServer(input.giftChildren) : undefined,
     shippingAddress:
       input.customize && hasGiverAddress(input.form.shippingAddress) ? input.form.shippingAddress : undefined,
   });

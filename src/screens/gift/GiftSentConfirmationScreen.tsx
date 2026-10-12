@@ -139,7 +139,8 @@ function GiftSentConfirmationBody() {
 
 function MobileGiftSent() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const { recipientEmail, customize, amountCents = DEFAULT_BOX_PRICE_CENTS } = useRoute<Route>().params;
+  const { recipientEmail, customize, amountCents = DEFAULT_BOX_PRICE_CENTS, familyName } = useRoute<Route>().params;
+  const family = familyName?.trim();
   const { goHome } = useStorefrontActions();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const lockDay = useBoxLockDay();
@@ -154,7 +155,7 @@ function MobileGiftSent() {
         [`Until ${lockDay}`, 'They put it toward a box or anything in the store'],
       ];
   return (
-    <MobileDoneLayout title="Your gift is on its way" lede={`We emailed ${recipientEmail} your note.`} steps={steps}>
+    <MobileDoneLayout title={family ? `Your gift is on its way to ${family}` : 'Your gift is on its way'} lede={`We emailed ${recipientEmail} your note.`} steps={steps}>
       {isAuthenticated ? <MobileButton label="See your gift" onPress={() => navigation.navigate('MyGifts')} /> : null}
       <MobileButton
         label={isAuthenticated ? 'Back to the store' : 'Start a box for my family'}

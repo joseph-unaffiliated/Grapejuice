@@ -141,6 +141,7 @@ export function GiftGiverCustomizeScreen() {
       />
     );
     const kids = Math.max(1, children.length);
+    const family = latestCustomizeForm(form).familyName?.trim();
     return (
       <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav fillChromeHidden>
         {loading || !lineItems.length ? (
@@ -154,7 +155,7 @@ export function GiftGiverCustomizeScreen() {
           <MyBoxMobile
             editing={mobileEditing}
             navigation={navigation}
-            gift={{ header, banner: `A gift for a family with ${kids === 1 ? 'one kid' : `${kids} kids`}`, nextLabel: 'Next: Note', onNext: continueToNote }}
+            gift={{ header, banner: family ? `A gift for ${family}` : `A gift for a family with ${kids === 1 ? 'one kid' : `${kids} kids`}`, nextLabel: 'Next: Note', onNext: continueToNote }}
           />
         )}
       </StorefrontChrome>

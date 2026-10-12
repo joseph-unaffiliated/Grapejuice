@@ -467,6 +467,7 @@ function GiftGiveBody() {
         customize,
         lineItems: customize ? lineItems : undefined,
         childAgeGroups: customize ? childDrafts.map((c) => c.ageGroup) : undefined,
+        giftChildren: customize ? childDrafts : undefined,
         amountCents,
       });
       setPayment({
@@ -527,7 +528,12 @@ function GiftGiveBody() {
     switch (step) {
       case 'kids':
         return customize ? (
-          <MobileGiftFamily kids={childDrafts} onChange={setChildDrafts} />
+          <MobileGiftFamily
+            kids={childDrafts}
+            familyName={values.familyName ?? ''}
+            onChange={setChildDrafts}
+            onFamilyName={(familyName) => patchValues({ familyName })}
+          />
         ) : (
           <MobileGiftCredit creditKids={values.creditKids ?? 1} onChange={(creditKids) => patchValues({ creditKids })} />
         );
@@ -554,6 +560,7 @@ function GiftGiveBody() {
             onName={(giverName) => patchValues({ giverName })}
             onMessage={(message) => patchValues({ message })}
             customize={customize}
+            familyName={values.familyName}
           />
         );
       case 'send':
@@ -922,6 +929,7 @@ function GiftGiveBody() {
                 recipientEmail: values.recipientEmail.trim(),
                 customize,
                 giverName: values.giverName.trim() || undefined,
+                familyName: values.familyName?.trim() || undefined,
                 amountCents,
                 claimUrl,
               });

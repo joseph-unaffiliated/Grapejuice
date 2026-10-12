@@ -35,13 +35,10 @@ export function GiftGiverChildrenFields({ children, onChange, disabled, showHead
   const setKidAge = (index: number, choice: KidAgeChoice) => {
     if (disabled) return;
     const next = [...children];
-    if (choice === '18+') {
-      next[index] = giftChildFromAge(18);
-    } else if (choice === '13-17') {
-      next[index] = giftChildFromAge(15);
-    } else {
-      next[index] = giftChildFromAge(choice);
-    }
+    const name = children[index]?.name;
+    const aged =
+      choice === '18+' ? giftChildFromAge(18) : choice === '13-17' ? giftChildFromAge(15) : giftChildFromAge(choice);
+    next[index] = name?.trim() ? { ...aged, name } : aged;
     onChange(next);
   };
 

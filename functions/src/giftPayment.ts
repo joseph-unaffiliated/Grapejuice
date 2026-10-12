@@ -32,6 +32,10 @@ export type GiftInviteRecord = {
   shippingAddress?: Record<string, string>;
   childInterests?: string[];
   childAgeGroups?: string[];
+  /** Optional household label from the giver ("The Golds"). */
+  familyName?: string;
+  /** Curated box: age band, planner age, and an optional name per kid. */
+  giftChildren?: { name?: string; ageGroup: string; plannerAge: number }[];
   /** Giver's browser Meta ids at purchase (Conversions API match keys). */
   metaContext?: Record<string, string | boolean>;
   /** Giver's first / last-touch UTMs. */
@@ -173,4 +177,37 @@ export async function finalizeGiftInvitePayment(
     recipientEmail: invite.recipientEmail,
   });
   return { claimUrl, alreadyFinalized: true };
+}
+
+const GIFT_AGE_GROUPS = new Set(['0-2', '3-5', '6-8', '9-12']);
+
+function cleanGiftLabel(raw: unknown, max: number): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const s = raw.replace(/[\u0000-\u001F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  return s || undefined;
+}
+
+/** Household label the giver typed. Empty and junk become undefined. */
+export function sanitizeGiftFamilyName(raw: unknown): string | undefined {
+  return cleanGiftLabel(raw, 60);
+}
+
+export type GiftChildRecord = { name?: string; ageGroup: string; plannerAge: number };
+
+/** Ages the box was planned for, plus an optional name. Drops rows that aren't objects. */
+export function sanitizeGiftChildren(raw: unknown): GiftChildRecord[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: GiftChildRecord[] = [];
+  for (const row of raw.slice(0, 8)) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const ageGroup = typeof r.ageGroup === 'string' && GIFT_AGE_GROUPS.has(r.ageGroup) ? r.ageGroup : '6-8';
+    const plannerAge =
+      typeof r.plannerAge === 'number' && Number.isFinite(r.plannerAge)
+        ? Math.max(0, Math.min(17, Math.floor(r.plannerAge)))
+        : 6;
+    const name = cleanGiftLabel(r.name, 40);
+    out.push({ ageGroup, plannerAge, ...(name ? { name } : {}) });
+  }
+  return out.length ? out : undefined;
 }

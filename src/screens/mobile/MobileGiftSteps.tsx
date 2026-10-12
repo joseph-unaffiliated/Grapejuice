@@ -59,8 +59,19 @@ function NoteLine({ icon, text }: { icon: (typeof icons)[keyof typeof icons]; te
   );
 }
 
-/** gift.html s=3: how many kids and roughly how old. */
-export function MobileGiftFamily({ kids, onChange }: { kids: GiftChildDraft[]; onChange: (next: GiftChildDraft[]) => void }) {
+/** gift.html s=3: family name, how many kids, and roughly how old. Names are optional. */
+export function MobileGiftFamily({
+  kids,
+  familyName,
+  onChange,
+  onFamilyName,
+}: {
+  kids: GiftChildDraft[];
+  familyName: string;
+  onChange: (next: GiftChildDraft[]) => void;
+  onFamilyName: (v: string) => void;
+}) {
+  const [naming, setNaming] = React.useState<number | null>(null);
   const setCount = (n: number) => {
     const next = kids.slice(0, n);
     while (next.length < n) next.push({ ...giftChildFromAge(UNSURE_AGE), ageUnsure: true });
@@ -68,13 +79,21 @@ export function MobileGiftFamily({ kids, onChange }: { kids: GiftChildDraft[]; o
   };
   const setAge = (i: number, age: number | null) => {
     const next = [...kids];
-    next[i] = age == null ? { ...giftChildFromAge(UNSURE_AGE), ageUnsure: true } : giftChildFromAge(age);
+    const name = kids[i]?.name;
+    const aged = age == null ? { ...giftChildFromAge(UNSURE_AGE), ageUnsure: true } : giftChildFromAge(age);
+    next[i] = name?.trim() ? { ...aged, name } : aged;
+    onChange(next);
+  };
+  const setName = (i: number, name: string) => {
+    const next = [...kids];
+    next[i] = { ...next[i], name };
     onChange(next);
   };
   return (
     <View>
       <Head title="Who is it for?" lede="We pick a book and a present for each kid, based on their age." />
       <View style={styles.pad}>
+        <MobileField label="Family name" value={familyName} onChangeText={onFamilyName} placeholder="The Golds" autoComplete="off" hint="Shown on the note and the box" />
         <View style={styles.kidRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Kids</Text>
@@ -82,9 +101,19 @@ export function MobileGiftFamily({ kids, onChange }: { kids: GiftChildDraft[]; o
           </View>
           <Stepper value={kids.length} min={1} max={MAX_GIFT_KIDS} onChange={setCount} label="kids" />
         </View>
-        {kids.map((kid, i) => (
+        {kids.map((kid, i) => {
+          const named = kid.name?.trim();
+          return (
           <View key={i} style={styles.kidCard}>
-            <Text style={styles.kidTitle}>Kid {i + 1}</Text>
+            <View style={styles.kidHead}>
+              <Text style={styles.kidTitle}>{named || `Kid ${i + 1}`}</Text>
+              <Text style={styles.nameLink} onPress={() => setNaming(naming === i ? null : i)} accessibilityRole="button">
+                {named ? 'Edit name' : 'Name optional'}
+              </Text>
+            </View>
+            {naming === i ? (
+              <MobileField label="Name" value={kid.name ?? ''} onChangeText={(name) => setName(i, name)} placeholder="Maya" autoComplete="off" style={{ marginBottom: 10 }} />
+            ) : null}
             <View style={styles.chips}>
               {AGE_BANDS.map((b) => (
                 <Chip key={b.label} label={b.label} on={!kid.ageUnsure && kid.ageGroup === giftChildFromAge(b.age).ageGroup} onPress={() => setAge(i, b.age)} />
@@ -92,7 +121,8 @@ export function MobileGiftFamily({ kids, onChange }: { kids: GiftChildDraft[]; o
               <Chip label="Not sure" on={!!kid.ageUnsure} onPress={() => setAge(i, null)} />
             </View>
           </View>
-        ))}
+          );
+        })}
         {kids.length < MAX_GIFT_KIDS ? (
           <Text style={styles.link} onPress={() => setCount(kids.length + 1)} accessibilityRole="button">
             + Add a kid · {dollars(PRICING_POLICY.perExtraKidCents)}
@@ -179,8 +209,9 @@ export const MobileGiftSave = forwardRef<TextInput, SaveProps>(function MobileGi
 });
 
 /** gift.html s=7: the note, with what they'll see. */
-export function MobileGiftNote({ name, message, onName, onMessage, customize }: { name: string; message: string; onName: (v: string) => void; onMessage: (v: string) => void; customize: boolean }) {
+export function MobileGiftNote({ name, message, onName, onMessage, customize, familyName }: { name: string; message: string; onName: (v: string) => void; onMessage: (v: string) => void; customize: boolean; familyName?: string }) {
   const from = name.trim() || 'you';
+  const family = familyName?.trim();
   return (
     <View>
       <Head title="Add a note" lede="They'll see it in the email with your gift." />
@@ -191,7 +222,7 @@ export function MobileGiftNote({ name, message, onName, onMessage, customize }: 
         <View style={styles.preview}>
           <Text style={styles.previewLab}>What they'll see</Text>
           <View style={styles.previewCard}>
-            <Text style={styles.previewEyebrow}>A gift from {from}</Text>
+            <Text style={styles.previewEyebrow}>A gift from {from}{family ? ` for ${family}` : ''}</Text>
             <Text style={styles.previewH2}>{customize ? 'Your Hanukkah box is on the way' : 'You got Hanukkah credit'}</Text>
             {message.trim() ? <Text style={styles.previewBody}>{message.trim()}</Text> : null}
             <View style={styles.previewBtn}>
@@ -303,7 +334,9 @@ const styles = StyleSheet.create({
   stepText: { fontSize: 18, color: m.goldDark, ...mFont(400) },
   stepValue: { minWidth: 18, textAlign: 'center', fontSize: 15, color: m.ink, ...mFont(400) },
   kidCard: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: m.line },
-  kidTitle: { fontSize: 16, color: m.ink, marginBottom: 10, ...mFont(400) },
+  kidHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  kidTitle: { flex: 1, fontSize: 16, color: m.ink, ...mFont(400) },
+  nameLink: { fontSize: 13, color: m.goldDark, ...mFont(400) },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { height: 38, paddingHorizontal: 14, borderRadius: 19, borderWidth: 1, borderColor: m.gold, justifyContent: 'center', backgroundColor: m.white },
   chipOn: { backgroundColor: m.ink, borderColor: m.ink },

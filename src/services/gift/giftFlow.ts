@@ -36,6 +36,8 @@ export async function purchasePilotGift(input: {
   lineItems?: BoxLineItem[];
   childInterests?: ChildInterestId[];
   childAgeGroups?: AgeGroup[];
+  familyName?: string;
+  giftChildren?: { name?: string; ageGroup: AgeGroup; plannerAge: number }[];
   shippingAddress?: import('../../types/pilot').ShippingAddress;
 }): Promise<PurchaseGiftResult> {
   if (!functions) throw new Error('Firebase Functions is not configured.');

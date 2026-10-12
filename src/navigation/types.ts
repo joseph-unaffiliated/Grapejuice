@@ -120,6 +120,7 @@ export type MainStackParamList = {
     recipientEmail: string;
     customize: boolean;
     giverName?: string;
+    familyName?: string;
     amountCents?: number;
     claimUrl?: string;
   };

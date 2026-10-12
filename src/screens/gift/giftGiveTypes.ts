@@ -15,6 +15,8 @@ export type GiftGiveFormValues = {
   shippingAddress?: ShippingAddress;
   /** Credit only: kids in their family, so the credit covers a box for all of them. */
   creditKids?: number;
+  /** Optional label for their household, shown on the box and the note preview. */
+  familyName?: string;
 };
 
 export const MAX_GIFT_CREDIT_KIDS = 8;
@@ -48,6 +50,8 @@ export type GiftChildDraft = {
   plannerAge: number;
   /** Phone: the giver picked "Not sure" (we plan for the default age). */
   ageUnsure?: boolean;
+  /** Optional. The box says "a gift for Maya" when it's set. */
+  name?: string;
 };
 
 export const DEFAULT_GIFT_CHILDREN: GiftChildDraft[] = [
@@ -63,9 +67,25 @@ export function giftChildFromAge(age: number): GiftChildDraft {
 }
 
 export function giftChildrenToProfiles(drafts: GiftChildDraft[]) {
-  return drafts.map((d, i) => ({
-    id: `gift-child-${i}`,
-    ageGroup: d.ageGroup,
-    plannerAge: d.plannerAge,
-  }));
+  return drafts.map((d, i) => {
+    const name = d.name?.trim();
+    return {
+      id: `gift-child-${i}`,
+      ageGroup: d.ageGroup,
+      plannerAge: d.plannerAge,
+      ...(name ? { name } : {}),
+    };
+  });
+}
+
+/** What purchasePilotGift stores. Names are optional; ages always go. */
+export function giftChildrenForServer(drafts: GiftChildDraft[]) {
+  return drafts.map((d) => {
+    const name = d.name?.trim().slice(0, 40);
+    return {
+      ageGroup: d.ageGroup,
+      plannerAge: d.plannerAge,
+      ...(name ? { name } : {}),
+    };
+  });
 }
