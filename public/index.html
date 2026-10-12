@@ -324,6 +324,14 @@ geq.load("X2JHJ4WE");}();
         height: 0 !important;
         overflow: hidden !important;
       }
+      /* Phones: hide the cookie FAB while typing (any field, including Stripe's card iframe). */
+      @media (max-width: 767px) {
+        body:has(#root input:focus, #root textarea:focus, #root iframe:focus) #ot-sdk-btn-floating,
+        body:has(#root input:focus, #root textarea:focus, #root iframe:focus) .ot-floating-button,
+        body:has(#root input:focus, #root textarea:focus, #root iframe:focus) [id^="ot-sdk-btn"] {
+          display: none !important;
+        }
+      }
       /* Full-width bottom bar (gift box summary on phones): lift the cookie FAB above it. */
       body.gj-bottom-bar #ot-sdk-btn-floating,
       body.gj-bottom-bar #ot-sdk-btn-floating.ot-floating-button,

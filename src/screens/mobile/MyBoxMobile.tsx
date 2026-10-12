@@ -5,6 +5,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { Icon } from '../../components/ui/Icon';
+import { DreidelIcon } from '../../components/ui/DreidelIcon';
 import { icons } from '../../constants/icons';
 import { BOX_DISPLAY_SECTIONS, displaySectionForCatalogItem, displaySectionForLineItem, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { openIcs } from '../../components/holiday/AddToCalendarMenu';
@@ -69,13 +70,16 @@ type Sheet =
   | { kind: 'donated' }
   | null;
 
-const SECTION_ICON: Record<BoxDisplaySectionId, (typeof icons)[keyof typeof icons]> = {
+const SECTION_ICON: Record<Exclude<BoxDisplaySectionId, 'dreidel'>, (typeof icons)[keyof typeof icons]> = {
   candles: icons.menorah,
-  dreidel: icons.dice,
   food: icons.utensils,
   story: icons.book,
   presents: icons.gift,
 };
+
+function SectionIcon({ id, size, color }: { id: BoxDisplaySectionId; size: number; color: string }) {
+  return id === 'dreidel' ? <DreidelIcon size={size} color={color} /> : <Icon icon={SECTION_ICON[id]} size={size} color={color} />;
+}
 
 const SHORT: Record<BoxDisplaySectionId, string> = { candles: 'Candles', dreidel: 'Dreidel', food: 'Eat', story: 'Story', presents: 'Gifts' };
 
@@ -308,7 +312,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     return (
       <View key={s.id} onLayout={(ev) => (sectionY.current[s.id] = ev.nativeEvent.layout.y)} style={styles.section}>
         <View style={styles.sectionHead}>
-          <Icon icon={SECTION_ICON[s.id]} size={18} color={m.gold} />
+          <SectionIcon id={s.id} size={18} color={m.gold} />
           <Text style={styles.sectionTitle}>{sectionTitle(s.id, s.title)}</Text>
         </View>
         {rows.map((g) => <Row key={g.key} g={g} sectionId={s.id} />)}
@@ -367,7 +371,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         visible
         onClose={() => setSheet(null)}
         title={s.title}
-        titleIcon={<Icon icon={SECTION_ICON[sectionId]} size={16} color={m.goldDark} />}
+        titleIcon={<SectionIcon id={sectionId} size={16} color={m.goldDark} />}
         footer={
           <View style={styles.sheetFoot}>
             <View style={{ flex: 1 }}>
@@ -557,7 +561,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         return (
           <View key={s.id} style={styles.rcGroup}>
             <View style={styles.sectionHead}>
-              <Icon icon={SECTION_ICON[s.id]} size={13} color={m.goldDark} />
+              <SectionIcon id={s.id} size={13} color={m.goldDark} />
               <Text style={styles.rcHead}>{s.title}</Text>
             </View>
             {rows.map((g) => {

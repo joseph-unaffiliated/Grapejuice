@@ -1387,6 +1387,17 @@ async function savedCardSummary(
   }
 }
 
+/** Box checkout: which card is on file, so the payment section can name it. */
+export const getSavedCardSummary = onCall(async (request) => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const householdId = String(request.data?.householdId ?? '').trim();
+  if (!householdId) throw new HttpsError('invalid-argument', 'householdId is required.');
+  const hhSnap = await assertHouseholdMember(request.auth.uid, householdId);
+  const hhData = hhSnap.data() ?? {};
+  const customerId = typeof hhData.stripeCustomerId === 'string' ? hhData.stripeCustomerId : '';
+  return { savedCard: await savedCardSummary(hhData, customerId) };
+});
+
 /**
  * Pay a pending storefront order with the household's saved card. The buyer chose it on the
  * payment step; only an authenticated household member whose card it is may charge it.

@@ -7,7 +7,7 @@ import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
 import { m, mFont } from './mobileTheme';
 
 type Props = {
-  /** Small line above the total: "Box $80 + $15", "Charged when it ships". */
+  /** Small line above the total: "Box $80 + $15", "Charged after Nov 7". */
   label?: string;
   /** The big number or phrase: "Total $95", "$84.80". */
   total?: string;

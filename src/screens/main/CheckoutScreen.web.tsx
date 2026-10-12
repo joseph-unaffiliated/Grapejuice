@@ -38,7 +38,9 @@ import { CheckoutCongratsOverlay } from './checkout/CheckoutCongratsOverlay';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileBoundary } from '../../components/mobile/MobileBoundary';
-import { MobileCardAndPlaceOrder, MobileCheckoutDone, MobileCheckoutGate, MobileCheckoutLayout } from '../mobile/MobileCheckoutParts';
+import { MobileCardAndPlaceOrder, MobileCheckoutDone, MobileCheckoutGate, MobileCheckoutLayout, MobileSavedCard } from '../mobile/MobileCheckoutParts';
+import { getSavedCardSummary, type SavedCardSummary } from '../../services/checkout/createMarketplaceCheckout';
+import { savedCardLabel } from '../storefront/MarketplacePaymentPanel.web';
 import { StickyBar } from '../../components/mobile/StickyBar';
 import { lockShortLabel } from '../../hooks/useBoxGlance';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
@@ -410,6 +412,39 @@ function CheckoutScreenBody() {
     }
   };
 
+  /** Phone: the saved card's brand and last four, and whether the shopper is entering a new one. */
+  const [savedCard, setSavedCard] = useState<SavedCardSummary | null>(null);
+  const [replacingCard, setReplacingCard] = useState(false);
+  useEffect(() => {
+    if (!mobileLayout || !cardOnFile || !household?.id) return;
+    let alive = true;
+    void getSavedCardSummary(household.id)
+      .then((card) => alive && setSavedCard(card))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [mobileLayout, cardOnFile, household?.id, household?.stripeDefaultPaymentMethodId]);
+
+  const startCardReplace = async () => {
+    if (!household?.id || !stripeKey) return;
+    cardBeforeSetupRef.current = { at: household.cardOnFileAt, pm: household.stripeDefaultPaymentMethodId };
+    setReplacingCard(true);
+    if (setupSecretRef.current) {
+      setSetupClientSecret(setupSecretRef.current);
+      return;
+    }
+    try {
+      const result = await takeSetupIntent(household.id);
+      if (!result.clientSecret) throw new Error('No setup secret returned.');
+      setupSecretRef.current = result.clientSecret;
+      setSetupClientSecret(result.clientSecret);
+    } catch (e) {
+      setReplacingCard(false);
+      notifyCheckout('Could not load the card form', formatSetupIntentError(e));
+    }
+  };
+
   /** Phone one-page checkout: the card form sits under the address, so create the SetupIntent as soon as we know a card is needed. */
   const mobileSetupStarted = useRef(false);
   useEffect(() => {
@@ -728,19 +763,31 @@ function CheckoutScreenBody() {
     );
     const smsBlock = <CheckoutSmsOptIn phone={contactPhone} smsOptIn={smsOptIn} onPhoneChange={setContactPhone} onSmsOptInChange={setSmsOptIn} />;
     const totalLabel = money(total);
-    const needsCard = !cardReady;
+    const replacing = replacingCard && cardOnFile && !awaitingCardOnFile;
+    const needsCard = !cardReady || replacing;
     const payment =
       needsCard && setupClientSecret && stripePromise ? (
-        <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}>
-          <MobileCardAndPlaceOrder
-            total={totalLabel}
-            beforeConfirm={ensureAddressDeliverable}
-            onSaved={() => void onCardSaved()}
-            returnUrl={checkoutReturnUrl()}
-            disabled={locked || committing}
-            notify={notifyCheckout}
-          />
-        </Elements>
+        <>
+          <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}>
+            <MobileCardAndPlaceOrder
+              total={totalLabel}
+              chargeLabel={`Charged after ${lockShort}`}
+              beforeConfirm={ensureAddressDeliverable}
+              onSaved={() => {
+                setReplacingCard(false);
+                void onCardSaved();
+              }}
+              returnUrl={checkoutReturnUrl()}
+              disabled={locked || committing}
+              notify={notifyCheckout}
+            />
+          </Elements>
+          {replacing ? (
+            <TouchableOpacity onPress={() => setReplacingCard(false)} accessibilityRole="button" style={styles.changeCard}>
+              <Text style={page.link}>Keep {savedCard ? savedCardLabel(savedCard) : 'my saved card'}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
       ) : needsCard ? (
         <View style={styles.savingCardRow}>
           <BrandLoadingMark large={false} color={colors.brand} />
@@ -752,17 +799,16 @@ function CheckoutScreenBody() {
           <Text style={styles.savingCardCopy}>Saving your card…</Text>
         </View>
       ) : (
-        <View>
-          <Text style={checkoutUi.hint}>Card saved.</Text>
-          <TouchableOpacity onPress={() => void startSetup()} disabled={preparing || locked} accessibilityRole="button" accessibilityLabel="Change card" style={styles.changeCard}>
-            <Text style={page.link}>Change card</Text>
-          </TouchableOpacity>
-        </View>
+        <MobileSavedCard
+          label={savedCard ? savedCardLabel(savedCard) : 'Card on file'}
+          onChange={() => void startCardReplace()}
+          disabled={locked || committing}
+        />
       );
     const bar =
       needsCard && setupClientSecret ? null : (
         <StickyBar
-          label="Charged when it ships"
+          label={`Charged after ${lockShort}`}
           total={totalLabel}
           layout="stack"
           cta={{

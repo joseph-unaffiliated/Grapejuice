@@ -36,7 +36,7 @@ function moneyLine(o: UnifiedOrder): string {
   const total = formatDollars(o.totalCents);
   const st = o.pilotOrder?.status;
   if (o.giftInvite) return `${total} · ${giftInvitePaid(o.giftInvite) ? 'paid' : 'not paid yet'}`;
-  if (st === 'pending' || st === 'committed') return `${total} · charged when it ships`;
+  if (st === 'pending' || st === 'committed') return `${total} · charged after the lock date`;
   if (st === 'cancelled') return `${total} · not charged`;
   return `${total} · paid`;
 }

@@ -258,7 +258,7 @@ export function MobileAccountHub(p: Props) {
         </View>
         <Text style={[mType.body, { marginTop: 14 }]} {...balanceProps}>
           {p.cardOnFile
-            ? `Your box is charged when it ships, after ${glance.lockShort}. Nothing is charged before then.`
+            ? `Your box is charged after ${glance.lockShort}. Nothing is charged before then.`
             : NOT_HELD_COPY}
         </Text>
         {p.creditLabel ? (

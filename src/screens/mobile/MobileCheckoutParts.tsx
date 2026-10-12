@@ -46,7 +46,28 @@ function Secure() {
   );
 }
 
+/** The card already on file, named, with a clear way to use another. */
+export function MobileSavedCard({ label, onChange, disabled }: { label: string; onChange: () => void; disabled?: boolean }) {
+  return (
+    <View style={styles.savedCard}>
+      <View style={styles.savedCardIcon}>
+        <Icon icon={icons.card} size={16} color={m.goldDark} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.savedCardTitle} numberOfLines={1}>{label}</Text>
+        <Text style={styles.savedCardSub}>Saved card · used for this box</Text>
+      </View>
+      <Pressable onPress={onChange} disabled={disabled} accessibilityRole="button" accessibilityLabel="Use a different card" hitSlop={8}>
+        <Text style={styles.link}>Use a different card</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 /* ------------------------------------------------------------------ one-page checkout */
+
+/** OneTrust's cookie button floats just above the bar; the terms must be able to scroll past it. */
+const COOKIE_BUTTON_CLEARANCE = 110;
 
 type LayoutProps = {
   onBack: () => void;
@@ -70,11 +91,11 @@ export function MobileCheckoutLayout(p: LayoutProps) {
   return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Box', onPress: p.onBack }} title="Checkout" right={<Secure />} />
-      <ScrollView contentContainerStyle={{ paddingBottom: STICKY_BAR_CLEARANCE + 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: STICKY_BAR_CLEARANCE + COOKIE_BUTTON_CLEARANCE }} keyboardShouldPersistTaps="handled">
         <View style={styles.pad}>
           <View style={styles.assure}>
             <Icon icon={icons.calendar} size={14} color={m.goldDark} />
-            <Text style={styles.assureText}>Not charged until it ships · change anything until {p.lockShort}</Text>
+            <Text style={styles.assureText}>Changes allowed until {p.lockShort} · Nothing charged until then</Text>
           </View>
           {!p.cardOnFile ? <Text style={styles.held}>{NOT_HELD_COPY}</Text> : null}
           {p.lockedNote ? <Text style={styles.error}>{p.lockedNote}</Text> : null}
@@ -89,7 +110,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
               }
               items={p.thumbs}
               lines={p.lines}
-              totalLabel="Charged when it ships"
+              totalLabel={`Charged after ${p.lockShort}`}
               total={p.total}
             >
               {open ? p.receipt : null}
@@ -107,12 +128,12 @@ export function MobileCheckoutLayout(p: LayoutProps) {
         <View style={[styles.pad, { paddingTop: 26 }]}>
           <View style={styles.sectionHead}>
             <Text style={mType.h2}>Payment</Text>
-            <Text style={mType.small}>Saved now, charged when it ships</Text>
+            <Text style={mType.small}>Saved now, charged after {p.lockShort}</Text>
           </View>
           {p.payment}
           {p.discount ? <View style={{ marginTop: 12 }}>{p.discount}</View> : null}
           <Text style={styles.terms} {...balanceProps}>
-            By placing your order you agree to Grapejuice's Terms and Privacy Policy. Your card is charged when your box ships, after {p.lockShort}.
+            By placing your order you agree to Grapejuice's Terms and Privacy Policy. Your card is charged after {p.lockShort}, when your box is prepared to ship.
           </Text>
         </View>
       </ScrollView>
@@ -128,6 +149,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
  */
 export function MobileCardAndPlaceOrder({
   total,
+  chargeLabel,
   beforeConfirm,
   onSaved,
   returnUrl,
@@ -135,6 +157,7 @@ export function MobileCardAndPlaceOrder({
   notify,
 }: {
   total: string;
+  chargeLabel: string;
   beforeConfirm: () => Promise<boolean>;
   onSaved: () => void;
   returnUrl?: string;
@@ -165,7 +188,7 @@ export function MobileCardAndPlaceOrder({
       <View style={styles.cardWrap}>
         <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </View>
-      <StickyBar label="Charged when it ships" total={total} layout="stack" cta={{ label: 'Place order', onPress: () => void place(), busy: saving, disabled: disabled || saving || !stripe || !elements }} testID="mobile-checkout-bar" />
+      <StickyBar label={chargeLabel} total={total} layout="stack" cta={{ label: 'Place order', onPress: () => void place(), busy: saving, disabled: disabled || saving || !stripe || !elements }} testID="mobile-checkout-bar" />
     </>
   );
 }
@@ -186,7 +209,7 @@ export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }
     void Linking.openURL(`data:text/calendar;charset=utf8,${encodeURIComponent(body)}`);
   };
   return (
-    <MobileDoneLayout title="Your box is set" lede={`You can change anything until ${lockShort}. Nothing is charged until it ships.`} steps={steps}>
+    <MobileDoneLayout title="Your box is set" lede={`You can change anything until ${lockShort}. Nothing is charged until then.`} steps={steps}>
       <MobileButton label="View my box" onPress={onViewBox} />
       <MobileButton label="Shop extras" variant="secondary" onPress={onShop} style={{ marginTop: 10 }} />
       <Pressable onPress={ics} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: 16 }}>
@@ -247,6 +270,10 @@ const styles = StyleSheet.create({
   label: { fontSize: 12.5, color: m.muted, marginBottom: 6, ...mFont(400) },
   input: { height: 50, borderWidth: 1, borderColor: m.gold, borderRadius: mRadius.md, paddingHorizontal: 14, fontSize: 16, color: m.ink, ...mFont(400) },
   link: { fontSize: 13, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
+  savedCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: mRadius.md, borderWidth: 1, borderColor: m.gold, backgroundColor: m.beige },
+  savedCardIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: m.white, alignItems: 'center', justifyContent: 'center' },
+  savedCardTitle: { fontSize: 15.5, color: m.ink, ...mFont(400) },
+  savedCardSub: { fontSize: 12.5, color: m.muted, marginTop: 2, ...mFont(400) },
   sentTo: { fontSize: 13, color: m.muted, marginBottom: 12, ...mFont(400) },
   cardWrap: { minHeight: 120 },
   badge: { width: 52, height: 52, borderRadius: 26, backgroundColor: m.gold, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },

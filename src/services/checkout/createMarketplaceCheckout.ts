@@ -122,3 +122,11 @@ export async function createMarketplaceCheckout(
   });
   return data;
 }
+
+/** The household's saved card for box checkout, or null when there isn't one. */
+export async function getSavedCardSummary(householdId: string): Promise<SavedCardSummary | null> {
+  if (!functions) return null;
+  const callable = httpsCallable<{ householdId: string }, { savedCard: SavedCardSummary | null }>(functions, 'getSavedCardSummary');
+  const { data } = await callable({ householdId });
+  return data.savedCard ?? null;
+}

@@ -120,7 +120,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         <View style={styles.trust}>
           <Trust icon={icons.truck} text="Free shipping" />
           <Trust icon={icons.pen} text={`Change anything until ${glance.lockShort}`} />
-          <Trust icon={icons.card} text="Charged when it ships" />
+          <Trust icon={icons.card} text={`Nothing charged until ${glance.lockShort}`} />
         </View>
       </View>
     </View>
@@ -135,7 +135,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         {glance.state === 'set' ? (
           <>
             <Text style={styles.pill}>Set · ships after {glance.lockShort}</Text>
-            <Line icon={icons.pen} text={`Change anything until ${glance.lockShort}. Charged when it ships.`} />
+            <Line icon={icons.pen} text={`Change anything until ${glance.lockShort}. Nothing charged until then.`} />
           </>
         ) : (
           <>
@@ -183,7 +183,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
             <View style={styles.steps}>
               <Step n="1" title="Tell us about your family" text="Kids' ages and how you usually celebrate. Two minutes." />
               <Step n="2" title="We pick everything" text="Candles, dreidels, gelt, food kits, a book and a present for each kid." />
-              <Step n="3" title={`Swap anything until ${glance.lockShort}`} text="Your card is charged when it ships, in time for the first night." />
+              <Step n="3" title={`Swap anything until ${glance.lockShort}`} text="Your card is charged after that, and the box arrives in time for the first night." />
             </View>
           </View>
         </>
