@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform } from 'react-native';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { m } from '../../components/mobile/mobileTheme';
+import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import {
@@ -106,6 +109,7 @@ function useAdminList<T>(load: () => Promise<T[]>) {
 // ---------------------------------------------------------------------------
 
 function Chip({ label, active, onPress, styles }: { label: string; active?: boolean; onPress: () => void; styles: Styles }) {
+  const mobile = useMobileLayout();
   return (
     <TouchableOpacity
       style={[styles.chip, active && styles.chipActive]}
@@ -113,7 +117,7 @@ function Chip({ label, active, onPress, styles }: { label: string; active?: bool
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
     >
-      <Text style={styles.chipLabel} numberOfLines={1}>
+      <Text style={[styles.chipLabel, mobile && active && { color: m.goldDark }]} numberOfLines={mobile ? 2 : 1}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -811,8 +815,12 @@ function InfluencersSection({ styles, colors }: { styles: Styles; colors: Semant
 
 /** Discounts, direct credit and influencer links — the tabs of the Promotions admin page. */
 export function PromotionsSection({ tab }: { tab: PromotionsTab }) {
+  const mobile = useMobileLayout();
   const { colors } = useThemeMode();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => {
+    const base = createStyles(colors);
+    return mobile ? paintOpsMobile(base) : base;
+  }, [colors, mobile]);
   if (tab === 'discounts') return <DiscountsSection styles={styles} colors={colors} />;
   if (tab === 'credit') return <CreditSection styles={styles} colors={colors} />;
   return <InfluencersSection styles={styles} colors={colors} />;

@@ -16,7 +16,11 @@ import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useViewportPinnedHeight } from '../../components/storefront/storefrontViewport';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m, mGutter } from '../../components/mobile/mobileTheme';
+import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
@@ -186,14 +190,15 @@ function Chip({
   onPress: () => void;
   styles: Styles;
 }) {
+  const mobile = useMobileLayout();
   return (
     <TouchableOpacity
-      style={[styles.chip, active && styles.chipActive]}
+      style={[styles.chip, active && styles.chipActive, mobile && { maxWidth: '100%' }]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
     >
-      <Text style={styles.chipLabel} numberOfLines={1}>
+      <Text style={[styles.chipLabel, mobile && active && { color: m.goldDark }]} numberOfLines={mobile ? 3 : 1}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -288,8 +293,65 @@ function SortTable<T>({
   };
   const expandable = Boolean(renderDetail && onToggle);
   const totalWidth = columns.reduce((s, c) => s + c.width, 0) + 20 + (expandable ? 28 : 0);
+  const mobile = useMobileLayout();
 
   if (rows.length === 0) return <Text style={styles.hint}>{emptyMessage}</Text>;
+
+  if (mobile) {
+    return (
+      <View style={{ gap: 10 }}>
+        <View style={styles.chipRow}>
+          {columns.map((c, i) =>
+            c.sort ? (
+              <Chip
+                key={c.label}
+                label={`${c.label}${sort?.col === i ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`}
+                active={sort?.col === i}
+                onPress={() => onHeader(i)}
+                styles={styles}
+              />
+            ) : null,
+          )}
+        </View>
+        {sorted.map((row) => {
+          const key = rowKey(row);
+          const open = expandable && openKey === key;
+          const tone = toneColor(colors, rowTone?.(row));
+          return (
+            <View
+              key={key}
+              style={{
+                backgroundColor: m.beige,
+                borderRadius: 12,
+                padding: 14,
+                borderWidth: 1,
+                borderColor: open ? m.gold : 'transparent',
+              }}
+            >
+              <TouchableOpacity
+                activeOpacity={expandable ? 0.7 : 1}
+                disabled={!expandable}
+                onPress={() => onToggle?.(key)}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                  <View style={[styles.dot, { backgroundColor: tone, marginTop: 6 }]} />
+                  <View style={{ flex: 1, minWidth: 0 }}>{renderCell(columns[0], row, styles)}</View>
+                  {expandable ? <Text style={styles.toggle}>{open ? '⌄' : '›'}</Text> : null}
+                </View>
+                {columns.slice(1).map((c) => (
+                  <View key={c.label} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 6 }}>
+                    <Text style={[styles.th, { width: 118 }]}>{c.label}</Text>
+                    <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}>{renderCell(c, row, styles, 'right')}</View>
+                  </View>
+                ))}
+              </TouchableOpacity>
+              {open && renderDetail ? <View style={{ marginTop: 10 }}>{renderDetail(row)}</View> : null}
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: '100%' }}>
@@ -354,6 +416,14 @@ function SortTable<T>({
       </View>
     </ScrollView>
   );
+}
+
+function renderCell<T>(c: Column<T>, row: T, styles: Styles, align?: 'left' | 'right') {
+  const v = c.cell(row);
+  if (typeof v === 'string') {
+    return <Text style={[styles.td, (align ?? c.align) === 'right' && { textAlign: 'right' }]}>{v}</Text>;
+  }
+  return v;
 }
 
 function Who({ name, email, styles }: { name: string | null; email: string | null; styles: Styles }) {
@@ -1379,6 +1449,7 @@ function FunnelBars({
       drop = lost;
     }
   });
+  const mobile = useMobileLayout();
   if (top === 0) return <Text style={styles.hint}>{emptyMessage}</Text>;
   return (
     <>
@@ -1402,7 +1473,7 @@ function FunnelBars({
                 <View
                   style={[
                     styles.funnelFill,
-                    { width: `${(s.count / top) * 100}%`, backgroundColor: isBiggest ? colors.error : colors.brand },
+                    { width: `${(s.count / top) * 100}%`, backgroundColor: isBiggest ? colors.error : mobile ? m.gold : colors.brand },
                   ]}
                 />
               </View>
@@ -1729,7 +1800,10 @@ export function AdminBoxesScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const mobile = useMobileLayout();
+  const insets = useSafeAreaInsets();
+  const baseStyles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
   const { data, error, refreshing, refresh } = useBoxesDashboard(allowed);
@@ -1801,12 +1875,17 @@ export function AdminBoxesScreen() {
             {error ? (
               <>
                 <Text style={styles.error}>{error}</Text>
+                {mobile ? (
+                  <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
+                    <Text style={styles.backLink}>← Account</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity onPress={() => void refresh()}>
                   <Text style={styles.backLink}>Try again</Text>
                 </TouchableOpacity>
               </>
             ) : (
-              <BrandLoadingMark color={colors.brand} />
+              <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
             )}
           </View>
         </WebContentPanel>
@@ -1842,7 +1921,14 @@ export function AdminBoxesScreen() {
   return (
     <View ref={hostRef} style={hostStyle}>
       <WebContentPanel {...panelProps}>
-        <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+        <ScrollView
+          style={styles.root}
+          contentContainerStyle={[
+            styles.content,
+            mobile && { paddingTop: 12 + insets.top, paddingBottom: 96 + insets.bottom, paddingHorizontal: mGutter },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} style={styles.backWrap}>
             <Text style={styles.backLink}>← Account</Text>
           </TouchableOpacity>

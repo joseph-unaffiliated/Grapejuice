@@ -7,7 +7,11 @@ import { isOpsAdmin } from '../../constants/admin';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useViewportPinnedHeight } from '../../components/storefront/storefrontViewport';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m, mGutter } from '../../components/mobile/mobileTheme';
+import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
@@ -45,7 +49,10 @@ export function AdminPromotionsScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const mobile = useMobileLayout();
+  const insets = useSafeAreaInsets();
+  const baseStyles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
   const hostRef = useRef<View>(null);
@@ -86,7 +93,14 @@ export function AdminPromotionsScreen() {
   return (
     <View ref={hostRef} style={hostStyle}>
       <WebContentPanel {...panelProps}>
-        <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+        <ScrollView
+          style={styles.root}
+          contentContainerStyle={[
+            styles.content,
+            mobile && { paddingTop: 12 + insets.top, paddingBottom: 96 + insets.bottom, paddingHorizontal: mGutter },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} style={styles.backWrap}>
             <Text style={styles.backLink}>← Account</Text>
           </TouchableOpacity>

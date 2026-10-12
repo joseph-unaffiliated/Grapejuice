@@ -21,7 +21,12 @@ import { availabilityRemaining } from '../../services/catalog/availability';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m, mGutter } from '../../components/mobile/mobileTheme';
+import { MobileButton } from '../../components/mobile/MobileButton';
+import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
@@ -51,7 +56,11 @@ export function AdminCatalogScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const mobile = useMobileLayout();
+  const insets = useSafeAreaInsets();
+  const baseStyles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
+  const phonePad = mobile ? { paddingTop: 8 + insets.top, paddingHorizontal: mGutter } : null;
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
 
@@ -118,7 +127,7 @@ export function AdminCatalogScreen() {
     <WebContentPanel {...panelProps}>
       <View style={styles.root}>
         <View style={styles.column}>
-          <View style={styles.header}>
+          <View style={[styles.header, phonePad]}>
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
               <Text style={styles.backLink}>← Account</Text>
             </TouchableOpacity>
@@ -128,28 +137,36 @@ export function AdminCatalogScreen() {
             </Text>
           </View>
 
-          <View style={styles.toolbar}>
+          <View style={[styles.toolbar, mobile && { flexDirection: 'column', alignItems: 'stretch' }]}>
             <TextInput
               style={styles.search}
               value={query}
               onChangeText={setQuery}
               placeholder="Search name, id, slot…"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <TouchableOpacity
-              style={styles.addBtn}
-              onPress={() => navigation.navigate('AdminCatalogItem', {})}
-            >
-              <Text style={styles.addBtnText}>Add item</Text>
-            </TouchableOpacity>
+            {mobile ? (
+              <MobileButton
+                label="Add item"
+                onPress={() => navigation.navigate('AdminCatalogItem', {})}
+                height={48}
+              />
+            ) : (
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => navigation.navigate('AdminCatalogItem', {})}
+              >
+                <Text style={styles.addBtnText}>Add item</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {loading ? (
-            <View style={styles.centered}>
-              <BrandLoadingMark color={colors.brand} />
-            </View>
+          <View style={styles.centered}>
+            <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
+          </View>
           ) : error ? (
             <View style={styles.centered}>
               <Text style={styles.error}>{error}</Text>
@@ -160,7 +177,7 @@ export function AdminCatalogScreen() {
           ) : (
             <ScrollView
               style={styles.list}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[styles.listContent, mobile && { paddingBottom: 96 + insets.bottom }]}
               keyboardShouldPersistTaps="handled"
             >
               {filtered.map((item) => {
@@ -175,17 +192,17 @@ export function AdminCatalogScreen() {
                   >
                     <BoxItemImage itemId={item.id} imageUrl={item.imageUrl} size={48} />
                     <View style={styles.rowBody}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>
+                      <Text style={styles.rowTitle} numberOfLines={mobile ? 2 : 1}>
                         {item.name}
                       </Text>
-                      <Text style={styles.rowMeta} numberOfLines={1}>
+                      <Text style={styles.rowMeta} numberOfLines={mobile ? 3 : 1}>
                         {item.slot} · {item.slotId} · {formatDollars(item.dollarCostCents)}
                         {item.directSaleCapBeforeLock != null
                           ? ` · cap ${item.directSaleCapBeforeLock}`
                           : ''}
                         {item.sellAfterLock ? ` · FBA ${item.sellAfterLock}` : ''}
                       </Text>
-                      <Text style={styles.rowAvail} numberOfLines={1}>
+                      <Text style={styles.rowAvail} numberOfLines={mobile ? 3 : 1}>
                         {formatAvailLabel(avail, {
                           reserved: inv?.directReservedQty ?? 0,
                           sold: inv?.directSoldQty ?? 0,
@@ -193,7 +210,7 @@ export function AdminCatalogScreen() {
                         })}
                         {rem != null ? ` · rem ${rem}` : ''}
                       </Text>
-                      <Text style={styles.rowId} numberOfLines={1}>
+                      <Text style={styles.rowId} numberOfLines={mobile ? 2 : 1}>
                         {item.id}
                       </Text>
                     </View>

@@ -49,7 +49,12 @@ import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m, mGutter } from '../../components/mobile/mobileTheme';
+import { MobileButton } from '../../components/mobile/MobileButton';
+import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius, semanticColors } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
@@ -151,10 +156,13 @@ export function AdminLandingEditorScreen() {
   const { isDesktop } = useWebLayout();
   const { width: windowWidth } = useWindowDimensions();
   const showLivePreview = windowWidth >= 1100;
-  const styles = useMemo(
+  const mobile = useMobileLayout();
+  const insets = useSafeAreaInsets();
+  const baseStyles = useMemo(
     () => createStyles(colors, isDesktop, showLivePreview),
     [colors, isDesktop, showLivePreview]
   );
+  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
 
@@ -644,7 +652,7 @@ export function AdminLandingEditorScreen() {
       omitDesktopTopPadding={isDesktop}
       style={styles.panel}
     >
-      <View style={styles.root}>
+      <View style={[styles.root, mobile && { paddingTop: 12 + insets.top, paddingHorizontal: mGutter, paddingBottom: insets.bottom }]}>
         <View style={styles.workspace}>
           <View style={styles.editorColumn}>
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
@@ -662,12 +670,12 @@ export function AdminLandingEditorScreen() {
 
             {loading || !doc ? (
               <View style={styles.centered}>
-                <BrandLoadingMark color={colors.brand} />
+                <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
               </View>
             ) : (
               <ScrollView
                 style={styles.editorScroll}
-                contentContainerStyle={styles.scroll}
+                contentContainerStyle={[styles.scroll, mobile && { paddingBottom: 96 + insets.bottom }]}
                 keyboardShouldPersistTaps="handled"
                 scrollEnabled={draggingIndex == null}
               >
@@ -772,7 +780,7 @@ export function AdminLandingEditorScreen() {
                           <Icon
                             icon={icons.grip}
                             size={14}
-                            color={dragging ? semanticColors.logoDark : semanticColors.goldMuted}
+                            color={mobile ? (dragging ? m.ink : m.goldDark) : dragging ? semanticColors.logoDark : semanticColors.goldMuted}
                           />
                         </View>
                         <View style={styles.sectionHeaderCopy}>
@@ -816,7 +824,7 @@ export function AdminLandingEditorScreen() {
                               <Icon
                                 icon={icons.pen}
                                 size={13}
-                                color={semanticColors.goldMuted}
+                                color={mobile ? m.goldDark : semanticColors.goldMuted}
                               />
                               <Text style={styles.iconBtnLabel}>Edit</Text>
                             </TouchableOpacity>
@@ -827,7 +835,7 @@ export function AdminLandingEditorScreen() {
                               accessibilityLabel="Remove section"
                               disabled={draggingIndex != null}
                             >
-                              <Icon icon={icons.trash} size={13} color={semanticColors.goldMuted} />
+                              <Icon icon={icons.trash} size={13} color={mobile ? m.goldDark : semanticColors.goldMuted} />
                             </TouchableOpacity>
                           </>
                         )}
@@ -857,20 +865,33 @@ export function AdminLandingEditorScreen() {
                 </View>
 
                 <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={[styles.primaryBtn, saving && styles.btnDisabled]}
-                    onPress={() => void save()}
-                    disabled={saving}
-                  >
-                    <Text style={styles.primaryBtnText}>
-                      {saving ? 'Saving…' : 'Save override'}
-                    </Text>
-                  </TouchableOpacity>
+                  {mobile ? (
+                    <MobileButton
+                      label={saving ? 'Saving…' : 'Save override'}
+                      onPress={() => void save()}
+                      busy={saving}
+                      disabled={saving}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, saving && styles.btnDisabled]}
+                      onPress={() => void save()}
+                      disabled={saving}
+                    >
+                      <Text style={styles.primaryBtnText}>
+                        {saving ? 'Saving…' : 'Save override'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   {saveNotice ? <Text style={styles.saveOk}>{saveNotice}</Text> : null}
                   {error ? <Text style={styles.saveErr}>{error}</Text> : null}
-                  <TouchableOpacity style={styles.secondaryBtn} onPress={preview}>
-                    <Text style={styles.secondaryBtnText}>Open live page</Text>
-                  </TouchableOpacity>
+                  {mobile ? (
+                    <MobileButton label="Open live page" variant="secondary" onPress={preview} />
+                  ) : (
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={preview}>
+                      <Text style={styles.secondaryBtnText}>Open live page</Text>
+                    </TouchableOpacity>
+                  )}
                   {hasOverride && isSeed ? (
                     <TouchableOpacity
                       style={styles.secondaryBtn}
@@ -933,6 +954,7 @@ function SectionEditor({
   onChange: (next: StoredLandingSection) => void;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const mobile = useMobileLayout();
   switch (section.type) {
     case 'hero':
       return (
@@ -1154,7 +1176,7 @@ function SectionEditor({
                 accessibilityRole="button"
                 accessibilityLabel="Remove prompt"
               >
-                <Icon icon={icons.trash} size={13} color={semanticColors.goldMuted} />
+                <Icon icon={icons.trash} size={13} color={mobile ? m.goldDark : semanticColors.goldMuted} />
               </TouchableOpacity>
             </View>
           ))}

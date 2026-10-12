@@ -32,6 +32,9 @@ import { getHanukkahWindow } from '../../services/hanukkah/dates';
 import { resetTesterBox } from '../../services/admin/resetTesterBox';
 import { enterVisitorPlaythrough, exitVisitorPlaythrough } from '../../services/admin/visitorPlaythrough';
 import { isOpsAdmin } from '../../constants/admin';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m, mType } from '../mobile/mobileTheme';
 import { navigateMainStack, navigateToLanding } from '../../navigation/mainStackNavigation';
 import { useMarketingLandings } from '../../hooks/useMarketingLandings';
 import { landingFromMergedById } from '../../services/landingCatalog';
@@ -56,6 +59,8 @@ export function AdminControlPanel() {
   const { household, refresh } = useSession();
   const realUser = useAuthStore((s) => s.user);
   const show = isOpsAdmin(realUser);
+  const mobile = useMobileLayout();
+  const insets = useSafeAreaInsets();
 
   const preview = useUserStatePreviewStore((s) => s.preview);
   const setPreview = useUserStatePreviewStore((s) => s.setPreview);
@@ -225,14 +230,19 @@ export function AdminControlPanel() {
   return (
     <View style={styles.host} pointerEvents="box-none">
       <TouchableOpacity
-        style={[styles.fab, previewActive && styles.fabActive]}
+        style={[
+          styles.fab,
+          mobile && { backgroundColor: m.ink, right: 16, bottom: 16 + insets.bottom },
+          previewActive && styles.fabActive,
+          mobile && previewActive && { borderColor: m.gold },
+        ]}
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel="Admin controls"
         accessibilityState={{ expanded: open }}
         testID="gj-admin-fab"
       >
-        <Icon icon={icons.gear} size={22} color={semanticColors.logoDark} />
+        <Icon icon={icons.gear} size={22} color={mobile ? m.gold : semanticColors.logoDark} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -242,10 +252,29 @@ export function AdminControlPanel() {
             onPress={() => setOpen(false)}
             accessibilityLabel="Dismiss admin controls"
           />
-          <View style={styles.panel} accessibilityRole="menu" accessibilityLabel="Admin controls">
+          <View
+            style={[
+              styles.panel,
+              mobile && {
+                width: '100%',
+                maxWidth: '100%',
+                marginRight: 0,
+                marginBottom: 0,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                backgroundColor: m.white,
+                borderColor: m.line,
+                paddingBottom: insets.bottom,
+              },
+            ]}
+            accessibilityRole="menu"
+            accessibilityLabel="Admin controls"
+          >
             <View style={styles.panelHeader}>
-              <View>
-                <Text style={styles.panelTitle}>Admin</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.panelTitle, mobile && mType.h3]}>Admin</Text>
                 <Text style={styles.panelHint} numberOfLines={1}>
                   {mockFlowActive
                     ? `Mock: ${mockLandingLabel ?? mockLandingId}${mockPersonaLabel ? ` · ${mockPersonaLabel}` : ''}`
@@ -278,7 +307,7 @@ export function AdminControlPanel() {
                 accessibilityLabel="User state section"
               >
                 <View style={styles.collapseHeaderCopy}>
-                  <Text style={styles.sectionHeadingInline}>User state</Text>
+                  <Text style={[styles.sectionHeadingInline, mobile && { ...mType.eyebrow, textTransform: 'none', letterSpacing: 0 }]}>User state</Text>
                   {!userStateOpen ? (
                     <Text style={styles.collapseSummary} numberOfLines={1}>
                       {activeUserLabel}
@@ -301,13 +330,17 @@ export function AdminControlPanel() {
                     return (
                       <TouchableOpacity
                         key={opt.id ?? 'live'}
-                        style={[styles.row, selected && styles.rowSelected]}
+                        style={[
+                          styles.row,
+                          selected && styles.rowSelected,
+                          mobile && selected && { backgroundColor: m.beige, borderWidth: 1, borderColor: m.gold },
+                        ]}
                         onPress={() => selectUserState(opt.id)}
                         accessibilityRole="menuitem"
                         accessibilityState={{ selected }}
                         accessibilityLabel={`Preview as ${opt.label}`}
                       >
-                        <View style={[styles.radio, selected && styles.radioOn]} />
+                        <View style={[styles.radio, selected && styles.radioOn, mobile && selected && { borderColor: m.goldDark, backgroundColor: m.goldDark }]} />
                         <View style={styles.rowCopy}>
                           <Text style={[styles.rowLabel, selected && styles.rowLabelSelected]}>
                             {opt.label}
@@ -330,7 +363,7 @@ export function AdminControlPanel() {
                 accessibilityLabel="Preview date section"
               >
                 <View style={styles.collapseHeaderCopy}>
-                  <Text style={styles.sectionHeadingInline}>Preview date</Text>
+                  <Text style={[styles.sectionHeadingInline, mobile && { ...mType.eyebrow, textTransform: 'none', letterSpacing: 0 }]}>Preview date</Text>
                   {!previewDateOpen ? (
                     <Text style={styles.collapseSummary} numberOfLines={1}>
                       {previewNowIso ? previewNowIso : 'Real today'}
@@ -355,13 +388,18 @@ export function AdminControlPanel() {
                         return (
                           <TouchableOpacity
                             key={p.iso}
-                            style={[styles.chip, selected && styles.chipSelected]}
+                            style={[
+                              styles.chip,
+                              mobile && { backgroundColor: m.beige, borderColor: 'transparent', borderRadius: 999, minHeight: 36, justifyContent: 'center' },
+                              selected && styles.chipSelected,
+                              mobile && selected && { backgroundColor: m.white, borderColor: m.gold, borderWidth: 1 },
+                            ]}
                             onPress={() => setPreviewNowIso(p.iso)}
                             accessibilityRole="button"
                             accessibilityState={{ selected }}
                             accessibilityLabel={`Preview date ${p.label}`}
                           >
-                            <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                            <Text style={[styles.chipText, selected && styles.chipTextSelected, mobile && { color: selected ? m.goldDark : m.ink }]}>
                               {p.label}
                             </Text>
                           </TouchableOpacity>
@@ -382,7 +420,7 @@ export function AdminControlPanel() {
 
               <View style={styles.divider} />
 
-              <Text style={styles.sectionHeading}>Test landings</Text>
+              <Text style={[styles.sectionHeading, mobile && { ...mType.eyebrow, textTransform: 'none', letterSpacing: 0 }]}>Test landings</Text>
               <Text style={styles.sectionDesc}>
                 Signs you out and opens the entry page as a real visitor. Exit via the top banner
                 to return to admin sign-in.
@@ -402,7 +440,9 @@ export function AdminControlPanel() {
                     key={opt.id}
                     style={[
                       styles.actionRow,
+                      mobile && { backgroundColor: m.beige, borderColor: 'transparent' },
                       active && styles.actionRowActive,
+                      mobile && active && { backgroundColor: m.white, borderColor: m.gold, borderWidth: 1 },
                       !opt.ready && styles.rowDisabled,
                     ]}
                     onPress={() => selectEntryLanding(opt)}
@@ -439,7 +479,7 @@ export function AdminControlPanel() {
 
               <View style={styles.divider} />
 
-              <Text style={styles.sectionHeading}>Tools</Text>
+              <Text style={[styles.sectionHeading, mobile && { ...mType.eyebrow, textTransform: 'none', letterSpacing: 0 }]}>Tools</Text>
               <TouchableOpacity
                 style={styles.row}
                 onPress={confirmResetBox}

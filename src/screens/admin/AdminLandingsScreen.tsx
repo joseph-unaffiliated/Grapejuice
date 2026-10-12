@@ -36,7 +36,12 @@ import {
 } from '../../services/landingCatalog';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m, mGutter } from '../../components/mobile/mobileTheme';
+import { MobileButton } from '../../components/mobile/MobileButton';
+import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
@@ -58,7 +63,10 @@ export function AdminLandingsScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const mobile = useMobileLayout();
+  const insets = useSafeAreaInsets();
+  const baseStyles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.isLoading);
   const allowed = isOpsAdmin(user);
@@ -206,7 +214,7 @@ export function AdminLandingsScreen() {
     return (
       <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
-          <BrandLoadingMark color={colors.brand} />
+          <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
         </View>
       </WebContentPanel>
     );
@@ -231,7 +239,7 @@ export function AdminLandingsScreen() {
 
   return (
     <WebContentPanel {...panelProps}>
-      <View style={styles.root}>
+      <View style={[styles.root, mobile && { paddingTop: 12 + insets.top, paddingBottom: 24 + insets.bottom, paddingHorizontal: mGutter }]}>
         <View style={styles.column}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
@@ -273,6 +281,7 @@ export function AdminLandingsScreen() {
                 value={newLabel}
                 onChangeText={setNewLabel}
                 placeholder="Grandparents"
+                placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
               />
               <Text style={styles.label}>Path / slug</Text>
               <TextInput
@@ -280,6 +289,7 @@ export function AdminLandingsScreen() {
                 value={newPath}
                 onChangeText={setNewPath}
                 placeholder="/grandparents"
+                placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -305,26 +315,36 @@ export function AdminLandingsScreen() {
                 ))}
               </View>
               {createError ? <Text style={styles.error}>{createError}</Text> : null}
-              <TouchableOpacity
-                style={[styles.primaryBtn, creating && styles.btnDisabled]}
-                onPress={() => void createLanding()}
-                disabled={creating}
-              >
-                <Text style={styles.primaryBtnText}>
-                  {creating ? 'Creating…' : 'Create & edit'}
-                </Text>
-              </TouchableOpacity>
+              {mobile ? (
+                <MobileButton
+                  label={creating ? 'Creating…' : 'Create & edit'}
+                  onPress={() => void createLanding()}
+                  busy={creating}
+                  disabled={creating}
+                  style={{ marginTop: 12 }}
+                />
+              ) : (
+                <TouchableOpacity
+                  style={[styles.primaryBtn, creating && styles.btnDisabled]}
+                  onPress={() => void createLanding()}
+                  disabled={creating}
+                >
+                  <Text style={styles.primaryBtnText}>
+                    {creating ? 'Creating…' : 'Create & edit'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : null}
 
           {loading ? (
             <View style={styles.loader}>
-              <BrandLoadingMark color={colors.brand} />
+              <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
             </View>
           ) : error ? (
             <Text style={styles.error}>{error}</Text>
           ) : (
-            <ScrollView contentContainerStyle={styles.list}>
+            <ScrollView contentContainerStyle={[styles.list, mobile && { paddingBottom: 96 + insets.bottom }]} keyboardShouldPersistTaps="handled">
               {rows.map((row) => (
                 <View key={row.id} style={styles.row}>
                   <TouchableOpacity

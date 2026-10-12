@@ -26,7 +26,12 @@ import {
 import { BoxItemImage } from '../../components/box/BoxItemImage';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { useThemeMode } from '../../context/ThemeContext';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { m, mFont, mGutter } from '../../components/mobile/mobileTheme';
+import { MobileButton } from '../../components/mobile/MobileButton';
+import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type {
@@ -85,7 +90,10 @@ export function AdminCatalogItemScreen() {
 
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
-  const styles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const mobile = useMobileLayout();
+  const insets = useSafeAreaInsets();
+  const baseStyles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
+  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
 
@@ -239,7 +247,7 @@ export function AdminCatalogItemScreen() {
     return (
       <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
-          <BrandLoadingMark color={colors.brand} />
+          <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
         </View>
       </WebContentPanel>
     );
@@ -249,7 +257,10 @@ export function AdminCatalogItemScreen() {
     <WebContentPanel {...panelProps}>
       <ScrollView
         style={styles.root}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          mobile && { paddingTop: 12 + insets.top, paddingBottom: 48 + insets.bottom, paddingHorizontal: mGutter },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <TouchableOpacity onPress={() => navigation.navigate('AdminCatalog')} hitSlop={12}>
@@ -268,7 +279,7 @@ export function AdminCatalogItemScreen() {
             value={form.name}
             onChangeText={onChangeName}
             placeholder="Hanukkah candles (44-pack)"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
@@ -284,7 +295,7 @@ export function AdminCatalogItemScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="candles-44-pack"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
@@ -295,7 +306,7 @@ export function AdminCatalogItemScreen() {
             onChangeText={(description) => patch({ description })}
             multiline
             placeholder="Short shopper-facing description"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
@@ -315,7 +326,7 @@ export function AdminCatalogItemScreen() {
             onChangeText={(slotId) => patch({ slotId })}
             autoCapitalize="none"
             placeholder="candles"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
@@ -326,7 +337,7 @@ export function AdminCatalogItemScreen() {
             onChangeText={(dollarInput) => patch({ dollarInput })}
             keyboardType="decimal-pad"
             placeholder="8.00"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
@@ -376,7 +387,7 @@ export function AdminCatalogItemScreen() {
             onChangeText={(swapOptionsText) => patch({ swapOptionsText })}
             autoCapitalize="none"
             placeholder="gelt-premium, gelt-allergy-friendly"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
@@ -388,7 +399,7 @@ export function AdminCatalogItemScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="https://…"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
@@ -398,19 +409,28 @@ export function AdminCatalogItemScreen() {
             value={form.brand}
             onChangeText={(brand) => patch({ brand })}
             placeholder="Pottery Barn"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={mobile ? '#9CA3AF' : colors.textTertiary}
           />
         </Field>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TouchableOpacity
-          style={[styles.saveBtn, (saving || deleting) && styles.saveBtnDisabled]}
-          onPress={() => void save()}
-          disabled={saving || deleting}
-        >
-          <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save item'}</Text>
-        </TouchableOpacity>
+        {mobile ? (
+          <MobileButton
+            label={saving ? 'Saving…' : 'Save item'}
+            onPress={() => void save()}
+            busy={saving}
+            disabled={saving || deleting}
+          />
+        ) : (
+          <TouchableOpacity
+            style={[styles.saveBtn, (saving || deleting) && styles.saveBtnDisabled]}
+            onPress={() => void save()}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save item'}</Text>
+          </TouchableOpacity>
+        )}
 
         {!isCreate ? (
           <TouchableOpacity
@@ -464,9 +484,16 @@ export function AdminCatalogItemScreen() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   const { colors } = useThemeMode();
+  const mobile = useMobileLayout();
   return (
-    <View style={{ marginBottom: spacing.md }}>
-      <Text style={{ fontSize: typography.sm, color: colors.textSecondary, marginBottom: 6 }}>
+    <View style={{ marginBottom: mobile ? 12 : spacing.md }}>
+      <Text
+        style={
+          mobile
+            ? { fontSize: 12.5, color: m.muted, marginBottom: 6, ...mFont(400) }
+            : { fontSize: typography.sm, color: colors.textSecondary, marginBottom: 6 }
+        }
+      >
         {label}
       </Text>
       {children}
@@ -487,6 +514,7 @@ function ChipRow({
   colors: SemanticColors;
   labels?: Record<string, string>;
 }) {
+  const mobile = useMobileLayout();
   return (
     <View style={chipStyles.row}>
       {options.map((option) => {
@@ -496,16 +524,23 @@ function ChipRow({
             key={option || 'empty'}
             style={[
               chipStyles.chip,
-              { borderColor: colors.border, backgroundColor: colors.bgElevated },
-              active && { backgroundColor: colors.brand, borderColor: colors.brand },
+              mobile
+                ? {
+                    borderColor: active ? m.gold : 'transparent',
+                    backgroundColor: active ? m.white : m.beige,
+                    borderWidth: 1,
+                    minHeight: 36,
+                  }
+                : { borderColor: colors.border, backgroundColor: colors.bgElevated },
+              !mobile && active && { backgroundColor: colors.brand, borderColor: colors.brand },
             ]}
             onPress={() => onToggle(option)}
           >
             <Text
               style={[
                 chipStyles.chipText,
-                { color: colors.textPrimary },
-                active && { color: colors.textInverse },
+                mobile ? { color: active ? m.goldDark : m.ink, ...mFont(400) } : { color: colors.textPrimary },
+                !mobile && active && { color: colors.textInverse },
               ]}
             >
               {labels?.[option] ?? (option || 'auto')}
