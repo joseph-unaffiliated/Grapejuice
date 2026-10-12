@@ -173,7 +173,12 @@ function practiceSectionFromIdentity(item: CatalogItem): BoxDisplaySectionId | n
   if (/menorah|hanukkiah|candle/.test(hay) || item.category === 'Menorah' || item.category === 'Candles') {
     return 'candles';
   }
-  if (/latke|sufgan|applesauce|napkin|donut/.test(hay)) return 'food';
+  // "Jelly, the Sufganiyah Stuffie" is a stuffie, not the sufganiyot kit.
+  // A Stuffies category wins over latke/sufgan/donut in the name.
+  if (/latke|sufgan|applesauce|napkin|donut/.test(hay)) {
+    const cats = [item.category, ...(item.categories ?? [])].map((c) => (c ?? '').trim().toLowerCase());
+    if (!cats.includes('stuffies')) return 'food';
+  }
   if (/wrap|paper|pre.?wrap/.test(hay)) return 'presents';
   return null;
 }

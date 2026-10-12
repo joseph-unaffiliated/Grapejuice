@@ -163,6 +163,11 @@ export type BoxRulesCatalogRow = {
   holdInventory?: boolean | null;
   wrappable?: boolean | null;
   memberPriceCents?: number;
+  /**
+   * À la carte SKUs never ship in the default box. They stay available as swaps
+   * and paid extras. Omitted on older fixtures, which keeps prior default picks.
+   */
+  pricingTier?: 'included' | 'perKid' | 'extra' | 'alaCarte';
 };
 
 export const PRICING_POLICY = {
@@ -665,8 +670,13 @@ function giftKindRows(
   return covering.length ? covering : matches;
 }
 
+/** À la carte rows are paid extras. They are not default presents. */
+function rowsEligibleAsDefaultGift(rows: BoxRulesCatalogRow[]): BoxRulesCatalogRow[] {
+  return rows.filter((r) => r.pricingTier !== 'alaCarte');
+}
+
 function giftKindHasAssignableRow(catalog: BoxRulesCatalogRow[], kind: GiftKindId, age: number): boolean {
-  return giftKindRows(catalog, kind, age).some(canAssignUnit);
+  return rowsEligibleAsDefaultGift(giftKindRows(catalog, kind, age)).some(canAssignUnit);
 }
 
 /** Kinds with a default-eligible row tagged for this age, best stock headroom first. */
@@ -674,7 +684,7 @@ export function rankGiftKindsForAge(catalog: BoxRulesCatalogRow[], age: number):
   const legacy = legacyGiftKindOrder(age);
   const scored: { kind: GiftKindId; score: number; tiebreak: number }[] = [];
   for (const kind of Object.keys(GIFT_KIND_PATTERNS) as GiftKindId[]) {
-    const rows = giftKindRows(catalog, kind, age).filter(
+    const rows = rowsEligibleAsDefaultGift(giftKindRows(catalog, kind, age)).filter(
       (r) => rowCoversGiftAge(r, age) && isDefaultEligible(r)
     );
     if (!rows.length) continue;
@@ -1095,7 +1105,12 @@ export function resolveGiftKind(
   age?: number
 ): BoxRulesCatalogRow | undefined {
   if (!catalog?.length) return undefined;
-  const candidates = giftKindRows(catalog, kind, age);
+  const matched = giftKindRows(catalog, kind, age);
+  // One-row lookups answer "is this SKU that kind?" (swap shelves). A real
+  // catalog must not default an à la carte extra — stuffies and toys included.
+  const candidates =
+    catalog.length > 1 ? rowsEligibleAsDefaultGift(matched) : matched;
+  if (!candidates.length) return undefined;
   if (candidates.length <= 1) return candidates[0];
   const assignable = candidates.filter(canAssignUnit);
   const pool = assignable.length ? assignable : candidates;

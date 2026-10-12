@@ -684,9 +684,42 @@ export function includedPracticeSlotVacant(
 }
 
 /**
- * True when putting `item` back at $0 would be a second included item for that
- * category — the slot, the kid's present, or the included book is already filled
- * by something else.
+ * Stuffies and toys can be a kid's present. The practice wooden dreidel also
+ * uses catalog slot `gift`, so slot id alone is not this test.
+ */
+function couldFillKidGiftSlot(item: CatalogItem): boolean {
+  if (item.category === 'Book' || item.slot === 'story' || item.slotId === 'story') return false;
+  const hay = `${item.id} ${item.name} ${item.category ?? ''} ${(item.categories ?? []).join(' ')}`.toLowerCase();
+  if (item.category === 'Stuffies' || item.category === 'Toys') return true;
+  if (/stuffie|plush|softie/.test(hay)) return true;
+  if ((item.defaultGiftAges ?? []).length > 0) return true;
+  return false;
+}
+
+function kidGiftSlotTaken(
+  item: CatalogItem,
+  snapshot: BoxLineItem[],
+  lineItems: BoxLineItem[]
+): boolean {
+  const snap = snapshot[0];
+  if (snap && isGiftSlotLine(snap)) {
+    const childId = snap.childId || childIdFromSlot(snap.slotId);
+    if (!childId) return false;
+    return lineItems.some((li) => {
+      if ((li.unitCents ?? 0) > 0 || li.itemId === item.id) return false;
+      const cid = li.childId || childIdFromSlot(li.slotId);
+      return isGiftSlotLine(li) && cid === childId;
+    });
+  }
+  // No gift-line snapshot: putting this back at $0 would be a second present.
+  return lineItems.some(
+    (li) => (li.unitCents ?? 0) === 0 && isGiftSlotLine(li) && li.itemId !== item.id
+  );
+}
+
+/**
+ * True when putting `item` back at $0 would be a second included item —
+ * the practice slot, the kid's present, or the included book is already filled.
  */
 export function includedClaimAlreadyTaken(
   item: CatalogItem,
@@ -694,6 +727,11 @@ export function includedClaimAlreadyTaken(
   lineItems: BoxLineItem[],
   catalog: CatalogItem[]
 ): boolean {
+  // A stuffie filed under Eat & Drink by its name still occupies the gift slot,
+  // not the sufganiyot kit. Check that before the practice-section rule.
+  if (couldFillKidGiftSlot(item)) {
+    return kidGiftSlotTaken(item, snapshot, lineItems);
+  }
   const sectionId = displaySectionForCatalogItem(item);
   if (sectionId === 'candles' || sectionId === 'dreidel' || sectionId === 'food') {
     return !includedPracticeSlotVacant(sectionId, lineItems);

@@ -46,6 +46,7 @@ export function toRulesRow(item: CatalogItem): BoxRulesCatalogRow {
     holdInventory: item.holdInventory ?? null,
     wrappable: item.wrappable ?? null,
     memberPriceCents: item.memberPriceCents,
+    pricingTier: item.pricingTier,
   };
 }
 

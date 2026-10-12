@@ -78,6 +78,26 @@ const elmo = item({
   );
 }
 
+const jelly = item({
+  id: 'jelly-the-sufganiyah-stuffie',
+  name: 'Jelly, the Sufganiyah Stuffie',
+  slotId: 'decor',
+  category: 'Stuffies',
+  categories: ['Stuffies', 'Toys'],
+  pricingTier: 'alaCarte',
+  memberPriceCents: 1000,
+});
+assert.equal(displaySectionForCatalogItem(jelly), 'presents');
+assert.equal(inferGiftDisplaySection(jelly), 'presents');
+
+const crispy = item({
+  id: 'crispy-the-latke-stuffie',
+  name: 'Crispy, the Latke Stuffie',
+  slotId: 'decor',
+  category: 'Stuffies',
+});
+assert.equal(inferGiftDisplaySection(crispy), 'presents');
+
 for (const dreidel of dreidels) {
   if (dreidel.id === 'gimmel-the-dreidel-stuffie') {
     assert.equal(displaySectionForCatalogItem(dreidel), 'presents');
