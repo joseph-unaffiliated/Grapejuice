@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileCodeSignIn } from '../../components/mobile/MobileCodeSignIn';
 import { MobileAccountHub } from '../mobile/MobileAccountHub';
@@ -21,11 +21,8 @@ import { useDevPreviewStore } from '../../stores/devPreviewStore';
 import { clearDevPreview } from '../../navigation/devPreview';
 import { childrenService } from '../../services/firestore/children';
 import { boxDraftService } from '../../services/firestore/boxDraft';
-import {
-  createPartnerInvite,
-  listPartnerInvites,
-  acceptPartnerInvite,
-} from '../../services/householdInvites';
+import { peekBoxDraftCache } from '../../hooks/useBoxDraft';
+import { createPartnerInvite, acceptPartnerInvite } from '../../services/householdInvites';
 import type { PartnerInvite, Household, UserProfile } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -40,7 +37,9 @@ import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import { loadPartnerInvites, peekPartnerInvites } from '../../services/account/accountPrefetch';
 import { getSavedCardSummary } from '../../services/checkout/createMarketplaceCheckout';
+import { peekSavedCard } from '../../services/checkout/checkoutPrefetch';
 import { savedCardLabel } from '../storefront/MarketplacePaymentPanel.web';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { AccountHubHeader } from '../../components/account/AccountHubHeader';
@@ -112,6 +111,7 @@ function AccountScreenBody() {
   const { isDesktop } = useWebLayout();
   const styles = useMemo(() => createAccountStyles(colors, isDesktop), [colors, isDesktop]);
   const authUser = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const logout = useAuthStore((s) => s.logout);
   const changePassword = useAuthStore((s) => s.changePassword);
   const authError = useAuthStore((s) => s.error);
@@ -127,12 +127,17 @@ function AccountScreenBody() {
   const user = fakeSignedIn ? PREVIEW_SIGNED_IN_USER : authUser;
   const household = fakeSignedIn ? PREVIEW_HOUSEHOLD : sessionHousehold;
   const profile = fakeSignedIn ? PREVIEW_PROFILE : sessionProfile;
+  const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
+  const familyName = profile?.displayName ?? user?.displayName;
+  const appliedFamilySource = React.useRef<string | null>(null);
 
-  const [invites, setInvites] = useState<PartnerInvite[]>([]);
+  const [invites, setInvites] = useState<PartnerInvite[]>(() => peekPartnerInvites(household?.id) ?? []);
+  const [invitesSettled, setInvitesSettled] = useState(
+    () => fakeSignedIn || peekPartnerInvites(household?.id) != null
+  );
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [inviteSending, setInviteSending] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [currentPassword, setCurrentPassword] = useState('');
   const [nextPassword, setNextPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -140,21 +145,29 @@ function AccountScreenBody() {
   const [passwordLocalError, setPasswordLocalError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const [familyMembers, setFamilyMembers] = useState<ChildDraft[]>(() =>
-    defaultFamilyMembers(profile?.displayName ?? user?.displayName)
+  const [familyMembers, setFamilyMembers] = useState<ChildDraft[]>(() => {
+    if (fakeSignedIn) return defaultFamilyMembers('Alex');
+    const cached = peekBoxDraftCache(household?.id);
+    if (!cached) return defaultFamilyMembers(familyName);
+    return childProfilesToDrafts(cached.children, useGuestSessionStore.getState().childDrafts, familyName);
+  });
+  const [familyBaseline, setFamilyBaseline] = useState(() => familyMembersFingerprint(familyMembers));
+  const [familySynced, setFamilySynced] = useState(
+    () => fakeSignedIn || peekBoxDraftCache(household?.id) != null
   );
-  const [familyBaseline, setFamilyBaseline] = useState(() =>
-    familyMembersFingerprint(defaultFamilyMembers(profile?.displayName ?? user?.displayName))
+  const [boxChildren, setBoxChildren] = useState(() => peekBoxDraftCache(household?.id)?.children ?? []);
+  const [hasOwnBox, setHasOwnBox] = useState(
+    () => fakeSignedIn || (peekBoxDraftCache(household?.id)?.lineItems.length ?? 0) > 0
   );
   const [familyBusy, setFamilyBusy] = useState(false);
   const [familyError, setFamilyError] = useState<string | null>(null);
   const [familySaved, setFamilySaved] = useState(false);
   const [rebuildModalOpen, setRebuildModalOpen] = useState(false);
-  const [hasOwnBox, setHasOwnBox] = useState(false);
 
   const hiddenHolidays = profile?.hiddenHolidays ?? guestHidden;
   const familyDirty = familyMembersFingerprint(familyMembers) !== familyBaseline;
   const familyComplete = familyMembersComplete(familyMembers);
+  const paymentKnown = fakeSignedIn || !sessionLoading || Boolean(household);
   const cardOnFile = Boolean(household?.cardOnFileAt);
   const [cardLabel, setCardLabel] = useState<string | null>(null);
   useEffect(() => {
@@ -163,7 +176,8 @@ function AccountScreenBody() {
       return;
     }
     let alive = true;
-    void getSavedCardSummary(household.id)
+    const pending = peekSavedCard(household.id);
+    void (pending ?? getSavedCardSummary(household.id))
       .then((card) => {
         if (alive) setCardLabel(card ? savedCardLabel(card) : null);
       })
@@ -176,60 +190,87 @@ function AccountScreenBody() {
   }, [mobileLayout, cardOnFile, household?.id, fakeSignedIn]);
   const creditCents = (household?.giftCreditCents ?? 0) + (household?.platformCreditCents ?? 0);
 
-  const load = useCallback(async () => {
-    if (fakeSignedIn) {
-      setInvites([]);
-      const previewFamily = defaultFamilyMembers('Alex');
-      setFamilyMembers(previewFamily);
-      setFamilyBaseline(familyMembersFingerprint(previewFamily));
-      setHasOwnBox(true);
-      setLoading(false);
-      return;
-    }
-    if (!household?.id) {
-      setInvites([]);
-      const fromGuest = childProfilesToDrafts(
-        [],
-        useGuestSessionStore.getState().childDrafts,
-        profile?.displayName ?? authUser?.displayName
-      );
-      setFamilyMembers(fromGuest);
-      setFamilyBaseline(familyMembersFingerprint(fromGuest));
+  useEffect(() => {
+    if (fakeSignedIn) return;
+    if (sessionLoading && !household?.id) return;
+    let alive = true;
+    if (!household?.id || !authUser?.uid) {
+      setFamilySynced(true);
       setHasOwnBox(false);
-      setLoading(false);
       return;
     }
-    setLoading(true);
-    try {
-      const guestDrafts = useGuestSessionStore.getState().childDrafts;
-      const [nextInvites, kids, draft] = await Promise.all([
-        listPartnerInvites({ householdId: household.id }),
-        authUser?.uid ? childrenService.list(authUser.uid) : Promise.resolve([]),
-        boxDraftService.get(household.id),
-      ]);
-      setInvites(nextInvites);
-      setHasOwnBox(Boolean(draft?.lineItems?.length));
-      const nextFamily = childProfilesToDrafts(
-        kids,
-        guestDrafts,
-        profile?.displayName ?? authUser?.displayName
-      );
-      setFamilyMembers(nextFamily);
-      setFamilyBaseline(familyMembersFingerprint(nextFamily));
-    } finally {
-      setLoading(false);
+    const seeded = peekBoxDraftCache(household.id);
+    if (seeded) {
+      setBoxChildren(seeded.children);
+      setHasOwnBox(seeded.lineItems.length > 0);
+      setFamilySynced(true);
     }
+    void childrenService
+      .list(authUser.uid)
+      .then((kids) => {
+        if (!alive) return;
+        setBoxChildren(kids);
+        setFamilySynced(true);
+      })
+      .catch(() => {
+        if (alive) setFamilySynced(true);
+      });
+    void boxDraftService
+      .get(household.id)
+      .then((draft) => {
+        if (!alive) return;
+        setHasOwnBox(Boolean(draft?.lineItems?.length));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [fakeSignedIn, sessionLoading, household?.id, authUser?.uid]);
+
+  useEffect(() => {
+    if (fakeSignedIn) return;
+    if (sessionLoading && !household?.id) return;
+    if (household?.id && !familySynced && !peekBoxDraftCache(household.id)) return;
+    setFamilySynced(true);
+    const next = childProfilesToDrafts(household?.id ? boxChildren : [], guestDrafts, familyName);
+    const key = `${household?.id ?? ''}|${familyMembersFingerprint(next)}`;
+    if (appliedFamilySource.current === key) return;
+    if (familyDirty && appliedFamilySource.current != null) return;
+    appliedFamilySource.current = key;
+    setFamilyMembers(next);
+    setFamilyBaseline(familyMembersFingerprint(next));
   }, [
-    household?.id,
     fakeSignedIn,
-    authUser?.uid,
-    authUser?.displayName,
-    profile?.displayName,
+    sessionLoading,
+    household?.id,
+    boxChildren,
+    guestDrafts,
+    familyName,
+    familyDirty,
+    familySynced,
   ]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let alive = true;
+    if (fakeSignedIn || !household?.id) {
+      setInvites([]);
+      setInvitesSettled(!sessionLoading);
+      return;
+    }
+    const cached = peekPartnerInvites(household.id);
+    if (cached) {
+      setInvites(cached);
+      setInvitesSettled(true);
+    }
+    void loadPartnerInvites(household.id).then((rows) => {
+      if (!alive) return;
+      setInvites(rows);
+      setInvitesSettled(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [fakeSignedIn, household?.id, sessionLoading]);
 
   const sendInvite = async () => {
     if (fakeSignedIn || !household?.id || !inviteEmail.trim()) return;
@@ -241,7 +282,8 @@ function AccountScreenBody() {
         invitedByName: profile?.displayName ?? user?.displayName ?? 'Partner',
       });
       setInviteEmail('');
-      await load();
+      setInvites(await loadPartnerInvites(household.id, { fresh: true }));
+      setInvitesSettled(true);
     } finally {
       setInviteSending(false);
     }
@@ -253,7 +295,10 @@ function AccountScreenBody() {
     try {
       await acceptPartnerInvite({ inviteId: inviteCode.trim() });
       setInviteCode('');
-      await load();
+      if (household?.id) {
+        setInvites(await loadPartnerInvites(household.id, { fresh: true }));
+        setInvitesSettled(true);
+      }
     } finally {
       setInviteSending(false);
     }
@@ -380,7 +425,6 @@ function AccountScreenBody() {
       });
       setFamilyBaseline(familyMembersFingerprint(familyMembers));
       setFamilySaved(true);
-      setHasOwnBox(true);
       setRebuildModalOpen(false);
       await refresh({ silent: true });
       navigateMainStack('MyBox');
@@ -393,7 +437,7 @@ function AccountScreenBody() {
 
   const goUpdatePayment = () => navigation.navigate('UpdatePayment');
 
-  if (!fakeSignedIn && (sessionLoading || loading)) {
+  if (!fakeSignedIn && !user && (authLoading || sessionLoading)) {
     return (
       <View style={styles.centered}>
         <BrandLoadingMark color={colors.brand} />
@@ -428,8 +472,9 @@ function AccountScreenBody() {
       {mobileLayout ? (
         <MobileAccountHub
           email={user?.email ?? 'Exploring as guest'}
-          displayName={profile?.displayName}
+          displayName={profile?.displayName ?? user?.displayName}
           cardOnFile={cardOnFile}
+          paymentKnown={paymentKnown}
           cardLabel={cardLabel}
           creditLabel={creditCents > 0 ? formatDollars(creditCents) : null}
           previewBanner={fakeSignedIn ? 'Preview — signed-in account (mock data)' : null}
@@ -446,9 +491,10 @@ function AccountScreenBody() {
             complete: familyComplete,
             error: familyError,
             saved: familySaved,
+            loading: !familySynced,
           }}
           helpers={
-            household?.id
+            household?.id || !paymentKnown
               ? {
                   invites: invites.map((inv) => ({ id: inv.id, email: inv.invitedEmail, status: inv.status })),
                   email: inviteEmail,
@@ -458,6 +504,7 @@ function AccountScreenBody() {
                   onCode: setInviteCode,
                   onAccept: () => void acceptInvite(),
                   busy: inviteSending || fakeSignedIn,
+                  loading: !household?.id || !invitesSettled,
                 }
               : null
           }
@@ -508,37 +555,51 @@ function AccountScreenBody() {
         <AccountHubHeader
           page="account"
           email={user?.email ?? 'Exploring as guest'}
-          displayName={profile?.displayName}
+          displayName={profile?.displayName ?? user?.displayName}
         />
 
         <View style={styles.sectionDivider} />
         <Text style={styles.section}>Your Household</Text>
-        <View style={styles.familyForm}>
-          <FamilyMembersForm
-            members={familyMembers}
-            onChange={(next) => {
-              setFamilyMembers(next);
-              setFamilySaved(false);
-              setFamilyError(null);
-            }}
-            sectionLead=""
-          />
-        </View>
-        <GrapejuiceButton
-          label={familyBusy ? 'Saving…' : 'Save changes'}
-          variant="filled"
-          onPress={onSaveFamilyPress}
-          disabled={!familyDirty || !familyComplete || familyBusy}
-          loading={familyBusy && !rebuildModalOpen}
-          style={styles.actionBtn}
-          textStyle={styles.primaryBtnText}
-        />
-        {familyError ? <Text style={styles.passwordError}>{familyError}</Text> : null}
-        {familySaved && !familyDirty ? (
-          <Text style={styles.passwordSuccess}>Family saved.</Text>
-        ) : null}
+        {familySynced ? (
+          <>
+            <View style={styles.familyForm}>
+              <FamilyMembersForm
+                members={familyMembers}
+                onChange={(next) => {
+                  setFamilyMembers(next);
+                  setFamilySaved(false);
+                  setFamilyError(null);
+                }}
+                sectionLead=""
+              />
+            </View>
+            <GrapejuiceButton
+              label={familyBusy ? 'Saving…' : 'Save changes'}
+              variant="filled"
+              onPress={onSaveFamilyPress}
+              disabled={!familyDirty || !familyComplete || familyBusy}
+              loading={familyBusy && !rebuildModalOpen}
+              style={styles.actionBtn}
+              textStyle={styles.primaryBtnText}
+            />
+            {familyError ? <Text style={styles.passwordError}>{familyError}</Text> : null}
+            {familySaved && !familyDirty ? (
+              <Text style={styles.passwordSuccess}>Family saved.</Text>
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.familyForm}>
+            <BrandLoadingMark large={false} color={colors.brand} />
+          </View>
+        )}
 
-        {household?.id ? (
+        {!paymentKnown ? (
+          <>
+            <View style={styles.sectionDivider} />
+            <Text style={styles.section}>Invite a Collaborator</Text>
+            <Text style={styles.hint}>Loading collaborators.</Text>
+          </>
+        ) : household?.id ? (
           <>
             <View style={styles.sectionDivider} />
             <Text style={styles.section}>Invite a Collaborator</Text>
@@ -599,9 +660,11 @@ function AccountScreenBody() {
         <View style={styles.sectionDivider} />
         <Text style={styles.section}>Payment Information</Text>
         <Text style={styles.hint}>
-          {cardOnFile
-            ? 'A card is saved for your household box and checkout.'
-            : 'No card on file yet. Add one to commit your box or check out faster.'}
+          {!paymentKnown
+            ? 'Checking the card on file.'
+            : cardOnFile
+              ? 'A card is saved for your household box and checkout.'
+              : 'No card on file yet. Add one to commit your box or check out faster.'}
         </Text>
         {creditCents > 0 ? (
           <Text style={[styles.hint, styles.creditLine]}>

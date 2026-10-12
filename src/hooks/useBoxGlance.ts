@@ -9,6 +9,7 @@ import { useCatalog } from './useCatalog';
 import { usePaymentGate } from './usePaymentGate';
 import { useSession } from './useSession';
 import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
+import { prefetchPartnerInvites } from '../services/account/accountPrefetch';
 import { warmBoxCheckout } from '../services/checkout/checkoutPrefetch';
 import { coalesceLinesByItemId } from '../components/box/boxLineDisplay';
 import { chargeableLineTotal } from '../services/box/pricing';
@@ -54,7 +55,14 @@ export function useBoxGlance() {
     return listBoxCentsForKids(Math.max(1, children.length)) + chargeableLineTotal(lineItems);
   }, [hasBox, children.length, lineItems]);
 
-  // Home, the menu, and account all read this glance. Warm checkout while a draft box is on screen.
+  // Home, the menu, and account all read this glance. Partner invites are a Cloud Function,
+  // so start them here — the account page must not wait on that cold start to paint.
+  useEffect(() => {
+    if (sessionLoading || !household?.id) return;
+    prefetchPartnerInvites(household.id);
+  }, [sessionLoading, household?.id]);
+
+  // Warm checkout while a draft box is on screen.
   useEffect(() => {
     if (sessionLoading || draftLoading) return;
     if (state !== 'draft' || !household?.id || !lineItems.length) return;

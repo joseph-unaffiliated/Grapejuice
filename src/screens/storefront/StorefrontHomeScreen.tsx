@@ -62,6 +62,8 @@ import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileBoundary } from '../../components/mobile/MobileBoundary';
 import { MobileClosedHome } from '../mobile/MobileClosedHome';
 import { MobileHomeBody } from '../mobile/MobileHomeBody';
+import { useSession } from '../../hooks/useSession';
+import { prefetchPartnerInvites } from '../../services/account/accountPrefetch';
 import { usePreviewedIsAuthenticated, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -108,6 +110,12 @@ export function StorefrontHomeScreen() {
   const boxMode = useStorefrontHomeMode(lockAt, startsOn, { ignoreGiftIntent: true });
   const giftDraft = useGiftIntentStore((s) => s.draft);
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);
+  const { household, loading: sessionLoading } = useSession();
+
+  useEffect(() => {
+    if (sessionLoading || !household?.id) return;
+    prefetchPartnerInvites(household.id);
+  }, [sessionLoading, household?.id]);
 
   useEffect(() => {
     let cancelled = false;

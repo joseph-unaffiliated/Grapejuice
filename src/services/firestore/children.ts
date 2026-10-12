@@ -31,14 +31,27 @@ function toChild(id: string, data: Record<string, unknown>): ChildProfile {
 
 export type ChildInput = Omit<ChildProfile, 'id'>;
 
+const inflightChildLists = new Map<string, Promise<ChildProfile[]>>();
+
+async function fetchChildList(userId: string): Promise<ChildProfile[]> {
+  if (!db) return [];
+  const firestore = db;
+  const snap = await withAuthRetry(userId, () =>
+    getDocs(collection(firestore, 'users', userId, 'children'))
+  );
+  return snap.docs.map((d) => toChild(d.id, d.data() as Record<string, unknown>));
+}
+
 export const childrenService = {
-  async list(userId: string): Promise<ChildProfile[]> {
-    if (!db) return [];
-    const firestore = db;
-    const snap = await withAuthRetry(userId, () =>
-      getDocs(collection(firestore, 'users', userId, 'children'))
-    );
-    return snap.docs.map((d) => toChild(d.id, d.data() as Record<string, unknown>));
+  /** Concurrent callers for the same user share one read. */
+  list(userId: string): Promise<ChildProfile[]> {
+    const existing = inflightChildLists.get(userId);
+    if (existing) return existing;
+    const promise = fetchChildList(userId).finally(() => {
+      if (inflightChildLists.get(userId) === promise) inflightChildLists.delete(userId);
+    });
+    inflightChildLists.set(userId, promise);
+    return promise;
   },
 
   async replaceAll(userId: string, children: ChildInput[]): Promise<ChildProfile[]> {

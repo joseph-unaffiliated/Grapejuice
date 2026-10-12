@@ -22,6 +22,8 @@ export type MobileAccountFamily = {
   complete: boolean;
   error: string | null;
   saved: boolean;
+  /** Children are still loading and we have nothing cached to show. */
+  loading?: boolean;
 };
 
 export type MobileAccountHelpers = {
@@ -33,6 +35,8 @@ export type MobileAccountHelpers = {
   onCode: (v: string) => void;
   onAccept: () => void;
   busy: boolean;
+  /** Invite list hasn't settled yet. */
+  loading?: boolean;
 };
 
 export type MobileAccountSignIn = {
@@ -58,6 +62,8 @@ type Props = {
   email: string;
   displayName?: string | null;
   cardOnFile: boolean;
+  /** False while the household record is still loading, so we don't claim "No card yet". */
+  paymentKnown?: boolean;
   /** "Visa •••• 4242" when we know the saved card. */
   cardLabel?: string | null;
   creditLabel?: string | null;
@@ -96,11 +102,32 @@ export function MobileAccountHub(p: Props) {
   const [editingFamily, setEditingFamily] = useState(false);
   const kids = p.family.members.filter((x) => (x.role ?? 'kid') === 'kid');
   const named = kids.filter((k) => k.name.trim());
-  const familySub = named.length
-    ? named.map((k) => `${k.name.trim()}, ${memberAge(k)}`).join(' · ')
-    : kids.length
-      ? `${kids.length} ${kids.length === 1 ? 'kid' : 'kids'}`
-      : 'Add your kids';
+  const familySub = p.family.loading
+    ? '…'
+    : named.length
+      ? named.map((k) => `${k.name.trim()}, ${memberAge(k)}`).join(' · ')
+      : kids.length
+        ? `${kids.length} ${kids.length === 1 ? 'kid' : 'kids'}`
+        : 'Add your kids';
+  const paymentKnown = p.paymentKnown !== false;
+  const paymentSub = !paymentKnown
+    ? '…'
+    : p.cardOnFile
+      ? p.cardLabel
+        ? p.creditLabel
+          ? `${p.cardLabel} · ${p.creditLabel} credit`
+          : p.cardLabel
+        : p.creditLabel
+          ? `Card on file · ${p.creditLabel} credit`
+          : 'Card on file'
+      : 'No card yet';
+  const helperSub = !p.helpers
+    ? ''
+    : p.helpers.loading && !p.helpers.invites.length
+      ? '…'
+      : p.helpers.invites.length
+        ? p.helpers.invites.map((i) => i.email).join(', ')
+        : 'Let someone else edit your box';
   const firstName = p.displayName?.trim().split(/\s+/)[0];
   const closeSheet = () => {
     if (sheet === 'family' && p.family.busy) return;
@@ -118,7 +145,12 @@ export function MobileAccountHub(p: Props) {
       <Text style={styles.email}>{p.email}</Text>
 
       <View style={{ marginTop: 18 }}>
-        {glance.state === 'none' ? (
+        {glance.loading && glance.state === 'none' ? (
+          <View style={styles.emptyBox} accessibilityLabel="Loading your box">
+            <View style={styles.skel} />
+            <View style={[styles.skel, { width: '72%', marginTop: 10 }]} />
+          </View>
+        ) : glance.state === 'none' ? (
           <View style={styles.emptyBox}>
             <Text style={mType.h3}>No box yet</Text>
             <Text style={[mType.body, { marginTop: 4 }]}>Tell us about your kids and we'll build one in two minutes.</Text>
@@ -151,8 +183,8 @@ export function MobileAccountHub(p: Props) {
         <Row
           icon={icons.card}
           label="Payment"
-          sub={p.cardOnFile ? (p.cardLabel ? (p.creditLabel ? `${p.cardLabel} · ${p.creditLabel} credit` : p.cardLabel) : (p.creditLabel ? `Card on file · ${p.creditLabel} credit` : 'Card on file')) : 'No card yet'}
-          warn={!p.cardOnFile && glance.state === 'draft'}
+          sub={paymentSub}
+          warn={paymentKnown && !p.cardOnFile && glance.state === 'draft'}
           onPress={() => setSheet('payment')}
         />
         <Row icon={icons.users} label="Family" sub={familySub} onPress={() => setSheet('family')} />
@@ -161,7 +193,7 @@ export function MobileAccountHub(p: Props) {
           <Row
             icon={icons.userPlus}
             label="Box helpers"
-            sub={p.helpers.invites.length ? p.helpers.invites.map((i) => i.email).join(', ') : 'Let someone else edit your box'}
+            sub={helperSub}
             onPress={() => setSheet('helpers')}
           />
         ) : null}
@@ -203,7 +235,9 @@ export function MobileAccountHub(p: Props) {
           ) : undefined
         }
       >
-        {editingFamily && !(p.family.saved && !p.family.dirty) ? (
+        {p.family.loading ? (
+          <Text style={mType.body}>Loading your family.</Text>
+        ) : editingFamily && !(p.family.saved && !p.family.dirty) ? (
           <FamilyMembersForm members={p.family.members} onChange={p.family.onChange} sectionLead="Names and ages shape what goes in your box." />
         ) : (
           <View>
@@ -252,9 +286,11 @@ export function MobileAccountHub(p: Props) {
             <Icon icon={icons.card} size={16} color={m.goldDark} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.memberName}>{p.cardOnFile ? (p.cardLabel ?? 'Card on file') : 'No card yet'}</Text>
+            <Text style={styles.memberName}>
+              {!paymentKnown ? '…' : p.cardOnFile ? (p.cardLabel ?? 'Card on file') : 'No card yet'}
+            </Text>
             <Text style={styles.memberSub}>
-              {p.cardOnFile ? 'Used for your box and checkout' : 'Add one to hold your box'}
+              {!paymentKnown ? 'Checking the card on file' : p.cardOnFile ? 'Used for your box and checkout' : 'Add one to hold your box'}
             </Text>
           </View>
         </View>
@@ -362,6 +398,7 @@ const styles = StyleSheet.create({
   hi: { fontSize: 30, lineHeight: 34, letterSpacing: -0.8, color: m.ink, ...mFont(400) },
   email: { fontSize: 14, color: m.muted, marginTop: 4, ...mFont(400) },
   emptyBox: { borderWidth: 1, borderColor: m.lineWarm, borderRadius: 14, padding: 16, backgroundColor: m.beige },
+  skel: { height: 14, width: '46%', borderRadius: 7, backgroundColor: m.line },
   pill: { alignSelf: 'flex-start', backgroundColor: m.white, color: m.goldDark, fontSize: 12, paddingHorizontal: 10, height: 24, lineHeight: 24, borderRadius: 12, overflow: 'hidden', ...mFont(400) },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lineText: { fontSize: 13.5, color: m.body, ...mFont(400), flex: 1 },

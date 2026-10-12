@@ -16,6 +16,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { PILOT_PARENT_ONLY } from '../../constants/pilotFeatures';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useSession } from '../../hooks/useSession';
+import { prefetchPartnerInvites } from '../../services/account/accountPrefetch';
 import { warmBoxCheckout } from '../../services/checkout/checkoutPrefetch';
 import { editUntilLockNote } from '../../services/hanukkah/dates';
 import type { MainStackParamList } from '../../navigation/types';
@@ -206,6 +207,11 @@ export function MyBoxScreen() {
     wrapSelectedIds,
   } = editing;
   const { household } = useSession();
+
+  useEffect(() => {
+    if (!household?.id) return;
+    prefetchPartnerInvites(household.id);
+  }, [household?.id]);
 
   // Stripe.js + SetupIntent (or saved card) start while the box is on screen, not when Checkout mounts.
   useEffect(() => {
