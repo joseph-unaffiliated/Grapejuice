@@ -22,13 +22,18 @@ type Props = {
   testID?: string;
   /** Row layout: the button fills the rest of the bar (product pages) or hugs its label (My Box). */
   ctaFill?: boolean;
+  /**
+   * Checkout: keep the cookie button in the gap reserved above this bar
+   * instead of hiding it or letting it sit on the black button.
+   */
+  cookieGap?: boolean;
 };
 
 /** Always white: the total, then the black button. Labels say where they go. */
-export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID, ctaFill = true }: Props) {
+export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', hint, testID, ctaFill = true, cookieGap = false }: Props) {
   const insets = useSafeAreaInsets();
   const focused = useScreenFocused();
-  const onLayout = useCookieButtonClearance(Platform.OS === 'web' && focused);
+  const onLayout = useCookieButtonClearance(Platform.OS === 'web' && focused, { reserveGap: cookieGap });
   if (!focused) return null;
   const summary = (
     <Pressable onPress={onSummaryPress} disabled={!onSummaryPress} style={ctaFill ? styles.summary : styles.summaryFill} accessibilityRole={onSummaryPress ? 'button' : undefined}>

@@ -17,13 +17,11 @@ import { listBoxCentsForKids } from '../services/box/boxRules';
 import { formatCatalogDollars } from '../services/box/buildDefaultBox';
 import { primaryPhoto, SAMPLE_BOX_IDS } from '../components/mobile/catalogPhotos';
 import type { BoxThumb } from '../components/mobile/BoxSummary';
+import { lockShortLabel } from '../constants/hanukkahBoxLock';
+
+export { lockShortLabel };
 
 export type BoxGlanceState = 'none' | 'draft' | 'set';
-
-export function lockShortLabel(lockAt: string | null): string {
-  if (!lockAt) return 'the lock date';
-  return new Date(lockAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
-}
 
 export function daysUntilLock(lockAt: string | null, now = Date.now()): number | null {
   if (!lockAt) return null;

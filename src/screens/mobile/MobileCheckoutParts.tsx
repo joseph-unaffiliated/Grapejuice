@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { MainStackParamList } from '../../navigation/types';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
@@ -66,7 +69,7 @@ export function MobileSavedCard({ label, onChange, disabled }: { label: string; 
 
 /* ------------------------------------------------------------------ one-page checkout */
 
-/** OneTrust's cookie button floats just above the bar; the terms must be able to scroll past it. */
+/** Room above the white bar for the cookie button, so the terms can scroll clear of it. */
 const COOKIE_BUTTON_CLEARANCE = 110;
 
 type LayoutProps = {
@@ -88,6 +91,7 @@ type LayoutProps = {
 /** Task header, one reassurance line, the order summary, shipping, payment, and the bar passed in. */
 export function MobileCheckoutLayout(p: LayoutProps) {
   const [open, setOpen] = useState(false);
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Box', onPress: p.onBack }} title="Checkout" right={<Secure />} />
@@ -95,7 +99,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
         <View style={styles.pad}>
           <View style={styles.assure}>
             <Icon icon={icons.calendar} size={14} color={m.goldDark} />
-            <Text style={styles.assureText}>Changes allowed until {p.lockShort} · Nothing charged until then</Text>
+            <Text style={styles.assureText}>Keep editing your box until {p.lockShort}</Text>
           </View>
           <Text style={styles.held}>{NOT_HELD_COPY}</Text>
           {p.lockedNote ? <Text style={styles.error}>{p.lockedNote}</Text> : null}
@@ -133,7 +137,25 @@ export function MobileCheckoutLayout(p: LayoutProps) {
           {p.payment}
           {p.discount ? <View style={{ marginTop: 12 }}>{p.discount}</View> : null}
           <Text style={styles.terms} {...balanceProps}>
-            By placing your order you agree to Grapejuice's Terms and Privacy Policy. Your card is charged after {p.lockShort}, when your box is prepared to ship.
+            By placing your order you agree to Grapejuice's{' '}
+            <Text
+              style={styles.termsLink}
+              accessibilityRole="link"
+              accessibilityLabel="Terms"
+              onPress={() => navigation.navigate('StorefrontTerms')}
+            >
+              Terms
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={styles.termsLink}
+              accessibilityRole="link"
+              accessibilityLabel="Privacy Policy"
+              onPress={() => navigation.navigate('StorefrontPrivacy')}
+            >
+              Privacy Policy
+            </Text>
+            . Your card is charged after {p.lockShort}, when your box is prepared to ship.
           </Text>
         </View>
       </ScrollView>
@@ -188,7 +210,7 @@ export function MobileCardAndPlaceOrder({
       <View style={styles.cardWrap}>
         <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </View>
-      <StickyBar label={chargeLabel} total={total} layout="stack" cta={{ label: 'Place order', onPress: () => void place(), busy: saving, disabled: disabled || saving || !stripe || !elements }} testID="mobile-checkout-bar" />
+      <StickyBar label={chargeLabel} total={total} layout="stack" cookieGap cta={{ label: 'Place order', onPress: () => void place(), busy: saving, disabled: disabled || saving || !stripe || !elements }} testID="mobile-checkout-bar" />
     </>
   );
 }
@@ -267,6 +289,12 @@ const styles = StyleSheet.create({
   error: { fontSize: 13, color: m.warn, marginTop: 8, ...mFont(400) },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
   terms: { fontSize: 12.5, lineHeight: 18, color: m.muted, marginTop: 18, ...mFont(400) },
+  termsLink: {
+    color: m.goldDark,
+    textDecorationLine: 'underline',
+    ...mFont(400),
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer', paddingTop: 8, paddingBottom: 8, marginTop: -8, marginBottom: -8 } as object) : null),
+  },
   label: { fontSize: 12.5, color: m.muted, marginBottom: 6, ...mFont(400) },
   input: { height: 50, borderWidth: 1, borderColor: m.gold, borderRadius: mRadius.md, paddingHorizontal: 14, fontSize: 16, color: m.ink, ...mFont(400) },
   link: { fontSize: 13, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },

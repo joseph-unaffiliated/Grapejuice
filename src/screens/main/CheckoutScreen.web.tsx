@@ -814,6 +814,7 @@ function CheckoutScreenBody() {
           label={`Charged after ${lockShort}`}
           total={totalLabel}
           layout="stack"
+          cookieGap
           cta={{
             label: 'Place order',
             onPress: () => {

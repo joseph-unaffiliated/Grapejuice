@@ -41,6 +41,19 @@ export function daysToBoxLock(now: Date = new Date(), lockAt?: string | null): n
   return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
+/**
+ * Short lock day in Eastern time, e.g. `Nov 7`.
+ * Lock is 11:59pm ET (`2026-11-08T04:59:59Z`), so UTC or a local format shows Nov 8.
+ */
+export function lockShortLabel(lockAt: string | null): string {
+  if (!lockAt) return 'the lock date';
+  return new Date(lockAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'America/New_York',
+  });
+}
+
 /** e.g. `Nov 7` — the lock day in the viewer's time zone. */
 export function boxLockDayLabel(lockAt?: string | null): string {
   const lock = lockTargetDate(lockAt);

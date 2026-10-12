@@ -332,20 +332,23 @@ geq.load("X2JHJ4WE");}();
           display: none !important;
         }
       }
-      /* Phones: a bottom bar or the menu covers the cookie, so hide it instead of sitting on the price or Email us. */
+      /* Phones: a bottom bar or the menu covers the cookie, so hide it instead of sitting on the price or Email us.
+         Checkout adds gj-cookie-gap and keeps the button in the reserved slot above the white bar. */
       @media (max-width: 767px) {
-        body.gj-bottom-bar #ot-sdk-btn-floating,
-        body.gj-bottom-bar .ot-floating-button,
-        body.gj-bottom-bar [id^="ot-sdk-btn"],
+        body.gj-bottom-bar:not(.gj-cookie-gap) #ot-sdk-btn-floating,
+        body.gj-bottom-bar:not(.gj-cookie-gap) .ot-floating-button,
+        body.gj-bottom-bar:not(.gj-cookie-gap) [id^="ot-sdk-btn"],
         body.gj-menu-open #ot-sdk-btn-floating,
         body.gj-menu-open .ot-floating-button,
         body.gj-menu-open [id^="ot-sdk-btn"] {
           display: none !important;
         }
       }
-      /* Full-width bottom bar (gift box summary on phones): lift the cookie FAB above it. */
+      /* Full-width bottom bar: lift the cookie FAB above it. Checkout also pins it in JS
+         because OneTrust's own rule uses two IDs and !important. */
       body.gj-bottom-bar #ot-sdk-btn-floating,
       body.gj-bottom-bar #ot-sdk-btn-floating.ot-floating-button,
+      body.gj-bottom-bar .ot-floating-button,
       body.gj-bottom-bar #onetrust-banner-sdk,
       body.gj-bottom-bar [data-testid="gj-admin-fab"] {
         bottom: calc(var(--gj-bottom-bar-h, 96px) + 12px) !important;

@@ -673,13 +673,16 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     );
   };
 
-  const receiptSheet = (donatedOpen: boolean) => (
+  const receiptSheet = (donatedOpen: boolean) => {
+    const receiptSections = BOX_DISPLAY_SECTIONS.flatMap((s) => {
+      const rows = rowsFor(s.id);
+      return rows.length ? [{ section: s, rows }] : [];
+    });
+    return (
     <MobileSheet visible onClose={() => setSheet(null)} title={gift ? 'Their box' : 'Your box'} titleAction={{ label: 'Keep editing', onPress: () => setSheet(null) }} footer={<MobileButton label={`${gift ? gift.nextLabel : 'Checkout'} · ${formatCatalogDollars(total)}`} onPress={() => { setSheet(null); if (gift) gift.onNext(); else e.goToCheckout(); }} />}>
-      {BOX_DISPLAY_SECTIONS.map((s) => {
-        const rows = rowsFor(s.id);
-        if (!rows.length) return null;
+      {receiptSections.map(({ section: s, rows }, index) => {
         return (
-          <View key={s.id} style={styles.rcGroup}>
+          <View key={s.id} style={[styles.rcGroup, index === 0 && styles.rcFirst]}>
             <View style={styles.sectionHead}>
               <SectionIcon id={s.id} size={13} color={m.goldDark} />
               <Text style={styles.rcHead}>{s.title}</Text>
@@ -734,7 +737,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         <Line label="Total" value={formatCatalogDollars(total)} strong />
       </View>
     </MobileSheet>
-  );
+    );
+  };
 
   const body = (
       <View style={{ paddingBottom: STICKY_BAR_CLEARANCE + 12 }}>
@@ -747,11 +751,6 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
           ) : null}
           <Text style={mType.h1}>{gift ? 'Their Hanukkah box' : 'Your Hanukkah box'}</Text>
           <Text style={styles.headSub} {...balanceProps}>Everything you need for Hanukkah, picked for {yours} family. Keep it as is, or change anything.</Text>
-          {!gift && !e.locked && !e.guestViewOnly ? (
-            <Text style={styles.lockLink} onPress={() => setResetOpen(true)} accessibilityRole="button">
-              Reset my box
-            </Text>
-          ) : null}
           <View style={styles.lockLine}>
             <Icon icon={icons.calendar} size={13} color={m.gold} />
             {gift ? <Text style={styles.lockText}>Send by {lockShort}</Text> : (
@@ -809,6 +808,11 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
               })}
             </ScrollView>
           </View>
+        ) : null}
+        {!gift && !e.locked && !e.guestViewOnly ? (
+          <Pressable onPress={() => setResetOpen(true)} accessibilityRole="button" accessibilityLabel="Reset my box" hitSlop={8} style={styles.reset}>
+            <Text style={styles.lockLink}>Reset my box</Text>
+          </Pressable>
         ) : null}
       </View>
   );
@@ -962,6 +966,7 @@ const styles = StyleSheet.create({
   likePrice: { fontSize: 12, color: m.muted, ...mFont(400) },
   likeAdd: { alignSelf: 'flex-start', height: 34, paddingHorizontal: 14, borderRadius: 18, backgroundColor: m.ink, justifyContent: 'center', marginTop: 4 },
   likeAddText: { fontSize: 13, color: m.gold, ...mFont(400) },
+  reset: { alignSelf: 'flex-start', marginTop: 28, marginHorizontal: mGutter, marginBottom: 4, paddingVertical: 8 },
   sheetFoot: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   footLabel: { fontSize: 12, color: m.muted, ...mFont(300) },
   footTotal: { fontSize: 16, color: m.ink, ...mFont(500) },
@@ -986,6 +991,7 @@ const styles = StyleSheet.create({
   addGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   sheetPhoto: { width: 230, height: 230, alignSelf: 'center', borderRadius: mRadius.lg, backgroundColor: m.img },
   rcGroup: { marginBottom: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: m.line },
+  rcFirst: { marginTop: 14 },
   rcHead: { fontSize: 14, color: m.ink, ...mFont(500) },
   rcRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   rcName: { flex: 1, fontSize: 14, color: m.ink, ...mFont(400) },
