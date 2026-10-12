@@ -19,6 +19,8 @@ type Props = {
   onCycleSort: () => void;
   onCategory: (slug: string) => void;
   onOpen: (slug: string) => void;
+  /** "Add to my box" on a tile — product page with the add choice already open. */
+  onAdd: (slug: string) => void;
   onViewBox: () => void;
   loading?: boolean;
   empty?: React.ReactNode;
@@ -64,7 +66,7 @@ export function MobileCategoryBody(p: Props) {
         onPress={() => p.onOpen(it.id)}
         action={
           p.hasBox && !inBox && status?.kind !== 'sold'
-            ? { label: 'Add to my box', onPress: () => p.onOpen(it.id), variant: 'secondary' }
+            ? { label: 'Add to my box', onPress: () => p.onAdd(it.id), variant: 'secondary' }
             : inBox
               ? { label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }
               : undefined

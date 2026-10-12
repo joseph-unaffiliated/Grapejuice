@@ -110,6 +110,7 @@ export function CatalogProductScreen() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, 'CatalogProduct'>>();
   const { slug } = route.params;
+  const openAdd = route.params.openAdd === true;
   const { width, height } = useWindowDimensions();
   const desktop = width >= 768;
   const {
@@ -647,6 +648,10 @@ export function CatalogProductScreen() {
             saving={saving}
             soldOut={isSoldOut || boxSoldOut}
             roleOptions={roleOptions}
+            openAdd={openAdd}
+            onConsumeOpenAdd={() => {
+              if (route.params.openAdd) navigation.setParams({ openAdd: false });
+            }}
             wishlisted={wishlisted}
             onToggleWishlist={() => void toggleWishlist(item.id)}
             onOpenProduct={(s) => navigation.push('CatalogProduct', { slug: s })}

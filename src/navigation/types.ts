@@ -64,7 +64,15 @@ export type MainStackParamList = {
   StorefrontHowToLightCandles: undefined;
   StorefrontPrivacy: undefined;
   StorefrontTerms: undefined;
-  CatalogProduct: { slug: string };
+  CatalogProduct: {
+    slug: string;
+    /**
+     * Phone catalog "Add to my box": on arrival, do what the product page's
+     * own Add button would do (open the swap-or-add sheet, or add when there
+     * is nothing to swap). Consumed once so back/re-render does not repeat it.
+     */
+    openAdd?: boolean;
+  };
   BoxDiscountEligibility: undefined;
   Checkout: undefined;
   /** Replace card on file after a failed off-session charge. */

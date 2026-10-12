@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
@@ -40,6 +40,12 @@ type Props = {
   soldOut: boolean;
   /** Options for the role chooser; empty means plain "Add to my box". */
   roleOptions: RoleOption[];
+  /**
+   * Catalog "Add to my box" landed here. Run the same action as this page's
+   * Add button once, then the screen clears the flag.
+   */
+  openAdd?: boolean;
+  onConsumeOpenAdd?: () => void;
   wishlisted: boolean;
   onToggleWishlist: () => void;
   onOpenProduct: (slug: string) => void;
@@ -70,12 +76,58 @@ export function MobileProductBody(p: Props) {
   const desc = (p.item.description ?? '').trim();
   const shortDesc = desc.length > 160 && !more ? `${desc.slice(0, 157).trimEnd()}…` : desc;
 
+  /** Same press as the sticky "Add to my box" — sheet when there's a choice, otherwise that one action. */
+  const pressAddToMyBox = () => {
+    if (p.locked || p.saving) return;
+    if (p.roleOptions.length > 1) {
+      setRole(0);
+      setChooser(true);
+    } else {
+      void p.roleOptions[0]?.onPress();
+    }
+  };
+
+  /**
+   * Whatever the bottom bar's button would do right now. Catalog arrival with
+   * `openAdd` uses this so signed-out / no-swap / sold-out match a manual tap.
+   */
+  const pressBarCta = () => {
+    if (p.soldOut) {
+      if (p.onNotifyBack) p.onNotifyBack();
+      return;
+    }
+    if (p.inBox) {
+      p.onViewBox();
+      return;
+    }
+    if (p.hasBox) {
+      pressAddToMyBox();
+      return;
+    }
+    if (!p.saving && p.onBuyJustThis) p.onBuyJustThis();
+  };
+
+  const openAddOnce = useRef(false);
+  useEffect(() => {
+    if (!p.openAdd) {
+      openAddOnce.current = false;
+      return;
+    }
+    if (openAddOnce.current) return;
+    openAddOnce.current = true;
+    p.onConsumeOpenAdd?.();
+    pressBarCta();
+    // Fire only on the openAdd edge. Handlers are current on that render; the product
+    // screen mounts this body after the box and catalog have loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.openAdd]);
+
   const bar = p.soldOut ? (
     <StickyBar label="Sold out" total={p.onNotifyBack ? 'We can email you if it comes back' : ''} layout="row" cta={{ label: 'Email me if it’s back', onPress: p.onNotifyBack ?? (() => {}), variant: 'secondary', disabled: !p.onNotifyBack }} />
   ) : p.inBox ? (
     <StickyBar label={p.inBoxUnitCents > 0 ? `Added${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''}` : 'In your box'} total={p.inBoxUnitCents > 0 ? `+${formatCatalogDollars(p.inBoxUnitCents * p.boxQuantity)}` : 'Included'} cta={{ label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }} />
   ) : p.hasBox ? (
-    <StickyBar total={p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included'} cta={{ label: 'Add to my box', onPress: () => (p.roleOptions.length > 1 ? (setRole(0), setChooser(true)) : void p.roleOptions[0]?.onPress()), disabled: p.locked || p.saving, busy: p.saving }} />
+    <StickyBar total={p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included'} cta={{ label: 'Add to my box', onPress: pressAddToMyBox, disabled: p.locked || p.saving, busy: p.saving }} />
   ) : (
     <StickyBar label="On its own" total={formatCatalogDollars(p.priceCents)} cta={{ label: 'Add to Cart', onPress: p.onBuyJustThis ?? (() => {}), disabled: !p.onBuyJustThis || p.saving }} />
   );

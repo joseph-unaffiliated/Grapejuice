@@ -464,6 +464,7 @@ export function StorefrontCategoryScreen() {
             onCycleSort={() => setSort(SORT_OPTIONS[(sortIdx + 1) % SORT_OPTIONS.length]!.key)}
             onCategory={(next) => goCategory(next)}
             onOpen={(s) => navigation.navigate('CatalogProduct', { slug: s })}
+            onAdd={(s) => navigation.navigate('CatalogProduct', { slug: s, openAdd: true })}
             onViewBox={() => navigation.navigate('MyBox')}
             loading={loading}
             empty={emptyBlock}
