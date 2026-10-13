@@ -1,7 +1,9 @@
 /**
  * Airtable → Firestore catalog replace sync.
  *
- * Source of truth: Grapejuice base Full Catalog (Listings) + Hanukkah Books.
+ * Source of truth: Grapejuice base Full Catalog (Listings). Book rows there decide which
+ * books are listed, their prices, ages and default ages; the linked Hanukkah Books row
+ * supplies title, author, copy and gallery images.
  * Writes catalog/hanukkah/items/* and deletes orphans not in the synced set.
  *
  * Env:
@@ -59,6 +61,10 @@ const F = {
   boxRoles: 'fldxFZn1AVEGMCjjD',
   /** Warehouse / ShipStation SKU (e.g. CDL-STR-001). Empty → fall back to slugified ID. */
   sku: 'fld1xjteLPXlU4VsW',
+  /** Book rows: link to the Hanukkah Books record with title, author and copy. */
+  hanukkahBooks: 'fldMOUzSLUQ5qOzvu',
+  /** Book rows: exact kid ages (0–12) this book is the included default for. */
+  defaultBookAges: 'fldhdftdVkGmSQvCP',
 } as const;
 
 const B = {
@@ -69,15 +75,7 @@ const B = {
   primaryImage: 'fldPIYO00g9QwhpVC',
   /** Other Images — secondary gallery, same role as Full Catalog Other Images. */
   otherImages: 'fldlxFU6PXF2LWutu',
-  defaultForAge: 'fldZcr2Dzq9JivS7u',
-  age: 'fldCQ9GdNJMI4f300',
   interest: 'fld0HXR8bybF5jJlf',
-  cut: 'fldRZaX3mVlFqWntD',
-  /** Free-text approx price, e.g. "$8-18 depending on edition". */
-  price: 'fldP8mVb5xMC9CQg3',
-  unitCost: 'fldocbJQ59NOnn52q',
-  memberPrice: 'fldDxCYzoVa8kECiK',
-  nonMemberPrice: 'fld98ErDMv4fjIXNV',
   description: 'fld4sz0NbEfYURoas',
   whatsIncluded: 'fldibf87uviMr3F1p',
   careNotes: 'fldOgYIzuMOiKypF8',
@@ -104,6 +102,8 @@ export type SyncedCatalogItem = {
   slotId: string;
   ageGroups: string[];
   defaultFor: string[];
+  /** Books only: Full Catalog "Default book ages" (exact ages, wins over `defaultFor`). */
+  defaultBookAges?: number[];
   swapOptions: string[];
   unitCostCents: number;
   memberPriceCents: number;
@@ -232,28 +232,6 @@ function textField(v: unknown): string | null {
 function currencyToCents(v: unknown): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return 0;
   return Math.max(0, Math.round(v * 100));
-}
-
-/**
- * High end of Hanukkah Books "Price (approx, USD)" free text.
- * Examples: "$4.99 board book" → 499; "$8-18 depending on edition" → 1800;
- * "$8-20 …; $24.99 gift ed." → 2499.
- */
-export function parseApproxPriceHighCents(raw: unknown): number {
-  const s = String(raw ?? '');
-  if (!s.trim()) return 0;
-  const amounts: number[] = [];
-  const re = /~?\$?\s*(\d+(?:\.\d{1,2})?)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(s))) {
-    const n = Number.parseFloat(m[1]);
-    if (!Number.isFinite(n)) continue;
-    // Book prices are small; skip page counts / years accidentally captured.
-    if (n <= 0 || n > 500) continue;
-    amounts.push(n);
-  }
-  if (!amounts.length) return 0;
-  return Math.max(0, Math.round(Math.max(...amounts) * 100));
 }
 
 function attachments(v: unknown): AirtableAttachment[] {
@@ -595,35 +573,55 @@ function listingToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatal
   };
 }
 
-function bookToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatalogItem | null {
-  const f = rec.fields;
-  if (f[B.cut] === true) return null;
-  const title = String(f[B.title] ?? '').trim();
+/** Book title: the linked Hanukkah Books Title, else the Full Catalog ID. Drives the item id. */
+function bookTitle(fcRec: AirtableRecord, bookRec: AirtableRecord | null): string {
+  return String(bookRec?.fields[B.title] ?? fcRec.fields[F.id] ?? '').trim();
+}
+
+/**
+ * A Full Catalog Book row → catalog item. Full Catalog owns listing (In production?),
+ * prices, ages and default ages; the linked Hanukkah Books row only supplies copy.
+ * Inventory is ignored for books — they stay untracked so stock rules never swap them.
+ */
+export function bookToItem(
+  fcRec: AirtableRecord,
+  bookRec: AirtableRecord | null,
+  images: ResolvedImages
+): SyncedCatalogItem | null {
+  const f = fcRec.fields;
+  const b = bookRec?.fields ?? {};
+  const title = bookTitle(fcRec, bookRec);
   if (!title) return null;
-  const age = selectName(f[B.age]);
-  const ageGroups = age && age !== '-' ? ageYearsToGroups([age]) : ['0-2', '3-5', '6-8', '9-12'];
-  const isDefault = f[B.defaultForAge] === true;
-  const author = String(f[B.author] ?? '').trim();
+  const inProd = selectName(f[F.inProduction]);
+  if (inProd && inProd !== 'Yes') return null;
+
+  const ageGroups = ageYearsToGroups(selectNames(f[F.age]));
+  const defaultBookAges = selectNames(f[F.defaultBookAges])
+    .map((a) => parseInt(a, 10))
+    .filter((n) => Number.isFinite(n))
+    .sort((x, y) => x - y);
+  const author = String(b[B.author] ?? '').trim();
   const id = `book-${slugifyCatalogId(title)}`;
-  const priceCents =
-    currencyToCents(f[B.memberPrice]) ||
-    currencyToCents(f[B.nonMemberPrice]) ||
-    currencyToCents(f[B.unitCost]) ||
-    parseApproxPriceHighCents(f[B.price]);
+  const memberPriceCents = currencyToCents(f[F.memberPrice]);
+  const nonMemberPriceCents = currencyToCents(f[F.nonMemberPrice]) || memberPriceCents;
 
   return {
     id,
     name: title,
-    description: String(f[B.description] ?? '').trim() || (author ? `By ${author}` : title),
+    description:
+      String(b[B.description] ?? '').trim() ||
+      String(f[F.description] ?? '').trim() ||
+      (author ? `By ${author}` : title),
     slot: 'story',
     slotId: 'story',
     ageGroups,
-    defaultFor: isDefault ? ageGroups : [],
+    defaultFor: defaultBookAges.length ? ageYearsToGroups(defaultBookAges.map(String)) : [],
+    defaultBookAges,
     swapOptions: [],
-    unitCostCents: priceCents,
-    memberPriceCents: priceCents,
-    nonMemberPriceCents: priceCents,
-    dollarCostCents: priceCents,
+    unitCostCents: currencyToCents(f[F.unitCost]),
+    memberPriceCents,
+    nonMemberPriceCents,
+    dollarCostCents: nonMemberPriceCents || memberPriceCents,
     pricingTier: 'perKid',
     holiday: CATALOG_HOLIDAY,
     categories: ['Book'],
@@ -631,22 +629,22 @@ function bookToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatalogI
     context: ['Default'],
     source: 'Curated',
     inventory: null,
-    airtableRecordId: rec.id,
+    airtableRecordId: fcRec.id,
     airtableTable: 'books',
     brand: author || null,
     imageUrl: images.imageUrl,
     imageUrls: images.imageUrls,
     imageThumbUrls: images.imageThumbUrls,
-    buyLink: typeof f[B.buyLink] === 'string' ? (f[B.buyLink] as string) : null,
-    interest: selectName(f[B.interest]),
+    buyLink: typeof b[B.buyLink] === 'string' ? (b[B.buyLink] as string) : null,
+    interest: selectName(b[B.interest]),
     curationTags: ['collection'],
-    storefrontRails: selectNames(f[B.storefrontRails]),
+    storefrontRails: selectNames(b[B.storefrontRails]),
     storefrontRank: null,
     dimensions: null,
     weight: null,
     materials: null,
-    whatsIncluded: textField(f[B.whatsIncluded]),
-    careNotes: textField(f[B.careNotes]),
+    whatsIncluded: textField(b[B.whatsIncluded]),
+    careNotes: textField(b[B.careNotes]),
     // Books are never sold à la carte — caps/FBA unused by the resolver.
     directSaleCapBeforeLock: null,
     sellAfterLock: null,
@@ -782,12 +780,15 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
   const bookRenderings = buildFullCatalogBookRenderingIndex(listingRecs);
   logger.info('Full Catalog book renderings indexed', { count: bookRenderings.size });
 
+  const fcBookRecs: AirtableRecord[] = [];
   for (const rec of listingRecs) {
     const name = String(rec.fields[F.id] ?? '').trim();
     if (!name) continue;
-    // Book products come from Hanukkah Books; Full Catalog Book rows supply renderings only.
     const cats = selectNames(rec.fields[F.category]).map((c) => c.toLowerCase());
-    if (cats.includes('book')) continue;
+    if (cats.includes('book')) {
+      fcBookRecs.push(rec);
+      continue;
+    }
     const inProd = selectName(rec.fields[F.inProduction]);
     if (inProd && inProd !== 'Yes') continue;
     const id = slugifyCatalogId(name);
@@ -806,14 +807,20 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
     if (item) items.push(item);
   }
 
+  const bookRecsById = new Map(bookRecs.map((r) => [r.id, r]));
   let booksUsingFcPrimary = 0;
-  for (const rec of bookRecs) {
-    if (rec.fields[B.cut] === true) continue;
-    const title = String(rec.fields[B.title] ?? '').trim();
+  for (const fcRec of fcBookRecs) {
+    const inProd = selectName(fcRec.fields[F.inProduction]);
+    if (inProd && inProd !== 'Yes') continue;
+    const linkedId = Array.isArray(fcRec.fields[F.hanukkahBooks])
+      ? (fcRec.fields[F.hanukkahBooks] as unknown[]).find((v): v is string => typeof v === 'string')
+      : undefined;
+    const rec = linkedId ? bookRecsById.get(linkedId) ?? null : null;
+    const title = bookTitle(fcRec, rec);
     if (!title) continue;
     const id = `book-${slugifyCatalogId(title)}`;
-    const bookPrimary = attachments(rec.fields[B.primaryImage]);
-    const bookOther = attachments(rec.fields[B.otherImages]);
+    const bookPrimary = attachments(rec?.fields[B.primaryImage]);
+    const bookOther = attachments(rec?.fields[B.otherImages]);
     const fc = findBookRendering(title, bookRenderings);
 
     // Book grid/PDP primary always comes from Full Catalog Primary Image when matched.
@@ -840,7 +847,7 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
         logger.warn('Book image mirror failed', { id, error: String(e) });
       }
     }
-    const item = bookToItem(rec, images);
+    const item = bookToItem(fcRec, rec, images);
     if (item) items.push(item);
   }
   logger.info('Books using Full Catalog primary renderings', { booksUsingFcPrimary });

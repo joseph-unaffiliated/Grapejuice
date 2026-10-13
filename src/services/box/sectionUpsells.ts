@@ -122,8 +122,8 @@ function kidAgeDistance(item: CatalogItem, ages: readonly number[]): number {
  *
  * The default for a kid is the same book `buildDefaultBox` would assign via
  * `resolveBookForAge`: the first catalog row whose Default book ages include
- * that age, otherwise story rows tagged `defaultFor` for the age band, otherwise
- * `ageGroups`. Those defaults lead (younger kids first). Other books that fit
+ * that age, otherwise the nearest Default book age, otherwise story rows tagged
+ * `defaultFor` for the age band, otherwise `ageGroups`. Those defaults lead (younger kids first). Other books that fit
  * the family’s ages come next, then the rest of the any-book swap set, nearer
  * ages before farther ones. Alphabetical name order is not the sort.
  * Sold-out rows are not dropped here — callers already apply `withoutSoldOut`.

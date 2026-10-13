@@ -1057,6 +1057,24 @@ export function resolveByDefaultSlot(
   return bestScore > 0 ? best : undefined;
 }
 
+/** Book whose Default book ages sit closest to `age` (e.g. a 15-year-old gets the 12 default). */
+function nearestDefaultBook(catalog: BoxRulesCatalogRow[], age: number): BoxRulesCatalogRow | undefined {
+  let best: BoxRulesCatalogRow | undefined;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const row of catalog) {
+    for (const raw of row.defaultBookAges ?? []) {
+      const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+      if (!Number.isFinite(n)) continue;
+      const distance = Math.abs(n - age);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = row;
+      }
+    }
+  }
+  return best;
+}
+
 export function resolveBookForAge(
   catalog: BoxRulesCatalogRow[] | undefined,
   age: number
@@ -1067,6 +1085,8 @@ export function resolveBookForAge(
     (r.defaultBookAges ?? []).map(String).includes(ageStr)
   );
   if (tagged) return tagged;
+  const nearest = nearestDefaultBook(catalog, Math.floor(age));
+  if (nearest) return nearest;
 
   const band = ageGroupForNumericAge(age);
   const storyish = (r: BoxRulesCatalogRow) =>
