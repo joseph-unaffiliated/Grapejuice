@@ -6,7 +6,7 @@ import {
   metaServerContext,
   type MetaServerContext,
 } from '../analytics/metaPixel';
-import type { AttributionSnapshot } from '../../stores/entryContextStore';
+import { readSessionEntry, type AttributionSnapshot, type AttributionTouch } from '../../stores/entryContextStore';
 import { promoForServer, type PromoRequest } from '../promo/promoSession';
 
 export type CommitPilotBoxResult = {
@@ -40,10 +40,12 @@ export async function commitPilotBox(
       meta?: MetaServerContext;
       attribution?: AttributionSnapshot;
       promo?: PromoRequest;
+      session?: AttributionTouch;
     },
     CommitPilotBoxResult
   >(functions, 'commitPilotBox');
   const promo = promoForServer();
+  const session = readSessionEntry();
   const { data } = await callable({
     householdId,
     shippingAddress,
@@ -54,6 +56,7 @@ export async function commitPilotBox(
     meta: metaServerContext(),
     attribution: attributionForServer(),
     ...(promo ? { promo } : {}),
+    ...(session ? { session } : {}),
   });
   return data;
 }

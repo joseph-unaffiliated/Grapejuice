@@ -7,6 +7,14 @@ import { isTest } from './testAccounts';
 import { resolveAvailability, availabilityRemaining } from './catalogAvailability';
 import { buildShopOrder, type DashShopOrder } from './shopOrders';
 import { INVENTORY_EMAIL_LOG, inventoryEmailStats, type InventoryEmailStats } from './inventoryEmails';
+import { stripe } from './stripe';
+import * as logger from './logger';
+import {
+  checkoutSessionFromStripeMetadata,
+  classifyCheckoutSession,
+  type CheckoutSessionDoc,
+  type CheckoutSessionView,
+} from './checkoutSession';
 
 /**
  * Admin "Orders and Inventory" dashboard: one read-only snapshot of Hanukkah box orders,
@@ -64,6 +72,8 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
+  /** Card on file: the session that saved it (else the one that committed the address). */
+  cardSession: CheckoutSessionView | null;
   /**
    * State ("NY", "ON, Canada"): the order's ship-to, else the household's latest order address, else
    * the account's IP region (`locationFromIp`).
@@ -597,6 +607,49 @@ export function buildGiftFunnelRows(
   return rows;
 }
 
+const CARD_SESSION_BACKFILL_PER_LOAD = 40;
+
+/**
+ * Cards saved before sessions were recorded: rebuild the session once from the SetupIntent's
+ * metadata and keep it on the household. Mutates `households` so this load shows it.
+ */
+async function backfillCardSessions(db: Firestore, households: Map<string, DocumentData>): Promise<void> {
+  const client = stripe;
+  if (!client) return;
+  const todo = [...households]
+    .filter(
+      ([, h]) =>
+        (h.cardOnFileAt || h.stripeDefaultPaymentMethodId) &&
+        !h.cardOnFileSession &&
+        !h.cardOnFileSessionMissing &&
+        str(h.stripeCustomerId),
+    )
+    .slice(0, CARD_SESSION_BACKFILL_PER_LOAD);
+  for (let i = 0; i < todo.length; i += 8) {
+    await Promise.all(
+      todo.slice(i, i + 8).map(async ([hid, h]) => {
+        try {
+          const list = await client.setupIntents.list({ customer: String(h.stripeCustomerId), limit: 10 });
+          const ok = list.data.filter((si) => si.status === 'succeeded');
+          const pmOf = (si: (typeof ok)[number]) =>
+            typeof si.payment_method === 'string' ? si.payment_method : si.payment_method?.id;
+          const si = ok.find((s) => pmOf(s) === h.stripeDefaultPaymentMethodId) ?? ok[0];
+          const at = str(h.cardOnFileAt) ?? (si ? new Date(si.created * 1000).toISOString() : null);
+          const session = si && at ? checkoutSessionFromStripeMetadata(si.metadata, at) : null;
+          const patch = session ? { cardOnFileSession: session } : { cardOnFileSessionMissing: true };
+          await db.doc(`households/${hid}`).set(patch, { merge: true });
+          Object.assign(h, patch);
+        } catch (err) {
+          logger.warn('Card session backfill failed', { householdId: hid, err: String(err) });
+        }
+      }),
+    );
+  }
+}
+
+const sessionDoc = (v: unknown): CheckoutSessionDoc | null =>
+  v && typeof v === 'object' && typeof (v as CheckoutSessionDoc).at === 'string' ? (v as CheckoutSessionDoc) : null;
+
 export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Promise<BoxesDashboard> {
   const [
     configSnap,
@@ -664,6 +717,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     households.set(d.id, h);
     if (str(h.ownerId)) userIds.add(h.ownerId);
   }
+  await backfillCardSessions(db, households);
   for (const d of ordersSnap.docs) {
     const u = str(d.data().userId);
     if (u) userIds.add(u);
@@ -715,6 +769,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       guestIpOutsideUsByUid.set(uid, ipOutsideUs(x.ipGeo));
     }
   }
+  const userTouches = new Map<string, unknown[]>();
   const users = new Map<
     string,
     {
@@ -734,6 +789,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const fromGuest = guestAnswersByUid.get(s.id) ?? NO_ANSWERS;
     const hanukkah = score(last.familiarityScore) ?? fromGuest.hanukkah;
     const attr = x.attribution ?? {};
+    userTouches.set(s.id, [attr.lastTouch, attr.firstTouch].filter(Boolean));
     const fromAuth = authByUid.get(s.id);
     users.set(s.id, {
       email: str(x.email) ?? fromAuth?.email ?? null,
@@ -785,6 +841,20 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       childNames,
       cardOnFile: Boolean(h.cardOnFileAt || h.stripeDefaultPaymentMethodId),
     };
+  };
+
+  const cardSessionFor = (
+    hid: string,
+    uid: string | null,
+    order: DocumentData | null,
+  ): CheckoutSessionView | null => {
+    const h = households.get(hid) ?? {};
+    if (!(h.cardOnFileAt || h.stripeDefaultPaymentMethodId)) return null;
+    const s = sessionDoc(h.cardOnFileSession) ?? sessionDoc(order?.checkoutSession);
+    if (!s) return null;
+    const owner = uid ?? str(h.ownerId);
+    const oa = (order?.attribution && typeof order.attribution === 'object' ? order.attribution : {}) as Record<string, unknown>;
+    return classifyCheckoutSession(s, [oa.lastTouch, oa.firstTouch, ...((owner && userTouches.get(owner)) || [])]);
   };
 
   const lineView = (li: DocumentData, childNames: Map<string, string | null>): DashLine => {
@@ -910,6 +980,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(o.updatedAt) ?? iso(o.committedAt) ?? iso(o.createdAt),
       committedAt: iso(o.committedAt),
       attribution: attributionLabel(o.attribution),
+      cardSession: cardSessionFor(hid, str(o.userId), o),
       ...placeFor(hid, str(o.userId), locationOf(o.shippingAddress)),
       answers: c.answers,
       lines,
@@ -945,6 +1016,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(dr.updatedAt),
       committedAt: null,
       attribution: null,
+      cardSession: cardSessionFor(hid, str(dr.updatedBy), null),
       ...placeFor(hid, str(dr.updatedBy), null),
       answers: c.answers,
       lines,

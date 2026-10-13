@@ -30,6 +30,9 @@ type Props = {
   details: { label: string; value: string }[];
   similar: CatalogItem[];
   similarTitle: string;
+  /** Products from other categories, below the same-category shelf. */
+  alsoLike?: CatalogItem[];
+  alsoTitle?: string;
   hasBox: boolean;
   inBox: boolean;
   inBoxUnitCents: number;
@@ -56,6 +59,7 @@ type Props = {
   onNotifyBack?: () => void;
   /** Opens the product's category ("See all" beside the similar rail). */
   onSeeAll?: () => void;
+  onSeeAllAlso?: () => void;
   availabilityById?: Record<string, CatalogAvailability>;
   /** Toast after an add. */
   lastAdded?: string | null;
@@ -222,28 +226,13 @@ export function MobileProductBody(p: Props) {
         {[...p.details, { label: 'Shipping', value: p.hasBox ? 'Ships with your box, free' : 'Free shipping in the U.S.' }].map((d) => (
           <View key={d.label} style={styles.listRow}>
             <Text style={styles.listT}>{d.label}</Text>
-            <Text style={[styles.listS, { marginTop: 2 }]}>{d.value}</Text>
+            <Text style={styles.listS}>{d.value}</Text>
           </View>
         ))}
       </View>
 
-      {p.similar.length ? (
-        <View style={{ paddingTop: 36, paddingBottom: 8 }}>
-          <View style={styles.secRow}>
-            <Text style={styles.secH2}>{p.similarTitle}</Text>
-            {p.onSeeAll ? (
-              <Pressable onPress={p.onSeeAll} accessibilityRole="button" hitSlop={8}>
-                <Text style={styles.moreLink}>See all</Text>
-              </Pressable>
-            ) : null}
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-            {p.similar.slice(0, 8).map((it) => (
-              <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(p.availabilityById?.[it.id])} onPress={() => p.onOpenProduct(it.id)} />
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
+      <ProductShelf title={p.similarTitle} items={p.similar} onSeeAll={p.onSeeAll} onOpenProduct={p.onOpenProduct} availabilityById={p.availabilityById} />
+      <ProductShelf title={p.alsoTitle ?? 'You might also like...'} items={p.alsoLike ?? []} onSeeAll={p.onSeeAllAlso} onOpenProduct={p.onOpenProduct} availabilityById={p.availabilityById} padTop={p.similar.length ? 8 : 36} />
       <View style={{ height: 40 }} />
 
       {bar}
@@ -288,6 +277,41 @@ export function MobileProductBody(p: Props) {
   );
 }
 
+function ProductShelf({
+  title,
+  items,
+  onSeeAll,
+  onOpenProduct,
+  availabilityById,
+  padTop = 36,
+}: {
+  title: string;
+  items: CatalogItem[];
+  onSeeAll?: () => void;
+  onOpenProduct: (slug: string) => void;
+  availabilityById?: Record<string, CatalogAvailability>;
+  padTop?: number;
+}) {
+  if (!items.length) return null;
+  return (
+    <View style={{ paddingTop: padTop, paddingBottom: 8 }}>
+      <View style={styles.secRow}>
+        <Text style={styles.secH2}>{title}</Text>
+        {onSeeAll ? (
+          <Pressable onPress={onSeeAll} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.moreLink}>See all</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+        {items.slice(0, 8).map((it) => (
+          <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(availabilityById?.[it.id])} onPress={() => onOpenProduct(it.id)} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   gallery: { position: 'relative', backgroundColor: m.white },
   heart: { position: 'absolute', top: 12, right: 12, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
@@ -312,9 +336,9 @@ const styles = StyleSheet.create({
   stepText: { fontSize: 18, color: m.goldDark },
   stepQty: { minWidth: 18, textAlign: 'center', fontSize: 15, color: m.ink, ...mFont(400) },
   details: { marginTop: 24, marginHorizontal: mGutter, borderTopWidth: 1, borderTopColor: m.line },
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: m.line },
-  listT: { fontSize: 16, color: m.ink, ...mFont(400) },
-  listS: { fontSize: 13, color: m.muted, marginTop: 2, ...mFont(300) },
+  listRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, minHeight: 54, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: m.line },
+  listT: { width: 132, flexShrink: 0, fontSize: 16, lineHeight: 21, color: m.ink, ...mFont(400) },
+  listS: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 18, color: m.muted, marginTop: 2, ...mFont(300) },
   listC: { fontSize: 20, color: m.goldDark },
   secRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: mGutter, marginBottom: 14 },
   secH2: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(500) },

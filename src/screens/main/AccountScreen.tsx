@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileCodeSignIn } from '../../components/mobile/MobileCodeSignIn';
 import { MobileAccountHub } from '../mobile/MobileAccountHub';
@@ -58,7 +58,7 @@ import {
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { navigateMainStack } from '../../navigation/mainStackNavigation';
 import { usersService } from '../../services/firestore/users';
-import { isOpsAdmin } from '../../constants/admin';
+import { isListedAdmin, isOpsAdmin } from '../../constants/admin';
 import { InfluencerDashboard } from '../../components/account/InfluencerDashboard';
 import { formatDollars } from '../../services/box/buildDefaultBox';
 
@@ -112,6 +112,8 @@ function AccountScreenBody() {
   const styles = useMemo(() => createAccountStyles(colors, isDesktop), [colors, isDesktop]);
   const authUser = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.isLoading);
+  /** A password or Google attempt flips auth loading; keep the phone sign-in form mounted through it. */
+  const mobileSignInShown = useRef(false);
   const logout = useAuthStore((s) => s.logout);
   const changePassword = useAuthStore((s) => s.changePassword);
   const authError = useAuthStore((s) => s.error);
@@ -437,7 +439,7 @@ function AccountScreenBody() {
 
   const goUpdatePayment = () => navigation.navigate('UpdatePayment');
 
-  if (!fakeSignedIn && !user && (authLoading || sessionLoading)) {
+  if (!fakeSignedIn && !user && (authLoading || sessionLoading) && !(mobileLayout && mobileSignInShown.current)) {
     return (
       <View style={styles.centered}>
         <BrandLoadingMark color={colors.brand} />
@@ -454,9 +456,10 @@ function AccountScreenBody() {
 
   if (!user) {
     if (mobileLayout) {
+      mobileSignInShown.current = true;
       return (
         <ScrollView style={{ flex: 1, backgroundColor: '#FFFFFF' }} keyboardShouldPersistTaps="handled">
-          <MobileCodeSignIn title="Sign in" lead="Enter the email you used for your box. We'll send a 6-digit code. No password needed." />
+          <MobileCodeSignIn title="Sign in" lead="Enter the email you used for your box." alternatives={{ googleReturnTo: 'Account' }} />
         </ScrollView>
       );
     }
@@ -535,8 +538,9 @@ function AccountScreenBody() {
           onFavorites={() => navigation.navigate('StorefrontFavorites')}
           onHistory={() => navigation.navigate('History')}
           onSendGift={() => navigation.navigate('GiftGive')}
+          influencerEnabled={!fakeSignedIn && Boolean(user.emailVerified)}
           ops={
-            isOpsAdmin(user)
+            isListedAdmin(user)
               ? [
                   { label: 'Catalog', sub: 'Hanukkah SKUs', onPress: () => navigation.navigate('AdminCatalog') },
                   { label: 'Boxes and Orders', sub: 'Live boxes, shop orders, gifts and inventory', onPress: () => navigation.navigate('AdminBoxes') },

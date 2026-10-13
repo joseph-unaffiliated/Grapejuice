@@ -1,5 +1,8 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { MainStackParamList } from '../../navigation/types';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useBoxGlance } from '../../hooks/useBoxGlance';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
@@ -9,7 +12,7 @@ import type { CatalogItem } from '../../types/pilot';
 import { BoxSummary, type BoxThumb } from './BoxSummary';
 import { MobileButton } from './MobileButton';
 import { primaryPhoto, SAMPLE_BOX_IDS } from './catalogPhotos';
-import { m, mFont, mGutter } from './mobileTheme';
+import { balanceProps, m, mFont, mGutter } from './mobileTheme';
 
 type Props = {
   /** The item(s) the visitor is looking at; shown outlined inside the box. */
@@ -24,6 +27,7 @@ type Props = {
  * lines, and "Start a box with it". Included-tier items cost nothing extra in a box.
  */
 export function BoxPitch({ items, title, cta = 'Start a box with it', onPress }: Props) {
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const { items: catalog } = useCatalog();
   const { lockShort } = useBoxGlance();
   const byId = useMemo(() => new Map(catalog.map((c) => [c.id, c])), [catalog]);
@@ -31,9 +35,10 @@ export function BoxPitch({ items, title, cta = 'Start a box with it', onPress }:
   const add = items.reduce((t, it) => t + (inferPricingTier(it) === 'included' ? 0 : boxAddOnUnitCents(it)), 0);
   const ids = new Set(items.map((i) => i.id));
   const rest = SAMPLE_BOX_IDS.filter((id) => !ids.has(id)).slice(0, Math.max(0, 6 - items.length));
+  const openProduct = (id: string) => navigation.navigate('CatalogProduct', { slug: id });
   const thumbs: BoxThumb[] = [
-    ...items.map((it) => ({ id: it.id, imageUrl: primaryPhoto(it), mine: true })),
-    ...rest.map((id) => ({ id, imageUrl: primaryPhoto(byId.get(id)) })),
+    ...items.map((it) => ({ id: it.id, imageUrl: primaryPhoto(it), mine: true, onPress: () => openProduct(it.id) })),
+    ...rest.map((id) => ({ id, imageUrl: primaryPhoto(byId.get(id)), onPress: () => openProduct(id) })),
   ];
   const label = items.length === 1 ? items[0]!.name : `These ${items.length} items`;
   return (
@@ -57,7 +62,7 @@ export function BoxPitch({ items, title, cta = 'Start a box with it', onPress }:
           </View>
         </View>
         <MobileButton label={cta} onPress={onPress} height={50} />
-        <Text style={styles.note}>Free shipping · changes allowed until {lockShort} · nothing charged until then</Text>
+        <Text style={styles.note} {...balanceProps}>Free shipping · changes allowed until {lockShort} · nothing charged until then</Text>
       </BoxSummary>
     </View>
   );

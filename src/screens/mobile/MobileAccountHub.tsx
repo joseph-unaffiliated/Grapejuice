@@ -9,6 +9,7 @@ import { m, mType, mFont, balanceProps } from '../../components/mobile/mobileThe
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import { FamilyMembersForm } from '../../components/family/FamilyMembersForm';
+import { InfluencerDashboard } from '../../components/account/InfluencerDashboard';
 import { makeKidDraft, type ChildDraft } from '../../components/family/familyDraft';
 import { PRICING_POLICY } from '../../services/box/boxRules';
 import { formatDollars } from '../../services/box/buildDefaultBox';
@@ -83,6 +84,8 @@ type Props = {
   onSendGift: () => void;
   /** Ops admin links. Phones used to offer only the catalog, so Boxes and Orders was unreachable. */
   ops?: { label: string; sub: string; onPress: () => void }[];
+  /** Influencer referral stats. The dashboard hides itself when this account has none. */
+  influencerEnabled?: boolean;
   signOutLabel: string;
   onSignOut: () => void;
 };
@@ -143,7 +146,9 @@ export function MobileAccountHub(p: Props) {
     <ScrollView style={{ flex: 1, backgroundColor: m.white }} contentContainerStyle={[styles.content, mobileFooterScrollStyle, { paddingBottom: 0 }]}>
       {p.previewBanner ? <Text style={styles.preview}>{p.previewBanner}</Text> : null}
       <Text style={styles.hi} {...balanceProps}>{firstName ? `Hi, ${firstName}` : 'Your account'}</Text>
-      <Text style={styles.email}>{p.email}</Text>
+      <Pressable onPress={() => setSheet('signin')} accessibilityRole="button" accessibilityLabel="Sign-in">
+        <Text style={styles.email}>{p.email.replace('@', '@\u200b')}</Text>
+      </Pressable>
 
       <View style={{ marginTop: 18 }}>
         {glance.loading && glance.state === 'none' ? (
@@ -203,6 +208,10 @@ export function MobileAccountHub(p: Props) {
         <Row icon={icons.clockHistory} label="History" sub="Past Hanukkahs" onPress={p.onHistory} />
         <Row icon={icons.paperPlane} label="Send a gift" sub="A box or credit for another family" onPress={p.onSendGift} />
       </View>
+
+      {p.influencerEnabled ? (
+        <InfluencerDashboard enabled sectionStyle={styles.eyebrow} dividerStyle={styles.influencerDivider} />
+      ) : null}
 
       {p.ops?.length ? (
         <>
@@ -408,6 +417,7 @@ const styles = StyleSheet.create({
   lineText: { fontSize: 13.5, color: m.body, ...mFont(400), flex: 1 },
   held: { fontSize: 12.5, color: m.goldDark, lineHeight: 16, ...mFont(400) },
   eyebrow: { ...mType.eyebrow, marginTop: 26, marginBottom: 4 },
+  influencerDivider: { height: 0 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: m.line, gap: 12, minHeight: 64 },
   tile: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#FAFAF7', borderWidth: 1, borderColor: m.line, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { fontSize: 16, color: m.ink, ...mFont(400) },

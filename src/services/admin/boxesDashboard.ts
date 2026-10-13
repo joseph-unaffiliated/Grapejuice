@@ -20,6 +20,16 @@ export type DashLine = {
   forHousehold: boolean;
 };
 
+/** See functions/src/checkoutSession.ts. */
+export type DashCardSession = {
+  channel: 'instagram' | 'facebook' | 'meta' | 'email' | 'organic' | 'other';
+  device: 'mobile' | 'desktop' | null;
+  detail: string;
+  at: string;
+  /** No entry was recorded; channel comes from a campaign click shortly before. */
+  inferred: boolean;
+};
+
 export type DashBox = {
   id: string;
   source: 'order' | 'draft';
@@ -42,6 +52,8 @@ export type DashBox = {
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
+  /** Card on file: the session that saved it (else the one that committed the address). */
+  cardSession?: DashCardSession | null;
   /** State ("NY", "ON, Canada") from an address, else the account's IP region. */
   location?: string | null;
   locationFromIp?: boolean;

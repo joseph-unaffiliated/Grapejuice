@@ -6,7 +6,7 @@ import {
   metaServerContext,
   type MetaServerContext,
 } from '../analytics/metaPixel';
-import type { AttributionSnapshot } from '../../stores/entryContextStore';
+import { readSessionEntry, type AttributionSnapshot, type AttributionTouch } from '../../stores/entryContextStore';
 import { normalizeUsState, normalizeUsZip } from '../../utils/usAddress';
 import { promoForServer, type PromoRequest } from '../promo/promoSession';
 
@@ -106,10 +106,12 @@ export async function createMarketplaceCheckout(
       meta?: MetaServerContext;
       attribution?: AttributionSnapshot;
       promo?: PromoRequest;
+      session?: AttributionTouch;
     },
     CreateMarketplaceCheckoutResult
   >(functions, 'createMarketplaceCheckout');
   const promo = promoForServer();
+  const session = readSessionEntry();
   const { data } = await callable({
     ...(householdId ? { householdId } : {}),
     ...(options?.email ? { email: options.email } : {}),
@@ -119,6 +121,7 @@ export async function createMarketplaceCheckout(
     meta: metaServerContext(),
     attribution: attributionForServer(),
     ...(promo ? { promo } : {}),
+    ...(session ? { session } : {}),
   });
   return data;
 }

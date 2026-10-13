@@ -8,6 +8,9 @@ import { m, mType, mFont, balanceProps } from './mobileTheme';
 import { MobileButton } from './MobileButton';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
+import { GoogleAuthButton } from '../auth/GoogleAuthButton';
+import { isSocialInAppBrowser } from '../../utils/inAppBrowser';
+import type { GoogleSignInReturnTo } from '../../stores/authStore';
 
 /** The envelope in a beige circle above "Check your email". */
 export function MailBadge() {
@@ -79,20 +82,62 @@ type Props = {
   footer?: React.ReactNode;
   onSignedIn?: () => void;
   style?: object;
+  /** Also offer "Sign in with password" and, outside Instagram / Facebook, "Sign in with Google". */
+  alternatives?: { googleReturnTo?: GoogleSignInReturnTo | null };
 };
 
 /**
  * Passwordless sign-in for the phone layouts: email → 6-digit code → custom token.
  * Shared by the checkout gate, the sign-in screen and the account page's guest state.
  */
-export function MobileCodeSignIn({ title, lead, createIfMissing = true, children, footer, onSignedIn, style }: Props) {
+export function MobileCodeSignIn({ title, lead, createIfMissing = true, children, footer, onSignedIn, style, alternatives }: Props) {
   const signInWithToken = useAuthStore((s) => s.signInWithToken);
+  const { signIn, googleSignIn, error: authError, clearError } = useAuthStore();
   const guestEmail = useGuestSessionStore((s) => s.pendingAccountEmail || s.interestEmail || '');
   const [email, setEmail] = useState(guestEmail);
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passwordMode, setPasswordMode] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [inApp] = useState(isSocialInAppBrowser);
+
+  const signInWithPassword = async () => {
+    if (!isValidEmail(email)) return setError('Enter a valid email address.');
+    if (!password) return setError('Enter your password.');
+    clearError();
+    setError(null);
+    setBusy(true);
+    try {
+      await signIn(email.trim(), password);
+      onSignedIn?.();
+    } catch {
+      /* store */
+    } finally {
+      setBusy(false);
+    }
+  };
+  const signInWithGoogle = async () => {
+    clearError();
+    setError(null);
+    setGoogleBusy(true);
+    try {
+      await googleSignIn(alternatives?.googleReturnTo ?? null);
+    } catch {
+      /* store */
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+  const leavePasswordMode = () => {
+    clearError();
+    setError(null);
+    setPassword('');
+    setPasswordMode(false);
+  };
 
   const send = async () => {
     if (!isValidEmail(email)) return setError('Enter a valid email address.');
@@ -169,11 +214,59 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
             accessibilityLabel="Email"
             onSubmitEditing={() => void send()}
           />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <MobileButton label="Email me a code" onPress={() => void send()} busy={busy} height={54} style={{ marginTop: 20 }} />
+          {passwordMode ? (
+            <>
+              <Text style={styles.label}>Password</Text>
+              <View>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoComplete="current-password"
+                  textContentType="password"
+                  autoFocus
+                  style={[styles.input, { paddingRight: 64 }]}
+                  accessibilityLabel="Password"
+                  onSubmitEditing={() => void signInWithPassword()}
+                />
+                <Pressable onPress={() => setShowPassword((v) => !v)} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} style={styles.show} hitSlop={8}>
+                  <Text style={styles.showText}>{showPassword ? 'Hide' : 'Show'}</Text>
+                </Pressable>
+              </View>
+              {error ?? authError ? <Text style={styles.error}>{error ?? authError}</Text> : null}
+              <MobileButton label="Sign in" onPress={() => void signInWithPassword()} busy={busy} height={54} style={{ marginTop: 20 }} />
+              <Pressable onPress={leavePasswordMode} accessibilityRole="button" style={styles.different} hitSlop={8}>
+                <Text style={styles.differentText}>Sign in a different way</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <MobileButton label="Email me a code" onPress={() => void send()} busy={busy} height={54} style={{ marginTop: 20 }} />
+              {alternatives ? (
+                <>
+                  <MobileButton
+                    label="Sign in with password"
+                    variant="secondary"
+                    height={50}
+                    style={{ marginTop: 10 }}
+                    onPress={() => {
+                      clearError();
+                      setError(null);
+                      setPasswordMode(true);
+                    }}
+                  />
+                  {inApp ? null : (
+                    <GoogleAuthButton appearance="mobile" label="Sign in with Google" onPress={() => void signInWithGoogle()} disabled={googleBusy} loading={googleBusy} style={{ marginTop: 10 }} />
+                  )}
+                  {authError ? <Text style={styles.error}>{authError}</Text> : null}
+                </>
+              ) : null}
+            </>
+          )}
         </>
       )}
-      {sent ? null : footer}
+      {sent || passwordMode ? null : footer}
     </View>
   );
 }
@@ -187,6 +280,10 @@ const styles = StyleSheet.create({
   sentTo: { ...mType.small, marginTop: 20, marginBottom: 10 },
   link: { color: m.goldDark, textDecorationLine: 'underline' },
   error: { ...mType.small, color: m.warn, marginTop: 10 },
+  show: { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  showText: { fontSize: 13.5, color: m.goldDark, ...mFont(400) },
+  different: { alignSelf: 'center', marginTop: 16, paddingVertical: 4 },
+  differentText: { fontSize: 14, color: m.muted, ...mFont(400) },
   codeRow: { flexDirection: 'row', gap: 8, position: 'relative' },
   codeBox: { flex: 1, height: 54, borderWidth: 1, borderColor: m.gold, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   codeBoxCur: { borderColor: m.goldDark, borderWidth: 2 },

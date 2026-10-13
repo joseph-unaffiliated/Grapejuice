@@ -207,6 +207,28 @@ function writeStoredAttribution(value: StoredAttribution): void {
   }
 }
 
+const SESSION_ENTRY_KEY = 'gj.sessionEntry';
+
+/** First page of this tab's visit; reloads keep it. */
+function writeSessionEntry(touch: AttributionTouch): void {
+  try {
+    if (!sessionStorage.getItem(SESSION_ENTRY_KEY)) sessionStorage.setItem(SESSION_ENTRY_KEY, JSON.stringify(touch));
+  } catch {
+    // ignore
+  }
+}
+
+/** Where this tab's visit started, sent with card / address saves (see functions/src/checkoutSession.ts). */
+export function readSessionEntry(): AttributionTouch | null {
+  if (Platform.OS !== 'web' || typeof sessionStorage === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_ENTRY_KEY);
+    return raw ? (JSON.parse(raw) as AttributionTouch) : null;
+  } catch {
+    return null;
+  }
+}
+
 let attributionCaptured = false;
 
 /**
@@ -236,6 +258,7 @@ export function captureAttributionFromWindow(): void {
       referrer,
       at: new Date().toISOString(),
     };
+    writeSessionEntry(touch);
     const stored = readStoredAttribution();
 
     let fbc = stored?.fbc ?? null;

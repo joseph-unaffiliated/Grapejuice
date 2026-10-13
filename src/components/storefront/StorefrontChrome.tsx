@@ -1159,6 +1159,14 @@ export function useStorefrontActions() {
         hasOwnBox,
         refreshSession: refresh,
       }),
+    /** Questionnaire first, then the curated box includes this product. */
+    startBoxWithItem: (itemId: string) =>
+      openBoxSurface(isAuthenticated, {
+        hasOwnBox: false,
+        refreshSession: refresh,
+        pendingItemId: itemId,
+        focusItemId: itemId,
+      }),
     askRav: (message?: string) => {
       // Prefer the storefront drawer — screens usually call this hook above Chrome,
       // so React context isn’t available; the provider registers a bridge instead.

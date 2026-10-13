@@ -170,7 +170,7 @@ export function metaContextForDoc(ctx: MetaClientContext): Record<string, string
   return out;
 }
 
-function sanitizeTouch(raw: unknown): Record<string, unknown> | null {
+export function sanitizeTouch(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const touch: Record<string, unknown> = {};

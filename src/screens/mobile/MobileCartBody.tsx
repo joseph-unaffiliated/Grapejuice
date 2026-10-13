@@ -1,7 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
-import { TaskHeader } from '../../components/mobile/TaskHeader';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { BoxPitch } from '../../components/mobile/BoxPitch';
 import { MobileButton } from '../../components/mobile/MobileButton';
@@ -23,13 +22,12 @@ type Props = {
   hasBox: boolean;
 };
 
-/** The phone cart: task header, rows with steppers, totals, the box pitch, a white Checkout bar. */
+/** The phone cart under the site header: rows with steppers, totals, the box pitch, a white Checkout bar. */
 export function MobileCartBody(p: Props) {
   const pitchItems = p.lines.map((li) => p.catalogById.get(li.itemId)).filter((x): x is CatalogItem => !!x).slice(0, 3);
   if (p.lines.length === 0) {
     return (
-      <View style={{ flex: 1 }}>
-        <TaskHeader back={{ label: 'Shop', onPress: p.onBack }} title="Cart" />
+      <View>
         <View style={styles.empty}>
           <Text style={mType.h2}>Your cart is empty</Text>
           <Text style={[mType.body, { marginTop: 6, textAlign: 'center' }]}>The Hanukkah box has what you need, or shop the collection piece by piece.</Text>
@@ -41,8 +39,8 @@ export function MobileCartBody(p: Props) {
   }
   return (
     <View style={{ paddingBottom: STICKY_BAR_CLEARANCE + 20 }}>
-      <TaskHeader back={{ label: 'Shop', onPress: p.onBack }} title="Cart" />
       <View style={styles.pad}>
+        <Text style={[mType.h1, styles.title]}>Cart</Text>
         {p.lines.map((li) => {
           const item = p.catalogById.get(li.itemId);
           const qty = Math.max(1, li.quantity || 1);
@@ -98,7 +96,8 @@ function Line({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: mGutter },
-  empty: { padding: mGutter, paddingTop: 48, alignItems: 'center' },
+  empty: { padding: mGutter, paddingTop: 48, paddingBottom: 64, alignItems: 'center' },
+  title: { marginTop: 16, marginBottom: 4 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: m.line },
   name: { fontSize: 15, color: m.ink, ...mFont(400) },
   price: { fontSize: 13.5, color: m.muted, marginTop: 2, ...mFont(400) },

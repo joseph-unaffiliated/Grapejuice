@@ -68,6 +68,13 @@ type GuestSessionState = {
   interestEmail: string;
   /** Email that already has an account — we emailed a login link to save this box. */
   pendingAccountEmail: string;
+  /**
+   * Catalog item chosen before the questionnaire ("Start a box with it" or a
+   * menu thumbnail). Folded into the curated box when it is built.
+   */
+  pendingBoxItemId: string | null;
+  /** Open this item's sheet the next time My Box mounts. */
+  myBoxFocusItemId: string | null;
   guestRavPromptCount: number;
   startExplore: () => void;
   startBuildBox: () => void;
@@ -90,6 +97,8 @@ type GuestSessionState = {
   toggleInterest: (interest: string) => void;
   setInterestEmail: (email: string) => void;
   setPendingAccountEmail: (email: string) => void;
+  setPendingBoxItemId: (id: string | null) => void;
+  setMyBoxFocusItemId: (id: string | null) => void;
   toggleHiddenHoliday: (holidayId: string) => void;
   recordGuestRavPrompt: () => void;
   /** Clear curated box + completion flags so onboarding can run again. */
@@ -120,6 +129,8 @@ const initialState = {
   interests: [] as string[],
   interestEmail: '',
   pendingAccountEmail: '',
+  pendingBoxItemId: null as string | null,
+  myBoxFocusItemId: null as string | null,
   guestRavPromptCount: 0,
 };
 
@@ -134,7 +145,13 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       startExplore: () => set({ exploreStarted: true, buildBoxPath: false, onboardingStep: null }),
       startBuildBox: () => set({ exploreStarted: true, buildBoxPath: true }),
       exitOnboardingToExplore: () =>
-        set({ exploreStarted: true, buildBoxPath: false, onboardingStep: null }),
+        set({
+          exploreStarted: true,
+          buildBoxPath: false,
+          onboardingStep: null,
+          pendingBoxItemId: null,
+          myBoxFocusItemId: null,
+        }),
       setChildDrafts: (childDrafts) => set({ childDrafts }),
       setChildInterests: (childInterests) => set({ childInterests }),
       setFamiliarityScore: (score) => {
@@ -168,6 +185,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
           openMyBoxAfterReveal: true,
           onboardingStep: null,
           buildBoxPath: false,
+          pendingBoxItemId: null,
         }),
       consumeOpenMyBoxAfterReveal: () => set({ openMyBoxAfterReveal: false }),
       toggleInterest: (interest) => {
@@ -181,6 +199,8 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       setInterestEmail: (interestEmail) => set({ interestEmail: interestEmail.trim() }),
       setPendingAccountEmail: (pendingAccountEmail) =>
         set({ pendingAccountEmail: pendingAccountEmail.trim() }),
+      setPendingBoxItemId: (pendingBoxItemId) => set({ pendingBoxItemId }),
+      setMyBoxFocusItemId: (myBoxFocusItemId) => set({ myBoxFocusItemId }),
       toggleHiddenHoliday: (holidayId) => {
         const current = get().hiddenHolidays;
         set({
@@ -201,6 +221,8 @@ export const useGuestSessionStore = create<GuestSessionState>()(
           onboardingStep: null,
           buildBoxPath: false,
           exploreStarted: true,
+          pendingBoxItemId: null,
+          myBoxFocusItemId: null,
         }),
       reset: () => set({ ...initialState, _hasHydrated: true }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
@@ -230,6 +252,8 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         interests: state.interests,
         interestEmail: state.interestEmail,
         pendingAccountEmail: state.pendingAccountEmail,
+        pendingBoxItemId: state.pendingBoxItemId,
+        myBoxFocusItemId: state.myBoxFocusItemId,
         guestRavPromptCount: state.guestRavPromptCount,
       }),
       onRehydrateStorage: () => (state) => {

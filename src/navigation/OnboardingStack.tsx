@@ -20,6 +20,7 @@ import {
 } from '../services/box/boxBuildResume';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildCuratedBox } from '../services/box/buildDefaultBox';
+import { foldItemIntoCuratedBox } from '../services/box/foldItemIntoCuratedBox';
 import { curateBox, applyCurateBoxResult } from '../services/rav/curateBox';
 import { remapGuestChildIds } from '../services/guest/persistGuestToAccount';
 import type { BoxLineItem, FamiliarityLevel, ChildProfile, LastBoxAnswers } from '../types/pilot';
@@ -439,7 +440,8 @@ export function OnboardingStack({
         adults,
         childInterests: interests,
       });
-      let items = curated.lineItems;
+      const pickedId = useGuestSessionStore.getState().pendingBoxItemId;
+      let items = foldItemIntoCuratedBox(curated.lineItems, catalog, pickedId);
       if (!items.length) {
         throw new Error('We could not build a default box from the catalog. Please try again later.');
       }
@@ -473,15 +475,16 @@ export function OnboardingStack({
       };
 
       const publishCurated = (next: BoxLineItem[]) => {
-        setGuestLineItems(next);
-        setLineItems(next);
+        const folded = foldItemIntoCuratedBox(next, catalog, pickedId);
+        setGuestLineItems(folded);
+        setLineItems(folded);
         const prev = readBoxBuildResume();
-        if (prev) writeBoxBuildResume({ ...prev, lineItems: next, savedAt: Date.now() });
+        if (prev) writeBoxBuildResume({ ...prev, lineItems: folded, savedAt: Date.now() });
         const hid = householdIdRef.current || readBoxBuildResume()?.householdId;
         const uid = useAuthStore.getState().user?.uid;
         if (hid && uid) {
           void boxDraftService
-            .save(hid, uid, next, { familiarityLevel: level, childInterests: interests })
+            .save(hid, uid, folded, { familiarityLevel: level, childInterests: interests })
             .catch((err) => console.warn('[onboarding] rav draft save failed', err));
         }
       };

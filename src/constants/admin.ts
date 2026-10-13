@@ -37,6 +37,22 @@ export function isTestEmail(email?: string | null): boolean {
   return domain != null && TEST_EMAIL_DOMAINS.includes(domain);
 }
 
+/**
+ * Account → Ops. The signed-in address itself is on the allowlist.
+ * Plus-aliases (joseph+test021@…) stay customers so a playthrough doesn't
+ * see Catalog / Boxes / Promotions. Influencer stats are separate.
+ */
+export function isListedAdmin(user?: {
+  email?: string | null;
+  emails?: string[] | null;
+} | null): boolean {
+  if (!user) return false;
+  const listed = (email?: string | null) =>
+    !!email && (ADMIN_EMAILS as readonly string[]).includes(email.trim().toLowerCase());
+  if (listed(user.email)) return true;
+  return (user.emails ?? []).some((email) => listed(email));
+}
+
 /** True for allowlisted emails (any sign-in method / plus-alias) and in local __DEV__. */
 export function isOpsAdmin(user?: {
   email?: string | null;

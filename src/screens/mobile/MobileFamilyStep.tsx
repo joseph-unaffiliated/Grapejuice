@@ -10,6 +10,7 @@ import { MobileButton } from '../../components/mobile/MobileButton';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import { balanceProps, m, mFont, mGutter, mType } from '../../components/mobile/mobileTheme';
+import { useGuestSessionStore } from '../../stores/guestSessionStore';
 
 const MAX_MEMBERS = 8;
 
@@ -33,6 +34,7 @@ type Props = {
 /** Onboarding step 1 on the phone (onboarding-v3 s=1): who's celebrating, one card per person. */
 export function MobileFamilyStep({ members, onChange, canContinue, onContinue }: Props) {
   const [keyboard, setKeyboard] = useState(false);
+  const addedItem = useGuestSessionStore((s) => s.pendingBoxItemId);
   const update = (i: number, patch: Partial<ChildDraft>) => onChange(members.map((mem, j) => (j === i ? { ...mem, ...patch } : mem)));
   const toggleInterest = (i: number, id: ChildInterestId) => {
     const cur = members[i].interests ?? [];
@@ -55,6 +57,9 @@ export function MobileFamilyStep({ members, onChange, canContinue, onContinue }:
         <Text style={styles.sub} {...balanceProps}>
           Tell us who's celebrating. We'll send everything you need for Hanukkah, and you can change anything.
         </Text>
+        {addedItem ? (
+          <Text style={styles.added} {...balanceProps}>Added. Now we just need to build the rest of your box.</Text>
+        ) : null}
         <View style={styles.icons}>
           {PRACTICES.map((pr) => (
             <View key={pr.id} style={styles.iconCell}>
@@ -160,6 +165,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: m.white },
   content: { paddingHorizontal: mGutter, paddingTop: 28, paddingBottom: 24 },
   sub: { fontSize: 15, lineHeight: 22, color: m.body, marginTop: 12, ...mFont(300) },
+  added: { fontSize: 15, lineHeight: 22, color: m.goldDark, marginTop: 14, ...mFont(400) },
   icons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 26, marginBottom: 8 },
   iconCell: { flex: 1, alignItems: 'center', gap: 8 },
   iconLabel: { fontSize: 12, color: m.ink, textAlign: 'center', ...mFont(400) },

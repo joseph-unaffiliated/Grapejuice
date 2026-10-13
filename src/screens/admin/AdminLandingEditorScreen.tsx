@@ -670,7 +670,7 @@ export function AdminLandingEditorScreen() {
 
             {loading || !doc ? (
               <View style={styles.centered}>
-                <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
+                <BrandLoadingMark color={colors.brand} />
               </View>
             ) : (
               <ScrollView

@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import { metaServerContext, type MetaServerContext } from '../analytics/metaPixel';
+import { readSessionEntry, type AttributionTouch } from '../../stores/entryContextStore';
 
 export type CreatePilotSetupIntentResult = {
   clientSecret: string;
@@ -12,9 +13,10 @@ export async function createPilotSetupIntent(householdId: string): Promise<Creat
     throw new Error('Firebase Functions is not configured.');
   }
   const callable = httpsCallable<
-    { householdId: string; meta?: MetaServerContext },
+    { householdId: string; meta?: MetaServerContext; session?: AttributionTouch },
     CreatePilotSetupIntentResult
   >(functions, 'createPilotSetupIntent');
-  const { data } = await callable({ householdId, meta: metaServerContext() });
+  const session = readSessionEntry();
+  const { data } = await callable({ householdId, meta: metaServerContext(), ...(session ? { session } : {}) });
   return data;
 }

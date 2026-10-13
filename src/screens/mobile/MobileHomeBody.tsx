@@ -35,12 +35,12 @@ type Props = {
 
 const DOORSTEP = require('../../../assets/storefront/box-doorstep.jpg');
 
-const PRACTICES: Record<string, { title: string; line: string }> = {
-  candles: { title: 'Light the Candles', line: 'One more candle each night, plus the shamash.' },
-  dreidel: { title: 'Play Dreidel', line: 'One dreidel per person, and gelt to play for.' },
-  food: { title: 'Eat & Drink', line: 'Latkes and sufganiyot, fried at home.' },
-  story: { title: 'Tell the Story', line: 'A book to read together, picked for their age.' },
-  presents: { title: 'Gifts for each kid', line: 'One present for each kid, wrapped or ready to wrap.' },
+const PRACTICES: Record<string, { title: string; line: string; category: string }> = {
+  candles: { title: 'Light the Candles', line: 'One more candle each night, plus the shamash.', category: 'candles' },
+  dreidel: { title: 'Play Dreidel', line: 'One dreidel per person, and gelt to play for.', category: 'dreidels' },
+  food: { title: 'Eat & Drink', line: 'Latkes and sufganiyot, fried at home.', category: 'food' },
+  story: { title: 'Tell the Story', line: 'A book to read together, picked for their age.', category: 'books' },
+  presents: { title: 'Gifts for each kid', line: 'One present for each kid, wrapped or ready to wrap.', category: 'toys' },
 };
 
 /**
@@ -104,7 +104,18 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
   }, [startsOn]);
   const beforeHanukkah = getHanukkahStatus(startsOn).phase === 'before';
 
-  const topPicks = TOP_PICK_IDS.map((id) => photos.get(id)).filter((x): x is CatalogItem => !!x);
+  const topPicks = useMemo(() => {
+    const loved = items
+      .filter((it) => it.storefrontRails?.includes('most-loved'))
+      .sort((a, b) => {
+        const ar = a.storefrontRank ?? Number.POSITIVE_INFINITY;
+        const br = b.storefrontRank ?? Number.POSITIVE_INFINITY;
+        if (ar !== br) return ar - br;
+        return a.name.localeCompare(b.name);
+      });
+    if (loved.length) return loved;
+    return TOP_PICK_IDS.map((id) => photos.get(id)).filter((x): x is CatalogItem => !!x);
+  }, [items, photos]);
   const openProduct = (slug: string) => navigation.navigate('CatalogProduct', { slug });
   const askRav = () => {
     if (isStorefrontRavOpenable()) return openRav();
@@ -183,15 +194,25 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
               <Text style={[styles.lede, { fontSize: 14.5, marginTop: 8, marginBottom: 18 }]} {...balanceProps}>Picked for your kids' ages and how your family celebrates. Swap anything you like.</Text>
             </View>
             <View style={styles.plist}>
-              {BOX_DISPLAY_SECTIONS.map((sec) => (
-                <View key={sec.id} style={styles.practice}>
-                  <Photo uri={homePhoto(photos, practicePhotoKey(sec.id))} style={styles.practicePhoto} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.practiceTitle}>{PRACTICES[sec.id]?.title ?? sec.title}</Text>
-                    <Text style={styles.practiceLine} {...balanceProps}>{PRACTICES[sec.id]?.line}</Text>
-                  </View>
-                </View>
-              ))}
+              {BOX_DISPLAY_SECTIONS.map((sec) => {
+                const practice = PRACTICES[sec.id];
+                const label = practice?.title ?? sec.title;
+                return (
+                  <Pressable
+                    key={sec.id}
+                    onPress={() => goCategory(practice?.category ?? 'collection')}
+                    accessibilityRole="link"
+                    accessibilityLabel={label}
+                    style={styles.practice}
+                  >
+                    <Photo uri={homePhoto(photos, practicePhotoKey(sec.id))} style={styles.practicePhoto} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.practiceTitle}>{label}</Text>
+                      <Text style={styles.practiceLine} {...balanceProps}>{practice?.line}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
             <View style={[styles.pad, { marginTop: 22 }]}>
               <MobileButton label="Build my box · from $80" onPress={startBox} height={54} />
@@ -207,6 +228,17 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
             </View>
           </View>
         </>
+      ) : null}
+
+      {topPicks.length ? (
+        <View style={[styles.band, { paddingTop: 8 }]}>
+          <SectionHead title="Top picks" link="See all" onPress={() => goCategory('collection')} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+            {topPicks.map((it) => (
+              <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(availability[it.id])} onPress={() => openProduct(it.id)} />
+            ))}
+          </ScrollView>
+        </View>
       ) : null}
 
       <View style={styles.band}>
@@ -232,17 +264,6 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         </View>
       </View>
 
-      {topPicks.length ? (
-        <View style={[styles.band, { paddingTop: 8 }]}>
-          <SectionHead title="Top picks" link="See all" onPress={() => goCategory('collection')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-            {topPicks.map((it) => (
-              <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(availability[it.id])} onPress={() => openProduct(it.id)} />
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
-
       <View ref={endRef} collapsable={false} style={[styles.band, { paddingTop: 12 }]}>
         <View style={styles.giftBand}>
           <Image source={DOORSTEP} style={styles.giftPhoto} resizeMode="cover" />
@@ -259,13 +280,11 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
           <Text style={mType.eyebrow}>Our story</Text>
           <Text style={styles.quote} {...balanceProps}>Making it your own doesn't mean doing it alone.</Text>
           <Text style={[styles.lede, { fontSize: 14.5 }]}>{OUR_STORY_STRIP_BODY}</Text>
-          <Pressable onPress={() => navigation.navigate('StorefrontOurStory')} accessibilityRole="link" hitSlop={8} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' }}>
-            <Text style={styles.link}>Read our story</Text>
-          </Pressable>
+          <MobileButton label="Read our story" onPress={() => navigation.navigate('StorefrontOurStory')} height={48} style={{ marginTop: 6 }} />
         </View>
       </View>
 
-      <View style={{ paddingBottom: 36 }}>
+      <View style={{ paddingBottom: 8 }}>
         <Pressable onPress={askRav} accessibilityRole="button" style={styles.ask}>
           <View style={styles.askIcon}>
             <Icon icon={icons.childReaching} size={17} color={m.ink} />
@@ -276,6 +295,14 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
           </View>
           <Text style={styles.chev}>›</Text>
         </Pressable>
+      </View>
+
+      <View style={[styles.pad, { paddingBottom: 36 }]}>
+        <MobileButton
+          label={hasBox ? 'View my box' : 'Build my box'}
+          onPress={hasBox ? goMyBox : startBox}
+          height={54}
+        />
       </View>
 
       {showBar ? (
@@ -398,7 +425,7 @@ const styles = StyleSheet.create({
   catLabelText: { fontSize: 13.5, lineHeight: 17, color: m.ink, ...mFont(400) },
   rail: { paddingHorizontal: mGutter, gap: 12, paddingBottom: 4 },
   giftBand: { marginHorizontal: mGutter, borderRadius: 16, overflow: 'hidden', backgroundColor: m.beige },
-  giftPhoto: { width: '100%', height: 170 },
+  giftPhoto: { width: '100%', height: 260 },
   giftPad: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 20, gap: 8 },
   story: { paddingHorizontal: mGutter, gap: 10 },
   quote: { fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: m.ink, ...mFont(400) },

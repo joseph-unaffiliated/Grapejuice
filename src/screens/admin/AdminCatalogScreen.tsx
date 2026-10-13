@@ -24,7 +24,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { m, mGutter } from '../../components/mobile/mobileTheme';
+import { mGutter } from '../../components/mobile/mobileTheme';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius } from '../../constants/theme';
@@ -165,7 +165,7 @@ export function AdminCatalogScreen() {
 
           {loading ? (
           <View style={styles.centered}>
-            <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
+            <BrandLoadingMark color={colors.brand} />
           </View>
           ) : error ? (
             <View style={styles.centered}>

@@ -68,6 +68,11 @@ import {
 } from './metaCapi';
 import { randomBytes } from 'crypto';
 import { createAdminBoxesDashboard } from './adminDashboard';
+import {
+  checkoutSessionFromCallable,
+  checkoutSessionFromStripeMetadata,
+  checkoutSessionToStripeMetadata,
+} from './checkoutSession';
 import { checkUsAddressFormat } from './usAddress';
 import { applyResolvedPromo, recordPromoRedemption, resolveCheckoutPromo } from './promotions';
 import { discountCentsForTerms, type PromoTerms } from './promoPricing';
@@ -225,11 +230,14 @@ interface CommitPilotBoxData {
   attribution?: unknown;
   /** Discount code / influencer link (see promotions.resolveCheckoutPromo). */
   promo?: unknown;
+  /** Where this browser tab's visit started (see checkoutSession.ts). */
+  session?: unknown;
 }
 
 interface CreatePilotSetupIntentData {
   householdId: string;
   meta?: unknown;
+  session?: unknown;
 }
 
 interface CreateMarketplaceCheckoutData {
@@ -241,6 +249,7 @@ interface CreateMarketplaceCheckoutData {
   meta?: unknown;
   attribution?: unknown;
   promo?: unknown;
+  session?: unknown;
 }
 
 function metaUserWithAddress(
@@ -1311,6 +1320,7 @@ export const createMarketplaceCheckout = onCall(async (request) => {
           type: 'marketplace',
           ...(authedUid ? { userId: authedUid } : {}),
           ...metaContextToStripeMetadata(metaCtx),
+          ...checkoutSessionToStripeMetadata(checkoutSessionFromCallable(request)),
         },
       });
       if (!setupIntent.client_secret) {
@@ -1538,6 +1548,7 @@ export const createPilotSetupIntent = onCall(async (request) => {
       householdId,
       userId: request.auth.uid,
       ...metaContextToStripeMetadata(metaContextFromCallable(request)),
+      ...checkoutSessionToStripeMetadata(checkoutSessionFromCallable(request)),
     },
   });
 
@@ -1651,6 +1662,7 @@ export const commitPilotBox = onCall(async (request) => {
     ...(isPlaythrough ? { playthrough: true } : {}),
     ...(attribution ? { attribution } : {}),
     ...(promo ? { promo } : {}),
+    checkoutSession: checkoutSessionFromCallable(request),
   };
   await orderRef.set(orderPayload);
   await recordPromoRedemption(db, {
@@ -2023,8 +2035,11 @@ export const stripeWebhook = onRequest({ cors: false }, async (req, res) => {
         typeof si.payment_method === 'string' ? si.payment_method : si.payment_method?.id;
       const customerId = typeof si.customer === 'string' ? si.customer : si.customer?.id;
       if (householdId && paymentMethodId) {
+        const cardOnFileAt = new Date().toISOString();
+        const cardOnFileSession = checkoutSessionFromStripeMetadata(si.metadata, cardOnFileAt);
         await db.doc(`households/${householdId}`).update({
-          cardOnFileAt: new Date().toISOString(),
+          cardOnFileAt,
+          ...(cardOnFileSession ? { cardOnFileSession } : {}),
           stripeDefaultPaymentMethodId: paymentMethodId,
           ...(customerId ? { stripeCustomerId: customerId } : {}),
           updatedAt: new Date().toISOString(),

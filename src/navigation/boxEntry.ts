@@ -22,7 +22,12 @@ export type StartOwnBoxBuildRefresh = (options?: { silent?: boolean }) => Promis
  */
 export async function startOwnBoxBuild(
   refreshSession?: StartOwnBoxBuildRefresh,
-  householdId?: string | null
+  householdId?: string | null,
+  /**
+   * Item picked before the questionnaire. Omitted starts clear any leftover
+   * pick so a plain "Build my box" doesn't inherit one.
+   */
+  picked?: { pendingItemId?: string | null; focusItemId?: string | null } | null
 ): Promise<void> {
   // My Box calls this when it sees an empty draft. During the reveal handoff that
   // empty read is the save still landing — wiping onboarding here is the bounce
@@ -42,6 +47,8 @@ export async function startOwnBoxBuild(
     onboardingStep: null,
     buildBoxPath: true,
     exploreStarted: true,
+    pendingBoxItemId: picked?.pendingItemId ?? null,
+    myBoxFocusItemId: picked?.focusItemId ?? null,
   });
   clearBoxDraftCache();
 
@@ -115,6 +122,10 @@ export type OpenBoxSurfaceOptions = {
    */
   hasOwnBox?: boolean;
   refreshSession?: StartOwnBoxBuildRefresh;
+  /** Include this catalog item in the box the questionnaire builds. */
+  pendingItemId?: string | null;
+  /** Open this item when My Box appears after the reveal. */
+  focusItemId?: string | null;
 };
 
 /**
@@ -145,7 +156,10 @@ export function openBoxSurface(
     return;
   }
   if (options.hasOwnBox === false) {
-    void startOwnBoxBuild(options.refreshSession);
+    void startOwnBoxBuild(options.refreshSession, undefined, {
+      pendingItemId: options.pendingItemId,
+      focusItemId: options.focusItemId,
+    });
     return;
   }
   if (!isAuthenticated && !useGuestSessionStore.getState().boxRevealComplete) {

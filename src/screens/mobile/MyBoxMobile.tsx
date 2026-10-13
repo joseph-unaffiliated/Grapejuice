@@ -30,6 +30,7 @@ import { HorizontalDragScrollView } from '../../components/home/HorizontalDragSc
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
 import { useSession } from '../../hooks/useSession';
+import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { abandonOwnBox, startOwnBoxBuild } from '../../navigation/boxEntry';
 import { navigateMainStack } from '../../navigation/mainStackNavigation';
 import { getStripePromise, prefetchSetupIntent } from '../../services/checkout/checkoutPrefetch';
@@ -115,6 +116,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const sectionY = useRef<Partial<Record<BoxDisplaySectionId, number>>>({});
   const byId = useMemo(() => new Map(e.catalog.map((c) => [c.id, c])), [e.catalog]);
+  const focusItemId = useGuestSessionStore((s) => s.myBoxFocusItemId);
+  const clearFocusItem = useGuestSessionStore((s) => s.setMyBoxFocusItemId);
   const kids = e.children;
   const { household, refresh } = useSession();
 
@@ -149,6 +152,21 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     },
     [e.grouped]
   );
+  useEffect(() => {
+    if (!focusItemId || !e.lineItems.length) return;
+    const item = byId.get(focusItemId);
+    if (!item) return;
+    for (const s of BOX_DISPLAY_SECTIONS) {
+      const group = rowsFor(s.id).find((row) => row.itemId === focusItemId);
+      if (group) {
+        setSheet({ kind: 'product', item, group, sectionId: s.id });
+        clearFocusItem(null);
+        return;
+      }
+    }
+    setSheet({ kind: 'product', item, group: null, sectionId: displaySectionForCatalogItem(item) });
+    clearFocusItem(null);
+  }, [focusItemId, e.lineItems.length, byId, rowsFor, clearFocusItem]);
   /** Fully donated items keep a faded row in their section; partly donated ones note it on the live row. */
   const donatedBySection = useMemo(() => {
     const out: Partial<Record<BoxDisplaySectionId, { item: CatalogItem; missing: number }[]>> = {};

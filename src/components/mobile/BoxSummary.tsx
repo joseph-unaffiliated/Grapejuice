@@ -17,7 +17,7 @@ export type BoxThumb = {
 };
 
 /** The shared row of box thumbnails: six per row, scrolling when there are more. */
-export function BoxThumbRow({ items, size = 'lg' }: { items: BoxThumb[]; size?: 'lg' | 'sm' }) {
+export function BoxThumbRow({ items, size = 'lg', onThumbIntent }: { items: BoxThumb[]; size?: 'lg' | 'sm'; onThumbIntent?: () => void }) {
   const scroll = items.length > 6;
   const [rowWidth, setRowWidth] = React.useState(0);
   // Six cells per row whatever the count, so a three-item box doesn't get giant tiles.
@@ -25,6 +25,7 @@ export function BoxThumbRow({ items, size = 'lg' }: { items: BoxThumb[]; size?: 
   const cells = items.map((it) => (
     <Pressable
       key={it.id + (it.label ?? '')}
+      onPressIn={it.onPress ? onThumbIntent : undefined}
       onPress={it.onPress}
       disabled={!it.onPress}
       accessibilityRole={it.onPress ? 'button' : undefined}
@@ -97,6 +98,13 @@ type Props = {
  */
 export function BoxSummary({ size = 'lg', title = 'Your Hanukkah box', sub, total, link, items, children, onPress, style, testID }: Props) {
   const sm = size === 'sm';
+  const fromThumb = React.useRef(false);
+  const noteThumb = () => {
+    fromThumb.current = true;
+    setTimeout(() => {
+      fromThumb.current = false;
+    }, 0);
+  };
   const body = (
     <>
       <View style={styles.top}>
@@ -107,14 +115,22 @@ export function BoxSummary({ size = 'lg', title = 'Your Hanukkah box', sub, tota
         {total ? <Text style={[styles.total, sm && styles.totalSm]}>{total}</Text> : null}
         {link ?? null}
       </View>
-      {items.length ? <BoxThumbRow items={items} size={size} /> : null}
+      {items.length ? <BoxThumbRow items={items} size={size} onThumbIntent={noteThumb} /> : null}
       {children}
     </>
   );
   const rootStyle = [styles.root, sm && styles.rootSm, style];
   if (onPress) {
     return (
-      <Pressable onPress={onPress} accessibilityRole="button" style={rootStyle} testID={testID}>
+      <Pressable
+        onPress={() => {
+          if (fromThumb.current) return;
+          onPress();
+        }}
+        accessibilityRole="button"
+        style={rootStyle}
+        testID={testID}
+      >
         {body}
       </Pressable>
     );

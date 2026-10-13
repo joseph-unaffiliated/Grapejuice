@@ -15,6 +15,7 @@ import {
   familyMembersComplete,
 } from '../../components/family/familyDraft';
 import { semanticColors, spacing, typography, typeface } from '../../constants/theme';
+import { useGuestSessionStore } from '../../stores/guestSessionStore';
 
 const PRACTICES: { id: string; label: string }[] = [
   { id: 'candles', label: 'Light the Candles and Sing' },
@@ -33,6 +34,7 @@ type Props = {
 
 export function FamilyStepScreen({ onContinue, initialMembers, defaultName }: Props) {
   const mobileLayout = useMobileLayout();
+  const addedItem = useGuestSessionStore((s) => s.pendingBoxItemId);
   const [members, setMembers] = useState<ChildDraft[]>(() =>
     initialMembers?.length
       ? ensureAdultLead(initialMembers, defaultName).map((m) => ({
@@ -61,6 +63,9 @@ export function FamilyStepScreen({ onContinue, initialMembers, defaultName }: Pr
         <FamilyMembersForm members={members} onChange={setMembers} dense showInterests />
       }
     >
+      {addedItem ? (
+        <Text style={styles.added}>Added. Now we just need to build the rest of your box.</Text>
+      ) : null}
       <Text style={[onboardingBodyText.lead, styles.intro]}>
         There’s no wrong way to do Hanukkah. Its traditions are there to bring some light to winter and
         spark the big conversations, the ones where you pass down what matters to you. Tell us about your
@@ -84,6 +89,13 @@ const styles = StyleSheet.create({
   intro: {
     marginBottom: 0,
     lineHeight: 28,
+  },
+  added: {
+    ...typeface('regular'),
+    fontSize: typography.lg,
+    lineHeight: 26,
+    color: semanticColors.goldMuted,
+    marginBottom: spacing.md,
   },
   practices: {
     marginTop: spacing.lg,

@@ -235,9 +235,9 @@ export function StorefrontHeader({
   const menuButton = (
     <TouchableOpacity
       style={styles.menuHit}
-      onPress={() => setNavOpen(true)}
+      onPress={() => setNavOpen((open) => !open)}
       accessibilityRole="button"
-      accessibilityLabel="Open menu"
+      accessibilityLabel={navOpen ? 'Close menu' : 'Open menu'}
     >
       <Icon icon={icons.menu} size={18} color={semanticColors.logoDark} />
     </TouchableOpacity>
@@ -271,7 +271,13 @@ export function StorefrontHeader({
           {width >= MOBILE_HIDE_MARK_BELOW ? (
             <TouchableOpacity
               style={styles.markHit}
-              onPress={onLogoPress}
+              onPress={() => {
+                if (navOpen) {
+                  setNavOpen(false);
+                  return;
+                }
+                onLogoPress?.();
+              }}
               accessibilityRole="button"
               accessibilityLabel="Grapejuice store home"
             >

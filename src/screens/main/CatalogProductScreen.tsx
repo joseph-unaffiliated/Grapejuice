@@ -133,7 +133,7 @@ export function CatalogProductScreen() {
   const { byId: inventoryById } = useCatalogInventory();
   const previewNow = usePreviewNow();
   const preview = useUserStatePreview();
-  const { goHome, goCategory, startBox, goHowToPlayDreidel, goHowToLightCandles } =
+  const { goHome, goCategory, startBox, startBoxWithItem, goHowToPlayDreidel, goHowToLightCandles } =
     useStorefrontActions();
   const item = useMemo(
     () => catalog.find((c) => c.id === slug) ?? null,
@@ -273,14 +273,32 @@ export function CatalogProductScreen() {
     () => (item ? similarCatalogItems(item, catalog, 12) : []),
     [item, catalog]
   );
+  const alsoLike = useMemo(() => {
+    if (!item) return [];
+    const mine = storefrontCategoryForItem(item)?.slug;
+    const skip = new Set([item.id, ...similar.map((s) => s.id)]);
+    return catalog
+      .filter((c) => {
+        if (skip.has(c.id)) return false;
+        const slug = storefrontCategoryForItem(c)?.slug;
+        return !!slug && slug !== 'collection' && slug !== mine;
+      })
+      .sort((a, b) => {
+        const ar = a.storefrontRank ?? Number.POSITIVE_INFINITY;
+        const br = b.storefrontRank ?? Number.POSITIVE_INFINITY;
+        if (ar !== br) return ar - br;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 8);
+  }, [item, catalog, similar]);
 
   const similarAvailability = useMemo(() => {
     const map: Record<string, ReturnType<typeof resolveAvailability>> = {};
-    for (const it of similar) {
+    for (const it of [...similar, ...alsoLike]) {
       map[it.id] = resolveAvailability(it, inventoryById[it.id] ?? emptyInventoryCounters(it.id), effectiveLockAtForAvail, previewNow);
     }
     return map;
-  }, [similar, inventoryById, effectiveLockAtForAvail, previewNow]);
+  }, [similar, alsoLike, inventoryById, effectiveLockAtForAvail, previewNow]);
   /**
    * Preview / empty-draft “has box” states still need something to swap against.
    * Prefer the live draft; otherwise seed a default curated box for detection only.
@@ -366,6 +384,13 @@ export function CatalogProductScreen() {
   };
 
   const buyWithBox = async () => {
+    if (!item) return;
+    // No box yet: the questionnaire builds the rest. Dropping them on My Box
+    // with only this SKU leaves every section empty.
+    if (!hasStartedBox) {
+      startBoxWithItem(item.id);
+      return;
+    }
     await addToBox();
   };
 
@@ -638,7 +663,9 @@ export function CatalogProductScreen() {
             memberCents={memberCents}
             details={details}
             similar={similar}
-            similarTitle="You might also like..."
+            similarTitle="More like this..."
+            alsoLike={alsoLike}
+            alsoTitle="You might also like..."
             hasBox={hasStartedBox}
             inBox={inBox}
             inBoxUnitCents={inBoxUnitCents}
@@ -660,6 +687,7 @@ export function CatalogProductScreen() {
             onBuyJustThis={directOk && !marketplaceBlocked ? async () => { await addToCart(); navigation.navigate('StorefrontCart'); } : undefined}
             onStartBoxWithIt={() => void buyWithBox()}
             onSeeAll={aisle ? () => goCategory(aisle.slug) : undefined}
+            onSeeAllAlso={() => goCategory('collection')}
             availabilityById={similarAvailability}
           />
         </MobileBoundary>

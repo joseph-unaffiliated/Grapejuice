@@ -17,6 +17,7 @@ import { isStorefrontRavOpenable, useStorefrontRav } from '../storefront/storefr
 import { isSocialInAppBrowser } from '../../utils/inAppBrowser';
 import { requestLoginLink } from '../../services/auth/loginLinks';
 import { useAuthStore } from '../../stores/authStore';
+import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { BoxSummary } from './BoxSummary';
 import { useCatalog } from '../../hooks/useCatalog';
 import { primaryPhoto } from './catalogPhotos';
@@ -85,15 +86,33 @@ function Panel({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const thumbItems = glance.thumbs.map((t) => ({
+    ...t,
+    onPress: () => {
+      if (glance.state === 'none') {
+        go(() =>
+          openBoxSurface(isAuthenticated, {
+            hasOwnBox: false,
+            refreshSession: refresh,
+            pendingItemId: t.id,
+            focusItemId: t.id,
+          })
+        );
+        return;
+      }
+      useGuestSessionStore.getState().setMyBoxFocusItemId(t.id);
+      goMyBox();
+    },
+  }));
   const boxCard =
     glance.state === 'none' ? (
-      <BoxSummary size="sm" title="Build my box" sub="Hanukkah delivered to your door, from $80" items={glance.thumbs} onPress={startBox} link={<Chevron />} />
+      <BoxSummary size="sm" title="Build my box" sub="Hanukkah delivered to your door, from $80" items={thumbItems} onPress={startBox} link={<Chevron />} />
     ) : (
       <BoxSummary
         size="sm"
         title="My Box"
         sub={`${glance.state === 'set' ? `Set · ships after ${glance.lockShort}` : `Change anything until ${glance.lockShort}`} · ${glance.totalLabel}`}
-        items={glance.thumbs}
+        items={thumbItems}
         onPress={goMyBox}
         link={<Chevron />}
       >
@@ -105,8 +124,10 @@ function Panel({ onClose }: { onClose: () => void }) {
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <View style={styles.head}>
-          <GrapejuiceBrandMark markOnly width={24} height={24} color={m.ink} />
-          <Text style={styles.headTitle}>Menu</Text>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" style={styles.brandHit}>
+            <GrapejuiceBrandMark markOnly width={24} height={24} color={m.ink} />
+            <Text style={styles.headTitle}>Menu</Text>
+          </Pressable>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" style={styles.close} hitSlop={8}>
             <Icon icon={icons.close} size={18} color={m.ink} />
           </Pressable>
@@ -218,6 +239,7 @@ function Row({ label, sub, onPress, chevron = '›', open, lead }: { label: stri
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: m.white },
   head: { height: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: m.line },
+  brandHit: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   headTitle: { flex: 1, fontSize: 16, color: m.ink, ...mFont(500) },
   close: { width: TAP, height: TAP, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   body: { padding: 16, gap: 0 },

@@ -247,7 +247,7 @@ export function AdminCatalogItemScreen() {
     return (
       <WebContentPanel {...panelProps}>
         <View style={styles.centered}>
-          <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
+          <BrandLoadingMark color={colors.brand} />
         </View>
       </WebContentPanel>
     );

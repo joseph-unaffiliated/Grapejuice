@@ -169,12 +169,13 @@ const patch: Record<string, object> = {
   badgeOn: { color: m.goldDark, borderColor: m.gold },
 };
 
-/** Overlay phone tokens onto an existing Ops stylesheet. Missing keys are skipped. */
-export function paintOpsMobile<T extends Record<string, unknown>>(base: T): T {
+/** Overlay phone tokens (then a screen's own `extra`) onto an existing Ops stylesheet. Missing keys are skipped. */
+export function paintOpsMobile<T extends Record<string, unknown>>(base: T, extra?: Record<string, object>): T {
   const next: Record<string, unknown> = { ...base };
-  for (const key of Object.keys(patch)) {
+  const keys = new Set([...Object.keys(patch), ...Object.keys(extra ?? {})]);
+  for (const key of keys) {
     if (base[key] == null) continue;
-    next[key] = StyleSheet.flatten([base[key] as object, patch[key]]);
+    next[key] = StyleSheet.flatten([base[key] as object, patch[key], extra?.[key]]);
   }
   return next as T;
 }

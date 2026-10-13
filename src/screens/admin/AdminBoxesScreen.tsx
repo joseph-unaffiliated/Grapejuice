@@ -19,7 +19,7 @@ import { useThemeMode } from '../../context/ThemeContext';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { m, mGutter } from '../../components/mobile/mobileTheme';
+import { m, mFont, mGutter } from '../../components/mobile/mobileTheme';
 import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -31,6 +31,7 @@ import {
   type DashAdPerson,
   type DashAnswers,
   type DashBox,
+  type DashCardSession,
   type DashFunnelPerson,
   type DashGift,
   type DashGiftFunnelPerson,
@@ -179,6 +180,9 @@ function toneColor(colors: SemanticColors, tone: Tone): string {
   }
 }
 
+/** Inside a phone ChipRow: chips sit on one swipeable line. */
+const ChipScrollContext = React.createContext(false);
+
 function Chip({
   label,
   active,
@@ -191,17 +195,40 @@ function Chip({
   styles: Styles;
 }) {
   const mobile = useMobileLayout();
+  const inScroller = React.useContext(ChipScrollContext);
   return (
     <TouchableOpacity
-      style={[styles.chip, active && styles.chipActive, mobile && { maxWidth: '100%' }]}
+      style={[styles.chip, active && styles.chipActive, mobile && !inScroller && { maxWidth: '100%' }]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
     >
-      <Text style={[styles.chipLabel, mobile && active && { color: m.goldDark }]} numberOfLines={mobile ? 3 : 1}>
+      <Text
+        style={[styles.chipLabel, mobile && active && { color: m.goldDark }]}
+        numberOfLines={mobile && !inScroller ? 3 : 1}
+      >
         {label}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+/** Wrapping chip row on desktop; one edge-to-edge swipeable line on phones. */
+function ChipRow({ styles, style, children }: { styles: Styles; style?: object; children: React.ReactNode }) {
+  const mobile = useMobileLayout();
+  const inScroller = React.useContext(ChipScrollContext);
+  if (!mobile) return <View style={[styles.chipRow, style]}>{children}</View>;
+  if (inScroller) return <>{children}</>;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={{ marginHorizontal: -mGutter, flexGrow: 0 }}
+      contentContainerStyle={[styles.chipRow, { flexWrap: 'nowrap', paddingHorizontal: mGutter }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <ChipScrollContext.Provider value>{children}</ChipScrollContext.Provider>
+    </ScrollView>
   );
 }
 
@@ -217,19 +244,35 @@ function ChipGroup<T extends string>({
   styles: Styles;
 }) {
   return (
-    <View style={styles.chipRow}>
+    <ChipRow styles={styles}>
       {options.map(([v, label]) => (
         <Chip key={v} label={label} active={value === v} onPress={() => onChange(v)} styles={styles} />
       ))}
-    </View>
+    </ChipRow>
   );
 }
 
-function Stat({ value, label, tone, styles, colors }: { value: string; label: string; tone?: Tone; styles: Styles; colors: SemanticColors }) {
+function Stat({
+  value,
+  label,
+  short,
+  tone,
+  styles,
+  colors,
+}: {
+  value: string;
+  label: string;
+  /** Phone label; the full one wraps to several lines in a half-width tile. */
+  short?: string;
+  tone?: Tone;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const mobile = useMobileLayout();
   return (
     <View style={styles.stat}>
       <Text style={[styles.statValue, tone && tone !== 'neutral' ? { color: toneColor(colors, tone) } : null]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statLabel}>{mobile && short ? short : label}</Text>
     </View>
   );
 }
@@ -240,8 +283,29 @@ type Column<T> = {
   align?: 'left' | 'right';
   cell: (row: T) => React.ReactNode;
   sort?: (row: T) => string | number | null;
+  /** Left off phone cards (another column already says it). */
+  mobileHidden?: boolean;
 };
 type SortState = { col: number; dir: 'asc' | 'desc' } | null;
+
+const isBlank = (v: React.ReactNode) => v == null || v === '' || v === '—';
+
+const mobileCard = StyleSheet.create({
+  card: {
+    backgroundColor: m.beige,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  cardNested: { backgroundColor: m.white },
+  pairs: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 2, marginTop: 4, paddingLeft: 15 },
+  pair: { flexDirection: 'row', alignItems: 'baseline', gap: 4, maxWidth: '100%' },
+  pairLabel: { fontSize: 11, color: m.muted, ...mFont(400) },
+  pairValue: { fontSize: 13, lineHeight: 17, color: m.ink, ...mFont(400), flexShrink: 1 },
+  sortLabel: { fontSize: 12, color: m.muted, ...mFont(400), marginRight: 2 },
+});
 
 /** Horizontally scrolling table; sortable headers toggle direction and empty values always sort last. */
 function SortTable<T>({
@@ -253,6 +317,7 @@ function SortTable<T>({
   openKey,
   onToggle,
   emptyMessage,
+  nested,
   styles,
   colors,
 }: {
@@ -264,6 +329,8 @@ function SortTable<T>({
   openKey?: string | null;
   onToggle?: (key: string) => void;
   emptyMessage: string;
+  /** Inside another row's detail: white phone cards, no sort chips. */
+  nested?: boolean;
   styles: Styles;
   colors: SemanticColors;
 }) {
@@ -299,20 +366,23 @@ function SortTable<T>({
 
   if (mobile) {
     return (
-      <View style={{ gap: 10 }}>
-        <View style={styles.chipRow}>
-          {columns.map((c, i) =>
-            c.sort ? (
-              <Chip
-                key={c.label}
-                label={`${c.label}${sort?.col === i ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`}
-                active={sort?.col === i}
-                onPress={() => onHeader(i)}
-                styles={styles}
-              />
-            ) : null,
-          )}
-        </View>
+      <View style={{ gap: 6 }}>
+        {!nested && columns.some((c) => c.sort) ? (
+          <ChipRow styles={styles}>
+            <Text style={mobileCard.sortLabel}>Sort</Text>
+            {columns.map((c, i) =>
+              c.sort ? (
+                <Chip
+                  key={c.label}
+                  label={`${c.label}${sort?.col === i ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`}
+                  active={sort?.col === i}
+                  onPress={() => onHeader(i)}
+                  styles={styles}
+                />
+              ) : null,
+            )}
+          </ChipRow>
+        ) : null}
         {sorted.map((row) => {
           const key = rowKey(row);
           const open = expandable && openKey === key;
@@ -320,13 +390,7 @@ function SortTable<T>({
           return (
             <View
               key={key}
-              style={{
-                backgroundColor: m.beige,
-                borderRadius: 12,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: open ? m.gold : 'transparent',
-              }}
+              style={[mobileCard.card, nested && mobileCard.cardNested, open && { borderColor: m.gold }]}
             >
               <TouchableOpacity
                 activeOpacity={expandable ? 0.7 : 1}
@@ -338,14 +402,21 @@ function SortTable<T>({
                   <View style={{ flex: 1, minWidth: 0 }}>{renderCell(columns[0], row, styles)}</View>
                   {expandable ? <Text style={styles.toggle}>{open ? '⌄' : '›'}</Text> : null}
                 </View>
-                {columns.slice(1).map((c) => (
-                  <View key={c.label} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 6 }}>
-                    <Text style={[styles.th, { width: 118 }]}>{c.label}</Text>
-                    <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}>{renderCell(c, row, styles, 'right')}</View>
-                  </View>
-                ))}
+                <View style={mobileCard.pairs}>
+                  {columns.slice(1).map((c) => {
+                    if (c.mobileHidden) return null;
+                    const v = c.cell(row);
+                    if (isBlank(v)) return null;
+                    return (
+                      <View key={c.label} style={mobileCard.pair}>
+                        <Text style={mobileCard.pairLabel}>{c.label}</Text>
+                        {typeof v === 'string' ? <Text style={mobileCard.pairValue}>{v}</Text> : v}
+                      </View>
+                    );
+                  })}
+                </View>
               </TouchableOpacity>
-              {open && renderDetail ? <View style={{ marginTop: 10 }}>{renderDetail(row)}</View> : null}
+              {open && renderDetail ? <View style={{ marginTop: 8 }}>{renderDetail(row)}</View> : null}
             </View>
           );
         })}
@@ -489,10 +560,31 @@ function LineItems({
         return undefined;
       }}
       emptyMessage="No line items."
+      nested
       styles={styles}
       colors={colors}
     />
   );
+}
+
+const CHANNEL_LABEL: Record<DashCardSession['channel'], string> = {
+  instagram: 'IG',
+  facebook: 'FB',
+  meta: 'IG/FB ad',
+  email: 'Email',
+  organic: 'Organic',
+  other: 'Other',
+};
+
+/** "IG · mobile", "Email? · desktop" (? = no entry recorded; guessed from a campaign click that day). */
+function cardSessionShort(s: DashCardSession | null | undefined): string | null {
+  if (!s) return null;
+  return [`${CHANNEL_LABEL[s.channel]}${s.inferred ? '?' : ''}`, s.device].filter(Boolean).join(' · ');
+}
+
+function cardSessionLong(s: DashCardSession): string {
+  const guess = s.inferred ? ' (estimated: the session’s entry wasn’t recorded)' : '';
+  return `${cardSessionShort(s)} · ${s.detail} · ${when(s.at)}${guess}`;
 }
 
 function Facts({ facts, styles }: { facts: Array<[string, string]>; styles: Styles }) {
@@ -559,6 +651,7 @@ function BoxesSection({
   const [showPlaythrough, setShowPlaythrough] = useState(false);
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const mobile = useMobileLayout();
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -585,8 +678,24 @@ function BoxesSection({
     { label: 'Kids', width: 50, align: 'right', cell: (b) => String(b.kids), sort: (b) => b.kids },
     ...answerColumns<DashBox>((b) => b.answers),
     { label: 'Status', width: 120, cell: (b) => statusLabel(b.status), sort: (b) => b.status },
-    { label: 'Card', width: 50, cell: (b) => (b.cardOnFile ? 'Yes' : 'No'), sort: (b) => (b.cardOnFile ? 1 : 0) },
-    { label: 'Box price', width: 80, align: 'right', cell: (b) => money(b.boxPriceCents), sort: (b) => b.boxPriceCents },
+    {
+      label: 'Card',
+      width: 50,
+      cell: (b) => {
+        if (!b.cardOnFile) return 'No';
+        const from = mobile ? cardSessionShort(b.cardSession) : null;
+        return from ? `Yes · ${from}` : 'Yes';
+      },
+      sort: (b) => (b.cardOnFile ? 1 : 0),
+    },
+    {
+      label: 'Card added from',
+      width: 130,
+      cell: (b) => cardSessionShort(b.cardSession) ?? '—',
+      sort: (b) => cardSessionShort(b.cardSession),
+      mobileHidden: true,
+    },
+    { label: 'Box price', width: 80, align: 'right', cell: (b) => money(b.boxPriceCents), sort: (b) => b.boxPriceCents, mobileHidden: true },
     { label: 'Add-ons', width: 70, align: 'right', cell: (b) => (b.addOnCents ? money(b.addOnCents) : '—'), sort: (b) => b.addOnCents },
     {
       label: 'Total',
@@ -606,19 +715,19 @@ function BoxesSection({
         onChange={setStatus}
         styles={styles}
         options={[
-          ['active', 'All except cancelled'],
+          ['active', mobile ? 'Not cancelled' : 'All except cancelled'],
           ['draft', 'Drafts'],
-          ['open', 'Committed, not charged'],
-          ['fulfilled', 'Charged / shipped'],
+          ['open', mobile ? 'Committed' : 'Committed, not charged'],
+          ['fulfilled', mobile ? 'Charged' : 'Charged / shipped'],
           ['cancelled', 'Cancelled'],
-          ['all', 'Everything'],
+          ['all', mobile ? 'All' : 'Everything'],
         ]}
       />
-      <View style={styles.chipRow}>
+      <ChipRow styles={styles}>
         <ChipGroup<YesNoAny> value={card} onChange={setCard} styles={styles} options={[['any', 'Card: any'], ['yes', 'Card on file'], ['no', 'No card']]} />
         <ChipGroup<YesNoAny> value={addOns} onChange={setAddOns} styles={styles} options={[['any', 'Add-ons: any'], ['yes', 'Has add-ons'], ['no', 'No add-ons']]} />
-        <Chip label="Show playthrough" active={showPlaythrough} onPress={() => setShowPlaythrough((v) => !v)} styles={styles} />
-      </View>
+        <Chip label={mobile ? 'Playthroughs' : 'Show playthrough'} active={showPlaythrough} onPress={() => setShowPlaythrough((v) => !v)} styles={styles} />
+      </ChipRow>
       <TextInput
         style={styles.input}
         value={query}
@@ -654,6 +763,9 @@ function BoxesSection({
                 ['Credit applied', b.creditCents ? `−${money(b.creditCents)}` : '—'],
                 ['Total', money(b.totalCents)],
                 ['Committed', when(b.committedAt)],
+                ...(b.cardOnFile
+                  ? ([['Card added', b.cardSession ? cardSessionLong(b.cardSession) : 'Session not recorded']] as Array<[string, string]>)
+                  : []),
                 ['Household', b.householdId],
                 ['Order', b.orderId ?? 'draft (no order)'],
               ]}
@@ -666,7 +778,9 @@ function BoxesSection({
       />
       {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((b) => ({ location: b.location, fromIp: b.locationFromIp })))}</Text> : null}
       <Text style={styles.caption}>
-        {`${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. ${ANSWERS_CAPTION}`}
+        {mobile
+          ? `${rows.length} of ${data.boxes.length} boxes. Tap one for items. Dot: green charged, amber no card, grey cancelled. Card: where the session that saved it started and its device; ? = estimated.`
+          : `${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. Card added from: where the session that saved the card started (IG or FB app, email link, ad click, else organic) and its device; ? means estimated from a campaign click that day. ${ANSWERS_CAPTION}`}
       </Text>
     </View>
   );
@@ -719,11 +833,11 @@ function GiftsSection({
 
   return (
     <View style={styles.sectionBody}>
-      <View style={styles.chipRow}>
+      <ChipRow styles={styles}>
         <ChipGroup value={kind} onChange={setKind} styles={styles} options={[['any', 'Kind: any'], ['box', 'Box gifts'], ['credit', 'Credit gifts']]} />
         <ChipGroup<YesNoAny> value={paid} onChange={setPaid} styles={styles} options={[['any', 'Paid: any'], ['yes', 'Paid'], ['no', 'Unpaid']]} />
         <Chip label="Show playthrough" active={showPlaythrough} onPress={() => setShowPlaythrough((v) => !v)} styles={styles} />
-      </View>
+      </ChipRow>
       <SortTable<DashGift>
         columns={columns}
         rows={rows}
@@ -842,7 +956,7 @@ function AnonymousSection({
           ['all', 'Everyone'],
         ]}
       />
-      <View style={styles.chipRow}>
+      <ChipRow styles={styles}>
         <ChipGroup<GuestStageFilter>
           value={stage}
           onChange={setStage}
@@ -856,7 +970,7 @@ function AnonymousSection({
           ]}
         />
         <ChipGroup<YesNoAny> value={lead} onChange={setLead} styles={styles} options={[['any', 'Email: any'], ['yes', 'Email given'], ['no', 'No email']]} />
-      </View>
+      </ChipRow>
       <SortTable<DashGuest>
         columns={columns}
         rows={rows}
@@ -1020,9 +1134,9 @@ function ShopOrdersSection({
           ['30d', 'Last 30 days'],
         ]}
       />
-      <View style={styles.chipRow}>
+      <ChipRow styles={styles}>
         <Chip label={`Show unpaid and abandoned (${abandoned})`} active={showAbandoned} onPress={() => setShowAbandoned((v) => !v)} styles={styles} />
-      </View>
+      </ChipRow>
       <TextInput
         style={styles.input}
         value={query}
@@ -1338,7 +1452,7 @@ function AdsSection({
           ['60', 'Cutoff 60'],
         ]}
       />
-      <View style={styles.chipRow}>
+      <ChipRow styles={styles}>
         <ChipGroup
           value={highCredit}
           onChange={setHighCredit}
@@ -1361,7 +1475,7 @@ function AdsSection({
             ['1', 'Unknown credit 1'],
           ]}
         />
-      </View>
+      </ChipRow>
       <SortTable<AdRow>
         columns={columns}
         rows={rows}
@@ -1795,6 +1909,30 @@ function storeTab(tab: Tab): void {
   }
 }
 
+/** Phone: tighter than the shared Ops skin so more rows fit on screen. */
+const DENSE_PHONE: Record<string, object> = {
+  headerBlock: { marginTop: 0 },
+  backLink: { marginBottom: 2 },
+  title: { fontSize: 24, lineHeight: 28 },
+  meta: { marginTop: 2 },
+  headerChips: { marginTop: 8 },
+  chipRow: { gap: 6 },
+  chip: { minHeight: 30, paddingHorizontal: 10, paddingVertical: 4 },
+  chipLabel: { fontSize: 12.5 },
+  stats: { gap: 6 },
+  stat: { flexBasis: '45%', padding: 10, borderRadius: 10 },
+  statValue: { fontSize: 18, lineHeight: 22 },
+  statLabel: { fontSize: 11.5, lineHeight: 14, marginTop: 1 },
+  sectionDivider: { marginTop: 10, marginBottom: 8 },
+  section: { fontSize: 17, lineHeight: 22, marginTop: 4, marginBottom: 2 },
+  sectionBody: { gap: 8 },
+  input: { minHeight: 40, borderRadius: 10 },
+  caption: { fontSize: 11.5, lineHeight: 15 },
+  detailInner: { gap: 8, paddingRight: 0 },
+  factKey: { width: 92, fontSize: 12 },
+  factValue: { fontSize: 12 },
+};
+
 /** Ops dashboard of Hanukkah boxes, shop orders, gifts and inventory — admin-gated, refreshes every minute. */
 export function AdminBoxesScreen() {
   const navigation = useNavigation<Nav>();
@@ -1803,7 +1941,7 @@ export function AdminBoxesScreen() {
   const mobile = useMobileLayout();
   const insets = useSafeAreaInsets();
   const baseStyles = useMemo(() => createStyles(colors, isDesktop), [colors, isDesktop]);
-  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
+  const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles, DENSE_PHONE) : baseStyles), [mobile, baseStyles]);
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
   const { data, error, refreshing, refresh } = useBoxesDashboard(allowed);
@@ -1885,7 +2023,7 @@ export function AdminBoxesScreen() {
                 </TouchableOpacity>
               </>
             ) : (
-              <BrandLoadingMark color={mobile ? m.goldDark : colors.brand} />
+              <BrandLoadingMark color={colors.brand} />
             )}
           </View>
         </WebContentPanel>
@@ -1934,33 +2072,48 @@ export function AdminBoxesScreen() {
           </TouchableOpacity>
           <View style={styles.headerBlock}>
             <Text style={styles.title}>Orders and Inventory</Text>
-            <Text style={styles.subtitle}>
-              {`${data.counts.households} households · box lock ${data.lockAt ? when(data.lockAt) : 'not set'}`}
-            </Text>
+            {mobile ? null : (
+              <Text style={styles.subtitle}>
+                {`${data.counts.households} households · box lock ${data.lockAt ? when(data.lockAt) : 'not set'}`}
+              </Text>
+            )}
             <Text style={styles.meta}>
+              {mobile ? `${data.counts.households} households · lock ${data.lockAt ? when(data.lockAt) : 'not set'} · ` : ''}
               {refreshing
                 ? 'Updating…'
-                : `Updated ${ago(data.generatedAt, now)} · refreshes every ${DASHBOARD_REFRESH_MS / 60_000} min`}
+                : mobile
+                  ? `updated ${ago(data.generatedAt, now)}`
+                  : `Updated ${ago(data.generatedAt, now)} · refreshes every ${DASHBOARD_REFRESH_MS / 60_000} min`}
               {error ? ` · last refresh failed: ${error}` : ''}
             </Text>
-            <View style={[styles.chipRow, styles.headerChips]}>
-              <Chip label="Refresh now" onPress={() => void refresh()} styles={styles} />
+            <ChipRow styles={styles} style={styles.headerChips}>
+              <Chip label={mobile ? 'Refresh' : 'Refresh now'} onPress={() => void refresh()} styles={styles} />
               <Chip
-                label={`Hide tests · ${testBoxes} boxes, ${testGifts} gifts, ${testShop} shop orders`}
+                label={
+                  mobile
+                    ? `Hide tests (${testBoxes + testGifts + testShop})`
+                    : `Hide tests · ${testBoxes} boxes, ${testGifts} gifts, ${testShop} shop orders`
+                }
                 active={hideTests}
                 onPress={() => setHideTests((v) => !v)}
                 styles={styles}
               />
               <Chip
-                label={`US only · ${outsideBoxes} boxes, ${outsideGuests} anonymous, ${outsideGifts} gifts outside`}
+                label={
+                  mobile
+                    ? `US only (${outsideBoxes + outsideGuests + outsideGifts} outside)`
+                    : `US only · ${outsideBoxes} boxes, ${outsideGuests} anonymous, ${outsideGifts} gifts outside`
+                }
                 active={usOnly}
                 onPress={() => setUsOnly((v) => !v)}
                 styles={styles}
               />
-            </View>
-            <Text style={styles.meta}>
-              US only hides rows known to be outside the US: a non-US ship-to address, else a non-US IP. Rows with no location stay in. Inventory is unaffected.
-            </Text>
+            </ChipRow>
+            {mobile ? null : (
+              <Text style={styles.meta}>
+                US only hides rows known to be outside the US: a non-US ship-to address, else a non-US IP. Rows with no location stay in. Inventory is unaffected.
+              </Text>
+            )}
           </View>
 
           {data.mismatches.length ? (
@@ -1974,31 +2127,55 @@ export function AdminBoxesScreen() {
 
           <View style={styles.sectionDivider} />
           <View style={styles.stats}>
-            <Stat value={String(liveOrders.length)} label={`Live box orders · ${money(liveRevenue)}`} tone="info" styles={styles} colors={colors} />
             <Stat
-              value={String(shopPaid.length)}
-              label={`Paid shop orders · ${money(shopPaid.reduce((s, o) => s + shopNetCents(o), 0))} · ${shopPaid.reduce((s, o) => s + o.units, 0)} units`}
+              value={String(liveOrders.length)}
+              label={`Live box orders · ${money(liveRevenue)}`}
+              short={`Live boxes · ${money(liveRevenue)}`}
               tone="info"
               styles={styles}
               colors={colors}
             />
-            <Stat value={String(noCard.length)} label="Live orders and drafts with no card" tone={noCard.length ? 'warning' : undefined} styles={styles} colors={colors} />
-            <Stat value={String(openDrafts.length)} label={`Open drafts · ~${money(draftValue)} before ship/tax`} styles={styles} colors={colors} />
+            <Stat
+              value={String(shopPaid.length)}
+              label={`Paid shop orders · ${money(shopPaid.reduce((s, o) => s + shopNetCents(o), 0))} · ${shopPaid.reduce((s, o) => s + o.units, 0)} units`}
+              short={`Shop orders · ${money(shopPaid.reduce((s, o) => s + shopNetCents(o), 0))}`}
+              tone="info"
+              styles={styles}
+              colors={colors}
+            />
+            <Stat
+              value={String(noCard.length)}
+              label="Live orders and drafts with no card"
+              short="No card yet"
+              tone={noCard.length ? 'warning' : undefined}
+              styles={styles}
+              colors={colors}
+            />
+            <Stat
+              value={String(openDrafts.length)}
+              label={`Open drafts · ~${money(draftValue)} before ship/tax`}
+              short={`Drafts · ~${money(draftValue)}`}
+              styles={styles}
+              colors={colors}
+            />
             <Stat
               value={String(guestBoxes.length)}
               label={`Anonymous boxes (not signed up) · ${openGuests.length - guestBoxes.length} more started, ${guestLeads.length} identified by Retention.com`}
+              short={`Anonymous boxes · ${guestLeads.length} identified`}
               styles={styles}
               colors={colors}
             />
             <Stat
               value={`${realGifts.filter((g) => g.paid).length} / ${realGifts.filter((g) => g.claimed).length}`}
               label={`Gifts paid / claimed · ${giftStarters} started the gift flow`}
+              short={`Gifts paid / claimed · ${giftStarters} started`}
               styles={styles}
               colors={colors}
             />
             <Stat
               value={String(atZero.length)}
               label={`Items at or below zero · ${negAfterDrafts.length} negative if drafts commit`}
+              short={`Items at zero · ${negAfterDrafts.length} short if drafts commit`}
               tone={atZero.length || negAfterDrafts.length ? 'danger' : 'success'}
               styles={styles}
               colors={colors}
@@ -2012,6 +2189,7 @@ export function AdminBoxesScreen() {
                   `low-stock ${invEmails.byKind.low.secured}/${invEmails.byKind.low.sends}, ` +
                   `sold-out swap ${invEmails.byKind.swapped.secured}/${invEmails.byKind.swapped.sends}`
                 }
+                short={`Secured after stock emails · ${invEmails.people} emailed, ${invEmails.clickedPeople} clicked`}
                 tone={invEmails.securedPeople ? 'success' : undefined}
                 styles={styles}
                 colors={colors}
@@ -2020,7 +2198,7 @@ export function AdminBoxesScreen() {
           </View>
 
           <View style={styles.sectionDivider} />
-          <View style={styles.chipRow}>
+          <ChipRow styles={styles}>
             <Chip label={`Boxes (${real.length})`} active={tab === 'boxes'} onPress={() => setTab('boxes')} styles={styles} />
             <Chip
               label={`Shop orders (${realShop.filter((o) => !o.abandoned).length})`}
@@ -2034,11 +2212,12 @@ export function AdminBoxesScreen() {
             <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
             <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
             <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
-          </View>
+          </ChipRow>
+          {mobile ? <View style={styles.sectionDivider} /> : null}
 
           {tab === 'boxes' ? (
             <>
-              <Text style={styles.section}>Boxes</Text>
+              {mobile ? null : <Text style={styles.section}>Boxes</Text>}
               <BoxesSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
             </>
           ) : null}
@@ -2084,7 +2263,7 @@ export function AdminBoxesScreen() {
           ) : null}
           {tab === 'gifts' ? (
             <>
-              <Text style={styles.section}>Gifts</Text>
+              {mobile ? null : <Text style={styles.section}>Gifts</Text>}
               <GiftsSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
             </>
           ) : null}
