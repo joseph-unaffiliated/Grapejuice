@@ -990,7 +990,10 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   // A draft only counts as an open box when the household has no live box order.
   for (const [hid, dr] of drafts) {
     if (liveBoxHouseholds.has(hid) || !Array.isArray(dr.lineItems) || dr.lineItems.length === 0) continue;
-    const c = customerFor(hid, str(dr.updatedBy));
+    // Jobs (e.g. inventory-swap) stamp updatedBy with a label, not a uid — fall back to the owner.
+    const editor = str(dr.updatedBy);
+    const editorUid = editor && users.has(editor) ? editor : null;
+    const c = customerFor(hid, editorUid);
     const lines = linesOf(dr.lineItems, c.childNames);
     const addOnCents = addOnTotal(lines);
     const boxPriceCents = priceForKids(c.kids);
@@ -1016,8 +1019,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       updatedAt: iso(dr.updatedAt),
       committedAt: null,
       attribution: null,
-      cardSession: cardSessionFor(hid, str(dr.updatedBy), null),
-      ...placeFor(hid, str(dr.updatedBy), null),
+      cardSession: cardSessionFor(hid, editorUid, null),
+      ...placeFor(hid, editorUid, null),
       answers: c.answers,
       lines,
     });

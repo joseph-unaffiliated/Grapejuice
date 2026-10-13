@@ -151,7 +151,8 @@ for (const draft of drafts) {
     if (draft.kind === 'household') {
       const next = swapLines(toDraftLines(data.lineItems), ageFor, new Set(toDraftLines(data.lineItems).map((l) => l.itemId)));
       if (!next.changes.length) return;
-      tx.set(draft.ref, { lineItems: next.lines, updatedAt: at, updatedBy: 'books-unlisted-swap' }, { merge: true });
+      // updatedBy stays the customer's uid — the admin dashboard reads the customer from it.
+      tx.set(draft.ref, { lineItems: next.lines, updatedAt: at }, { merge: true });
       return;
     }
     if (typeof data.convertedUid === 'string' && data.convertedUid) return;
