@@ -261,9 +261,9 @@ const styles = StyleSheet.create({
 
 const kitStyles = StyleSheet.create({
   outer: { paddingHorizontal: mGutter },
-  root: { backgroundColor: m.beige, borderRadius: mRadius.lg, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20 },
-  inner: { alignItems: 'stretch', gap: 10 },
-  ravMark: { backgroundColor: m.gold, marginBottom: 2 },
-  headline: { fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: m.ink, ...mFont(400) },
-  body: { fontSize: 15, lineHeight: 22, color: m.body, ...mFont(300) },
+  root: { backgroundColor: m.beige, borderRadius: mRadius.lg, paddingHorizontal: 22, paddingTop: 36, paddingBottom: 32 },
+  inner: { alignItems: 'center', gap: 16 },
+  ravMark: { backgroundColor: m.gold, marginBottom: 4 },
+  headline: { fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: m.ink, ...mFont(400), textAlign: 'center' },
+  body: { fontSize: 15, lineHeight: 22, color: m.body, ...mFont(300), textAlign: 'center' },
 });

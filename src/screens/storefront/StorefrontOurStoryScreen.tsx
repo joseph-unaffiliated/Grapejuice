@@ -77,6 +77,7 @@ export function StorefrontOurStoryScreen() {
           type: 'node',
           node: mobileLayout ? (
             <MobilePromoCard
+              centered
               headline={BMITZVAH_STRIP_HEADLINE}
               body={BMITZVAH_STRIP_BODY}
               primary={{ label: bmitzvahLabel, onPress: bmitzvah.toggle }}

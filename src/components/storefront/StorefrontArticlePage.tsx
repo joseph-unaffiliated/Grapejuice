@@ -1114,6 +1114,7 @@ function ArticleBandBlock({
   if (kit && block.cta) {
     return (
       <MobilePromoCard
+        centered
         headline={block.heading}
         body={preventWidow(block.body)}
         primary={block.cta}
@@ -1234,6 +1235,7 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                 disabled={block.cta.disabled}
                 variant={block.ctaVariant === 'primary' ? 'primary' : 'secondary'}
                 height={48}
+                style={kitStyles.ctaButton}
               />
             </View>
           );
@@ -2611,25 +2613,26 @@ const styles = StyleSheet.create({
 
 /** Mobile design kit overrides (phones, `mobileKit` pages only). */
 const kitStyles = StyleSheet.create({
-  hero: { alignItems: 'stretch', paddingHorizontal: mGutter, paddingTop: 28, paddingBottom: 36, gap: 10 },
-  h1: { ...mType.h1, textAlign: 'left', width: '100%' },
-  h2: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(500), textAlign: 'left', width: '100%' },
-  lead: { fontSize: 15.5, lineHeight: 23, color: m.body, ...mFont(300), textAlign: 'left' },
-  blocks: { gap: 40, paddingBottom: 40 },
+  hero: { alignItems: 'center', paddingHorizontal: 28, paddingTop: 64, paddingBottom: 72, gap: 16 },
+  h1: { ...mType.h1, textAlign: 'center', width: '100%' },
+  h2: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(500), textAlign: 'center', width: '100%' },
+  lead: { fontSize: 15.5, lineHeight: 24, color: m.body, ...mFont(300), textAlign: 'center' },
+  blocks: { gap: 72, paddingBottom: 72 },
   aisleHead: { paddingHorizontal: mGutter },
-  section: { width: '100%', maxWidth: COLUMN_MAX, paddingHorizontal: mGutter, gap: 12 },
-  stack: { gap: 14, alignItems: 'stretch' },
-  body: { fontSize: 15.5, lineHeight: 23, color: m.body, ...mFont(300), textAlign: 'left' },
+  section: { width: '100%', maxWidth: COLUMN_MAX, paddingHorizontal: 28, gap: 20, alignItems: 'center' },
+  stack: { gap: 20, alignItems: 'stretch' },
+  body: { fontSize: 15.5, lineHeight: 24, color: m.body, ...mFont(300), textAlign: 'center' },
   bodySemibold: { color: m.ink, ...mFont(500) },
   bodyBold: { color: m.ink, ...mFont(700) },
   roadGroup: { width: '100%', gap: 0 },
-  roadRow: { paddingVertical: 14, gap: 6 },
+  roadRow: { paddingVertical: 22, gap: 10, alignItems: 'center' },
   roadRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: m.line },
-  roadMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  roadCopy: { flex: 1, minWidth: 0, gap: 2 },
-  roadWhat: { fontSize: 16.5, lineHeight: 21, letterSpacing: -0.2, color: m.ink, ...mFont(500) },
-  roadCta: { width: 'auto', paddingHorizontal: 16, flexShrink: 0 },
-  roadNote: { ...mType.small, color: m.goldDark },
+  roadMain: { alignItems: 'center', gap: 12 },
+  roadCopy: { alignItems: 'center', gap: 4 },
+  roadWhat: { fontSize: 16.5, lineHeight: 21, letterSpacing: -0.2, color: m.ink, ...mFont(500), textAlign: 'center' },
+  roadCta: { width: 'auto', paddingHorizontal: 20 },
+  roadNote: { ...mType.small, color: m.goldDark, textAlign: 'center', maxWidth: 300 },
+  ctaButton: { maxWidth: 320 },
   linkList: { width: '100%', borderWidth: 1, borderColor: m.line, borderRadius: mRadius.md + 2, overflow: 'hidden' },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, minHeight: 56, backgroundColor: m.white },
   linkRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: m.line },

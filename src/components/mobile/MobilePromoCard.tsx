@@ -10,17 +10,19 @@ type Props = {
   body?: string;
   primary: Cta;
   secondary?: Cta;
+  /** Centered copy with roomier padding (editorial pages like Our Story). */
+  centered?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
 /** Beige promo card for phone content pages: headline, short body, stacked full-width buttons. */
-export function MobilePromoCard({ headline, body, primary, secondary, style }: Props) {
+export function MobilePromoCard({ headline, body, primary, secondary, centered, style }: Props) {
   return (
     <View style={[styles.wrap, style]}>
-      <View style={styles.card}>
-        <Text style={styles.headline} {...balanceProps}>{headline}</Text>
-        {body ? <Text style={styles.body}>{body}</Text> : null}
-        <View style={styles.ctas}>
+      <View style={[styles.card, centered && styles.cardCentered]}>
+        <Text style={[styles.headline, centered && styles.centerText]} {...balanceProps}>{headline}</Text>
+        {body ? <Text style={[styles.body, centered && styles.centerText]}>{body}</Text> : null}
+        <View style={[styles.ctas, centered && styles.ctasCentered]}>
           <MobileButton label={primary.label} onPress={primary.onPress} disabled={primary.disabled} height={48} />
           {secondary ? (
             <MobileButton
@@ -40,7 +42,10 @@ export function MobilePromoCard({ headline, body, primary, secondary, style }: P
 const styles = StyleSheet.create({
   wrap: { width: '100%', paddingHorizontal: mGutter },
   card: { backgroundColor: m.beige, borderRadius: mRadius.lg, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20, gap: 10 },
+  cardCentered: { alignItems: 'center', paddingHorizontal: 22, paddingTop: 36, paddingBottom: 32, gap: 16 },
   headline: { fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: m.ink, ...mFont(400) },
   body: { fontSize: 15, lineHeight: 22, color: m.body, ...mFont(300) },
+  centerText: { textAlign: 'center', width: '100%' },
   ctas: { gap: 10, marginTop: 6 },
+  ctasCentered: { width: '100%', maxWidth: 320, marginTop: 8 },
 });
