@@ -21,6 +21,7 @@ import {
   typeface,
   typography,
 } from '../../constants/theme';
+import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../mobile/mobileTheme';
 
 /** Unventures.co cold-press watercolor paper (site atmosphere texture). */
 const PAPER_BG = require('../../../assets/storefront/cold-press-toothy.jpg');
@@ -45,6 +46,8 @@ type Props = {
    * - string[] → custom rotating prompts
    */
   prompts?: readonly string[];
+  /** Phone design kit: beige card with left-aligned type instead of the paper texture. */
+  mobileKit?: boolean;
 };
 
 const ASK_GO_SIZE = 28;
@@ -57,6 +60,7 @@ export function StorefrontAskRavStrip({
   body = ASK_RAV_DEFAULT_BODY,
   placeholder = ASK_RAV_DEFAULT_PLACEHOLDER,
   prompts,
+  mobileKit = false,
 }: Props) {
   const { isCompact: compact } = useLayoutBreakpoint();
   const [query, setQuery] = useState('');
@@ -98,7 +102,7 @@ export function StorefrontAskRavStrip({
   );
 
   return (
-    <View style={styles.outer}>
+    <View style={[styles.outer, mobileKit && kitStyles.outer]}>
       <Pressable
         onPress={openPanel}
         accessibilityRole="button"
@@ -106,20 +110,28 @@ export function StorefrontAskRavStrip({
         style={({ pressed }) => [pressed && styles.cardPressed]}
       >
         <ImageBackground
-          source={PAPER_BG}
-          style={[styles.root, compact && styles.rootMobile]}
+          source={mobileKit ? undefined : PAPER_BG}
+          style={[styles.root, compact && styles.rootMobile, mobileKit && kitStyles.root]}
           imageStyle={styles.bgImage}
           resizeMode="cover"
         >
           {/* Soft wash so type stays readable over the toothy paper grain. */}
-          <View style={styles.wash} pointerEvents="none" />
-          <View style={styles.inner} pointerEvents="box-none">
-            <View style={styles.ravMark} accessibilityElementsHidden importantForAccessibility="no">
+          {mobileKit ? null : <View style={styles.wash} pointerEvents="none" />}
+          <View style={[styles.inner, mobileKit && kitStyles.inner]} pointerEvents="box-none">
+            <View
+              style={[styles.ravMark, mobileKit && kitStyles.ravMark]}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            >
               <Icon icon={icons.childReaching} size={18} color={semanticColors.logoDark} />
             </View>
-            {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-            {headline ? <Text style={styles.headline}>{headline}</Text> : null}
-            {body ? <Text style={styles.body}>{body}</Text> : null}
+            {eyebrow ? <Text style={mobileKit ? mType.eyebrow : styles.eyebrow}>{eyebrow}</Text> : null}
+            {headline ? (
+              <Text style={mobileKit ? kitStyles.headline : styles.headline} {...(mobileKit ? balanceProps : null)}>
+                {headline}
+              </Text>
+            ) : null}
+            {body ? <Text style={mobileKit ? kitStyles.body : styles.body}>{body}</Text> : null}
             <View
               style={styles.pillWrap}
               // Capture presses so the card open handler does not fire while using the field.
@@ -245,4 +257,13 @@ const styles = StyleSheet.create({
     opacity: 0,
     pointerEvents: 'none',
   },
+});
+
+const kitStyles = StyleSheet.create({
+  outer: { paddingHorizontal: mGutter },
+  root: { backgroundColor: m.beige, borderRadius: mRadius.lg, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20 },
+  inner: { alignItems: 'stretch', gap: 10 },
+  ravMark: { backgroundColor: m.gold, marginBottom: 2 },
+  headline: { fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: m.ink, ...mFont(400) },
+  body: { fontSize: 15, lineHeight: 22, color: m.body, ...mFont(300) },
 });

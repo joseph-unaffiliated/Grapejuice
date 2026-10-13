@@ -9,7 +9,14 @@ import {
 import { StorefrontBMitzvahStrip } from '../../components/storefront/StorefrontBMitzvahStrip';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
 import { useHolidayRoadmapBlocks } from '../../components/storefront/useHolidayRoadmapBlocks';
-import { BMITZVAH_PILOT_INTEREST } from '../../constants/storefrontBMitzvahCopy';
+import { MobilePromoCard } from '../../components/mobile/MobilePromoCard';
+import {
+  BMITZVAH_PILOT_INTEREST,
+  BMITZVAH_STRIP_BODY,
+  BMITZVAH_STRIP_HEADLINE,
+  BMITZVAH_STRIP_PRIMARY_LABEL,
+} from '../../constants/storefrontBMitzvahCopy';
+import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { OUR_STORY_COPY } from '../../constants/storefrontOurStoryCopy';
 import { spacing } from '../../constants/theme';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
@@ -23,6 +30,8 @@ export function StorefrontOurStoryScreen() {
   const c = OUR_STORY_COPY;
   const roadmapBlocks = useHolidayRoadmapBlocks();
   const bmitzvah = useStorefrontInterest(BMITZVAH_PILOT_INTEREST);
+  const bmitzvahLabel = bmitzvah.marked ? "You're interested!" : BMITZVAH_STRIP_PRIMARY_LABEL;
+  const mobileLayout = useMobileLayout();
 
   const goDonate = () => {
     void Linking.openURL('mailto:hello@grapejuice.co?subject=Make%20a%20donation');
@@ -37,6 +46,7 @@ export function StorefrontOurStoryScreen() {
       title={c.title}
       lead={c.lead}
       buildBoxHeadline="build your hanukkah box"
+      mobileKit
       blocks={[
         {
           type: 'beliefs',
@@ -65,7 +75,13 @@ export function StorefrontOurStoryScreen() {
         ...roadmapBlocks,
         {
           type: 'node',
-          node: (
+          node: mobileLayout ? (
+            <MobilePromoCard
+              headline={BMITZVAH_STRIP_HEADLINE}
+              body={BMITZVAH_STRIP_BODY}
+              primary={{ label: bmitzvahLabel, onPress: bmitzvah.toggle }}
+            />
+          ) : (
             <StorefrontBMitzvahStrip
               onInterested={bmitzvah.toggle}
               primaryLabel={bmitzvah.marked ? "You're interested!" : undefined}

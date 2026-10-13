@@ -163,7 +163,7 @@ export function MobileAccountHub(p: Props) {
             <MobileButton label="Build my box" onPress={p.onBuildBox} style={{ marginTop: 14 }} />
           </View>
         ) : (
-          <BoxSummary total={glance.totalLabel} items={glance.thumbs}>
+          <BoxSummary total={glance.totalLabel} items={glance.thumbsOpening(p.onOpenBox)}>
             {glance.state === 'set' ? (
               <>
                 <Text style={styles.pill}>Set · ships after {glance.lockShort}</Text>

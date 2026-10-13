@@ -1,6 +1,7 @@
 import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot';
 import { boxAddOnUnitCents } from '../box/pricing';
 import { resolveFreeSwapUnitCents } from '../box/sectionUpsells';
+import { geltSizeOf, geltSwapQuantity, isGeltSwapUp, type GeltSize } from '../box/boxRules';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 
 export type ApplyRavActionsResult = {
@@ -48,6 +49,10 @@ function findLineIndex(lineItems: BoxLineItem[], slotId?: string, itemId?: strin
 
 export type ApplyRavActionsOptions = {
   locked?: boolean;
+  /** People a party bag of gelt covers (kids + adults); sizes gelt swaps. */
+  geltHeadcount?: number;
+  /** Household's default gelt bag; Rav may restore up to it but never past it. */
+  geltCeiling?: GeltSize;
 };
 
 /** Apply Rav-returned draft mutations locally (never checkout). */
@@ -97,7 +102,19 @@ export function applyRavDraftActions(
       if (idx >= 0) {
         const existing = next[idx];
         const sourceItem = catalog.find((c) => c.id === existing.itemId);
-        next[idx] = catalogLine(item, existing.slotId, existing.childId, swapUnitCents(sourceItem, item));
+        const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
+        const toGelt = geltSizeOf(item);
+        if (fromGelt && toGelt) {
+          // Free gelt swaps stay at or under the default bag and keep the same people covered.
+          if (isGeltSwapUp(fromGelt, toGelt, options?.geltCeiling)) {
+            skipped.push(action);
+            continue;
+          }
+          const qty = geltSwapQuantity(fromGelt, toGelt, existing.quantity ?? 1, options?.geltHeadcount ?? 1);
+          next[idx] = { ...catalogLine(item, existing.slotId, existing.childId, 0), quantity: qty, includedQty: qty };
+        } else {
+          next[idx] = catalogLine(item, existing.slotId, existing.childId, swapUnitCents(sourceItem, item));
+        }
       } else {
         const childId = action.childId;
         const newSlot = childId ? `${slotId}-${childId}` : slotId;

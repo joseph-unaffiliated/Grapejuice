@@ -10,6 +10,7 @@ import { MobileSheet } from '../../components/mobile/MobileSheet';
 import { ProductTileMobile, stockStatus } from '../../components/mobile/ProductTileMobile';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { BoxPitch } from '../../components/mobile/BoxPitch';
+import { ProductNote } from '../../components/box/ProductNote';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
 
 export type RoleOption = {
@@ -193,6 +194,7 @@ export function MobileProductBody(p: Props) {
             ) : null}
           </Text>
         ) : null}
+        <ProductNote itemId={p.item.id} style={[styles.desc, styles.note]} linkStyle={styles.moreLink} onOpenProduct={p.onOpenProduct} />
       </View>
 
       {p.inBox ? (
@@ -327,6 +329,7 @@ const styles = StyleSheet.create({
   soldPill: { height: 24, lineHeight: 24, paddingHorizontal: 10, borderRadius: 12, overflow: 'hidden', fontSize: 12, color: '#9A4D16', backgroundColor: m.warnBg, ...mFont(400) },
   desc: { fontSize: 15, lineHeight: 23, color: m.body, ...mFont(300) },
   moreLink: { color: m.goldDark, fontSize: 14, textDecorationLine: 'underline', ...mFont(400) },
+  note: { marginTop: 4, padding: 12, borderRadius: 12, backgroundColor: m.beige, overflow: 'hidden' },
   inBoxCard: { marginTop: 10, marginHorizontal: mGutter, padding: 14, borderRadius: 14, backgroundColor: m.beige, borderWidth: 1.5, borderColor: m.gold, flexDirection: 'row', alignItems: 'center', gap: 12 },
   inBoxTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   inBoxTitle: { fontSize: 15, color: m.ink, ...mFont(500) },

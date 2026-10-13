@@ -14,6 +14,9 @@ import {
   type IntakeAgeGroup,
   resolveByDefaultSlot,
   resolveGiftKind,
+  geltSizeOf,
+  isGeltSwapUp,
+  type GeltSize,
 } from './boxRules';
 import {
   displaySectionForCatalogItem,
@@ -769,19 +772,23 @@ function itemMatchesSlotKind(item: CatalogItem, rawKind: string): boolean {
 }
 
 export function findSlotRuleForItem(sectionId: BoxSectionId, item: CatalogItem) {
+  return findSlotRulesForItem(sectionId, item)[0];
+}
+
+/**
+ * The slot whose default this item is; otherwise every slot that lists it as a swap
+ * (cookie cutters stand in for either food kit, so both kits are offered back).
+ */
+function findSlotRulesForItem(sectionId: BoxSectionId, item: CatalogItem) {
   const section = SECTION_RULES.find((s) => s.id === sectionId);
-  if (!section) return undefined;
-  for (const slot of section.slots) {
-    if (itemMatchesSlotKind(item, slot.defaultKind)) return slot;
-  }
-  for (const slot of section.slots) {
-    for (const s of slot.swaps) {
-      if (s.price === 'donate') continue;
-      if (itemMatchesSlotKind(item, s.targetSlotOrKind)) return slot;
-    }
-  }
-  if (section.slots.length === 1) return section.slots[0];
-  return undefined;
+  if (!section) return [];
+  const own = section.slots.find((slot) => itemMatchesSlotKind(item, slot.defaultKind));
+  if (own) return [own];
+  const listing = section.slots.filter((slot) =>
+    slot.swaps.some((s) => s.price !== 'donate' && itemMatchesSlotKind(item, s.targetSlotOrKind))
+  );
+  if (listing.length) return listing;
+  return section.slots.length === 1 ? [section.slots[0]] : [];
 }
 
 /**
@@ -802,13 +809,13 @@ export function resolveFreeSwapUnitCents(
   sectionId: BoxSectionId
 ): number | undefined {
   if (!sourceItem) return undefined;
-  const slotRule = findSlotRuleForItem(sectionId, sourceItem);
-  if (!slotRule) return undefined;
-  // Swapping back to the slot's own default is always free.
-  if (itemMatchesSlotKind(targetItem, slotRule.defaultKind)) return 0;
-  const offer = slotRule.swaps.find((s) => itemMatchesSlotKind(targetItem, s.targetSlotOrKind));
-  if (!offer) return undefined;
-  return offer.price === 'included' ? 0 : undefined;
+  for (const slotRule of findSlotRulesForItem(sectionId, sourceItem)) {
+    // Swapping back to the slot's own default is always free.
+    if (itemMatchesSlotKind(targetItem, slotRule.defaultKind)) return 0;
+    const offer = slotRule.swaps.find((s) => itemMatchesSlotKind(targetItem, s.targetSlotOrKind));
+    if (offer?.price === 'included') return 0;
+  }
+  return undefined;
 }
 
 function sameSlotPeers(item: CatalogItem, catalog: CatalogItem[], limit: number): CatalogItem[] {
@@ -861,10 +868,23 @@ export function resolveSwapOptionsForItem(
   item: CatalogItem,
   catalog: CatalogItem[],
   limit = 6,
-  opts?: { includeSectionPeers?: boolean }
+  opts?: {
+    includeSectionPeers?: boolean;
+    /** Household's default gelt bag; free gelt swaps never go bigger than this. */
+    geltCeiling?: GeltSize;
+  }
 ): CatalogItem[] {
   catalog = withoutSoldOut(catalog);
   if (!catalog.length || limit <= 0) return [];
+  const geltSize = geltSizeOf(item);
+  if (geltSize) {
+    const otherBags = catalog.filter((c) => {
+      const size = geltSizeOf(c);
+      return c.id !== item.id && size && !isGeltSwapUp(geltSize, size, opts?.geltCeiling);
+    });
+    const rest = resolveSwapOptionsForItemGraph(item, catalog, limit, opts).filter((c) => !geltSizeOf(c));
+    return [...otherBags, ...rest].slice(0, limit);
+  }
   const peers = openSwapPeers(item, catalog);
   if (peers) {
     // Books: any book for any book. Stuffies: every other stuffie first, then the graph.
@@ -892,17 +912,19 @@ function resolveSwapOptionsForItemGraph(
     if (scoped.length) return scoped.slice(0, limit);
   }
 
-  const slotRule = findSlotRuleForItem(sectionId, item);
-  const slotDefaultKind = slotRule ? concreteDefaultKind(slotRule) : undefined;
-  const kinds = (
-    slotRule
-      ? [
-          // Default first so a swapped-away default is offered back at the top.
-          ...(slotDefaultKind ? [slotDefaultKind] : []),
-          ...slotRule.swaps.filter((s) => s.price === 'included').map((s) => s.targetSlotOrKind),
-        ]
-      : collectSwapKinds(sectionId)
-  ).filter((k) => sectionId === 'story' || !isBookUpsellOrSwapKind(k));
+  const slotRules = findSlotRulesForItem(sectionId, item);
+  const slotRule = slotRules[0];
+  const kinds = [
+    ...new Set(
+      slotRules.length
+        ? [
+            // Defaults first so a swapped-away default is offered back at the top.
+            ...slotRules.flatMap((r) => concreteDefaultKind(r) ?? []),
+            ...slotRules.flatMap((r) => r.swaps.filter((s) => s.price === 'included').map((s) => s.targetSlotOrKind)),
+          ]
+        : collectSwapKinds(sectionId)
+    ),
+  ].filter((k) => sectionId === 'story' || !isBookUpsellOrSwapKind(k));
 
   const exclude = new Set([item.id]);
   const out = excludeBooksUnlessStory(

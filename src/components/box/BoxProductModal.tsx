@@ -27,6 +27,8 @@ import { howToLinkForItem } from '../../constants/pdpHowToLink';
 import { isBookItem } from '../../constants/storefrontCategories';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
+import { ProductNote } from '../../components/box/ProductNote';
+import type { GeltSize } from '../../services/box/boxRules';
 import { isGiftSlotLine } from './boxLineDisplay';
 import { boxAddOnUnitCents, HANUKKAH_SHIP_WINDOW_LABEL } from '../../services/box/pricing';
 import {
@@ -92,6 +94,8 @@ type Props = {
   onRemove?: (item: CatalogItem) => void | Promise<void>;
   /** In-box quantity adjust (+1 / −1). At qty 1, −1 donates/removes. */
   onQuantityChange?: (item: CatalogItem, delta: 1 | -1) => void | Promise<void>;
+  /** Household's default gelt bag; free gelt swaps never go bigger. */
+  geltCeiling?: GeltSize;
 };
 
 export function BoxProductModal({
@@ -108,6 +112,7 @@ export function BoxProductModal({
   onSwap,
   onRemove,
   onQuantityChange,
+  geltCeiling,
 }: Props) {
   const { colors } = useThemeMode();
   const insets = useSafeAreaInsets();
@@ -174,14 +179,14 @@ export function BoxProductModal({
     if (inBoxUnitCents > 0) return [];
     const opts = isGiftSlotLine(inBoxPrimary)
       ? resolveIncludedGiftOptions(catalog, item.id, 12)
-      : resolveSwapOptionsForItem(item, catalog, 12);
+      : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling });
     return opts.filter((o) => o.id !== item.id);
-  }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog]);
+  }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog, geltCeiling]);
 
   const swapSources = useMemo(() => {
     if (!item || inBox) return [];
-    return findSwapSourceLines(item, lineItems, catalog, fromSection);
-  }, [item, inBox, lineItems, catalog, fromSection]);
+    return findSwapSourceLines(item, lineItems, catalog, fromSection, { geltCeiling });
+  }, [item, inBox, lineItems, catalog, fromSection, geltCeiling]);
   const swapSource = swapSources[0] ?? null;
 
   const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
@@ -379,6 +384,19 @@ export function BoxProductModal({
                       </Text>
                     </Text>
                   ) : null}
+                  <ProductNote
+                    itemId={item.id}
+                    style={[styles.desc, styles.note]}
+                    linkStyle={styles.followUpLink}
+                    onOpenProduct={(slug) => {
+                      const next = catalog.find((c) => c.id === slug);
+                      if (next && onSelectItem) onSelectItem(next);
+                      else {
+                        onClose();
+                        navigateMainStack('CatalogProduct', { slug });
+                      }
+                    }}
+                  />
 
                   {howTo ? (
                     <TouchableOpacity
@@ -746,6 +764,7 @@ function createStyles(colors: SemanticColors, desktop: boolean) {
       color: colors.textSecondary,
       maxWidth: 440,
     },
+    note: { marginTop: spacing.sm },
     followUpLink: {
       ...typeface('bold'),
       fontSize: typography.md,

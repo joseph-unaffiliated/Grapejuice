@@ -16,12 +16,27 @@ export type BoxThumb = {
   onPress?: () => void;
 };
 
-/** The shared row of box thumbnails: six per row, scrolling when there are more. */
-export function BoxThumbRow({ items, size = 'lg', onThumbIntent }: { items: BoxThumb[]; size?: 'lg' | 'sm'; onThumbIntent?: () => void }) {
+/**
+ * The shared row of box thumbnails: six per row, swiping sideways when there are more.
+ * A swiping row runs out to the card's edges (`bleed` = the card's padding) so scrolled
+ * thumbs aren't cut off at the padding.
+ */
+export function BoxThumbRow({
+  items,
+  size = 'lg',
+  onThumbIntent,
+  bleed = size === 'sm' ? 12 : 16,
+}: {
+  items: BoxThumb[];
+  size?: 'lg' | 'sm';
+  onThumbIntent?: () => void;
+  bleed?: number;
+}) {
   const scroll = items.length > 6;
   const [rowWidth, setRowWidth] = React.useState(0);
+  const innerWidth = scroll ? rowWidth - bleed * 2 : rowWidth;
   // Six cells per row whatever the count, so a three-item box doesn't get giant tiles.
-  const cellSize = scroll ? 48 : rowWidth > 60 ? Math.floor((rowWidth - 6 * 5) / 6) : undefined;
+  const cellSize = innerWidth > 60 ? Math.floor((innerWidth - 6 * 5) / 6) : scroll ? 48 : undefined;
   const cells = items.map((it) => (
     <Pressable
       key={it.id + (it.label ?? '')}
@@ -59,8 +74,9 @@ export function BoxThumbRow({ items, size = 'lg', onThumbIntent }: { items: BoxT
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollRow}
-        style={[styles.scroll, Platform.OS === 'web' ? ({ touchAction: 'pan-x', overscrollBehavior: 'contain' } as object) : null]}
+        contentContainerStyle={[styles.scrollRow, { paddingHorizontal: bleed }]}
+        style={[styles.scroll, { marginHorizontal: -bleed }, Platform.OS === 'web' ? ({ touchAction: 'pan-x', overscrollBehavior: 'contain' } as object) : null]}
+        onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
         {...panMark}
       >
         {cells}
@@ -155,8 +171,9 @@ const styles = StyleSheet.create({
   totalSm: { fontSize: 14.5 },
   grid: { flexDirection: 'row', gap: 6, width: '100%', alignSelf: 'stretch', minWidth: 0 },
   gridSm: { gap: 6 },
-  scroll: { marginRight: -12 },
-  scrollRow: { flexDirection: 'row', gap: 6, paddingRight: 12, paddingTop: 4 },
+  // Room above for the count badges, pulled back so the row lines up with the static grid.
+  scroll: { marginTop: -4, flexGrow: 0 },
+  scrollRow: { flexDirection: 'row', gap: 6, paddingTop: 4 },
   cell: { flex: 1, aspectRatio: 1, borderRadius: mRadius.sm, backgroundColor: m.white, overflow: 'visible' },
   cellMine: { borderWidth: 2, borderColor: m.gold, borderRadius: 9 },
   img: { width: '100%', height: '100%', borderRadius: mRadius.sm },

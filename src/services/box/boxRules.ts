@@ -487,17 +487,50 @@ export function defaultAdults(adults?: number): number {
  */
 export function planGelt(inputs: DefaultBoxInputs): GeltPlan {
   const kidCount = inputs.kids.length;
-  const adults = defaultAdults(inputs.adults);
-  if (kidCount <= 0) {
-    return { size: 'medium', quantity: 1, mixedDefault: false };
+  const size = defaultGeltSize(kidCount);
+  const quantity = size === 'small' ? kidCount + defaultAdults(inputs.adults) : 1;
+  return { size, quantity, mixedDefault: false };
+}
+
+/** The bag the default build picks for a household with `kidCount` kids. */
+export function defaultGeltSize(kidCount: number): GeltSize {
+  if (kidCount >= 5) return 'party';
+  if (kidCount >= 2) return 'small';
+  return 'medium';
+}
+
+/** Which gelt bag a catalog row is, or null when it isn't gelt. */
+export function geltSizeOf(row: BoxRulesCatalogRow): GeltSize | null {
+  let best: GeltSize | null = null;
+  let bestScore = 0;
+  for (const size of ['small', 'medium', 'party'] as const) {
+    const score = scoreDefaultSlotCandidate(row, geltSlotForSize(size));
+    if (score > bestScore) {
+      bestScore = score;
+      best = size;
+    }
   }
-  if (kidCount === 1) {
-    return { size: 'medium', quantity: 1, mixedDefault: false };
-  }
-  if (kidCount >= 5) {
-    return { size: 'party', quantity: 1, mixedDefault: false };
-  }
-  return { size: 'small', quantity: kidCount + adults, mixedDefault: false };
+  return best;
+}
+
+const GELT_RANK: Record<GeltSize, number> = { small: 1, medium: 2, party: 3 };
+
+/**
+ * A free gelt swap never goes above the household's default bag (`ceiling`) — it can
+ * size down and back up to the default; anything bigger is an add-on. Without a
+ * ceiling, only same size or smaller.
+ */
+export function isGeltSwapUp(from: GeltSize, to: GeltSize, ceiling?: GeltSize): boolean {
+  return GELT_RANK[to] > Math.max(GELT_RANK[from], ceiling ? GELT_RANK[ceiling] : 0);
+}
+
+/**
+ * Bags of `to` that cover the same people as `qty` bags of `from`. A little bag covers
+ * one person, a big bag two, a party bag the whole household (`headcount`).
+ */
+export function geltSwapQuantity(from: GeltSize, to: GeltSize, qty: number, headcount: number): number {
+  const covers = (size: GeltSize) => (size === 'small' ? 1 : size === 'medium' ? 2 : Math.max(1, headcount));
+  return Math.max(1, Math.ceil((Math.max(1, qty) * covers(from)) / covers(to)));
 }
 
 export function geltSlotForSize(size: GeltSize): DefaultSlotId {

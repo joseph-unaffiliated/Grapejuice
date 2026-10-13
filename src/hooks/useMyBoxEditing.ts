@@ -32,7 +32,7 @@ import {
   repairWoodDreidelIncluded,
   repairZeroExtraUnits,
 } from '../services/box/buildDefaultBox';
-import { listBoxCentsForKids } from '../services/box/boxRules';
+import { defaultAdults, defaultGeltSize, geltSizeOf, geltSwapQuantity, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
 import {
   resolveSectionUpsellItems,
@@ -300,6 +300,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
 
 
   /** Recompute when catalog/lines change — never cache empty results across loads. */
+  const geltCeiling = defaultGeltSize(children.length);
   const swapOptionsBySlot = useMemo(() => {
     if (!catalog.length || !lineItems.length) return {} as Record<string, CatalogItem[]>;
     const next: Record<string, CatalogItem[]> = {};
@@ -313,10 +314,10 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       // section's peers) — e.g. an airdry-dreidel gift offers other gifts, not dreidels.
       next[li.slotId] = isGiftSlotLine(li)
         ? resolveIncludedGiftOptions(catalog, li.itemId, 6)
-        : resolveSwapOptionsForItem(current, catalog, 6);
+        : resolveSwapOptionsForItem(current, catalog, 6, { geltCeiling });
     }
     return next;
-  }, [lineItems, catalog]);
+  }, [lineItems, catalog, geltCeiling]);
 
   const applySwap = async (slotIds: string[], newItem: CatalogItem) => {
     if (locked) return;
@@ -334,7 +335,14 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       (sourceLine.unitCents ?? 0) === 0 &&
       isBookishCatalogItem(sourceItem) &&
       isBookishCatalogItem(newItem);
-    const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || bookSwap)
+    // Gelt for gelt is always free and keeps the same people covered (party bag → a little
+    // bag each, big bag → two little bags).
+    const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
+    const toGelt = geltSizeOf(newItem);
+    const geltHeadcount = children.length + defaultAdults();
+    const geltQty = (qty: number) =>
+      fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, geltHeadcount) : qty;
+    const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || bookSwap || (fromGelt && toGelt && (sourceLine.unitCents ?? 0) === 0))
       ? 0
       : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
         boxAddOnUnitCents(newItem);
@@ -342,7 +350,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     const swappedQty = lineItems
       .filter((li) => idSet.has(li.slotId))
-      .reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+      .reduce((s, li) => s + geltQty(Math.max(1, li.quantity ?? 1)), 0);
     if (sourceLine?.itemId) {
       // Swaps replace included allotment — do not count the old SKU as Donated.
       transferIncludedBaselineOnSwap(
@@ -361,7 +369,13 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
             itemId: newItem.id,
             unitCents: nextUnit,
             label: newItem.name,
-            // Household sets (wood/gelt) keep qty/includedQty — never peel one unit.
+            ...(fromGelt && toGelt
+              ? {
+                  quantity: geltQty(Math.max(1, li.quantity ?? 1)),
+                  ...(li.includedQty ? { includedQty: geltQty(li.includedQty) } : {}),
+                }
+              : {}),
+            // Other household sets (wood dreidels) keep qty/includedQty — never peel one unit.
             // Fresh swap drops any prior curation note.
             curationNote: undefined,
           }
@@ -841,6 +855,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const modalSwapIntoBox = async (item: CatalogItem, source: BoxLineItem) => {
     if (locked) return;
     const sourceItem = catalog.find((c) => c.id === source.itemId);
+    if (sourceItem && geltSizeOf(sourceItem) && geltSizeOf(item)) return applySwap([source.slotId], item);
     const sectionId = productModalSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
     const nextUnit = isGiftSlotLine(source)
       ? 0
@@ -1022,7 +1037,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       const candidates = resolveFreeSlotAddOptions(section.id, catalog, 64);
       const eligible = new Set<string>();
       for (const item of candidates) {
-        const source = findSwapSourceLine(item, lineItems, catalog, section.id);
+        const source = findSwapSourceLine(item, lineItems, catalog, section.id, { geltCeiling });
         if (!source) continue;
         const sourceItem = catalog.find((c) => c.id === source.itemId);
         const bookSwap = !!sourceItem && isBookishCatalogItem(sourceItem) && isBookishCatalogItem(item);
@@ -1032,7 +1047,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       map[section.id] = eligible;
     }
     return map;
-  }, [catalog, lineItems]);
+  }, [catalog, lineItems, geltCeiling]);
 
   /** Fixed included per-kid gift set (toy menorah, dreidels, stuffie, book, DIY candles). */
   const includedGiftOptions = useMemo(
@@ -1118,7 +1133,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     const options =
       snapshot && isGiftSlotLine(snapshot)
         ? resolveIncludedGiftOptions(catalog, itemId, 6)
-        : resolveSwapOptionsForItem(item, catalog, 6);
+        : resolveSwapOptionsForItem(item, catalog, 6, { geltCeiling });
     return options.filter((opt) => opt.id !== itemId);
   };
   /**

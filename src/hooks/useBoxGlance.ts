@@ -3,7 +3,8 @@
  * homepage card, the account card and checkout summaries. Reads the same draft, orders
  * and catalog as My Box; never writes.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { useBoxDraft } from './useBoxDraft';
 import { useCatalog } from './useCatalog';
 import { usePaymentGate } from './usePaymentGate';
@@ -81,13 +82,25 @@ export function useBoxGlance() {
     totalCents,
   ]);
 
-  /** Up to six thumbnails: real box rows when there is a box, the sample set otherwise. */
+  /** Every box row (the row swipes past six), or the sample set when there's no box. */
   const thumbs = useMemo((): BoxThumb[] => {
     if (!hasBox) return SAMPLE_BOX_IDS.map((id) => ({ id, imageUrl: primaryPhoto(byId.get(id)) }));
     return coalesceLinesByItemId(lineItems)
-      .slice(0, 6)
       .map((row) => ({ id: row.itemId, imageUrl: primaryPhoto(byId.get(row.itemId)), count: row.quantity > 1 ? row.quantity : undefined }));
   }, [hasBox, lineItems, byId]);
+
+  /** The same thumbs, each opening My Box on that item's card. */
+  const thumbsOpening = useCallback(
+    (openBox: () => void): BoxThumb[] =>
+      thumbs.map((t) => ({
+        ...t,
+        onPress: () => {
+          useGuestSessionStore.getState().setMyBoxFocusItemId(t.id);
+          openBox();
+        },
+      })),
+    [thumbs]
+  );
 
   return {
     loading: draftLoading || ordersLoading || sessionLoading,
@@ -95,6 +108,7 @@ export function useBoxGlance() {
     hasBox,
     lineItems,
     thumbs,
+    thumbsOpening,
     totalCents,
     totalLabel: formatCatalogDollars(totalCents),
     cardOnFile,

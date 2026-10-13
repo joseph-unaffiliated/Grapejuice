@@ -23,8 +23,10 @@ import {
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
-import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
-import { resolveByDefaultSlot } from '../../services/box/boxRules';
+import { ProductNote } from '../../components/box/ProductNote';
+import { formatCatalogDollars, toRulesRow } from '../../services/box/buildDefaultBox';
+import { defaultGeltSize, isLowWithDrafts, resolveByDefaultSlot } from '../../services/box/boxRules';
+import { isStorefrontRavOpenable, openStorefrontRav } from '../../components/storefront/storefrontRavContext';
 import { kidPlannerAges, resolveFreeSwapUnitCents, resolveIncludedGiftOptions, storySwapShelf } from '../../services/box/sectionUpsells';
 import { HorizontalDragScrollView } from '../../components/home/HorizontalDragScrollView';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
@@ -119,6 +121,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const focusItemId = useGuestSessionStore((s) => s.myBoxFocusItemId);
   const clearFocusItem = useGuestSessionStore((s) => s.setMyBoxFocusItemId);
   const kids = e.children;
+  const geltCeiling = defaultGeltSize(kids.length);
   const { household, refresh } = useSession();
 
   const checkoutReady = !!household?.id && !e.guestViewOnly && !e.openOrder && !e.ordersLoading && !e.locked && e.lineItems.length > 0;
@@ -152,21 +155,26 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     },
     [e.grouped]
   );
+  const openProductSheet = useCallback(
+    (item: CatalogItem) => {
+      for (const s of BOX_DISPLAY_SECTIONS) {
+        const group = rowsFor(s.id).find((row) => row.itemId === item.id);
+        if (group) {
+          setSheet({ kind: 'product', item, group, sectionId: s.id });
+          return;
+        }
+      }
+      setSheet({ kind: 'product', item, group: null, sectionId: displaySectionForCatalogItem(item) });
+    },
+    [rowsFor]
+  );
   useEffect(() => {
     if (!focusItemId || !e.lineItems.length) return;
     const item = byId.get(focusItemId);
     if (!item) return;
-    for (const s of BOX_DISPLAY_SECTIONS) {
-      const group = rowsFor(s.id).find((row) => row.itemId === focusItemId);
-      if (group) {
-        setSheet({ kind: 'product', item, group, sectionId: s.id });
-        clearFocusItem(null);
-        return;
-      }
-    }
-    setSheet({ kind: 'product', item, group: null, sectionId: displaySectionForCatalogItem(item) });
+    openProductSheet(item);
     clearFocusItem(null);
-  }, [focusItemId, e.lineItems.length, byId, rowsFor, clearFocusItem]);
+  }, [focusItemId, e.lineItems.length, byId, openProductSheet, clearFocusItem]);
   /** Fully donated items keep a faded row in their section; partly donated ones note it on the live row. */
   const donatedBySection = useMemo(() => {
     const out: Partial<Record<BoxDisplaySectionId, { item: CatalogItem; missing: number }[]>> = {};
@@ -190,17 +198,37 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const out: BoxThumb[] = [];
     for (const s of BOX_DISPLAY_SECTIONS) {
       for (const g of rowsFor(s.id)) {
+        const item = byId.get(g.itemId);
         out.push({
           id: `${s.id}:${g.itemId}`,
-          imageUrl: primaryPhoto(byId.get(g.itemId)),
+          imageUrl: primaryPhoto(item),
           count: g.quantity > 1 ? g.quantity : undefined,
-          onPress: () => setSheet({ kind: 'tradition', sectionId: s.id }),
+          onPress: () => setSheet(item ? { kind: 'product', item, group: g, sectionId: s.id } : { kind: 'tradition', sectionId: s.id }),
         });
       }
     }
     return out;
   }, [rowsFor, byId]);
   const thingCount = thumbs.length;
+
+  /** Box items close to selling out, counting other unsecured drafts. Secured boxes already hold theirs. */
+  const lowStockNames = useMemo(() => {
+    if (gift || e.openOrder || e.locked || e.guestViewOnly) return [];
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const l of e.lineItems) {
+      if (seen.has(l.itemId)) continue;
+      seen.add(l.itemId);
+      const item = byId.get(l.itemId);
+      if (item && isLowWithDrafts(toRulesRow(item))) names.push(item.name);
+    }
+    return names;
+  }, [gift, e.openOrder, e.locked, e.guestViewOnly, e.lineItems, byId]);
+  const talkToRav = () => {
+    const message = "I'd like to talk over my box";
+    if (isStorefrontRavOpenable()) return openStorefrontRav(message);
+    navigation.navigate('MainTabs', { screen: 'Rav', params: { newChat: true, initialMessage: message } });
+  };
 
   const jumpTo = (id: BoxDisplaySectionId) => {
     const y = sectionY.current[id];
@@ -289,7 +317,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       return;
     }
     if (offer.swap) {
-      const source = findSwapSourceLine(item, e.lineItems, e.catalog, sectionId);
+      const source = findSwapSourceLine(item, e.lineItems, e.catalog, sectionId, { geltCeiling });
       const previous = source ? e.catalog.find((c) => c.id === source.itemId) : undefined;
       if (source) {
         await e.applySwap([source.slotId], item);
@@ -623,7 +651,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const alts = group && group.unitCents === 0 ? (e.swapOptionsBySlot[group.primary.slotId] ?? []).filter((o) => o.id !== group.itemId) : [];
     const desc = (item.description ?? '').trim();
     const offer = offerFor(item, sectionId, rowsFor(sectionId));
-    const swapSource = !group && offer.swap && !e.locked ? findSwapSourceLine(item, e.lineItems, e.catalog, sectionId) : null;
+    const swapSource = !group && offer.swap && !e.locked ? findSwapSourceLine(item, e.lineItems, e.catalog, sectionId, { geltCeiling }) : null;
     const swapFrom = swapSource ? byId.get(swapSource.itemId) : undefined;
     return (
       <MobileSheet
@@ -650,6 +678,15 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         </Text>
         {group ? <Text style={[mType.smallDark, { marginTop: 4 }]}>{metaFor(group, item) || `In ${yours} box`}</Text> : null}
         {desc ? <Text style={[mType.body, { marginTop: 10 }]}>{desc.length > 240 ? `${desc.slice(0, 237).trimEnd()}…` : desc}</Text> : null}
+        <ProductNote
+          itemId={item.id}
+          style={[mType.body, styles.note]}
+          linkStyle={styles.noteLink}
+          onOpenProduct={(slug) => {
+            const next = byId.get(slug);
+            if (next) openProductSheet(next);
+          }}
+        />
         {swapSource ? (
           <View style={{ gap: 10, marginTop: 16 }}>
             <Pressable onPress={() => { void addItem(item, sectionId); setSheet(null); }} accessibilityRole="button" accessibilityLabel={`Swap ${item.name} into ${yours} box`} style={styles.opt}>
@@ -827,10 +864,25 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             </ScrollView>
           </View>
         ) : null}
+        {!gift && !e.guestViewOnly ? (
+          <View style={styles.rav}>
+            <MobileButton label="Talk it over with Rav" variant="secondary" onPress={talkToRav} />
+          </View>
+        ) : null}
         {!gift && !e.locked && !e.guestViewOnly ? (
-          <Pressable onPress={() => setResetOpen(true)} accessibilityRole="button" accessibilityLabel="Reset my box" hitSlop={8} style={styles.reset}>
-            <Text style={styles.lockLink}>Reset my box</Text>
+          <Pressable onPress={() => setResetOpen(true)} accessibilityRole="button" accessibilityLabel="Start over" hitSlop={8} style={styles.reset}>
+            <Text style={styles.resetText}>Start over</Text>
           </Pressable>
+        ) : null}
+        {lowStockNames.length ? (
+          <Text style={styles.lowStock}>
+            Please note: {listNames(lowStockNames)} {lowStockNames.length > 1 ? 'are' : 'is'} low in stock and will be swapped automatically when{' '}
+            {lowStockNames.length > 1 ? 'they sell' : 'it sells'} out.{' '}
+            <Text style={styles.link} onPress={e.goToCheckout}>
+              {e.cardOnFile ? 'Check out' : 'Add payment info'}
+            </Text>{' '}
+            to secure {yours} inventory. Continue editing {yours} box until {e.lockAt ? `the ${lockShort} lock date` : 'it locks'}. Your card will not be charged until the lock date.
+          </Text>
         ) : null}
       </View>
   );
@@ -856,8 +908,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       <MobileSheet
         visible={resetOpen}
         onClose={() => { if (!resetBusy) setResetOpen(false); }}
-        title="Reset my box"
-        accessibilityLabel="Reset my box"
+        title="Start over"
+        accessibilityLabel="Start over"
       >
         <Text style={[mType.body, { marginBottom: 16 }]}>This clears what you picked. You can start the questions again, or leave with no box.</Text>
         <View style={{ gap: 10 }}>
@@ -921,6 +973,11 @@ function lineNote(g: CoalescedBoxLine, item: CatalogItem | undefined, kidName: (
   return `Included${forKid}`;
 }
 
+function listNames(names: string[]): string {
+  if (names.length < 3) return names.join(' and ');
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+}
+
 function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={styles.line}>
@@ -941,6 +998,8 @@ const styles = StyleSheet.create({
   lockLink: { color: m.goldDark, textDecorationLine: 'underline' },
   held: { fontSize: 13, color: m.goldDark, lineHeight: 19, marginTop: 16, ...mFont(400) },
   link: { fontSize: 13, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
+  note: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: m.beige, overflow: 'hidden' },
+  noteLink: { color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
   chipsBar: {
     marginTop: 12,
     backgroundColor: m.white,
@@ -984,7 +1043,10 @@ const styles = StyleSheet.create({
   likePrice: { fontSize: 12, color: m.muted, ...mFont(400) },
   likeAdd: { alignSelf: 'flex-start', height: 34, paddingHorizontal: 14, borderRadius: 18, backgroundColor: m.ink, justifyContent: 'center', marginTop: 4 },
   likeAddText: { fontSize: 13, color: m.gold, ...mFont(400) },
-  reset: { alignSelf: 'flex-start', marginTop: 28, marginHorizontal: mGutter, marginBottom: 4, paddingVertical: 8 },
+  rav: { paddingHorizontal: mGutter, marginTop: 24 },
+  reset: { alignSelf: 'center', marginTop: 18, paddingVertical: 6, paddingHorizontal: 12 },
+  resetText: { fontSize: 12.5, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
+  lowStock: { fontSize: 13, lineHeight: 19, color: m.muted, marginTop: 18, marginHorizontal: mGutter, ...mFont(400) },
   sheetFoot: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   footLabel: { fontSize: 12, color: m.muted, ...mFont(300) },
   footTotal: { fontSize: 16, color: m.ink, ...mFont(500) },

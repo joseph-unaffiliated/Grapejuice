@@ -3,7 +3,7 @@ import { functions } from '../../lib/firebase';
 import type { BoxLineItem, FamiliarityLevel, RavDraftAction } from '../../types/pilot';
 import type { CatalogItem } from '../../types/pilot';
 import { toRulesRow, type ResolvedDeviation } from '../box/buildDefaultBox';
-import { isDefaultEligible } from '../box/boxRules';
+import { geltSizeOf, isDefaultEligible } from '../box/boxRules';
 import {
   resolveFreeSlotAddOptions,
   resolveFreeSwapUnitCents,
@@ -109,6 +109,8 @@ export function buildAllowedSwapsForBox(
       const freeIds = opts
         .filter((o) => {
           if (o.id === li.itemId) return false;
+          // The gelt planner already sized the bag for the household.
+          if (geltSizeOf(item) || geltSizeOf(o)) return false;
           const cents = resolveFreeSwapUnitCents(item, o, section);
           return cents === 0;
         })
@@ -230,6 +232,7 @@ export function applyCurateBoxResult(
         : displaySectionForCatalogItem(target);
       const cents = resolveFreeSwapUnitCents(source, target, section);
       if (cents !== 0) continue;
+      if ((source && geltSizeOf(source)) || geltSizeOf(target)) continue;
 
       const isGiftLine =
         baseSlot(sourceLine.slotId) === 'gift' || sourceLine.slotId.startsWith('gift');

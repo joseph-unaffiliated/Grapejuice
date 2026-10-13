@@ -160,7 +160,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         <Text style={mType.h1}>{glance.state === 'set' ? 'Your box is set' : 'Your box is waiting'}</Text>
       </View>
       <View style={{ paddingHorizontal: mGutter, marginTop: 12 }}>
-      <BoxSummary total={glance.totalLabel} items={glance.thumbs}>
+      <BoxSummary total={glance.totalLabel} items={glance.thumbsOpening(goMyBox)}>
         {glance.state === 'set' ? (
           <>
             <Text style={styles.pill}>Set · ships after {glance.lockShort}</Text>

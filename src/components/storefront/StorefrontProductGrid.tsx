@@ -29,6 +29,7 @@ import {
 } from '../../services/box/findSwapSourceLine';
 import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
 import { boxAddOnUnitCents } from '../../services/box/pricing';
+import { defaultGeltSize, type GeltSize } from '../../services/box/boxRules';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import type { BoxLineItem, CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
@@ -81,11 +82,12 @@ function boxRelationForItem(
   item: CatalogItem,
   lineItems: BoxLineItem[],
   catalog: CatalogItem[],
-  hasStartedBox: boolean
+  hasStartedBox: boolean,
+  geltCeiling?: GeltSize
 ): StorefrontTileBoxRelation | null {
   if (!hasStartedBox || lineItems.length === 0) return null;
   if (lineItems.some((li) => li.itemId === item.id)) return 'in_box';
-  if (findSwapSourceLine(item, lineItems, catalog)) return 'swap';
+  if (findSwapSourceLine(item, lineItems, catalog, null, { geltCeiling })) return 'swap';
   return 'add';
 }
 
@@ -106,7 +108,8 @@ export function StorefrontProductGrid({
   const availHook = useCatalogAvailabilityMap();
   const availabilityById = availabilityProp ?? availHook.byId;
   const { items: catalog } = useCatalog();
-  const { lineItems, persist } = useBoxDraft();
+  const { lineItems, persist, children } = useBoxDraft();
+  const geltCeiling = defaultGeltSize(children.length);
   const { guardMutation } = usePaymentGate();
   const hasStartedBox = usePreviewedHasStartedBox();
   const [containerWidth, setContainerWidth] = useState(0);
@@ -141,8 +144,8 @@ export function StorefrontProductGrid({
 
   const swapSources = useMemo(() => {
     if (!swapIncoming) return [];
-    return findSwapSourceLines(swapIncoming, lineItems, catalogForSwap);
-  }, [swapIncoming, lineItems, catalogForSwap]);
+    return findSwapSourceLines(swapIncoming, lineItems, catalogForSwap, null, { geltCeiling });
+  }, [swapIncoming, lineItems, catalogForSwap, geltCeiling]);
 
   const swapOptions = useMemo(
     () =>
@@ -222,7 +225,8 @@ export function StorefrontProductGrid({
           item,
           lineItems,
           catalogForSwap,
-          hasStartedBox
+          hasStartedBox,
+          geltCeiling
         );
         const qty =
           relation === 'in_box'

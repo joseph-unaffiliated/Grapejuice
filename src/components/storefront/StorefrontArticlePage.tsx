@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -38,9 +38,14 @@ import {
 } from '../../constants/theme';
 import { preventWidow } from '../../utils/typography';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
-import { m } from '../mobile/mobileTheme';
+import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../mobile/mobileTheme';
+import { MobileButton } from '../mobile/MobileButton';
+import { MobilePromoCard } from '../mobile/MobilePromoCard';
 
 const COLUMN_MAX = 720;
+
+/** True on phones when the page opts into the mobile design kit (`mobileKit`). */
+const ArticleKitContext = React.createContext(false);
 
 export type StorefrontArticleCta = {
   label: string;
@@ -240,6 +245,8 @@ type Props = {
    * Build Box / Ask Rav / aisle (e.g. B'Mitzvah on Passover).
    */
   beforeFooterStrips?: React.ReactNode;
+  /** Phones: restyle hero and blocks with the mobile design kit (beliefs deck unchanged). */
+  mobileKit?: boolean;
 };
 
 function normalizeLead(lead: string | readonly StorefrontArticleLeadSegment[]): {
@@ -916,12 +923,18 @@ function runNeedsSpace(prev: string, next: string): boolean {
   return !/[“‘(\[]$/.test(prev) && !/^[”’),.;:!?\]]/.test(next);
 }
 
+function kitWeightStyle(weight: StorefrontArticleProseWeight) {
+  return weight === 'regular' ? null : weight === 'bold' ? kitStyles.bodyBold : kitStyles.bodySemibold;
+}
+
 function ProseRun({ line, text }: { line: NormalizedProseLine; text: string }) {
+  const kit = useContext(ArticleKitContext);
   const { href } = line;
-  if (!href) return <Text style={proseWeightStyle(line.weight)}>{text}</Text>;
+  const weightStyle = [proseWeightStyle(line.weight), kit && kitWeightStyle(line.weight)];
+  if (!href) return <Text style={weightStyle}>{text}</Text>;
   return (
     <Text
-      style={[proseWeightStyle(line.weight), styles.proseLink]}
+      style={[...weightStyle, styles.proseLink]}
       accessibilityRole="link"
       onPress={() => openProseHref(href)}
     >
@@ -938,11 +951,17 @@ function ArticleProseParagraph({
   left?: boolean;
 }) {
   const mobileLayout = useMobileLayout();
-  const bodyStyle = [styles.blockBody, left ? styles.textLeft : null, mobileLayout && { color: m.body }];
+  const kit = useContext(ArticleKitContext);
+  const bodyStyle = [
+    styles.blockBody,
+    left ? styles.textLeft : null,
+    mobileLayout && { color: m.body },
+    kit && kitStyles.body,
+  ];
   if (lines.length === 1 && !lines[0].href) {
     const line = lines[0];
     return (
-      <Text style={[...bodyStyle, proseWeightStyle(line.weight)]}>
+      <Text style={[...bodyStyle, proseWeightStyle(line.weight), kit && kitWeightStyle(line.weight)]}>
         {preventWidow(line.body)}
       </Text>
     );
@@ -969,13 +988,14 @@ function ArticleProseBody({
   body: string | readonly StorefrontArticleProseParagraph[];
   left?: boolean;
 }) {
+  const kit = useContext(ArticleKitContext);
   const paragraphs = normalizeProseParagraphs(body);
   if (paragraphs.length === 0) return null;
   if (paragraphs.length === 1) {
     return <ArticleProseParagraph lines={paragraphs[0]} left={left} />;
   }
   return (
-    <View style={styles.proseParagraphs}>
+    <View style={[styles.proseParagraphs, kit && kitStyles.stack]}>
       {paragraphs.map((lines, index) => (
         <ArticleProseParagraph key={index} lines={lines} left={left} />
       ))}
@@ -1025,6 +1045,7 @@ function ArticleLinkList({
   heading?: string;
   items: { label: string; detail?: string; onPress: () => void }[];
 }) {
+  const kit = useContext(ArticleKitContext);
   const { width: windowWidth } = useWindowDimensions();
   const [gridWidth, setGridWidth] = useState(0);
   const gap = spacing.md;
@@ -1041,6 +1062,31 @@ function ArticleLinkList({
   // ~480 fits three readable cells inside the 720 article column; phones stay 2-up.
   const cols = layoutW >= 480 ? 3 : 2;
   const cellWidth = Math.max(0, Math.floor((layoutW - gap * (cols - 1)) / cols));
+
+  if (kit) {
+    return (
+      <View style={kitStyles.section}>
+        {heading ? <Text style={kitStyles.h2} {...balanceProps}>{heading}</Text> : null}
+        <View style={kitStyles.linkList}>
+          {items.map((item, index) => (
+            <Pressable
+              key={item.label}
+              onPress={item.onPress}
+              accessibilityRole="link"
+              accessibilityLabel={item.label}
+              style={({ pressed }) => [kitStyles.linkRow, index > 0 && kitStyles.linkRowDivider, pressed && kitStyles.pressed]}
+            >
+              <View style={kitStyles.linkCopy}>
+                <Text style={kitStyles.linkLabel}>{item.label}</Text>
+                {item.detail ? <Text style={kitStyles.linkDetail}>{item.detail}</Text> : null}
+              </View>
+              <Text style={kitStyles.chev}>›</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.block, styles.linkListBlock]}>
@@ -1061,8 +1107,20 @@ function ArticleBandBlock({
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < LAYOUT.BREAKPOINT_TABLET;
+  const kit = useContext(ArticleKitContext);
   const heading =
     compact && block.headingMobile ? block.headingMobile : block.heading;
+
+  if (kit && block.cta) {
+    return (
+      <MobilePromoCard
+        headline={block.heading}
+        body={preventWidow(block.body)}
+        primary={block.cta}
+        secondary={block.secondaryCta}
+      />
+    );
+  }
 
   const bandInner = (
     <>
@@ -1121,11 +1179,65 @@ function ArticleBandBlock({
   );
 }
 
-function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
+function KitRoadmap({ block }: { block: Extract<StorefrontArticleBlock, { type: 'roadmap' }> }) {
   return (
-    <View style={styles.blocks}>
+    <View style={kitStyles.section}>
+      {block.heading ? <Text style={kitStyles.h2} {...balanceProps}>{block.heading}</Text> : null}
+      {block.groups.map((group, groupIndex) => (
+        <View key={group.tag ?? `group-${groupIndex}`} style={kitStyles.roadGroup}>
+          {group.tag ? <Text style={mType.eyebrow}>{group.tag}</Text> : null}
+          {group.items.map((item, itemIndex) => (
+            <View
+              key={`${item.when}-${item.what}`}
+              style={[kitStyles.roadRow, itemIndex > 0 && kitStyles.roadRowDivider]}
+            >
+              <View style={kitStyles.roadMain}>
+                <View style={kitStyles.roadCopy}>
+                  <Text style={mType.small}>{item.when}</Text>
+                  <Text style={kitStyles.roadWhat}>{item.what}</Text>
+                </View>
+                {item.cta ? (
+                  <MobileButton
+                    label={item.cta.label}
+                    onPress={item.cta.onPress}
+                    disabled={item.cta.disabled}
+                    variant={item.ctaVariant === 'outline' ? 'secondary' : 'primary'}
+                    height={36}
+                    style={kitStyles.roadCta}
+                  />
+                ) : null}
+              </View>
+              {item.note ? <Text style={kitStyles.roadNote}>{item.note}</Text> : null}
+              {item.cta && item.ctaNote ? <Text style={kitStyles.roadNote}>{item.ctaNote}</Text> : null}
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
+  const kit = useContext(ArticleKitContext);
+  return (
+    <View style={[styles.blocks, kit && kitStyles.blocks]}>
       {blocks.map((block, index) => {
         const key = `${block.type}-${index}`;
+        if (kit && block.type === 'roadmap') return <KitRoadmap key={key} block={block} />;
+        if (kit && block.type === 'cta') {
+          return (
+            <View key={key} style={kitStyles.section}>
+              <Text style={kitStyles.h2} {...balanceProps}>{block.heading}</Text>
+              <MobileButton
+                label={block.cta.label}
+                onPress={block.cta.onPress}
+                disabled={block.cta.disabled}
+                variant={block.ctaVariant === 'primary' ? 'primary' : 'secondary'}
+                height={48}
+              />
+            </View>
+          );
+        }
         switch (block.type) {
           case 'prose':
             return (
@@ -1138,21 +1250,32 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
                 ]}
               >
                 <View
-                  style={[
-                    styles.block,
-                    block.maxWidth != null ? { maxWidth: block.maxWidth } : null,
-                    block.paddingTop != null ? { paddingTop: block.paddingTop } : null,
-                    block.paddingBottom != null ? { paddingBottom: block.paddingBottom } : null,
-                  ]}
+                  style={
+                    kit
+                      ? kitStyles.section
+                      : [
+                          styles.block,
+                          block.maxWidth != null ? { maxWidth: block.maxWidth } : null,
+                          block.paddingTop != null ? { paddingTop: block.paddingTop } : null,
+                          block.paddingBottom != null ? { paddingBottom: block.paddingBottom } : null,
+                        ]
+                  }
                 >
                   {block.heading ? (
                     <Text
-                      style={[
-                        block.headingVariant === 'title'
-                          ? styles.blockHeadingTitle
-                          : styles.blockHeading,
-                        block.align === 'left' ? styles.textLeft : null,
-                      ]}
+                      style={
+                        kit
+                          ? block.headingVariant === 'title'
+                            ? kitStyles.h1
+                            : kitStyles.h2
+                          : [
+                              block.headingVariant === 'title'
+                                ? styles.blockHeadingTitle
+                                : styles.blockHeading,
+                              block.align === 'left' ? styles.textLeft : null,
+                            ]
+                      }
+                      {...(kit ? balanceProps : null)}
                     >
                       {block.heading}
                     </Text>
@@ -1392,9 +1515,10 @@ function ArticleBlocks({ blocks }: { blocks: StorefrontArticleBlock[] }) {
 
 /** Article-page aisle rail header (home keeps its own “Browse by Aisle” copy). */
 function BrowseByAisleHeader() {
+  const kit = useContext(ArticleKitContext);
   return (
-    <View style={styles.aisleSectionHead}>
-      <Text style={styles.aisleSectionTitle}>Explore the Hanukkah collection</Text>
+    <View style={[styles.aisleSectionHead, kit && kitStyles.aisleHead]}>
+      <Text style={[styles.aisleSectionTitle, kit && kitStyles.h2]}>Explore the Hanukkah collection</Text>
     </View>
   );
 }
@@ -1421,13 +1545,16 @@ export function StorefrontArticlePage({
   showFooterStrips = true,
   buildBoxHeadline,
   beforeFooterStrips,
+  mobileKit = false,
 }: Props) {
   const { askRav, startBox, goCategory } = useStorefrontActions();
   const mobileLayout = useMobileLayout();
+  const kit = mobileKit && mobileLayout;
   const mediumPrimary = primaryCtaSize === 'medium';
   const largePrimary = primaryCtaSize === 'large';
 
   return (
+    <ArticleKitContext.Provider value={kit}>
     <StorefrontChrome>
       <View style={styles.page}>
         <View
@@ -1435,10 +1562,20 @@ export function StorefrontArticlePage({
             styles.hero,
             largePrimary ? styles.heroAfterLargeCta : null,
             showHeroDivider ? styles.heroBeforeDivider : null,
+            kit && kitStyles.hero,
           ]}
         >
-          {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-          <Text style={[styles.title, titleLarge ? styles.titleLarge : null, mobileLayout && styles.titleMobile]}>{title}</Text>
+          {eyebrow ? <Text style={kit ? mType.eyebrow : styles.eyebrow}>{eyebrow}</Text> : null}
+          <Text
+            style={
+              kit
+                ? kitStyles.h1
+                : [styles.title, titleLarge ? styles.titleLarge : null, mobileLayout && styles.titleMobile]
+            }
+            {...(kit ? balanceProps : null)}
+          >
+            {title}
+          </Text>
           <View
             style={[
               styles.leadStack,
@@ -1450,7 +1587,14 @@ export function StorefrontArticlePage({
                 {segment.heading ? (
                   <Text style={styles.blockHeading}>{segment.heading}</Text>
                 ) : null}
-                <Text style={[styles.lead, leadBalance ? styles.leadBalanced : null, mobileLayout && styles.leadMobile]}>
+                <Text
+                  style={[
+                    styles.lead,
+                    leadBalance ? styles.leadBalanced : null,
+                    mobileLayout && styles.leadMobile,
+                    kit && kitStyles.lead,
+                  ]}
+                >
                   {preventWidow(segment.body)}
                 </Text>
               </View>
@@ -1527,7 +1671,7 @@ export function StorefrontArticlePage({
               headline={buildBoxHeadline}
               variant="content"
             />
-            <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
+            <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} mobileKit={kit} />
             <View style={styles.browseByAisle}>
               <BrowseByAisleHeader />
               <StorefrontCategoryRail
@@ -1540,6 +1684,7 @@ export function StorefrontArticlePage({
         ) : null}
       </View>
     </StorefrontChrome>
+    </ArticleKitContext.Provider>
   );
 }
 
@@ -2462,4 +2607,35 @@ const styles = StyleSheet.create({
     fontSize: typography.md,
     textAlign: 'center',
   },
+});
+
+/** Mobile design kit overrides (phones, `mobileKit` pages only). */
+const kitStyles = StyleSheet.create({
+  hero: { alignItems: 'stretch', paddingHorizontal: mGutter, paddingTop: 28, paddingBottom: 36, gap: 10 },
+  h1: { ...mType.h1, textAlign: 'left', width: '100%' },
+  h2: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(500), textAlign: 'left', width: '100%' },
+  lead: { fontSize: 15.5, lineHeight: 23, color: m.body, ...mFont(300), textAlign: 'left' },
+  blocks: { gap: 40, paddingBottom: 40 },
+  aisleHead: { paddingHorizontal: mGutter },
+  section: { width: '100%', maxWidth: COLUMN_MAX, paddingHorizontal: mGutter, gap: 12 },
+  stack: { gap: 14, alignItems: 'stretch' },
+  body: { fontSize: 15.5, lineHeight: 23, color: m.body, ...mFont(300), textAlign: 'left' },
+  bodySemibold: { color: m.ink, ...mFont(500) },
+  bodyBold: { color: m.ink, ...mFont(700) },
+  roadGroup: { width: '100%', gap: 0 },
+  roadRow: { paddingVertical: 14, gap: 6 },
+  roadRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: m.line },
+  roadMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  roadCopy: { flex: 1, minWidth: 0, gap: 2 },
+  roadWhat: { fontSize: 16.5, lineHeight: 21, letterSpacing: -0.2, color: m.ink, ...mFont(500) },
+  roadCta: { width: 'auto', paddingHorizontal: 16, flexShrink: 0 },
+  roadNote: { ...mType.small, color: m.goldDark },
+  linkList: { width: '100%', borderWidth: 1, borderColor: m.line, borderRadius: mRadius.md + 2, overflow: 'hidden' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, minHeight: 56, backgroundColor: m.white },
+  linkRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: m.line },
+  linkCopy: { flex: 1, minWidth: 0, gap: 2 },
+  linkLabel: { fontSize: 15.5, lineHeight: 20, color: m.ink, ...mFont(500) },
+  linkDetail: { ...mType.small },
+  chev: { fontSize: 20, color: m.goldDark, width: 20, textAlign: 'center' },
+  pressed: { backgroundColor: m.beige },
 });

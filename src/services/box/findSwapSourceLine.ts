@@ -19,15 +19,22 @@ import {
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import type { GeltSize } from './boxRules';
+
+export type SwapSourceOptions = {
+  /** Household's default gelt bag; a free gelt swap never goes bigger. */
+  geltCeiling?: GeltSize;
+};
 
 /** What a box line can be swapped for — same sets My Box shows on the line's Swap shelf. */
 function swapOptionsForLine(
   li: BoxLineItem,
   current: CatalogItem,
-  catalog: CatalogItem[]
+  catalog: CatalogItem[],
+  opts?: SwapSourceOptions
 ): CatalogItem[] {
   if (isGiftSlotLine(li)) return resolveIncludedGiftOptions(catalog, li.itemId, 48);
-  return resolveSwapOptionsForItem(current, catalog, 48, { includeSectionPeers: false });
+  return resolveSwapOptionsForItem(current, catalog, 48, { includeSectionPeers: false, geltCeiling: opts?.geltCeiling });
 }
 
 /**
@@ -37,7 +44,8 @@ export function findSwapSourceLines(
   item: CatalogItem,
   lineItems: BoxLineItem[],
   catalog: CatalogItem[],
-  withinSection?: BoxDisplaySectionId | null
+  withinSection?: BoxDisplaySectionId | null,
+  opts?: SwapSourceOptions
 ): BoxLineItem[] {
   const matches: BoxLineItem[] = [];
 
@@ -50,7 +58,7 @@ export function findSwapSourceLines(
     if (withinSection) {
       if (displaySectionForLineItem(li, current) !== withinSection) continue;
     }
-    if (swapOptionsForLine(li, current, catalog).some((o) => o.id === item.id)) {
+    if (swapOptionsForLine(li, current, catalog, opts).some((o) => o.id === item.id)) {
       matches.push(li);
     }
   }
@@ -92,7 +100,8 @@ export function findSwapSourceLine(
   item: CatalogItem,
   lineItems: BoxLineItem[],
   catalog: CatalogItem[],
-  withinSection?: BoxDisplaySectionId | null
+  withinSection?: BoxDisplaySectionId | null,
+  opts?: SwapSourceOptions
 ): BoxLineItem | null {
-  return findSwapSourceLines(item, lineItems, catalog, withinSection)[0] ?? null;
+  return findSwapSourceLines(item, lineItems, catalog, withinSection, opts)[0] ?? null;
 }

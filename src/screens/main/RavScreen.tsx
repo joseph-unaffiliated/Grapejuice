@@ -12,6 +12,7 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { catalogService } from '../../services/firestore/catalog';
 import { applyRavDraftActions } from '../../services/rav/applyRavDraftActions';
+import { defaultAdults, defaultGeltSize } from '../../services/box/boxRules';
 import {
   actionForSlotAltPick,
   actionsForTreatPath,
@@ -69,7 +70,7 @@ function RavScreenBody({ phoneLayout = false }: { phoneLayout?: boolean }) {
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
   const bottomInset = isDesktop ? spacingBottomDesktop : tabBarHeight;
   const recordGuestRavPrompt = useGuestSessionStore((s) => s.recordGuestRavPrompt);
-  const { lineItems, persist } = useBoxDraft();
+  const { lineItems, persist, children } = useBoxDraft();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [companionPane, setCompanionPane] = useState<RavCompanionPaneState>(CLOSED_RAV_COMPANION_PANE);
   const [reviewBusy, setReviewBusy] = useState(false);
@@ -105,7 +106,10 @@ function RavScreenBody({ phoneLayout = false }: { phoneLayout?: boolean }) {
     try {
       // Brief pause so Apply feels intentional before confirmation.
       await new Promise((r) => setTimeout(r, 450));
-      const { lineItems: next, applied } = applyRavDraftActions(pending, lineItems, catalog);
+      const { lineItems: next, applied } = applyRavDraftActions(pending, lineItems, catalog, {
+        geltHeadcount: children.length + defaultAdults(),
+        geltCeiling: defaultGeltSize(children.length),
+      });
       if (applied.length) await persist(next);
       setCompanionPane((prev) => ({
         open: true,
@@ -123,7 +127,7 @@ function RavScreenBody({ phoneLayout = false }: { phoneLayout?: boolean }) {
     } finally {
       setReviewBusy(false);
     }
-  }, [companionPane.payload?.pendingActions, lineItems, catalog, persist]);
+  }, [companionPane.payload?.pendingActions, lineItems, catalog, persist, children.length]);
 
   const dismissReview = useCallback(() => {
     closeCompanionPane();

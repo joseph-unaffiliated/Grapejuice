@@ -733,7 +733,7 @@ function CheckoutScreenBody() {
 
   if (mobileLayout) {
     const byId = new Map(catalog.map((c) => [c.id, c]));
-    const thumbs = coalesceLinesByItemId(lineItems).slice(0, 6).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)), count: r.quantity > 1 ? r.quantity : undefined }));
+    const thumbs = coalesceLinesByItemId(lineItems).map((r) => ({ id: r.itemId, imageUrl: primaryPhoto(byId.get(r.itemId)), count: r.quantity > 1 ? r.quantity : undefined }));
     const money = (cents: number) => (cents % 100 === 0 ? formatCatalogDollars(cents) : formatDollars(cents));
     const extrasCents = Math.max(0, subtotal - boxPriceCents);
     const lines = [
@@ -781,7 +781,7 @@ function CheckoutScreenBody() {
                 void onCardSaved();
               }}
               returnUrl={checkoutReturnUrl()}
-              disabled={locked || committing}
+              disabled={locked || committing || !addressAlreadyCaptured}
               notify={notifyCheckout}
             />
           </Elements>
@@ -816,7 +816,7 @@ function CheckoutScreenBody() {
           layout="stack"
           cookieGap
           cta={{
-            label: 'Place order',
+            label: 'Done!',
             onPress: () => {
               void (async () => {
                 if (!(await ensureAddressDeliverable())) return;
@@ -825,7 +825,7 @@ function CheckoutScreenBody() {
               })();
             },
             busy: committing || deliverability.checking || awaitingCardOnFile,
-            disabled: needsCard || committing || locked || deliverability.checking || awaitingCardOnFile,
+            disabled: needsCard || committing || locked || deliverability.checking || awaitingCardOnFile || !addressAlreadyCaptured,
           }}
           testID="mobile-checkout-bar"
         />

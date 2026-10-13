@@ -166,7 +166,8 @@ export function MobileCheckoutLayout(p: LayoutProps) {
 }
 
 /**
- * Inside <Elements>: the Stripe card form and the Place order bar. Place order checks
+ * Inside <Elements>: the Stripe card form and the Done! bar, disabled until the card is
+ * complete and the caller's required fields are filled. Done! checks
  * the address first (passed in), then confirms the SetupIntent, then hands off to the
  * existing card-saved flow that waits for the webhook and commits the box.
  */
@@ -190,6 +191,7 @@ export function MobileCardAndPlaceOrder({
   const stripe = useStripe();
   const elements = useElements();
   const [saving, setSaving] = useState(false);
+  const [cardComplete, setCardComplete] = useState(false);
   const place = async () => {
     if (!stripe || !elements) return;
     setSaving(true);
@@ -209,9 +211,9 @@ export function MobileCardAndPlaceOrder({
   return (
     <>
       <View style={styles.cardWrap}>
-        <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
+        <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} onChange={(ev) => setCardComplete(ev.complete)} />
       </View>
-      <StickyBar label={chargeLabel} total={total} layout="stack" cookieGap cta={{ label: 'Place order', onPress: () => void place(), busy: saving, disabled: disabled || saving || !stripe || !elements }} testID="mobile-checkout-bar" />
+      <StickyBar label={chargeLabel} total={total} layout="stack" cookieGap cta={{ label: 'Done!', onPress: () => void place(), busy: saving, disabled: disabled || saving || !cardComplete || !stripe || !elements }} testID="mobile-checkout-bar" />
     </>
   );
 }

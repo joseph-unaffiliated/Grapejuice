@@ -1224,6 +1224,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                     phoneLayout ? phoneStyles.threadPill : goldGlow,
                     styles.replyPillFlex,
                     isDrawerOverlay && styles.replyPillDrawer,
+                    phoneLayout && phoneStyles.threadPillSend,
                     replyInputHeight > replyLineHeight + 2 && styles.replyPillMultiline,
                   ]}
                 >
@@ -1256,7 +1257,7 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
                     }}
                     {...(Platform.OS === 'web' ? ({ rows: 1 } as object) : null)}
                   />
-                  <View style={styles.replyActions}>
+                  <View style={[styles.replyActions, phoneLayout && phoneStyles.sendSlot]}>
                     <TouchableOpacity
                       style={phoneLayout ? phoneStyles.send : styles.pillIconBtn}
                       onPress={() => sendMessage(input)}
@@ -1730,13 +1731,16 @@ const phoneStyles = StyleSheet.create({
   bottom: { paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: mc.line, backgroundColor: mc.white, gap: 8 },
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   note: { fontSize: 12.5, color: mc.muted, ...mFont(400) },
-  pill: { flexDirection: 'row', alignItems: 'center', height: 50, borderRadius: 25, borderWidth: 1, borderColor: mc.gold, paddingLeft: 16, paddingRight: 6 },
+  pill: { flexDirection: 'row', alignItems: 'center', height: 50, borderRadius: 25, borderWidth: 1, borderColor: mc.gold, paddingLeft: 16, paddingRight: 5 },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: mc.ink, ...mFont(400), ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null) },
   userWrap: { alignItems: 'flex-end' },
-  userBubble: { backgroundColor: mc.ink, borderWidth: 0, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, maxWidth: '85%' },
-  userText: { color: mc.white, fontSize: 15.5, lineHeight: 22, ...mFont(400) },
+  userBubble: { backgroundColor: '#F0F0F0', borderWidth: 0, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, maxWidth: '85%' },
+  userText: { color: mc.ink, fontSize: 16.5, lineHeight: 25, ...mFont(300) },
   answer: { fontSize: 16.5, lineHeight: 25, color: mc.ink, ...mFont(300) },
   thread: { paddingHorizontal: 16, paddingTop: 18 },
   threadPill: { borderWidth: 1, borderColor: mc.gold, backgroundColor: mc.white, minHeight: 50, borderRadius: 25 },
+  // (50 tall − 2 border − 38 send) / 2 = 5, so the send circle shares the pill's end curve.
+  threadPillSend: { minHeight: 50, borderRadius: 25, paddingVertical: 5, paddingRight: 5 },
   send: { width: 38, height: 38, borderRadius: 19, backgroundColor: mc.ink, alignItems: 'center', justifyContent: 'center' },
+  sendSlot: { height: 38 },
 });

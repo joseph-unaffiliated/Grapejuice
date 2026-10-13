@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   Platform,
+  type ViewStyle,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -290,6 +291,15 @@ type SortState = { col: number; dir: 'asc' | 'desc' } | null;
 
 const isBlank = (v: React.ReactNode) => v == null || v === '' || v === '—';
 
+/** Desktop table width: numbers shrink most since their headers wrap, but never below the longest header word. */
+const compactWidth = (c: Pick<Column<unknown>, 'align' | 'width' | 'label'>) => {
+  const longestWord = Math.max(...c.label.split(/\s+/).map((w) => w.length));
+  const floor = Math.ceil(longestWord * 7) + 14;
+  return Math.max(floor, Math.round(c.width * (c.align === 'right' ? 0.66 : 0.8)));
+};
+
+const stickyFirst = (Platform.OS === 'web' ? { position: 'sticky', zIndex: 1 } : null) as ViewStyle | null;
+
 const mobileCard = StyleSheet.create({
   card: {
     backgroundColor: m.beige,
@@ -335,6 +345,7 @@ function SortTable<T>({
   colors: SemanticColors;
 }) {
   const [sort, setSort] = useState<SortState>(null);
+  const [viewWidth, setViewWidth] = useState(0);
   const sorted = useMemo(() => {
     const col = sort ? columns[sort.col] : undefined;
     if (!sort || !col?.sort) return rows;
@@ -359,7 +370,9 @@ function SortTable<T>({
     );
   };
   const expandable = Boolean(renderDetail && onToggle);
-  const totalWidth = columns.reduce((s, c) => s + c.width, 0) + 20 + (expandable ? 28 : 0);
+  const widths = columns.map(compactWidth);
+  const lead = 20 + (expandable ? 28 : 0);
+  const totalWidth = widths.reduce((s, w) => s + w, 0) + lead;
   const mobile = useMobileLayout();
 
   if (rows.length === 0) return <Text style={styles.hint}>{emptyMessage}</Text>;
@@ -424,23 +437,36 @@ function SortTable<T>({
     );
   }
 
+  const pinned = [stickyFirst, styles.pinCell, { backgroundColor: nested ? colors.bgElevated : colors.bgPrimary }];
+  const overflows = viewWidth > 0 && totalWidth > viewWidth;
+  const cellStyle = (i: number) =>
+    i === 0
+      ? [{ flexGrow: 1, flexBasis: widths[0], paddingRight: spacing.xs }, pinned, overflows && styles.pinEdge]
+      : { width: widths[i], paddingLeft: i === 1 && overflows ? spacing.xs : 0, paddingRight: spacing.xs };
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: '100%' }}>
-      <View style={{ width: totalWidth, minWidth: '100%' }}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator
+      contentContainerStyle={{ minWidth: '100%' }}
+      onLayout={(e) => setViewWidth(e.nativeEvent.layout.width)}
+    >
+      <View style={{ minWidth: totalWidth, width: '100%' }}>
         <View style={[styles.tr, styles.trHead]}>
-          <View style={styles.dotCell} />
-          {expandable ? <View style={styles.toggleCell} /> : null}
+          <View style={[styles.dotCell, pinned, { left: 0 }]} />
+          {expandable ? <View style={[styles.toggleCell, pinned, { left: 20 }]} /> : null}
           {columns.map((c, i) => {
             const label = `${c.label}${sort?.col === i ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`;
             const textStyle = [styles.th, c.align === 'right' && styles.right, sort?.col === i && styles.thActive];
+            const style = [cellStyle(i), i === 0 && { left: lead }];
             return c.sort ? (
-              <TouchableOpacity key={c.label} style={{ width: c.width }} onPress={() => onHeader(i)}>
-                <Text style={textStyle} numberOfLines={1}>
+              <TouchableOpacity key={c.label} style={style} onPress={() => onHeader(i)}>
+                <Text style={textStyle} numberOfLines={2}>
                   {label}
                 </Text>
               </TouchableOpacity>
             ) : (
-              <View key={c.label} style={{ width: c.width }}>
+              <View key={c.label} style={style}>
                 <Text style={textStyle}>{label}</Text>
               </View>
             );
@@ -457,18 +483,18 @@ function SortTable<T>({
                 onPress={() => onToggle?.(key)}
                 style={styles.tr}
               >
-                <View style={styles.dotCell}>
+                <View style={[styles.dotCell, pinned, { left: 0 }]}>
                   <View style={[styles.dot, { backgroundColor: toneColor(colors, rowTone?.(row)) }]} />
                 </View>
                 {expandable ? (
-                  <View style={styles.toggleCell}>
+                  <View style={[styles.toggleCell, pinned, { left: 20 }]}>
                     <Text style={styles.toggle}>{open ? '⌄' : '›'}</Text>
                   </View>
                 ) : null}
-                {columns.map((c) => {
+                {columns.map((c, i) => {
                   const v = c.cell(row);
                   return (
-                    <View key={c.label} style={{ width: c.width, paddingRight: spacing.xs }}>
+                    <View key={c.label} style={[cellStyle(i), i === 0 && { left: lead }]}>
                       {typeof v === 'string' ? (
                         <Text style={[styles.td, c.align === 'right' && styles.right]} numberOfLines={2}>
                           {v}
@@ -1232,7 +1258,7 @@ function InventorySection({
   const columns: Column<InventoryView>[] = [
     { label: 'Item', width: 240, cell: (i) => i.name, sort: (i) => i.name.toLowerCase() },
     { label: 'Favorited', width: 80, align: 'right', cell: (i) => dash(i.favoritesShown), sort: (i) => i.favoritesShown },
-    { label: 'On hand', width: 75, align: 'right', cell: (i) => (i.stock == null ? 'untracked' : String(i.stock)), sort: (i) => i.stock },
+    { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'untracked' : String(i.stock)), sort: (i) => i.stock },
     { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
     { label: 'In gifts', width: 65, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
     { label: 'Sold direct', width: 85, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
@@ -2415,31 +2441,35 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     tr: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: spacing.xs,
+      paddingVertical: isDesktop ? 4 : spacing.xs,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
     trHead: { borderBottomColor: colors.borderDark },
     th: {
       ...typeface('medium'),
-      fontSize: typography.sm,
+      fontSize: isDesktop ? 12 : typography.sm,
+      lineHeight: isDesktop ? 15 : undefined,
       color: colors.textSecondary,
-      letterSpacing: -0.22,
-      paddingRight: spacing.xs,
+      letterSpacing: isDesktop ? -0.1 : -0.22,
+      paddingRight: isDesktop ? 4 : spacing.xs,
     },
     thActive: { color: colors.textPrimary },
     td: {
       ...typeface('regular'),
-      fontSize: typography.md,
+      fontSize: isDesktop ? 13 : typography.md,
+      lineHeight: isDesktop ? 17 : undefined,
       color: colors.textPrimary,
-      letterSpacing: -0.22,
+      letterSpacing: isDesktop ? -0.1 : -0.22,
     },
     tdStrong: { ...typeface('medium') },
     tdMuted: {
       ...typeface('light'),
-      fontSize: typography.sm,
+      fontSize: isDesktop ? 11.5 : typography.sm,
       color: colors.textSecondary,
     },
+    pinCell: { alignSelf: 'stretch', justifyContent: 'center' },
+    pinEdge: { borderRightWidth: 1, borderRightColor: colors.border },
     right: { textAlign: 'right' },
     funnel: { gap: spacing.xs, marginTop: spacing.xs },
     funnelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: isDesktop ? 'nowrap' : 'wrap', gap: spacing.sm },
