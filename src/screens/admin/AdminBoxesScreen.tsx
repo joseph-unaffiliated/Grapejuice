@@ -286,6 +286,8 @@ type Column<T> = {
   sort?: (row: T) => string | number | null;
   /** Left off phone cards (another column already says it). */
   mobileHidden?: boolean;
+  /** Desktop, first column only: stop growing here (longer text truncates to one line). */
+  maxWidth?: number;
 };
 type SortState = { col: number; dir: 'asc' | 'desc' } | null;
 
@@ -439,10 +441,19 @@ function SortTable<T>({
 
   const pinned = [stickyFirst, styles.pinCell, { backgroundColor: nested ? colors.bgElevated : colors.bgPrimary }];
   const overflows = viewWidth > 0 && totalWidth > viewWidth;
+  const firstMax = columns[0]?.maxWidth;
   const cellStyle = (i: number) =>
     i === 0
-      ? [{ flexGrow: 1, flexBasis: widths[0], paddingRight: spacing.xs }, pinned, overflows && styles.pinEdge]
-      : { width: widths[i], paddingLeft: i === 1 && overflows ? spacing.xs : 0, paddingRight: spacing.xs };
+      ? [
+          { flexGrow: 1, flexBasis: widths[0], maxWidth: firstMax, paddingRight: spacing.xs },
+          pinned,
+          overflows && styles.pinEdge,
+        ]
+      : [
+          // A capped first column hands the spare width to the number columns instead.
+          firstMax ? { flexGrow: 1, flexBasis: widths[i] } : { width: widths[i] },
+          { paddingLeft: i === 1 && overflows ? spacing.xs : 0, paddingRight: spacing.xs },
+        ];
 
   return (
     <ScrollView
@@ -496,7 +507,7 @@ function SortTable<T>({
                   return (
                     <View key={c.label} style={[cellStyle(i), i === 0 && { left: lead }]}>
                       {typeof v === 'string' ? (
-                        <Text style={[styles.td, c.align === 'right' && styles.right]} numberOfLines={2}>
+                        <Text style={[styles.td, c.align === 'right' && styles.right]} numberOfLines={c.maxWidth ? 1 : 2}>
                           {v}
                         </Text>
                       ) : (
@@ -561,7 +572,7 @@ function LineItems({
       align: 'right',
       cell: (l) => {
         const inv = l.itemId ? inventoryById.get(l.itemId) : undefined;
-        return inv?.remaining == null ? 'untracked' : String(inv.remaining);
+        return inv?.remaining == null ? 'N/A' : String(inv.remaining);
       },
     },
     {
@@ -570,7 +581,7 @@ function LineItems({
       align: 'right',
       cell: (l) => {
         const inv = l.itemId ? inventoryById.get(l.itemId) : undefined;
-        return inv?.remainingAfterDrafts == null ? 'untracked' : String(inv.remainingAfterDrafts);
+        return inv?.remainingAfterDrafts == null ? 'N/A' : String(inv.remainingAfterDrafts);
       },
     },
   ];
@@ -1242,9 +1253,11 @@ function InventorySection({
 }) {
   const [view, setView] = useState<'all' | 'tracked' | 'shop' | 'held' | 'low'>('all');
   const [query, setQuery] = useState('');
+  const [hideBooks, setHideBooks] = useState(false);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return inventory.filter((i) => {
+      if (hideBooks && i.id.startsWith('book-')) return false;
       if (view === 'tracked' && i.stock == null) return false;
       if (view === 'shop' && !(i.directCap ?? 0) && i.directSold + i.directReserved === 0) return false;
       if (view === 'low' && (i.remainingAfterDrafts == null || i.remainingAfterDrafts > LOW_THRESHOLD)) return false;
@@ -1252,13 +1265,18 @@ function InventorySection({
       if (q && !i.name.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [inventory, view, query]);
+  }, [inventory, view, query, hideBooks]);
   const dash = (n: number) => (n ? String(n) : '—');
+  // Wide enough for the longest non-book name; long book titles truncate.
+  const itemMaxWidth = useMemo(() => {
+    const longest = Math.max(0, ...inventory.filter((i) => !i.id.startsWith('book-')).map((i) => i.name.length));
+    return Math.max(240, Math.ceil(longest * 7) + 24);
+  }, [inventory]);
 
   const columns: Column<InventoryView>[] = [
-    { label: 'Item', width: 240, cell: (i) => i.name, sort: (i) => i.name.toLowerCase() },
+    { label: 'Item', width: 240, maxWidth: itemMaxWidth, cell: (i) => i.name, sort: (i) => i.name.toLowerCase() },
     { label: 'Favorited', width: 80, align: 'right', cell: (i) => dash(i.favoritesShown), sort: (i) => i.favoritesShown },
-    { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'untracked' : String(i.stock)), sort: (i) => i.stock },
+    { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'N/A' : String(i.stock)), sort: (i) => i.stock },
     { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
     { label: 'In gifts', width: 65, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
     { label: 'Sold direct', width: 85, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
@@ -1290,6 +1308,9 @@ function InventorySection({
           ['low', `${LOW_THRESHOLD} or fewer after drafts`],
         ]}
       />
+      <ChipRow styles={styles}>
+        <Chip label="Hide books" active={hideBooks} onPress={() => setHideBooks((v) => !v)} styles={styles} />
+      </ChipRow>
       <TextInput
         style={styles.input}
         value={query}
