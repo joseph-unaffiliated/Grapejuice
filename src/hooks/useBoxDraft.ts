@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useSession } from './useSession';
 import { useBoxPresenceStore } from '../stores/boxPresenceStore';
@@ -354,6 +354,10 @@ export function useBoxDraft() {
   const [wrapSelectedItemIds, setWrapSelectedItemIds] = useState<string[]>(
     () => cached?.wrapSelectedItemIds ?? []
   );
+  // A line save right after a wrap-list change runs with the previous render's state;
+  // it must not write the old wrap list back.
+  const wrapSelectedRef = useRef(wrapSelectedItemIds);
+  wrapSelectedRef.current = wrapSelectedItemIds;
   const [children, setChildren] = useState<ChildProfile[]>(() => cached?.children ?? []);
   const [familiarity, setFamiliarity] = useState<FamiliarityLevel>(
     () => cached?.familiarity ?? 'moderate'
@@ -528,7 +532,7 @@ export function useBoxDraft() {
         lineItems: next,
         slotVotes: prev?.slotVotes ?? slotVotes,
         sealedSectionIds: prev?.sealedSectionIds ?? sealedSectionIds,
-        wrapSelectedItemIds: prev?.wrapSelectedItemIds ?? wrapSelectedItemIds,
+        wrapSelectedItemIds: wrapSelectedRef.current,
         children: prev?.children ?? children,
         familiarity: prev?.familiarity ?? familiarity,
         swapNotices: prev?.swapNotices ?? authSwapNotices,
@@ -537,7 +541,7 @@ export function useBoxDraft() {
       await boxDraftService.save(household.id, user.uid, next, {
         familiarityLevel: profile?.familiarityLevel ?? familiarity,
         slotVotes,
-        wrapSelectedItemIds,
+        wrapSelectedItemIds: wrapSelectedRef.current,
         source,
       });
     },
@@ -549,7 +553,6 @@ export function useBoxDraft() {
       familiarity,
       slotVotes,
       sealedSectionIds,
-      wrapSelectedItemIds,
       children,
       authSwapNotices,
       setGuestLineItems,
@@ -567,12 +570,15 @@ export function useBoxDraft() {
 
   const persistWrapSelection = useCallback(
     async (next: string[]) => {
+      wrapSelectedRef.current = next;
       setWrapSelectedItemIds(next);
       if (!isAuthenticated) {
         setGuestWrapSelectedItemIds(next);
         return;
       }
       if (!household?.id || !user?.uid) return;
+      const prev = peekAuthBoxDraft(household.id);
+      if (prev) writeAuthBoxDraftCache({ ...prev, wrapSelectedItemIds: next });
       await boxDraftService.saveWrapSelection(household.id, user.uid, next);
     },
     [isAuthenticated, household?.id, user?.uid, setGuestWrapSelectedItemIds]
