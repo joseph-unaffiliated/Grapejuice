@@ -7,6 +7,7 @@ import { CHECKOUT_PATH } from './checkoutLink';
 import { ACCOUNT_PATH } from './accountLink';
 import { ORDERS_PATH } from './ordersLink';
 import { adminScreenForPath } from './adminBoxesLink';
+import { readPilotTokenFromPath } from './pilotLink';
 import { CONNECT_GOOGLE_PATH, SET_PASSWORD_PATH } from './loginLink';
 import { isOpsAdmin } from '../constants/admin';
 import {
@@ -201,6 +202,11 @@ function restoreFromPath(
   }
   if (path === MY_GIFTS_PATH) {
     open('MyGifts');
+    return true;
+  }
+  const pilotToken = readPilotTokenFromPath(path);
+  if (pilotToken) {
+    open('PilotInvite', { token: pilotToken });
     return true;
   }
   const giftBoxId = readGiftBoxIdFromPath(path);

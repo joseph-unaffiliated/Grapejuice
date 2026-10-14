@@ -6,7 +6,8 @@ import { navigationRef } from './navigationRef';
 import { readAdminScreenFromWindow } from './adminBoxesLink';
 
 /**
- * Web: `/admin/orders` (or the old `/admin/boxes`) → Orders and Inventory, `/admin/promotions` → Promotions, for ops admins;
+ * Web: `/admin/orders` (or the old `/admin/boxes`) → Orders and Inventory, `/admin/promotions` → Promotions,
+ * `/admin/pilot` → Pilot Participants, for ops admins;
  * everyone else lands on Account.
  */
 export function AdminBoxesLinkEffect() {

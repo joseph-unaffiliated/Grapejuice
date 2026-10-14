@@ -1195,7 +1195,7 @@ export function soldOutReplacement(
 
 export type SoldOutSwap = { fromItemId: string; toItemId: string | null };
 
-type SwappableLine = SoldOutLine & { label?: string; curationNote?: string };
+type SwappableLine = SoldOutLine & { label?: string; curationNote?: string; program?: unknown };
 
 /** Planner age for a kid's band or explicit planner age; undefined when unknown. */
 export function plannerAgeOf(kid: { plannerAge?: unknown; ageGroup?: unknown } | undefined): number | undefined {
@@ -1210,6 +1210,7 @@ export function plannerAgeOf(kid: { plannerAge?: unknown; ageGroup?: unknown } |
 /**
  * Replace every truly sold-out line in a draft (see `soldOutReplacement`); lines
  * with no replacement are dropped. Quantity and price stay as they were.
+ * Pilot Participants picks are never swapped: they're fixed once the family joins.
  * Returns the same array when nothing changed.
  */
 export function swapSoldOutLines<L extends SwappableLine>(
@@ -1218,17 +1219,18 @@ export function swapSoldOutLines<L extends SwappableLine>(
   ageForChild: (childId: string | undefined) => number | undefined = () => undefined
 ): { lines: L[]; swaps: SoldOutSwap[] } {
   const byId = new Map(catalog.map((r) => [r.id, r]));
-  const soldOut = (id: string) => {
-    const row = byId.get(id);
+  const soldOut = (line: L) => {
+    if (line.program === 'pilot') return false;
+    const row = byId.get(line.itemId);
     return !!row && isSoldOutForBoxes(row);
   };
-  if (!lines.some((l) => soldOut(l.itemId))) return { lines, swaps: [] };
+  if (!lines.some(soldOut)) return { lines, swaps: [] };
 
   const inBox = new Set(lines.map((l) => l.itemId));
   const swaps: SoldOutSwap[] = [];
   const out: L[] = [];
   for (const line of lines) {
-    if (!soldOut(line.itemId)) {
+    if (!soldOut(line)) {
       out.push(line);
       continue;
     }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useBoxGlance, NOT_HELD_COPY } from '../../hooks/useBoxGlance';
+import { creditBalanceLine } from '../../constants/hanukkahBoxLock';
 import { BoxSummary } from '../../components/mobile/BoxSummary';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileField } from '../../components/mobile/MobileField';
@@ -313,7 +314,7 @@ export function MobileAccountHub(p: Props) {
             : NOT_HELD_COPY}
         </Text>
         {p.creditLabel ? (
-          <Text style={[mType.small, { color: m.goldDark, marginTop: 10 }]}>{`You have ${p.creditLabel} in credit. It comes off your next box, order or gift.`}</Text>
+          <Text style={[mType.small, { color: m.goldDark, marginTop: 10 }]}>{creditBalanceLine(p.creditLabel, glance.openOrder)}</Text>
         ) : null}
       </MobileSheet>
 

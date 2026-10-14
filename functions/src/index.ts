@@ -75,6 +75,7 @@ import {
 } from './checkoutSession';
 import { checkUsAddressFormat } from './usAddress';
 import { applyResolvedPromo, recordPromoRedemption, resolveCheckoutPromo } from './promotions';
+import { markPilotEnrollmentCommitted, withPilotLines } from './pilotParticipants';
 import { discountCentsForTerms, type PromoTerms } from './promoPricing';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
@@ -116,6 +117,13 @@ export { scheduledFollowUpListAudience } from './followUpListAudience';
 export { scheduledInventoryWatch } from './inventoryWatch';
 export { recordBoxDraftHistory, recordGuestBoxHistory } from './boxHistory';
 export { scheduledInventoryEmails } from './inventoryEmails';
+export {
+  adminPilotParticipants,
+  enrollPilot,
+  getPilotInvite,
+  healPilotDraftLines,
+  sendPilotJoinedEmail,
+} from './pilotParticipants';
 
 initializeApp();
 const db = getFirestore();
@@ -984,7 +992,11 @@ export const createPilotCheckout = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
   }
   const draft = draftSnap.data()!;
-  const lineItems = (draft.lineItems as Array<Record<string, unknown>>) ?? [];
+  const pilotMerge = await withPilotLines(db, householdId, (draft.lineItems as Array<Record<string, unknown>>) ?? []);
+  const lineItems = pilotMerge.lines as Array<Record<string, unknown>>;
+  if (pilotMerge.changed) {
+    await draftSnap.ref.update({ lineItems, lastChangeSource: 'pilot', updatedAt: new Date().toISOString() });
+  }
   const configSnap = await db.doc('config/hanukkah-2026').get();
   const configData = configSnap.data() ?? {};
   const { boxPriceCents, kidCount } = await boxPriceForUser(db, request.auth.uid, configData);
@@ -1595,7 +1607,11 @@ export const commitPilotBox = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
   }
   const draft = draftSnap.data()!;
-  const lineItems = (draft.lineItems as Array<Record<string, unknown>>) ?? [];
+  const pilotMerge = await withPilotLines(db, householdId, (draft.lineItems as Array<Record<string, unknown>>) ?? []);
+  const lineItems = pilotMerge.lines as Array<Record<string, unknown>>;
+  if (pilotMerge.changed) {
+    await draftSnap.ref.update({ lineItems, lastChangeSource: 'pilot', updatedAt: new Date().toISOString() });
+  }
   const configSnap = await db.doc('config/hanukkah-2026').get();
   const configData = configSnap.data() ?? {};
   const { boxPriceCents, kidCount } = await boxPriceForUser(db, request.auth.uid, configData);
@@ -1666,6 +1682,7 @@ export const commitPilotBox = onCall(async (request) => {
     checkoutSession: checkoutSessionFromCallable(request),
   };
   await orderRef.set(orderPayload);
+  await markPilotEnrollmentCommitted(db, householdId, orderRef.id);
   await recordPromoRedemption(db, {
     sourcePath: orderRef.path,
     kind: 'order',
@@ -1781,9 +1798,14 @@ export const updatePilotBoxOrder = onCall(async (request) => {
   if (!draftSnap.exists) {
     throw new HttpsError('failed-precondition', 'No box draft found.');
   }
-  const lineItems = (draftSnap.data()?.lineItems as Array<Record<string, unknown>>) ?? [];
-  if (!lineItems.length) {
+  const draftLines = (draftSnap.data()?.lineItems as Array<Record<string, unknown>>) ?? [];
+  if (!draftLines.length) {
     throw new HttpsError('failed-precondition', 'Your box is empty. Add items before updating the order.');
+  }
+  const pilotMerge = await withPilotLines(db, householdId, draftLines);
+  const lineItems = pilotMerge.lines as Array<Record<string, unknown>>;
+  if (pilotMerge.changed) {
+    await draftSnap.ref.update({ lineItems, lastChangeSource: 'pilot', updatedAt: new Date().toISOString() });
   }
 
   const configSnap = await db.doc('config/hanukkah-2026').get();

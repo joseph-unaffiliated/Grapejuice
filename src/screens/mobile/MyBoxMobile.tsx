@@ -24,7 +24,9 @@ import {
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
+import { isPilotLine, PILOT_PICK_META } from '../../services/box/pilotLines';
 import { ProductNote } from '../../components/box/ProductNote';
+import { PilotReturnBanner } from '../../components/pilot/PilotReturnBanner';
 import { formatCatalogDollars, toRulesRow } from '../../services/box/buildDefaultBox';
 import { defaultGeltSize, isLowWithDrafts, resolveByDefaultSlot } from '../../services/box/boxRules';
 import { isStorefrontRavOpenable, openStorefrontRav } from '../../components/storefront/storefrontRavContext';
@@ -250,7 +252,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   };
 
   const metaFor = (g: CoalescedBoxLine, item: CatalogItem | undefined) =>
-    formatBoxItemStatusMeta(
+    g.lines.some(isPilotLine) ? PILOT_PICK_META : formatBoxItemStatusMeta(
       g.unitCents,
       childNamesForLines(g.lines, kids),
       formatCatalogDollars,
@@ -356,6 +358,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const item = byId.get(g.itemId);
     const atFloor = g.quantity <= 1;
     const donate = atFloor && g.unitCents === 0;
+    const pilotPick = g.lines.some(isPilotLine);
     return (
       <Pressable onPress={() => item && setSheet({ kind: 'product', item, group: g, sectionId })} accessibilityRole="button" accessibilityLabel={`Open ${item?.name ?? g.itemId}`} style={styles.row}>
         <View style={[styles.rowImage, g.unitCents > 0 && styles.rowImageMine]}>
@@ -366,11 +369,11 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             {item?.name ?? g.primary.label ?? g.itemId}
           </Text>
           <Text style={styles.rowMeta} numberOfLines={2}>
-            {rowNote(g, item)}
-            {g.unitCents === 0 && donatedQty.get(g.itemId) ? ` · donating ${donatedQty.get(g.itemId)}` : ''}
+            {pilotPick ? PILOT_PICK_META : rowNote(g, item)}
+            {!pilotPick && g.unitCents === 0 && donatedQty.get(g.itemId) ? ` · donating ${donatedQty.get(g.itemId)}` : ''}
           </Text>
         </View>
-        {!e.locked ? (
+        {!e.locked && !pilotPick ? (
           <View style={styles.stepper}>
             <Pressable onPress={() => quantity(g, -1, sectionId)} accessibilityRole="button" accessibilityLabel={atFloor ? (donate ? 'Donate' : 'Remove') : 'Decrease quantity'} style={styles.stepBtn} hitSlop={6}>
               {donate ? <Icon icon={icons.donate} size={16} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
@@ -769,7 +772,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             }}
           />
         ) : null}
-        {alts.length && group && !e.locked ? (
+        {alts.length && group && !e.locked && !group.lines.some(isPilotLine) ? (
           <>
             <Text style={[mType.h3, { marginTop: 20, marginBottom: 10 }]}>Swap it for</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.altRow}>
@@ -881,6 +884,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             )}
           </View>
         </View>
+
+        {!gift && !e.locked && !e.guestViewOnly ? <PilotReturnBanner wrapperStyle={styles.pad} /> : null}
 
         <View style={styles.pad}>
           <BoxSummary size="sm" title={gift ? 'In their box' : 'In your box'} sub={`${thingCount} things · ${formatCatalogDollars(total)}`} items={thumbs} link={<Pressable onPress={() => setSheet({ kind: 'receipt' })} accessibilityRole="button" hitSlop={8}><Text style={styles.link}>See list</Text></Pressable>} />

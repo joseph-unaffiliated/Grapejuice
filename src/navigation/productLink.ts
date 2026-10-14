@@ -5,6 +5,7 @@ import { BOX_PATH, myBoxFromState, shouldPreserveInboundBoxUrl, consumeInboundBo
 import { ACCOUNT_PATH, accountFromState } from './accountLink';
 import { ORDERS_PATH, ordersFromState } from './ordersLink';
 import { adminPathFromState, adminScreenForPath } from './adminBoxesLink';
+import { pilotPathForToken, pilotTokenFromState } from './pilotLink';
 import {
   CONNECT_GOOGLE_PATH,
   LOGIN_PATH,
@@ -95,6 +96,9 @@ export function browserPathForNavigationState(
   if (currentPath.endsWith('/gift/claim')) {
     return window.location.pathname + search;
   }
+
+  const pilotToken = pilotTokenFromState(state);
+  if (pilotToken) return pilotPathForToken(pilotToken);
 
   const giftLanding = giftLandingFromState(state);
   if (giftLanding) {

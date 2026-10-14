@@ -26,6 +26,7 @@ export const PRIVATE_PATH_PREFIXES: readonly string[] = [
   '/gift/give',
   '/gift/customize',
   '/gift/claim',
+  '/pilot',
   '/auth',
   '/reset-password',
   '/__',

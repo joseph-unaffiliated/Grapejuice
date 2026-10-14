@@ -228,6 +228,7 @@ const MOBILE_NO_FOOTER_ROUTES = new Set([
   'GiftBoxCheckout',
   'GiftResumePayment',
   'GiftClaim',
+  'PilotInvite',
   'GiftRecipientReveal',
   'GiftGiverCustomize',
   'UpdatePayment',

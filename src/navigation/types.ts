@@ -133,6 +133,8 @@ export type MainStackParamList = {
     claimUrl?: string;
   };
   GiftClaim: { token?: string };
+  /** `/pilot/<token>` — Pilot Participants invite: pick three free items and join. */
+  PilotInvite: { token?: string };
   MyGifts: undefined;
   GiftBox: { giftInviteId: string };
   /** surprise: ship the box as picked without showing the items. */
@@ -158,6 +160,8 @@ export type MainStackParamList = {
   AdminBoxes: undefined;
   /** Ops: discount codes, direct credit and influencer links (admin allowlist). */
   AdminPromotions: undefined;
+  /** Ops: Pilot Participants invites and who joined (admin allowlist). */
+  AdminPilot: undefined;
   /** Ops: list marketing landings (admin allowlist). */
   AdminLandings: undefined;
   /** Ops: edit one marketing landing's sections / copy. */

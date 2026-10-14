@@ -162,6 +162,13 @@ service cloud.firestore {
     match /promoRedemptions/{redemptionId} {
       allow read, write: if false;
     }
+    /** Pilot Participants invites and enrollments (functions/src/pilotParticipants.ts) — functions only. */
+    match /pilotInvites/{token} {
+      allow read, write: if false;
+    }
+    match /pilotEnrollments/{householdId} {
+      allow read, write: if false;
+    }
     /** Server-only settings and hashed lead lists (functions/src/followUpAudience.ts) — functions only. */
     match /adminConfig/{docId} {
       allow read, write: if false;

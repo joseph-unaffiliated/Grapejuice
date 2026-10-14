@@ -5,13 +5,15 @@ import type { NavigationState, PartialState } from '@react-navigation/native';
 export const ADMIN_ORDERS_PATH = '/admin/orders';
 export const ADMIN_BOXES_PATH = '/admin/boxes';
 export const ADMIN_PROMOTIONS_PATH = '/admin/promotions';
+export const ADMIN_PILOT_PATH = '/admin/pilot';
 
 /** Admin dashboards with their own web URL. */
-export type AdminPathScreen = 'AdminBoxes' | 'AdminPromotions';
+export type AdminPathScreen = 'AdminBoxes' | 'AdminPromotions' | 'AdminPilot';
 
 const ADMIN_SCREEN_PATHS: Record<AdminPathScreen, string> = {
   AdminBoxes: ADMIN_ORDERS_PATH,
   AdminPromotions: ADMIN_PROMOTIONS_PATH,
+  AdminPilot: ADMIN_PILOT_PATH,
 };
 
 const LEGACY_ADMIN_PATHS: Record<string, AdminPathScreen> = {

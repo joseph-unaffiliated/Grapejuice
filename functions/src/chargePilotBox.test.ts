@@ -4,6 +4,7 @@ import {
   boxPriceForUser,
   checkoutTotalsAfterCredit,
   computeCommittedBoxTotals,
+  settleLockCredit,
 } from './chargePilotBox';
 
 assert.equal(boxPriceCentsForKids(1), 8000);
@@ -77,6 +78,36 @@ const fakeDb = (kids: number) =>
   assert.equal(covered.discountApplied, 800);
   assert.equal(covered.giftCreditApplied, 7200);
   assert.equal(covered.totalCents, 0);
+
+  // Credit granted after checkout is applied at lock and leaves the household balance.
+  const box = [{ slotId: 'candles', unitCents: 0, quantity: 1 }];
+  const late = settleLockCredit(box, 8000, false, { gift: 0, platform: 0 }, { gift: 2500, platform: 0 });
+  assert.equal(late.totals.giftCreditAppliedCents, 2500);
+  assert.equal(late.totals.totalCents, 5500 + Math.round(5500 * 0.075));
+  assert.deepEqual(late.balance, { gift: 0, platform: 0 });
+
+  // Reserved at checkout plus a later grant, more than the box costs: the box is free and the rest stays.
+  const plenty = settleLockCredit(box, 8000, false, { gift: 5000, platform: 0 }, { gift: 1000, platform: 4000 });
+  assert.equal(plenty.totals.totalCents, 0);
+  assert.equal(plenty.totals.giftCreditAppliedCents, 6000);
+  assert.equal(plenty.totals.platformCreditAppliedCents, 2000);
+  assert.deepEqual(plenty.balance, { gift: 0, platform: 2000 });
+
+  // The box got cheaper after checkout: unused reserve goes back to the balance.
+  const shrunk = settleLockCredit(box, 3000, false, { gift: 8000, platform: 0 }, { gift: 0, platform: 0 });
+  assert.equal(shrunk.totals.giftCreditAppliedCents, 3000);
+  assert.deepEqual(shrunk.balance, { gift: 5000, platform: 0 });
+
+  // Settling twice (a retried charge) changes nothing the second time.
+  const again = settleLockCredit(
+    box,
+    8000,
+    false,
+    { gift: late.totals.giftCreditAppliedCents, platform: late.totals.platformCreditAppliedCents },
+    late.balance
+  );
+  assert.equal(again.totals.totalCents, late.totals.totalCents);
+  assert.deepEqual(again.balance, late.balance);
 
   console.log('chargePilotBox pricing tests passed');
 })();

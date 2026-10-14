@@ -53,6 +53,8 @@ import { AdminCatalogScreen } from '../screens/admin/AdminCatalogScreen';
 import { AdminCatalogItemScreen } from '../screens/admin/AdminCatalogItemScreen';
 import { AdminBoxesScreen } from '../screens/admin/AdminBoxesScreen';
 import { AdminPromotionsScreen } from '../screens/admin/AdminPromotionsScreen';
+import { AdminPilotScreen } from '../screens/admin/AdminPilotScreen';
+import { PilotInviteScreen } from '../screens/pilot/PilotInviteScreen';
 import { SetPasswordScreen } from '../screens/account/SetPasswordScreen';
 import { ConnectGoogleScreen } from '../screens/account/ConnectGoogleScreen';
 import { AdminLandingsScreen } from '../screens/admin/AdminLandingsScreen';
@@ -76,6 +78,7 @@ import {
   readGiftStepFromWindow,
 } from './giftFlowLink';
 import { contentRouteFromPath } from './contentLink';
+import { readPersistedPilotToken, readPilotTokenFromPath } from './pilotLink';
 import { readStorePathFromBoot } from './storeLink';
 import {
   DEFAULT_STOREFRONT_CATEGORY,
@@ -104,6 +107,7 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
   if (pendingReturn === 'GiftGive') return 'GiftGive';
   if (pendingReturn === 'GiftClaim') return 'GiftClaim';
   if (useAuthFlowStore.getState().pendingGiftClaimToken) return 'GiftClaim';
+  if (pendingReturn === 'PilotInvite') return 'PilotInvite';
   if (useGuestSessionStore.getState().openMyBoxAfterReveal) return 'MyBox';
   const bootPath = getBootLocation()?.pathname;
   if (bootPath && isGiftCustomizePath(bootPath)) return 'GiftGiverCustomize';
@@ -113,6 +117,7 @@ function readHandoffInitialRoute(): keyof MainStackParamList {
     const normalized = bootPath.replace(/\/$/, '') || '/';
     if (normalized === '/box' || normalized === '/my-box') return 'MyBox';
     if (normalized === '/checkout') return 'Checkout';
+    if (readPilotTokenFromPath(normalized)) return 'PilotInvite';
     const contentRoute = contentRouteFromPath(normalized);
     if (contentRoute) return contentRoute;
     const store = readStorePathFromBoot();
@@ -309,6 +314,10 @@ function AuthReturnHandler({ alreadyOnTarget }: { alreadyOnTarget: boolean }) {
         if (giftToken) navigation.navigate('GiftClaim', { token: giftToken });
         return;
       }
+      if (dest === 'PilotInvite') {
+        navigation.navigate('PilotInvite', { token: readPersistedPilotToken() ?? undefined });
+        return;
+      }
       if (dest === 'History') {
         navigation.navigate('History');
       }
@@ -379,7 +388,14 @@ export function MainStack() {
           })()
         : initialRouteName === 'GiftClaim'
           ? { token: useAuthFlowStore.getState().pendingGiftClaimToken ?? undefined }
-          : null;
+          : initialRouteName === 'PilotInvite'
+            ? {
+                token:
+                  readPilotTokenFromPath(getBootLocation()?.pathname ?? '') ??
+                  readPersistedPilotToken() ??
+                  undefined,
+              }
+            : null;
   const bootLandingAtMount =
     initialRouteName === 'DynamicLanding'
       ? (() => {
@@ -638,6 +654,16 @@ export function MainStack() {
         />
         <Stack.Screen name="GiftClaim" component={GiftClaimScreen} options={{ title: 'Claim gift' }} />
         <Stack.Screen
+          name="PilotInvite"
+          component={PilotInviteScreen}
+          options={{ title: 'Pilot Participants' }}
+          initialParams={
+            initialRouteName === 'PilotInvite'
+              ? (initialParams as MainStackParamList['PilotInvite'] | undefined)
+              : undefined
+          }
+        />
+        <Stack.Screen
           name="GiftRecipientReveal"
           component={GiftRecipientRevealScreen}
           options={{ title: 'Your gift' }}
@@ -671,6 +697,11 @@ export function MainStack() {
           name="AdminPromotions"
           component={AdminPromotionsScreen}
           options={{ title: 'Promotions' }}
+        />
+        <Stack.Screen
+          name="AdminPilot"
+          component={AdminPilotScreen}
+          options={{ title: 'Pilot Participants' }}
         />
         <Stack.Screen
           name="AdminLandings"

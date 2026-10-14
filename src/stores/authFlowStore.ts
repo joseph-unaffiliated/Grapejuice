@@ -21,6 +21,7 @@ const AUTH_RETURN_ROUTES = [
   'GiftGive',
   'GiftGiverCustomize',
   'History',
+  'PilotInvite',
 ] as const;
 
 export type AuthReturnRoute = (typeof AUTH_RETURN_ROUTES)[number];
@@ -50,6 +51,7 @@ const AUTH_RETURNS_SKIP_BOX_ONBOARDING: ReadonlySet<AuthReturnRoute> = new Set([
   'GiftClaim',
   'GiftGive',
   'GiftGiverCustomize',
+  'PilotInvite',
 ]);
 
 /** True when post-auth should resume Main (or gift/checkout) instead of Onboarding. */

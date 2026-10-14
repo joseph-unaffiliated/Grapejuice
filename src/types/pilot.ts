@@ -286,6 +286,10 @@ export type BoxLineItem = {
   displaySectionId?: 'candles' | 'dreidel' | 'food' | 'presents' | 'story';
   /** One-sentence why this item was deliberately chosen (rules deviation or Rav swap). */
   curationNote?: string;
+  /** Pilot Participants pick: free, fixed once joined (functions/src/pilotParticipants.ts). */
+  program?: 'pilot';
+  /** Member price snapshot charged later if the pilot survey isn't done. */
+  deferredChargeCents?: number;
 };
 
 /**

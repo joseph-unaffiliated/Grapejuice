@@ -17,6 +17,7 @@ import {
   repairZeroExtraUnits,
 } from '../services/box/buildDefaultBox';
 import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
+import { keepPilotLines } from '../services/box/pilotLines';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import {
@@ -519,14 +520,19 @@ export function useBoxDraft() {
   const refresh = useCallback(() => load({ fresh: true }), [load]);
 
   const persist = useCallback(
-    async (next: BoxLineItem[], source: BoxChangeSource = 'customer') => {
-      setLineItems(next);
+    async (proposed: BoxLineItem[], source: BoxChangeSource = 'customer') => {
       if (!isAuthenticated) {
-        setGuestLineItems(next);
+        setLineItems(proposed);
+        setGuestLineItems(proposed);
         return;
       }
-      if (!household?.id || !user?.uid) return;
+      if (!household?.id || !user?.uid) {
+        setLineItems(proposed);
+        return;
+      }
       const prev = peekAuthBoxDraft(household.id);
+      const next = keepPilotLines(prev?.lineItems ?? lineItems, proposed);
+      setLineItems(next);
       writeAuthBoxDraftCache({
         householdId: household.id,
         lineItems: next,
@@ -549,6 +555,7 @@ export function useBoxDraft() {
       isAuthenticated,
       household?.id,
       user?.uid,
+      lineItems,
       profile?.familiarityLevel,
       familiarity,
       slotVotes,

@@ -1,5 +1,6 @@
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { catalogSlotId } from '../../services/box/buildDefaultBox';
+import { isPilotLine } from '../../services/box/pilotLines';
 import { WRAP_POLICY } from '../../services/box/boxRules';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import {
@@ -501,7 +502,7 @@ export function coalesceLinesByItemId(lines: BoxLineItem[]): CoalescedBoxLine[] 
       (isGiftSlotLine(li) || isStorySlotLine(li)) && (li.childId || childIdFromSlot(li.slotId))
         ? li.childId || childIdFromSlot(li.slotId)
         : undefined;
-    const key = kidId ? `${li.itemId}::${kidId}` : li.itemId;
+    const key = isPilotLine(li) ? `pilot::${li.itemId}` : kidId ? `${li.itemId}::${kidId}` : li.itemId;
     if (!map.has(key)) {
       map.set(key, []);
       order.push(key);

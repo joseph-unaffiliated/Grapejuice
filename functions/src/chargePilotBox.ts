@@ -95,7 +95,7 @@ function orderSubtotalCents(lineItems: BoxLineItem[], boxPriceCents: number): nu
 }
 
 /**
- * Final totals from current draft + credits frozen on the order at commit. `promo` is the discount
+ * Final totals from the current draft and the credit available to it. `promo` is the discount
  * snapshot recorded at checkout; it reprices against the final subtotal.
  */
 export function computeCommittedBoxTotals(
@@ -135,6 +135,41 @@ export function computeCommittedBoxTotals(
     giftCreditAppliedCents: priced.giftCreditApplied,
     platformCreditAppliedCents: priced.platformCreditApplied,
   };
+}
+
+type CreditSplit = { gift: number; platform: number };
+
+/**
+ * Credit settles at lock: what checkout reserved plus anything granted since, capped at the final
+ * box. Returns the totals and the household balance left afterwards (unused reserve goes back).
+ */
+export function settleLockCredit(
+  lineItems: BoxLineItem[],
+  boxPriceCents: number,
+  expeditedShipping: boolean,
+  reserved: CreditSplit,
+  balance: CreditSplit,
+  promo?: Partial<PromoTerms> | null
+): { totals: ReturnType<typeof computeCommittedBoxTotals>; balance: CreditSplit } {
+  const totals = computeCommittedBoxTotals(
+    lineItems,
+    boxPriceCents,
+    expeditedShipping,
+    reserved.gift + balance.gift,
+    reserved.platform + balance.platform,
+    promo
+  );
+  return {
+    totals,
+    balance: {
+      gift: reserved.gift + balance.gift - totals.giftCreditAppliedCents,
+      platform: reserved.platform + balance.platform - totals.platformCreditAppliedCents,
+    },
+  };
+}
+
+function cents(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
 }
 
 function isLockPassed(lockAt: string | null | undefined): boolean {
@@ -406,20 +441,8 @@ export async function chargeSinglePilotBoxOrder(
     configData
   );
 
-  const giftCreditApplied =
-    typeof order.giftCreditAppliedCents === 'number' ? order.giftCreditAppliedCents : 0;
-  const platformCreditApplied =
-    typeof order.platformCreditAppliedCents === 'number' ? order.platformCreditAppliedCents : 0;
   const expeditedShipping = order.expeditedShipping === true;
-
-  const totals = computeCommittedBoxTotals(
-    draftLineItems,
-    boxPriceCents,
-    expeditedShipping,
-    giftCreditApplied,
-    platformCreditApplied,
-    (order.promo as Partial<PromoTerms> | null | undefined) ?? null
-  );
+  const promo = (order.promo as Partial<PromoTerms> | null | undefined) ?? null;
 
   const legacyPiId =
     typeof order.stripePaymentIntentId === 'string' ? order.stripePaymentIntentId.trim() : '';
@@ -427,12 +450,53 @@ export async function chargeSinglePilotBoxOrder(
   if (legacyPiId && stripe) {
     const legacyPi = await stripe.paymentIntents.retrieve(legacyPiId);
     if (legacyPi.status === 'succeeded') {
-      await markHanukkahBoxConfirmed(db, householdId, orderId, orderRef, totals, {
+      const paidTotals = computeCommittedBoxTotals(
+        draftLineItems,
+        boxPriceCents,
+        expeditedShipping,
+        cents(order.giftCreditAppliedCents),
+        cents(order.platformCreditAppliedCents),
+        promo
+      );
+      await markHanukkahBoxConfirmed(db, householdId, orderId, orderRef, paidTotals, {
         stripePaymentIntentId: legacyPiId,
       });
-      return { outcome: 'charged', orderId, totalCents: totals.totalCents, paymentIntentId: legacyPiId };
+      return { outcome: 'charged', orderId, totalCents: paidTotals.totalCents, paymentIntentId: legacyPiId };
     }
     await cancelLegacyPaymentIntent(stripe, legacyPiId);
+  }
+
+  const hhRef = db.doc(`households/${householdId}`);
+  const totals = await db.runTransaction(async (tx) => {
+    const [fresh, hh] = await Promise.all([tx.get(orderRef), tx.get(hhRef)]);
+    const o = fresh.data() ?? {};
+    if (o.status !== 'committed' && o.status !== 'pending') return null;
+    const h = hh.data() ?? {};
+    const before = { gift: cents(h.giftCreditCents), platform: cents(h.platformCreditCents) };
+    const settled = settleLockCredit(
+      draftLineItems,
+      boxPriceCents,
+      expeditedShipping,
+      { gift: cents(o.giftCreditAppliedCents), platform: cents(o.platformCreditAppliedCents) },
+      hh.exists ? before : { gift: 0, platform: 0 },
+      promo
+    );
+    if (hh.exists && (settled.balance.gift !== before.gift || settled.balance.platform !== before.platform)) {
+      tx.update(hhRef, {
+        giftCreditCents: settled.balance.gift,
+        platformCreditCents: settled.balance.platform,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    tx.update(orderRef, {
+      creditAppliedCents: settled.totals.creditAppliedCents,
+      giftCreditAppliedCents: settled.totals.giftCreditAppliedCents,
+      platformCreditAppliedCents: settled.totals.platformCreditAppliedCents,
+    });
+    return settled.totals;
+  });
+  if (!totals) {
+    return { outcome: 'skipped', orderId, reason: 'Order status changed' };
   }
 
   const priorAttempts =

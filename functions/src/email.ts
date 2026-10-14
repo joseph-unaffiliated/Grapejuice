@@ -39,6 +39,8 @@ const TEMPLATE_IDS: Record<string, number> = {
   'inventory-swapped': parseInt(process.env.CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED ?? '0', 10) || 22,
   /** Six-digit sign-in code — transactional message 23 (docs/customerio-login-code.html). */
   'login-code': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_CODE ?? '0', 10) || 23,
+  /** Pilot Participants "You're in" — skipped until a transactional message exists for it. */
+  'pilot-joined': parseInt(process.env.CUSTOMERIO_TEMPLATE_PILOT_JOINED ?? '0', 10) || 0,
 };
 
 /** Env vars for Customer.io transactional templates:

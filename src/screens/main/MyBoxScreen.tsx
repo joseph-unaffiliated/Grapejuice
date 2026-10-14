@@ -29,6 +29,7 @@ import {
   catalogSlotId,
   chargeableLineTotal,
 } from '../../services/box/buildDefaultBox';
+import { isPilotLine, PILOT_PICK_META } from '../../services/box/pilotLines';
 import { discountCentsForTerms } from '../../services/promo/promoPricing';
 import { kidPlannerAges, catalogBookFitsKidAge, orderGiftOptionsForAge } from '../../services/box/sectionUpsells';
 import {
@@ -77,6 +78,7 @@ import {
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
 import { GuestBoxAuthBanner } from '../../components/box/GuestBoxAuthBanner';
+import { PilotReturnBanner } from '../../components/pilot/PilotReturnBanner';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { defaultIsSurprise } from '../../constants/boxPracticeGroups';
 import { isVotablePerKidSlot, isWrappableSlot, topPickItemId } from '../../services/box/slotVotes';
@@ -508,6 +510,7 @@ export function MyBoxScreen() {
             return null;
           }
 
+          const isPilotPick = group.lines.some(isPilotLine);
           const voteLine =
             group.lines.find(
               (line) =>
@@ -534,11 +537,11 @@ export function MyBoxScreen() {
                     <BoxItemRow
                       li={li}
                       item={item}
-                      meta={presentMeta}
+                      meta={isPilotPick ? PILOT_PICK_META : presentMeta}
                       note={group.note ?? li.curationNote}
                       imageBadge={imageBadge}
-                      claimGiftChips={claimChips.length ? claimChips : undefined}
-                      locked={locked || sectionSealed}
+                      claimGiftChips={claimChips.length && !isPilotPick ? claimChips : undefined}
+                      locked={locked || sectionSealed || isPilotPick}
                       swapOptions={
                         group.unitCents > 0 ? [] : (swapOptionsBySlot[li.slotId] ?? [])
                       }
@@ -718,6 +721,7 @@ export function MyBoxScreen() {
       {!guestViewOnly && lockBanner ? (
         <View style={detailStyles.headerExtras}>{lockBanner}</View>
       ) : null}
+      {!guestViewOnly && !locked ? <PilotReturnBanner wrapperStyle={detailStyles.headerExtras} /> : null}
       {shownSwapNotices.length ? (
         <View style={detailStyles.headerExtras}>
           <View style={styles.swapNotice}>

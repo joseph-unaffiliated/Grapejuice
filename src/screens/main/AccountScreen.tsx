@@ -61,6 +61,8 @@ import { usersService } from '../../services/firestore/users';
 import { isListedAdmin, isOpsAdmin } from '../../constants/admin';
 import { InfluencerDashboard } from '../../components/account/InfluencerDashboard';
 import { formatDollars } from '../../services/box/buildDefaultBox';
+import { usePilotOrders } from '../../hooks/usePilotOrders';
+import { creditBalanceLine } from '../../constants/hanukkahBoxLock';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -191,6 +193,7 @@ function AccountScreenBody() {
     };
   }, [mobileLayout, cardOnFile, household?.id, fakeSignedIn]);
   const creditCents = (household?.giftCreditCents ?? 0) + (household?.platformCreditCents ?? 0);
+  const { openOrder } = usePilotOrders(household?.id);
 
   useEffect(() => {
     if (fakeSignedIn) return;
@@ -545,6 +548,7 @@ function AccountScreenBody() {
                   { label: 'Catalog', sub: 'Hanukkah SKUs', onPress: () => navigation.navigate('AdminCatalog') },
                   { label: 'Boxes and Orders', sub: 'Live boxes, shop orders, gifts and inventory', onPress: () => navigation.navigate('AdminBoxes') },
                   { label: 'Promotions', sub: 'Discount codes, credit and influencer links', onPress: () => navigation.navigate('AdminPromotions') },
+                  { label: 'Pilot Participants', sub: 'Invite links and who joined', onPress: () => navigation.navigate('AdminPilot') },
                 ]
               : undefined
           }
@@ -672,7 +676,7 @@ function AccountScreenBody() {
         </Text>
         {creditCents > 0 ? (
           <Text style={[styles.hint, styles.creditLine]}>
-            {`You have ${formatDollars(creditCents)} in credit. It comes off your next box, order or gift at checkout.`}
+            {creditBalanceLine(formatDollars(creditCents), openOrder)}
           </Text>
         ) : null}
         <GrapejuiceButton
@@ -829,6 +833,13 @@ function AccountScreenBody() {
               label="Promotions"
               variant="filled"
               onPress={() => navigation.navigate('AdminPromotions')}
+              style={styles.actionBtn}
+              textStyle={styles.primaryBtnText}
+            />
+            <GrapejuiceButton
+              label="Pilot Participants"
+              variant="filled"
+              onPress={() => navigation.navigate('AdminPilot')}
               style={styles.actionBtn}
               textStyle={styles.primaryBtnText}
             />

@@ -16,15 +16,15 @@ import { copyText } from '../../services/promo/copyText';
 
 export type PromotionsTab = 'discounts' | 'credit' | 'influencers';
 
-type Styles = ReturnType<typeof createStyles>;
+export type Styles = ReturnType<typeof createStyles>;
 type TermsKind = 'none' | 'percent' | 'dollars';
 
-function money(cents: number | null | undefined): string {
+export function money(cents: number | null | undefined): string {
   if (cents == null) return '—';
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function day(iso: string | null | undefined): string {
+export function day(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -49,12 +49,12 @@ function fromInputDate(raw: string, endOfDay: boolean): string | null | { error:
   return d.toISOString();
 }
 
-function errMsg(err: unknown): string {
+export function errMsg(err: unknown): string {
   const msg = (err as { message?: string })?.message;
   return msg ? msg.replace(/^FirebaseError:\s*/, '') : 'Something went wrong.';
 }
 
-function confirmAction(message: string): boolean {
+export function confirmAction(message: string): boolean {
   if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
     return window.confirm(message);
   }
@@ -87,7 +87,7 @@ function slugFromName(name: string): string {
     .slice(0, 40);
 }
 
-function useAdminList<T>(load: () => Promise<T[]>) {
+export function useAdminList<T>(load: () => Promise<T[]>) {
   const [rows, setRows] = useState<T[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const reload = useCallback(async () => {
@@ -108,7 +108,7 @@ function useAdminList<T>(load: () => Promise<T[]>) {
 // Small primitives
 // ---------------------------------------------------------------------------
 
-function Chip({ label, active, onPress, styles }: { label: string; active?: boolean; onPress: () => void; styles: Styles }) {
+export function Chip({ label, active, onPress, styles }: { label: string; active?: boolean; onPress: () => void; styles: Styles }) {
   const mobile = useMobileLayout();
   return (
     <TouchableOpacity
@@ -124,7 +124,7 @@ function Chip({ label, active, onPress, styles }: { label: string; active?: bool
   );
 }
 
-function Button({
+export function Button({
   label,
   onPress,
   busy,
@@ -152,7 +152,7 @@ function Button({
   );
 }
 
-function Field({
+export function Field({
   label,
   value,
   onChangeText,
@@ -235,7 +235,7 @@ function TermsPicker({
   );
 }
 
-function Fact({ k, v, styles }: { k: string; v: string; styles: Styles }) {
+export function Fact({ k, v, styles }: { k: string; v: string; styles: Styles }) {
   return (
     <Text style={styles.fact}>
       <Text style={styles.factKey}>{k} </Text>
@@ -244,7 +244,7 @@ function Fact({ k, v, styles }: { k: string; v: string; styles: Styles }) {
   );
 }
 
-function Notice({ ok, text, styles }: { ok: boolean; text: string | null; styles: Styles }) {
+export function Notice({ ok, text, styles }: { ok: boolean; text: string | null; styles: Styles }) {
   if (!text) return null;
   return <Text style={ok ? styles.ok : styles.error}>{text}</Text>;
 }
@@ -826,7 +826,7 @@ export function PromotionsSection({ tab }: { tab: PromotionsTab }) {
   return <InfluencersSection styles={styles} colors={colors} />;
 }
 
-function createStyles(colors: SemanticColors) {
+export function createStyles(colors: SemanticColors) {
   return StyleSheet.create({
     body: { gap: spacing.md },
     hint: {

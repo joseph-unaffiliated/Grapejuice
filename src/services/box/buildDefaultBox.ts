@@ -1,4 +1,5 @@
 import type { BoxLineItem, CatalogItem, ChildProfile, PracticeLevel } from '../../types/pilot';
+import { isPilotLine } from './pilotLines';
 import {
   ALA_CARTE_SLOT_IDS,
   boxAddOnUnitCents,
@@ -541,7 +542,7 @@ export function repairExtraPerKidPricing(
     'pre-wrap',
   ]);
   const next = lineItems.map((li) => {
-    if (li.unitCents > 0) return li;
+    if (li.unitCents > 0 || isPilotLine(li)) return li;
     const base = catalogSlotId(li.slotId);
     if (practiceSlots.has(base)) return li;
     const isPerKidSlot =

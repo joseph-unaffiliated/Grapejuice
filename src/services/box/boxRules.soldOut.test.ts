@@ -164,4 +164,13 @@ const find = (c: BoxRulesCatalogRow[], id: string) => c.find((r) => r.id === id)
   assert.notEqual(out[0].itemId, out[1].itemId);
 }
 
+// A Pilot Participants pick stays even when its item sells out.
+{
+  const c = catalog({ 'lego-menorah': { stockLeft: 0 } });
+  const lines = [{ slotId: 'pilot-lego-menorah', itemId: 'lego-menorah', quantity: 1, program: 'pilot' }];
+  const result = swapSoldOutLines(lines, c, () => 6);
+  assert.equal(result.lines, lines);
+  assert.deepEqual(result.swaps, []);
+}
+
 console.log('boxRules sold-out tests passed');

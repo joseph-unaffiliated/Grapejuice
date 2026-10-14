@@ -54,6 +54,13 @@ export function lockShortLabel(lockAt: string | null): string {
   });
 }
 
+/** Account line for a credit balance. A box that's already checked out takes it when charged at lock. */
+export function creditBalanceLine(creditLabel: string, placedBox: { lockAt?: string | null } | null | undefined): string {
+  return placedBox
+    ? `You have ${creditLabel} in credit. It comes off your Hanukkah box when it’s charged after ${lockShortLabel(placedBox.lockAt ?? null)}.`
+    : `You have ${creditLabel} in credit. It comes off your next box, order or gift at checkout.`;
+}
+
 /** e.g. `Nov 7` — the lock day in the viewer's time zone. */
 export function boxLockDayLabel(lockAt?: string | null): string {
   const lock = lockTargetDate(lockAt);
