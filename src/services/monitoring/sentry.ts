@@ -18,6 +18,20 @@ export function initSentry(): void {
     environment: __DEV__ ? 'development' : 'production',
     sendDefaultPii: false,
     tracesSampleRate: 0.1,
+    // Third-party noise we can't act on: in-app browser bridges (Instagram / Facebook),
+    // IndexedDB teardown, Retention's API, OneTrust / Clarity internals, browser extensions.
+    ignoreErrors: [
+      /Error invoking postMessage/,
+      /window\.webkit\.messageHandlers/,
+      /The database connection is closing/,
+      /Connection to Indexed Database server lost/,
+      /execute-api\.us-west-2\.amazonaws\.com/,
+      /reading 'sequence'/,
+      /evaluating 'e\.Domain'/,
+      /reading 'html'\)?$/,
+      /runtime\.sendMessage\(\)/,
+    ],
+    denyUrls: [/^iabjs:\/\//, /clarity\.ms/, /cookielaw\.org/, /onetrust\.com/, /^(chrome|moz|safari(-web)?)-extension:\/\//],
   });
 }
 
