@@ -885,7 +885,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
           </View>
         </View>
 
-        {!gift && !e.locked && !e.guestViewOnly ? <PilotReturnBanner wrapperStyle={styles.pad} /> : null}
+        {!gift && !e.locked && !e.guestViewOnly ? <PilotReturnBanner wrapperStyle={styles.pad} hasPicks={e.lineItems.some(isPilotLine)} /> : null}
 
         <View style={styles.pad}>
           <BoxSummary size="sm" title={gift ? 'In their box' : 'In your box'} sub={`${thingCount} things · ${formatCatalogDollars(total)}`} items={thumbs} link={<Pressable onPress={() => setSheet({ kind: 'receipt' })} accessibilityRole="button" hitSlop={8}><Text style={styles.link}>See list</Text></Pressable>} />
@@ -911,9 +911,9 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
 
         {mightLike.length ? (
           <View style={styles.like}>
-            <Text style={styles.sectionTitle}>Other things you might like</Text>
-            <Text style={styles.likeSub}>Add them on top of {yours} box.</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            <Text style={[styles.sectionTitle, styles.likeHead]}>Other things you might like</Text>
+            <Text style={[styles.likeSub, styles.likeHead]}>Add them on top of {yours} box.</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.likeRail}>
               {mightLike.map((it) => {
                 const sectionId = displaySectionForCatalogItem(it);
                 const free = offerFor(it, sectionId, rowsFor(sectionId)).free;
@@ -1104,8 +1104,10 @@ const styles = StyleSheet.create({
   minis: { flexDirection: 'row', paddingLeft: 8 },
   mini: { marginLeft: -8, borderWidth: 2, borderColor: m.white, borderRadius: 7, overflow: 'hidden' },
   chev: { fontSize: 20, color: m.goldDark },
-  like: { backgroundColor: m.beige, paddingLeft: mGutter, paddingTop: 32, paddingBottom: 16 },
-  likeSub: { fontSize: 14, color: m.muted, marginTop: 6, marginBottom: 14, paddingRight: mGutter, ...mFont(300) },
+  like: { backgroundColor: m.beige, paddingTop: 32, paddingBottom: 16 },
+  likeHead: { paddingHorizontal: mGutter },
+  likeSub: { fontSize: 14, color: m.muted, marginTop: 6, marginBottom: 14, ...mFont(300) },
+  likeRail: { gap: 12, paddingHorizontal: mGutter },
   likePrice: { fontSize: 12, color: m.muted, ...mFont(400) },
   likeAdd: { alignSelf: 'flex-start', height: 34, paddingHorizontal: 14, borderRadius: 18, backgroundColor: m.ink, justifyContent: 'center', marginTop: 4 },
   likeAddText: { fontSize: 13, color: m.gold, ...mFont(400) },

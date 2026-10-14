@@ -721,7 +721,7 @@ export function MyBoxScreen() {
       {!guestViewOnly && lockBanner ? (
         <View style={detailStyles.headerExtras}>{lockBanner}</View>
       ) : null}
-      {!guestViewOnly && !locked ? <PilotReturnBanner wrapperStyle={detailStyles.headerExtras} /> : null}
+      {!guestViewOnly && !locked ? <PilotReturnBanner wrapperStyle={detailStyles.headerExtras} hasPicks={lineItems.some(isPilotLine)} /> : null}
       {shownSwapNotices.length ? (
         <View style={detailStyles.headerExtras}>
           <View style={styles.swapNotice}>

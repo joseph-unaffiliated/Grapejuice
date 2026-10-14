@@ -6,10 +6,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { clearBoxDraftCache } from '../../hooks/useBoxDraft';
 import type { MainStackParamList } from '../../navigation/types';
-import { persistPilotToken, readPersistedPilotToken } from '../../navigation/pilotLink';
+import { clearPersistedPilotToken, persistPilotToken, readPersistedPilotToken } from '../../navigation/pilotLink';
 import { enrollPilot, getPilotInvite, type PilotDates, type PilotInviteView, type PilotItem } from '../../services/pilot/pilotApi';
 import { formatPilotDollars, pilotAgreementText } from '../../services/pilot/pilotAgreement';
-import { isPilotPreviewToken, pilotPreviewView } from '../../services/pilot/pilotPreview';
+import { isPilotPreviewToken, pilotPreviewView, withPreviewImages } from '../../services/pilot/pilotPreview';
 import { replaceBrowserPath } from '../../navigation/webBrowserHistory';
 import { usePilotPayment } from './usePilotPayment';
 
@@ -158,8 +158,14 @@ export function usePilotInvite() {
     let cancelled = false;
     setLoadError(null);
     if (isPilotPreviewToken(token)) {
-      setView(pilotPreviewView(token));
-      return undefined;
+      const sample = pilotPreviewView(token);
+      setView(sample);
+      void withPreviewImages(sample).then((v) => {
+        if (!cancelled) setView(v);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     void getPilotInvite(token)
       .then((v) => {
@@ -206,7 +212,7 @@ export function usePilotInvite() {
     : !cardReady
       ? 'Add your card to join.'
       : !typedName.trim() || !agreed
-        ? 'Type your name and check the box to join.'
+        ? 'Type your name and agree to join.'
         : null;
 
   const toggle = (id: string) => {
@@ -226,6 +232,7 @@ export function usePilotInvite() {
         box: view.box,
         enrollment: { status: 'enrolled', picks: joinedPicks, totalCents: joinedPicks.reduce((s, p) => s + p.deferredChargeCents, 0) },
       });
+      clearPersistedPilotToken();
       return;
     }
     setJoining(true);

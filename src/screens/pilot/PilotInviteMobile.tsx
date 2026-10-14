@@ -7,7 +7,7 @@ import { BoxSummary, type BoxThumb } from '../../components/mobile/BoxSummary';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileField } from '../../components/mobile/MobileField';
 import { MobileSheet } from '../../components/mobile/MobileSheet';
-import { StickyBar } from '../../components/mobile/StickyBar';
+import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { MobileFooterBleed, MobileFooterSpacer, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
@@ -29,11 +29,19 @@ function Page({ children, bar }: { children: React.ReactNode; bar?: React.ReactN
   return (
     <View style={styles.root}>
       <TaskHeader title={HEADER_TITLE} />
-      <ScrollView style={styles.flex} contentContainerStyle={[styles.pad, mobileFooterScrollStyle]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={bar ? [styles.pad, { paddingBottom: STICKY_BAR_CLEARANCE + 32 }] : [styles.pad, mobileFooterScrollStyle]}
+        keyboardShouldPersistTaps="handled"
+      >
         {children}
-        <View style={styles.footerGap} />
-        <MobileFooterSpacer />
-        <MobileFooterBleed inset={mGutter} />
+        {bar ? null : (
+          <>
+            <View style={styles.footerGap} />
+            <MobileFooterSpacer />
+            <MobileFooterBleed inset={mGutter} />
+          </>
+        )}
       </ScrollView>
       {bar}
     </View>
@@ -277,8 +285,8 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
       layout="stack"
       label={s.full ? 'Your three picks' : `${s.chosen.length} of ${s.pickCount} picked`}
       total={s.full && s.totalLabel ? `${s.totalLabel} value · Free` : 'Free'}
-      hint={s.joinError ?? (!s.canJoin && !s.joining ? (s.joinHint ?? undefined) : undefined)}
-      cta={{ label: 'Join the pilot', onPress: () => void s.join(), disabled: !s.canJoin, busy: s.joining }}
+      hint={s.joinError ?? undefined}
+      cta={{ label: s.canJoin || s.joining ? 'Done!' : (s.joinHint ?? 'Done!'), onPress: () => void s.join(), disabled: !s.canJoin, busy: s.joining }}
     />
   ) : null;
 

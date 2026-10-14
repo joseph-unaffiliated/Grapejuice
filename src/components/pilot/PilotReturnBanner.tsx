@@ -10,14 +10,17 @@ import { MobileButton } from '../mobile/MobileButton';
 import { m, mFont, mRadius } from '../mobile/mobileTheme';
 import type { MainStackParamList } from '../../navigation/types';
 
-/** `wrapperStyle` only renders with the banner, so hidden means no layout at all. */
-type Props = { style?: StyleProp<ViewStyle>; wrapperStyle?: StyleProp<ViewStyle> };
+/**
+ * `wrapperStyle` only renders with the banner, so hidden means no layout at all.
+ * `hasPicks`: the box already holds pilot picks, so there's nothing left to nudge.
+ */
+type Props = { style?: StyleProp<ViewStyle>; wrapperStyle?: StyleProp<ViewStyle>; hasPicks?: boolean };
 
 /**
  * My Box nudge for someone who opened a Pilot Participants invite on this device and still has
  * picks to make, e.g. after "Build my box" sent them here. Renders nothing otherwise.
  */
-export function PilotReturnBanner({ style, wrapperStyle }: Props) {
+export function PilotReturnBanner({ style, wrapperStyle, hasPicks }: Props) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const [token, setToken] = useState<string | null>(null);
@@ -50,13 +53,12 @@ export function PilotReturnBanner({ style, wrapperStyle }: Props) {
     }, [uid])
   );
 
-  if (!token) return null;
+  if (!token || hasPicks) return null;
   return (
     <View style={wrapperStyle}>
       <View style={[styles.card, style]}>
         <View style={styles.copy}>
-          <Text style={styles.title}>Pilot Participants</Text>
-          <Text style={styles.body}>You have a box. Now pick your three free items to ship inside it.</Text>
+          <Text style={styles.body}>As a pilot participant, you get 3 items free. Make your selection now.</Text>
         </View>
         <MobileButton
           label="Pick my three"
@@ -80,8 +82,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
-  copy: { flex: 1, minWidth: 200, gap: 2 },
-  title: { fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: m.goldDark, ...mFont(500) },
+  copy: { flex: 1, minWidth: 200 },
   body: { fontSize: 14.5, lineHeight: 20, color: m.ink, ...mFont(400) },
   button: { width: 'auto', alignSelf: 'center' },
 });

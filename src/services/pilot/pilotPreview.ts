@@ -1,3 +1,4 @@
+import { catalogService } from '../firestore/catalog';
 import type { PilotInviteView, PilotItem } from './pilotApi';
 
 /**
@@ -28,8 +29,8 @@ const ITEMS: PilotItem[] = [
 
 const dates = { lockAt: '2026-11-08T04:59:00.000Z', arrivesBy: '2026-11-21', surveyDueLabel: 'January 15, 2027' };
 const boxItems = [
-  { itemId: 'book-a', name: 'The Eight Knights of Hanukkah', imageUrl: null, quantity: 1 },
-  { itemId: 'candles', name: 'Hanukkah candles', imageUrl: null, quantity: 1 },
+  { itemId: 'book-dino-hanukkah', name: 'Dino-Hanukkah', imageUrl: null, quantity: 1 },
+  { itemId: 'beeswax-candles', name: 'Beeswax candles', imageUrl: null, quantity: 1 },
   { itemId: 'airdry-clay-dreidel', name: 'Air-dry clay dreidel', imageUrl: null, quantity: 2 },
 ];
 const orderBox = { kind: 'order' as const, items: boxItems, address: '12 Elm St, Brooklyn, NY 11201', cardOnFile: true };
@@ -62,4 +63,17 @@ export function pilotPreviewView(token: string): PilotInviteView {
     default:
       return { state: 'ready', firstName, dates, box: orderBox, items: ITEMS, pickCount: 3 };
   }
+}
+
+/** `view` with real catalog photos, so previews look like a live invite. Unchanged if the catalog can't load. */
+export async function withPreviewImages(view: PilotInviteView): Promise<PilotInviteView> {
+  const ids = [...ITEMS.map((i) => i.id), ...boxItems.map((i) => i.itemId)];
+  const catalog = await catalogService.getMany(ids).catch(() => []);
+  const photo = new Map(catalog.map((c) => [c.id, c.imageThumbUrls?.[0] ?? c.imageUrl ?? null]));
+  const fill = <T extends { imageUrl: string | null }>(row: T, id: string): T => ({ ...row, imageUrl: photo.get(id) ?? row.imageUrl });
+  const v = { ...view } as PilotInviteView & Record<string, unknown>;
+  if ('items' in view) v.items = view.items.map((i) => fill(i, i.id));
+  if ('box' in view) v.box = { ...view.box, items: view.box.items.map((i) => fill(i, i.itemId)) };
+  if ('enrollment' in view) v.enrollment = { ...view.enrollment, picks: view.enrollment.picks.map((p) => fill(p, p.itemId)) };
+  return v;
 }

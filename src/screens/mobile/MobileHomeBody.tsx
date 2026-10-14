@@ -231,7 +231,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
       ) : null}
 
       {topPicks.length ? (
-        <View style={[styles.band, { paddingTop: 8 }]}>
+        <View style={[styles.band, { paddingTop: isNew ? 36 : 28, paddingBottom: 0 }]}>
           <SectionHead title="Top picks" link="See all" onPress={() => goCategory('collection')} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
             {topPicks.map((it) => (
