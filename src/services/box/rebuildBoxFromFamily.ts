@@ -142,6 +142,7 @@ export async function rebuildBoxFromFamily(opts: {
     wrapSelectedItemIds: [],
     sealedSectionIds: [],
     slotVotes: {},
+    source: 'default-build',
   });
   await saveLastBoxAnswers(
     uid,

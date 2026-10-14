@@ -65,6 +65,8 @@ const F = {
   hanukkahBooks: 'fldMOUzSLUQ5qOzvu',
   /** Book rows: exact kid ages (0–12) this book is the included default for. */
   defaultBookAges: 'fldhdftdVkGmSQvCP',
+  /** Present rows: exact kid ages (0–12) this item can be the included present for. */
+  defaultGiftAges: 'fld29wcLrL0kf4N58',
 } as const;
 
 const B = {
@@ -104,6 +106,8 @@ export type SyncedCatalogItem = {
   defaultFor: string[];
   /** Books only: Full Catalog "Default book ages" (exact ages, wins over `defaultFor`). */
   defaultBookAges?: number[];
+  /** Presents only: Full Catalog "Default gift ages" (exact ages). */
+  defaultGiftAges?: number[];
   swapOptions: string[];
   unitCostCents: number;
   memberPriceCents: number;
@@ -512,6 +516,13 @@ async function resolveImages(
   return { imageUrl: urls[0] ?? null, imageUrls: urls, imageThumbUrls };
 }
 
+function exactAges(v: unknown): number[] {
+  return selectNames(v)
+    .map((a) => parseInt(a, 10))
+    .filter((n) => Number.isFinite(n))
+    .sort((x, y) => x - y);
+}
+
 function listingToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatalogItem | null {
   const f = rec.fields;
   const name = String(f[F.id] ?? '').trim();
@@ -538,6 +549,7 @@ function listingToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatal
     slotId: placement.slotId,
     ageGroups: ages.length ? ageYearsToGroups(ages) : ['0-2', '3-5', '6-8', '9-12'],
     defaultFor: contexts.includes('Default') ? ['0-2', '3-5', '6-8', '9-12'] : [],
+    defaultGiftAges: exactAges(f[F.defaultGiftAges]),
     swapOptions: [],
     unitCostCents,
     memberPriceCents,
@@ -596,10 +608,7 @@ export function bookToItem(
   if (inProd && inProd !== 'Yes') return null;
 
   const ageGroups = ageYearsToGroups(selectNames(f[F.age]));
-  const defaultBookAges = selectNames(f[F.defaultBookAges])
-    .map((a) => parseInt(a, 10))
-    .filter((n) => Number.isFinite(n))
-    .sort((x, y) => x - y);
+  const defaultBookAges = exactAges(f[F.defaultBookAges]);
   const author = String(b[B.author] ?? '').trim();
   const id = `book-${slugifyCatalogId(title)}`;
   const memberPriceCents = currencyToCents(f[F.memberPrice]);

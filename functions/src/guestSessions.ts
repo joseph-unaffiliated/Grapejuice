@@ -4,6 +4,8 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'crypto';
 import { untraditionalDeletePerson } from './untraditionalCio';
 import { geoFromRequest, ipGeoField, type IpGeo } from './geo';
+import { carryGuestDefaultToHousehold } from './boxHistory';
+import { HOLIDAY_ID } from './catalogInventory';
 
 /**
  * Guest box recovery — server-side copy of a signed-out visitor's in-progress box.
@@ -261,6 +263,12 @@ export const markGuestSessionConverted = onCall({ memory: '512MiB' }, async (req
     },
     { merge: true }
   );
+  const householdId = (await db.doc(`users/${request.auth.uid}`).get()).data()?.householdId;
+  if (typeof householdId === 'string' && householdId) {
+    await carryGuestDefaultToHousehold(db, visitorId, householdId, HOLIDAY_ID).catch((err) =>
+      logger.warn('markGuestSessionConverted: default box not carried over', { err: String(err) })
+    );
+  }
   return { ok: true, found: true };
 });
 

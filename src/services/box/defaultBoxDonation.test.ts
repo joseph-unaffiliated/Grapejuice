@@ -1,8 +1,9 @@
 /**
  * Run: npx tsx src/services/box/defaultBoxDonation.test.ts
  *
- * A fresh 1-adult, 1-kid box must not list à la carte stuffies or toys as a
- * donation. Those SKUs are paid extras unless they fill an empty gift slot.
+ * A fresh 1-adult, 1-kid box gets its age's present (toddler play menorah, stuffie, or
+ * clay kit) at $0 and lists nothing as a donation. Other à la carte stuffies and toys
+ * stay paid extras unless they fill an empty gift slot.
  */
 import assert from 'node:assert/strict';
 import { buildCuratedBox, toRulesRow } from './buildDefaultBox';
@@ -57,12 +58,17 @@ const alaCarteIds = new Set(catalog.filter((c) => c.pricingTier === 'alaCarte').
 const sam = (age: number): ChildProfile =>
   ({ id: 'sam', name: 'Sam', ageGroup: '3-5', plannerAge: age }) as ChildProfile;
 
+const expectedGift = (age: number) =>
+  age <= 2 ? 'toddler-play-menorah' : age <= 5 ? 'jelly-the-sufganiyah-stuffie' : 'airdry-clay-dreidel';
+
 for (const age of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
   const built = buildCuratedBox(catalog, [sam(age)], { practice: 'minimal', adults: 1 });
   const gifts = built.lineItems.filter((li) => li.slotId.startsWith('gift-'));
   assert.equal(gifts.length, 1, `age ${age} gift count`);
-  assert.equal(alaCarteIds.has(gifts[0]!.itemId), false, `age ${age} gift ${gifts[0]!.itemId}`);
+  assert.equal(gifts[0]!.itemId, expectedGift(age), `age ${age} gift`);
+  assert.equal(gifts[0]!.unitCents, 0, `age ${age} gift price`);
   for (const li of built.lineItems) {
+    if (li === gifts[0]) continue;
     assert.equal(alaCarteIds.has(li.itemId), false, `age ${age} line ${li.itemId}`);
   }
   const baselines = seedIncludedBaselines(built.lineItems);
@@ -72,10 +78,25 @@ for (const age of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
     [],
     `age ${age} donations`
   );
-  assert.equal(baselines.has('jelly-the-sufganiyah-stuffie'), false);
 }
 
-const age5 = buildCuratedBox(catalog, [sam(5)], { practice: 'minimal', adults: 1 });
+// Siblings: one toddler menorah, different stuffie characters, the other clay kit — all included.
+{
+  const kid = (id: string, age: number) => ({ id, name: id, ageGroup: '3-5', plannerAge: age }) as ChildProfile;
+  const giftsOf = (kids: ChildProfile[], practice: 'minimal' | 'all-in' = 'minimal') =>
+    buildCuratedBox(catalog, kids, { practice, adults: 2 }).lineItems.filter((li) => li.slotId.startsWith('gift-'));
+  const four = giftsOf([kid('a', 1), kid('b', 4), kid('c', 4), kid('d', 8)]);
+  assert.deepEqual(
+    four.map((g) => g.itemId),
+    ['toddler-play-menorah', 'jelly-the-sufganiyah-stuffie', 'crispy-the-latke-stuffie', 'airdry-clay-dreidel']
+  );
+  assert.ok(four.every((g) => g.unitCents === 0 && g.includedQty === 1));
+  assert.deepEqual(giftsOf([kid('a', 1), kid('b', 2)]).map((g) => g.itemId), ['toddler-play-menorah', 'jelly-the-sufganiyah-stuffie']);
+  assert.deepEqual(giftsOf([kid('a', 8), kid('b', 9)]).map((g) => g.itemId), ['airdry-clay-dreidel', 'airdry-clay-menorah']);
+  assert.deepEqual(giftsOf([kid('a', 4)], 'all-in').map((g) => g.itemId), ['jelly-the-sufganiyah-stuffie']);
+}
+
+const age7 = buildCuratedBox(catalog, [sam(7)], { practice: 'minimal', adults: 1 });
 const jelly = catalog.find((c) => c.id === 'jelly-the-sufganiyah-stuffie')!;
 const crispy = catalog.find((c) => c.id === 'crispy-the-latke-stuffie')!;
 const gimmel = catalog.find((c) => c.id === 'gimmel-the-dreidel-stuffie')!;
@@ -84,13 +105,13 @@ const lego = catalog.find((c) => c.id === 'lego-menorah')!;
 
 // Sam already has a present. Undo must not make an à la carte stuffie/toy a second included gift.
 for (const extra of [jelly, crispy, gimmel, menorahToy, lego]) {
-  assert.equal(includedClaimAlreadyTaken(extra, [], age5.lineItems, catalog), true, extra.id);
+  assert.equal(includedClaimAlreadyTaken(extra, [], age7.lineItems, catalog), true, extra.id);
   assert.equal(includedClaimBlockedUnitCents(extra), extra.memberPriceCents);
 }
 
 // The gift slot is empty — restoring the donated present is included.
-const withoutGift = age5.lineItems.filter((li) => !li.slotId.startsWith('gift-'));
-const giftLine = age5.lineItems.find((li) => li.slotId.startsWith('gift-'))!;
+const withoutGift = age7.lineItems.filter((li) => !li.slotId.startsWith('gift-'));
+const giftLine = age7.lineItems.find((li) => li.slotId.startsWith('gift-'))!;
 assert.equal(includedClaimAlreadyTaken(jelly, [giftLine], withoutGift, catalog), false);
 assert.equal(
   includedClaimAlreadyTaken(
@@ -103,14 +124,15 @@ assert.equal(
 );
 
 // A phantom baseline (no gift snapshot) while Sam still has a present stays paid.
-const phantom = seedIncludedBaselines(age5.lineItems);
+const phantom = seedIncludedBaselines(age7.lineItems);
 phantom.set(jelly.id, 1);
-const donatedPhantom = donatedItemQuantities(age5.lineItems, catalog, phantom);
+const donatedPhantom = donatedItemQuantities(age7.lineItems, catalog, phantom);
 assert.equal(donatedPhantom.some((d) => d.item.id === jelly.id), true);
-assert.equal(includedClaimAlreadyTaken(jelly, [], age5.lineItems, catalog), true);
+assert.equal(includedClaimAlreadyTaken(jelly, [], age7.lineItems, catalog), true);
 
 // A one-row lookup still recognizes the stuffie so "swap in any stuffie" keeps working.
 assert.equal(resolveGiftKind([toRulesRow(jelly)], 'stuffie')?.id, jelly.id);
-assert.equal(resolveGiftKind(catalog.map(toRulesRow), 'stuffie', 5), undefined);
+assert.equal(resolveGiftKind(catalog.map(toRulesRow), 'stuffie', 5)?.id, jelly.id);
+assert.equal(resolveGiftKind(catalog.map(toRulesRow), 'stuffie', 5, new Set([jelly.id]))?.id, crispy.id);
 
 console.log('defaultBoxDonation.test.ts ok');

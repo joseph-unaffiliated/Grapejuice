@@ -954,6 +954,37 @@ export function seedIncludedBaselines(
 }
 
 /**
+ * + on an item that's below its included count: put the free unit back where it came
+ * from. `dropped` is the per-kid line that − removed, if known. A dropped present only
+ * comes back free while that kid's present slot is still empty. Without `dropped`, only
+ * a line that itself lost included units (gelt ×4 → ×3) gets one back.
+ * Null → + adds a paid copy.
+ */
+export function restoreIncludedUnit(
+  lineItems: BoxLineItem[],
+  itemId: string,
+  dropped?: BoxLineItem
+): BoxLineItem[] | null {
+  const isFree = (li: BoxLineItem) => (li.unitCents ?? 0) === 0 && !li.slotId.endsWith(EXTRA_UNIT_SUFFIX);
+  if (dropped && dropped.itemId === itemId) {
+    if (lineItems.some((li) => li.slotId === dropped.slotId)) return null;
+    if (isGiftSlotLine(dropped)) {
+      const kid = dropped.childId || childIdFromSlot(dropped.slotId);
+      const slotTaken = lineItems.some(
+        (li) => isFree(li) && isGiftSlotLine(li) && (li.childId || childIdFromSlot(li.slotId)) === kid
+      );
+      if (slotTaken) return null;
+    }
+    return [...lineItems, dropped];
+  }
+  const short = lineItems.find(
+    (li) => li.itemId === itemId && isFree(li) && (li.includedQty ?? 0) > (li.quantity ?? 1)
+  );
+  if (!short) return null;
+  return lineItems.map((li) => (li.slotId === short.slotId ? { ...li, quantity: (li.quantity ?? 1) + 1 } : li));
+}
+
+/**
  * Lateral included swaps replace one free SKU with another — they are not donations.
  * Drop (or reduce) the source baseline and, when the target stays free ($0), move that
  * included allotment onto the new itemId so Donated stays accurate.

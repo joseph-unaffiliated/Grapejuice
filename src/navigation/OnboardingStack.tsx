@@ -179,6 +179,7 @@ export function OnboardingStack({
   const setGuestRavNotes = useGuestSessionStore((s) => s.setRavNotes);
   const setGuestLineItems = useGuestSessionStore((s) => s.setLineItems);
   const completeGuestOnboarding = useGuestSessionStore((s) => s.completeOnboarding);
+  const markGuestBoxBuilt = useGuestSessionStore((s) => s.markBoxBuilt);
   const completeGuestBoxReveal = useGuestSessionStore((s) => s.completeBoxReveal);
   const setGuestOnboardingStep = useGuestSessionStore((s) => s.setOnboardingStep);
   const markStepReached = useGuestSessionStore((s) => s.markStepReached);
@@ -477,6 +478,7 @@ export function OnboardingStack({
       const publishCurated = (next: BoxLineItem[]) => {
         const folded = foldItemIntoCuratedBox(next, catalog, pickedId);
         setGuestLineItems(folded);
+        markGuestBoxBuilt();
         setLineItems(folded);
         const prev = readBoxBuildResume();
         if (prev) writeBoxBuildResume({ ...prev, lineItems: folded, savedAt: Date.now() });
@@ -484,13 +486,14 @@ export function OnboardingStack({
         const uid = useAuthStore.getState().user?.uid;
         if (hid && uid) {
           void boxDraftService
-            .save(hid, uid, folded, { familiarityLevel: level, childInterests: interests })
+            .save(hid, uid, folded, { familiarityLevel: level, childInterests: interests, source: 'default-build' })
             .catch((err) => console.warn('[onboarding] rav draft save failed', err));
         }
       };
 
       if (guestMode) {
         setGuestLineItems(items);
+        markGuestBoxBuilt();
         completeGuestOnboarding();
         setFamiliarity(level);
         setFamiliarityScore(score);
@@ -547,6 +550,7 @@ export function OnboardingStack({
         boxDraftService.save(householdId, user.uid, remappedItems, {
           familiarityLevel: level,
           childInterests: interests,
+          source: 'default-build',
         }),
         usersService.upsert(user.uid, {
           familiarityLevel: level,

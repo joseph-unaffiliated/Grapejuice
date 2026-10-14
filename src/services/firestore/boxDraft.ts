@@ -1,6 +1,6 @@
 import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { BoxDraft, BoxLineItem, InventorySwapNotice, SlotVotes } from '../../types/pilot';
+import type { BoxChangeSource, BoxDraft, BoxLineItem, InventorySwapNotice, SlotVotes } from '../../types/pilot';
 import { HOLIDAY_ID } from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
 
@@ -99,7 +99,7 @@ export const boxDraftService = {
         | 'sealedSectionIds'
         | 'wrapSelectedItemIds'
       >
-    >
+    > & { source?: BoxChangeSource }
   ): Promise<BoxDraft> {
     if (!db) throw new Error('Firestore not configured');
     await ensureAuthTokenReady(uid);
@@ -110,6 +110,7 @@ export const boxDraftService = {
       lineItems: lineItems.map(sanitizeLineItem),
       updatedAt: now,
       updatedBy: uid,
+      lastChangeSource: extra?.source ?? 'customer',
       familiarityLevel: extra?.familiarityLevel,
       lockedAt: extra?.lockedAt,
       slotVotes: extra?.slotVotes,

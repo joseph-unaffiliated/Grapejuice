@@ -37,6 +37,7 @@ export type GuestSnapshotGuest = {
   /** Absent on snapshots saved before this field was added. */
   practiceFrequencyScore?: number;
   lineItems: BoxLineItem[];
+  boxBuiltAt?: string | null;
   wrapSelectedItemIds: string[];
   /** Sold-out swaps not yet shown (the server's inventory watch adds these too). */
   inventorySwapNotices?: InventorySwapNotice[];
@@ -81,6 +82,7 @@ function guestFromStore(): GuestSnapshotGuest {
     familiarityLevel: s.familiarityLevel,
     practiceFrequencyScore: s.practiceFrequencyScore,
     lineItems: s.lineItems,
+    boxBuiltAt: s.boxBuiltAt,
     wrapSelectedItemIds: s.wrapSelectedItemIds,
     inventorySwapNotices: s.inventorySwapNotices,
     wishlistItemIds: s.wishlistItemIds,
@@ -162,6 +164,7 @@ export function applyGuestSnapshot(snapshot: GuestSessionSnapshot): void {
     familiarityLevel: guest.familiarityLevel ?? 'moderate',
     practiceFrequencyScore: typeof guest.practiceFrequencyScore === 'number' ? guest.practiceFrequencyScore : 50,
     lineItems: retired.lineItems,
+    boxBuiltAt: guest.boxBuiltAt ?? null,
     wrapSelectedItemIds: remapLegacyCatalogIds(guest.wrapSelectedItemIds ?? []),
     inventorySwapNotices: parseSwapNotices(guest.inventorySwapNotices),
     wishlistItemIds: remapLegacyCatalogIds(guest.wishlistItemIds ?? []),

@@ -56,6 +56,7 @@ import {
   isWrapControlSlot,
   isWrappingPaperItem,
   removeCoalescedGroup,
+  restoreIncludedUnit,
   cancelDonatedGiftOnClaim,
   transferIncludedBaselineOnSwap,
   setLiveIncludedBaselines,
@@ -301,6 +302,10 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
 
   /** Recompute when catalog/lines change — never cache empty results across loads. */
   const geltCeiling = defaultGeltSize(children.length);
+  const kidAgeById = useMemo(() => {
+    const ages = kidPlannerAges(children);
+    return new Map(children.map((c, i) => [c.id, ages[i]]));
+  }, [children]);
   const swapOptionsBySlot = useMemo(() => {
     if (!catalog.length || !lineItems.length) return {} as Record<string, CatalogItem[]>;
     const next: Record<string, CatalogItem[]> = {};
@@ -313,11 +318,11 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       // Per-kid gift lines swap among the included gift set (not their catalog
       // section's peers) — e.g. an airdry-dreidel gift offers other gifts, not dreidels.
       next[li.slotId] = isGiftSlotLine(li)
-        ? resolveIncludedGiftOptions(catalog, li.itemId, 6)
+        ? resolveIncludedGiftOptions(catalog, li.itemId, 6, li.childId ? kidAgeById.get(li.childId) : undefined)
         : resolveSwapOptionsForItem(current, catalog, 6, { geltCeiling });
     }
     return next;
-  }, [lineItems, catalog, geltCeiling]);
+  }, [lineItems, catalog, geltCeiling, kidAgeById]);
 
   const applySwap = async (slotIds: string[], newItem: CatalogItem) => {
     if (locked) return;
@@ -385,6 +390,8 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   };
 
   const includedBaselineByItemId = useRef<Map<string, number>>(new Map());
+  /** Per-kid free line that − dropped, by itemId, so + can put it back in the same slot. */
+  const droppedIncludedLine = useRef<Map<string, BoxLineItem>>(new Map());
   /** Free lines as they were when donated — so Restore puts them back in the same slot. */
   const donatedLineSnapshots = useRef<Map<string, BoxLineItem[]>>(new Map());
   /** Included removal that promoted a paid extra — Undo restores both, it is not a donation. */
@@ -526,20 +533,14 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       if (!item) return;
       // Restore free units first when below the included baseline.
       if (freeQty < baseline) {
-        const multi = freeLines[0];
-        if (!multi) return;
-        await persist(
-          lineItems.map((li) =>
-            li.slotId === multi.slotId
-              ? {
-                  ...li,
-                  quantity: (li.quantity ?? 1) + 1,
-                  includedQty: li.includedQty ?? baseline,
-                }
-              : li
-          )
-        );
-        return;
+        const restored = restoreIncludedUnit(lineItems, group.itemId, droppedIncludedLine.current.get(group.itemId));
+        droppedIncludedLine.current.delete(group.itemId);
+        if (restored) {
+          await persist(restored);
+          return;
+        }
+        // The kid's present slot was filled since: this copy is an add-on.
+        baselines.set(group.itemId, freeQty);
       }
       const price = extraUnitCents(item);
       if (!guestViewOnly && !guardMutation()) return;
@@ -606,16 +607,10 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     const dropSlot = freeLines[freeLines.length - 1]?.slotId;
     const keep = freeLines[0];
     if (dropSlot && keep && dropSlot !== keep.slotId) {
-      // Preserve baseline on the remaining sibling so 2→1→2 stays free.
-      await persist(
-        lineItems
-          .filter((li) => li.slotId !== dropSlot)
-          .map((li) =>
-            li.slotId === keep.slotId
-              ? { ...li, includedQty: li.includedQty ?? baseline }
-              : li
-          )
-      );
+      // + puts this line back in its own slot (2→1→2 stays free).
+      const dropped = freeLines[freeLines.length - 1];
+      if (dropped) droppedIncludedLine.current.set(group.itemId, dropped);
+      await persist(lineItems.filter((li) => li.slotId !== dropSlot));
       return;
     }
     if (dropSlot) await persist(lineItems.filter((li) => li.slotId !== dropSlot));
@@ -1132,7 +1127,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     const snapshot = donatedLineSnapshots.current.get(itemId)?.[0];
     const options =
       snapshot && isGiftSlotLine(snapshot)
-        ? resolveIncludedGiftOptions(catalog, itemId, 6)
+        ? resolveIncludedGiftOptions(catalog, itemId, 6, snapshot.childId ? kidAgeById.get(snapshot.childId) : undefined)
         : resolveSwapOptionsForItem(item, catalog, 6, { geltCeiling });
     return options.filter((opt) => opt.id !== itemId);
   };

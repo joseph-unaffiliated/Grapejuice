@@ -29,6 +29,7 @@ import {
   resolveFreeSwapUnitCents,
   resolveIncludedGiftOptions,
   kidPlannerAges,
+  orderGiftOptionsForAge,
   filterBooksForKidAges,
   catalogBookFitsKidAge,
 } from '../../services/box/sectionUpsells';
@@ -402,7 +403,7 @@ export function GiftGiverCustomizeContent({
                   ? `${kidLabel(child)}’s gift was donated or removed. Add something else at no additional cost.`
                   : `${kidLabel(child)}’s gift repeats another item — pick something special.`
               }
-              items={includedGiftOptions}
+              items={orderGiftOptionsForAge(includedGiftOptions, kidPlannerAges([child])[0] ?? 0)}
               onPressItem={(item) => assignKidGiftAndReveal(child.id, item)}
             />
           ))}

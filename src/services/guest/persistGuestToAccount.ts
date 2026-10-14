@@ -264,6 +264,7 @@ export async function persistGuestToAccount(
         wrapSelectedItemIds: guest.wrapSelectedItemIds?.length
           ? guest.wrapSelectedItemIds
           : undefined,
+        source: 'guest-signup',
       });
     }
   }

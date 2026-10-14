@@ -14,6 +14,7 @@ import {
   type IntakeAgeGroup,
   resolveByDefaultSlot,
   resolveGiftKind,
+  defaultGiftKindOrder,
   geltSizeOf,
   isGeltSwapUp,
   type GeltSize,
@@ -683,7 +684,9 @@ export function resolveFreeSlotAddOptions(
 export function resolveIncludedGiftOptions(
   catalog: CatalogItem[],
   excludeItemId?: string,
-  limit = 6
+  limit = 6,
+  /** The kid's planner age: lead with the presents that are defaults at that age. */
+  age?: number
 ): CatalogItem[] {
   const current = excludeItemId ? catalog.find((c) => c.id === excludeItemId) : undefined;
   catalog = withoutSoldOut(catalog);
@@ -695,12 +698,31 @@ export function resolveIncludedGiftOptions(
     .filter((s) => s.price === 'included')
     .map((s) => s.targetSlotOrKind);
   const exclude = new Set(excludeItemId ? [excludeItemId] : []);
-  const base = resolveKindsToCatalog(kinds, catalog, exclude, limit);
+  const base =
+    age == null
+      ? resolveKindsToCatalog(kinds, catalog, exclude, limit)
+      : orderGiftOptionsForAge(resolveKindsToCatalog(kinds, catalog, exclude, limit + 12), age).slice(0, limit);
   if (!current) return base;
   const peers = openSwapPeers(current, catalog);
   if (!peers) return base;
   // Open peers (every stuffie / every book) go first and are never cut by `limit`.
   return withOpenPeersFirst(peers, base, limit);
+}
+
+/**
+ * Presents that are defaults at `age` first (toddler play menorah 0–2, stuffies 3–5,
+ * clay kits 6+), then the rest in their existing order.
+ */
+export function orderGiftOptionsForAge(items: CatalogItem[], age: number): CatalogItem[] {
+  const order = defaultGiftKindOrder(age);
+  const rank = (item: CatalogItem) => {
+    const i = order.findIndex((kind) => resolveGiftKind([item], kind)?.id === item.id);
+    return i < 0 ? order.length : i;
+  };
+  return items
+    .map((item, i) => ({ item, i, r: rank(item) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((x) => x.item);
 }
 
 export function isStuffieCatalogItem(item: CatalogItem): boolean {

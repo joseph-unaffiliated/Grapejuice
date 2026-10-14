@@ -247,20 +247,27 @@ export function buildCuratedBox(
     if (item) pushLineItem(lineItems, foodSlot, item);
   }
 
+  const booksInBox = new Set<string>();
   for (const p of paired) {
-    const bookRow = resolveBookForAge(rows, p.age);
+    const bookRow = resolveBookForAge(rows, p.age, booksInBox);
     const book = findById(catalog, bookRow?.id);
-    if (book) pushLineItem(lineItems, 'story', book, p.child.id);
+    if (book) {
+      booksInBox.add(book.id);
+      pushLineItem(lineItems, 'story', book, p.child.id);
+    }
   }
 
   const wrap = resolveSlotItem(catalog, rows, outline.wrapDefault);
   if (wrap) pushLineItem(lineItems, outline.wrapDefault, wrap);
 
+  const giftsInBox = new Set<string>();
   for (const g of outline.gifts) {
-    const giftRow = resolveGiftKind(rows, g.kind, g.age);
-    const gift = findById(catalog, giftRow?.id);
+    const gift = findById(catalog, resolveGiftKind(rows, g.kind, g.age, giftsInBox)?.id);
     const child = paired[g.kidIndex]?.child;
-    if (gift && child) pushLineItem(lineItems, 'gift', gift, child.id);
+    if (gift && child) {
+      giftsInBox.add(gift.id);
+      pushLineItem(lineItems, 'gift', gift, child.id);
+    }
   }
 
   const traditionalWood = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
@@ -287,11 +294,11 @@ export function buildCuratedBox(
       slotId = childId ? `${d.toKind}-${childId}` : d.toKind;
     } else if (d.section === 'presents') {
       const age = d.kidIndex != null ? paired[d.kidIndex]?.age : undefined;
-      toItem = findById(catalog, resolveGiftKind(rows, d.toKind as GiftKindId, age)?.id);
-      fromItemId = resolveGiftKind(rows, d.fromKind as GiftKindId, age)?.id;
       const child = d.kidIndex != null ? paired[d.kidIndex]?.child : undefined;
       childId = child?.id;
       slotId = childId ? `gift-${childId}` : 'gift';
+      toItem = findById(catalog, lineItems.find((li) => li.slotId === slotId)?.itemId);
+      fromItemId = resolveGiftKind(rows, d.fromKind as GiftKindId, age)?.id;
     }
 
     if (!toItem) continue;

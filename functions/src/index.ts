@@ -114,6 +114,7 @@ export { unaffiliatedVisit } from './unaffiliated';
 export { adminPromotions, awardDebriefCredit, checkPromo, getMyInfluencerStats } from './promotions';
 export { scheduledFollowUpListAudience } from './followUpListAudience';
 export { scheduledInventoryWatch } from './inventoryWatch';
+export { recordBoxDraftHistory, recordGuestBoxHistory } from './boxHistory';
 export { scheduledInventoryEmails } from './inventoryEmails';
 
 initializeApp();

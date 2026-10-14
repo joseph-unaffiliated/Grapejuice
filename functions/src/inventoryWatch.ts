@@ -325,6 +325,7 @@ export async function applySoldOutSwaps(
             inventorySwapNotices: mergeNotices(data.inventorySwapNotices, swapNotices(next.swaps, catalog, at)),
             updatedAt: at,
             updatedBy: 'inventory-swap',
+            lastChangeSource: 'inventory-swap',
           },
           { merge: true }
         );
@@ -363,6 +364,7 @@ export async function applySoldOutSwaps(
         );
       }
       if (gift.swaps.length) update['snapshot.gift.draft.lineItems'] = gift.lines;
+      update.lastChangeSource = 'inventory-swap';
       tx.update(draft.ref, update);
       return all;
     });

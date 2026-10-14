@@ -288,6 +288,18 @@ export type BoxLineItem = {
   curationNote?: string;
 };
 
+/**
+ * Who changed a box's lines, for box history (functions/src/boxHistory.ts). `default-build` marks
+ * the box the builder (and Rav's first pass) handed them; everything after it is a change.
+ */
+export type BoxChangeSource =
+  | 'customer'
+  | 'rav'
+  | 'default-build'
+  | 'guest-signup'
+  | 'auto-repair'
+  | 'inventory-swap';
+
 export type BoxDraft = {
   holidayId: string;
   lineItems: BoxLineItem[];

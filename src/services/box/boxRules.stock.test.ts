@@ -33,9 +33,9 @@ function catalog(stockLeft: Record<string, number> = {}): BoxRulesCatalogRow[] {
     row('electric-candles', 'Electric Candles', 22),
     row('latke-kit', 'Latke Kit', 100, { defaultSlot: 'latke-mix' }),
     row('sufganiyot-kit', 'Sufganiyot Kit', 100, { defaultSlot: 'sufganiyot-mix' }),
-    row('airdry-clay-dreidel', 'Airdry Clay Dreidel', 300, { defaultGiftAges: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }),
-    row('airdry-clay-menorah', 'Airdry Clay Menorah', 300, { defaultGiftAges: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }),
-    row('toddler-play-menorah', 'Toddler Play Menorah', 100, { defaultGiftAges: [0, 1, 2, 3] }),
+    row('airdry-clay-dreidel', 'Airdry Clay Dreidel', 300, { defaultGiftAges: [6, 7, 8, 9, 10, 11, 12] }),
+    row('airdry-clay-menorah', 'Airdry Clay Menorah', 300, { defaultGiftAges: [6, 7, 8, 9, 10, 11, 12] }),
+    row('toddler-play-menorah', 'Toddler Play Menorah', 100, { defaultGiftAges: [0, 1, 2] }),
     row('draw-your-own-dreidel', 'Draw Your Own Dreidel', 100, { defaultGiftAges: [4, 5, 6, 7, 8, 9, 10, 11, 12] }),
     row('lego-menorah', '"Lego" Menorah', 20, { defaultGiftAges: [5, 6, 7, 8, 9, 10, 11, 12] }),
     row('crispy-the-latke-stuffie', 'Crispy, the Latke Stuffie', 100, { defaultGiftAges: [0, 1, 2, 3, 4, 5, 6, 7] }),
@@ -46,28 +46,38 @@ function catalog(stockLeft: Record<string, number> = {}): BoxRulesCatalogRow[] {
   return rows.map((r) => (r.id in stockLeft ? { ...r, stockLeft: stockLeft[r.id] } : r));
 }
 
-// Without stock data the fixed age table still applies.
+// Presents by age: toddler play menorah 0–2, stuffie 3–5, clay 6+. Same with or without stock data.
 {
   const untracked = catalog().map((r) => ({ ...r, inventory: null }));
-  const gifts = planGifts({ kids: [{ age: 6 }, { age: 1 }], catalog: untracked });
-  assert.deepEqual(gifts.map((g) => g.kind), ['lego-menorah', 'wood-toy-menorah']);
-  assert.deepEqual(planGifts({ kids: [{ age: 6 }] }).map((g) => g.kind), ['lego-menorah']);
-}
-
-// Big-stock gifts lead; Lego (20) is never a default at full stock.
-{
-  const c = catalog();
-  assert.equal(planGifts({ kids: [{ age: 6 }], catalog: c })[0].kind, 'airdry');
-  assert.equal(planGifts({ kids: [{ age: 1 }], catalog: c })[0].kind, 'wood-toy-menorah');
-  for (const age of ALL_AGES) {
-    assert.notEqual(planGifts({ kids: [{ age }], catalog: c })[0].kind, 'lego-menorah');
+  for (const c of [catalog(), untracked, undefined]) {
+    for (const age of ALL_AGES) {
+      const kind = planGifts({ kids: [{ age }], catalog: c })[0].kind;
+      assert.equal(kind, age <= 2 ? 'wood-toy-menorah' : age <= 5 ? 'stuffie' : 'airdry', `age ${age}`);
+    }
   }
 }
 
-// Siblings get distinct gift kinds when stock allows.
+// Never a book, gelt, or a non-default gift — under any stock.
 {
-  const kinds = planGifts({ kids: [{ age: 5 }, { age: 5 }], catalog: catalog() }).map((g) => g.kind);
-  assert.equal(new Set(kinds).size, 2);
+  const allLow = catalog(Object.fromEntries(catalog().map((r) => [r.id, 1])));
+  for (const c of [catalog(), allLow]) {
+    for (const age of ALL_AGES) {
+      const kind = planGifts({ kids: [{ age }, { age }, { age }], catalog: c })[0].kind;
+      assert.ok(['wood-toy-menorah', 'stuffie', 'airdry'].includes(kind), `age ${age} ${kind}`);
+    }
+  }
+}
+
+// Siblings: a second toddler gets a stuffie; stuffies and clay kits repeat by kind (rows differ in the box).
+{
+  assert.deepEqual(
+    planGifts({ kids: [{ age: 1 }, { age: 2 }], catalog: catalog() }).map((g) => g.kind),
+    ['wood-toy-menorah', 'stuffie']
+  );
+  assert.deepEqual(
+    planGifts({ kids: [{ age: 4 }, { age: 4 }, { age: 8 }, { age: 9 }], catalog: catalog() }).map((g) => g.kind),
+    ['stuffie', 'stuffie', 'airdry', 'airdry']
+  );
 }
 
 // Within a kind, the row with the most left wins.
@@ -79,13 +89,18 @@ function catalog(stockLeft: Record<string, number> = {}): BoxRulesCatalogRow[] {
     'shamash-the-menorah-stuffie': 40,
   });
   assert.equal(resolveGiftKind(c, 'stuffie', 2)?.id, 'gimmel-the-dreidel-stuffie');
+  assert.equal(resolveGiftKind(c, 'stuffie', 4, new Set(['gimmel-the-dreidel-stuffie']))?.id, 'jelly-the-sufganiyah-stuffie');
+  // A sibling's clay kit → the other one.
+  const clay = catalog({ 'airdry-clay-menorah': 250, 'airdry-clay-dreidel': 280 });
+  assert.equal(resolveGiftKind(clay, 'airdry', 8)?.id, 'airdry-clay-dreidel');
+  assert.equal(resolveGiftKind(clay, 'airdry', 8, new Set(['airdry-clay-dreidel']))?.id, 'airdry-clay-menorah');
 }
 
 // Items at their swap reserve stop being defaults.
 {
   const c = catalog({ 'toddler-play-menorah': 15 });
   assert.equal(isDefaultEligible(c.find((r) => r.id === 'toddler-play-menorah')!), false);
-  assert.notEqual(planGifts({ kids: [{ age: 1 }], catalog: c })[0].kind, 'wood-toy-menorah');
+  assert.equal(planGifts({ kids: [{ age: 1 }], catalog: c })[0].kind, 'stuffie');
 }
 
 // Candles: beeswax → roll-your-own → electric as each hits its reserve.

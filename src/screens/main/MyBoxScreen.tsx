@@ -30,7 +30,7 @@ import {
   chargeableLineTotal,
 } from '../../services/box/buildDefaultBox';
 import { discountCentsForTerms } from '../../services/promo/promoPricing';
-import { kidPlannerAges, catalogBookFitsKidAge } from '../../services/box/sectionUpsells';
+import { kidPlannerAges, catalogBookFitsKidAge, orderGiftOptionsForAge } from '../../services/box/sectionUpsells';
 import {
   resolveCatalogDisplayPrices,
   boxALaCarteRetailValueCents,
@@ -299,7 +299,7 @@ export function MyBoxScreen() {
                   ? `${kidName(child)}’s gift was donated or removed. Add something else at no additional cost.`
                   : `${kidName(child)}’s gift repeats another item — pick something special.`
               }
-              items={includedGiftOptions}
+              items={orderGiftOptionsForAge(includedGiftOptions, kidPlannerAges([child])[0] ?? 0)}
               onPressItem={(item) => void setKidGift(child.id, item, { reveal: true })}
             />
           ))}

@@ -74,6 +74,7 @@ export const restorePilotBoxOrder = onCall(async (request): Promise<RestorePilot
       lineItems,
       updatedAt: new Date().toISOString(),
       updatedBy: uid,
+      lastChangeSource: 'order-restore',
     };
     if (checkout) {
       tx.set(draftRef, draftReset, { merge: true });

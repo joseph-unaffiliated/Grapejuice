@@ -110,7 +110,7 @@ function RavScreenBody({ phoneLayout = false }: { phoneLayout?: boolean }) {
         geltHeadcount: children.length + defaultAdults(),
         geltCeiling: defaultGeltSize(children.length),
       });
-      if (applied.length) await persist(next);
+      if (applied.length) await persist(next, 'rav');
       setCompanionPane((prev) => ({
         open: true,
         kind: 'swap_review',

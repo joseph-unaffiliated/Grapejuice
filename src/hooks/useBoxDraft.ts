@@ -26,6 +26,7 @@ import {
 } from '../services/box/soldOutReconcile';
 import { ordersService } from '../services/firestore/orders';
 import type {
+  BoxChangeSource,
   BoxLineItem,
   BoxDraft,
   ChildProfile,
@@ -136,6 +137,7 @@ async function fetchAuthBoxDraft({
           slotVotes: draft?.slotVotes,
           wrapSelectedItemIds: draft?.wrapSelectedItemIds,
           sealedSectionIds: draft?.sealedSectionIds,
+          source: 'auto-repair',
         });
       } catch (e) {
         console.warn('[box] failed to persist guest-id remap', e);
@@ -166,6 +168,7 @@ async function fetchAuthBoxDraft({
         slotVotes: draft?.slotVotes,
         wrapSelectedItemIds: draft?.wrapSelectedItemIds,
         sealedSectionIds: draft?.sealedSectionIds,
+        source: 'auto-repair',
       });
     } catch (e) {
       console.warn('[box] failed to persist adult-as-child repair', e);
@@ -231,6 +234,7 @@ async function fetchAuthBoxDraft({
         slotVotes: draft?.slotVotes,
         wrapSelectedItemIds: draft?.wrapSelectedItemIds,
         sealedSectionIds: draft?.sealedSectionIds,
+        source: soldOutDirty ? 'inventory-swap' : 'auto-repair',
       });
       if (soldOutDirty) await boxDraftService.saveSwapNotices(householdId, uid, swapNotices);
     } catch (e) {
@@ -511,7 +515,7 @@ export function useBoxDraft() {
   const refresh = useCallback(() => load({ fresh: true }), [load]);
 
   const persist = useCallback(
-    async (next: BoxLineItem[]) => {
+    async (next: BoxLineItem[], source: BoxChangeSource = 'customer') => {
       setLineItems(next);
       if (!isAuthenticated) {
         setGuestLineItems(next);
@@ -534,6 +538,7 @@ export function useBoxDraft() {
         familiarityLevel: profile?.familiarityLevel ?? familiarity,
         slotVotes,
         wrapSelectedItemIds,
+        source,
       });
     },
     [

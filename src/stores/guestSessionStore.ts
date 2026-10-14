@@ -52,6 +52,8 @@ type GuestSessionState = {
   /** 0–100: "Almost never" to "Every day" for Jewish practice in general. */
   practiceFrequencyScore: number;
   lineItems: BoxLineItem[];
+  /** When the box was last built (or re-curated by Rav's first pass); box history treats that write as the default. */
+  boxBuiltAt: string | null;
   /** Saved catalog favorites — Rav prioritizes these when building a box. */
   wishlistItemIds: string[];
   ravNotes: string;
@@ -86,6 +88,7 @@ type GuestSessionState = {
   setPracticeFrequencyScore: (score: number) => void;
   setRavNotes: (notes: string) => void;
   setLineItems: (items: BoxLineItem[]) => void;
+  markBoxBuilt: () => void;
   setWrapSelectedItemIds: (ids: string[]) => void;
   setInventorySwapNotices: (notices: InventorySwapNotice[]) => void;
   toggleWishlistItem: (itemId: string) => void;
@@ -118,6 +121,7 @@ const initialState = {
   familiarityLevel: 'moderate' as FamiliarityLevel,
   practiceFrequencyScore: 50,
   lineItems: [] as BoxLineItem[],
+  boxBuiltAt: null as string | null,
   wrapSelectedItemIds: [] as string[],
   inventorySwapNotices: [] as InventorySwapNotice[],
   wishlistItemIds: [] as string[],
@@ -162,6 +166,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         set({ practiceFrequencyScore: Math.max(0, Math.min(100, score)) }),
       setRavNotes: (ravNotes) => set({ ravNotes }),
       setLineItems: (lineItems) => set({ lineItems }),
+      markBoxBuilt: () => set({ boxBuiltAt: new Date().toISOString() }),
       setWrapSelectedItemIds: (wrapSelectedItemIds) => set({ wrapSelectedItemIds }),
       setInventorySwapNotices: (inventorySwapNotices) => set({ inventorySwapNotices }),
       toggleWishlistItem: (itemId) => {
@@ -213,6 +218,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
       resetBox: () =>
         set({
           lineItems: [],
+          boxBuiltAt: null,
           wrapSelectedItemIds: [],
           inventorySwapNotices: [],
           onboardingComplete: false,
@@ -241,6 +247,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         familiarityLevel: state.familiarityLevel,
         practiceFrequencyScore: state.practiceFrequencyScore,
         lineItems: state.lineItems,
+        boxBuiltAt: state.boxBuiltAt,
         wrapSelectedItemIds: state.wrapSelectedItemIds,
         inventorySwapNotices: state.inventorySwapNotices,
         wishlistItemIds: state.wishlistItemIds,
