@@ -216,6 +216,16 @@ geq.load("X2JHJ4WE");}();
       if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
         window['ga-disable-G-217ZZMLJSE'] = true;
       }
+      // Consent Mode defaults must precede config and mirror the OneTrust grapejuice.co rules:
+      // US starts with Performance (analytics) on and ads off; elsewhere is opt-in. OneTrust updates these.
+      gtag('consent', 'default', {
+        ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+        analytics_storage: 'denied', wait_for_update: 500
+      });
+      gtag('consent', 'default', {
+        ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+        analytics_storage: 'granted', region: ['US']
+      });
       gtag('js', new Date());
       gtag('config', 'G-217ZZMLJSE');
       // Meta Pixel queue stub: app events (src/services/analytics/metaPixel.ts) queue
