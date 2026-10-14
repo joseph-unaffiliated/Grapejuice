@@ -11,10 +11,24 @@ import { Platform } from 'react-native';
  */
 const STICKY_QUERY = new Map<string, string>();
 
+/**
+ * Campaign / ad-click params from the landing URL. GA loads deferred and reads them from
+ * location.href, so they ride along until public/index.html flags `__gjGaReady`.
+ */
+const LANDING_AD_QUERY = new Map<string, string>();
+const AD_CLICK_IDS = new Set(['fbclid', 'gclid', 'gbraid', 'wbraid', 'msclkid', 'ttclid']);
+
 export const VISITOR_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+
+function gaHasReadLanding(): boolean {
+  return (window as { __gjGaReady?: unknown }).__gjGaReady === true;
+}
 
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   const landing = new URLSearchParams(window.location.search);
+  for (const [key, value] of landing) {
+    if ((key.startsWith('utm_') || AD_CLICK_IDS.has(key)) && value) LANDING_AD_QUERY.set(key, value);
+  }
   if (landing.get('vge') === 'true') {
     STICKY_QUERY.set('vge', 'true');
     const aid = landing.get('aid');
@@ -45,9 +59,11 @@ export function setStickyVisitorId(id: string): void {
 
 /** Append any sticky params the path does not already carry. */
 export function withStickyQuery(path: string): string {
-  if (STICKY_QUERY.size === 0) return path;
+  const carryAdQuery = LANDING_AD_QUERY.size > 0 && Platform.OS === 'web' && typeof window !== 'undefined' && !gaHasReadLanding();
+  if (STICKY_QUERY.size === 0 && !carryAdQuery) return path;
   let next = path;
-  for (const [key, value] of STICKY_QUERY) {
+  const entries = carryAdQuery ? [...STICKY_QUERY, ...LANDING_AD_QUERY] : [...STICKY_QUERY];
+  for (const [key, value] of entries) {
     if (new RegExp(`[?&]${key}=`).test(next)) continue;
     next = `${next}${next.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}`;
   }

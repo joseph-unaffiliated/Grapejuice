@@ -228,6 +228,9 @@ geq.load("X2JHJ4WE");}();
       });
       gtag('js', new Date());
       gtag('config', 'G-217ZZMLJSE');
+      // Runs once GA has processed config (and read utm_* / fbclid from the landing URL);
+      // until then src/navigation/stickyQuery.ts keeps those params in the address bar.
+      gtag('get', 'G-217ZZMLJSE', 'client_id', function () { window.__gjGaReady = true; });
       // Meta Pixel queue stub: app events (src/services/analytics/metaPixel.ts) queue
       // here until fbevents.js loads, then flush in order.
       !function(f){if(f.fbq)return;var n=f.fbq=function(){n.callMethod?
