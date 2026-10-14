@@ -50,6 +50,7 @@ import {
   assignKidBookLines,
   assignKidGiftLines,
   coalesceLinesByItemId,
+  defaultPreWrapSelection,
   donatedItemQuantities,
   withCashDonationCents,
   isGiftSlotLine,
@@ -420,6 +421,17 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       (li) => !idSet.has(li.slotId) && !isWrapControlSlot(li.slotId)
     );
     await persist(next);
+    if (wrapSelectedIds.size === 0) {
+      const picks = defaultPreWrapSelection(next, catalog);
+      if (picks.length) await persistWrapSelection(picks);
+    }
+  };
+
+  /** Undo pre-wrap: the paper comes back as the included choice, so the wrap list clears first. */
+  const swapBackToPaper = async (paper: CatalogItem) => {
+    if (locked) return;
+    await persistWrapSelection([]);
+    await modalAddToBox(paper, { includedPaper: true });
   };
 
   const removeCoalesced = async (
@@ -780,7 +792,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     setProductModalItem(item);
   };
 
-  const modalAddToBox = async (item: CatalogItem) => {
+  const modalAddToBox = async (item: CatalogItem, opts?: { includedPaper?: boolean }) => {
     if (locked) return;
     const sectionId = productModalSection ?? displaySectionForCatalogItem(item);
     // Donated included practice (e.g. candles) — restoring beeswax/MYO/electric is $0.
@@ -801,7 +813,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       /wrapping.?paper/i.test(`${item.id} ${item.name}`);
     // After “pre-wrap instead”: re-adding paper with nothing marked to wrap restores the
     // included paper (inverse of that swap). Paper on top of an active wrap list is +$extra.
-    if (nextUnit === 0 && isPaper && wrapSelectedIds.size > 0) {
+    if (nextUnit === 0 && isPaper && wrapSelectedIds.size > 0 && !opts?.includedPaper) {
       nextUnit = EXTRA_FLAT_CENTS;
     }
     // A second candle/dreidel/food choice next to the included one is an add-on at its price.
@@ -1000,7 +1012,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     [lineItems]
   );
 
-  const upsellsBySection = useMemo(() => {
+  const sectionUpsells = useMemo(() => {
     const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
     const ages = kidPlannerAges(children);
     for (const section of BOX_DISPLAY_SECTIONS) {
@@ -1121,6 +1133,20 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     includedBaselineByItemId.current,
     { wrapSelectedCount: wrapSelectedIds.size }
   );
+  /** No paper card and the paper wasn't donated: the presents come wrapped. */
+  const preWrap =
+    lineItems.length > 0 &&
+    wrapControlLines(lineItems).length === 0 &&
+    !donatedItems.some((d) => isWrappingPaperItem(d.item.id, catalog));
+  /** While pre-wrapped, paper comes back free through "Send me wrapping paper instead", not as a paid add. */
+  const upsellsBySection = useMemo(() => {
+    if (!preWrap) return sectionUpsells;
+    const map = {} as Record<BoxDisplaySectionId, CatalogItem[]>;
+    for (const section of BOX_DISPLAY_SECTIONS) {
+      map[section.id] = sectionUpsells[section.id].filter((item) => !isWrappingPaperItem(item.id, catalog));
+    }
+    return map;
+  }, [sectionUpsells, preWrap, catalog]);
   const donatedSwapOptions = (itemId: string): CatalogItem[] => {
     const item = catalog.find((c) => c.id === itemId);
     if (!item) return [];
@@ -1296,6 +1322,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     ordersLoading,
     persist,
     persistWrapSelection,
+    preWrap,
     productModalItem,
     productModalSection,
     refreshDraft,
@@ -1325,6 +1352,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     swapOptionsBySlot,
     swapPicker,
     swapToPreWrap,
+    swapBackToPaper,
     toggleSurprise,
     upsellsBySection,
     user,

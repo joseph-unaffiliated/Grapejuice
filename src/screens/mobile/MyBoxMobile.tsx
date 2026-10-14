@@ -20,6 +20,7 @@ import {
   isWrappingPaperItem,
   isGiftSlotLine,
   includedPracticeSlotVacant,
+  wrappableLinesInBox,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
@@ -56,7 +57,9 @@ export type MobileBoxEditing = Pick<
   | 'modalRemoveFromBox' | 'donatedLineSnapshots' | 'cardOnFile' | 'swapToPreWrap' | 'swapEligibleIdsBySection' | 'startsOn'
   | 'setProductModalSection' | 'saveOrderUpdates' | 'ordersLoading' | 'modalAddToBox' | 'hasSessionEdits' | 'guestViewOnly'
   | 'freeAddOptionsBySection' | 'estimatedDeliveryBy' | 'changeBoxQuantity' | 'addFreeItemToEmptySlot'
->;
+> &
+  /** Choosing which presents come wrapped after pre-wrap; the gift flow omits these. */
+  Partial<Pick<ReturnType<typeof useMyBoxEditing>, 'wrapSelectedIds' | 'persistWrapSelection' | 'swapBackToPaper'>>;
 
 /** Gift flow: their box under a task header, "Send by", and Next instead of Checkout. */
 export type MobileBoxGiftMode = {
@@ -411,25 +414,69 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     );
   };
 
-  /** Pre-wrap is a choice, not a donation: say the presents come wrapped, and offer the paper back. */
+  /** Pre-wrap is a choice, not a donation: say the presents come wrapped, pick which, and offer the paper back. */
   const wrappedNote = (rows: CoalescedBoxLine[], donated: { item: CatalogItem }[]) => {
-    if (e.locked) return null;
     if (rows.some((g) => isWrappingPaperItem(g.itemId, e.catalog, g.primary))) return null;
     if (donated.some((d) => isWrappingPaperItem(d.item.id, e.catalog))) return null;
     if (!rows.some((g) => isGiftSlotLine(g.primary))) return null;
+    const selected = e.wrapSelectedIds;
+    const persistSelection = e.persistWrapSelection;
+    const choices = selected && persistSelection ? coalesceLinesByItemId(wrappableLinesInBox(e.lineItems, e.catalog)) : null;
+    const picked = choices?.filter((g) => selected?.has(g.itemId)) ?? [];
+    if (e.locked && !picked.length) return null;
     const paper = wrappingPaperItem();
+    const toggle = (itemId: string) => {
+      if (!selected || !persistSelection) return;
+      const next = new Set(selected);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      void persistSelection([...next]);
+    };
     return (
       <View style={styles.wrapped}>
-        <Text style={styles.wrappedText}>Your presents will come wrapped. Swap back to wrapping paper instead.</Text>
-        {paper ? (
+        {choices ? (
+          <>
+            <Text style={styles.wrappedTitle}>We’ll wrap your presents</Text>
+            <Text style={styles.wrappedText}>
+              {e.locked ? 'These come wrapped.' : 'Instead of sending paper. Tap a present to choose whether it comes wrapped.'}
+            </Text>
+            {(e.locked ? picked : choices).map((g) => {
+              const item = byId.get(g.itemId);
+              const on = selected?.has(g.itemId) ?? false;
+              const name = item?.name ?? g.primary.label ?? g.itemId;
+              return (
+                <Pressable
+                  key={g.key}
+                  onPress={() => toggle(g.itemId)}
+                  disabled={e.locked}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on, disabled: e.locked }}
+                  aria-checked={on}
+                  accessibilityLabel={`Wrap ${name}`}
+                  style={[styles.wrapRow, on && styles.wrapRowOn]}
+                >
+                  <BoxItemImage size={36} imageUrl={item?.imageUrl} itemId={g.itemId} />
+                  <Text style={styles.wrapRowName} numberOfLines={2}>
+                    {name}
+                    {g.quantity > 1 ? ` ×${g.quantity}` : ''}
+                  </Text>
+                  <View style={[styles.wrapCheck, on && styles.wrapCheckOn]}>{on ? <Icon icon={icons.check} size={11} color={m.white} /> : null}</View>
+                </Pressable>
+              );
+            })}
+          </>
+        ) : (
+          <Text style={styles.wrappedText}>Your presents will come wrapped.</Text>
+        )}
+        {paper && !e.locked ? (
           <MobileButton
-            label="Swap back to wrapping paper"
+            label="Send me wrapping paper instead"
             variant="secondary"
             height={40}
             style={{ marginTop: 10 }}
             onPress={() => {
               e.setProductModalSection('presents');
-              void e.modalAddToBox(paper);
+              void (e.swapBackToPaper ? e.swapBackToPaper(paper) : e.modalAddToBox(paper));
               setToast({ message: 'Wrapping paper is back in your box' });
             }}
           />
@@ -551,7 +598,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                 ) : null}
               </View>
               {wrapping && g.unitCents === 0 && !e.locked ? (
-                <MobileButton label="We wrap the presents instead" variant="secondary" height={40} style={{ marginTop: 10 }} onPress={() => { void e.swapToPreWrap(g.lines.map((l) => l.slotId)); setToast({ message: 'We’ll wrap the presents' }); }} />
+                <MobileButton label="Wrap gifts for me instead" variant="secondary" height={40} style={{ marginTop: 10 }} onPress={() => { void e.swapToPreWrap(g.lines.map((l) => l.slotId)); setToast({ message: 'We’ll wrap your gifts' }); }} />
               ) : null}
               {alts.length && !e.locked ? (
                 <>
@@ -648,7 +695,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   };
 
   const productSheet = (item: CatalogItem, group: CoalescedBoxLine | null, sectionId: BoxDisplaySectionId) => {
-    const alts = group && group.unitCents === 0 ? (e.swapOptionsBySlot[group.primary.slotId] ?? []).filter((o) => o.id !== group.itemId) : [];
+    const wrapping = group ? isWrapControlSlot(group.primary.slotId) : false;
+    const alts = group && group.unitCents === 0 && !wrapping ? (e.swapOptionsBySlot[group.primary.slotId] ?? []).filter((o) => o.id !== group.itemId) : [];
     const desc = (item.description ?? '').trim();
     const offer = offerFor(item, sectionId, rowsFor(sectionId));
     const swapSource = !group && offer.swap && !e.locked ? findSwapSourceLine(item, e.lineItems, e.catalog, sectionId, { geltCeiling }) : null;
@@ -708,6 +756,19 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         <Pressable onPress={() => { setSheet(null); navigation.navigate('CatalogProduct', { slug: item.id }); }} accessibilityRole="button" style={{ marginTop: 10 }}>
           <Text style={styles.link}>See full details ›</Text>
         </Pressable>
+        {wrapping && group && group.unitCents === 0 && !e.locked ? (
+          <MobileButton
+            label="Wrap gifts for me instead"
+            variant="secondary"
+            height={44}
+            style={{ marginTop: 20 }}
+            onPress={() => {
+              void e.swapToPreWrap(group.lines.map((l) => l.slotId));
+              setSheet(null);
+              setToast({ message: 'We’ll wrap your gifts' });
+            }}
+          />
+        ) : null}
         {alts.length && group && !e.locked ? (
           <>
             <Text style={[mType.h3, { marginTop: 20, marginBottom: 10 }]}>Swap it for</Text>
@@ -1066,6 +1127,12 @@ const styles = StyleSheet.create({
   browseTitle: { fontSize: 15, lineHeight: 20, color: m.ink, textAlign: 'center', ...mFont(500) },
   wrapped: { marginTop: 8, padding: 14, borderRadius: mRadius.md, backgroundColor: m.beige },
   wrappedText: { fontSize: 14, lineHeight: 20, color: m.ink, ...mFont(400) },
+  wrappedTitle: { fontSize: 15.5, lineHeight: 21, color: m.ink, marginBottom: 2, ...mFont(500) },
+  wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 8, borderRadius: 12, borderWidth: 1, borderColor: m.lineWarm, backgroundColor: m.white },
+  wrapRowOn: { borderColor: m.gold },
+  wrapRowName: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 19, color: m.ink, ...mFont(400) },
+  wrapCheck: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: m.gold, alignItems: 'center', justifyContent: 'center', backgroundColor: m.white },
+  wrapCheckOn: { backgroundColor: m.goldDark, borderColor: m.goldDark },
   altBtns: { flexDirection: 'row', gap: 6 },
   altName: { fontSize: 12.5, color: m.ink, lineHeight: 16, minHeight: 32, ...mFont(400) },
   addGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

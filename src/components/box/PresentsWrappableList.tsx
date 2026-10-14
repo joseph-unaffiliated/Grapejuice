@@ -28,6 +28,10 @@ type Props = {
   onToggleWrapSelection?: (itemId: string) => void;
   /** When locked, only show already-selected wrap items as non-interactive. */
   locked?: boolean;
+  /** The paper was swapped for pre-wrap (not donated): lead with "we'll wrap your presents". */
+  preWrap?: boolean;
+  /** Pre-wrap only: put the included wrapping paper back. */
+  onUsePaperInstead?: () => void;
 };
 
 /** True when the box has no wrapping-paper card (pre-wrap / wrap-included mode). */
@@ -90,6 +94,8 @@ export function PresentsWrappableList({
   selectedItemIds: selectedProp,
   onToggleWrapSelection,
   locked = false,
+  preWrap = false,
+  onUsePaperInstead,
 }: Props) {
   const { colors } = useThemeMode();
   const { isDesktop } = useWebLayout();
@@ -194,15 +200,37 @@ export function PresentsWrappableList({
 
   return (
     <View style={styles.root}>
+      {preWrap ? (
+        <View style={styles.preWrapCard}>
+          <Text style={styles.preWrapTitle}>We’ll wrap your presents instead of sending paper</Text>
+          <Text style={styles.empty}>
+            {locked
+              ? 'These come wrapped.'
+              : toWrap.length
+                ? 'These come wrapped. Tap a present to add or remove it.'
+                : 'Nothing is marked to wrap yet. Tap a present below to have it wrapped.'}
+          </Text>
+          {onUsePaperInstead && !locked ? (
+            <TouchableOpacity
+              onPress={onUsePaperInstead}
+              accessibilityRole="button"
+              style={styles.paperButton}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.paperButtonText}>Send me wrapping paper instead</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
       {toWrap.length > 0 ? (
         <View style={styles.group}>
-          <Text style={styles.heading}>{toWrapHeading}</Text>
+          <Text style={styles.heading}>{preWrap ? 'We’ll wrap (Included)' : toWrapHeading}</Text>
           <View style={styles.list}>{toWrap.map((row) => renderChip(row, true))}</View>
         </View>
       ) : null}
       {!locked ? (
         <View style={styles.group}>
-          <Text style={styles.heading}>Wrappable in this box</Text>
+          <Text style={styles.heading}>{preWrap ? 'Not wrapped' : 'Wrappable in this box'}</Text>
           {wrappable.length === 0 ? (
             <Text style={styles.empty}>
               Nothing wrappable yet — presents show under their practices above.
@@ -221,6 +249,34 @@ export function PresentsWrappableList({
 function createStyles(colors: SemanticColors, desktop: boolean) {
   return StyleSheet.create({
     root: { gap: spacing.md, width: '100%' },
+    preWrapCard: {
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.accentCream,
+      alignItems: desktop ? 'center' : 'stretch',
+    },
+    preWrapTitle: {
+      fontSize: typography.md,
+      ...typeface('medium'),
+      color: colors.textPrimary,
+      letterSpacing: -0.26,
+      textAlign: desktop ? 'center' : 'left',
+    },
+    paperButton: {
+      alignSelf: desktop ? 'center' : 'flex-start',
+      borderWidth: 1,
+      borderColor: colors.goldMuted,
+      borderRadius: 999,
+      paddingVertical: 8,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.bgPrimary,
+    },
+    paperButtonText: {
+      fontSize: typography.sm,
+      ...typeface('regular'),
+      color: colors.textPrimary,
+    },
     group: { gap: spacing.sm, width: '100%' },
     heading: {
       fontSize: typography.md,

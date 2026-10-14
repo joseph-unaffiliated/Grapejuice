@@ -676,6 +676,7 @@ export function CatalogProductScreen() {
             locked={locked}
             saving={saving}
             soldOut={isSoldOut || boxSoldOut}
+            boxOnly={isBoxOnly}
             roleOptions={roleOptions}
             openAdd={openAdd}
             onConsumeOpenAdd={() => {

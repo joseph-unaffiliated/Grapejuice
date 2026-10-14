@@ -21,7 +21,7 @@ import { warmBoxCheckout } from '../../services/checkout/checkoutPrefetch';
 import { editUntilLockNote } from '../../services/hanukkah/dates';
 import type { MainStackParamList } from '../../navigation/types';
 import { swapNoticeText } from '../../services/box/soldOutReconcile';
-import { defaultGeltSize } from '../../services/box/boxRules';
+import { defaultGeltSize, resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
 import {
   formatCatalogDollars,
   formatDollars,
@@ -58,6 +58,7 @@ import {
   getCashDonationCents,
   isGiftSlotLine,
   isWrapControlSlot,
+  isWrappingPaperItem,
   kidsNeedingBook,
   kidsNeedingGift,
   resolveBoxItemAttributionKind,
@@ -172,6 +173,7 @@ export function MyBoxScreen() {
     ordersLoading,
     persist,
     persistWrapSelection,
+    preWrap,
     productModalItem,
     productModalSection,
     refreshDraft,
@@ -200,6 +202,7 @@ export function MyBoxScreen() {
     swapOptionsBySlot,
     swapPicker,
     swapToPreWrap,
+    swapBackToPaper,
     toggleSurprise,
     upsellsBySection,
     user,
@@ -208,6 +211,14 @@ export function MyBoxScreen() {
     wrapSelectedIds,
   } = editing;
   const { household } = useSession();
+
+  const wrappingPaper = useMemo(() => {
+    const row = resolveByDefaultSlot(catalog, WRAP_POLICY.defaultSlot);
+    return (
+      (row ? catalog.find((c) => c.id === row.id) : undefined) ??
+      catalog.find((c) => isWrappingPaperItem(c.id, catalog))
+    );
+  }, [catalog]);
 
   useEffect(() => {
     if (!household?.id) return;
@@ -377,6 +388,15 @@ export function MyBoxScreen() {
                   childrenProfiles={children}
                   selectedItemIds={wrapSelectedIds}
                   locked={locked}
+                  preWrap={preWrap}
+                  onUsePaperInstead={
+                    preWrap && wrappingPaper
+                      ? () => {
+                          setProductModalSection('presents');
+                          void swapBackToPaper(wrappingPaper);
+                        }
+                      : undefined
+                  }
                   onToggleWrapSelection={
                     locked
                       ? undefined

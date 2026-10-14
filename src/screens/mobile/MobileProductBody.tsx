@@ -42,6 +42,8 @@ type Props = {
   locked: boolean;
   saving: boolean;
   soldOut: boolean;
+  /** Only sold in a box: show the box price and start a box instead of a cart. */
+  boxOnly?: boolean;
   /** Options for the role chooser; empty means plain "Add to my box". */
   roleOptions: RoleOption[];
   /**
@@ -127,12 +129,16 @@ export function MobileProductBody(p: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.openAdd]);
 
+  const boxPrice = p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included';
+
   const bar = p.soldOut ? (
     <StickyBar label="Sold out" total={p.onNotifyBack ? 'We can email you if it comes back' : ''} layout="row" cta={{ label: 'Email me if it’s back', onPress: p.onNotifyBack ?? (() => {}), variant: 'secondary', disabled: !p.onNotifyBack }} />
   ) : p.inBox ? (
     <StickyBar label={p.inBoxUnitCents > 0 ? `Added${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''}` : 'In your box'} total={p.inBoxUnitCents > 0 ? `+${formatCatalogDollars(p.inBoxUnitCents * p.boxQuantity)}` : 'Included'} cta={{ label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }} />
   ) : p.hasBox ? (
     <StickyBar total={p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included'} cta={{ label: 'Add to my box', onPress: pressAddToMyBox, disabled: p.locked || p.saving, busy: p.saving }} />
+  ) : p.boxOnly ? (
+    <StickyBar label="In a box" total={boxPrice} cta={{ label: 'Start a box with it', onPress: p.onStartBoxWithIt }} />
   ) : (
     <StickyBar label="On its own" total={formatCatalogDollars(p.priceCents)} cta={{ label: 'Add to Cart', onPress: p.onBuyJustThis ?? (() => {}), disabled: !p.onBuyJustThis || p.saving }} />
   );
@@ -173,10 +179,15 @@ export function MobileProductBody(p: Props) {
         <View style={styles.priceRow}>
           {p.soldOut ? (
             <Text style={styles.soldPill}>Sold out</Text>
+          ) : p.boxOnly ? (
+            <>
+              <Text style={styles.price}>{boxPrice}</Text>
+              <Text style={styles.member}>{p.hasBox ? 'in your box' : 'in a box'}</Text>
+            </>
           ) : (
             <Text style={styles.price}>{formatCatalogDollars(p.priceCents)}</Text>
           )}
-          {!p.soldOut && p.hasBox && p.memberCents > 0 && p.memberCents < p.priceCents ? <Text style={styles.member}>{formatCatalogDollars(p.memberCents)} in your box</Text> : null}
+          {!p.soldOut && !p.boxOnly && p.hasBox && p.memberCents > 0 && p.memberCents < p.priceCents ? <Text style={styles.member}>{formatCatalogDollars(p.memberCents)} in your box</Text> : null}
           {low ? (
             <View style={styles.corner}>
               <Text style={styles.cornerText}>Low stock</Text>
