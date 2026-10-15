@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildDefaultLineItems } from './buildDefaultBox';
+import { buildDefaultLineItems, repairWoodDreidelHouseholdQty } from './buildDefaultBox';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 
 const catalog = JSON.parse(
@@ -30,5 +30,29 @@ assert.equal(freeDreidels(buildDefaultLineItems(catalog, fiveYoung, [], 2)), 7, 
 
 const wood = buildDefaultLineItems(catalog, [], [], 2).find((l) => l.slotId === 'wood-dreidel');
 assert.equal(wood?.includedQty, 2, 'wood line includes every unit');
+
+const woodLine = (quantity: number, includedQty: number): BoxLineItem => ({
+  slotId: 'wood-dreidel',
+  itemId: 'classic-wooden-dreidel',
+  quantity,
+  includedQty,
+  unitCents: 0,
+  label: 'Classic Wooden Dreidel',
+});
+const oneKid = [kid('a', 4)];
+
+const donated = repairWoodDreidelHouseholdQty([woodLine(1, 2)], oneKid, 1);
+assert.equal(donated.dirty, false, 'a lowered wood dreidel is a donation, not a short seed');
+
+const shortSeed = repairWoodDreidelHouseholdQty([woodLine(1, 1)], oneKid, 1);
+assert.equal(shortSeed.dirty, true, 'an old one-dreidel seed still grows to household size');
+assert.equal(freeDreidels(shortSeed.lineItems), 2);
+
+const donatedWithPaid = repairWoodDreidelHouseholdQty(
+  [woodLine(1, 2), { ...woodLine(1, 0), slotId: 'wood-dreidel::x', unitCents: 100 }],
+  oneKid,
+  1
+);
+assert.equal(freeDreidels(donatedWithPaid.lineItems), 2, 'paid overflow still converts to free');
 
 console.log('buildDefaultBox.dreidel: ok');

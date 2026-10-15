@@ -458,6 +458,8 @@ export function repairWoodDreidelHouseholdQty(
   if (freeQty >= targetQty && Math.max(freeQty, persistedIncluded) >= targetQty) {
     return { lineItems, dirty: false };
   }
+  // Free units below the persisted allotment were donated; only paid overflow is absorbed.
+  if (paidQty === 0 && persistedIncluded > freeQty) return { lineItems, dirty: false };
   // Adults unknown: free wood already matching the gelt headcount is the household size.
   if (adults == null && lineItems.length) {
     const geltUnits = freeGeltLittleUnits(lineItems);
