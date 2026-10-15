@@ -34,7 +34,14 @@ import {
 } from '../services/box/buildDefaultBox';
 import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
-import { isIncludedSwap, swapOptionsForLine, swapUnitCents } from '../services/box/swapPricing';
+import {
+  addOnTopUnitCents,
+  geltAddFitsAllowance,
+  isIncludedSwap,
+  swapOptionsForLine,
+  swapUnitCents,
+  type AddPricingContext,
+} from '../services/box/swapPricing';
 import {
   resolveSectionUpsellItems,
   resolveSwapOptionsForItem,
@@ -43,7 +50,7 @@ import {
   kidPlannerAges,
   filterBooksForKidAges,
 } from '../services/box/sectionUpsells';
-import { boxAddOnUnitCents, extraUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../services/box/pricing';
+import { extraUnitCents } from '../services/box/pricing';
 import type { BoxLineItem, CatalogItem, InventorySwapNotice } from '../types/pilot';
 import {
   assignKidBookLines,
@@ -797,40 +804,41 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     setProductModalItem(item);
   };
 
-  const modalAddToBox = async (item: CatalogItem, opts?: { includedPaper?: boolean }) => {
+  const addPricingContext = (): AddPricingContext => ({
+    catalog,
+    lineItems,
+    people,
+    wrapSelectedCount: wrapSelectedIds.size,
+  });
+
+  /** Adding `item` fills an empty included slot: a kid's book or present, or a donated practice item. */
+  const addClaimsIncludedSlot = (item: CatalogItem, sectionId: BoxDisplaySectionId) => {
+    if (openKidSlotFor(item, sectionId, lineItems, children.map((c) => c.id), catalog)) return true;
+    if (!(freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id)) return false;
+    if (!includedPracticeSlotVacant(sectionId, lineItems)) return false;
+    return !geltSizeOf(item) || geltAddFitsAllowance(item, addPricingContext());
+  };
+
+  /** What `modalAddToBox` charges right now — the number "+$X" labels show. */
+  const addOnTopCents = (item: CatalogItem, sectionId: BoxDisplaySectionId) =>
+    addClaimsIncludedSlot(item, sectionId) ? 0 : addOnTopUnitCents(item, sectionId, addPricingContext());
+
+  const modalAddToBox = async (
+    item: CatalogItem,
+    opts?: { includedPaper?: boolean; sectionId?: BoxDisplaySectionId }
+  ) => {
     if (locked) return;
-    const sectionId = productModalSection ?? displaySectionForCatalogItem(item);
+    const sectionId = opts?.sectionId ?? productModalSection ?? displaySectionForCatalogItem(item);
     // Donated included practice (e.g. candles) — restoring beeswax/MYO/electric is $0.
-    const freeRestoreIds = new Set(
-      (freeAddOptionsBySection[sectionId] ?? []).map((i) => i.id)
-    );
-    if (
-      (freeRestoreIds.has(item.id) && includedPracticeSlotVacant(sectionId, lineItems)) ||
-      openKidSlotFor(item, sectionId, lineItems, children.map((c) => c.id), catalog)
-    ) {
+    if (addClaimsIncludedSlot(item, sectionId)) {
       await addFreeItemToEmptySlot(sectionId, item);
       return;
     }
-    let nextUnit = boxAddOnUnitCents(item);
+    const nextUnit = addOnTopUnitCents(item, sectionId, { ...addPricingContext(), includedPaper: opts?.includedPaper });
     const isPaper =
       item.defaultSlot === 'wrapping-paper' ||
       item.slotId === 'wrapping-paper' ||
       /wrapping.?paper/i.test(`${item.id} ${item.name}`);
-    // After “pre-wrap instead”: re-adding paper with nothing marked to wrap restores the
-    // included paper (inverse of that swap). Paper on top of an active wrap list is +$extra.
-    if (nextUnit === 0 && isPaper && wrapSelectedIds.size > 0 && !opts?.includedPaper) {
-      nextUnit = EXTRA_FLAT_CENTS;
-    }
-    // A second candle/dreidel/food choice next to the included one is an add-on at its price.
-    if (
-      nextUnit === 0 &&
-      !isPaper &&
-      (sectionId === 'candles' || sectionId === 'dreidel' || sectionId === 'food') &&
-      !includedPracticeSlotVacant(sectionId, lineItems)
-    ) {
-      const { memberCents } = resolveCatalogDisplayPrices(item);
-      nextUnit = memberCents > 0 ? memberCents : EXTRA_FLAT_CENTS;
-    }
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     if (lineItems.some((li) => li.itemId === item.id)) return;
     // Never reuse an occupied practice slot — "Add" means in addition to what's
@@ -1350,6 +1358,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     lockAt,
     locked,
     modalAddToBox,
+    addOnTopCents,
     modalRemoveFromBox,
     modalSwapIntoBox,
     now,

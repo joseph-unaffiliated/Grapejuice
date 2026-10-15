@@ -192,9 +192,8 @@ export const WRAP_POLICY = {
   defaultSlot: 'wrapping-paper' as DefaultSlotId,
   /** Same member price as wrapping paper; catalog wrap-service role. */
   preWrapSlot: 'pre-wrap' as DefaultSlotId,
-  includedPreWrapSlots: 3,
-  /** 4+ wrappable items → one extra wrap charge (catalog price). */
-  extraWrapChargeAt: 4,
+  /** Pre-wrap covers any number of wrappable presents; this is only how many get marked by default. */
+  defaultPreWrapPicks: 3,
   /** Paper can be added back on top of pre-wrap (extra). */
   paperOnTopOfPreWrap: 'extra' as const,
   /** Storefront-only wrap add-on — out of scope for box CONTEXT for now. */
@@ -343,7 +342,7 @@ export const SECTION_RULES: SectionRules[] = [
     id: 'dreidel',
     title: 'Play Dreidel',
     notes: [
-      'Scale: 1 wood dreidel per kid (adults never get a default dreidel).',
+      'Scale: 1 dreidel per person, kids and adults.',
       'At 5+ kids: mix wood / airdry / blank by age (older → activity); no consolidation.',
     ],
     slots: [
@@ -438,7 +437,7 @@ export const SECTION_RULES: SectionRules[] = [
     id: 'presents',
     title: 'Give Presents',
     notes: [
-      'Wrapping paper default; swap to pre-wrap (same price as paper) for up to 3 wrappable items.',
+      'Wrapping paper default; swap to pre-wrap (same price as paper) for any number of wrappable items.',
       'Unused pre-wrap slots OK; 4+ wrappable → one extra wrap charge; paper on top of pre-wrap = extra.',
       'Per kid: one present from (toy menorah | blank/clay dreidel | stuffie | extra book | DIY candles); donate OK (empty slot).',
       'Prefer distinct gifts across kids; stock-aware.',
@@ -451,7 +450,7 @@ export const SECTION_RULES: SectionRules[] = [
           {
             targetSlotOrKind: 'pre-wrap',
             price: 'included',
-            note: 'same price as paper; covers up to 3 wrappable items',
+            note: 'same price as paper; covers every wrappable item',
           },
           { targetSlotOrKind: 'donate', price: 'donate' },
         ],
@@ -1409,7 +1408,7 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     '- Gelt swaps convert at the exchange rate, never above the allowance (Big → 3 Little); Party is paid unless 12+ people',
     '',
     'Scaling with kids:',
-    '- 1 book + 1 present + 1 dreidel per kid; gelt as above',
+    '- 1 book + 1 present per kid; 1 dreidel per person; gelt as above',
     '- 5+ kids dreidels: mix wood/airdry/blank by age (older → activity); no consolidation',
     '',
     'Gift defaults (prefer distinct across kids; never last unit; books infinite/no hold):',
@@ -1439,7 +1438,7 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     '- Remove from section lists; roll up Donated value at member price in summary (tooltip); no box price reduction',
     '',
     'Wrap:',
-    `- Default ${WRAP_POLICY.defaultSlot}; pre-wrap same price, covers ≤${WRAP_POLICY.includedPreWrapSlots} wrappable; ${WRAP_POLICY.extraWrapChargeAt}+ → one extra wrap charge`,
+    `- Default ${WRAP_POLICY.defaultSlot}; pre-wrap same price, covers any number of wrappable presents (one wrap choice per box)`,
     `- Wrappable: ${WRAP_POLICY.wrappableKinds.join(', ')}. NOT: ${WRAP_POLICY.notWrappableKinds.join(', ')}`,
     '- Prefer catalog Wrappable checkbox when present. Storefront-only wrap add-on out of scope for box CONTEXT.',
     '',

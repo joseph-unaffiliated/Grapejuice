@@ -61,6 +61,7 @@ export type MobileBoxEditing = Pick<
   | 'modalRemoveFromBox' | 'donatedLineSnapshots' | 'cardOnFile' | 'swapToPreWrap' | 'swapEligibleIdsBySection' | 'startsOn'
   | 'setProductModalSection' | 'saveOrderUpdates' | 'ordersLoading' | 'modalAddToBox' | 'hasSessionEdits' | 'guestViewOnly'
   | 'freeAddOptionsBySection' | 'estimatedDeliveryBy' | 'changeBoxQuantity' | 'addFreeItemToEmptySlot' | 'geltCeiling'
+  | 'addOnTopCents'
 > &
   /** Choosing which presents come wrapped after pre-wrap; the gift flow omits these. */
   Partial<Pick<ReturnType<typeof useMyBoxEditing>, 'wrapSelectedIds' | 'persistWrapSelection' | 'swapBackToPaper'>>;
@@ -301,14 +302,15 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const offerFor = (item: CatalogItem, sectionId: BoxDisplaySectionId, sectionRows: CoalescedBoxLine[]) => {
     const slotOpen = sectionRows.length === 0 || includedPracticeSlotVacant(sectionId, e.lineItems);
     const kidSlotOpen = !!openKidSlotFor(item, sectionId, e.lineItems, kids.map((c) => c.id), e.catalog);
-    const free =
+    const claimsSlot =
       kidSlotOpen ||
       !!donatedStandIn(item) ||
       (slotOpen && (e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id));
+    const cents = claimsSlot ? 0 : e.addOnTopCents(item, sectionId);
+    const free = cents === 0;
     const swap = !free && (e.swapEligibleIdsBySection[sectionId]?.has(item.id) ?? false);
-    const cents = resolveCatalogDisplayPrices(item).memberCents;
     const label = free ? 'Add · included' : swap ? 'Swap' : `Add · +${formatCatalogDollars(cents)}`;
-    return { free, swap, label, cents };
+    return { free, claimsSlot, swap, label, cents };
   };
 
   /** The aisle an item belongs in; only presents takes whatever section the button was in. */
@@ -326,7 +328,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       return;
     }
     const offer = offerFor(item, sectionId, rowsFor(sectionId));
-    if (offer.free) {
+    if (offer.claimsSlot) {
       await e.addFreeItemToEmptySlot(sectionId, item);
       setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(item) } });
       return;
@@ -344,14 +346,15 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       }
     }
     e.setProductModalSection(sectionId);
-    await e.modalAddToBox(item);
+    await e.modalAddToBox(item, { sectionId });
     setToast({ message: `Added ${item.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(item) } });
   };
 
   /** Always a paid extra, even when the item could be swapped in. */
   const addExtra = async (it: CatalogItem, from: BoxDisplaySectionId) => {
-    e.setProductModalSection(homeSection(it, from));
-    await e.modalAddToBox(it);
+    const sectionId = homeSection(it, from);
+    e.setProductModalSection(sectionId);
+    await e.modalAddToBox(it, { sectionId });
     setToast({ message: `Added ${it.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(it) } });
   };
 
@@ -524,7 +527,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
               {suggestion.name}
             </Text>
             <Pressable onPress={() => void addOnTopOf(suggestion, s.id)} accessibilityRole="button" accessibilityLabel={`Add ${suggestion.name}`} style={styles.suggPill} hitSlop={6}>
-              <Text style={styles.suggPillText}>+ {offerFor(suggestion, s.id, rows).free ? 'Included' : formatCatalogDollars(priceToAdd(suggestion))}</Text>
+              <Text style={styles.suggPillText}>+ {offerFor(suggestion, s.id, rows).free ? 'Included' : formatCatalogDollars(priceToAdd(suggestion, s.id))}</Text>
             </Pressable>
           </Pressable>
         ) : null}
@@ -642,8 +645,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                             }}
                           />
                           <MobileButton
-                            label={`+${formatCatalogDollars(priceToAdd(o))}`}
-                            accessibilityLabel={`Add ${o.name} on top for ${formatCatalogDollars(priceToAdd(o))}`}
+                            label={priceToAdd(o, sectionId) ? `+${formatCatalogDollars(priceToAdd(o, sectionId))}` : '+ Add'}
+                            accessibilityLabel={priceToAdd(o, sectionId) ? `Add ${o.name} on top for ${formatCatalogDollars(priceToAdd(o, sectionId))}` : `Add ${o.name} on top, included`}
                             height={32}
                             style={{ width: 52, paddingHorizontal: 4 }}
                             onPress={() => void addOnTop(o)}
@@ -702,10 +705,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     );
   };
 
-  const priceToAdd = (it: CatalogItem) => {
-    const { memberCents } = resolveCatalogDisplayPrices(it);
-    return memberCents;
-  };
+  const priceToAdd = (it: CatalogItem, from: BoxDisplaySectionId) => e.addOnTopCents(it, homeSection(it, from));
 
   const productSheet = (item: CatalogItem, group: CoalescedBoxLine | null, sectionId: BoxDisplaySectionId) => {
     const wrapping = group ? isWrapControlSlot(group.primary.slotId) : false;
@@ -930,7 +930,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                 return (
                   <View key={it.id} style={{ width: 132, gap: 4 }}>
                     <ProductTileMobile item={it} width={132} onPress={() => setSheet({ kind: 'product', item: it, group: null, sectionId })} hidePrice />
-                    <Text style={styles.likePrice}>{free ? 'Included' : formatCatalogDollars(priceToAdd(it))}</Text>
+                    <Text style={styles.likePrice}>{free ? 'Included' : formatCatalogDollars(priceToAdd(it, sectionId))}</Text>
                     <Pressable onPress={() => void addOnTopOf(it, sectionId)} accessibilityRole="button" accessibilityLabel={`Add ${it.name}`} style={styles.likeAdd}>
                       <Text style={styles.likeAddText}>+ Add</Text>
                     </Pressable>

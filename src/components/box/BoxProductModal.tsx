@@ -92,6 +92,8 @@ type Props = {
   onQuantityChange?: (item: CatalogItem, delta: 1 | -1) => void | Promise<void>;
   /** Household's default gelt bag; free gelt swaps never go bigger. */
   geltCeiling?: GeltSize;
+  /** What `onAdd` charges for `item` right now; defaults to its listed add-on price. */
+  addUnitCents?: (item: CatalogItem) => number;
 };
 
 export function BoxProductModal({
@@ -109,6 +111,7 @@ export function BoxProductModal({
   onRemove,
   onQuantityChange,
   geltCeiling,
+  addUnitCents,
 }: Props) {
   const { colors } = useThemeMode();
   const insets = useSafeAreaInsets();
@@ -185,7 +188,7 @@ export function BoxProductModal({
     return findSwapSourceLines(item, lineItems, catalog, fromSection, { geltCeiling });
   }, [item, inBox, lineItems, catalog, fromSection, geltCeiling]);
 
-  const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
+  const boxUnitCents = item ? (addUnitCents ?? boxAddOnUnitCents)(item) : 0;
 
   const bodyCopy = item ? pdpBodyCopyForItem(item) : undefined;
   const details = item ? detailRowsFromItem(item) : [];

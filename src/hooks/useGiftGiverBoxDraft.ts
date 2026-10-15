@@ -7,8 +7,8 @@ import {
   isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
 import { resolveSwapOptionsForItem, resolveIncludedGiftOptions } from '../services/box/sectionUpsells';
-import { swapOptionsForLine, swapUnitCents } from '../services/box/swapPricing';
-import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, extraUnitCents } from '../services/box/pricing';
+import { addOnTopUnitCents, swapOptionsForLine, swapUnitCents } from '../services/box/swapPricing';
+import { EXTRA_FLAT_CENTS, extraUnitCents } from '../services/box/pricing';
 import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity } from '../services/box/boxRules';
 import {
   displaySectionForCatalogItem,
@@ -125,18 +125,16 @@ export function useGiftGiverBoxDraft(
     ) => {
       setLineItems((prev) => {
         if (prev.some((li) => li.itemId === item.id)) return prev;
-        let unitCents = boxAddOnUnitCents(item);
+        const unitCents = addOnTopUnitCents(item, displaySectionForCatalogItem(item), {
+          catalog,
+          lineItems: prev,
+          people,
+          wrapSelectedCount: wrapSelectedItemIds.length,
+        });
         const isPaper =
           item.defaultSlot === 'wrapping-paper' ||
           item.slotId === 'wrapping-paper' ||
           /wrapping.?paper/i.test(`${item.id} ${item.name}`);
-        if (unitCents === 0 && isPaper && wrapSelectedItemIds.length > 0) {
-          unitCents = EXTRA_FLAT_CENTS;
-        }
-        // Included-tier items (kits, candles, gelt) are free only in their empty included slot.
-        if (unitCents === 0 && !isPaper && !includedPracticeSlotVacant(displaySectionForCatalogItem(item), prev)) {
-          unitCents = extraUnitCents(item);
-        }
         return [
           ...prev,
           {
@@ -151,7 +149,19 @@ export function useGiftGiverBoxDraft(
         ];
       });
     },
-    [wrapSelectedItemIds]
+    [wrapSelectedItemIds, catalog, people]
+  );
+
+  /** What `addItem` would charge right now — the number "+$X" labels show. */
+  const addOnTopCents = useCallback(
+    (item: CatalogItem) =>
+      addOnTopUnitCents(item, displaySectionForCatalogItem(item), {
+        catalog,
+        lineItems,
+        people,
+        wrapSelectedCount: wrapSelectedItemIds.length,
+      }),
+    [catalog, lineItems, people, wrapSelectedItemIds]
   );
 
   const applySwap = useCallback(
@@ -441,6 +451,7 @@ export function useGiftGiverBoxDraft(
     changeQuantity,
     updateLines: setLineItems,
     addItem,
+    addOnTopCents,
     addFreeItem,
     setKidGift,
     setKidBook,

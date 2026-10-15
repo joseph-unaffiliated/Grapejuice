@@ -5,10 +5,12 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { swapOptionsForLine, swapUnitCents } from './swapPricing';
+import { fileURLToPath } from 'node:url';
+import { addOnTopUnitCents, swapOptionsForLine, swapUnitCents } from './swapPricing';
+import { EXTRA_FLAT_CENTS } from './pricing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 
-const catalog = JSON.parse(readFileSync(new URL('./swapPricing.fixture.json', import.meta.url), 'utf8')) as CatalogItem[];
+const catalog = JSON.parse(readFileSync(fileURLToPath(new URL('./swapPricing.fixture.json', import.meta.url).href), 'utf8')) as CatalogItem[];
 const get = (id: string) => {
   const hit = catalog.find((c) => c.id === id);
   if (!hit) throw new Error(`fixture missing ${id}`);
@@ -66,5 +68,29 @@ const shelf = swapOptionsForLine(
   { catalog, geltCeiling: 'medium' }
 );
 assert.deepEqual(shelf.map((c) => c.id), ['airdry-clay-dreidel']);
+
+// "Add on top" charges exactly what the "+$X" label shows.
+const paper = { id: 'wrapping-paper', name: 'Wrapping paper', pricingTier: 'included', memberPriceCents: 500, slotId: 'wrapping-paper', swapOptions: [], ageGroups: [] } as unknown as CatalogItem;
+const addCtx = (lineItems: BoxLineItem[], people = 4, wrapSelectedCount = 0) => ({ catalog, lineItems, people, wrapSelectedCount });
+const full = [line('candles', 'beeswax-candles'), line('wood-dreidel', 'classic-wooden-dreidel'), line('latke-mix', 'latke-kit'), line('sufganiyot-mix', 'sufganiyot-kit')];
+// Listed add-ons cost their member price.
+assert.equal(addOnTopUnitCents(get('lego-menorah'), 'presents', addCtx(full)), 1500);
+assert.equal(addOnTopUnitCents(get('book-the-three-latkes'), 'story', addCtx(full)), 800);
+// An included-tier item is free only while its slot is empty.
+assert.equal(addOnTopUnitCents(get('beeswax-candles'), 'candles', addCtx(full)), 500);
+assert.equal(addOnTopUnitCents(get('beeswax-candles'), 'candles', addCtx(full.slice(1))), 0);
+assert.equal(addOnTopUnitCents(get('latke-kit'), 'food', addCtx(full)), 500);
+assert.equal(addOnTopUnitCents(get('latke-kit'), 'food', addCtx(full.slice(0, 3))), 0);
+// Gelt is free only while it fits one Little Bag per person — an empty dreidel slot doesn't open it.
+const littles = { ...line('gelt-small', 'little-bag-of-gelt-2-big-5-little'), quantity: 4 };
+assert.equal(addOnTopUnitCents(get('little-bag-of-gelt-2-big-5-little'), 'dreidel', addCtx([littles])), 200);
+assert.equal(addOnTopUnitCents(get('little-bag-of-gelt-2-big-5-little'), 'dreidel', addCtx([{ ...littles, quantity: 3 }])), 0);
+assert.equal(addOnTopUnitCents(get('party-bag-of-gelt'), 'dreidel', addCtx([])), 1800);
+assert.equal(addOnTopUnitCents(get('party-bag-of-gelt'), 'dreidel', addCtx([], 12)), 0);
+// Paid gelt doesn't use up the allowance.
+assert.equal(addOnTopUnitCents(get('big-bag-of-gelt'), 'dreidel', addCtx([{ ...littles, quantity: 1 }, { ...line('addon-big', 'big-bag-of-gelt', 500), quantity: 2 }])), 0);
+// Paper is free back in place of pre-wrap, extra on top of an active wrap list.
+assert.equal(addOnTopUnitCents(paper, 'presents', addCtx([])), 0);
+assert.equal(addOnTopUnitCents(paper, 'presents', addCtx([], 4, 2)), EXTRA_FLAT_CENTS);
 
 console.log('swapPricing.test: ok');

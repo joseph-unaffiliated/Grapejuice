@@ -577,16 +577,16 @@ export function wrappableLinesInBox(
   });
 }
 
-/** Items marked when switching to pre-wrap: kids' presents first, up to the included wrap count. */
-export function defaultPreWrapSelection(
-  lineItems: BoxLineItem[],
-  catalog: CatalogItem[],
-  limit: number = WRAP_POLICY.includedPreWrapSlots
-): string[] {
+/**
+ * Items marked when switching to pre-wrap: every kid's present, then other wrappables up to
+ * `WRAP_POLICY.defaultPreWrapPicks`. Pre-wrap itself covers any number of presents.
+ */
+export function defaultPreWrapSelection(lineItems: BoxLineItem[], catalog: CatalogItem[]): string[] {
   const rows = coalesceLinesByItemId(wrappableLinesInBox(lineItems, catalog));
   const gifts = rows.filter((row) => row.lines.some(isGiftSlotLine));
   const rest = rows.filter((row) => !gifts.includes(row));
-  return [...new Set([...gifts, ...rest].map((row) => row.itemId))].slice(0, limit);
+  const ids = [...new Set([...gifts, ...rest].map((row) => row.itemId))];
+  return ids.slice(0, Math.max(WRAP_POLICY.defaultPreWrapPicks, new Set(gifts.map((g) => g.itemId)).size));
 }
 
 /**

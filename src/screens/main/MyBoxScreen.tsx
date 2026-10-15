@@ -1130,6 +1130,9 @@ export function MyBoxScreen() {
         }}
         onSelectItem={setProductModalItem}
         onAdd={modalAddToBox}
+        addUnitCents={(next) =>
+          editing.addOnTopCents(next, productModalSection ?? displaySectionForCatalogItem(next))
+        }
         onSwap={modalSwapIntoBox}
         onRemove={modalRemoveFromBox}
         onQuantityChange={(next, delta) => {

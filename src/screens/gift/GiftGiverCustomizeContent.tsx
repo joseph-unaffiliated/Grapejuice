@@ -21,9 +21,9 @@ import {
   totalCents,
   catalogSlotId,
 } from '../../services/box/buildDefaultBox';
-import { geltCeilingForPeople, listBoxCentsForKids } from '../../services/box/boxRules';
+import { geltCeilingForPeople, geltSizeOf, listBoxCentsForKids } from '../../services/box/boxRules';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
-import { isIncludedSwap, swapUnitCents } from '../../services/box/swapPricing';
+import { addOnTopUnitCents, geltAddFitsAllowance, isIncludedSwap, swapUnitCents } from '../../services/box/swapPricing';
 import {
   resolveSectionUpsellItems,
   resolveFreeSlotAddOptions,
@@ -166,7 +166,14 @@ export function GiftGiverCustomizeContent({
   paymentSlot,
 }: Props) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const geltCeiling = geltCeilingForPeople(kidProfiles.length + (form.giftAdults ?? 1));
+  const people = kidProfiles.length + (form.giftAdults ?? 1);
+  const geltCeiling = geltCeilingForPeople(people);
+  const addPricing = { catalog, lineItems, people, wrapSelectedCount: wrapSelectedItemIds.length };
+  /** Modal add fills a donated practice slot for free (gelt only within the allowance). */
+  const modalAddIsFree = (next: CatalogItem, sectionId: BoxDisplaySectionId) =>
+    (freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === next.id) &&
+    includedPracticeSlotVacant(sectionId, lineItems) &&
+    (!geltSizeOf(next) || geltAddFitsAllowance(next, addPricing));
   const { colors } = useThemeMode();
   const { isDesktop, widePanelMaxWidth } = useWebLayout();
   const insets = useSafeAreaInsets();
@@ -793,8 +800,7 @@ export function GiftGiverCustomizeContent({
         onAdd={(next) => {
           const sectionId = productModalSection ?? displaySectionForCatalogItem(next);
           const freeOpts = freeAddOptionsBySection[sectionId] ?? [];
-          const freeIds = new Set(freeOpts.map((i) => i.id));
-          if (freeIds.has(next.id) && includedPracticeSlotVacant(sectionId, lineItems)) {
+          if (modalAddIsFree(next, sectionId)) {
             for (const opt of freeOpts) {
               includedBaselineByItemId.current.delete(opt.id);
             }
@@ -810,6 +816,11 @@ export function GiftGiverCustomizeContent({
             productModalSection ? { displaySectionId: productModalSection } : undefined
           );
         }}
+        addUnitCents={(next) =>
+          modalAddIsFree(next, productModalSection ?? displaySectionForCatalogItem(next))
+            ? 0
+            : addOnTopUnitCents(next, displaySectionForCatalogItem(next), addPricing)
+        }
         onSwap={(next, source) => {
           const sourceItem = catalog.find((c) => c.id === source.itemId);
           const nextUnit = swapUnitCents(source, sourceItem, next, { catalog, geltCeiling });

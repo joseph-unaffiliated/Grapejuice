@@ -307,8 +307,9 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
       }
       draft.swapToPreWrap(slotIds);
     },
-    modalAddToBox: async (item) =>
-      draft.addItem(item, { displaySectionId: productModalSection ?? displaySectionForCatalogItem(item) }),
+    modalAddToBox: async (item, opts) =>
+      draft.addItem(item, { displaySectionId: opts?.sectionId ?? productModalSection ?? displaySectionForCatalogItem(item) }),
+    addOnTopCents: (item) => draft.addOnTopCents(item),
     modalRemoveFromBox: async (item) => {
       const group = coalesceLinesByItemId(lineItems.filter((li) => li.itemId === item.id))[0];
       if (!group) return;

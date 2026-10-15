@@ -8,14 +8,14 @@
  */
 
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
-import { isGiftSlotLine } from '../../components/box/boxLineDisplay';
+import { includedPracticeSlotVacant, isGiftSlotLine } from '../../components/box/boxLineDisplay';
 import {
   displaySectionForLineItem,
   displaySectionForSlotId,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
-import { geltSizeOf, isGeltSwapUp, type GeltSize } from './boxRules';
-import { extraUnitCents } from './pricing';
+import { GELT_LITTLE_EQUIVALENT, geltAllowance, geltSizeOf, isGeltSwapUp, type GeltSize } from './boxRules';
+import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, extraUnitCents } from './pricing';
 import {
   isBookishCatalogItem,
   isStuffieCatalogItem,
@@ -86,4 +86,58 @@ export function swapOptionsForLine(
 ): CatalogItem[] {
   if ((line.unitCents ?? 0) > 0) return options;
   return options.filter((o) => isIncludedSwap(line, sourceItem, o, ctx));
+}
+
+export type AddPricingContext = {
+  catalog: CatalogItem[];
+  lineItems: BoxLineItem[];
+  /** Kids + adults, for the gelt allowance. */
+  people: number;
+  /** Presents marked "to be wrapped". */
+  wrapSelectedCount: number;
+  /** Re-adding the included paper (inverse of "pre-wrap instead"). */
+  includedPaper?: boolean;
+};
+
+function isPaperItem(item: CatalogItem): boolean {
+  return (
+    item.defaultSlot === 'wrapping-paper' ||
+    item.slotId === 'wrapping-paper' ||
+    /wrapping.?paper/i.test(`${item.id} ${item.name}`)
+  );
+}
+
+/** Little Bags' worth of gelt the box already holds free. */
+export function includedGeltLittleBags(lineItems: BoxLineItem[], catalog: CatalogItem[]): number {
+  return lineItems.reduce((n, li) => {
+    if ((li.unitCents ?? 0) > 0 || li.program === 'pilot') return n;
+    const row = catalog.find((c) => c.id === li.itemId) ?? { id: li.itemId, name: li.label ?? '' };
+    const size = geltSizeOf(row);
+    return size ? n + GELT_LITTLE_EQUIVALENT[size] * Math.max(1, li.quantity ?? 1) : n;
+  }, 0);
+}
+
+/** True when one more `item` gelt bag still fits the household's free gelt allowance. */
+export function geltAddFitsAllowance(item: CatalogItem, ctx: AddPricingContext): boolean {
+  const size = geltSizeOf(item);
+  if (!size) return false;
+  return includedGeltLittleBags(ctx.lineItems, ctx.catalog) + GELT_LITTLE_EQUIVALENT[size] <= geltAllowance(ctx.people);
+}
+
+/**
+ * Per-unit price of adding `item` on top of the box — what an "Add · +$X" button charges.
+ * (An open kid slot or a donated item it stands in for is claimed free before this runs.)
+ * Listed add-ons cost their add-on price; an included-tier item is free only while its included
+ * slot is empty — gelt while it fits the gelt allowance, paper while nothing is marked to wrap.
+ */
+export function addOnTopUnitCents(
+  item: CatalogItem,
+  sectionId: BoxDisplaySectionId,
+  ctx: AddPricingContext
+): number {
+  const listed = boxAddOnUnitCents(item);
+  if (listed > 0) return listed;
+  if (isPaperItem(item)) return ctx.wrapSelectedCount > 0 && !ctx.includedPaper ? EXTRA_FLAT_CENTS : 0;
+  if (geltSizeOf(item)) return geltAddFitsAllowance(item, ctx) ? 0 : extraUnitCents(item);
+  return includedPracticeSlotVacant(sectionId, ctx.lineItems) ? 0 : extraUnitCents(item);
 }
