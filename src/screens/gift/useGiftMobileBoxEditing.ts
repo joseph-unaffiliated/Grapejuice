@@ -276,6 +276,7 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     catalog,
     children,
     geltCeiling: draft.geltCeiling,
+    people: draft.people,
     grouped,
     upsellsBySection,
     freeAddOptionsBySection,

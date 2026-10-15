@@ -207,6 +207,13 @@ export function createBoxDetailStyles(
           } as object)
         : null),
     },
+    sectionCount: {
+      fontSize: typography.sm,
+      ...typeface('medium'),
+      color: colors.goldMuted,
+      textAlign: 'center',
+      marginBottom: 4,
+    },
     sectionDesc: {
       fontSize: typography.sm,
       ...typeface('light'),

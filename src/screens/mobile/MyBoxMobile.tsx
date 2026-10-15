@@ -22,8 +22,11 @@ import {
   includedPracticeSlotVacant,
   openKidSlotFor,
   wrappableLinesInBox,
+  kidsNeedingBook,
+  kidsNeedingGift,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
+import { auditIncluded, geltBagOf, includedCountLabel, type SectionCount } from '../../services/box/includedAudit';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { isPilotLine, PILOT_PICK_META } from '../../services/box/pilotLines';
 import { ProductNote } from '../../components/box/ProductNote';
@@ -64,7 +67,7 @@ export type MobileBoxEditing = Pick<
   | 'addOnTopCents'
 > &
   /** Choosing which presents come wrapped after pre-wrap; the gift flow omits these. */
-  Partial<Pick<ReturnType<typeof useMyBoxEditing>, 'wrapSelectedIds' | 'persistWrapSelection' | 'swapBackToPaper'>>;
+  Partial<Pick<ReturnType<typeof useMyBoxEditing>, 'wrapSelectedIds' | 'persistWrapSelection' | 'swapBackToPaper' | 'people' | 'topUpIncludedDreidels'>>;
 
 /** Gift flow: their box under a task header, "Send by", and Next instead of Checkout. */
 export type MobileBoxGiftMode = {
@@ -194,6 +197,15 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     return out;
   }, [e.donatedItems, e.donatedLineSnapshots]);
   const donatedQty = useMemo(() => new Map(e.donatedItems.map((d) => [d.item.id, d.missing])), [e.donatedItems]);
+  const includedCounts = useMemo((): Partial<Record<BoxDisplaySectionId, SectionCount>> => {
+    const { sections } = auditIncluded(
+      e.lineItems,
+      e.catalog,
+      { kidKeys: kids.map((c) => c.id), adults: e.people != null ? Math.max(0, e.people - kids.length) : undefined },
+      { wrapSelectedItemIds: e.wrapSelectedIds ? [...e.wrapSelectedIds] : [] }
+    );
+    return { story: sections.story, presents: sections.presents, candles: sections.candles, dreidel: sections.dreidel, food: sections.food };
+  }, [e.lineItems, e.catalog, e.people, e.wrapSelectedIds, kids]);
   const sectionTitle = (id: BoxDisplaySectionId, fallback: string) =>
     id === 'food' ? 'Eat & Drink' : id === 'presents' ? 'Giving Gifts' : fallback;
   const addToCalendar = () => {
@@ -422,6 +434,61 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     </View>
   );
 
+  /** An included slot with nothing in it — it goes to a family as a donation until it's added back. */
+  const EmptySlotRow = ({ title, onAdd }: { title: string; onAdd: () => void }) => (
+    <View style={[styles.row, styles.rowDonated]} accessibilityLabel={`${title}, donating`}>
+      <View style={styles.emptySlotImage} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.rowName} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text style={styles.rowMeta} numberOfLines={2}>
+          Donating · goes to a family who wouldn’t otherwise celebrate
+        </Text>
+      </View>
+      {!e.locked ? (
+        <Text style={styles.undo} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`Add back ${title}, included`}>
+          Add back
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  /** Included slots that are empty and not already shown as a donated item. */
+  const emptySlots = (
+    sectionId: BoxDisplaySectionId,
+    rows: CoalescedBoxLine[],
+    donatedRows: { item: CatalogItem; missing: number }[]
+  ): { key: string; title: string; onAdd: () => void }[] => {
+    const openSheet = () => setSheet({ kind: 'tradition', sectionId });
+    if (sectionId === 'story' || sectionId === 'presents') {
+      const covered = new Set(
+        donatedRows.map((d) => e.donatedLineSnapshots.current.get(d.item.id)?.[0]?.childId).filter(Boolean)
+      );
+      const needs = sectionId === 'story' ? kidsNeedingBook(e.lineItems, kids) : kidsNeedingGift(e.lineItems, kids).filter((n) => n.reason === 'donated').map((n) => n.child);
+      const noun = sectionId === 'story' ? 'book' : 'present';
+      return needs
+        .filter((c) => !covered.has(c.id))
+        .map((c) => ({ key: `${noun}-${c.id}`, title: kids.length > 1 ? `${kidName(c.id)}’s ${noun}` : `Included ${noun}`, onAdd: openSheet }));
+    }
+    const count = includedCounts[sectionId];
+    if (!count) return [];
+    const counts = (item: CatalogItem) => sectionId !== 'dreidel' || !geltBagOf(item.id, item.name);
+    const shown =
+      donatedRows.filter((d) => counts(d.item)).reduce((n, d) => n + d.missing, 0) +
+      rows.reduce((n, g) => {
+        const item = byId.get(g.itemId);
+        return n + (item && counts(item) ? donatedQty.get(g.itemId) ?? 0 : 0);
+      }, 0);
+    const gap = count.allowed - count.filled - shown;
+    if (gap <= 0) return [];
+    if (sectionId === 'dreidel') {
+      return [{ key: 'dreidel', title: gap === 1 ? '1 dreidel' : `${gap} dreidels`, onAdd: () => void (e.topUpIncludedDreidels ? e.topUpIncludedDreidels() : openSheet()) }];
+    }
+    if (sectionId === 'food') return [{ key: 'food', title: gap === 1 ? 'One food choice' : `${gap} food choices`, onAdd: openSheet }];
+    return [{ key: sectionId, title: 'Candles', onAdd: openSheet }];
+  };
+
   const wrappingPaperItem = () => {
     const row = resolveByDefaultSlot(e.catalog, 'wrapping-paper');
     return (
@@ -508,16 +575,20 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const adds = (e.upsellsBySection[s.id] ?? []).slice(0, 6);
     const hasExtra = rows.some((g) => g.unitCents > 0);
     const suggestion = !hasExtra && !e.locked ? adds.find((it) => !rows.some((g) => g.itemId === it.id)) : undefined;
+    const countLabel = includedCountLabel(includedCounts[s.id]);
+    const empties = emptySlots(s.id, rows, donatedRows);
     return (
       <View key={s.id} onLayout={(ev) => (sectionY.current[s.id] = ev.nativeEvent.layout.y)} style={styles.section}>
         <View style={styles.sectionHead}>
           <SectionIcon id={s.id} size={18} color={m.gold} />
           <Text style={styles.sectionTitle}>{sectionTitle(s.id, s.title)}</Text>
+          {countLabel ? <Text style={styles.sectionCount}>{countLabel}</Text> : null}
         </View>
         {rows.map((g) => <Row key={g.key} g={g} sectionId={s.id} />)}
         {donatedRows.map((d) => <DonatedRow key={`donated:${d.item.id}`} item={d.item} missing={d.missing} />)}
+        {empties.map((slot) => <EmptySlotRow key={`empty:${slot.key}`} title={slot.title} onAdd={slot.onAdd} />)}
         {wrapped}
-        {!rows.length && !donatedRows.length && !wrapped ? <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text> : null}
+        {!rows.length && !donatedRows.length && !empties.length && !wrapped ? <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text> : null}
         {suggestion ? (
           <Pressable onPress={() => setSheet({ kind: 'product', item: suggestion, group: null, sectionId: s.id })} accessibilityRole="button" style={styles.sugg}>
             <View style={styles.suggImage}>
@@ -1092,6 +1163,8 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: mGutter, paddingTop: 32, paddingBottom: 28, borderBottomWidth: 1, borderBottomColor: m.line },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   sectionTitle: { flex: 1, fontSize: 20, lineHeight: 25, letterSpacing: -0.3, color: m.ink, ...mFont(400) },
+  sectionCount: { fontSize: 12.5, color: m.goldDark, ...mFont(500) },
+  emptySlotImage: { width: 64, height: 64, borderRadius: mRadius.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: m.gold },
   sugg: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, paddingTop: 14, paddingBottom: 4, borderTopWidth: 1, borderTopColor: m.lineWarm, borderStyle: 'dashed' },
   suggImage: { borderRadius: 8, overflow: 'hidden' },
   suggName: { flex: 1, fontSize: 14, lineHeight: 18, color: m.ink, ...mFont(400) },

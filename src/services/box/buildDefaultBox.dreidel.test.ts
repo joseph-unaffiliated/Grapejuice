@@ -1,0 +1,34 @@
+/**
+ * Run: npx tsx src/services/box/buildDefaultBox.dreidel.test.ts
+ *
+ * One included dreidel per person: kids and adults, adult-only households and 5+ kid boxes too.
+ */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { buildDefaultLineItems } from './buildDefaultBox';
+import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
+
+const catalog = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./swapPricing.fixture.json', import.meta.url).href), 'utf8')
+) as CatalogItem[];
+
+const kid = (id: string, age: number) => ({ id, name: id, age }) as unknown as ChildProfile;
+const DREIDEL_SLOTS = /^(wood-dreidel|blank-dreidel|airdry-dreidel)/;
+const freeDreidels = (lines: BoxLineItem[]) =>
+  lines
+    .filter((l) => DREIDEL_SLOTS.test(l.slotId) && (l.unitCents ?? 0) === 0)
+    .reduce((n, l) => n + l.quantity, 0);
+
+assert.equal(freeDreidels(buildDefaultLineItems(catalog, [], [], 2)), 2, 'adult-only household');
+assert.equal(freeDreidels(buildDefaultLineItems(catalog, [], [], 1)), 1, 'one adult');
+assert.equal(freeDreidels(buildDefaultLineItems(catalog, [kid('a', 4)], [], 2)), 3, 'one kid, two adults');
+assert.equal(freeDreidels(buildDefaultLineItems(catalog, [kid('a', 3), kid('b', 6)], [], 1)), 3, 'two kids, one adult');
+
+const fiveYoung = ['a', 'b', 'c', 'd', 'e'].map((id) => kid(id, 3));
+assert.equal(freeDreidels(buildDefaultLineItems(catalog, fiveYoung, [], 2)), 7, 'five little kids, two adults');
+
+const wood = buildDefaultLineItems(catalog, [], [], 2).find((l) => l.slotId === 'wood-dreidel');
+assert.equal(wood?.includedQty, 2, 'wood line includes every unit');
+
+console.log('buildDefaultBox.dreidel: ok');

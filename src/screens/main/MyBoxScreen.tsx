@@ -28,7 +28,9 @@ import {
   totalCents,
   catalogSlotId,
   chargeableLineTotal,
+  woodDreidelCatalogItem,
 } from '../../services/box/buildDefaultBox';
+import { auditIncluded, geltBagOf, includedCountLabel, type SectionCount } from '../../services/box/includedAudit';
 import { isPilotLine, PILOT_PICK_META } from '../../services/box/pilotLines';
 import { discountCentsForTerms } from '../../services/promo/promoPricing';
 import { kidPlannerAges, catalogBookFitsKidAge, orderGiftOptionsForAge } from '../../services/box/sectionUpsells';
@@ -214,6 +216,27 @@ export function MyBoxScreen() {
   } = editing;
   const { household } = useSession();
 
+  const includedCounts = useMemo((): Partial<Record<BoxDisplaySectionId, SectionCount>> => {
+    const { sections } = auditIncluded(
+      lineItems,
+      catalog,
+      { kidKeys: children.map((c) => c.id), adults: Math.max(0, editing.people - children.length) },
+      { wrapSelectedItemIds: [...wrapSelectedIds] }
+    );
+    return { story: sections.story, presents: sections.presents, candles: sections.candles, dreidel: sections.dreidel, food: sections.food };
+  }, [lineItems, catalog, children, editing.people, wrapSelectedIds]);
+
+  /** Included dreidels missing and not already shown as donated (one per person). */
+  const dreidelGap = useMemo(() => {
+    const count = includedCounts.dreidel;
+    if (!count) return 0;
+    const donated = donatedItems
+      .filter(({ item }) => /dreidel/i.test(`${item.id} ${item.name}`) && !geltBagOf(item.id, item.name))
+      .reduce((n, d) => n + d.missing, 0);
+    return Math.max(0, count.allowed - count.filled - donated);
+  }, [includedCounts, donatedItems]);
+  const woodDreidel = useMemo(() => woodDreidelCatalogItem(catalog), [catalog]);
+
   const wrappingPaper = useMemo(() => {
     const row = resolveByDefaultSlot(catalog, WRAP_POLICY.defaultSlot);
     return (
@@ -300,9 +323,18 @@ export function MyBoxScreen() {
     const kidBookNeeds =
       showKidAddCtas && sectionId === 'story' ? kidsNeedingBook(lineItems, children) : [];
     const kidName = (child: (typeof children)[number]) => child.name?.trim() || 'your kid';
+    const dreidelsToAddBack = showKidAddCtas && sectionId === 'dreidel' && woodDreidel ? dreidelGap : 0;
     const kidAddBlocks =
-      kidGiftNeeds.length || kidBookNeeds.length ? (
+      kidGiftNeeds.length || kidBookNeeds.length || dreidelsToAddBack ? (
         <View style={styles.kidAddBlocks}>
+          {dreidelsToAddBack && woodDreidel ? (
+            <PerKidSlotAddBlock
+              title={dreidelsToAddBack === 1 ? 'Add back 1 dreidel' : `Add back ${dreidelsToAddBack} dreidels`}
+              note="One dreidel per person is included. Until you add it back, it’s donated to a family who wouldn’t otherwise celebrate."
+              items={[woodDreidel]}
+              onPressItem={() => void editing.topUpIncludedDreidels()}
+            />
+          ) : null}
           {kidGiftNeeds.map(({ child, reason }) => (
             <PerKidSlotAddBlock
               key={`gift-need-${child.id}`}
@@ -361,6 +393,7 @@ export function MyBoxScreen() {
         onLayout={onSectionLayout(sectionId)}
         onSectionRef={registerSection}
         isLast={isLast}
+        countLabel={isChildProfile ? null : includedCountLabel(includedCounts[sectionId])}
         emptySection={isEmpty}
         showUpsells={showUpsells}
         upsellItems={

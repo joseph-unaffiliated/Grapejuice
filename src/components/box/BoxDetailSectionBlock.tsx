@@ -59,6 +59,8 @@ type Props = {
   emptySection?: boolean;
   /** Hide bottom divider when this is the last visible section. */
   isLast?: boolean;
+  /** "1 of 2 included" under the title. */
+  countLabel?: string | null;
 };
 
 /** Figma 370:3534 — one scroll section (title, items, browse/upsell strip). */
@@ -79,6 +81,7 @@ export function BoxDetailSectionBlock({
   upsellFooterAction,
   emptySection = false,
   isLast = false,
+  countLabel,
 }: Props) {
   const { colors } = useThemeMode();
   const { isDesktop, layoutWidth } = useWebLayout();
@@ -137,6 +140,7 @@ export function BoxDetailSectionBlock({
         <View style={styles.sectionTitleRow}>
           <Text style={styles.sectionTitle}>{meta.title}</Text>
         </View>
+        {countLabel ? <Text style={styles.sectionCount}>{countLabel}</Text> : null}
         <Text style={styles.sectionDesc}>{blurb}</Text>
       </View>
       {leading ? <View style={styles.sectionLeading}>{leading}</View> : null}

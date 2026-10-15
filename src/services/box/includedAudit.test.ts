@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import type { BoxLineItem } from '../../types/pilot';
-import { auditIncluded, geltBagOf, type AuditCatalogRow } from './includedAudit';
+import {
+  auditIncluded,
+  freeDreidelUnits,
+  geltBagOf,
+  includedCountLabel,
+  topUpDreidelLines,
+  type AuditCatalogRow,
+} from './includedAudit';
 
 const catalog: AuditCatalogRow[] = [
   { id: 'beeswax-candles', category: 'Candles' },
@@ -174,6 +181,29 @@ const codes = (lines: BoxLineItem[], hh: { kidKeys: string[]; adults?: number } 
   assert.deepEqual(codes(paidPaper, twoKids, { wrapSelectedItemIds: ['lego-menorah'] }), []);
   const noPaper = twoKidBox().filter((l) => l.slotId !== 'wrapping-paper');
   assert.deepEqual(codes(noPaper, twoKids, { wrapSelectedItemIds: ['a', 'b', 'c', 'd', 'e'] }), []);
+}
+
+{
+  // "X of Y included" headers; nothing for a household with no slots there.
+  assert.equal(includedCountLabel({ allowed: 2, filled: 1 }), '1 of 2 included');
+  assert.equal(includedCountLabel({ allowed: 1, filled: 3 }), '1 of 1 included');
+  assert.equal(includedCountLabel({ allowed: 0, filled: 0 }), null);
+
+  // Dreidel top-up to one per person: grows the free wood line, ignores gelt in a dreidel slot.
+  const wood = { id: 'classic-wooden-dreidel', name: 'Classic wooden dreidel' };
+  const short = [L('wood-dreidel', 'classic-wooden-dreidel', 2, 0, { includedQty: 2 }), L('addon-x', 'classic-wooden-dreidel', 1, 100)];
+  const topped = topUpDreidelLines(short, 4, wood);
+  assert.equal(freeDreidelUnits(topped), 4);
+  assert.equal(topped[0].includedQty, 4);
+  assert.equal(topped[1].unitCents, 100);
+  assert.equal(topUpDreidelLines(topped, 4, wood), topped);
+  const adultOnly = topUpDreidelLines([L('wood-dreidel', 'little-bag-of-gelt-2-big-5-little', 2)], 2, wood);
+  assert.equal(freeDreidelUnits(adultOnly), 2);
+  assert.equal(adultOnly[1].slotId, 'wood-dreidel-household');
+  // A free brass dreidel in the wood slot never multiplies; wood fills the rest.
+  const brass = topUpDreidelLines([L('wood-dreidel', 'solid-brass-dreidel', 1)], 3, wood);
+  assert.equal(brass[0].quantity, 1);
+  assert.deepEqual([brass[1].itemId, brass[1].quantity], ['classic-wooden-dreidel', 2]);
 }
 
 console.log('includedAudit: ok');

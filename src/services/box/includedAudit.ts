@@ -469,3 +469,56 @@ export function auditIncluded(
     problems,
   };
 }
+
+/** My Box sections that show "X of Y included". Gelt and wrap sit inside other sections. */
+export type IncludedSlotSection = 'story' | 'presents' | 'candles' | 'dreidel' | 'food';
+
+export const INCLUDED_SLOT_SECTIONS: readonly IncludedSlotSection[] = ['story', 'presents', 'candles', 'dreidel', 'food'];
+
+/** "1 of 2 included", or null when the section has no included slots for this household. */
+export function includedCountLabel(count: SectionCount | undefined): string | null {
+  if (!count || count.allowed <= 0) return null;
+  return `${Math.min(count.filled, count.allowed)} of ${count.allowed} included`;
+}
+
+/** Free dreidels in dreidel slots (not gelt that was swapped into one). */
+export function freeDreidelUnits(lineItems: BoxLineItem[]): number {
+  return lineItems.reduce((n, li) => {
+    if (skipLine(li) || !isFreeLine(li) || isExtraUnitLine(li)) return n;
+    if (!DREIDEL_SLOT_IDS.has(auditSlotBase(li.slotId)) || geltBagOf(li.itemId, li.label ?? '')) return n;
+    return n + li.quantity;
+  }, 0);
+}
+
+/**
+ * Lines after topping free dreidels up to one per person with `woodItem`: its free line grows,
+ * or a new one is added (a brass or clay dreidel in the slot never multiplies). Unchanged when
+ * the box already has enough.
+ */
+export function topUpDreidelLines(
+  lineItems: BoxLineItem[],
+  people: number,
+  woodItem: { id: string; name: string }
+): BoxLineItem[] {
+  const missing = people - freeDreidelUnits(lineItems);
+  if (missing <= 0) return lineItems;
+  const wood = lineItems.find(
+    (li) =>
+      li.itemId === woodItem.id &&
+      DREIDEL_SLOT_IDS.has(auditSlotBase(li.slotId)) &&
+      !skipLine(li) &&
+      isFreeLine(li) &&
+      !isExtraUnitLine(li)
+  );
+  if (wood) {
+    const quantity = wood.quantity + missing;
+    return lineItems.map((li) =>
+      li === wood ? { ...li, quantity, includedQty: Math.max(li.includedQty ?? 0, quantity) } : li
+    );
+  }
+  const slotId = lineItems.some((li) => li.slotId === 'wood-dreidel') ? 'wood-dreidel-household' : 'wood-dreidel';
+  return [
+    ...lineItems,
+    { slotId, itemId: woodItem.id, quantity: missing, includedQty: missing, unitCents: 0, label: woodItem.name },
+  ];
+}

@@ -107,6 +107,11 @@ function resolveDreidelKindItem(
   return resolveSlotItem(catalog, rows, kind);
 }
 
+/** The household wood dreidel the default box uses. */
+export function woodDreidelCatalogItem(catalog: CatalogItem[]): CatalogItem | undefined {
+  return resolveDreidelKindItem(catalog, catalog.map(toRulesRow), 'wood-dreidel');
+}
+
 function kidsFromChildren(children: ChildProfile[]): { age: number; child: ChildProfile }[] {
   return children.map((child) => {
     if (typeof child.plannerAge === 'number' && Number.isFinite(child.plannerAge)) {
@@ -199,17 +204,11 @@ export function buildCuratedBox(
   const candles = resolveCandlesItem(catalog, rows, outline.candlesDefault);
   if (candles) pushLineItem(lineItems, 'candles', candles);
 
-  // Wood-eligible kids + adults share a household wood line (same “1 per person”
-  // coverage as gelt). Craft kits replace that kid’s wood share; adults never get craft.
+  // One dreidel per person: wood-eligible kids + every adult share a household wood line,
+  // adult-only households and 5+ kid boxes included. Craft kits replace that kid's wood share.
   const woodAssignments = outline.dreidels.filter((d) => d.kind === 'wood-dreidel');
   const craftAssignments = outline.dreidels.filter((d) => d.kind !== 'wood-dreidel');
-  const adultsN = defaultAdults(outline.inputs.adults);
-  const woodKidCount = woodAssignments.length;
-
-  const woodQty = woodKidCount > 0 ? householdPracticeQty(
-    { length: woodKidCount },
-    adultsN,
-  ) : 0;
+  const woodQty = woodAssignments.length + defaultAdults(outline.inputs.adults);
 
   if (woodQty > 0) {
     const item = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
@@ -381,7 +380,6 @@ export function householdPracticeQty(
 ): number {
   const kidCount = kids.length;
   if (kidCount < 1) return Math.max(1, defaultAdults(adults));
-  if (kidCount >= 5) return 1; // party gelt / special cases — callers usually skip
 
   if (adults != null && adults >= 0) return kidCount + adults;
   if (lineItems?.length) {

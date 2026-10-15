@@ -31,7 +31,9 @@ import {
   repairExtraPerKidPricing,
   repairWoodDreidelIncluded,
   repairZeroExtraUnits,
+  woodDreidelCatalogItem,
 } from '../services/box/buildDefaultBox';
+import { topUpDreidelLines } from '../services/box/includedAudit';
 import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
 import {
@@ -1186,6 +1188,19 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       (opt) => opt.id !== itemId
     );
   };
+
+  /** "Add back" on an empty dreidel slot: free dreidels back up to one per person. */
+  const topUpIncludedDreidels = async () => {
+    if (locked) return;
+    const wood = woodDreidelCatalogItem(catalog);
+    if (!wood) return;
+    const next = topUpDreidelLines(lineItems, people, wood);
+    if (next === lineItems) return;
+    const woodQty = next.filter((li) => li.itemId === wood.id && (li.unitCents ?? 0) === 0).reduce((n, li) => n + li.quantity, 0);
+    includedBaselineByItemId.current.set(wood.id, Math.max(includedBaselineByItemId.current.get(wood.id) ?? 0, woodQty));
+    await persist(next);
+  };
+
   /**
    * Put a donated item back (or `replacement` in its place). Prefers the exact lines
    * that were removed so gift/kid slots come back where they were.
@@ -1359,6 +1374,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     locked,
     modalAddToBox,
     addOnTopCents,
+    topUpIncludedDreidels,
     modalRemoveFromBox,
     modalSwapIntoBox,
     now,
