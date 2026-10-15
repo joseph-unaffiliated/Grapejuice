@@ -27,6 +27,7 @@ import {
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
 import { auditIncluded, geltBagOf, includedCountLabel, type SectionCount } from '../../services/box/includedAudit';
+import { publishBoxAuditDev } from '../../services/box/boxAuditDevHook';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { isPilotLine, PILOT_PICK_META } from '../../services/box/pilotLines';
 import { ProductNote } from '../../components/box/ProductNote';
@@ -207,14 +208,21 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   }, [e.donatedItems, e.donatedLineSnapshots]);
   const donatedQty = useMemo(() => new Map(e.donatedItems.map((d) => [d.item.id, d.missing])), [e.donatedItems]);
   const includedCounts = useMemo((): Partial<Record<BoxDisplaySectionId, SectionCount>> => {
-    const { sections } = auditIncluded(
-      e.lineItems,
-      e.catalog,
-      { kidKeys: kids.map((c) => c.id), adults: e.people != null ? Math.max(0, e.people - kids.length) : undefined },
-      { wrapSelectedItemIds: e.wrapSelectedIds ? [...e.wrapSelectedIds] : [] }
-    );
+    const adults = e.people != null ? Math.max(0, e.people - kids.length) : undefined;
+    const kidKeys = kids.map((c) => c.id);
+    const wrapSelectedItemIds = e.wrapSelectedIds ? [...e.wrapSelectedIds] : [];
+    const audit = auditIncluded(e.lineItems, e.catalog, { kidKeys, adults }, { wrapSelectedItemIds });
+    publishBoxAuditDev({
+      audit,
+      lineItems: e.lineItems,
+      totalCents: e.boxPriceCents,
+      kidKeys,
+      adults,
+      wrapSelectedItemIds,
+    });
+    const { sections } = audit;
     return { story: sections.story, presents: sections.presents, candles: sections.candles, dreidel: sections.dreidel, food: sections.food };
-  }, [e.lineItems, e.catalog, e.people, e.wrapSelectedIds, kids]);
+  }, [e.lineItems, e.catalog, e.people, e.wrapSelectedIds, kids, e.boxPriceCents]);
   const sectionTitle = (id: BoxDisplaySectionId, fallback: string) =>
     id === 'food' ? 'Eat & Drink' : id === 'presents' ? 'Giving Gifts' : fallback;
   const addToCalendar = () => {

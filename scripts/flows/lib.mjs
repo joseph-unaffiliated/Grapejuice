@@ -71,10 +71,18 @@ export function writeFixture(name, value) {
   fs.writeFileSync(path.join(FIXTURES, `${name}.json`), typeof value === 'string' ? value : JSON.stringify(value));
 }
 
-/** "Total $95" from My Box's floating summary. */
+/** Locator for the My Box summary bar (desktop float or phone sticky bar). */
+export function boxSummaryLocator(page) {
+  return page.locator('[data-testid="box-order-summary-float"], [data-testid="mobile-box-bar"]').first();
+}
+
+/** "Total $95" / "$100" from My Box's floating summary or phone bar. */
 export async function readBoxTotalCents(page) {
-  const text = await page.locator('[data-testid="box-order-summary-float"]').innerText();
-  const m = text.replace(/\s+/g, ' ').match(/Total\s*\$([\d,]+(?:\.\d{2})?)/);
+  const text = await boxSummaryLocator(page).innerText();
+  const normalized = text.replace(/\s+/g, ' ');
+  const m =
+    normalized.match(/Total\s*\$([\d,]+(?:\.\d{2})?)/) ||
+    normalized.match(/\$([\d,]+(?:\.\d{2})?)/);
   if (!m) throw new Error(`No total in: ${text}`);
   return Math.round(parseFloat(m[1].replace(/,/g, '')) * 100);
 }
@@ -84,4 +92,44 @@ export async function screenshot(page, dir, name) {
   const file = path.join(dir, `${name}.png`);
   await page.screenshot({ path: file });
   return file;
+}
+
+/**
+ * React Native Web often ignores Playwright's synthetic clicks. Dispatch a real
+ * pointer/mouse sequence on the first match for `aria-label`, role+name, or text.
+ */
+export async function rnClick(page, { ariaLabel = null, role = null, name = null, text = null, nth = 0 } = {}) {
+  const ok = await page.evaluate(
+    ({ ariaLabel, role, name, text, nth }) => {
+      const nameRe = name instanceof RegExp || (name && name.source) ? new RegExp(name.source || name, name.flags || '') : null;
+      const textRe = text instanceof RegExp || (text && text.source) ? new RegExp(text.source || text, text.flags || '') : null;
+      let nodes = [];
+      if (ariaLabel) nodes = Array.from(document.querySelectorAll(`[aria-label="${ariaLabel}"]`));
+      else if (role && nameRe) {
+        nodes = Array.from(document.querySelectorAll(`[role="${role}"], ${role === 'button' ? 'button' : ''}`)).filter((el) =>
+          nameRe.test((el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim())
+        );
+      } else if (textRe) {
+        nodes = Array.from(document.querySelectorAll('[role="button"], button, a, [tabindex]')).filter((el) =>
+          textRe.test((el.textContent || '').replace(/\s+/g, ' ').trim())
+        );
+      }
+      const el = nodes[nth];
+      if (!el) return false;
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+      }
+      return true;
+    },
+    {
+      ariaLabel,
+      role,
+      name: name instanceof RegExp ? { source: name.source, flags: name.flags } : name,
+      text: text instanceof RegExp ? { source: text.source, flags: text.flags } : text,
+      nth,
+    }
+  );
+  if (!ok) throw new Error(`rnClick: no match for ${JSON.stringify({ ariaLabel, role, name: String(name), text: String(text), nth })}`);
+  return true;
 }
