@@ -8,6 +8,7 @@ import { resolveAvailability, availabilityRemaining } from './catalogAvailabilit
 import { buildShopOrder, type DashShopOrder } from './shopOrders';
 import { INVENTORY_EMAIL_LOG, inventoryEmailStats, type InventoryEmailStats } from './inventoryEmails';
 import { stripe } from './stripe';
+import { loadBoxProblems, type DashBoxAuditRun, type DashBoxProblem } from './boxAuditJob';
 import * as logger from './logger';
 import {
   checkoutSessionFromStripeMetadata,
@@ -267,6 +268,10 @@ export type BoxesDashboard = {
   inventoryEmails: InventoryEmailStats;
   /** Meta's own per-ad results (Grapejuice campaigns), keyed by ad name; null when Meta is unreachable. */
   metaByAd: Record<string, MetaAdStats> | null;
+  /** Boxes whose included-items audit lists problems (boxAuditJob.ts). */
+  boxProblems?: DashBoxProblem[];
+  /** Totals from the latest daily box audit sweep. */
+  boxAuditRun?: DashBoxAuditRun | null;
 };
 
 function iso(v: unknown): string | null {
@@ -1285,7 +1290,14 @@ export function createAdminBoxesDashboard(db: Firestore) {
   return onCall({ secrets: [metaAdsAccessToken] }, async (request): Promise<BoxesDashboard> => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in.');
     if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
-    const [dash, metaByAd] = await Promise.all([buildBoxesDashboard(db), metaStatsByAd()]);
-    return { ...dash, metaByAd };
+    const [dash, metaByAd, audits] = await Promise.all([
+      buildBoxesDashboard(db),
+      metaStatsByAd(),
+      loadBoxProblems(db).catch((err) => {
+        logger.warn('adminBoxesDashboard: box problems unavailable', { err: String(err) });
+        return { boxProblems: [], boxAuditRun: null };
+      }),
+    ]);
+    return { ...dash, metaByAd, ...audits };
   });
 }

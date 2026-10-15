@@ -283,6 +283,48 @@ export type BoxesDashboard = {
   inventoryEmails?: InventoryEmailStats;
   /** Meta's per-ad results, keyed by ad name; null when Meta is unreachable. */
   metaByAd?: Record<string, MetaAdStats> | null;
+  /** Boxes whose included-items audit lists problems. Missing until the server function is deployed. */
+  boxProblems?: DashBoxProblem[];
+  /** Totals from the latest daily box audit sweep. */
+  boxAuditRun?: DashBoxAuditRun | null;
+};
+
+/** See functions/src/boxAuditJob.ts. */
+export type DashBoxProblem = {
+  id: string;
+  kind: 'account' | 'guest' | 'gift' | 'order';
+  path: string;
+  householdId: string | null;
+  email: string | null;
+  test: boolean;
+  committed: boolean;
+  kids: number;
+  people: number;
+  /** Problems needing a look (not approved, grandfathered or a likely donation). */
+  open: number;
+  openSince: string | null;
+  auditedAt: string | null;
+  problems: Array<{
+    section: string;
+    code: string;
+    direction: string;
+    detail: string;
+    itemId: string | null;
+    childKey: string | null;
+    approved: string | null;
+    grandfathered: boolean;
+    likelyDonation: boolean;
+  }>;
+};
+
+export type DashBoxAuditRun = {
+  boxes: number;
+  real: number;
+  open: number;
+  openCommitted: number;
+  written: number;
+  deleted: number;
+  at: string;
 };
 
 export const DASHBOARD_REFRESH_MS = 60_000;

@@ -13,9 +13,11 @@ import {
   auditBoxRef,
   boxAuditId,
   guestBoxRefs,
+  isLikelyDonation,
   isOpenProblem,
   loadAuditCatalog,
   loadBoxes,
+  type BoxAuditProblem,
   type BoxAuditRecord,
   type BoxRef,
 } from './boxAuditLoad';
@@ -145,6 +147,89 @@ export async function runBoxAuditSweep(db: Firestore): Promise<BoxAuditSweep> {
     .doc(new Date().toISOString().slice(0, 10))
     .set({ ...result, newlyOpen: result.newlyOpen.slice(0, 50), at: new Date().toISOString() });
   return result;
+}
+
+/** One box with included-items problems, for Admin "Box problems". */
+export type DashBoxProblem = {
+  id: string;
+  kind: BoxAuditRecord['kind'];
+  path: string;
+  householdId: string | null;
+  email: string | null;
+  test: boolean;
+  committed: boolean;
+  kids: number;
+  people: number;
+  open: number;
+  openSince: string | null;
+  auditedAt: string | null;
+  problems: Array<{
+    section: string;
+    code: string;
+    direction: string;
+    detail: string;
+    itemId: string | null;
+    childKey: string | null;
+    approved: string | null;
+    grandfathered: boolean;
+    likelyDonation: boolean;
+  }>;
+};
+
+export type DashBoxAuditRun = Omit<BoxAuditSweep, 'newlyOpen'> & { at: string };
+
+/** Every stored audit with at least one problem (open or not), plus the latest sweep's totals. */
+export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: DashBoxProblem[]; boxAuditRun: DashBoxAuditRun | null }> {
+  const [audits, runs] = await Promise.all([
+    db.collection(BOX_AUDITS).get(),
+    db.collection(BOX_AUDIT_RUNS).orderBy('at', 'desc').limit(1).get(),
+  ]);
+  const text = (v: unknown) => (typeof v === 'string' && v ? v : null);
+  const boxProblems: DashBoxProblem[] = [];
+  for (const d of audits.docs) {
+    const x = d.data();
+    const problems = Array.isArray(x.problems) ? (x.problems as BoxAuditProblem[]) : [];
+    if (!problems.length) continue;
+    const path = String(x.path ?? '');
+    boxProblems.push({
+      id: d.id,
+      kind: x.kind,
+      path,
+      householdId: path.match(/^households\/([^/]+)\//)?.[1] ?? null,
+      email: text(x.email),
+      test: x.test === true,
+      committed: x.committed === true,
+      kids: Number(x.kids ?? 0),
+      people: Number(x.people ?? 0),
+      open: Number(x.open ?? 0),
+      openSince: text(x.openSince),
+      auditedAt: text(x.auditedAt),
+      problems: problems.map((p) => ({
+        section: p.section,
+        code: p.code,
+        direction: p.direction,
+        detail: p.detail,
+        itemId: p.itemId ?? null,
+        childKey: p.childKey ?? null,
+        approved: p.approved ?? null,
+        grandfathered: p.grandfathered === true,
+        likelyDonation: isLikelyDonation(p),
+      })),
+    });
+  }
+  const run = runs.docs[0]?.data();
+  const boxAuditRun = run
+    ? {
+        boxes: Number(run.boxes ?? 0),
+        real: Number(run.real ?? 0),
+        open: Number(run.open ?? 0),
+        openCommitted: Number(run.openCommitted ?? 0),
+        written: Number(run.written ?? 0),
+        deleted: Number(run.deleted ?? 0),
+        at: String(run.at ?? ''),
+      }
+    : null;
+  return { boxProblems, boxAuditRun };
 }
 
 export const scheduledBoxAudit = onSchedule(

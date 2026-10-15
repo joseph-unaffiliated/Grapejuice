@@ -32,6 +32,7 @@ import {
   type DashAdPerson,
   type DashAnswers,
   type DashBox,
+  type DashBoxProblem,
   type DashCardSession,
   type DashFunnelPerson,
   type DashGift,
@@ -914,6 +915,115 @@ function GiftsSection({
       ) : null}
       <Text style={styles.caption}>
         {`${rows.length} of ${data.gifts.length} gift invites. A gift appears here once the giver presses Continue on "Where should we send it?" and payment opens; unpaid rows never finished paying. Dot: green checked out, blue paid and waiting on the recipient, grey unpaid. Everyone who started a gift but stopped before payment is on the Gift funnel tab. Hanukkah and Jewish are the recipient's answers once they've signed up. ${ANSWERS_CAPTION}`}
+      </Text>
+    </View>
+  );
+}
+
+const BOX_PROBLEM_KIND: Record<DashBoxProblem['kind'], string> = {
+  account: 'Account draft',
+  guest: 'Signed-out box',
+  gift: 'Gift draft',
+  order: 'Order',
+};
+
+type BoxProblemLine = DashBoxProblem['problems'][number];
+
+function problemStatus(p: BoxProblemLine): string {
+  if (p.approved) return `Approved: ${p.approved}`;
+  if (p.grandfathered) return 'Grandfathered (earlier rule)';
+  if (p.likelyDonation) return 'Likely a donation';
+  return p.direction === 'under' ? 'Open: customer charged or short' : 'Open: more free than allowed';
+}
+
+function BoxProblemsSection({
+  data,
+  hideTests,
+  styles,
+  colors,
+}: {
+  data: BoxesDashboard;
+  hideTests: boolean;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const [show, setShow] = useState<'open' | 'all'>('open');
+  const [committed, setCommitted] = useState<YesNoAny>('any');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const all = data.boxProblems ?? [];
+  const customerByHousehold = useMemo(
+    () => new Map(data.boxes.filter((b) => b.customer).map((b) => [b.householdId, b.customer])),
+    [data.boxes],
+  );
+
+  const rows = useMemo(
+    () =>
+      all.filter((b) => {
+        if (hideTests && b.test) return false;
+        if (show === 'open' && b.open === 0) return false;
+        if (committed === 'yes' && !b.committed) return false;
+        if (committed === 'no' && b.committed) return false;
+        return true;
+      }),
+    [all, hideTests, show, committed],
+  );
+
+  const openLines = (b: DashBoxProblem) => b.problems.filter((p) => !p.approved && !p.grandfathered && !p.likelyDonation);
+  const columns: Column<DashBoxProblem>[] = [
+    {
+      label: 'Customer',
+      width: 210,
+      cell: (b) => <Who name={b.householdId ? customerByHousehold.get(b.householdId) ?? null : null} email={b.email} styles={styles} />,
+      sort: (b) => (b.email ?? b.path).toLowerCase(),
+    },
+    { label: 'Box', width: 120, cell: (b) => BOX_PROBLEM_KIND[b.kind], sort: (b) => b.kind },
+    { label: 'Committed', width: 80, cell: (b) => (b.committed ? 'Yes' : '—'), sort: (b) => (b.committed ? 1 : 0) },
+    { label: 'Open', width: 60, align: 'right', cell: (b) => (b.open ? String(b.open) : '—'), sort: (b) => b.open },
+    {
+      label: 'Problems',
+      width: 360,
+      cell: (b) => (openLines(b).length ? openLines(b) : b.problems).map((p) => p.detail).join('; '),
+      sort: (b) => b.problems[0]?.section ?? null,
+    },
+    { label: 'Household', width: 90, cell: (b) => `${b.kids} kid${b.kids === 1 ? '' : 's'}, ${b.people} people`, sort: (b) => b.people },
+    { label: 'Open since', width: 120, cell: (b) => when(b.openSince), sort: (b) => (b.openSince ? Date.parse(b.openSince) : null) },
+  ];
+
+  const run = data.boxAuditRun;
+  return (
+    <View style={styles.sectionBody}>
+      <ChipRow styles={styles}>
+        <ChipGroup value={show} onChange={setShow} styles={styles} options={[['open', 'Open problems'], ['all', 'Everything listed']]} />
+        <ChipGroup<YesNoAny> value={committed} onChange={setCommitted} styles={styles} options={[['any', 'Committed: any'], ['yes', 'Committed'], ['no', 'Not committed']]} />
+      </ChipRow>
+      <SortTable<DashBoxProblem>
+        columns={columns}
+        rows={rows}
+        rowKey={(b) => b.id}
+        rowTone={(b) => (b.open && b.committed ? 'danger' : b.open ? 'warning' : 'neutral')}
+        openKey={openId}
+        onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
+        renderDetail={(b) => (
+          <View style={styles.detailInner}>
+            <Facts
+              styles={styles}
+              facts={b.problems.map((p): [string, string] => [`${p.section}${p.childKey ? ` (${p.childKey})` : ''}`, `${p.detail} · ${problemStatus(p)}`])}
+            />
+            <Text style={styles.caption} selectable>{`${b.path} · audited ${when(b.auditedAt)}`}</Text>
+          </View>
+        )}
+        emptyMessage={
+          data.boxProblems
+            ? show === 'open'
+              ? 'No boxes with open problems. Choose Everything listed to see approved exceptions and likely donations.'
+              : 'No boxes with problems.'
+            : 'Box problems appear once the updated dashboard function is deployed.'
+        }
+        styles={styles}
+        colors={colors}
+      />
+      <Text style={styles.caption}>
+        {`${rows.length} of ${all.length} boxes with anything listed. Every box is checked against what's included (one book and present per kid, one candle set, one dreidel and one Little Bag's worth of gelt per person, two food slots, one wrap) whenever it changes and every morning at 6am Eastern. Open = more free than the rules allow, or the customer charged for something included. Approved exceptions, grandfathered gelt from the old default, and less gelt or a missing food slot (usually a donation) are listed but not open. Dot: red open on a committed box, amber open.${run ? ` Last full check ${when(run.at)}: ${run.real} real boxes, ${run.open} open (${run.openCommitted} committed).` : ''}`}
       </Text>
     </View>
   );
@@ -1934,8 +2044,8 @@ function FunnelSection({
   );
 }
 
-type Tab = 'boxes' | 'shop' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory';
-const TABS: readonly Tab[] = ['boxes', 'shop', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory'];
+type Tab = 'boxes' | 'shop' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory' | 'problems';
+const TABS: readonly Tab[] = ['boxes', 'shop', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory', 'problems'];
 const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
 
 /** The open tab survives a browser refresh of /admin/orders. */
@@ -2259,6 +2369,12 @@ export function AdminBoxesScreen() {
             <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
             <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
             <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
+            <Chip
+              label={`Box problems (${(data.boxProblems ?? []).filter((b) => b.open > 0 && !(hideTests && b.test)).length})`}
+              active={tab === 'problems'}
+              onPress={() => setTab('problems')}
+              styles={styles}
+            />
           </ChipRow>
           {mobile ? <View style={styles.sectionDivider} /> : null}
 
@@ -2318,6 +2434,12 @@ export function AdminBoxesScreen() {
             <>
               <Text style={styles.section}>Inventory: stock, boxes, shop sales and holds</Text>
               <InventorySection inventory={inventory} styles={styles} colors={colors} />
+            </>
+          ) : null}
+          {tab === 'problems' ? (
+            <>
+              <Text style={styles.section}>Box problems: boxes that don't match what's included</Text>
+              <BoxProblemsSection data={data} hideTests={hideTests} styles={styles} colors={colors} />
             </>
           ) : null}
         </ScrollView>
