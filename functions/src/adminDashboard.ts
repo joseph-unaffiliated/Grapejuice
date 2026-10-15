@@ -422,7 +422,7 @@ function adNameOf(touch: unknown): string | null {
   return source === 'meta' || str(t.fbclid) ? META_AD_UNKNOWN : null;
 }
 
-function guestAnsweredSliders(guest: DocumentData): boolean {
+export function guestAnsweredSliders(guest: DocumentData): boolean {
   return (
     guest.onboardingComplete === true ||
     guest.boxRevealComplete === true ||

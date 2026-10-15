@@ -130,6 +130,40 @@ export function agreementHash(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
+/** Families scoring below this on the "Jewish" slider (0–100) are invited automatically. */
+export const PILOT_AUTO_INVITE_MAX_JEWISH = 50;
+
+/** The invite greets by first name, so a lone initial ("J", "J.") isn't enough. */
+export function hasRealFirstName(name: string | null | undefined): boolean {
+  const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
+  return first.replace(/[.,'’\-_]/g, '').length >= 2;
+}
+
+export type AutoInviteCandidate = {
+  jewish: number | null;
+  email: string | null;
+  name: string | null;
+  hasDraftLines: boolean;
+  committed: boolean;
+  playthrough: boolean;
+  isTest: boolean;
+  alreadyInvited: boolean;
+};
+
+export function isAutoInviteEligible(c: AutoInviteCandidate): boolean {
+  return (
+    c.jewish != null &&
+    c.jewish < PILOT_AUTO_INVITE_MAX_JEWISH &&
+    !!c.email?.includes('@') &&
+    hasRealFirstName(c.name) &&
+    c.hasDraftLines &&
+    !c.committed &&
+    !c.playthrough &&
+    !c.isTest &&
+    !c.alreadyInvited
+  );
+}
+
 /** `j•••@example.com` — enough for someone to recognize their own address. */
 export function maskEmail(email: string): string {
   const [local, domain] = email.split('@');

@@ -75,7 +75,7 @@ import {
 } from './checkoutSession';
 import { checkUsAddressFormat } from './usAddress';
 import { applyResolvedPromo, recordPromoRedemption, resolveCheckoutPromo } from './promotions';
-import { markPilotEnrollmentCommitted, withPilotLines } from './pilotParticipants';
+import { markPilotEnrollmentCommitted, runPilotAutoInvites, withPilotLines } from './pilotParticipants';
 import { discountCentsForTerms, type PromoTerms } from './promoPricing';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
@@ -3521,6 +3521,15 @@ export const scheduledSetupNudges = onSchedule('every day 08:00', async () => {
   const lockAt = await getLockAt();
   if (!lockAt || isLocked(lockAt)) return;
   await runSetupNudgeBatch(db, lockAt);
+});
+
+/** Hourly — pilot invite links for newly eligible families (pilotParticipants.runPilotAutoInvites). */
+export const scheduledPilotAutoInvites = onSchedule('every 1 hours', async () => {
+  if (process.env.GJ_PILOT_AUTO_INVITE_ENABLED !== 'true') {
+    logger.info('scheduledPilotAutoInvites skipped — GJ_PILOT_AUTO_INVITE_ENABLED is not true');
+    return;
+  }
+  await runPilotAutoInvites(db);
 });
 
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -61,10 +61,67 @@ function CopyLinkRow({ link, styles }: { link: string; styles: Styles }) {
   );
 }
 
-function InviteRow({ inv, onChanged, styles }: { inv: AdminPilotInvite; onChanged: () => Promise<void>; styles: Styles }) {
+type CheckStyles = ReturnType<typeof createCheckStyles>;
+
+function SentCheck({
+  label,
+  at,
+  onToggle,
+  styles,
+  check,
+}: {
+  label: string;
+  at: string | null;
+  onToggle: () => void;
+  styles: Styles;
+  check: CheckStyles;
+}) {
+  return (
+    <TouchableOpacity
+      style={check.row}
+      onPress={onToggle}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: !!at }}
+      hitSlop={6}
+    >
+      <View style={[check.box, at ? check.boxOn : null]}>{at ? <Text style={check.tick}>✓</Text> : null}</View>
+      <Text style={styles.fact}>{at ? `${label} ${day(at)}` : label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function InviteRow({
+  inv,
+  onChanged,
+  styles,
+  check,
+}: {
+  inv: AdminPilotInvite;
+  onChanged: () => Promise<void>;
+  styles: Styles;
+  check: CheckStyles;
+}) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [emailedAt, setEmailedAt] = useState(inv.emailedAt);
+  const [followUpAt, setFollowUpAt] = useState(inv.followUpAt);
+  useEffect(() => setEmailedAt(inv.emailedAt), [inv.emailedAt]);
+  useEffect(() => setFollowUpAt(inv.followUpAt), [inv.followUpAt]);
   const joined = !!inv.joinedAt;
+  const toggle = async (kind: 'emailed' | 'followUp') => {
+    const current = kind === 'emailed' ? emailedAt : followUpAt;
+    const set = kind === 'emailed' ? setEmailedAt : setFollowUpAt;
+    set(current ? null : new Date().toISOString());
+    setMsg(null);
+    try {
+      const res = await (kind === 'emailed' ? adminPilot.markEmailed : adminPilot.markFollowUp)(inv.token, !current);
+      set(res.at);
+      await onChanged();
+    } catch (err) {
+      set(current);
+      setMsg(errMsg(err));
+    }
+  };
   const cancel = async () => {
     if (!confirmAction(`Cancel ${inv.name}’s invite? The link will stop working.`)) return;
     setBusy(true);
@@ -82,10 +139,18 @@ function InviteRow({ inv, onChanged, styles }: { inv: AdminPilotInvite; onChange
     <View style={styles.card}>
       <View style={styles.rowHead}>
         <Text style={styles.cardTitle}>{`${inv.name} · ${inv.email}`}</Text>
-        <Text style={[styles.badge, inv.status === 'enrolled' ? styles.badgeOn : null]}>{STATUS_LABEL[inv.status] ?? inv.status}</Text>
+        <View style={styles.chipRow}>
+          {inv.source === 'auto' ? <Text style={styles.badge}>Auto</Text> : null}
+          <Text style={[styles.badge, inv.status === 'enrolled' ? styles.badgeOn : null]}>{STATUS_LABEL[inv.status] ?? inv.status}</Text>
+        </View>
       </View>
       <View style={styles.facts}>
-        <Fact k="Invited" v={`${day(inv.createdAt)} by ${inv.createdByEmail || '—'}`} styles={styles} />
+        <Fact
+          k="Invited"
+          v={`${day(inv.createdAt)} ${inv.source === 'auto' ? 'automatically' : `by ${inv.createdByEmail || '—'}`}`}
+          styles={styles}
+        />
+        {inv.jewishScore != null ? <Fact k="Jewish score" v={String(inv.jewishScore)} styles={styles} /> : null}
         <Fact k="Account" v={inv.accountCreated ? 'Created for them' : 'Already existed'} styles={styles} />
         <Fact k="Opened" v={day(inv.openedAt)} styles={styles} />
         {joined ? <Fact k="Joined" v={day(inv.joinedAt)} styles={styles} /> : null}
@@ -94,6 +159,12 @@ function InviteRow({ inv, onChanged, styles }: { inv: AdminPilotInvite; onChange
       </View>
       {inv.picks.length ? <Text style={styles.caption}>{inv.picks.join(' · ')}</Text> : null}
       {inv.status !== 'cancelled' ? <CopyLinkRow link={inv.link} styles={styles} /> : null}
+      {inv.status !== 'cancelled' ? (
+        <View style={check.group}>
+          <SentCheck label="Emailed" at={emailedAt} onToggle={() => void toggle('emailed')} styles={styles} check={check} />
+          <SentCheck label="Follow-up sent" at={followUpAt} onToggle={() => void toggle('followUp')} styles={styles} check={check} />
+        </View>
+      ) : null}
       {!joined && inv.status !== 'cancelled' ? (
         <View style={styles.chipRow}>
           <Chip label={busy ? 'Cancelling…' : 'Cancel invite'} onPress={() => void cancel()} styles={styles} />
@@ -104,8 +175,62 @@ function InviteRow({ inv, onChanged, styles }: { inv: AdminPilotInvite; onChange
   );
 }
 
+type Filter = 'all' | 'notEmailed' | 'needsFollowUp' | 'joined';
+
+const FILTERS: Array<{ id: Filter; label: string; match: (i: AdminPilotInvite) => boolean }> = [
+  { id: 'all', label: 'All', match: () => true },
+  { id: 'notEmailed', label: 'Not emailed yet', match: (i) => i.status !== 'cancelled' && !i.joinedAt && !i.emailedAt },
+  {
+    id: 'needsFollowUp',
+    label: 'Emailed, no follow-up',
+    match: (i) => i.status !== 'cancelled' && !i.joinedAt && !!i.emailedAt && !i.followUpAt,
+  },
+  { id: 'joined', label: 'Joined', match: (i) => !!i.joinedAt },
+];
+
+function AutoInviteCard({ onChanged, styles }: { onChanged: () => Promise<void>; styles: Styles }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const res = await adminPilot.autoInvite();
+      setNotice({
+        ok: true,
+        text: res.locked
+          ? 'Boxes are locked, so no new invites were made.'
+          : res.created
+            ? `Created ${res.created} invite${res.created === 1 ? '' : 's'}.`
+            : 'No new families to invite right now.',
+      });
+      await onChanged();
+    } catch (err) {
+      setNotice({ ok: false, text: errMsg(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Automatic invites</Text>
+      <Text style={styles.caption}>
+        Families get a link automatically when their Jewish score is under 50, we have their email and a first name (not just an
+        initial), and they’ve built a box but haven’t checked out. Test accounts and anyone already invited (even if cancelled) are
+        skipped. Checks every hour; use the button to check now.
+      </Text>
+      <View style={styles.chipRow}>
+        <Button label="Find new families" onPress={() => void run()} busy={busy} styles={styles} />
+      </View>
+      <Notice ok={notice?.ok ?? false} text={notice?.text ?? null} styles={styles} />
+    </View>
+  );
+}
+
 function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColors }) {
   const { rows, error, reload } = useAdminList(adminPilot.list);
+  const check = useMemo(() => createCheckStyles(colors), [colors]);
+  const [filter, setFilter] = useState<Filter>('all');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -142,6 +267,8 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
 
   const list = rows ?? [];
   const count = (s: (i: AdminPilotInvite) => boolean) => list.filter(s).length;
+  const live = (i: AdminPilotInvite) => i.status !== 'cancelled';
+  const shown = list.filter(FILTERS.find((f) => f.id === filter)!.match);
 
   return (
     <View style={styles.body}>
@@ -163,14 +290,36 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
         {created ? <CopyLinkRow link={created} styles={styles} /> : null}
       </View>
 
+      <AutoInviteCard onChanged={reload} styles={styles} />
+
       <Text style={styles.caption}>
         {rows
-          ? `${count((i) => i.status !== 'cancelled')} invited · ${count((i) => !!i.openedAt)} opened · ${count((i) => !!i.joinedAt)} joined · ${count((i) => i.status === 'enrolled')} enrolled`
+          ? [
+              `${count(live)} invited (${count((i) => live(i) && i.source === 'auto')} auto)`,
+              `${count((i) => live(i) && !!i.emailedAt)} emailed`,
+              `${count((i) => live(i) && !!i.followUpAt)} followed up`,
+              `${count((i) => !!i.openedAt)} opened`,
+              `${count((i) => !!i.joinedAt)} joined`,
+              `${count((i) => i.status === 'enrolled')} enrolled`,
+            ].join(' · ')
           : error ?? 'Loading invites…'}
       </Text>
       {rows && error ? <Text style={styles.error}>{error}</Text> : null}
-      {list.map((inv) => (
-        <InviteRow key={inv.token} inv={inv} onChanged={reload} styles={styles} />
+      {rows ? (
+        <View style={styles.chipRow}>
+          {FILTERS.map((f) => (
+            <Chip
+              key={f.id}
+              label={`${f.label} (${count(f.match)})`}
+              active={filter === f.id}
+              onPress={() => setFilter(f.id)}
+              styles={styles}
+            />
+          ))}
+        </View>
+      ) : null}
+      {shown.map((inv) => (
+        <InviteRow key={inv.token} inv={inv} onChanged={reload} styles={styles} check={check} />
       ))}
     </View>
   );
@@ -241,6 +390,24 @@ export function AdminPilotScreen() {
       </WebContentPanel>
     </View>
   );
+}
+
+function createCheckStyles(colors: SemanticColors) {
+  return StyleSheet.create({
+    group: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg, rowGap: spacing.xs },
+    row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 32 },
+    box: {
+      width: 18,
+      height: 18,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: colors.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    boxOn: { backgroundColor: colors.brand },
+    tick: { ...typeface('medium'), fontSize: 12, lineHeight: 14, color: colors.bgPrimary },
+  });
 }
 
 function createStyles(colors: SemanticColors, isDesktop: boolean) {

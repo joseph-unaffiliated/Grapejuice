@@ -4,8 +4,9 @@
  * for those items. Phase 1 here: invites, the enroll page's data, enrolling, and keeping the pilot
  * lines on the box. Survey tracking, the deferred charge and refunds come later.
  *
- * - pilotInvites/{token}: one per email, made by an admin (adminPilotParticipants). Joseph emails
- *   the link himself; nothing here sends it.
+ * - pilotInvites/{token}: one per email, made by an admin (adminPilotParticipants) or by the
+ *   auto-invite sweep (runPilotAutoInvites, `source: 'auto'`). Joseph emails the link himself and
+ *   ticks `emailedAt` / `followUpAt` in the admin; nothing here sends it.
  * - pilotEnrollments/{householdId}: picks (price snapshot), agreement record, status
  *   `awaiting_checkout` (picks are in the draft; the box isn't checked out yet) → `enrolled`.
  * - adminConfig/pilotParticipants (optional): `itemIds` overrides the approved list and its order.
@@ -16,8 +17,11 @@
  */
 import { randomBytes } from 'node:crypto';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { getFirestore, type DocumentData, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, type DocumentData, type Firestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import * as logger from './logger';
+import { guestAnsweredSliders } from './adminDashboard';
+import { isTest } from './testAccounts';
 import { onCall, HttpsError, withSentry } from './sentry';
 import { appOrigin, isAdminToken } from './guestSessions';
 import { enforceRateLimits, normalizeEmail } from './loginLinks';
@@ -36,6 +40,7 @@ import {
   agreementHash,
   formatPilotDay,
   formatPilotDollars,
+  isAutoInviteEligible,
   isPilotLine,
   maskEmail,
   mergePilotLines,
@@ -226,7 +231,16 @@ export async function markPilotEnrollmentCommitted(db: Firestore, householdId: s
 
 type AdminActor = { uid: string; email: string };
 
-async function createInvite(db: Firestore, actor: AdminActor, input: Record<string, unknown>) {
+type InviteSource = 'auto' | 'manual';
+
+const AUTO_ACTOR: AdminActor = { uid: 'auto', email: 'auto' };
+
+async function createInvite(
+  db: Firestore,
+  actor: AdminActor,
+  input: Record<string, unknown>,
+  extra: { source?: InviteSource; jewishScore?: number | null } = {}
+) {
   const email = normalizeEmail(input.email);
   const name = typeof input.name === 'string' ? input.name.trim().slice(0, 80) : '';
   if (!name) throw new HttpsError('invalid-argument', 'Enter their name.');
@@ -249,8 +263,10 @@ async function createInvite(db: Firestore, actor: AdminActor, input: Record<stri
     createdByUid: actor.uid,
     createdByEmail: actor.email,
     createdAt: new Date().toISOString(),
+    source: extra.source ?? 'manual',
+    ...(typeof extra.jewishScore === 'number' ? { jewishScore: extra.jewishScore } : {}),
   });
-  logger.info('pilot invite created', { accountCreated: account.accountCreated });
+  logger.info('pilot invite created', { accountCreated: account.accountCreated, source: extra.source ?? 'manual' });
   return { token, link: pilotLink(token), existing: false, accountCreated: account.accountCreated };
 }
 
@@ -273,6 +289,10 @@ async function listInvites(db: Firestore) {
       accountCreated: i.accountCreated === true,
       createdAt: str(i.createdAt),
       createdByEmail: str(i.createdByEmail),
+      source: (i.source === 'auto' ? 'auto' : 'manual') as InviteSource,
+      jewishScore: typeof i.jewishScore === 'number' ? i.jewishScore : null,
+      emailedAt: str(i.emailedAt) || null,
+      followUpAt: str(i.followUpAt) || null,
       openedAt: str(i.openedAt) || null,
       enrolledAt: str(e?.enrolledAt) || null,
       joinedAt: str(e?.createdAt) || null,
@@ -296,6 +316,140 @@ async function cancelInvite(db: Firestore, input: Record<string, unknown>) {
   return { ok: true };
 }
 
+/** Ticks or clears "Emailed" (`emailedAt`) or "Follow-up sent" (`followUpAt`) on an invite. */
+async function markSent(db: Firestore, actor: AdminActor, input: Record<string, unknown>, field: 'emailed' | 'followUp') {
+  const token = str(input.token);
+  if (!TOKEN_RE.test(token)) throw new HttpsError('invalid-argument', 'Invite not found.');
+  const ref = db.doc(`pilotInvites/${token}`);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', 'Invite not found.');
+  const at = new Date().toISOString();
+  await ref.update(
+    input.done === true
+      ? { [`${field}At`]: at, [`${field}ByEmail`]: actor.email }
+      : { [`${field}At`]: FieldValue.delete(), [`${field}ByEmail`]: FieldValue.delete() }
+  );
+  return { ok: true, at: input.done === true ? at : null };
+}
+
+const scoreOf = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.round(Math.max(0, Math.min(100, v))) : null;
+
+export type AutoInviteFamily = { email: string; name: string; jewishScore: number; householdId: string };
+
+/**
+ * Invites every family that qualifies (pilotRules.isAutoInviteEligible): Jewish score under 50, a
+ * real first name and an email, a Hanukkah draft with items and no checked-out box. Anyone with an
+ * invite already (cancelled included) or an enrollment is left alone. Stops once the box locks.
+ * Scores and names are read the way the Boxes dashboard reads them (adminDashboard.ts).
+ */
+export async function runPilotAutoInvites(
+  db: Firestore,
+  opts: { dryRun?: boolean } = {}
+): Promise<{ dryRun: boolean; locked: boolean; created: number; families: AutoInviteFamily[] }> {
+  const dryRun = opts.dryRun === true;
+  const { lockAt } = await boxConfig(db);
+  if (isPast(lockAt)) return { dryRun, locked: true, created: 0, families: [] };
+
+  const [draftsSnap, ordersSnap, invitesSnap, enrollSnap, guestSnap] = await Promise.all([
+    db.collectionGroup('boxDrafts').get(),
+    db.collectionGroup('orders').select('orderType', 'holidayId', 'status', 'playthrough').get(),
+    db.collection('pilotInvites').select('email', 'householdId').get(),
+    db.collection('pilotEnrollments').select().get(),
+    db.collection('guestSessions').select('convertedUid', 'snapshot.guest').get(),
+  ]);
+
+  const committed = new Set<string>();
+  for (const d of ordersSnap.docs) {
+    const o = d.data();
+    const hid = d.ref.parent.parent?.id;
+    const isBox = o.orderType === 'hanukkah_box' || (!o.orderType && o.holidayId === HOLIDAY_ID);
+    if (hid && isBox && o.playthrough !== true && ['committed', 'confirmed', 'shipped', 'delivered'].includes(o.status)) {
+      committed.add(hid);
+    }
+  }
+  const invitedEmails = new Set(invitesSnap.docs.map((d) => str(d.data().email).toLowerCase()).filter(Boolean));
+  const invitedHouseholds = new Set([
+    ...invitesSnap.docs.map((d) => str(d.data().householdId)).filter(Boolean),
+    ...enrollSnap.docs.map((d) => d.id),
+  ]);
+
+  const drafts = new Map<string, DocumentData>();
+  for (const d of draftsSnap.docs) {
+    const hh = d.ref.parent.parent;
+    if (d.id !== HOLIDAY_ID || !hh || hh.parent.id !== 'households') continue;
+    const x = d.data();
+    if (!linesOf(x.lineItems).length || committed.has(hh.id) || invitedHouseholds.has(hh.id)) continue;
+    drafts.set(hh.id, x);
+  }
+  if (!drafts.size) return { dryRun, locked: false, created: 0, families: [] };
+
+  const hhSnaps = await db.getAll(...[...drafts.keys()].map((hid) => db.doc(`households/${hid}`)));
+  const ownerByHousehold = new Map<string, { ownerId: string; playthrough: boolean }>();
+  for (const s of hhSnaps) {
+    const ownerId = str(s.data()?.ownerId);
+    if (ownerId) ownerByHousehold.set(s.id, { ownerId, playthrough: s.data()?.playthrough === true });
+  }
+  const ownerIds = [...new Set([...ownerByHousehold.values()].map((o) => o.ownerId))];
+  const userSnaps = ownerIds.length ? await db.getAll(...ownerIds.map((uid) => db.doc(`users/${uid}`))) : [];
+  const userById = new Map(userSnaps.map((s) => [s.id, s.data() ?? {}]));
+
+  // Some profiles lack email/displayName; the Auth record still has them.
+  const authByUid = new Map<string, { email: string | null; name: string | null }>();
+  const needAuth = ownerIds.filter((uid) => !str(userById.get(uid)?.email) || !str(userById.get(uid)?.displayName));
+  for (let i = 0; i < needAuth.length; i += 100) {
+    const { users } = await getAuth().getUsers(needAuth.slice(i, i + 100).map((uid) => ({ uid })));
+    for (const r of users) authByUid.set(r.uid, { email: r.email ?? null, name: r.displayName ?? null });
+  }
+
+  // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
+  const guestJewish = new Map<string, number>();
+  for (const d of guestSnap.docs) {
+    const x = d.data();
+    const uid = str(x.convertedUid);
+    const guest = x.snapshot?.guest;
+    const s = guest ? scoreOf(guest.practiceFrequencyScore) : null;
+    if (uid && guest && s != null && guestAnsweredSliders(guest)) guestJewish.set(uid, s);
+  }
+
+  const families: AutoInviteFamily[] = [];
+  for (const [hid, draft] of drafts) {
+    const owner = ownerByHousehold.get(hid);
+    if (!owner) continue;
+    const u = userById.get(owner.ownerId) ?? {};
+    const auth = authByUid.get(owner.ownerId);
+    const email = (str(u.email) || auth?.email || '').trim().toLowerCase() || null;
+    const name = (str(u.displayName) || auth?.name || '').trim() || null;
+    const jewish = scoreOf(u.lastBoxAnswers?.practiceFrequencyScore) ?? guestJewish.get(owner.ownerId) ?? null;
+    const eligible = isAutoInviteEligible({
+      jewish,
+      email,
+      name,
+      hasDraftLines: true,
+      committed: false,
+      playthrough: owner.playthrough || draft.playthrough === true,
+      isTest: isTest(email),
+      alreadyInvited: !!email && invitedEmails.has(email),
+    });
+    if (eligible && !families.some((f) => f.email === email)) {
+      families.push({ email: email!, name: name!, jewishScore: jewish!, householdId: hid });
+    }
+  }
+
+  let created = 0;
+  if (!dryRun) {
+    for (const f of families) {
+      try {
+        const r = await createInvite(db, AUTO_ACTOR, { email: f.email, name: f.name }, { source: 'auto', jewishScore: f.jewishScore });
+        if (!r.existing) created += 1;
+      } catch (err) {
+        logger.error('pilot auto invite failed', { householdId: f.householdId, err: String(err) });
+      }
+    }
+  }
+  logger.info('pilot auto invites', { dryRun, eligible: families.length, created });
+  return { dryRun, locked: false, created, families };
+}
+
 export const adminPilotParticipants = onCall(async (request) => {
   if (!request.auth?.uid || !isAdminToken(request.auth.token)) {
     throw new HttpsError('permission-denied', 'Admin only.');
@@ -313,6 +467,14 @@ export const adminPilotParticipants = onCall(async (request) => {
       return createInvite(db, actor, input);
     case 'cancelInvite':
       return cancelInvite(db, input);
+    case 'markEmailed':
+      return markSent(db, actor, input, 'emailed');
+    case 'markFollowUp':
+      return markSent(db, actor, input, 'followUp');
+    case 'autoInvite': {
+      const r = await runPilotAutoInvites(db, { dryRun: input.dryRun === true });
+      return { dryRun: r.dryRun, locked: r.locked, created: r.created, eligible: r.families.length };
+    }
     default:
       throw new HttpsError('invalid-argument', 'Unknown action.');
   }

@@ -67,6 +67,10 @@ export type AdminPilotInvite = {
   accountCreated: boolean;
   createdAt: string;
   createdByEmail: string;
+  source: 'auto' | 'manual';
+  jewishScore: number | null;
+  emailedAt: string | null;
+  followUpAt: string | null;
   openedAt: string | null;
   enrolledAt: string | null;
   joinedAt: string | null;
@@ -93,5 +97,14 @@ export const adminPilot = {
   },
   async cancelInvite(token: string) {
     await admin({ action: 'cancelInvite', token });
+  },
+  async markEmailed(token: string, done: boolean) {
+    return (await admin({ action: 'markEmailed', token, done })) as { at: string | null };
+  },
+  async markFollowUp(token: string, done: boolean) {
+    return (await admin({ action: 'markFollowUp', token, done })) as { at: string | null };
+  },
+  async autoInvite() {
+    return (await admin({ action: 'autoInvite' })) as { locked: boolean; created: number; eligible: number };
   },
 };

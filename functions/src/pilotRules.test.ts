@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {
   formatPilotDay,
   formatPilotDollars,
+  hasRealFirstName,
+  isAutoInviteEligible,
   maskEmail,
   mergePilotLines,
   pickProblem,
@@ -88,6 +90,40 @@ const clay = { itemId: 'airdry-clay-dreidel', name: 'Air-dry clay dreidel', defe
   // The page builds the same text; enrollPilot refuses when they differ.
   assert.equal(clientAgreementText([crispy, gelt, clay]), text);
   assert.equal(clientAgreementText([{ ...crispy, deferredChargeCents: 1050 }, gelt, clay]), pilotAgreementText([{ ...crispy, deferredChargeCents: 1050 }, gelt, clay]));
+}
+
+// Auto invites: a real first name, Jewish score under 50, an open box, nobody already invited.
+{
+  assert.equal(hasRealFirstName('Rachel Cohen'), true);
+  assert.equal(hasRealFirstName('Al'), true);
+  assert.equal(hasRealFirstName('J'), false);
+  assert.equal(hasRealFirstName('J.'), false);
+  assert.equal(hasRealFirstName('J. Cohen'), false);
+  assert.equal(hasRealFirstName('  '), false);
+  assert.equal(hasRealFirstName(null), false);
+
+  const base = {
+    jewish: 20,
+    email: 'rachel@gmail.com',
+    name: 'Rachel',
+    hasDraftLines: true,
+    committed: false,
+    playthrough: false,
+    isTest: false,
+    alreadyInvited: false,
+  };
+  assert.equal(isAutoInviteEligible(base), true);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 0 }), true);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 49 }), true);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 50 }), false);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: null }), false);
+  assert.equal(isAutoInviteEligible({ ...base, email: null }), false);
+  assert.equal(isAutoInviteEligible({ ...base, name: 'R.' }), false);
+  assert.equal(isAutoInviteEligible({ ...base, hasDraftLines: false }), false);
+  assert.equal(isAutoInviteEligible({ ...base, committed: true }), false);
+  assert.equal(isAutoInviteEligible({ ...base, playthrough: true }), false);
+  assert.equal(isAutoInviteEligible({ ...base, isTest: true }), false);
+  assert.equal(isAutoInviteEligible({ ...base, alreadyInvited: true }), false);
 }
 
 assert.equal(formatPilotDollars(4300), '$43');
