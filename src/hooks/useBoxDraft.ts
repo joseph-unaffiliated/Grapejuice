@@ -19,6 +19,7 @@ import {
 import { householdPeople } from '../services/box/boxRules';
 import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { keepPilotLines } from '../services/box/pilotLines';
+import { sameBoxLines } from '../services/box/mergeBoxLines';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import {
@@ -539,25 +540,35 @@ export function useBoxDraft() {
         return;
       }
       const prev = peekAuthBoxDraft(household.id);
-      const next = keepPilotLines(prev?.lineItems ?? lineItems, proposed);
+      const base = prev?.lineItems ?? lineItems;
+      const next = keepPilotLines(base, proposed);
       setLineItems(next);
-      writeAuthBoxDraftCache({
-        householdId: household.id,
-        lineItems: next,
-        slotVotes: prev?.slotVotes ?? slotVotes,
-        sealedSectionIds: prev?.sealedSectionIds ?? sealedSectionIds,
-        wrapSelectedItemIds: wrapSelectedRef.current,
-        children: prev?.children ?? children,
-        familiarity: prev?.familiarity ?? familiarity,
-        swapNotices: prev?.swapNotices ?? authSwapNotices,
-      });
+      const cacheWith = (lines: BoxLineItem[]) =>
+        writeAuthBoxDraftCache({
+          householdId: household.id,
+          lineItems: lines,
+          slotVotes: prev?.slotVotes ?? slotVotes,
+          sealedSectionIds: prev?.sealedSectionIds ?? sealedSectionIds,
+          wrapSelectedItemIds: wrapSelectedRef.current,
+          children: prev?.children ?? children,
+          familiarity: prev?.familiarity ?? familiarity,
+          swapNotices: prev?.swapNotices ?? authSwapNotices,
+        });
+      cacheWith(next);
       useBoxPresenceStore.getState().setHasBox(household.id, next.length > 0);
-      await boxDraftService.save(household.id, user.uid, next, {
+      const saved = await boxDraftService.save(household.id, user.uid, next, {
         familiarityLevel: profile?.familiarityLevel ?? familiarity,
         slotVotes,
         wrapSelectedItemIds: wrapSelectedRef.current,
         source,
+        base,
       });
+      // The saved box changed underneath this tab (a repair or another tab): show the merge,
+      // unless a newer local edit has already replaced `next`.
+      if (!sameBoxLines(saved.lineItems, next) && peekAuthBoxDraft(household.id)?.lineItems === next) {
+        setLineItems(saved.lineItems);
+        cacheWith(saved.lineItems);
+      }
     },
     [
       isAuthenticated,

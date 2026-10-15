@@ -1,8 +1,9 @@
-import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, runTransaction, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { BoxChangeSource, BoxDraft, BoxLineItem, InventorySwapNotice, SlotVotes } from '../../types/pilot';
 import { HOLIDAY_ID } from '../../types/pilot';
 import { ensureAuthTokenReady } from './token';
+import { mergeBoxLines } from '../box/mergeBoxLines';
 
 function parseSlotVotes(raw: unknown): SlotVotes {
   if (!raw || typeof raw !== 'object') return {};
@@ -70,6 +71,8 @@ function sanitizeLineItem(li: BoxLineItem): Record<string, unknown> {
     includedQty: li.includedQty,
     displaySectionId: li.displaySectionId,
     curationNote: li.curationNote,
+    program: li.program,
+    deferredChargeCents: li.deferredChargeCents,
   });
 }
 
@@ -99,15 +102,24 @@ export const boxDraftService = {
         | 'sealedSectionIds'
         | 'wrapSelectedItemIds'
       >
-    > & { source?: BoxChangeSource }
+    > & {
+      source?: BoxChangeSource;
+      /**
+       * The lines this edit started from. When the saved box has changed since (a repair or
+       * another tab), only the slots this edit touched are written over it.
+       */
+      base?: BoxLineItem[];
+    }
   ): Promise<BoxDraft> {
     if (!db) throw new Error('Firestore not configured');
     await ensureAuthTokenReady(uid);
     const ref = doc(db, 'households', householdId, 'boxDrafts', HOLIDAY_ID);
     const now = new Date().toISOString();
-    const payload = omitUndefined({
+    const mine = lineItems.map(sanitizeLineItem) as BoxLineItem[];
+    const base = extra?.base?.map(sanitizeLineItem) as BoxLineItem[] | undefined;
+    const fields = (lines: BoxLineItem[]) => omitUndefined({
       holidayId: HOLIDAY_ID,
-      lineItems: lineItems.map(sanitizeLineItem),
+      lineItems: lines,
       updatedAt: now,
       updatedBy: uid,
       lastChangeSource: extra?.source ?? 'customer',
@@ -118,7 +130,15 @@ export const boxDraftService = {
       sealedSectionIds: extra?.sealedSectionIds,
       wrapSelectedItemIds: extra?.wrapSelectedItemIds,
     });
-    await setDoc(ref, payload, { merge: true });
+    if (!base) {
+      await setDoc(ref, fields(mine), { merge: true });
+    } else {
+      await runTransaction(db, async (tx) => {
+        const current = await tx.get(ref);
+        const theirs = current.exists() ? toDraft(current.data() as Record<string, unknown>).lineItems : [];
+        tx.set(ref, fields(current.exists() ? mergeBoxLines(base, mine, theirs) : mine), { merge: true });
+      });
+    }
     const snap = await getDoc(ref);
     return toDraft(snap.data() as Record<string, unknown>);
   },
