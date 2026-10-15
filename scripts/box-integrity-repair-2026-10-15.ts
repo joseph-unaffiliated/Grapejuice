@@ -192,6 +192,53 @@ async function restoreVactree(db: FirebaseFirestore.Firestore, catalog: AuditCat
   });
 }
 
+/**
+ * vactree, second time: her open My Box tab saved a candle swap 48 seconds after the restore above
+ * and wrote its stale box back, dropping the kits and Big Bag and charging Shamash again. She then
+ * re-added the Elmo book, which the old free-add priced as an $8 add-on, and removed Jelly. Put
+ * back the kits, Big Bag and Shamash at $0, make Elmo her included book, keep everything else.
+ */
+async function restoreVactreeAfterStaleTab(db: FirebaseFirestore.Firestore, catalog: AuditCatalogRow[]) {
+  const nameOf = (id: string) => catalog.find((r) => r.id === id)?.name ?? id;
+  const kid = 'IjKEGb2gP2JxlMu6rbFj';
+  const elmo = 'book-elmo-s-little-dreidel-sesame-street';
+  const ref = db.doc('households/4gEkslQLSR50MqF3nwp0/boxDrafts/hanukkah-2026');
+  const snap = await ref.get();
+  const data = snap.data() ?? {};
+  const lines = (data.lineItems ?? []) as BoxLineItem[];
+  const sig = (ls: BoxLineItem[]) => ls.map((l) => `${l.slotId}:${l.itemId}:${l.quantity}:${l.unitCents}`).sort().join(',');
+  const expected = [
+    'candles:electric-candles:1:0',
+    'wrapping-paper:wrapping-paper:1:0',
+    `gift-${kid}:shamash-the-menorah-stuffie:1:1000`,
+    'decor:crispy-the-latke-stuffie:1:1000',
+    'addon-gimmel-the-dreidel-stuffie:gimmel-the-dreidel-stuffie:1:1000',
+    'wood-dreidel:classic-wooden-dreidel:3:0',
+    `addon-${elmo}:${elmo}:1:800`,
+  ].sort().join(',');
+  if (sig(lines) !== expected) throw new Error('box no longer matches what was reviewed');
+  const next: BoxLineItem[] = lines
+    .filter((l) => l.slotId !== `addon-${elmo}`)
+    .map((l) => (l.slotId === `gift-${kid}` ? { ...l, unitCents: 0, includedQty: 1 } : { ...l }));
+  const add = (l: BoxLineItem) => next.push({ ...l, label: nameOf(l.itemId) });
+  add({ slotId: `story-${kid}`, itemId: elmo, quantity: 1, includedQty: 1, unitCents: 0, childId: kid });
+  add({ slotId: 'latke-mix', itemId: 'latke-kit', quantity: 1, includedQty: 1, unitCents: 0 });
+  add({ slotId: 'sufganiyot-mix', itemId: 'sufganiyot-kit', quantity: 1, includedQty: 1, unitCents: 0 });
+  add({ slotId: 'gelt-medium', itemId: 'big-bag-of-gelt', quantity: 1, includedQty: 1, unitCents: 0 });
+  console.log('vactree  (households/4gEkslQLSR50MqF3nwp0, restore after stale-tab overwrite)');
+  console.log(`  gift-${kid}: Shamash $10.00 → $0.00`);
+  console.log(`  Elmo book: $8.00 add-on → included book at $0.00`);
+  console.log(`  + latke-mix, sufganiyot-mix, gelt-medium (Big Bag) at $0.00`);
+  if (!apply) return;
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  fs.writeFileSync(path.join(BACKUP_DIR, 'households_4gEkslQLSR50MqF3nwp0_vactree_2.json'), JSON.stringify(data, null, 2));
+  await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(ref);
+    if (sig((fresh.data()?.lineItems ?? []) as BoxLineItem[]) !== expected) throw new Error('box changed while running');
+    tx.update(ref, { lineItems: next, lastChangeSource: SOURCE });
+  });
+}
+
 async function main() {
   const db = firestoreFromFirebaseCliLogin('grapejuice-pilot');
   if (!db) throw new Error('No Firebase CLI login; run `firebase login`.');
@@ -247,6 +294,12 @@ async function main() {
     done.push('vactree');
   } catch (err) {
     skipped.push(`vactree: ${(err as Error).message}`);
+  }
+  try {
+    await restoreVactreeAfterStaleTab(db, catalog);
+    done.push('vactree (after stale tab)');
+  } catch (err) {
+    skipped.push(`vactree (after stale tab): ${(err as Error).message}`);
   }
 
   console.log(`\n${done.length} box(es) ${apply ? 'repaired' : 'ready'}, ${skipped.length} skipped.`);
