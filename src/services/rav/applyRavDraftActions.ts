@@ -1,9 +1,11 @@
 import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot';
 import { boxAddOnUnitCents, extraUnitCents } from '../box/pricing';
-import { swapQuantities, swapUnitCents } from '../box/swapPricing';
-import { type GeltSize } from '../box/boxRules';
+import { geltAddFitsAllowance, swapQuantities, swapUnitCents } from '../box/swapPricing';
+import { geltSizeOf, type GeltSize } from '../box/boxRules';
+import { foodSlotQuantity } from '../box/includedAudit';
+import { isIncludedFoodSlotOption } from '../box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
-import { includedPracticeSlotVacant } from '../../components/box/boxLineDisplay';
+import { includedPracticeSlotVacant, uniqueSlotForFreeSectionAdd } from '../../components/box/boxLineDisplay';
 
 export type ApplyRavActionsResult = {
   lineItems: BoxLineItem[];
@@ -122,6 +124,17 @@ export function applyRavDraftActions(
     }
 
     if (action.type === 'add') {
+      // An empty food slot takes any food-slot option free, even a second of the same kit.
+      if (isIncludedFoodSlotOption(item) && includedPracticeSlotVacant('food', next)) {
+        const quantity = foodSlotQuantity(item);
+        next.push({
+          ...catalogLine(item, uniqueSlotForFreeSectionAdd('food', item, next), undefined, 0),
+          quantity,
+          includedQty: quantity,
+        });
+        applied.push(action);
+        continue;
+      }
       if (next.some((li) => li.itemId === item.id)) {
         skipped.push(action);
         continue;
@@ -129,7 +142,17 @@ export function applyRavDraftActions(
       const slotId = action.slotId ?? item.slotId ?? `extra-${item.id}`;
       const childId = action.childId;
       const newSlot = childId && !slotId.includes(childId) ? `${slotId}-${childId}` : slotId;
-      next.push(catalogLine(item, newSlot, childId, addUnitCents(item, next)));
+      const unit = geltSizeOf(item)
+        ? geltAddFitsAllowance(item, {
+            catalog,
+            lineItems: next,
+            people: options?.geltHeadcount ?? 1,
+            wrapSelectedCount: 0,
+          })
+          ? 0
+          : extraUnitCents(item)
+        : addUnitCents(item, next);
+      next.push(catalogLine(item, newSlot, childId, unit));
       applied.push(action);
       continue;
     }
@@ -147,7 +170,8 @@ export function summarizeLineItemsForRav(lineItems: BoxLineItem[]): string {
     .map((li) => {
       const qty = li.quantity > 1 ? ` ×${li.quantity}` : '';
       const kid = li.childId ? ` [child:${li.childId}]` : '';
-      return `${li.slotId}:${li.itemId ?? li.label}${qty}${kid}`;
+      const price = (li.unitCents ?? 0) > 0 ? ` (paid $${(li.unitCents / 100).toFixed(0)} each)` : ' (included)';
+      return `${li.slotId}:${li.itemId ?? li.label}${qty}${kid}${price}`;
     })
     .join('; ');
 }

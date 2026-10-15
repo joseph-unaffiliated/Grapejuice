@@ -53,7 +53,7 @@ export type GiftKindId =
 export type SwapPrice = 'included' | 'extra' | 'donate';
 
 export type SwapOffer = {
-  /** Default slot, gift kind, or free-text catalog kind (e.g. "cookie-cutters", "napkins"). */
+  /** Default slot, gift kind, or free-text catalog kind (e.g. "cookie-cutters"). */
   targetSlotOrKind: string;
   price: SwapPrice;
   note?: string;
@@ -194,7 +194,7 @@ export const WRAP_POLICY = {
   storefrontOnlyWrapOutOfScope: true,
   /**
    * Wrappable kinds when catalog `wrappable` is unset.
-   * NOT: gelt, mixes, normal/electric candles, napkins.
+   * NOT: gelt, mixes, normal/electric candles.
    */
   wrappableKinds: [
     'books',
@@ -208,7 +208,6 @@ export const WRAP_POLICY = {
     'mixes',
     'candles-normal',
     'candles-electric',
-    'napkins',
   ] as const,
 } as const;
 
@@ -336,7 +335,8 @@ export const SECTION_RULES: SectionRules[] = [
     id: 'dreidel',
     title: 'Play Dreidel',
     notes: [
-      'Scale: 1 dreidel per person, kids and adults.',
+      "Scale: 1 dreidel per person, kids and adults (2 adults when the family didn't say).",
+      "Gelt: one Little Bag's worth per person (Little 1, Big 3, Party 12). Gelt added on top is free while it fits that allowance; past it, it is paid.",
       'At 5+ kids: mix wood / airdry / blank by age (older → activity); no consolidation.',
     ],
     slots: [
@@ -375,7 +375,8 @@ export const SECTION_RULES: SectionRules[] = [
     title: 'Eat & Drink',
     notes: [
       'Always two food slots: latke kit + sufganiyot kit by default. When one kit is nearly gone its slot gets the other kit (two of one kit is fine), then a Big Bag of gelt.',
-      'Each food slot swaps independently to a kit, a Big Bag, or up to three Little Bags; there are always two.',
+      'Each food slot holds exactly one of: a latke kit, a sufganiyot kit, cookie cutters, one Big Bag of gelt, or three Little Bags of gelt. Each slot swaps on its own, and both may hold the same thing (two latke kits is fine).',
+      'Gelt in a food slot is extra to the household gelt allowance. Swapping a food slot to Little Bags gives three; swapping back to a kit gives one.',
       'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
     ],
     slots: [
@@ -432,7 +433,7 @@ export const SECTION_RULES: SectionRules[] = [
     title: 'Give Presents',
     notes: [
       'Wrapping paper default; swap to pre-wrap (same price as paper) for any number of wrappable items.',
-      'Unused pre-wrap slots OK; 4+ wrappable → one extra wrap charge; paper on top of pre-wrap = extra.',
+      'Pre-wrap has no limit: every wrappable present is wrapped at the same price. Paper added back on top of pre-wrap = extra.',
       'Per kid: one present from (toy menorah | blank/clay dreidel | stuffie | extra book | DIY candles); donate OK (empty slot).',
       'Prefer distinct gifts across kids; stock-aware.',
     ],
@@ -1335,9 +1336,16 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     `- Sections (order, catalog items only): ${BOX_SECTION_ORDER.join(' → ')}`,
     '- Instruction booklet: never listed / never mutable — physical insert only.',
     '',
+    'How swaps and adds work (every section):',
+    '- An included line swaps only to its slot\'s [included] options, at no charge; the new item replaces it.',
+    '- [extra] items and anything not listed are never swaps: they are add-ons on top at their price, and the included item stays.',
+    '- A paid line (marked "paid" in Current box) swaps at the new item\'s price.',
+    '- Removing an included item donates it to a family who wouldn\'t otherwise celebrate. The box price stays the same, and they can add it back free until lock.',
+    '- Adding into an empty included slot is free (an empty food slot takes any food-slot option, even a second of the same kit).',
+    '',
     'Simple default (know-nothing, 1 kid age 5):',
     `- Light Candles: ${example.candlesDefault}${exampleCandles ? `→${exampleCandles.id}` : ''} (not menorah)`,
-    `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
+    `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} ×${1 + defaultAdults()} (1 per person: the kid + 2 adults) + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
     `- Eat & Drink: ${exampleFood} (always two food slots; a nearly-gone kit is replaced by the other kit, then a Big Bag; latke kit includes applesauce spice mix)`,
     `- Tell the Story: 1 age-default book for the 5yo${resolveBookForAge(catalog, 5) ? ` (${resolveBookForAge(catalog, 5)!.id})` : ''}`,
     `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${exampleGift ? `≈${exampleGift.id}` : ''}`,
@@ -1350,6 +1358,8 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     '- 1 kid in a 3-person household → Big ×1; otherwise Little × people',
     '- 5+ kids → Big × floor(people/3) + Little × the remainder; never a Party Bag by default',
     '- Gelt swaps convert at the exchange rate, never above the allowance (Big → 3 Little); Party is paid unless 12+ people',
+    '- Gelt added on top is free while the box\'s free gelt (outside the food slots) fits the allowance; past it, it is paid',
+    '- Gelt filling a food slot (one Big Bag or three Little Bags) does not count toward the allowance',
     '',
     'Scaling with kids:',
     '- 1 book + 1 present per kid; 1 dreidel per person; gelt as above',
@@ -1379,7 +1389,8 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     '- included → covered by box; extras / upsells → catalog member/retail prices',
     '',
     'Donate:',
-    '- Remove from section lists; roll up Donated value at member price in summary (tooltip); no box price reduction',
+    '- Removing an included item donates it (shown as donated, value at member price); no box price reduction',
+    '- Donated items go to a family who wouldn\'t otherwise celebrate; the family can add them back free until lock',
     '',
     'Wrap:',
     `- Default ${WRAP_POLICY.defaultSlot}; pre-wrap same price, covers any number of wrappable presents (one wrap choice per box)`,

@@ -93,6 +93,11 @@ export function auditSlotBase(slotId: string): string {
   return match ? match[1] : withoutExtra;
 }
 
+/** Units of `item` one food slot holds: three Little Bags, otherwise one. */
+export function foodSlotQuantity(item: { id: string; name?: string }): number {
+  return geltBagOf(item.id, item.name ?? '') === 'little' ? FOOD_SLOT_MAX_LITTLE_BAGS : 1;
+}
+
 /** A line in one of the two food slots, whatever it holds (not a paid `::x` extra). */
 export function isFoodSlotLine(li: Pick<BoxLineItem, 'slotId'>): boolean {
   return !/::x$/i.test(li.slotId) && FOOD_SLOT_IDS.has(auditSlotBase(li.slotId));

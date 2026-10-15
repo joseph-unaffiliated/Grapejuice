@@ -6,6 +6,7 @@ import {
   householdFreeQtyForItem,
   isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
+import { foodSlotQuantity } from '../services/box/includedAudit';
 import {
   addOnTopUnitCents,
   swapCandidatesForLine,
@@ -265,9 +266,12 @@ export function useGiftGiverBoxDraft(
           ? openKidSlotFor(item, opts.displaySectionId, prev, children.map((c) => c.id), catalog)
           : null;
         if (kidSlot) return fillOpenKidSlot(prev, kidSlot, item);
-        const householdQty = isHouseholdPracticeCatalogItem(item)
-          ? householdFreeQtyForItem(item, children, adults, prev)
-          : 1;
+        const householdQty =
+          opts?.displaySectionId === 'food'
+            ? foodSlotQuantity(item)
+            : isHouseholdPracticeCatalogItem(item)
+              ? householdFreeQtyForItem(item, children, adults, prev)
+              : 1;
         // Prefer converting a paid copy rather than silent no-op / duplicate.
         const paid = prev.find(
           (li) => li.itemId === item.id && (li.unitCents ?? 0) > 0 && !isGiftSlotLine(li)

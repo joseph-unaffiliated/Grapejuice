@@ -80,6 +80,7 @@ export type LineItem = {
   label?: string;
   quantity?: number;
   childId?: string;
+  unitCents?: number;
 };
 
 const NAVIGATE_EXACT = new Set([

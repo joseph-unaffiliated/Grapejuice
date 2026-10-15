@@ -335,10 +335,11 @@ export async function buildHouseholdContext(
     if (items.length) {
       const summary = items
         .map((li) => {
-          const name = li.label || li.itemId || li.slotId || 'item';
+          const name = li.itemId || li.label || 'item';
           const qty = li.quantity && li.quantity > 1 ? ` ×${li.quantity}` : '';
-          const kid = li.childId ? ` [${li.childId}]` : '';
-          return `${name}${qty}${kid}`;
+          const kid = li.childId ? ` [child:${li.childId}]` : '';
+          const price = (li.unitCents ?? 0) > 0 ? ` (paid $${((li.unitCents ?? 0) / 100).toFixed(0)} each)` : ' (included)';
+          return `${li.slotId ?? 'extra'}:${name}${qty}${kid}${price}`;
         })
         .join('; ');
       lines.push(`Current box: ${summary}`);

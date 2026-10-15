@@ -190,7 +190,6 @@ export function isLineWrappable(li: BoxLineItem, item?: CatalogItem | null): boo
     if (k === 'mixes') return /mix|latke|sufgan/.test(hay) && !/book|toy|dreidel|menorah/.test(hay);
     if (k === 'candles-normal') return /candle/.test(hay) && !/diy|myo|make|kit|craft/.test(hay) && !/electric/.test(hay);
     if (k === 'candles-electric') return /electric.*candle|candle.*electric/.test(hay);
-    if (k === 'napkins') return /napkin/.test(hay);
     return false;
   })) {
     return false;

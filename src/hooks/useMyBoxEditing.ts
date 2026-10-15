@@ -33,7 +33,7 @@ import {
   repairZeroExtraUnits,
   woodDreidelCatalogItem,
 } from '../services/box/buildDefaultBox';
-import { topUpDreidelLines } from '../services/box/includedAudit';
+import { foodSlotQuantity, topUpDreidelLines } from '../services/box/includedAudit';
 import { geltCeilingForPeople, geltSizeOf, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
 import {
@@ -925,10 +925,11 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       }
     }
     const householdQty =
-      (sectionId === 'dreidel' || sectionId === 'food') &&
-      isHouseholdPracticeCatalogItem(item)
-        ? householdFreeQtyForItem(item, children, adults, lineItems)
-        : 1;
+      sectionId === 'food'
+        ? foodSlotQuantity(item)
+        : sectionId === 'dreidel' && isHouseholdPracticeCatalogItem(item)
+          ? householdFreeQtyForItem(item, children, adults, lineItems)
+          : 1;
     // This claim is the included allotment for the section — track so a later donate counts.
     const markIncludedBaseline = () => {
       includedBaselineByItemId.current.set(
