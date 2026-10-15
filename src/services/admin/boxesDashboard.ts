@@ -314,8 +314,29 @@ export type DashBoxProblem = {
     approved: string | null;
     grandfathered: boolean;
     likelyDonation: boolean;
+    decision?: 'approve' | 'donation' | 'follow-up' | 'emailed' | null;
+    decisionNote?: string | null;
+    decidedAt?: string | null;
   }>;
 };
+
+export type BoxAuditDecisionKind = 'approve' | 'donation' | 'follow-up' | 'emailed';
+
+/** Record (or clear) an admin decision on one included-items audit problem. */
+export async function decideBoxAuditProblem(input: {
+  path: string;
+  email?: string | null;
+  section: string;
+  code: string;
+  itemId?: string | null;
+  childKey?: string | null;
+  detail?: string;
+  decision: BoxAuditDecisionKind | null;
+  note?: string;
+}): Promise<void> {
+  const fn = httpsCallable<typeof input, { ok: true }>(functions, 'decideBoxAuditProblem');
+  await fn(input);
+}
 
 export type DashBoxAuditRun = {
   boxes: number;

@@ -27,7 +27,9 @@ import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   DASHBOARD_REFRESH_MS,
+  decideBoxAuditProblem,
   useBoxesDashboard,
+  type BoxAuditDecisionKind,
   type BoxesDashboard,
   type DashAdPerson,
   type DashAnswers,
@@ -929,11 +931,105 @@ const BOX_PROBLEM_KIND: Record<DashBoxProblem['kind'], string> = {
 
 type BoxProblemLine = DashBoxProblem['problems'][number];
 
+function problemIsOpen(p: BoxProblemLine): boolean {
+  if (p.grandfathered) return false;
+  if (p.decision === 'approve' || p.decision === 'donation') return false;
+  if (p.approved) return false;
+  if (p.likelyDonation) return false;
+  return true;
+}
+
 function problemStatus(p: BoxProblemLine): string {
+  if (p.decision === 'approve') return `Your call: approve as-is${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
+  if (p.decision === 'donation') return `Your call: donation${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
+  if (p.decision === 'follow-up') return `Your call: needs a fix${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
+  if (p.decision === 'emailed') return `Your call: emailed customer${p.decisionNote ? ` — ${p.decisionNote}` : ''}`;
   if (p.approved) return `Approved: ${p.approved}`;
   if (p.grandfathered) return 'Grandfathered (earlier rule)';
   if (p.likelyDonation) return 'Likely a donation';
   return p.direction === 'under' ? 'Open: customer charged or short' : 'Open: more free than allowed';
+}
+
+const DECISION_BUTTONS: Array<{ kind: BoxAuditDecisionKind; label: string }> = [
+  { kind: 'approve', label: 'Approve as-is' },
+  { kind: 'donation', label: 'Donation' },
+  { kind: 'follow-up', label: 'Needs a fix' },
+  { kind: 'emailed', label: 'Emailed them' },
+];
+
+function BoxProblemReview({
+  box,
+  styles,
+  onDecided,
+}: {
+  box: DashBoxProblem;
+  styles: Styles;
+  onDecided: () => void;
+}) {
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const decide = async (p: BoxProblemLine, decision: BoxAuditDecisionKind | null) => {
+    const key = `${p.section}|${p.code}|${p.itemId ?? ''}|${p.childKey ?? ''}|${decision ?? 'clear'}`;
+    setBusyKey(key);
+    setError(null);
+    try {
+      await decideBoxAuditProblem({
+        path: box.path,
+        email: box.email,
+        section: p.section,
+        code: p.code,
+        itemId: p.itemId,
+        childKey: p.childKey,
+        detail: p.detail,
+        decision,
+      });
+      onDecided();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save decision.');
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  return (
+    <View style={styles.detailInner}>
+      {box.problems.map((p) => {
+        const rowKey = `${p.section}|${p.code}|${p.itemId ?? ''}|${p.childKey ?? ''}`;
+        return (
+          <View key={rowKey} style={{ marginBottom: spacing.md }}>
+            <Text style={styles.factKey}>
+              {p.section}
+              {p.childKey ? ` (${p.childKey})` : ''}
+            </Text>
+            <Text style={styles.factValue}>{`${p.detail} · ${problemStatus(p)}`}</Text>
+            <ChipRow styles={styles} style={{ marginTop: spacing.xs, flexWrap: 'wrap' }}>
+              {DECISION_BUTTONS.map((btn) => {
+                const active = p.decision === btn.kind;
+                const thisBusy = busyKey === `${rowKey}|${btn.kind}`;
+                return (
+                  <Chip
+                    key={btn.kind}
+                    label={thisBusy ? 'Saving…' : btn.label}
+                    active={active}
+                    onPress={() => {
+                      if (busyKey) return;
+                      void decide(p, active ? null : btn.kind);
+                    }}
+                    styles={styles}
+                  />
+                );
+              })}
+            </ChipRow>
+          </View>
+        );
+      })}
+      {error ? <Text style={[styles.caption, { color: '#b42318' }]}>{error}</Text> : null}
+      <Text style={styles.caption} selectable>
+        {`${box.path} · audited ${when(box.auditedAt)}. Approve as-is and Donation clear the open count; Needs a fix and Emailed them keep it listed so you can track follow-up. Tap an active chip again to clear.`}
+      </Text>
+    </View>
+  );
 }
 
 function BoxProblemsSection({
@@ -941,11 +1037,13 @@ function BoxProblemsSection({
   hideTests,
   styles,
   colors,
+  onRefresh,
 }: {
   data: BoxesDashboard;
   hideTests: boolean;
   styles: Styles;
   colors: SemanticColors;
+  onRefresh: () => void;
 }) {
   const [show, setShow] = useState<'open' | 'all'>('open');
   const [committed, setCommitted] = useState<YesNoAny>('any');
@@ -968,7 +1066,7 @@ function BoxProblemsSection({
     [all, hideTests, show, committed],
   );
 
-  const openLines = (b: DashBoxProblem) => b.problems.filter((p) => !p.approved && !p.grandfathered && !p.likelyDonation);
+  const openLines = (b: DashBoxProblem) => b.problems.filter(problemIsOpen);
   const columns: Column<DashBoxProblem>[] = [
     {
       label: 'Customer',
@@ -1003,15 +1101,7 @@ function BoxProblemsSection({
         rowTone={(b) => (b.open && b.committed ? 'danger' : b.open ? 'warning' : 'neutral')}
         openKey={openId}
         onToggle={(k) => setOpenId((prev) => (prev === k ? null : k))}
-        renderDetail={(b) => (
-          <View style={styles.detailInner}>
-            <Facts
-              styles={styles}
-              facts={b.problems.map((p): [string, string] => [`${p.section}${p.childKey ? ` (${p.childKey})` : ''}`, `${p.detail} · ${problemStatus(p)}`])}
-            />
-            <Text style={styles.caption} selectable>{`${b.path} · audited ${when(b.auditedAt)}`}</Text>
-          </View>
-        )}
+        renderDetail={(b) => <BoxProblemReview box={b} styles={styles} onDecided={onRefresh} />}
         emptyMessage={
           data.boxProblems
             ? show === 'open'
@@ -1023,7 +1113,7 @@ function BoxProblemsSection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${all.length} boxes with anything listed. Every box is checked against what's included (one book and present per kid, one candle set, one dreidel and one Little Bag's worth of gelt per person, two food slots, one wrap) whenever it changes and every morning at 6am Eastern. Open = more free than the rules allow, or the customer charged for something included. Approved exceptions, grandfathered gelt from the old default, and less gelt or a missing food slot (usually a donation) are listed but not open. Dot: red open on a committed box, amber open.${run ? ` Last full check ${when(run.at)}: ${run.real} real boxes, ${run.open} open (${run.openCommitted} committed).` : ''}`}
+        {`${rows.length} of ${all.length} boxes with anything listed. Expand a row to record your decision (approve as-is, donation, needs a fix, or emailed). Every box is checked against what's included whenever it changes and every morning at 6am Eastern. Dot: red open on a committed box, amber open.${run ? ` Last full check ${when(run.at)}: ${run.real} real boxes, ${run.open} open (${run.openCommitted} committed).` : ''}`}
       </Text>
     </View>
   );
@@ -2439,7 +2529,7 @@ export function AdminBoxesScreen() {
           {tab === 'problems' ? (
             <>
               <Text style={styles.section}>Box problems: boxes that don't match what's included</Text>
-              <BoxProblemsSection data={data} hideTests={hideTests} styles={styles} colors={colors} />
+              <BoxProblemsSection data={data} hideTests={hideTests} styles={styles} colors={colors} onRefresh={() => void refresh()} />
             </>
           ) : null}
         </ScrollView>

@@ -78,7 +78,11 @@ export async function writeBoxAudit(
 }
 
 async function writeRef(db: Firestore, path: string, box: BoxRef | null): Promise<WriteResult> {
-  return writeBoxAudit(db, path, box ? auditBoxRef(box, await catalogRows(db)) : null, { warnNewlyOpen: true });
+  if (!box) return writeBoxAudit(db, path, null, { warnNewlyOpen: true });
+  const { exceptionsWithDecisions, loadBoxAuditDecisions } = await import('./boxAuditDecisions');
+  const decisions = await loadBoxAuditDecisions(db);
+  const exceptions = exceptionsWithDecisions(decisions, box.path, box.email);
+  return writeBoxAudit(db, path, auditBoxRef(box, await catalogRows(db), exceptions), { warnNewlyOpen: true });
 }
 
 /** After an account draft's lines change. */
@@ -115,7 +119,11 @@ export type BoxAuditSweep = {
 
 /** Audit every box, store changed results, drop audits of boxes that no longer exist. */
 export async function runBoxAuditSweep(db: Firestore): Promise<BoxAuditSweep> {
-  const { boxes, catalog } = await loadBoxes(db, { includeSecuredDrafts: true });
+  const { exceptionsWithDecisions, loadBoxAuditDecisions } = await import('./boxAuditDecisions');
+  const [{ boxes, catalog }, decisions] = await Promise.all([
+    loadBoxes(db, { includeSecuredDrafts: true }),
+    loadBoxAuditDecisions(db),
+  ]);
   const existing = await db.collection(BOX_AUDITS).get();
   const previous = new Map(existing.docs.map((d) => [d.id, d.data()]));
   const seen = new Set<string>();
@@ -124,7 +132,7 @@ export async function runBoxAuditSweep(db: Firestore): Promise<BoxAuditSweep> {
   for (const box of boxes) {
     const id = boxAuditId(box.path);
     seen.add(id);
-    const record = auditBoxRef(box, catalog);
+    const record = auditBoxRef(box, catalog, exceptionsWithDecisions(decisions, box.path, box.email));
     if (!box.test) {
       result.real += 1;
       if (record.open > 0) {
@@ -173,6 +181,9 @@ export type DashBoxProblem = {
     approved: string | null;
     grandfathered: boolean;
     likelyDonation: boolean;
+    decision: 'approve' | 'donation' | 'follow-up' | 'emailed' | null;
+    decisionNote: string | null;
+    decidedAt: string | null;
   }>;
 };
 
@@ -180,10 +191,12 @@ export type DashBoxAuditRun = Omit<BoxAuditSweep, 'newlyOpen'> & { at: string };
 
 /** Every stored audit with at least one problem (open or not), plus the latest sweep's totals. */
 export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: DashBoxProblem[]; boxAuditRun: DashBoxAuditRun | null }> {
-  const [audits, runs] = await Promise.all([
+  const [{ applyDecisionsToProblems, isOpenAfterDecision, loadBoxAuditDecisions }, audits, runs] = await Promise.all([
+    import('./boxAuditDecisions'),
     db.collection(BOX_AUDITS).get(),
     db.collection(BOX_AUDIT_RUNS).orderBy('at', 'desc').limit(1).get(),
   ]);
+  const decisions = await loadBoxAuditDecisions(db);
   const text = (v: unknown) => (typeof v === 'string' && v ? v : null);
   const boxProblems: DashBoxProblem[] = [];
   for (const d of audits.docs) {
@@ -191,20 +204,9 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
     const problems = Array.isArray(x.problems) ? (x.problems as BoxAuditProblem[]) : [];
     if (!problems.length) continue;
     const path = String(x.path ?? '');
-    boxProblems.push({
-      id: d.id,
-      kind: x.kind,
+    const viewed = applyDecisionsToProblems(
       path,
-      householdId: path.match(/^households\/([^/]+)\//)?.[1] ?? null,
-      email: text(x.email),
-      test: x.test === true,
-      committed: x.committed === true,
-      kids: Number(x.kids ?? 0),
-      people: Number(x.people ?? 0),
-      open: Number(x.open ?? 0),
-      openSince: text(x.openSince),
-      auditedAt: text(x.auditedAt),
-      problems: problems.map((p) => ({
+      problems.map((p) => ({
         section: p.section,
         code: p.code,
         direction: p.direction,
@@ -215,6 +217,23 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
         grandfathered: p.grandfathered === true,
         likelyDonation: isLikelyDonation(p),
       })),
+      decisions
+    );
+    const open = viewed.filter(isOpenAfterDecision).length;
+    boxProblems.push({
+      id: d.id,
+      kind: x.kind,
+      path,
+      householdId: path.match(/^households\/([^/]+)\//)?.[1] ?? null,
+      email: text(x.email),
+      test: x.test === true,
+      committed: x.committed === true,
+      kids: Number(x.kids ?? 0),
+      people: Number(x.people ?? 0),
+      open,
+      openSince: text(x.openSince),
+      auditedAt: text(x.auditedAt),
+      problems: viewed,
     });
   }
   const run = runs.docs[0]?.data();

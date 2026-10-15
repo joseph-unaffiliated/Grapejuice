@@ -117,6 +117,7 @@ export { scheduledFollowUpListAudience } from './followUpListAudience';
 export { scheduledInventoryWatch } from './inventoryWatch';
 export { recordBoxDraftHistory, recordGuestBoxHistory } from './boxHistory';
 export { scheduledBoxAudit } from './boxAuditJob';
+export { decideBoxAuditProblem } from './boxAuditDecisions';
 export { scheduledInventoryEmails } from './inventoryEmails';
 export {
   adminPilotParticipants,
