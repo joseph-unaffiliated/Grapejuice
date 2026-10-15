@@ -236,6 +236,16 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
       problems: viewed,
     });
   }
+  // Committed households keep a draft that mirrors the order; list the order once.
+  const householdsWithOrder = new Set(
+    boxProblems.filter((b) => b.kind === 'order' && b.householdId).map((b) => b.householdId as string)
+  );
+  const deduped = boxProblems.filter(
+    (b) => !(b.kind === 'account' && b.householdId && householdsWithOrder.has(b.householdId))
+  );
+  boxProblems.length = 0;
+  boxProblems.push(...deduped);
+
   const run = runs.docs[0]?.data();
   const boxAuditRun = run
     ? {

@@ -1054,17 +1054,18 @@ function BoxProblemsSection({
     [data.boxes],
   );
 
-  const rows = useMemo(
-    () =>
-      all.filter((b) => {
-        if (hideTests && b.test) return false;
-        if (show === 'open' && b.open === 0) return false;
-        if (committed === 'yes' && !b.committed) return false;
-        if (committed === 'no' && b.committed) return false;
-        return true;
-      }),
-    [all, hideTests, show, committed],
-  );
+  const rows = useMemo(() => {
+    // Belt-and-suspenders: hide account drafts when the same household already has an order row.
+    const withOrder = new Set(all.filter((b) => b.kind === 'order' && b.householdId).map((b) => b.householdId as string));
+    return all.filter((b) => {
+      if (hideTests && b.test) return false;
+      if (b.kind === 'account' && b.householdId && withOrder.has(b.householdId)) return false;
+      if (show === 'open' && b.open === 0) return false;
+      if (committed === 'yes' && !b.committed) return false;
+      if (committed === 'no' && b.committed) return false;
+      return true;
+    });
+  }, [all, hideTests, show, committed]);
 
   const openLines = (b: DashBoxProblem) => b.problems.filter(problemIsOpen);
   const columns: Column<DashBoxProblem>[] = [
