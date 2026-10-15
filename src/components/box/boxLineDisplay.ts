@@ -3,6 +3,8 @@ import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { isPilotLine } from '../../services/box/pilotLines';
 import { WRAP_POLICY } from '../../services/box/boxRules';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
+import { isBookishCatalogItem, resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
+import { FOOD_SLOTS_INCLUDED, geltBagOf } from '../../services/box/includedAudit';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -679,7 +681,8 @@ const INCLUDED_PRACTICE_SLOT_IDS: Partial<Record<BoxDisplaySectionId, readonly s
 /**
  * True when the section’s included practice line was donated/removed — restoring
  * beeswax / MYO / electric candles (etc.) should be $0, not an add-on, even if
- * other cards (e.g. a kid gift menorah) still sit in the section.
+ * other cards (e.g. a kid gift menorah) still sit in the section. Eat & Drink has two
+ * included slots (gelt there takes one), so it stays open until both are filled.
  */
 export function includedPracticeSlotVacant(
   sectionId: BoxDisplaySectionId,
@@ -687,13 +690,16 @@ export function includedPracticeSlotVacant(
 ): boolean {
   const slots = INCLUDED_PRACTICE_SLOT_IDS[sectionId];
   if (!slots?.length) return false;
-  return !lineItems.some((li) => {
+  const filled = lineItems.filter((li) => {
     if (isGiftSlotLine(li)) return false;
     if (li.slotId.startsWith('addon-') || li.slotId.startsWith('extra-')) return false;
     if (li.slotId.includes('::x')) return false;
     if ((li.unitCents ?? 0) > 0) return false;
     return slots.includes(catalogSlotId(li.slotId));
   });
+  if (sectionId !== 'food') return filled.length === 0;
+  const used = filled.reduce((n, li) => n + (geltBagOf(li.itemId, li.label ?? '') ? 1 : Math.max(1, li.quantity ?? 1)), 0);
+  return used < FOOD_SLOTS_INCLUDED;
 }
 
 /**
@@ -712,7 +718,8 @@ function couldFillKidGiftSlot(item: CatalogItem): boolean {
 function kidGiftSlotTaken(
   item: CatalogItem,
   snapshot: BoxLineItem[],
-  lineItems: BoxLineItem[]
+  lineItems: BoxLineItem[],
+  kidIds?: readonly string[]
 ): boolean {
   const snap = snapshot[0];
   if (snap && isGiftSlotLine(snap)) {
@@ -724,6 +731,7 @@ function kidGiftSlotTaken(
       return isGiftSlotLine(li) && cid === childId;
     });
   }
+  if (kidIds?.length) return kidsMissingIncluded(lineItems, kidIds, 'gift').length === 0;
   // No gift-line snapshot: putting this back at $0 would be a second present.
   return lineItems.some(
     (li) => (li.unitCents ?? 0) === 0 && isGiftSlotLine(li) && li.itemId !== item.id
@@ -732,18 +740,20 @@ function kidGiftSlotTaken(
 
 /**
  * True when putting `item` back at $0 would be a second included item —
- * the practice slot, the kid's present, or the included book is already filled.
+ * the practice slot, the kid's present, or the kid's included book is already filled.
+ * `kidIds` lets books and presents check each kid's slot instead of any free line.
  */
 export function includedClaimAlreadyTaken(
   item: CatalogItem,
   snapshot: BoxLineItem[],
   lineItems: BoxLineItem[],
-  catalog: CatalogItem[]
+  catalog: CatalogItem[],
+  kidIds?: readonly string[]
 ): boolean {
   // A stuffie filed under Eat & Drink by its name still occupies the gift slot,
   // not the sufganiyot kit. Check that before the practice-section rule.
   if (couldFillKidGiftSlot(item)) {
-    return kidGiftSlotTaken(item, snapshot, lineItems);
+    return kidGiftSlotTaken(item, snapshot, lineItems, kidIds);
   }
   const sectionId = displaySectionForCatalogItem(item);
   if (sectionId === 'candles' || sectionId === 'dreidel' || sectionId === 'food') {
@@ -758,6 +768,20 @@ export function includedClaimAlreadyTaken(
       const cid = li.childId || childIdFromSlot(li.slotId);
       return isGiftSlotLine(li) && cid === childId;
     });
+  }
+  const snapKid = snap && isStorySlotLine(snap) ? snap.childId || childIdFromSlot(snap.slotId) : undefined;
+  if (sectionId === 'story' && snapKid) {
+    return lineItems.some(
+      (li) =>
+        (li.unitCents ?? 0) === 0 &&
+        !li.slotId.endsWith('::x') &&
+        li.itemId !== item.id &&
+        isStorySlotLine(li) &&
+        (li.childId || childIdFromSlot(li.slotId)) === snapKid
+    );
+  }
+  if (sectionId === 'story' && kidIds?.length) {
+    return kidsMissingIncluded(lineItems, kidIds, 'story').length === 0;
   }
   if (sectionId === 'story') {
     return lineItems.some((li) => {
@@ -937,6 +961,57 @@ export function assignKidBookLines(
       label: item.name,
     },
   ];
+}
+
+/** Kids (by id) with no included book (`story`) or present (`gift`) line. */
+export function kidsMissingIncluded(
+  lineItems: BoxLineItem[],
+  kidIds: readonly string[],
+  kind: 'story' | 'gift'
+): string[] {
+  return kidIds.filter(
+    (id) =>
+      !lineItems.some(
+        (li) =>
+          (li.unitCents ?? 0) === 0 &&
+          !li.slotId.endsWith('::x') &&
+          (kind === 'story' ? isStorySlotLine(li) : isGiftSlotLine(li)) &&
+          (li.childId || childIdFromSlot(li.slotId)) === id
+      )
+  );
+}
+
+/**
+ * A book or present that fills a kid's empty included slot at $0 (converting a paid copy of
+ * the same item rather than adding a second line). `kidId` is null when nothing applies.
+ */
+export function openKidSlotFor(
+  item: CatalogItem,
+  sectionId: BoxDisplaySectionId,
+  lineItems: BoxLineItem[],
+  kidIds: readonly string[],
+  catalog: CatalogItem[]
+): { kidId: string; kind: 'story' | 'gift' } | null {
+  if (sectionId === 'story' && isBookishCatalogItem(item)) {
+    const kidId = kidsMissingIncluded(lineItems, kidIds, 'story')[0];
+    return kidId ? { kidId, kind: 'story' } : null;
+  }
+  if (sectionId === 'presents' && resolveIncludedGiftOptions(catalog, undefined, 500).some((o) => o.id === item.id)) {
+    const kidId = kidsMissingIncluded(lineItems, kidIds, 'gift')[0];
+    return kidId ? { kidId, kind: 'gift' } : null;
+  }
+  return null;
+}
+
+/** Lines after putting `item` in the open kid slot from `openKidSlotFor`. */
+export function fillOpenKidSlot(
+  lineItems: BoxLineItem[],
+  slot: { kidId: string; kind: 'story' | 'gift' },
+  item: CatalogItem
+): BoxLineItem[] {
+  return slot.kind === 'story'
+    ? assignKidBookLines(lineItems, slot.kidId, item)
+    : assignKidGiftLines(lineItems, slot.kidId, item);
 }
 
 const EXTRA_UNIT_SUFFIX = '::x';

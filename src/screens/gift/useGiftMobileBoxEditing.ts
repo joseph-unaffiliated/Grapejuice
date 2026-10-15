@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { useGiftGiverBoxDraft } from '../../hooks/useGiftGiverBoxDraft';
 import { useLockAt } from '../../hooks/useBoxLockDay';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
+import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
 import { boxAddOnUnitCents } from '../../services/box/pricing';
 import {
@@ -23,6 +24,8 @@ import {
   coalesceLinesByItemId,
   donatedItemQuantities,
   includedClaimAlreadyTaken,
+  childIdFromSlot,
+  fillOpenKidSlot,
   includedClaimBlockedUnitCents,
   isGiftSlotLine,
   isWrapControlSlot,
@@ -168,7 +171,18 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     const isFree = (li: BoxLineItem) => li.itemId === itemId && !li.slotId.endsWith('::x') && (li.unitCents ?? 0) === 0;
     const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
     donatedLineSnapshots.current.delete(itemId);
-    const taken = includedClaimAlreadyTaken(item, snapshot, latest.current.lineItems, catalog);
+    const kidIds = children.map((c) => c.id);
+    const taken = includedClaimAlreadyTaken(item, snapshot, latest.current.lineItems, catalog, kidIds);
+    const snap = snapshot[0];
+    const snapKid =
+      snap && (isGiftSlotLine(snap) || catalogSlotId(snap.slotId) === 'story')
+        ? snap.childId || childIdFromSlot(snap.slotId)
+        : undefined;
+    if (!taken && snap && snapKid && kidIds.includes(snapKid)) {
+      const kind = isGiftSlotLine(snap) ? 'gift' : 'story';
+      draft.updateLines((prev) => fillOpenKidSlot(prev, { kidId: snapKid, kind }, item));
+      return;
+    }
     if (taken && !snapshot.length) {
       const unit = includedClaimBlockedUnitCents(item);
       draft.updateLines((prev) => [

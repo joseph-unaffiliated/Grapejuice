@@ -21,9 +21,13 @@ import {
   assignKidBookLines,
   assignKidGiftLines,
   childIdFromSlot,
+  fillOpenKidSlot,
   isGiftSlotLine,
   isWrapControlSlot,
+  includedPracticeSlotVacant,
+  openKidSlotFor,
   promotePaidSiblingToIncludedPractice,
+  uniqueSlotForFreeSectionAdd,
   removeCoalescedGroup,
   syncWrappingPaperUnitCentsForWrapSelection,
   transferLiveIncludedBaselineOnSwap,
@@ -244,6 +248,15 @@ export function useGiftGiverBoxDraft(
       opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
     ) => {
       setLineItems((prev) => {
+        // Eat & Drink lines keep food slot ids so the two included slots count them.
+        const addSlot = (lines: BoxLineItem[]) =>
+          opts?.displaySectionId === 'food'
+            ? uniqueSlotForFreeSectionAdd('food', item, lines)
+            : uniqueAddSlotId(item, lines);
+        const kidSlot = opts?.displaySectionId
+          ? openKidSlotFor(item, opts.displaySectionId, prev, children.map((c) => c.id), catalog)
+          : null;
+        if (kidSlot) return fillOpenKidSlot(prev, kidSlot, item);
         const householdQty = isHouseholdPracticeCatalogItem(item)
           ? householdFreeQtyForItem(item, children, adults, prev)
           : 1;
@@ -264,10 +277,7 @@ export function useGiftGiverBoxDraft(
                     ...(opts?.displaySectionId
                       ? { displaySectionId: opts.displaySectionId }
                       : null),
-                    slotId: uniqueAddSlotId(
-                      item,
-                      prev.filter((x) => x.slotId !== paid.slotId)
-                    ),
+                    slotId: addSlot(prev.filter((x) => x.slotId !== paid.slotId)),
                   }
                 : li
             );
@@ -277,7 +287,7 @@ export function useGiftGiverBoxDraft(
               li.slotId === paid.slotId ? { ...li, quantity: qty - 1 } : li
             ),
             {
-              slotId: uniqueAddSlotId(item, prev),
+              slotId: addSlot(prev),
               itemId: item.id,
               quantity: householdQty,
               includedQty: householdQty,
@@ -296,7 +306,8 @@ export function useGiftGiverBoxDraft(
               ? li.displaySectionId === opts.displaySectionId
               : true)
         );
-        if (existingPractice) {
+        const foodOpen = opts?.displaySectionId === 'food' && includedPracticeSlotVacant('food', prev);
+        if (existingPractice && !foodOpen) {
           if (existingPractice.slotId.startsWith('extra-')) {
             return prev.map((li) =>
               li.slotId === existingPractice.slotId
@@ -321,7 +332,7 @@ export function useGiftGiverBoxDraft(
         return [
           ...prev,
           {
-            slotId: uniqueAddSlotId(item, prev),
+            slotId: addSlot(prev),
             itemId: item.id,
             quantity: householdQty,
             includedQty: householdQty,
@@ -332,7 +343,7 @@ export function useGiftGiverBoxDraft(
         ];
       });
     },
-    [children, adults]
+    [children, adults, catalog]
   );
 
   /** Set (re-point or create) a kid's single gift line at $0; convert paid SKUs in place. */

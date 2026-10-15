@@ -20,6 +20,7 @@ import {
   isWrappingPaperItem,
   isGiftSlotLine,
   includedPracticeSlotVacant,
+  openKidSlotFor,
   wrappableLinesInBox,
   type CoalescedBoxLine,
 } from '../../components/box/boxLineDisplay';
@@ -291,10 +292,17 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     })?.item;
   };
 
-  /** A book (or any included-policy item) is free only while its slot is empty. Otherwise it swaps the one you have, or it costs the add-on price. */
+  /**
+   * A book (or any included-policy item) is free only while its slot is empty — for books and
+   * presents, while some kid has none. Otherwise it swaps the one you have, or it costs the add-on price.
+   */
   const offerFor = (item: CatalogItem, sectionId: BoxDisplaySectionId, sectionRows: CoalescedBoxLine[]) => {
     const slotOpen = sectionRows.length === 0 || includedPracticeSlotVacant(sectionId, e.lineItems);
-    const free = !!donatedStandIn(item) || (slotOpen && (e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id));
+    const kidSlotOpen = !!openKidSlotFor(item, sectionId, e.lineItems, kids.map((c) => c.id), e.catalog);
+    const free =
+      kidSlotOpen ||
+      !!donatedStandIn(item) ||
+      (slotOpen && (e.freeAddOptionsBySection[sectionId] ?? []).some((i) => i.id === item.id));
     const swap = !free && (e.swapEligibleIdsBySection[sectionId]?.has(item.id) ?? false);
     const cents = resolveCatalogDisplayPrices(item).memberCents;
     const label = free ? 'Add · included' : swap ? 'Swap' : `Add · +${formatCatalogDollars(cents)}`;

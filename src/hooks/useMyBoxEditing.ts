@@ -64,6 +64,8 @@ import {
   includedPracticeSlotVacant,
   includedClaimAlreadyTaken,
   includedClaimBlockedUnitCents,
+  childIdFromSlot,
+  openKidSlotFor,
   uniqueSlotForFreeSectionAdd,
   promotePaidSiblingToIncludedPractice,
   paidSiblingForIncludedPromotion,
@@ -800,8 +802,8 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       (freeAddOptionsBySection[sectionId] ?? []).map((i) => i.id)
     );
     if (
-      freeRestoreIds.has(item.id) &&
-      includedPracticeSlotVacant(sectionId, lineItems)
+      (freeRestoreIds.has(item.id) && includedPracticeSlotVacant(sectionId, lineItems)) ||
+      openKidSlotFor(item, sectionId, lineItems, children.map((c) => c.id), catalog)
     ) {
       await addFreeItemToEmptySlot(sectionId, item);
       return;
@@ -899,6 +901,11 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   /** Empty-section / donated-practice restore — insert a fresh line at $0. */
   const addFreeItemToEmptySlot = async (sectionId: BoxDisplaySectionId, item: CatalogItem) => {
     if (locked) return;
+    const kidSlot = openKidSlotFor(item, sectionId, lineItems, children.map((c) => c.id), catalog);
+    if (kidSlot) {
+      await (kidSlot.kind === 'story' ? setKidBook : setKidGift)(kidSlot.kidId, item);
+      return;
+    }
     // Claiming the included practice again — drop Donated baselines for this section’s
     // free options (e.g. donated beeswax, then restore MYO should clear Donated).
     if (includedPracticeSlotVacant(sectionId, lineItems)) {
@@ -920,13 +927,15 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     };
     // Same SKU already filling this section — re-home legacy `extra-*` catalog
     // slots so the line shows; otherwise nothing to do.
+    // A paid copy falls through to the conversion below; Eat & Drink may hold the same kit twice.
     const existingInSection = lineItems.find(
       (li) =>
         li.itemId === item.id &&
+        (li.unitCents ?? 0) === 0 &&
         !isGiftSlotLine(li) &&
         displaySectionForLineItem(li, item) === sectionId
     );
-    if (existingInSection) {
+    if (existingInSection && !(sectionId === 'food' && includedPracticeSlotVacant('food', lineItems))) {
       if (existingInSection.slotId.startsWith('extra-')) {
         const nextSlot = uniqueSlotForFreeSectionAdd(
           sectionId,
@@ -1114,6 +1123,16 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     opts?: { reveal?: boolean }
   ) => {
     if (locked) return;
+    const isThisKidsBook = (li: BoxLineItem) =>
+      catalogSlotId(li.slotId) === 'story' && (li.childId || childIdFromSlot(li.slotId)) === childId;
+    for (const [goneId, lines] of donatedLineSnapshots.current) {
+      if (!lines.some(isThisKidsBook)) continue;
+      transferIncludedBaselineOnSwap(includedBaselineByItemId.current, goneId, item.id, 1, 0);
+      const rest = lines.filter((li) => !isThisKidsBook(li));
+      if (rest.length) donatedLineSnapshots.current.set(goneId, rest);
+      else donatedLineSnapshots.current.delete(goneId);
+      break;
+    }
     await persist(assignKidBookLines(lineItems, childId, item));
     if (!opts?.reveal) return;
     requestAnimationFrame(() => {
@@ -1190,7 +1209,12 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
         (li.unitCents ?? 0) === 0
     );
     const sectionId = displaySectionForCatalogItem(item);
-    if (!replacement && freeLines[0]) {
+    const kidOf = (li: BoxLineItem | undefined) =>
+      li && (isGiftSlotLine(li) || catalogSlotId(li.slotId) === 'story')
+        ? li.childId || childIdFromSlot(li.slotId)
+        : undefined;
+    // A kid's book or present comes back in that kid's slot, never stacked on a sibling's copy.
+    if (!replacement && freeLines[0] && !kidOf(freeLines[0])) {
       const target = freeLines[0];
       await persist(
         lineItems.map((li) =>
@@ -1206,7 +1230,14 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       return;
     }
     const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
-    const claimTaken = !replacement && includedClaimAlreadyTaken(item, snapshot, lineItems, catalog);
+    const kidIds = children.map((c) => c.id);
+    const claimTaken = !replacement && includedClaimAlreadyTaken(item, snapshot, lineItems, catalog, kidIds);
+    const snapKid = kidOf(snapshot[0]);
+    if (!replacement && !claimTaken && snapKid && kidIds.includes(snapKid)) {
+      await (isGiftSlotLine(snapshot[0]!) ? setKidGift : setKidBook)(snapKid, item);
+      donatedLineSnapshots.current.delete(itemId);
+      return;
+    }
     if (!replacement && !snapshot.length && !claimTaken) {
       await addFreeItemToEmptySlot(sectionId, item);
       return;
