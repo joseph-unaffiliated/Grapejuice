@@ -31,14 +31,13 @@ import {
 } from '../../services/gift/fromOtherGifts';
 import { formatDollars, chargeableLineTotal, catalogSlotId } from '../../services/box/buildDefaultBox';
 import {
-  boxAddOnUnitCents,
   resolveGiftPrepaidAddOnCents,
   recipientGiftUpgradeCents,
   SHIPPING_FLAT_CENTS,
   checkoutTotalsAfterCredit,
 } from '../../services/box/pricing';
-import { resolveSwapOptionsForItem, resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
-import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
+import { resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import { swapOptionsForLine, swapUnitCents } from '../../services/box/swapPricing';
 import { isWrapControlSlot } from '../../components/box/boxLineDisplay';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
@@ -113,7 +112,9 @@ function GiftBoxBody() {
     const next: Record<string, CatalogItem[]> = {};
     for (const li of lineItems) {
       const current = catalogById.get(li.itemId);
-      next[li.slotId] = current ? resolveSwapOptionsForItem(current, catalog, 6) : [];
+      next[li.slotId] = current
+        ? swapOptionsForLine(li, current, resolveSwapOptionsForItem(current, catalog, 6), { catalog })
+        : [];
     }
     return next;
   }, [lineItems, catalog, catalogById]);
@@ -164,14 +165,10 @@ function GiftBoxBody() {
   };
 
   const onSwap = async (slotId: string, newItem: CatalogItem) => {
-    // Free-swap policy is keyed off whatever is currently in that slot — resolve it so
-    // `'included'` targets stay $0 even when the catalog's tier says otherwise.
     const sourceLine = lineItems.find((li) => li.slotId === slotId);
     const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
-    const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined;
-    const nextUnit =
-      (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
-      boxAddOnUnitCents(newItem);
+    const nextUnit = sourceLine ? swapUnitCents(sourceLine, sourceItem, newItem, { catalog }) : undefined;
+    if (nextUnit === undefined) return;
     const next = lineItems.map((li) =>
       li.slotId === slotId
         ? {

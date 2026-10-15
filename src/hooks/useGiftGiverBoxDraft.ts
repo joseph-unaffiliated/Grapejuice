@@ -6,13 +6,10 @@ import {
   householdFreeQtyForItem,
   isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
-import {
-  resolveSwapOptionsForItem,
-  resolveFreeSwapUnitCents,
-  resolveIncludedGiftOptions,
-} from '../services/box/sectionUpsells';
+import { resolveSwapOptionsForItem, resolveIncludedGiftOptions } from '../services/box/sectionUpsells';
+import { swapOptionsForLine, swapUnitCents } from '../services/box/swapPricing';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, extraUnitCents } from '../services/box/pricing';
-import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, isGeltSwapUp } from '../services/box/boxRules';
+import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity } from '../services/box/boxRules';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -106,12 +103,56 @@ export function useGiftGiverBoxDraft(
         continue;
       }
       // Per-kid gift lines swap among the included gift set, not their section peers.
-      next[li.slotId] = isGiftSlotLine(li)
-        ? resolveIncludedGiftOptions(catalog, li.itemId, 6)
-        : resolveSwapOptionsForItem(current, catalog, 6, { geltCeiling });
+      const options = (limit: number) =>
+        isGiftSlotLine(li)
+          ? resolveIncludedGiftOptions(catalog, li.itemId, limit)
+          : resolveSwapOptionsForItem(current, catalog, limit, { geltCeiling });
+      const shown = options(6).length;
+      next[li.slotId] = swapOptionsForLine(li, current, options(Math.max(24, shown)), { catalog, geltCeiling }).slice(
+        0,
+        shown
+      );
     }
     return next;
   }, [lineItems, catalog, geltCeiling]);
+
+  /** Always append as an add-on (modal “Add to gift”), except wrapping paper with
+   * an empty wrap list restores included paper (inverse of pre-wrap). */
+  const addItem = useCallback(
+    (
+      item: CatalogItem,
+      opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
+    ) => {
+      setLineItems((prev) => {
+        if (prev.some((li) => li.itemId === item.id)) return prev;
+        let unitCents = boxAddOnUnitCents(item);
+        const isPaper =
+          item.defaultSlot === 'wrapping-paper' ||
+          item.slotId === 'wrapping-paper' ||
+          /wrapping.?paper/i.test(`${item.id} ${item.name}`);
+        if (unitCents === 0 && isPaper && wrapSelectedItemIds.length > 0) {
+          unitCents = EXTRA_FLAT_CENTS;
+        }
+        // Included-tier items (kits, candles, gelt) are free only in their empty included slot.
+        if (unitCents === 0 && !isPaper && !includedPracticeSlotVacant(displaySectionForCatalogItem(item), prev)) {
+          unitCents = extraUnitCents(item);
+        }
+        return [
+          ...prev,
+          {
+            slotId: isPaper ? 'wrapping-paper' : uniqueAddSlotId(item, prev),
+            itemId: item.id,
+            quantity: 1,
+            unitCents,
+            includedQty: unitCents === 0 ? 1 : 0,
+            label: item.name,
+            ...(opts?.displaySectionId ? { displaySectionId: opts.displaySectionId } : null),
+          },
+        ];
+      });
+    },
+    [wrapSelectedItemIds]
+  );
 
   const applySwap = useCallback(
     (
@@ -120,25 +161,24 @@ export function useGiftGiverBoxDraft(
       opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
     ) => {
       const idSet = new Set(slotIds);
+      const ctx = { catalog, geltCeiling };
+      const current = lineItems.find((li) => idSet.has(li.slotId));
+      const currentItem = current ? catalog.find((c) => c.id === current.itemId) : undefined;
+      // An included slot never swaps to something it doesn't include — that's an add-on on top.
+      if (current && swapUnitCents(current, currentItem, newItem, ctx) === undefined) {
+        addItem(newItem, opts);
+        return;
+      }
       setLineItems((prev) => {
-        // Free-swap policy is keyed off whatever is currently in that slot — resolve it
-        // so `'included'` targets stay $0 even when the catalog's tier says otherwise.
         const sourceLine = prev.find((li) => idSet.has(li.slotId));
         const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
-        const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined;
-        // Gelt for gelt keeps the same chocolate (Big Bag → three Little Bags), free up to
-        // the biggest bag the household's allowance covers.
+        // Gelt for gelt keeps the same chocolate (Big Bag → three Little Bags).
         const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
         const toGelt = geltSizeOf(newItem);
         const geltQty = (qty: number) =>
           fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, people) : qty;
-        const freeGeltSwap =
-          !!fromGelt && !!toGelt && !isGeltSwapUp(fromGelt, toGelt, geltCeiling) && (sourceLine?.unitCents ?? 0) === 0;
-        // Per-kid gift swaps stay free regardless of the target's catalog tier.
-        const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || freeGeltSwap)
-          ? 0
-          : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
-            boxAddOnUnitCents(newItem);
+        const nextUnit =
+          (sourceLine ? swapUnitCents(sourceLine, sourceItem, newItem, ctx) : undefined) ?? extraUnitCents(newItem);
         if (sourceLine?.itemId) {
           const swappedQty = prev
             .filter((li) => idSet.has(li.slotId))
@@ -172,7 +212,7 @@ export function useGiftGiverBoxDraft(
         );
       });
     },
-    [catalog, people, geltCeiling]
+    [catalog, people, geltCeiling, lineItems, addItem]
   );
 
   const swapToPreWrap = useCallback(
@@ -205,40 +245,6 @@ export function useGiftGiverBoxDraft(
       });
     },
     [catalog]
-  );
-
-  /** Always append as an add-on (modal “Add to gift”), except wrapping paper with
-   * an empty wrap list restores included paper (inverse of pre-wrap). */
-  const addItem = useCallback(
-    (
-      item: CatalogItem,
-      opts?: { displaySectionId?: BoxLineItem['displaySectionId'] }
-    ) => {
-      setLineItems((prev) => {
-        if (prev.some((li) => li.itemId === item.id)) return prev;
-        let unitCents = boxAddOnUnitCents(item);
-        const isPaper =
-          item.defaultSlot === 'wrapping-paper' ||
-          item.slotId === 'wrapping-paper' ||
-          /wrapping.?paper/i.test(`${item.id} ${item.name}`);
-        if (unitCents === 0 && isPaper && wrapSelectedItemIds.length > 0) {
-          unitCents = EXTRA_FLAT_CENTS;
-        }
-        return [
-          ...prev,
-          {
-            slotId: isPaper ? 'wrapping-paper' : uniqueAddSlotId(item, prev),
-            itemId: item.id,
-            quantity: 1,
-            unitCents,
-            includedQty: unitCents === 0 ? 1 : 0,
-            label: item.name,
-            ...(opts?.displaySectionId ? { displaySectionId: opts.displaySectionId } : null),
-          },
-        ];
-      });
-    },
-    [wrapSelectedItemIds]
   );
 
   /** Insert a fresh line at $0 for an empty section's "add these for free" placeholder. */

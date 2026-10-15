@@ -1,0 +1,701 @@
+[
+ {
+  "id": "toddler-play-menorah",
+  "name": "Toddler Play Menorah",
+  "slot": "keepsake",
+  "slotId": "family-hanukkiah",
+  "category": "Menorah",
+  "categories": [
+   "Menorah",
+   "Toys",
+   "Activity",
+   "On Sale"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 1500,
+  "defaultGiftAges": [
+   0,
+   1,
+   2
+  ],
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "gift-eligible"
+  ],
+  "nonMemberPriceCents": 2500,
+  "curationTags": [
+   "collection",
+   "hanukkiah"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "shamash-the-menorah-stuffie",
+  "name": "Shamash, the Menorah Stuffie",
+  "slot": "addon",
+  "slotId": "decor",
+  "category": "Stuffies",
+  "categories": [
+   "Stuffies",
+   "Toys"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 1000,
+  "defaultGiftAges": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7
+  ],
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "gift-eligible"
+  ],
+  "nonMemberPriceCents": 2500,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "crispy-the-latke-stuffie",
+  "name": "Crispy, the Latke Stuffie",
+  "slot": "addon",
+  "slotId": "decor",
+  "category": "Stuffies",
+  "categories": [
+   "Stuffies",
+   "Toys"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 1000,
+  "defaultGiftAges": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7
+  ],
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "gift-eligible"
+  ],
+  "nonMemberPriceCents": 2500,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "lego-menorah",
+  "name": "\"Lego\" Menorah",
+  "slot": "keepsake",
+  "slotId": "family-hanukkiah",
+  "category": "Menorah",
+  "categories": [
+   "Menorah",
+   "Toys",
+   "Activity"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 1500,
+  "defaultGiftAges": [
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12
+  ],
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "gift-eligible"
+  ],
+  "nonMemberPriceCents": 2500,
+  "curationTags": [
+   "collection",
+   "hanukkiah"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "beeswax-candles",
+  "name": "Beeswax Candles",
+  "slot": "base",
+  "slotId": "candles",
+  "category": "Candles",
+  "categories": [
+   "Candles",
+   "On Sale"
+  ],
+  "pricingTier": "included",
+  "memberPriceCents": 500,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "defaultFor": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "boxRoles": [
+   "base"
+  ],
+  "nonMemberPriceCents": 1800,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "electric-candles",
+  "name": "Electric Candles",
+  "slot": "addon",
+  "slotId": "extra-candles",
+  "category": "Candles",
+  "categories": [
+   "Candles",
+   "Other"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 900,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "swap"
+  ],
+  "nonMemberPriceCents": 2500,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "book-nathan-blows-out-the-hanukkah-candles",
+  "name": "Nathan Blows Out the Hanukkah Candles",
+  "slot": "story",
+  "slotId": "story",
+  "category": "Book",
+  "categories": [
+   "Book"
+  ],
+  "pricingTier": "perKid",
+  "memberPriceCents": 899,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [
+   "book-happy-hanukkah-peppa-pig",
+   "book-the-power-of-light",
+   "book-the-story-of-hanukkah",
+   "book-how-do-dinosaurs-say-happy-chanukah",
+   "book-ava-s-homemade-hanukkah",
+   "book-hanukkah-pajamakkahs",
+   "book-the-very-hungry-caterpillar-s-8-nights-of-chanukah",
+   "book-rachel-friedman-and-eight-not-perfect-nights-of-hanukkah"
+  ],
+  "nonMemberPriceCents": 899,
+  "curationTags": [
+   "collection"
+  ],
+  "interest": "home - neurodivergence",
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "welcome-menorah",
+  "name": "\"Welcome\" Menorah",
+  "slot": "keepsake",
+  "slotId": "family-hanukkiah",
+  "category": "Menorah",
+  "categories": [
+   "Menorah",
+   "On Sale"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 1800,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "upsell"
+  ],
+  "nonMemberPriceCents": 18000,
+  "curationTags": [
+   "collection",
+   "hanukkiah"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "classic-wooden-dreidel",
+  "name": "Classic Wooden Dreidel",
+  "slot": "gift",
+  "slotId": "gift",
+  "category": "Dreidel",
+  "categories": [
+   "Dreidel",
+   "On Sale"
+  ],
+  "pricingTier": "perKid",
+  "memberPriceCents": 100,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "defaultFor": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "boxRoles": [
+   "base"
+  ],
+  "nonMemberPriceCents": 300,
+  "curationTags": [
+   "collection",
+   "dreidel"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "airdry-clay-dreidel",
+  "name": "Airdry Clay Dreidel",
+  "slot": "keepsake",
+  "slotId": "keepsake-dreidel",
+  "category": "Dreidel",
+  "categories": [
+   "Dreidel",
+   "Toys",
+   "Activity",
+   "On Sale"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 300,
+  "defaultGiftAges": [
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12
+  ],
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "gift-eligible"
+  ],
+  "nonMemberPriceCents": 1000,
+  "curationTags": [
+   "collection",
+   "dreidel"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "solid-brass-dreidel",
+  "name": "Solid Brass Dreidel",
+  "slot": "keepsake",
+  "slotId": "keepsake-dreidel",
+  "category": "Dreidel",
+  "categories": [
+   "Dreidel"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 3000,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "upsell"
+  ],
+  "nonMemberPriceCents": 8000,
+  "curationTags": [
+   "collection",
+   "dreidel"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "little-bag-of-gelt-2-big-5-little",
+  "name": "Little Bag of Gelt (2 big, 5 little)",
+  "slot": "addon",
+  "slotId": "decor",
+  "category": "Gelt",
+  "categories": [
+   "Gelt"
+  ],
+  "pricingTier": "included",
+  "memberPriceCents": 200,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "defaultFor": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "boxRoles": [
+   "base"
+  ],
+  "nonMemberPriceCents": 500,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "big-bag-of-gelt",
+  "name": "Big Bag of Gelt (5 big, 20 little)",
+  "slot": "addon",
+  "slotId": "decor",
+  "category": "Gelt",
+  "categories": [
+   "Gelt",
+   "On Sale"
+  ],
+  "pricingTier": "included",
+  "memberPriceCents": 500,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "defaultFor": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "boxRoles": [
+   "base"
+  ],
+  "nonMemberPriceCents": 1000,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "party-bag-of-gelt",
+  "name": "Party Bag of Gelt (20 big, 80 little)",
+  "slot": "addon",
+  "slotId": "decor",
+  "category": "Gelt",
+  "categories": [
+   "Gelt"
+  ],
+  "pricingTier": "included",
+  "memberPriceCents": 1800,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "defaultFor": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "boxRoles": [
+   "base"
+  ],
+  "nonMemberPriceCents": 3500,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "latke-kit",
+  "name": "Latke Kit",
+  "slot": "base",
+  "slotId": "latke-kit",
+  "category": "Food",
+  "categories": [
+   "Food",
+   "Activity"
+  ],
+  "pricingTier": "included",
+  "memberPriceCents": 500,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "defaultFor": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "boxRoles": [
+   "base"
+  ],
+  "nonMemberPriceCents": 1000,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "sufganiyot-kit",
+  "name": "Sufganiyot Kit",
+  "slot": "base",
+  "slotId": "sufganiyot-kit",
+  "category": "Food",
+  "categories": [
+   "Food",
+   "Activity"
+  ],
+  "pricingTier": "included",
+  "memberPriceCents": 500,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "defaultFor": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "boxRoles": [
+   "base"
+  ],
+  "nonMemberPriceCents": 1000,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "dreidel-cookie-cutters",
+  "name": "Dreidel Cookie Cutters",
+  "slot": "addon",
+  "slotId": "decor",
+  "category": "Food",
+  "categories": [
+   "Food",
+   "On Sale",
+   "Activity",
+   "Other"
+  ],
+  "pricingTier": "alaCarte",
+  "memberPriceCents": 400,
+  "ageGroups": [
+   "0-2",
+   "3-5",
+   "6-8",
+   "9-12"
+  ],
+  "swapOptions": [],
+  "boxRoles": [
+   "swap"
+  ],
+  "nonMemberPriceCents": 800,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "A la carte"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "book-you-re-my-little-latke",
+  "name": "You're My Little Latke",
+  "slot": "story",
+  "slotId": "story",
+  "category": "Book",
+  "categories": [
+   "Book"
+  ],
+  "pricingTier": "perKid",
+  "memberPriceCents": 1000,
+  "ageGroups": [
+   "0-2"
+  ],
+  "swapOptions": [
+   "book-happy-hanukkah-peppa-pig",
+   "book-the-very-hungry-caterpillar-s-8-nights-of-chanukah",
+   "book-dino-hanukkah",
+   "book-a-rugrats-chanukah",
+   "book-happy-hanukkah-pups-paw-patrol",
+   "book-grover-s-hanukkah-party-shalom-sesame",
+   "book-hanukkah",
+   "book-latke-s-first-hanukkah"
+  ],
+  "defaultFor": [
+   "0-2"
+  ],
+  "nonMemberPriceCents": 1000,
+  "curationTags": [
+   "collection"
+  ],
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ },
+ {
+  "id": "book-the-three-latkes",
+  "name": "The Three Latkes",
+  "slot": "story",
+  "slotId": "story",
+  "category": "Book",
+  "categories": [
+   "Book"
+  ],
+  "pricingTier": "perKid",
+  "memberPriceCents": 800,
+  "ageGroups": [
+   "3-5"
+  ],
+  "swapOptions": [
+   "book-happy-hanukkah-peppa-pig",
+   "book-how-do-dinosaurs-say-happy-chanukah",
+   "book-hanukkah-pajamakkahs",
+   "book-the-very-hungry-caterpillar-s-8-nights-of-chanukah",
+   "book-where-do-diggers-celebrate-hanukkah",
+   "book-a-rugrats-chanukah",
+   "book-charlie-and-seymour-s-hanukkah-miracle",
+   "book-happy-hanukkah-pups-paw-patrol"
+  ],
+  "nonMemberPriceCents": 800,
+  "curationTags": [
+   "collection"
+  ],
+  "interest": "with - making latkes",
+  "context": [
+   "Default"
+  ],
+  "inventory": 50
+ }
+]

@@ -20,6 +20,7 @@ import {
 } from '../../constants/boxDisplaySections';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import type { GeltSize } from './boxRules';
+import { isIncludedSwap } from './swapPricing';
 
 export type SwapSourceOptions = {
   /** Household's default gelt bag; a free gelt swap never goes bigger. */
@@ -58,7 +59,10 @@ export function findSwapSourceLines(
     if (withinSection) {
       if (displaySectionForLineItem(li, current) !== withinSection) continue;
     }
-    if (swapOptionsForLine(li, current, catalog, opts).some((o) => o.id === item.id)) {
+    if (
+      swapOptionsForLine(li, current, catalog, opts).some((o) => o.id === item.id) &&
+      isIncludedSwap(li, current, item, { catalog, geltCeiling: opts?.geltCeiling })
+    ) {
       matches.push(li);
     }
   }

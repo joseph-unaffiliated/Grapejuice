@@ -223,6 +223,13 @@ export function inferGiftDisplaySection(item: CatalogItem): BoxDisplaySectionId 
   return 'presents';
 }
 
+/** Section a box slot belongs to by its id alone (`latke-mix`, `gelt-small`, …), if known. */
+export function displaySectionForSlotId(slotId: string): BoxDisplaySectionId | undefined {
+  const base = catalogSlotId(slotId);
+  if (base.startsWith('story')) return 'story';
+  return SLOT_TO_DISPLAY[base];
+}
+
 export function displaySectionForLineItem(
   li: BoxLineItem,
   item?: CatalogItem | null

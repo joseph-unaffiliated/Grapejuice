@@ -1,8 +1,9 @@
 import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot';
-import { boxAddOnUnitCents } from '../box/pricing';
-import { resolveFreeSwapUnitCents } from '../box/sectionUpsells';
+import { boxAddOnUnitCents, extraUnitCents } from '../box/pricing';
+import { swapUnitCents } from '../box/swapPricing';
 import { geltSizeOf, geltSwapQuantity, isGeltSwapUp, type GeltSize } from '../box/boxRules';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
+import { includedPracticeSlotVacant } from '../../components/box/boxLineDisplay';
 
 export type ApplyRavActionsResult = {
   lineItems: BoxLineItem[];
@@ -26,14 +27,11 @@ function catalogLine(
   };
 }
 
-/**
- * Price for a Rav-driven `'swap'` action. `'included'`-policy targets (per boxRules)
- * stay $0 even when the catalog's own pricing tier says otherwise; `'extra'`-policy /
- * undocumented targets fall back to the standard add-on price.
- */
-function swapUnitCents(sourceItem: CatalogItem | undefined, targetItem: CatalogItem): number {
-  const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : displaySectionForCatalogItem(targetItem);
-  return resolveFreeSwapUnitCents(sourceItem, targetItem, sectionId) ?? boxAddOnUnitCents(targetItem);
+/** An added item is free only when it fills its practice's empty included slot. */
+function addUnitCents(item: CatalogItem, lineItems: BoxLineItem[]): number {
+  const unit = boxAddOnUnitCents(item);
+  if (unit > 0) return unit;
+  return includedPracticeSlotVacant(displaySectionForCatalogItem(item), lineItems) ? 0 : extraUnitCents(item);
 }
 
 function findLineIndex(lineItems: BoxLineItem[], slotId?: string, itemId?: string): number {
@@ -113,12 +111,15 @@ export function applyRavDraftActions(
           const qty = geltSwapQuantity(fromGelt, toGelt, existing.quantity ?? 1, options?.geltHeadcount ?? 1);
           next[idx] = { ...catalogLine(item, existing.slotId, existing.childId, 0), quantity: qty, includedQty: qty };
         } else {
-          next[idx] = catalogLine(item, existing.slotId, existing.childId, swapUnitCents(sourceItem, item));
+          const unit = swapUnitCents(existing, sourceItem, item, { catalog, geltCeiling: options?.geltCeiling });
+          // Not an included swap: Rav adds it on top and the included item stays.
+          if (unit === undefined) next.push(catalogLine(item, `addon-${item.id}`, undefined, addUnitCents(item, next)));
+          else next[idx] = catalogLine(item, existing.slotId, existing.childId, unit);
         }
       } else {
         const childId = action.childId;
         const newSlot = childId ? `${slotId}-${childId}` : slotId;
-        next.push(catalogLine(item, newSlot, childId));
+        next.push(catalogLine(item, newSlot, childId, addUnitCents(item, next)));
       }
       applied.push(action);
       continue;
@@ -132,7 +133,7 @@ export function applyRavDraftActions(
       const slotId = action.slotId ?? item.slotId ?? `extra-${item.id}`;
       const childId = action.childId;
       const newSlot = childId && !slotId.includes(childId) ? `${slotId}-${childId}` : slotId;
-      next.push(catalogLine(item, newSlot, childId));
+      next.push(catalogLine(item, newSlot, childId, addUnitCents(item, next)));
       applied.push(action);
       continue;
     }

@@ -27,10 +27,8 @@ import {
   findSwapSourceLine,
   findSwapSourceLines,
 } from '../../services/box/findSwapSourceLine';
-import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
-import { boxAddOnUnitCents } from '../../services/box/pricing';
-import { geltCeilingForPeople, type GeltSize } from '../../services/box/boxRules';
-import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
+import { swapUnitCents } from '../../services/box/swapPricing';
+import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, type GeltSize } from '../../services/box/boxRules';
 import type { BoxLineItem, CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -185,26 +183,26 @@ export function StorefrontProductGrid({
     const source = swapSources.find((li) => `${li.slotId}:${li.itemId}` === key);
     if (!source) return;
     const sourceItem = catalogForSwap.find((c) => c.id === source.itemId);
-    const sectionId = displaySectionForCatalogItem(sourceItem ?? swapIncoming);
-    const swapUnitCents =
-      resolveFreeSwapUnitCents(sourceItem, swapIncoming, sectionId) ??
-      boxAddOnUnitCents(swapIncoming);
-    const delta = Math.max(0, swapUnitCents - (source.unitCents ?? 0));
+    const unitCents = swapUnitCents(source, sourceItem, swapIncoming, { catalog: catalogForSwap, geltCeiling });
+    if (unitCents === undefined) return;
+    const delta = Math.max(0, unitCents - (source.unitCents ?? 0));
     if (delta > 0 && !guardMutation()) return;
-    transferLiveIncludedBaselineOnSwap(
-      source.itemId,
-      swapIncoming.id,
-      Math.max(1, source.quantity ?? 1),
-      swapUnitCents
-    );
+    const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
+    const toGelt = geltSizeOf(swapIncoming);
+    const quantity =
+      fromGelt && toGelt
+        ? geltSwapQuantity(fromGelt, toGelt, Math.max(1, source.quantity ?? 1), people)
+        : Math.max(1, source.quantity ?? 1);
+    transferLiveIncludedBaselineOnSwap(source.itemId, swapIncoming.id, quantity, unitCents);
     const next = lineItems.map((li) =>
       li.slotId === source.slotId && li.itemId === source.itemId
         ? {
             ...li,
             itemId: swapIncoming.id,
             label: swapIncoming.name,
-            unitCents: swapUnitCents,
-            quantity: 1,
+            unitCents,
+            quantity,
+            ...(li.includedQty && unitCents === 0 ? { includedQty: quantity } : {}),
           }
         : li
     );

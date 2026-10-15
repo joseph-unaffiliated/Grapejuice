@@ -21,19 +21,19 @@ import {
   totalCents,
   catalogSlotId,
 } from '../../services/box/buildDefaultBox';
-import { listBoxCentsForKids } from '../../services/box/boxRules';
+import { geltCeilingForPeople, listBoxCentsForKids } from '../../services/box/boxRules';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
+import { isIncludedSwap, swapUnitCents } from '../../services/box/swapPricing';
 import {
   resolveSectionUpsellItems,
   resolveFreeSlotAddOptions,
-  resolveFreeSwapUnitCents,
   resolveIncludedGiftOptions,
   kidPlannerAges,
   orderGiftOptionsForAge,
   filterBooksForKidAges,
   catalogBookFitsKidAge,
 } from '../../services/box/sectionUpsells';
-import { resolveCatalogDisplayPrices, boxALaCarteRetailValueCents, boxAddOnUnitCents } from '../../services/box/pricing';
+import { resolveCatalogDisplayPrices, boxALaCarteRetailValueCents } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem, ChildProfile } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
@@ -143,6 +143,7 @@ type Props = {
 };
 
 export function GiftGiverCustomizeContent({
+  form,
   catalog,
   lineItems,
   kidProfiles,
@@ -165,6 +166,7 @@ export function GiftGiverCustomizeContent({
   paymentSlot,
 }: Props) {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const geltCeiling = geltCeilingForPeople(kidProfiles.length + (form.giftAdults ?? 1));
   const { colors } = useThemeMode();
   const { isDesktop, widePanelMaxWidth } = useWebLayout();
   const insets = useSafeAreaInsets();
@@ -322,16 +324,16 @@ export function GiftGiverCustomizeContent({
       const candidates = resolveFreeSlotAddOptions(section.id, catalog, 64);
       const eligible = new Set<string>();
       for (const item of candidates) {
-        const source = findSwapSourceLine(item, lineItems, catalog, section.id);
+        const source = findSwapSourceLine(item, lineItems, catalog, section.id, { geltCeiling });
         if (!source) continue;
         const sourceItem = catalog.find((c) => c.id === source.itemId);
-        if (resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
+        if (!isIncludedSwap(source, sourceItem, item, { catalog, geltCeiling })) continue;
         eligible.add(item.id);
       }
       map[section.id] = eligible;
     }
     return map;
-  }, [catalog, lineItems]);
+  }, [catalog, lineItems, geltCeiling]);
 
   /** Fixed included per-kid gift set for the add-gift affordance. */
   const includedGiftOptions = useMemo(
@@ -810,19 +812,16 @@ export function GiftGiverCustomizeContent({
         }}
         onSwap={(next, source) => {
           const sourceItem = catalog.find((c) => c.id === source.itemId);
-          const sectionId =
-            productModalSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
-          const nextUnit = isGiftSlotLine(source)
-            ? 0
-            : (sectionId ? resolveFreeSwapUnitCents(sourceItem, next, sectionId) : undefined) ??
-              boxAddOnUnitCents(next);
-          transferIncludedBaselineOnSwap(
-            includedBaselineByItemId.current,
-            source.itemId,
-            next.id,
-            Math.max(1, source.quantity ?? 1),
-            nextUnit
-          );
+          const nextUnit = swapUnitCents(source, sourceItem, next, { catalog, geltCeiling });
+          if (nextUnit !== undefined) {
+            transferIncludedBaselineOnSwap(
+              includedBaselineByItemId.current,
+              source.itemId,
+              next.id,
+              Math.max(1, source.quantity ?? 1),
+              nextUnit
+            );
+          }
           applySwap(
             [source.slotId],
             next,

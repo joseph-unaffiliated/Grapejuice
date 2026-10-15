@@ -31,7 +31,8 @@ import { PilotReturnBanner } from '../../components/pilot/PilotReturnBanner';
 import { formatCatalogDollars, toRulesRow } from '../../services/box/buildDefaultBox';
 import { isLowWithDrafts, resolveByDefaultSlot } from '../../services/box/boxRules';
 import { isStorefrontRavOpenable, openStorefrontRav } from '../../components/storefront/storefrontRavContext';
-import { kidPlannerAges, resolveFreeSwapUnitCents, resolveIncludedGiftOptions, storySwapShelf } from '../../services/box/sectionUpsells';
+import { kidPlannerAges, storySwapShelf } from '../../services/box/sectionUpsells';
+import { isIncludedSwap } from '../../services/box/swapPricing';
 import { HorizontalDragScrollView } from '../../components/home/HorizontalDragScrollView';
 import { chargeableLineTotal, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import type { CatalogItem } from '../../types/pilot';
@@ -287,8 +288,9 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     return e.donatedItems.find(({ item: gone }) => {
       if (gone.id === item.id) return false;
       const snap = e.donatedLineSnapshots.current.get(gone.id)?.[0];
-      if (snap && isGiftSlotLine(snap)) return resolveIncludedGiftOptions(e.catalog, gone.id, 48).some((o) => o.id === item.id);
-      return displaySectionForCatalogItem(gone) === home && resolveFreeSwapUnitCents(gone, item, home) === 0;
+      const line = snap ? { ...snap, unitCents: 0 } : { slotId: '', itemId: gone.id, unitCents: 0 };
+      if (!snap && displaySectionForCatalogItem(gone) !== home) return false;
+      return isIncludedSwap(line, gone, item, { catalog: e.catalog, geltCeiling: e.geltCeiling });
     })?.item;
   };
 

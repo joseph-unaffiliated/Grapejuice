@@ -31,12 +31,8 @@ import { ProductNote } from '../../components/box/ProductNote';
 import type { GeltSize } from '../../services/box/boxRules';
 import { isGiftSlotLine } from './boxLineDisplay';
 import { boxAddOnUnitCents, HANUKKAH_SHIP_WINDOW_LABEL } from '../../services/box/pricing';
-import {
-  resolveFreeSwapUnitCents,
-  resolveIncludedGiftOptions,
-  resolveSwapOptionsForItem,
-} from '../../services/box/sectionUpsells';
-import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
+import { resolveIncludedGiftOptions, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import { swapOptionsForLine } from '../../services/box/swapPricing';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
 import { trackMetaProduct } from '../../services/analytics/metaPixel';
@@ -180,46 +176,16 @@ export function BoxProductModal({
     const opts = isGiftSlotLine(inBoxPrimary)
       ? resolveIncludedGiftOptions(catalog, item.id, 12)
       : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling });
-    return opts.filter((o) => o.id !== item.id);
+    return swapOptionsForLine(inBoxPrimary, item, opts, { catalog, geltCeiling }).filter((o) => o.id !== item.id);
   }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog, geltCeiling]);
 
+  /** Only lines this item is an included swap for — so Swap is always free. */
   const swapSources = useMemo(() => {
     if (!item || inBox) return [];
     return findSwapSourceLines(item, lineItems, catalog, fromSection, { geltCeiling });
   }, [item, inBox, lineItems, catalog, fromSection, geltCeiling]);
-  const swapSource = swapSources[0] ?? null;
 
   const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
-  /** Cheapest policy-valid swap delta (included swaps are $0). */
-  const swapDeltaCents = useMemo(() => {
-    if (!item || swapSources.length === 0) return 0;
-    let best: number | null = null;
-    for (const source of swapSources) {
-      const sourceItem = catalog.find((c) => c.id === source.itemId);
-      const sectionId =
-        fromSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
-      if (!sectionId) continue;
-      const free = resolveFreeSwapUnitCents(sourceItem, item, sectionId);
-      if (free === undefined) continue;
-      const delta = Math.max(0, free - (source.unitCents ?? 0));
-      best = best == null ? delta : Math.min(best, delta);
-    }
-    if (best != null) return best;
-    if (!swapSource) return 0;
-    return Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0));
-  }, [item, swapSources, catalog, fromSection, swapSource, boxUnitCents]);
-
-  /** Only offer Swap when at least one target is an included/policy swap. */
-  const canPolicySwap = useMemo(() => {
-    if (!item || swapSources.length === 0) return false;
-    return swapSources.some((source) => {
-      const sourceItem = catalog.find((c) => c.id === source.itemId);
-      const sectionId =
-        fromSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
-      if (!sectionId) return false;
-      return resolveFreeSwapUnitCents(sourceItem, item, sectionId) !== undefined;
-    });
-  }, [item, swapSources, catalog, fromSection]);
 
   const bodyCopy = item ? pdpBodyCopyForItem(item) : undefined;
   const details = item ? detailRowsFromItem(item) : [];
@@ -236,12 +202,10 @@ export function BoxProductModal({
   const secondaryLabel = inBox
     ? 'Swap'
     : context === 'giftBox'
-      ? `Swap into gift (+${formatCatalogDollars(swapDeltaCents)})`
-      : `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`;
+      ? 'Swap into gift'
+      : 'Swap into my box';
 
-  const showSecondary = inBox
-    ? inBoxSwapOptions.length > 0
-    : swapSources.length > 0 && canPolicySwap;
+  const showSecondary = inBox ? inBoxSwapOptions.length > 0 : swapSources.length > 0;
   const showQty = inBox && Boolean(onQuantityChange) && !locked;
   const atOneQty = boxQuantity <= 1;
   const qtyMinusLabel = atOneQty
@@ -619,7 +583,7 @@ export function BoxProductModal({
           setSwapPickerOpen(false);
           void run(async () => {
             await onSwap(item, source);
-            trackMetaProduct('AddToCart', { id: item.id, name: item.name, priceCents: swapDeltaCents });
+            trackMetaProduct('AddToCart', { id: item.id, name: item.name, priceCents: 0 });
           });
         }}
         onCancel={() => setSwapPickerOpen(false)}

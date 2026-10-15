@@ -44,15 +44,11 @@ import {
 } from '../../services/catalog/availability';
 import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
 import { ProductNote } from '../../components/box/ProductNote';
-import { geltCeilingForPeople } from '../../services/box/boxRules';
+import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity } from '../../services/box/boxRules';
 import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import { trackMetaProduct } from '../../services/analytics/metaPixel';
-import {
-  resolveFreeSwapUnitCents,
-  resolveIncludedGiftOptions,
-  resolveSwapOptionsForItem,
-} from '../../services/box/sectionUpsells';
-import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
+import { resolveIncludedGiftOptions, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
+import { swapOptionsForLine, swapUnitCents } from '../../services/box/swapPricing';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileBoundary } from '../../components/mobile/MobileBoundary';
 import { MobileProductBody, type RoleOption } from '../mobile/MobileProductBody';
@@ -315,32 +311,16 @@ export function CatalogProductScreen() {
     if (!item || !hasStartedBox || inBox) return [];
     return findSwapSourceLines(item, swapLineItems, catalog, null, { geltCeiling: geltCeilingForPeople(people) });
   }, [item, hasStartedBox, inBox, swapLineItems, catalog, people]);
-  const swapSource = swapSources[0] ?? null;
   /** When already in box: alternate SKUs to swap this line for. */
   const inBoxSwapOptions = useMemo(() => {
     if (!item || !inBox || !inBoxPrimary) return [];
     if (inBoxUnitCents > 0) return [];
+    const geltCeiling = geltCeilingForPeople(people);
     const opts = isGiftSlotLine(inBoxPrimary)
       ? resolveIncludedGiftOptions(catalog, item.id, 12)
-      : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling: geltCeilingForPeople(people) });
-    return opts.filter((o) => o.id !== item.id);
+      : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling });
+    return swapOptionsForLine(inBoxPrimary, item, opts, { catalog, geltCeiling }).filter((o) => o.id !== item.id);
   }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog, people]);
-  /** Cheapest policy-valid swap delta (included swaps are $0). */
-  const swapDeltaCents = useMemo(() => {
-    if (!item || swapSources.length === 0) return 0;
-    let best: number | null = null;
-    for (const source of swapSources) {
-      const sourceItem = catalog.find((c) => c.id === source.itemId);
-      const sectionId = displaySectionForCatalogItem(sourceItem ?? item);
-      const free = resolveFreeSwapUnitCents(sourceItem, item, sectionId);
-      if (free === undefined) continue;
-      const delta = Math.max(0, free - (source.unitCents ?? 0));
-      best = best == null ? delta : Math.min(best, delta);
-    }
-    if (best != null) return best;
-    if (!swapSource) return 0;
-    return Math.max(0, boxUnitCents - (swapSource.unitCents ?? 0));
-  }, [item, swapSources, catalog, swapSource, boxUnitCents]);
   const [swapModalOpen, setSwapModalOpen] = useState(false);
 
   const persist = async (next: BoxLineItem[]) => {
@@ -400,19 +380,22 @@ export function CatalogProductScreen() {
   const swapIntoBox = async (source: BoxLineItem) => {
     if (!item || locked || inBox || isCatalogItemSoldOut(item)) return;
     const sourceItem = catalog.find((c) => c.id === source.itemId);
-    const sectionId = displaySectionForCatalogItem(sourceItem ?? item);
-    const unitCents =
-      resolveFreeSwapUnitCents(sourceItem, item, sectionId) ?? boxUnitCents;
+    const unitCents = swapUnitCents(source, sourceItem, item, {
+      catalog,
+      geltCeiling: geltCeilingForPeople(people),
+    });
+    if (unitCents === undefined) return addToBox();
     const delta = Math.max(0, unitCents - (source.unitCents ?? 0));
     if (delta > 0 && !guardMutation()) return;
+    const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
+    const toGelt = geltSizeOf(item);
+    const quantity =
+      fromGelt && toGelt
+        ? geltSwapQuantity(fromGelt, toGelt, Math.max(1, source.quantity ?? 1), people)
+        : Math.max(1, source.quantity ?? 1);
     // Use live draft when present; otherwise persist the seeded default box + swap.
     const base = lineItems.length > 0 ? lineItems : swapLineItems;
-    transferLiveIncludedBaselineOnSwap(
-      source.itemId,
-      item.id,
-      Math.max(1, source.quantity ?? 1),
-      unitCents
-    );
+    transferLiveIncludedBaselineOnSwap(source.itemId, item.id, quantity, unitCents);
     const next = base.map((li) =>
       li.slotId === source.slotId && li.itemId === source.itemId
         ? {
@@ -420,7 +403,8 @@ export function CatalogProductScreen() {
             itemId: item.id,
             label: item.name,
             unitCents,
-            quantity: 1,
+            quantity,
+            ...(li.includedQty && unitCents === 0 ? { includedQty: quantity } : {}),
           }
         : li
     );
@@ -433,15 +417,19 @@ export function CatalogProductScreen() {
   /** Replace the current in-box line with another eligible SKU. */
   const swapInBoxFor = async (replacement: CatalogItem) => {
     if (!item || !inBoxPrimary || locked) return;
-    const sectionId = displaySectionForCatalogItem(item);
-    const unitCents =
-      resolveFreeSwapUnitCents(item, replacement, sectionId) ?? 0;
-    transferLiveIncludedBaselineOnSwap(
-      item.id,
-      replacement.id,
-      Math.max(1, inBoxPrimary.quantity ?? 1),
-      unitCents
-    );
+    const unitCents = swapUnitCents(inBoxPrimary, item, replacement, {
+      catalog,
+      geltCeiling: geltCeilingForPeople(people),
+    });
+    if (unitCents === undefined) return;
+    if (unitCents > (inBoxPrimary.unitCents ?? 0) && !guardMutation()) return;
+    const fromGelt = geltSizeOf(item);
+    const toGelt = geltSizeOf(replacement);
+    const quantity =
+      fromGelt && toGelt
+        ? geltSwapQuantity(fromGelt, toGelt, Math.max(1, inBoxPrimary.quantity ?? 1), people)
+        : Math.max(1, inBoxPrimary.quantity ?? 1);
+    transferLiveIncludedBaselineOnSwap(item.id, replacement.id, quantity, unitCents);
     const next = lineItems.map((li) =>
       li.slotId === inBoxPrimary.slotId && li.itemId === item.id
         ? {
@@ -449,7 +437,8 @@ export function CatalogProductScreen() {
             itemId: replacement.id,
             label: replacement.name,
             unitCents,
-            quantity: 1,
+            quantity,
+            ...(li.includedQty && unitCents === 0 ? { includedQty: quantity } : {}),
           }
         : li
     );
@@ -536,20 +525,10 @@ export function CatalogProductScreen() {
             ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
             : 'Add to cart';
 
-  const canPolicySwap = useMemo(() => {
-    if (!item || swapSources.length === 0) return false;
-    return swapSources.some((source) => {
-      const sourceItem = catalog.find((c) => c.id === source.itemId);
-      if (!sourceItem) return false;
-      const sectionId = displaySectionForCatalogItem(sourceItem);
-      return resolveFreeSwapUnitCents(sourceItem, item, sectionId) !== undefined;
-    });
-  }, [item, swapSources, catalog]);
-
   const secondaryLabel = hasStartedBox
     ? inBox
       ? 'Swap'
-      : `Swap into my box (+${formatCatalogDollars(swapDeltaCents)})`
+      : 'Swap into my box'
     : memberCents > 0
       ? `Buy with a box (${formatCatalogDollars(memberCents)})`
       : 'Buy with a box';
@@ -561,7 +540,7 @@ export function CatalogProductScreen() {
     : showInBoxControls
       ? inBoxSwapOptions.length > 0
       : hasStartedBox
-        ? !inCart && swapSources.length > 0 && canPolicySwap
+        ? !inCart && swapSources.length > 0
         : true;
   const atOneQty = boxQuantity <= 1;
   const qtyMinusLabel = atOneQty
@@ -618,14 +597,11 @@ export function CatalogProductScreen() {
     for (const source of swapSources.slice(0, 2)) {
       const sourceItem = catalog.find((c) => c.id === source.itemId);
       if (!sourceItem) continue;
-      const sectionId = displaySectionForCatalogItem(sourceItem);
-      const unit = resolveFreeSwapUnitCents(sourceItem, item, sectionId) ?? boxUnitCents;
-      const delta = Math.max(0, unit - (source.unitCents ?? 0));
       roleOptions.push({
         key: `swap:${source.slotId}`,
         title: `Swap it in for ${sourceItem.name}`,
         detail: 'Takes its place in your box',
-        price: delta > 0 ? `+${formatCatalogDollars(delta)}` : 'Included',
+        price: 'Included',
         onPress: () => swapIntoBox(source),
       });
     }

@@ -4,11 +4,8 @@ import type { BoxLineItem, FamiliarityLevel, RavDraftAction } from '../../types/
 import type { CatalogItem } from '../../types/pilot';
 import { toRulesRow, type ResolvedDeviation } from '../box/buildDefaultBox';
 import { geltSizeOf, isDefaultEligible } from '../box/boxRules';
-import {
-  resolveFreeSlotAddOptions,
-  resolveFreeSwapUnitCents,
-  resolveIncludedGiftOptions,
-} from '../box/sectionUpsells';
+import { resolveFreeSlotAddOptions, resolveIncludedGiftOptions } from '../box/sectionUpsells';
+import { isIncludedSwap } from '../box/swapPricing';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { applyRavDraftActions } from './applyRavDraftActions';
 
@@ -111,8 +108,7 @@ export function buildAllowedSwapsForBox(
           if (o.id === li.itemId) return false;
           // The gelt planner already sized the bag for the household.
           if (geltSizeOf(item) || geltSizeOf(o)) return false;
-          const cents = resolveFreeSwapUnitCents(item, o, section);
-          return cents === 0;
+          return isIncludedSwap({ ...li, unitCents: 0 }, item, o, { catalog });
         })
         .map((o) => o.id);
       add(slot, freeIds);
@@ -227,11 +223,7 @@ export function applyCurateBoxResult(
       if (idx < 0) continue;
       const sourceLine = next[idx];
       const source = catalog.find((c) => c.id === sourceLine.itemId);
-      const section = source
-        ? displaySectionForCatalogItem(source)
-        : displaySectionForCatalogItem(target);
-      const cents = resolveFreeSwapUnitCents(source, target, section);
-      if (cents !== 0) continue;
+      if (!isIncludedSwap({ ...sourceLine, unitCents: 0 }, source, target, { catalog })) continue;
       if ((source && geltSizeOf(source)) || geltSizeOf(target)) continue;
 
       const isGiftLine =

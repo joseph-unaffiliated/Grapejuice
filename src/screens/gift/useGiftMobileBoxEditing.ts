@@ -4,13 +4,11 @@ import { useLockAt } from '../../hooks/useBoxLockDay';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
-import { boxAddOnUnitCents } from '../../services/box/pricing';
+import { isIncludedSwap, swapUnitCents } from '../../services/box/swapPricing';
 import {
   filterBooksForKidAges,
   kidPlannerAges,
   resolveFreeSlotAddOptions,
-  isBookishCatalogItem,
-  resolveFreeSwapUnitCents,
   resolveSectionUpsellItems,
 } from '../../services/box/sectionUpsells';
 import {
@@ -139,10 +137,18 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     if (missing <= 0) return;
     if (replacement) {
       const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
-      donatedLineSnapshots.current.delete(itemId);
       const section = displaySectionForCatalogItem(replacement);
       const giftSwap = snapshot[0] ? isGiftSlotLine(snapshot[0]) : false;
-      const unit = giftSwap ? 0 : resolveFreeSwapUnitCents(item, replacement, section) ?? boxAddOnUnitCents(replacement);
+      const gone: BoxLineItem = snapshot[0]
+        ? { ...snapshot[0], unitCents: 0 }
+        : { slotId: '', itemId, quantity: 1, unitCents: 0, label: item.name };
+      const unit = swapUnitCents(gone, item, replacement, { catalog, geltCeiling: draft.geltCeiling });
+      // Not an included stand-in: add it on top and leave the donation as is.
+      if (unit === undefined) {
+        draft.addItem(replacement);
+        return;
+      }
+      donatedLineSnapshots.current.delete(itemId);
       const templates: BoxLineItem[] = snapshot.length
         ? snapshot
         : [{ slotId: `addon-${replacement.id}`, itemId, quantity: missing, includedQty: missing, unitCents: 0, label: item.name } as BoxLineItem];
@@ -253,17 +259,16 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     for (const section of BOX_DISPLAY_SECTIONS) {
       const eligible = new Set<string>();
       for (const item of resolveFreeSlotAddOptions(section.id, catalog, 64)) {
-        const source = findSwapSourceLine(item, lineItems, catalog, section.id);
+        const source = findSwapSourceLine(item, lineItems, catalog, section.id, { geltCeiling: draft.geltCeiling });
         if (!source) continue;
         const sourceItem = catalog.find((c) => c.id === source.itemId);
-        const bookSwap = !!sourceItem && isBookishCatalogItem(sourceItem) && isBookishCatalogItem(item);
-        if (!bookSwap && resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
+        if (!isIncludedSwap(source, sourceItem, item, { catalog, geltCeiling: draft.geltCeiling })) continue;
         eligible.add(item.id);
       }
       map[section.id] = eligible;
     }
     return map;
-  }, [catalog, lineItems]);
+  }, [catalog, lineItems, draft.geltCeiling]);
 
   return {
     locked: false,

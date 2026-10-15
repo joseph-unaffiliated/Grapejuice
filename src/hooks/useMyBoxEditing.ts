@@ -32,17 +32,16 @@ import {
   repairWoodDreidelIncluded,
   repairZeroExtraUnits,
 } from '../services/box/buildDefaultBox';
-import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, isGeltSwapUp, listBoxCentsForKids } from '../services/box/boxRules';
+import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
+import { isIncludedSwap, swapOptionsForLine, swapUnitCents } from '../services/box/swapPricing';
 import {
   resolveSectionUpsellItems,
   resolveSwapOptionsForItem,
-  resolveFreeSwapUnitCents,
   resolveFreeSlotAddOptions,
   resolveIncludedGiftOptions,
   kidPlannerAges,
   filterBooksForKidAges,
-  isBookishCatalogItem,
 } from '../services/box/sectionUpsells';
 import { boxAddOnUnitCents, extraUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../services/box/pricing';
 import type { BoxLineItem, CatalogItem, InventorySwapNotice } from '../types/pilot';
@@ -100,6 +99,13 @@ import { updatePilotBoxOrder } from '../services/checkout/updatePilotBoxOrder';
  * onto its source card (grouping skips `extra-` lines).
  */
 export const EXTRA_UNIT_SUFFIX = '::x';
+
+/** The free line a donated item held — its own slot when we still have it. */
+function donatedSwapLine(item: CatalogItem, snapshot?: BoxLineItem): BoxLineItem {
+  return snapshot
+    ? { ...snapshot, unitCents: 0 }
+    : { slotId: '', itemId: item.id, quantity: 1, unitCents: 0, label: item.name };
+}
 
 /** Stable compare of draft vs committed order lines (swaps / qty / wrap). */
 export function lineItemsFingerprint(items: BoxLineItem[]): string {
@@ -320,9 +326,15 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       }
       // Per-kid gift lines swap among the included gift set (not their catalog
       // section's peers) — e.g. an airdry-dreidel gift offers other gifts, not dreidels.
-      next[li.slotId] = isGiftSlotLine(li)
-        ? resolveIncludedGiftOptions(catalog, li.itemId, 6, li.childId ? kidAgeById.get(li.childId) : undefined)
-        : resolveSwapOptionsForItem(current, catalog, 6, { geltCeiling });
+      const options = (limit: number) =>
+        isGiftSlotLine(li)
+          ? resolveIncludedGiftOptions(catalog, li.itemId, limit, li.childId ? kidAgeById.get(li.childId) : undefined)
+          : resolveSwapOptionsForItem(current, catalog, limit, { geltCeiling });
+      const shown = options(6).length;
+      next[li.slotId] = swapOptionsForLine(li, current, options(Math.max(24, shown)), { catalog, geltCeiling }).slice(
+        0,
+        shown
+      );
     }
     return next;
   }, [lineItems, catalog, geltCeiling, kidAgeById]);
@@ -335,25 +347,16 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     // catalog's own pricing tier says otherwise.
     const sourceLine = lineItems.find((li) => idSet.has(li.slotId));
     const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
-    const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined;
-    // Per-kid gift swaps stay free regardless of the target's catalog tier.
-    const bookSwap =
-      !!sourceItem &&
-      !!sourceLine &&
-      (sourceLine.unitCents ?? 0) === 0 &&
-      isBookishCatalogItem(sourceItem) &&
-      isBookishCatalogItem(newItem);
-    // Gelt for gelt is free up to the household's biggest included bag and keeps the same
-    // chocolate (Big Bag → three Little Bags), never more than one Little Bag per person.
+    const priced = sourceLine ? swapUnitCents(sourceLine, sourceItem, newItem, { catalog, geltCeiling }) : undefined;
+    // An included slot never swaps to something it doesn't include — that's an add-on on top.
+    if (priced === undefined) return modalAddToBox(newItem);
+    const nextUnit = priced;
+    // Gelt for gelt keeps the same chocolate (Big Bag → three Little Bags), never more
+    // than one Little Bag per person.
     const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
     const toGelt = geltSizeOf(newItem);
-    const freeGeltSwap = !!fromGelt && !!toGelt && !isGeltSwapUp(fromGelt, toGelt, geltCeiling);
     const geltQty = (qty: number) =>
       fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, people) : qty;
-    const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || bookSwap || (freeGeltSwap && (sourceLine.unitCents ?? 0) === 0))
-      ? 0
-      : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
-        boxAddOnUnitCents(newItem);
     // Guests edit the local draft (“Sign up to save”); payment gate is for signed-in paid extras.
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     const swappedQty = lineItems
@@ -865,11 +868,9 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     if (locked) return;
     const sourceItem = catalog.find((c) => c.id === source.itemId);
     if (sourceItem && geltSizeOf(sourceItem) && geltSizeOf(item)) return applySwap([source.slotId], item);
-    const sectionId = productModalSection ?? (sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined);
-    const nextUnit = isGiftSlotLine(source)
-      ? 0
-      : (sectionId ? resolveFreeSwapUnitCents(sourceItem, item, sectionId) : undefined) ??
-        boxAddOnUnitCents(item);
+    const priced = swapUnitCents(source, sourceItem, item, { catalog, geltCeiling });
+    if (priced === undefined) return modalAddToBox(item);
+    const nextUnit = priced;
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
     transferIncludedBaselineOnSwap(
       includedBaselineByItemId.current,
@@ -1056,8 +1057,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
         const source = findSwapSourceLine(item, lineItems, catalog, section.id, { geltCeiling });
         if (!source) continue;
         const sourceItem = catalog.find((c) => c.id === source.itemId);
-        const bookSwap = !!sourceItem && isBookishCatalogItem(sourceItem) && isBookishCatalogItem(item);
-        if (!bookSwap && resolveFreeSwapUnitCents(sourceItem, item, section.id) === undefined) continue;
+        if (!isIncludedSwap(source, sourceItem, item, { catalog, geltCeiling })) continue;
         eligible.add(item.id);
       }
       map[section.id] = eligible;
@@ -1174,7 +1174,9 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       snapshot && isGiftSlotLine(snapshot)
         ? resolveIncludedGiftOptions(catalog, itemId, 6, snapshot.childId ? kidAgeById.get(snapshot.childId) : undefined)
         : resolveSwapOptionsForItem(item, catalog, 6, { geltCeiling });
-    return options.filter((opt) => opt.id !== itemId);
+    return swapOptionsForLine(donatedSwapLine(item, snapshot), item, options, { catalog, geltCeiling }).filter(
+      (opt) => opt.id !== itemId
+    );
   };
   /**
    * Put a donated item back (or `replacement` in its place). Prefers the exact lines
@@ -1243,10 +1245,11 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       return;
     }
     const target = replacement ?? item;
-    const giftSwap = snapshot[0] ? isGiftSlotLine(snapshot[0]) : false;
-    let unit = !replacement || giftSwap
-      ? 0
-      : resolveFreeSwapUnitCents(item, replacement, sectionId) ?? boxAddOnUnitCents(replacement);
+    const replacementUnit = replacement
+      ? swapUnitCents(donatedSwapLine(item, snapshot[0]), item, replacement, { catalog, geltCeiling })
+      : 0;
+    if (replacementUnit === undefined) return modalAddToBox(replacement!);
+    let unit = replacementUnit;
     if (claimTaken) unit = includedClaimBlockedUnitCents(target);
     if (!guestViewOnly && unit > 0 && !guardMutation()) return;
     const targetSection = displaySectionForCatalogItem(target);
@@ -1284,7 +1287,9 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
           unitCents: unit,
           ...(unit > 0 ? { includedQty: 0 } : null),
           curationNote: undefined,
-          ...(replacement ? { displaySectionId: giftSwap ? li.displaySectionId : targetSection } : null),
+          ...(replacement
+            ? { displaySectionId: snapshot[0] && isGiftSlotLine(snapshot[0]) ? li.displaySectionId : targetSection }
+            : null),
         },
       ];
     }
