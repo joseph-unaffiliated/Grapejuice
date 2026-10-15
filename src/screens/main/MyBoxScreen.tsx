@@ -324,9 +324,23 @@ export function MyBoxScreen() {
       showKidAddCtas && sectionId === 'story' ? kidsNeedingBook(lineItems, children) : [];
     const kidName = (child: (typeof children)[number]) => child.name?.trim() || 'your kid';
     const dreidelsToAddBack = showKidAddCtas && sectionId === 'dreidel' && woodDreidel ? dreidelGap : 0;
+    // Story and presents already show per-kid add-back blocks for donated books and gifts.
+    const donatedHere =
+      showKidAddCtas && sectionId !== 'story' && sectionId !== 'presents'
+        ? donatedItems.filter(({ item }) => displaySectionForCatalogItem(item) === sectionId)
+        : [];
     const kidAddBlocks =
-      kidGiftNeeds.length || kidBookNeeds.length || dreidelsToAddBack ? (
+      kidGiftNeeds.length || kidBookNeeds.length || dreidelsToAddBack || donatedHere.length ? (
         <View style={styles.kidAddBlocks}>
+          {donatedHere.map(({ item, missing }) => (
+            <PerKidSlotAddBlock
+              key={`donated-${item.id}`}
+              title={missing === 1 ? `Add back ${item.name}` : `Add back ${missing} × ${item.name}`}
+              note="Donated to a family who wouldn’t otherwise celebrate. Add it back at no cost."
+              items={[item]}
+              onPressItem={() => void restoreDonated(item.id)}
+            />
+          ))}
           {dreidelsToAddBack && woodDreidel ? (
             <PerKidSlotAddBlock
               title={dreidelsToAddBack === 1 ? 'Add back 1 dreidel' : `Add back ${dreidelsToAddBack} dreidels`}
