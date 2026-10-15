@@ -41,6 +41,7 @@ import {
   geltAddFitsAllowance,
   isIncludedSwap,
   swapOptionsForLine,
+  swapCandidatesForLine,
   swappedQuantity,
   swapQuantities,
   swapUnitCents,
@@ -335,12 +336,11 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
         next[li.slotId] = [];
         continue;
       }
-      // Per-kid gift lines swap among the included gift set (not their catalog
-      // section's peers) — e.g. an airdry-dreidel gift offers other gifts, not dreidels.
       const options = (limit: number) =>
-        isGiftSlotLine(li)
-          ? resolveIncludedGiftOptions(catalog, li.itemId, limit, li.childId ? kidAgeById.get(li.childId) : undefined)
-          : resolveSwapOptionsForItem(current, catalog, limit, { geltCeiling });
+        swapCandidatesForLine(li, current, catalog, limit, {
+          geltCeiling,
+          kidAge: li.childId ? kidAgeById.get(li.childId) : undefined,
+        });
       const shown = options(6).length;
       next[li.slotId] = swapOptionsForLine(li, current, options(Math.max(24, shown)), { catalog, geltCeiling }).slice(
         0,

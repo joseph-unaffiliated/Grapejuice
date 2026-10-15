@@ -47,8 +47,8 @@ import { ProductNote } from '../../components/box/ProductNote';
 import { geltCeilingForPeople } from '../../services/box/boxRules';
 import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import { trackMetaProduct } from '../../services/analytics/metaPixel';
-import { resolveIncludedGiftOptions, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
-import { swapOptionsForLine, swapQuantities, swapUnitCents } from '../../services/box/swapPricing';
+import { resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
+import { swapCandidatesForLine, swapOptionsForLine, swapQuantities, swapUnitCents } from '../../services/box/swapPricing';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileBoundary } from '../../components/mobile/MobileBoundary';
 import { MobileProductBody, type RoleOption } from '../mobile/MobileProductBody';
@@ -316,9 +316,7 @@ export function CatalogProductScreen() {
     if (!item || !inBox || !inBoxPrimary) return [];
     if (inBoxUnitCents > 0) return [];
     const geltCeiling = geltCeilingForPeople(people);
-    const opts = isGiftSlotLine(inBoxPrimary)
-      ? resolveIncludedGiftOptions(catalog, item.id, 12)
-      : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling });
+    const opts = swapCandidatesForLine(inBoxPrimary, item, catalog, 12, { geltCeiling });
     return swapOptionsForLine(inBoxPrimary, item, opts, { catalog, geltCeiling }).filter((o) => o.id !== item.id);
   }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog, people]);
   const [swapModalOpen, setSwapModalOpen] = useState(false);

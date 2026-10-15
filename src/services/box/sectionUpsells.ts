@@ -836,6 +836,17 @@ export function resolveFreeSwapUnitCents(
   return undefined;
 }
 
+/** Something either food slot includes: a kit, cookie cutters, a Big Bag or Little Bags. */
+export function isIncludedFoodSlotOption(item: CatalogItem): boolean {
+  if (isBookishCatalogItem(item) || isStuffieCatalogItem(item)) return false;
+  const food = SECTION_RULES.find((s) => s.id === 'food');
+  return !!food?.slots.some(
+    (slot) =>
+      itemMatchesSlotKind(item, slot.defaultKind) ||
+      slot.swaps.some((s) => s.price === 'included' && itemMatchesSlotKind(item, s.targetSlotOrKind))
+  );
+}
+
 function sameSlotPeers(item: CatalogItem, catalog: CatalogItem[], limit: number): CatalogItem[] {
   const slotId = (item.slotId ?? '').trim();
   const defaultSlot = (item.defaultSlot ?? '').trim();

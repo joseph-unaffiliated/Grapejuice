@@ -4,7 +4,7 @@ import { isPilotLine } from '../../services/box/pilotLines';
 import { WRAP_POLICY } from '../../services/box/boxRules';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import { isBookishCatalogItem, resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
-import { FOOD_SLOTS_INCLUDED, geltBagOf } from '../../services/box/includedAudit';
+import { FOOD_SLOTS_INCLUDED, geltBagOf, isIncludedFoodSlotLine } from '../../services/box/includedAudit';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -91,9 +91,10 @@ function isStorySlot(slotId: string): boolean {
 
 /**
  * Small / little-bag gelt ships 1 per person. Big bag (medium) and party bag are
- * one shared household bag — do not show “1 per person”.
+ * one shared household bag — do not show “1 per person”. Neither does gelt filling a food slot.
  */
 function isSmallPerPersonGelt(li: BoxLineItem, item?: CatalogItem | null): boolean {
+  if (isIncludedFoodSlotLine(li)) return false;
   const base = catalogSlotId(li.slotId);
   if (base === 'gelt-medium' || base === 'gelt-party') return false;
   if (base === 'gelt-small') return true;

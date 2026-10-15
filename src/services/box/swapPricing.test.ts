@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   addOnTopUnitCents,
   includedGeltLittleBags,
+  swapCandidatesForLine,
   swapOptionsForLine,
   swappedQuantity,
   swapQuantities,
@@ -121,6 +122,22 @@ assert.equal(qtyAfter(line('latke-mix::x', 'latke-kit', 500), LITTLE), null);
 const foodGelt = [{ ...line('latke-mix', LITTLE), quantity: 3 }, line('sufganiyot-mix', 'big-bag-of-gelt')];
 assert.equal(includedGeltLittleBags(foodGelt, catalog), 0);
 assert.equal(addOnTopUnitCents(get(LITTLE), 'dreidel', addCtx(foodGelt, 1)), 0);
+
+// Three Little Bags in a food slot swap back to either kit, cookie cutters or a Big Bag — even
+// when the household's own gelt tops out at Little Bags. Never a Party Bag or a stuffie.
+{
+  const bags = { ...line('latke-mix', LITTLE), quantity: 3 };
+  const ids = (items: CatalogItem[]) => items.map((c) => c.id);
+  const shelf = ids(
+    swapOptionsForLine(bags, get(LITTLE), swapCandidatesForLine(bags, get(LITTLE), catalog, 24), { catalog, geltCeiling: 'small' })
+  );
+  for (const want of ['latke-kit', 'sufganiyot-kit', 'big-bag-of-gelt']) assert.ok(shelf.includes(want), `${want} in ${shelf}`);
+  assert.ok(shelf.some((id) => /cookie-cutter/.test(id)), `cookie cutters in ${shelf}`);
+  assert.ok(!shelf.includes('party-bag-of-gelt'), `no party bag: ${shelf}`);
+  assert.ok(!shelf.some((id) => /stuffie/.test(id)), `no stuffie: ${shelf}`);
+  assert.equal(price(bags, 'big-bag-of-gelt', 'small'), 0);
+  assert.equal(price(bags, 'party-bag-of-gelt'), undefined);
+}
 
 // A swap card's "×N": what the box holds after the swap.
 const kitBox = [line('latke-mix', 'latke-kit'), line('sufganiyot-mix', 'sufganiyot-kit')];

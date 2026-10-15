@@ -31,8 +31,7 @@ import { ProductNote } from '../../components/box/ProductNote';
 import type { GeltSize } from '../../services/box/boxRules';
 import { isGiftSlotLine } from './boxLineDisplay';
 import { boxAddOnUnitCents, HANUKKAH_SHIP_WINDOW_LABEL } from '../../services/box/pricing';
-import { resolveIncludedGiftOptions, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
-import { swapOptionsForLine } from '../../services/box/swapPricing';
+import { swapCandidatesForLine, swapOptionsForLine } from '../../services/box/swapPricing';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useThemeMode } from '../../context/ThemeContext';
 import { trackMetaProduct } from '../../services/analytics/metaPixel';
@@ -176,9 +175,7 @@ export function BoxProductModal({
     if (!item || !inBox || !inBoxPrimary) return [];
     // Paid extras aren't swapped laterally — same rule as My Box cards.
     if (inBoxUnitCents > 0) return [];
-    const opts = isGiftSlotLine(inBoxPrimary)
-      ? resolveIncludedGiftOptions(catalog, item.id, 12)
-      : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling });
+    const opts = swapCandidatesForLine(inBoxPrimary, item, catalog, 12, { geltCeiling });
     return swapOptionsForLine(inBoxPrimary, item, opts, { catalog, geltCeiling }).filter((o) => o.id !== item.id);
   }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog, geltCeiling]);
 

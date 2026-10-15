@@ -6,8 +6,13 @@ import {
   householdFreeQtyForItem,
   isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
-import { resolveSwapOptionsForItem, resolveIncludedGiftOptions } from '../services/box/sectionUpsells';
-import { addOnTopUnitCents, swapOptionsForLine, swapQuantities, swapUnitCents } from '../services/box/swapPricing';
+import {
+  addOnTopUnitCents,
+  swapCandidatesForLine,
+  swapOptionsForLine,
+  swapQuantities,
+  swapUnitCents,
+} from '../services/box/swapPricing';
 import { EXTRA_FLAT_CENTS, extraUnitCents } from '../services/box/pricing';
 import { geltCeilingForPeople } from '../services/box/boxRules';
 import {
@@ -102,11 +107,7 @@ export function useGiftGiverBoxDraft(
         next[li.slotId] = [];
         continue;
       }
-      // Per-kid gift lines swap among the included gift set, not their section peers.
-      const options = (limit: number) =>
-        isGiftSlotLine(li)
-          ? resolveIncludedGiftOptions(catalog, li.itemId, limit)
-          : resolveSwapOptionsForItem(current, catalog, limit, { geltCeiling });
+      const options = (limit: number) => swapCandidatesForLine(li, current, catalog, limit, { geltCeiling });
       const shown = options(6).length;
       next[li.slotId] = swapOptionsForLine(li, current, options(Math.max(24, shown)), { catalog, geltCeiling }).slice(
         0,

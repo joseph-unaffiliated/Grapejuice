@@ -22,13 +22,16 @@ import {
   isGeltSwapUp,
   type GeltSize,
 } from './boxRules';
-import { FOOD_SLOT_MAX_LITTLE_BAGS, isIncludedFoodSlotLine } from './includedAudit';
+import { FOOD_SLOT_MAX_LITTLE_BAGS, isFoodSlotLine, isIncludedFoodSlotLine } from './includedAudit';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, extraUnitCents } from './pricing';
 import {
   isBookishCatalogItem,
+  isIncludedFoodSlotOption,
   isStuffieCatalogItem,
   resolveFreeSwapUnitCents,
   resolveIncludedGiftOptions,
+  resolveSectionSwapItems,
+  resolveSwapOptionsForItem,
 } from './sectionUpsells';
 
 export type SwapLine = Pick<BoxLineItem, 'slotId' | 'itemId'> & Partial<BoxLineItem>;
@@ -59,6 +62,8 @@ export function isIncludedSwap(
   if (isGiftSlotLine(line as BoxLineItem)) {
     return resolveIncludedGiftOptions(ctx.catalog, undefined, ctx.catalog.length).some((o) => o.id === target.id);
   }
+  // A food slot takes any food-slot option whatever it holds now; a Big Bag fits any household.
+  if (isFoodSlotLine(line)) return isIncludedFoodSlotOption(target);
   const section = swapSectionForLine(line, sourceItem);
   if (section === 'story' || isBook(sourceItem)) return section === 'story' && isBook(target);
   // Books and stuffies only fill story and present slots.
@@ -83,6 +88,23 @@ export function swapUnitCents(
   if (!sourceItem || sourceItem.id === target.id) return undefined;
   if ((line.unitCents ?? 0) > 0) return extraUnitCents(target);
   return isIncludedSwap(line, sourceItem, target, ctx) ? 0 : undefined;
+}
+
+/**
+ * Swap shelf candidates for `line` before `swapOptionsForLine` narrows them: the included
+ * presents for a kid's present slot, the food-slot options for a food slot (whatever it
+ * holds — three Little Bags can go back to a kit), otherwise the item's own swap graph.
+ */
+export function swapCandidatesForLine(
+  line: SwapLine,
+  current: CatalogItem,
+  catalog: CatalogItem[],
+  limit: number,
+  opts?: { geltCeiling?: GeltSize; kidAge?: number }
+): CatalogItem[] {
+  if (isGiftSlotLine(line as BoxLineItem)) return resolveIncludedGiftOptions(catalog, current.id, limit, opts?.kidAge);
+  if (isFoodSlotLine(line)) return resolveSectionSwapItems('food', catalog, current.id, limit);
+  return resolveSwapOptionsForItem(current, catalog, limit, { geltCeiling: opts?.geltCeiling });
 }
 
 /** `options` narrowed to what a free `line` can swap to; a paid line keeps them all. */
