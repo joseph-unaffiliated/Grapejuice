@@ -7,6 +7,7 @@ import {
   isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
 import { foodSlotQuantity } from '../services/box/includedAudit';
+import { auditBeforeSave } from '../services/box/auditBeforeSave';
 import {
   addOnTopUnitCents,
   swapCandidatesForLine,
@@ -98,6 +99,22 @@ export function useGiftGiverBoxDraft(
   useEffect(() => {
     void load();
   }, [load]);
+
+  const auditedLinesRef = useRef<BoxLineItem[]>([]);
+  useEffect(() => {
+    if (loading || !catalog.length) return;
+    const audited = auditBeforeSave(
+      auditedLinesRef.current,
+      lineItems,
+      'gift-giver',
+      children,
+      adults,
+      wrapSelectedItemIds,
+      catalog
+    );
+    auditedLinesRef.current = audited;
+    if (audited !== lineItems) setLineItems(audited);
+  }, [lineItems, loading, catalog, children, adults, wrapSelectedItemIds]);
 
   const swapOptionsBySlot = useMemo(() => {
     if (!catalog.length || !lineItems.length) return {} as Record<string, CatalogItem[]>;

@@ -20,6 +20,7 @@ import { householdPeople } from '../services/box/boxRules';
 import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { keepPilotLines } from '../services/box/pilotLines';
 import { sameBoxLines } from '../services/box/mergeBoxLines';
+import { auditBeforeSave } from '../services/box/auditBeforeSave';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
 import { emptySlotVotes } from '../services/box/slotVotes';
 import {
@@ -531,8 +532,16 @@ export function useBoxDraft() {
   const persist = useCallback(
     async (proposed: BoxLineItem[], source: BoxChangeSource = 'customer') => {
       if (!isAuthenticated) {
-        setLineItems(proposed);
-        setGuestLineItems(proposed);
+        const audited = auditBeforeSave(
+          lineItems,
+          proposed,
+          'guest',
+          children,
+          adultCountFromDrafts(guestDrafts),
+          wrapSelectedRef.current
+        );
+        setLineItems(audited);
+        setGuestLineItems(audited);
         return;
       }
       if (!household?.id || !user?.uid) {
@@ -541,7 +550,14 @@ export function useBoxDraft() {
       }
       const prev = peekAuthBoxDraft(household.id);
       const base = prev?.lineItems ?? lineItems;
-      const next = keepPilotLines(base, proposed);
+      const next = auditBeforeSave(
+        base,
+        keepPilotLines(base, proposed),
+        household.id,
+        prev?.children ?? children,
+        accountAdults,
+        wrapSelectedRef.current
+      );
       setLineItems(next);
       const cacheWith = (lines: BoxLineItem[]) =>
         writeAuthBoxDraftCache({
@@ -582,6 +598,8 @@ export function useBoxDraft() {
       children,
       authSwapNotices,
       setGuestLineItems,
+      guestDrafts,
+      accountAdults,
     ]
   );
 

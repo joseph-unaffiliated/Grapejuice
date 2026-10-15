@@ -495,6 +495,67 @@ export function auditIncluded(
   };
 }
 
+/** Identity of a problem across two audits of the same household. */
+export function auditProblemKey(p: AuditProblem): string {
+  return [p.code, p.section, p.slotId ?? '', p.itemId ?? '', p.childKey ?? ''].join('|');
+}
+
+/** Problems that give away more than the rules allow (grandfathered ones excluded). */
+export function overProblems(audit: IncludedAudit): AuditProblem[] {
+  return audit.problems.filter((p) => p.direction === 'over' && !p.grandfathered);
+}
+
+export type IncludedHeal = {
+  lineItems: BoxLineItem[];
+  healed: AuditProblem[];
+  audit: IncludedAudit;
+};
+
+/**
+ * Fixes that only lower the price: a charged line that is a valid included item in its own
+ * empty slot becomes free, and wrapping paper charged as the only wrap becomes free. Each fix
+ * is kept only when the audit then drops that problem without any new over-allowance or
+ * not-included problem, so a paid Party Bag, brass dreidel or second candle set stays paid.
+ * Missing gelt or food slots are never refilled here (the customer may have donated them).
+ */
+export function healIncludedInCustomerFavor(
+  lineItems: BoxLineItem[],
+  catalog: AuditCatalogRow[],
+  household: AuditHousehold,
+  opts: AuditOptions = {}
+): IncludedHeal {
+  let lines = lineItems;
+  let audit = auditIncluded(lines, catalog, household, opts);
+  const healed: AuditProblem[] = [];
+  const free = (li: BoxLineItem): BoxLineItem => ({
+    ...li,
+    unitCents: 0,
+    includedQty: Math.max(li.includedQty ?? 0, li.quantity),
+  });
+
+  for (const problem of audit.problems) {
+    if (problem.code !== 'paid-in-included-slot' && problem.code !== 'wrap-charged') continue;
+    const targets =
+      problem.code === 'wrap-charged'
+        ? lines.filter((li) => WRAP_SLOT_IDS.has(auditSlotBase(li.slotId)) && !isExtraUnitLine(li) && !isFreeLine(li))
+        : lines.filter((li) => li.slotId === problem.slotId && li.itemId === problem.itemId && !isFreeLine(li));
+    if (targets.length !== 1) continue;
+    const target = targets[0];
+    const candidate = lines.map((li) => (li === target ? free(li) : li));
+    const after = auditIncluded(candidate, catalog, household, opts);
+    const key = auditProblemKey(problem);
+    const overBefore = new Set(overProblems(audit).map(auditProblemKey));
+    const fixed = !after.problems.some((p) => auditProblemKey(p) === key);
+    const noNewOver = overProblems(after).every((p) => overBefore.has(auditProblemKey(p)));
+    if (!fixed || !noNewOver) continue;
+    lines = candidate;
+    audit = after;
+    healed.push(problem);
+  }
+
+  return { lineItems: lines, healed, audit };
+}
+
 /** My Box sections that show "X of Y included". Gelt and wrap sit inside other sections. */
 export type IncludedSlotSection = 'story' | 'presents' | 'candles' | 'dreidel' | 'food';
 
