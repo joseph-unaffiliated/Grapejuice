@@ -60,9 +60,9 @@ import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../component
 export type MobileBoxEditing = Pick<
   ReturnType<typeof useMyBoxEditing>,
   | 'locked' | 'lineItems' | 'donatedItems' | 'upsellsBySection' | 'applySwap' | 'openOrder' | 'grouped' | 'catalog'
-  | 'boxPriceCents' | 'restoreDonated' | 'lockAt' | 'goToCheckout' | 'children' | 'swapOptionsBySlot' | 'savingOrder'
+  | 'boxPriceCents' | 'boxCreditCents' | 'restoreDonated' | 'lockAt' | 'goToCheckout' | 'children' | 'swapOptionsBySlot' | 'savingOrder'
   | 'modalRemoveFromBox' | 'donatedLineSnapshots' | 'cardOnFile' | 'swapToPreWrap' | 'swapEligibleIdsBySection' | 'startsOn'
-  | 'setProductModalSection' | 'saveOrderUpdates' | 'ordersLoading' | 'modalAddToBox' | 'hasSessionEdits' | 'guestViewOnly'
+  | 'setProductModalSection' | 'saveOrderUpdates' | 'ordersLoading' | 'modalAddToBox' | 'canUpdateCommittedOrder' | 'orderDirty' | 'guestViewOnly'
   | 'freeAddOptionsBySection' | 'estimatedDeliveryBy' | 'changeBoxQuantity' | 'addFreeItemToEmptySlot' | 'geltCeiling'
   | 'addOnTopCents' | 'swapQuantityFor'
 > &
@@ -151,10 +151,19 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   };
 
   const extras = chargeableLineTotal(e.lineItems);
-  const total = e.boxPriceCents + extras;
+  const subtotal = e.boxPriceCents + extras;
+  const credit = Math.min(e.boxCreditCents, subtotal);
+  const total = subtotal - credit;
+  const priceLabel = `${gift ? 'Gift box' : 'Box'} ${formatCatalogDollars(e.boxPriceCents)}${extras ? ` + ${formatCatalogDollars(extras)}` : ''}${credit ? ` − ${formatCatalogDollars(credit)} credit` : ''}`;
   const lockShort = lockShortLabel(e.lockAt);
   const daysLeft = daysUntilLock(e.lockAt);
   const donatedValue = e.donatedItems.reduce((t, d) => t + resolveCatalogDisplayPrices(d.item).memberCents * d.missing, 0);
+  /** Edits to a placed order save on their own; the button just reports it. */
+  const boxCta = !e.openOrder
+    ? { label: 'Checkout', onPress: e.goToCheckout }
+    : e.canUpdateCommittedOrder
+      ? { label: e.orderDirty || e.savingOrder ? 'Save changes' : 'Saved', onPress: () => void e.saveOrderUpdates(), disabled: !e.orderDirty || e.savingOrder, busy: e.savingOrder }
+      : { label: 'View order', onPress: e.goToCheckout };
 
   /** Each kid's present sits under Gifts on the phone, whatever kind of thing it is. */
   const rowsFor = useCallback(
@@ -633,7 +642,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const idx = BOX_DISPLAY_SECTIONS.findIndex((x) => x.id === sectionId);
     const next = BOX_DISPLAY_SECTIONS[idx + 1];
     const altIds = new Set(
-      rows.flatMap((g) => (g.unitCents > 0 || isWrapControlSlot(g.primary.slotId) ? [] : (e.swapOptionsBySlot[g.primary.slotId] ?? []).map((o) => o.id)))
+      rows.flatMap((g) => (g.unitCents > 0 || isWrapControlSlot(g.primary.slotId) || g.lines.some(isPilotLine) ? [] : (e.swapOptionsBySlot[g.primary.slotId] ?? []).map((o) => o.id)))
     );
     const adds = (e.upsellsBySection[sectionId] ?? []).filter((it) => !rows.some((g) => g.itemId === it.id) && (e.locked || !altIds.has(it.id)));
     const addOnTop = (it: CatalogItem) => addExtra(it, sectionId);
@@ -646,7 +655,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         footer={
           <View style={styles.sheetFoot}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.footLabel}>Box {formatCatalogDollars(e.boxPriceCents)}{extras ? ` + ${formatCatalogDollars(extras)}` : ''}</Text>
+              <Text style={styles.footLabel}>{priceLabel}</Text>
               <Text style={styles.footTotal}>Total {formatCatalogDollars(total)}</Text>
             </View>
             <MobileButton label="Done" variant="secondary" onPress={() => setSheet(null)} height={46} style={{ width: 86 }} />
@@ -658,7 +667,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         {rows.map((g) => {
           const item = byId.get(g.itemId);
           const wrapping = isWrapControlSlot(g.primary.slotId);
-          const alts = g.unitCents > 0 || wrapping ? [] : (e.swapOptionsBySlot[g.primary.slotId] ?? []).filter((o) => o.id !== g.itemId);
+          const pilotPick = g.lines.some(isPilotLine);
+          const alts = g.unitCents > 0 || wrapping || pilotPick ? [] : (e.swapOptionsBySlot[g.primary.slotId] ?? []).filter((o) => o.id !== g.itemId);
           const kidAges = kidPlannerAges(kids);
           const preview =
             sectionId === 'story' ? storySwapShelf(alts, kidAges) : alts.length > 2 ? alts.slice(0, 2) : alts;
@@ -672,7 +682,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                   <Text style={styles.rowName}>{item?.name ?? g.itemId}</Text>
                   <Text style={styles.rowMeta}>{metaFor(g, item) || `In ${yours} box`}</Text>
                 </View>
-                {!e.locked ? (
+                {!e.locked && !pilotPick ? (
                   <View style={styles.stepper}>
                     <Pressable onPress={() => quantity(g, -1, sectionId)} accessibilityRole="button" accessibilityLabel={g.quantity <= 1 ? (g.unitCents === 0 ? 'Donate' : 'Remove') : 'Decrease quantity'} style={styles.stepBtn}>
                       {g.quantity <= 1 && g.unitCents === 0 ? <Icon icon={icons.donate} size={16} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
@@ -883,7 +893,13 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       return rows.length ? [{ section: s, rows }] : [];
     });
     return (
-    <MobileSheet visible onClose={() => setSheet(null)} title={gift ? 'Their box' : 'Your box'} titleAction={{ label: 'Keep editing', onPress: () => setSheet(null) }} footer={<MobileButton label={`${gift ? gift.nextLabel : 'Checkout'} · ${formatCatalogDollars(total)}`} onPress={() => { setSheet(null); if (gift) gift.onNext(); else e.goToCheckout(); }} />}>
+    <MobileSheet visible onClose={() => setSheet(null)} title={gift ? 'Their box' : 'Your box'} titleAction={{ label: 'Keep editing', onPress: () => setSheet(null) }} footer={
+      gift || !e.openOrder ? (
+        <MobileButton label={`${gift ? gift.nextLabel : 'Checkout'} · ${formatCatalogDollars(total)}`} onPress={() => { setSheet(null); if (gift) gift.onNext(); else e.goToCheckout(); }} />
+      ) : (
+        <MobileButton {...boxCta} />
+      )
+    }>
       {receiptSections.map(({ section: s, rows }, index) => {
         return (
           <View key={s.id} style={[styles.rcGroup, index === 0 && styles.rcFirst]}>
@@ -938,6 +954,12 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
           </View>
         ) : null}
         <Line label="Shipping" value="Free" />
+        {credit ? (
+          <>
+            <Line label="Subtotal" value={formatCatalogDollars(subtotal)} />
+            <Line label="Credit" value={`−${formatCatalogDollars(credit)}`} />
+          </>
+        ) : null}
         <Line label="Total" value={formatCatalogDollars(total)} strong />
       </View>
     </MobileSheet>
@@ -973,7 +995,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
         {!gift && !e.locked && !e.guestViewOnly ? <PilotReturnBanner wrapperStyle={styles.pad} hasPicks={e.lineItems.some(isPilotLine)} /> : null}
 
         <View style={styles.pad}>
-          <BoxSummary size="sm" title={gift ? 'In their box' : 'In your box'} sub={`${thingCount} things · ${formatCatalogDollars(total)}`} items={thumbs} link={<Pressable onPress={() => setSheet({ kind: 'receipt' })} accessibilityRole="button" hitSlop={8}><Text style={styles.link}>See list</Text></Pressable>} />
+          <BoxSummary size="sm" title={gift ? 'In their box' : 'In your box'} sub={`${thingCount} things · ${formatCatalogDollars(subtotal)}`} items={thumbs} link={<Pressable onPress={() => setSheet({ kind: 'receipt' })} accessibilityRole="button" hitSlop={8}><Text style={styles.link}>See list</Text></Pressable>} />
           {!gift && !e.openOrder ? (
             <Text style={styles.held}>
               {NOT_HELD_COPY}{' '}
@@ -1041,13 +1063,13 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const overlays = (
     <>
       <StickyBar
-        label={`${gift ? 'Gift box' : 'Box'} ${formatCatalogDollars(e.boxPriceCents)}${extras ? ` + ${formatCatalogDollars(extras)}` : ''}${donatedValue ? ` · Donated ${formatCatalogDollars(donatedValue)}` : ''}`}
+        label={`${priceLabel}${donatedValue ? ` · Donated ${formatCatalogDollars(donatedValue)}` : ''}`}
         total={`Total ${formatCatalogDollars(total)}`}
         onSummaryPress={() => setSheet({ kind: 'receipt', donatedOpen: donatedValue > 0 })}
         cta={
           gift
             ? { label: gift.nextLabel, onPress: gift.onNext }
-            : { label: e.openOrder ? 'Save changes' : 'Checkout', onPress: e.openOrder && e.hasSessionEdits ? () => void e.saveOrderUpdates() : e.goToCheckout, disabled: e.savingOrder, busy: e.savingOrder }
+            : boxCta
         }
         testID="mobile-box-bar"
         ctaFill={false}

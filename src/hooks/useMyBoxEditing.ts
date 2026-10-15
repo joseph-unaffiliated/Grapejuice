@@ -23,6 +23,7 @@ import type { MainStackParamList } from '../navigation/types';
 import { startOwnBoxBuild } from '../navigation/boxEntry';
 import { useCatalog } from '../hooks/useCatalog';
 import { mergeSwapNotices } from '../services/box/soldOutReconcile';
+import { isPilotLine } from '../services/box/pilotLines';
 import { usePublishRavSurface } from '../hooks/usePublishRavSurface';
 import {
   catalogSlotId,
@@ -215,7 +216,10 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   } | null>(null);
   const now = usePreviewNow();
   const locked = useEffectiveBoxLocked(lockAt);
-  const { cardOnFile, openOrder, ordersLoading, guardMutation, refreshOrders } = usePaymentGate();
+  const { cardOnFile, openOrder, ordersLoading, guardMutation, refreshOrders, totalCreditCents } = usePaymentGate();
+  /** What lock settles against: credit checkout reserved on the order plus the account balance. */
+  const boxCreditCents =
+    totalCreditCents + (openOrder?.giftCreditAppliedCents ?? 0) + (openOrder?.platformCreditAppliedCents ?? 0);
 
   /** Flat $80 box (+ $10/extra kid list framing where applicable). */
   const boxPriceCents = useMemo(
@@ -359,6 +363,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const applySwap = async (slotIds: string[], newItem: CatalogItem) => {
     if (locked) return;
     const idSet = new Set(slotIds);
+    if (lineItems.some((li) => idSet.has(li.slotId) && isPilotLine(li))) return;
     // Free-swap policy is keyed off whatever is currently in that slot — resolve it so
     // `'included'` targets (e.g. airdry dreidel, MYO candles) stay $0 even when the
     // catalog's own pricing tier says otherwise.
@@ -451,7 +456,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const removeCoalesced = async (
     group: ReturnType<typeof coalesceLinesByItemId>[number]
   ) => {
-    if (locked) return;
+    if (locked || group.lines.some(isPilotLine)) return;
     // Remember included baseline only for SKUs that were part of the included allotment.
     // Removing a paid à-la-carte add (or a newly added free extra) must not create Donated.
     // Wrapping paper while items are marked to wrap is pre-wrap / included — not a donation.
@@ -530,7 +535,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     delta: 1 | -1,
     sectionId: BoxDisplaySectionId
   ) => {
-    if (locked) return;
+    if (locked || group.lines.some(isPilotLine)) return;
     const item = catalog.find((c) => c.id === group.itemId);
     const freeLines = lineItems.filter(
       (li) =>
@@ -875,7 +880,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   };
 
   const modalSwapIntoBox = async (item: CatalogItem, source: BoxLineItem) => {
-    if (locked) return;
+    if (locked || isPilotLine(source)) return;
     const sourceItem = catalog.find((c) => c.id === source.itemId);
     if (swapQuantities(source, sourceItem, item, people)) return applySwap([source.slotId], item);
     const priced = swapUnitCents(source, sourceItem, item, { catalog, geltCeiling });
@@ -906,7 +911,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
 
   const modalRemoveFromBox = async (item: CatalogItem) => {
     if (locked) return;
-    await persist(lineItems.filter((li) => li.itemId !== item.id));
+    await persist(lineItems.filter((li) => li.itemId !== item.id || isPilotLine(li)));
   };
 
   /** Empty-section / donated-practice restore — insert a fresh line at $0. */
@@ -1334,6 +1339,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     activeChild,
     addFreeItemToEmptySlot,
     applySwap,
+    boxCreditCents,
     boxPriceCents,
     canUpdateCommittedOrder,
     cardOnFile,

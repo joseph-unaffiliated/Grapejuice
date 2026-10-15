@@ -5,6 +5,7 @@ import { ordersService } from '../services/firestore/orders';
 import { listMyGiftInvites } from '../services/gift/giftFlow';
 import { giftInvitesService } from '../services/firestore/giftInvites';
 import { giftInviteOrderTitle } from '../constants/giftCopy';
+import { checkoutTotalsAfterCredit } from '../services/box/pricing';
 import type { GiftInvite, PilotOrder } from '../types/pilot';
 
 export type UnifiedOrderKind = 'box' | 'gift' | 'ala_carte';
@@ -16,6 +17,8 @@ export type UnifiedOrder = {
   recipientLabel?: string;
   statusLabel: string;
   totalCents: number;
+  /** Open box: credit lock will apply (already taken off `totalCents`). */
+  creditCents?: number;
   createdAt: string;
   trackingNumber?: string | null;
   carrier?: string | null;
@@ -80,6 +83,20 @@ function toUnifiedFromPilot(order: PilotOrder): UnifiedOrder {
     carrier: order.carrier,
     pilotOrder: order,
   };
+}
+
+type CreditSplit = { gift: number; platform: number };
+
+/** What lock will charge an open box: checkout's reserved credit plus the balance (settleLockCredit). */
+function withLockCredit(u: UnifiedOrder, order: PilotOrder, balance: CreditSplit): UnifiedOrder {
+  if (typeof order.subtotalCents !== 'number') return u;
+  const t = checkoutTotalsAfterCredit({
+    merchandiseCents: order.subtotalCents + (order.shippingCents ?? 0),
+    giftCreditCents: (order.giftCreditAppliedCents ?? 0) + balance.gift,
+    platformCreditCents: (order.platformCreditAppliedCents ?? 0) + balance.platform,
+    discountCents: order.discountCents,
+  });
+  return { ...u, totalCents: t.totalCents, creditCents: t.creditApplied };
 }
 
 function toUnifiedFromGift(invite: GiftInvite): UnifiedOrder {
@@ -168,15 +185,26 @@ export function useUnifiedOrders() {
     void refresh();
   }, [refresh]);
 
+  const giftBalance = household?.giftCreditCents ?? 0;
+  const platformBalance = household?.platformCreditCents ?? 0;
   const orders = useMemo(() => {
+    let balance: CreditSplit = { gift: giftBalance, platform: platformBalance };
     const unified: UnifiedOrder[] = [
       // A gift box shipped from the giver's household is already listed as their gift.
-      ...pilotOrders.filter((o) => !o.autoShipForGiver).map(toUnifiedFromPilot),
+      ...pilotOrders
+        .filter((o) => !o.autoShipForGiver)
+        .map((o) => {
+          const u = toUnifiedFromPilot(o);
+          if (u.kind !== 'box' || (o.status !== 'committed' && o.status !== 'pending')) return u;
+          const projected = withLockCredit(u, o, balance);
+          balance = { gift: 0, platform: 0 };
+          return projected;
+        }),
       ...giftInvites.map(toUnifiedFromGift),
     ];
     unified.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     return unified;
-  }, [pilotOrders, giftInvites]);
+  }, [pilotOrders, giftInvites, giftBalance, platformBalance]);
 
   return { orders, pilotOrders, giftInvites, loading, loadError, refresh };
 }

@@ -13,6 +13,7 @@ import {
   type AdminInfluencer,
 } from '../../services/promo/promotionsApi';
 import { copyText } from '../../services/promo/copyText';
+import { formatCreditDollars } from '../../services/box/buildDefaultBox';
 
 export type PromotionsTab = 'discounts' | 'credit' | 'influencers';
 
@@ -445,7 +446,7 @@ function CreditSection({ styles, colors }: { styles: Styles; colors: SemanticCol
     const to = email.trim().toLowerCase();
     if (!to.includes('@')) return setNotice({ ok: false, text: 'Enter an email address.' });
     if (cents == null || cents < 100) return setNotice({ ok: false, text: 'Enter at least $1.' });
-    if (!confirmAction(`Give ${money(cents)} of credit to ${to}?`)) return;
+    if (!confirmAction(`Give ${formatCreditDollars(cents)} of credit to ${to}?`)) return;
     setBusy('grant');
     setNotice(null);
     try {
@@ -453,8 +454,8 @@ function CreditSection({ styles, colors }: { styles: Styles; colors: SemanticCol
       setNotice({
         ok: true,
         text: res.accountCreated
-          ? `Added ${money(cents)} for ${to}. They didn’t have an account, so one was created: they sign in with “email me a link”.`
-          : `Added ${money(cents)} to ${to}’s account.`,
+          ? `Added ${formatCreditDollars(cents)} for ${to}. They didn’t have an account, so one was created: they sign in with “email me a link”.`
+          : `Added ${formatCreditDollars(cents)} to ${to}’s account.`,
       });
       setEmail('');
       setAmount('');
@@ -469,12 +470,12 @@ function CreditSection({ styles, colors }: { styles: Styles; colors: SemanticCol
   };
 
   const revoke = async (g: AdminCreditGrant) => {
-    if (!confirmAction(`Take back ${money(g.amountCents)} from ${g.email}?`)) return;
+    if (!confirmAction(`Take back ${formatCreditDollars(g.amountCents)} from ${g.email}?`)) return;
     setBusy(g.id);
     setNotice(null);
     try {
       await adminPromotions.revokeCredit(g.id);
-      setNotice({ ok: true, text: `Revoked ${money(g.amountCents)} from ${g.email}.` });
+      setNotice({ ok: true, text: `Revoked ${formatCreditDollars(g.amountCents)} from ${g.email}.` });
       await reload();
     } catch (err) {
       setNotice({ ok: false, text: errMsg(err) });
@@ -510,20 +511,20 @@ function CreditSection({ styles, colors }: { styles: Styles; colors: SemanticCol
 
       <Text style={styles.caption}>
         {rows
-          ? `${active.length} grants · ${money(granted)} given · about ${money(used)} spent. “Used” is estimated from the balance, oldest credit first.`
+          ? `${active.length} grants · ${formatCreditDollars(granted)} given · about ${formatCreditDollars(used)} spent. “Used” is estimated from the balance, oldest credit first.`
           : error ?? 'Loading credit…'}
       </Text>
       {rows && error ? <Text style={styles.error}>{error}</Text> : null}
       {(rows ?? []).map((g) => (
         <View key={g.id} style={styles.card}>
           <View style={styles.rowHead}>
-            <Text style={styles.cardTitle}>{`${money(g.amountCents)} · ${g.email}`}</Text>
+            <Text style={styles.cardTitle}>{`${formatCreditDollars(g.amountCents)} · ${g.email}`}</Text>
             <Text style={[styles.badge, g.status === 'unused' ? styles.badgeOn : null]}>{g.status}</Text>
           </View>
           <View style={styles.facts}>
             <Fact k="Given" v={`${day(g.createdAt)} by ${g.grantedByEmail || '—'}`} styles={styles} />
             <Fact k="Account" v={g.accountCreated ? 'Created for them' : 'Already existed'} styles={styles} />
-            {g.status !== 'revoked' ? <Fact k="Spent" v={money(g.usedCents)} styles={styles} /> : <Fact k="Revoked" v={day(g.revokedAt)} styles={styles} />}
+            {g.status !== 'revoked' ? <Fact k="Spent" v={formatCreditDollars(g.usedCents)} styles={styles} /> : <Fact k="Revoked" v={day(g.revokedAt)} styles={styles} />}
           </View>
           {g.note ? <Text style={styles.caption}>{g.note}</Text> : null}
           {g.status === 'unused' ? (

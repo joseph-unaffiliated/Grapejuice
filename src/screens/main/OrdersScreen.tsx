@@ -35,7 +35,7 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { chargePilotBoxOrder } from '../../services/checkout/chargePilotBoxOrder';
 import { cancelPilotBoxOrder } from '../../services/checkout/cancelPilotBoxOrder';
 import { inferPricingTier } from '../../services/box/pricing';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { formatCreditDollars, formatDollars } from '../../services/box/buildDefaultBox';
 import type { MainStackParamList } from '../../navigation/types';
 import type { BoxLineItem, CatalogItem, GiftInvite } from '../../types/pilot';
 import { spacing, typography, borderRadius, typeface, semanticColors } from '../../constants/theme';
@@ -156,8 +156,14 @@ function OrderCard({
 
   const actionStyle = styles.actionControl;
   const claimedOn = gift?.status === 'claimed' ? formatOrderDate(gift.claimedAt) : null;
+  const credit = order.creditCents ? formatCreditDollars(order.creditCents) : null;
   const orderDetails = (
     <>
+      {credit ? (
+        <Text style={page.rowAside}>
+          {order.totalCents ? `After ${credit} credit` : `${credit} credit covers it · nothing to pay`}
+        </Text>
+      ) : null}
       {gift?.message ? (
         <Text style={styles.giftMessage}>&ldquo;{gift.message}&rdquo;</Text>
       ) : null}

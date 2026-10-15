@@ -7,7 +7,7 @@ import { byId, primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { formatCreditDollars, formatDollars } from '../../services/box/buildDefaultBox';
 import { orderItemName } from '../../components/orders/OrderPurchaseMedia';
 import { giftInvitePaid, type UnifiedOrder } from '../../hooks/useUnifiedOrders';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
@@ -37,7 +37,11 @@ function moneyLine(o: UnifiedOrder): string {
   const total = formatDollars(o.totalCents);
   const st = o.pilotOrder?.status;
   if (o.giftInvite) return `${total} · ${giftInvitePaid(o.giftInvite) ? 'paid' : 'not paid yet'}`;
-  if (st === 'pending' || st === 'committed') return `${total} · charged after the lock date`;
+  if (st === 'pending' || st === 'committed') {
+    if (!o.creditCents) return `${total} · charged after the lock date`;
+    const credit = formatCreditDollars(o.creditCents);
+    return o.totalCents ? `${total} after ${credit} credit · charged after the lock date` : `${credit} credit covers it · nothing to pay`;
+  }
   if (st === 'cancelled') return `${total} · not charged`;
   return `${total} · paid`;
 }
@@ -169,6 +173,7 @@ export function MobileOrdersBody(p: Props) {
             })}
           </View>
         )}
+        <View style={styles.footerGap} />
         <MobileFooterSpacer />
         <MobileFooterBleed inset={16} />
       </ScrollView>
@@ -204,6 +209,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, color: m.ink, ...mFont(400) },
   chipTextOn: { color: m.gold },
   loading: { paddingVertical: 60, alignItems: 'center' },
+  footerGap: { height: 56 },
   order: { borderBottomWidth: 1, borderBottomColor: m.line },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   stack: { height: 52, position: 'relative' },

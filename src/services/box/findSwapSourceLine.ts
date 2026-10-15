@@ -21,6 +21,7 @@ import {
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 import type { GeltSize } from './boxRules';
 import { isIncludedSwap } from './swapPricing';
+import { isPilotLine } from './pilotLines';
 
 export type SwapSourceOptions = {
   /** Household's default gelt bag; a free gelt swap never goes bigger. */
@@ -51,7 +52,7 @@ export function findSwapSourceLines(
   const matches: BoxLineItem[] = [];
 
   for (const li of lineItems) {
-    if (li.itemId === item.id) continue;
+    if (li.itemId === item.id || isPilotLine(li)) continue;
     // Paid extras aren't swapped laterally (same rule as My Box cards).
     if ((li.unitCents ?? 0) > 0) continue;
     const current = catalog.find((c) => c.id === li.itemId);
@@ -86,7 +87,7 @@ function includedBookLine(
   if (withinSection && withinSection !== 'story') return null;
   if (!isBookishCatalogItem(item)) return null;
   for (const li of lineItems) {
-    if (li.itemId === item.id) continue;
+    if (li.itemId === item.id || isPilotLine(li)) continue;
     if ((li.unitCents ?? 0) > 0) continue;
     const current = catalog.find((c) => c.id === li.itemId);
     if (!current || !isBookishCatalogItem(current)) continue;

@@ -129,6 +129,7 @@ export function MyBoxScreen() {
     activeChild,
     addFreeItemToEmptySlot,
     applySwap,
+    boxCreditCents,
     boxPriceCents,
     canUpdateCommittedOrder,
     cardOnFile,
@@ -761,6 +762,7 @@ export function MyBoxScreen() {
   const subtotal = totalCents(lineItems, boxPriceCents);
   /** Code / influencer discount recorded at checkout; it re-applies to the box as it changes. */
   const boxDiscountCents = discountCentsForTerms(openOrder?.promo ?? null, subtotal);
+  const boxCreditApplied = Math.min(boxCreditCents, Math.max(0, subtotal - boxDiscountCents));
   const kidsCount = Math.max(1, children.length);
   const cashDonationCents = getCashDonationCents(lineItems);
   const chargeableAddOns = Math.max(0, chargeableLineTotal(lineItems) - cashDonationCents);
@@ -932,9 +934,15 @@ export function MyBoxScreen() {
               <Text style={styles.summaryValue}>-{formatCatalogDollars(boxDiscountCents)}</Text>
             </View>
           ) : null}
+          {boxCreditApplied > 0 ? (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Credit</Text>
+              <Text style={styles.summaryValue}>-{formatCatalogDollars(boxCreditApplied)}</Text>
+            </View>
+          ) : null}
           <View style={styles.summaryTotalItem}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatCatalogDollars(subtotal - boxDiscountCents)}</Text>
+            <Text style={styles.totalValue}>{formatCatalogDollars(subtotal - boxDiscountCents - boxCreditApplied)}</Text>
             {retailValueCents > 0 && isDesktop ? (
               <Text style={styles.summaryRetailValue}>
                 ({formatCatalogDollars(retailValueCents)} value)

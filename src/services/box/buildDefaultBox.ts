@@ -694,6 +694,11 @@ export function formatDollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+/** Credit is granted in whole dollars: "$100", but "$12.50" if there ever are cents. */
+export function formatCreditDollars(cents: number): string {
+  return cents % 100 === 0 ? `$${(cents / 100).toLocaleString('en-US')}` : formatDollars(cents);
+}
+
 /** Catalog / home rails — whole dollars, no cents (Figma 384:487). */
 export function formatCatalogDollars(cents: number): string {
   return `$${Math.round(cents / 100)}`;

@@ -31,7 +31,7 @@ import { useBoxLockDay } from '../../hooks/useBoxLockDay';
 import type { SemanticColors } from '../../constants/themeMode';
 import { markReceivedGiftViewed } from '../../services/gift/giftFlow';
 import { noteReceivedGiftViewedThisSession } from './receivedGiftViewedSession';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { formatCreditDollars } from '../../services/box/buildDefaultBox';
 import { CURATED_GIFT_BOX_LABEL, GIFT_CREDIT_SPEND_HINT } from '../../constants/giftCopy';
 
 type Route = RouteProp<MainStackParamList, 'GiftRecipientReveal'>;
@@ -101,7 +101,7 @@ function GiftRecipientRevealBody() {
             <Text style={styles.title}>Your gift credit is ready</Text>
             {message ? <Text style={styles.message}>&ldquo;{message}&rdquo;</Text> : null}
             <Text style={styles.body}>
-              {formatDollars(giftCreditCents || household?.giftCreditCents || 0)} is on your account
+              {formatCreditDollars(giftCreditCents || household?.giftCreditCents || 0)} is on your account
               as gift credit — not a curated gift box. {GIFT_CREDIT_SPEND_HINT}
             </Text>
             <TouchableOpacity

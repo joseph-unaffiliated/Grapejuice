@@ -60,7 +60,7 @@ import { navigateMainStack } from '../../navigation/mainStackNavigation';
 import { usersService } from '../../services/firestore/users';
 import { isListedAdmin, isOpsAdmin } from '../../constants/admin';
 import { InfluencerDashboard } from '../../components/account/InfluencerDashboard';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { formatCreditDollars } from '../../services/box/buildDefaultBox';
 import { usePilotOrders } from '../../hooks/usePilotOrders';
 import { creditBalanceLine } from '../../constants/hanukkahBoxLock';
 
@@ -482,7 +482,7 @@ function AccountScreenBody() {
           cardOnFile={cardOnFile}
           paymentKnown={paymentKnown}
           cardLabel={cardLabel}
-          creditLabel={creditCents > 0 ? formatDollars(creditCents) : null}
+          creditLabel={creditCents > 0 ? formatCreditDollars(creditCents) : null}
           previewBanner={fakeSignedIn ? 'Preview — signed-in account (mock data)' : null}
           family={{
             members: familyMembers,
@@ -676,7 +676,7 @@ function AccountScreenBody() {
         </Text>
         {creditCents > 0 ? (
           <Text style={[styles.hint, styles.creditLine]}>
-            {creditBalanceLine(formatDollars(creditCents), openOrder)}
+            {creditBalanceLine(formatCreditDollars(creditCents), openOrder)}
           </Text>
         ) : null}
         <GrapejuiceButton

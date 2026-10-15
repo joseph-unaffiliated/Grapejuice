@@ -27,6 +27,7 @@ import { howToLinkForItem } from '../../constants/pdpHowToLink';
 import { isBookItem } from '../../constants/storefrontCategories';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
+import { isPilotLine, PILOT_PICK_META } from '../../services/box/pilotLines';
 import { ProductNote } from '../../components/box/ProductNote';
 import type { GeltSize } from '../../services/box/boxRules';
 import { isGiftSlotLine } from './boxLineDisplay';
@@ -205,8 +206,9 @@ export function BoxProductModal({
       ? 'Swap into gift'
       : 'Swap into my box';
 
-  const showSecondary = inBox ? inBoxSwapOptions.length > 0 : swapSources.length > 0;
-  const showQty = inBox && Boolean(onQuantityChange) && !locked;
+  const pilotPick = inBoxLines.some(isPilotLine);
+  const showSecondary = inBox ? inBoxSwapOptions.length > 0 && !pilotPick : swapSources.length > 0;
+  const showQty = inBox && Boolean(onQuantityChange) && !locked && !pilotPick;
   const atOneQty = boxQuantity <= 1;
   const qtyMinusLabel = atOneQty
     ? context === 'giftBox'
@@ -492,6 +494,8 @@ export function BoxProductModal({
                       <Text style={styles.shipNote}>
                         Arrives in time for Hanukkah (est. {HANUKKAH_SHIP_WINDOW_LABEL})
                       </Text>
+                    ) : pilotPick ? (
+                      <Text style={styles.shipNote}>{PILOT_PICK_META} · stays in your box</Text>
                     ) : null}
                   </View>
 

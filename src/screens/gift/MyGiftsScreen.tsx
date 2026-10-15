@@ -22,7 +22,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useReceivedGifts } from '../../hooks/useReceivedGifts';
 import { useSession } from '../../hooks/useSession';
 import { convertReceivedGiftToCredit, reopenReceivedGiftBox } from '../../services/gift/giftFlow';
-import { formatDollars } from '../../services/box/buildDefaultBox';
+import { formatCreditDollars, formatDollars } from '../../services/box/buildDefaultBox';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useBoxLockDay } from '../../hooks/useBoxLockDay';
 import { OrderBoxCollage, OrderItemNameGrid } from '../../components/orders/OrderPurchaseMedia';
@@ -403,10 +403,10 @@ function MyGiftsBody() {
 
         <View style={styles.creditBanner}>
           <Text style={styles.creditLabel}>Gift credit on hand</Text>
-          <Text style={styles.creditValue}>{formatDollars(giftCreditCents)}</Text>
+          <Text style={styles.creditValue}>{formatCreditDollars(giftCreditCents)}</Text>
           {platformCreditCents > 0 ? (
             <Text style={styles.creditSub}>
-              + {formatDollars(platformCreditCents)} platform credit
+              + {formatCreditDollars(platformCreditCents)} platform credit
             </Text>
           ) : null}
           <Text style={styles.creditBody}>
@@ -548,7 +548,7 @@ function MobileGifts(p: {
       sent={sent}
       received={received}
       catalog={p.catalog}
-      creditLine={p.creditCents > 0 ? `You have ${formatDollars(p.creditCents)} in credit. ${GIFT_CREDIT_SPEND_HINT}` : null}
+      creditLine={p.creditCents > 0 ? `You have ${formatCreditDollars(p.creditCents)} in credit. ${GIFT_CREDIT_SPEND_HINT}` : null}
       loading={loading || p.receivedLoading}
       error={loadError || p.receivedError}
       onRetry={() => {

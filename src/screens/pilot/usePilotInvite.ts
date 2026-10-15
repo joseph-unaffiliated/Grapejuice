@@ -127,6 +127,16 @@ export const pilotCopy = {
   signIn: (maskedEmail: string) => `This invitation is for ${maskedEmail}. Sign in with that email to pick your three.`,
 };
 
+/** "You're in" replaces the form in place, so whatever holds the page keeps the form's scroll. */
+function scrollPageToTop(): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  window.requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+    let el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2) as HTMLElement | null;
+    for (; el; el = el.parentElement) if (el.scrollTop > 0) el.scrollTop = 0;
+  });
+}
+
 /** Everything the invite page does, shared by the desktop and phone layouts. */
 export function usePilotInvite() {
   const route = useRoute<Route>();
@@ -178,6 +188,11 @@ export function usePilotInvite() {
       cancelled = true;
     };
   }, [token, uid, nonce]);
+
+  const joinedView = view?.state === 'joined';
+  useEffect(() => {
+    if (joinedView) scrollPageToTop();
+  }, [joinedView]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
   const signIn = useCallback(() => {
