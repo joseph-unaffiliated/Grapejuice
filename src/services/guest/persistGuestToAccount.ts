@@ -16,6 +16,7 @@ import type { ChildDraft } from '../../components/family/familyDraft';
 import { getVisitorId } from './visitorId';
 import { readBoxBuildResume, writeBoxBuildResume } from '../box/boxBuildResume';
 import { markGuestSessionConvertedRemote } from './guestSessionSync';
+import { guestRebuiltSince, mergeGuestAddOns } from './guestMerge';
 
 /**
  * Tell the server this visitor now has an account: stops guest-box recovery emails and scrubs
@@ -228,12 +229,22 @@ export async function persistGuestToAccount(
     }
   }
 
+  // An account that already has a box keeps it and its kids unless this signed-out box was
+  // built after the account box was last saved (a rebuild). An older signed-out box left in
+  // this browser must not replace them; only its paid add-ons carry over.
+  const existingDraft = giftResume ? null : await boxDraftService.get(householdId);
+  const keepAccountBox =
+    !!existingDraft?.lineItems?.length &&
+    !guestRebuiltSince(liveGuest().stepsReached?.building, existingDraft.updatedAt);
+
   let savedChildren: ChildProfile[] = [];
   if (!giftResume && guest.childDrafts.length) {
     // Must match draftsToProfiles / buildDefaultLineItems indexing (kids only).
     // Saving adults here made guest-0 remap to the parent → "One for [adult]" on books.
     const kidDrafts = kidDraftsOnly(guest.childDrafts);
-    if (kidDrafts.length) {
+    if (keepAccountBox) {
+      savedChildren = await childrenService.list(user.uid);
+    } else if (kidDrafts.length) {
       savedChildren = await childrenService.replaceAll(
         user.uid,
         kidDrafts.map((c) => ({
@@ -248,17 +259,14 @@ export async function persistGuestToAccount(
 
   const linesToSave = liveGuest().lineItems.length ? liveGuest().lineItems : guest.lineItems;
   if (!giftResume && linesToSave.length) {
-    const existingDraft = await boxDraftService.get(householdId);
-    const shouldSaveGuestDraft =
-      !existingDraft?.lineItems?.length ||
-      guest.buildBoxPath ||
-      liveGuest().buildBoxPath ||
-      guest.boxRevealComplete ||
-      guestHasOwnBox;
-
-    if (shouldSaveGuestDraft) {
-      const lineItems = remapGuestChildIds(linesToSave, savedChildren);
-      await boxDraftService.save(householdId, user.uid, lineItems, {
+    const guestLines = remapGuestChildIds(linesToSave, savedChildren);
+    if (keepAccountBox) {
+      const merged = mergeGuestAddOns(existingDraft!.lineItems, guestLines);
+      if (merged !== existingDraft!.lineItems) {
+        await boxDraftService.save(householdId, user.uid, merged, { source: 'guest-signup' });
+      }
+    } else {
+      await boxDraftService.save(householdId, user.uid, guestLines, {
         familiarityLevel: guest.familiarityLevel,
         childInterests: guest.childInterests.length ? guest.childInterests : undefined,
         wrapSelectedItemIds: guest.wrapSelectedItemIds?.length
@@ -269,7 +277,7 @@ export async function persistGuestToAccount(
     }
   }
 
-  if (!giftResume && guest.childDrafts.length && guest.onboardingComplete) {
+  if (!giftResume && !keepAccountBox && guest.childDrafts.length && guest.onboardingComplete) {
     await saveLastBoxAnswers(user.uid);
   }
 
