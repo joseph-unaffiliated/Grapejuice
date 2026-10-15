@@ -226,15 +226,19 @@ export function MyBoxScreen() {
     return { story: sections.story, presents: sections.presents, candles: sections.candles, dreidel: sections.dreidel, food: sections.food };
   }, [lineItems, catalog, children, editing.people, wrapSelectedIds]);
 
-  /** Included dreidels missing and not already shown as donated (one per person). */
-  const dreidelGap = useMemo(() => {
-    const count = includedCounts.dreidel;
+  /** Included units missing from a section and not already listed as donated this session. */
+  const includedGap = (sectionId: 'candles' | 'dreidel' | 'food') => {
+    const count = includedCounts[sectionId];
     if (!count) return 0;
     const donated = donatedItems
-      .filter(({ item }) => /dreidel/i.test(`${item.id} ${item.name}`) && !geltBagOf(item.id, item.name))
+      .filter(
+        ({ item }) =>
+          displaySectionForCatalogItem(item) === sectionId &&
+          !(sectionId === 'dreidel' && geltBagOf(item.id, item.name))
+      )
       .reduce((n, d) => n + d.missing, 0);
     return Math.max(0, count.allowed - count.filled - donated);
-  }, [includedCounts, donatedItems]);
+  };
   const woodDreidel = useMemo(() => woodDreidelCatalogItem(catalog), [catalog]);
 
   const wrappingPaper = useMemo(() => {
@@ -323,14 +327,22 @@ export function MyBoxScreen() {
     const kidBookNeeds =
       showKidAddCtas && sectionId === 'story' ? kidsNeedingBook(lineItems, children) : [];
     const kidName = (child: (typeof children)[number]) => child.name?.trim() || 'your kid';
-    const dreidelsToAddBack = showKidAddCtas && sectionId === 'dreidel' && woodDreidel ? dreidelGap : 0;
     // Story and presents already show per-kid add-back blocks for donated books and gifts.
+    const practiceSection = sectionId === 'candles' || sectionId === 'dreidel' || sectionId === 'food';
     const donatedHere =
-      showKidAddCtas && sectionId !== 'story' && sectionId !== 'presents'
+      showKidAddCtas && practiceSection
         ? donatedItems.filter(({ item }) => displaySectionForCatalogItem(item) === sectionId)
         : [];
+    const gap = showKidAddCtas && practiceSection ? includedGap(sectionId) : 0;
+    const dreidelsToAddBack = sectionId === 'dreidel' && woodDreidel ? gap : 0;
+    const otherGap = sectionId !== 'dreidel' ? gap : 0;
+    const gapOptions = otherGap ? freeAddOptionsBySection[sectionId] ?? [] : [];
     const kidAddBlocks =
-      kidGiftNeeds.length || kidBookNeeds.length || dreidelsToAddBack || donatedHere.length ? (
+      kidGiftNeeds.length ||
+      kidBookNeeds.length ||
+      dreidelsToAddBack ||
+      donatedHere.length ||
+      gapOptions.length ? (
         <View style={styles.kidAddBlocks}>
           {donatedHere.map(({ item, missing }) => (
             <PerKidSlotAddBlock
@@ -341,6 +353,20 @@ export function MyBoxScreen() {
               onPressItem={() => void restoreDonated(item.id)}
             />
           ))}
+          {gapOptions.length ? (
+            <PerKidSlotAddBlock
+              title={
+                sectionId === 'candles'
+                  ? 'Add back candles'
+                  : otherGap === 1
+                    ? 'Add back 1 food kit'
+                    : `Add back ${otherGap} food kits`
+              }
+              note="Included in your box. Until you pick one, it’s donated to a family who wouldn’t otherwise celebrate."
+              items={gapOptions}
+              onPressItem={(item) => void addFreeItemToEmptySlot(sectionId, item)}
+            />
+          ) : null}
           {dreidelsToAddBack && woodDreidel ? (
             <PerKidSlotAddBlock
               title={dreidelsToAddBack === 1 ? 'Add back 1 dreidel' : `Add back ${dreidelsToAddBack} dreidels`}
@@ -384,12 +410,15 @@ export function MyBoxScreen() {
     const freeAddOptions =
       isEmpty || practiceVacant ? freeAddOptionsBySection[sectionId] ?? [] : [];
     const freeAddIds = new Set(freeAddOptions.map((i) => i.id));
+    const gapOptionIds = new Set(gapOptions.map((i) => i.id));
     const emptyRailItems = isEmpty
       ? [
           ...freeAddOptions,
           ...(upsellsBySection[sectionId] ?? []).filter((i) => !freeAddIds.has(i.id)),
         ]
       : [];
+    const railSource = isEmpty ? emptyRailItems : upsellsBySection[sectionId];
+    const railItems = gapOptionIds.size ? railSource?.filter((i) => !gapOptionIds.has(i.id)) : railSource;
 
     const handleUpsellPress = (item: CatalogItem) => {
       // Free (included/default) taps restore the donated practice slot at $0.
@@ -410,9 +439,7 @@ export function MyBoxScreen() {
         countLabel={isChildProfile ? null : includedCountLabel(includedCounts[sectionId])}
         emptySection={isEmpty}
         showUpsells={showUpsells}
-        upsellItems={
-          showUpsells ? (isEmpty ? emptyRailItems : upsellsBySection[sectionId]) : undefined
-        }
+        upsellItems={showUpsells ? railItems : undefined}
         upsellLabel={isEmpty ? 'Add items' : undefined}
         upsellIncludedItemIds={freeAddIds.size ? freeAddIds : undefined}
         upsellSwapEligibleItemIds={swapEligibleIdsBySection[sectionId]}
