@@ -1,5 +1,6 @@
 import type { BoxLineItem, CatalogItem, ChildProfile, PracticeLevel } from '../../types/pilot';
 import { isPilotLine } from './pilotLines';
+import { GELT_LITTLE_EQUIVALENT, geltBagOf } from './includedAudit';
 import {
   ALA_CARTE_SLOT_IDS,
   boxAddOnUnitCents,
@@ -15,6 +16,7 @@ import {
 import {
   defaultAdults,
   geltSlotForSize,
+  householdPeople,
   planCuratedOutline,
   representativeAgeForBand,
   resolveBookForAge,
@@ -242,6 +244,20 @@ export function buildCuratedBox(
       label: gelt.name,
     });
   }
+  const alsoGelt = outline.gelt.also;
+  const alsoSlot = alsoGelt ? geltSlotForSize(alsoGelt.size) : null;
+  const alsoItem = alsoSlot && alsoSlot !== geltSlot ? resolveSlotItem(catalog, rows, alsoSlot) : null;
+  if (alsoGelt && alsoSlot && alsoItem) {
+    const qty = Math.max(1, alsoGelt.quantity);
+    lineItems.push({
+      slotId: alsoSlot,
+      itemId: alsoItem.id,
+      quantity: qty,
+      includedQty: qty,
+      unitCents: 0,
+      label: alsoItem.name,
+    });
+  }
 
   for (const foodSlot of outline.foodDefaults) {
     const item = resolveSlotItem(catalog, rows, foodSlot);
@@ -342,10 +358,21 @@ export function catalogSlotId(lineSlotId: string): string {
   return match ? match[1] : withoutExtra;
 }
 
+/** Free gelt in Little Bags' worth (Little 1, Big 3, Party 12), ignoring paid extras. */
+function freeGeltLittleUnits(lineItems: BoxLineItem[]): number {
+  return lineItems.reduce((sum, li) => {
+    if (!catalogSlotId(li.slotId).startsWith('gelt') || li.slotId.includes('::x') || (li.unitCents ?? 0) > 0) {
+      return sum;
+    }
+    const bag = geltBagOf(li.itemId, li.label ?? '') ?? 'little';
+    return sum + Math.max(1, li.quantity || 1) * GELT_LITTLE_EQUIVALENT[bag];
+  }, 0);
+}
+
 /**
  * Household “1 per person” count for wood/airdry/blank dreidel and small gelt.
- * Prefer an existing free gelt line qty (same headcount), then explicit adults,
- * and only then `defaultAdults` (2) when adults are unknown.
+ * Prefer explicit adults, then the free gelt (one Little Bag's worth per person), and
+ * only then `defaultAdults` (2) when adults are unknown.
  */
 export function householdPracticeQty(
   kids: ChildProfile[] | { length: number },
@@ -356,27 +383,27 @@ export function householdPracticeQty(
   if (kidCount < 1) return Math.max(1, defaultAdults(adults));
   if (kidCount >= 5) return 1; // party gelt / special cases — callers usually skip
 
-  if (lineItems?.length) {
-    const geltFree = lineItems
-      .filter((li) => {
-        const base = catalogSlotId(li.slotId);
-        return (
-          (base === 'gelt' ||
-            base === 'gelt-small' ||
-            base === 'gelt-medium' ||
-            base === 'gelt-party' ||
-            base.startsWith('gelt')) &&
-          !li.slotId.includes('::x') &&
-          (li.unitCents ?? 0) === 0
-        );
-      })
-      .reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
-    if (geltFree >= kidCount) return geltFree;
-  }
-
   if (adults != null && adults >= 0) return kidCount + adults;
-  // Unknown adults: do not invent +2 when a coherent free wood qty already matches gelt-less kid+1 heuristics.
+  if (lineItems?.length) {
+    const geltUnits = freeGeltLittleUnits(lineItems);
+    if (geltUnits >= kidCount) return geltUnits;
+  }
   return kidCount + defaultAdults(adults);
+}
+
+/**
+ * Free units when claiming a household set into an empty section: one dreidel per person,
+ * or as many bags of gelt as one Little Bag's worth per person covers (Big Bag = 3).
+ */
+export function householdFreeQtyForItem(
+  item: { id: string; name?: string },
+  kids: ChildProfile[] | { length: number },
+  adults: number | undefined,
+  lineItems?: BoxLineItem[]
+): number {
+  const bag = geltBagOf(item.id, item.name ?? '');
+  if (bag) return Math.max(1, Math.floor(householdPeople(kids.length, adults) / GELT_LITTLE_EQUIVALENT[bag]));
+  return Math.max(1, householdPracticeQty(kids, adults, lineItems));
 }
 
 /**
@@ -433,25 +460,12 @@ export function repairWoodDreidelHouseholdQty(
   if (freeQty >= targetQty && Math.max(freeQty, persistedIncluded) >= targetQty) {
     return { lineItems, dirty: false };
   }
-  // Prefer gelt as SOT: if free wood already equals gelt headcount, leave it.
-  if (lineItems.length) {
-    const geltQty = householdPracticeQty(kids, adults != null ? adults : 0, lineItems);
-    // When adults unknown, householdPracticeQty may still return kid+2; if free wood
-    // matches gelt qty and gelt was used, stop.
-    const geltFree = lineItems
-      .filter((li) => {
-        const base = catalogSlotId(li.slotId);
-        return (
-          (base.startsWith('gelt') || base === 'gelt') &&
-          !li.slotId.includes('::x') &&
-          (li.unitCents ?? 0) === 0
-        );
-      })
-      .reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
-    if (geltFree >= kidCount && freeQty === geltFree && paidQty === 0) {
+  // Adults unknown: free wood already matching the gelt headcount is the household size.
+  if (adults == null && lineItems.length) {
+    const geltUnits = freeGeltLittleUnits(lineItems);
+    if (geltUnits >= kidCount && freeQty === geltUnits && paidQty === 0) {
       return { lineItems, dirty: false };
     }
-    void geltQty;
   }
 
   // Legacy short seeds, or free allotment below household size with paid overflow.

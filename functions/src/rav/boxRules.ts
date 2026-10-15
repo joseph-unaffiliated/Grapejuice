@@ -85,8 +85,9 @@ export type GeltSize = 'small' | 'medium' | 'party';
 export type GeltPlan = {
   size: GeltSize;
   quantity: number;
-  /** Never mix sizes in the *default* build; user may buy a mix later. */
-  mixedDefault: false;
+  /** True only for 5+ kids, where Big Bags cover each 3 people and Little Bags the rest. */
+  mixedDefault: boolean;
+  also?: { size: GeltSize; quantity: number };
 };
 
 export type DreidelKind = 'wood-dreidel' | 'blank-dreidel' | 'airdry-dreidel';
@@ -476,22 +477,28 @@ export function defaultAdults(adults?: number): number {
 }
 
 /**
- * Gelt defaults — never mix sizes in the default build.
- * 1 kid → medium; 2–4 kids → all small × (kids + adults); 5+ → party only.
+ * Little Bags' worth of chocolate in each bag: Little 2 big + 5 little coins (26g), Big 5 + 20
+ * (80g), Party 20 + 80 (320g).
+ */
+export const GELT_LITTLE_EQUIVALENT: Record<GeltSize, number> = { small: 1, medium: 3, party: 12 };
+
+/**
+ * Gelt defaults, one Little Bag's worth per person (kids + adults):
+ * 1 kid in a 3-person household → one Big Bag; 5+ kids → Big Bags for each 3 people plus
+ * Little Bags for the rest; everyone else → a Little Bag each. Never a Party Bag.
  */
 export function planGelt(inputs: DefaultBoxInputs): GeltPlan {
   const kidCount = inputs.kids.length;
-  const adults = defaultAdults(inputs.adults);
-  if (kidCount <= 0) {
-    return { size: 'medium', quantity: 1, mixedDefault: false };
-  }
-  if (kidCount === 1) {
-    return { size: 'medium', quantity: 1, mixedDefault: false };
-  }
+  const people = kidCount + defaultAdults(inputs.adults);
+  if (kidCount === 1 && people === 3) return { size: 'medium', quantity: 1, mixedDefault: false };
   if (kidCount >= 5) {
-    return { size: 'party', quantity: 1, mixedDefault: false };
+    const big = Math.floor(people / 3);
+    const rest = people % 3;
+    return rest
+      ? { size: 'medium', quantity: big, mixedDefault: true, also: { size: 'small', quantity: rest } }
+      : { size: 'medium', quantity: big, mixedDefault: false };
   }
-  return { size: 'small', quantity: kidCount + adults, mixedDefault: false };
+  return { size: 'small', quantity: Math.max(1, people), mixedDefault: false };
 }
 
 export function geltSlotForSize(size: GeltSize): DefaultSlotId {
@@ -1334,10 +1341,11 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     'Section swap graphs:',
     sectionBlocks,
     '',
-    'Gelt planner (default build never mixes sizes; user may buy a mix later):',
-    '- 1 kid → medium ×1',
-    '- 2–4 kids → small × (kids + adults); adults default 2 if unknown',
-    '- 5+ kids → party ×1 only',
+    'Gelt planner (free gelt = one Little Bag\'s worth per person, kids + adults; adults default 2 if unknown):',
+    '- Exchange by chocolate: Little = 1, Big = 3, Party = 12',
+    '- 1 kid in a 3-person household → Big ×1; otherwise Little × people',
+    '- 5+ kids → Big × floor(people/3) + Little × the remainder; never a Party Bag by default',
+    '- Gelt swaps convert at the exchange rate, never above the allowance (Big → 3 Little); Party is paid unless 12+ people',
     '',
     'Scaling with kids:',
     '- 1 book + 1 present + 1 dreidel per kid; gelt as above',

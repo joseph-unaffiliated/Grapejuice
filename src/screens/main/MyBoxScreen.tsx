@@ -21,7 +21,7 @@ import { warmBoxCheckout } from '../../services/checkout/checkoutPrefetch';
 import { editUntilLockNote } from '../../services/hanukkah/dates';
 import type { MainStackParamList } from '../../navigation/types';
 import { swapNoticeText } from '../../services/box/soldOutReconcile';
-import { defaultGeltSize, resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
+import { resolveByDefaultSlot, WRAP_POLICY } from '../../services/box/boxRules';
 import {
   formatCatalogDollars,
   formatDollars,
@@ -1121,7 +1121,7 @@ export function MyBoxScreen() {
         catalog={catalog}
         lineItems={lineItems}
         context="ownBox"
-        geltCeiling={defaultGeltSize(children.length)}
+        geltCeiling={editing.geltCeiling}
         fromSection={productModalSection}
         locked={locked || guestViewOnly}
         onClose={() => {

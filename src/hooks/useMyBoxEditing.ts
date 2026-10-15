@@ -26,13 +26,13 @@ import { mergeSwapNotices } from '../services/box/soldOutReconcile';
 import { usePublishRavSurface } from '../hooks/usePublishRavSurface';
 import {
   catalogSlotId,
-  householdPracticeQty,
+  householdFreeQtyForItem,
   isHouseholdPracticeCatalogItem,
   repairExtraPerKidPricing,
   repairWoodDreidelIncluded,
   repairZeroExtraUnits,
 } from '../services/box/buildDefaultBox';
-import { defaultAdults, defaultGeltSize, geltSizeOf, geltSwapQuantity, listBoxCentsForKids } from '../services/box/boxRules';
+import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, isGeltSwapUp, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
 import {
   resolveSectionUpsellItems,
@@ -154,7 +154,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const user = useAuthStore((s) => s.user);
   const { isChildProfile, isParentProfile, activeChild } = useActiveProfile();
   const showKidBoxUi = isChildProfile && !PILOT_PARENT_ONLY;
-  const { lineItems, slotVotes, sealedSectionIds, wrapSelectedItemIds, children, loading: draftLoading, error: draftError, persist, persistSlotVotes, persistWrapSelection, refresh: refreshDraft, swapNotices, dismissSwapNotices } =
+  const { lineItems, slotVotes, sealedSectionIds, wrapSelectedItemIds, children, adults, people, loading: draftLoading, error: draftError, persist, persistSlotVotes, persistWrapSelection, refresh: refreshDraft, swapNotices, dismissSwapNotices } =
     useBoxDraft();
   /** Shown for this visit only — stored notices clear as soon as they appear. */
   const [shownSwapNotices, setShownSwapNotices] = useState<InventorySwapNotice[]>([]);
@@ -302,7 +302,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
 
 
   /** Recompute when catalog/lines change — never cache empty results across loads. */
-  const geltCeiling = defaultGeltSize(children.length);
+  const geltCeiling = geltCeilingForPeople(people);
   const kidAgeById = useMemo(() => {
     const ages = kidPlannerAges(children);
     return new Map(children.map((c, i) => [c.id, ages[i]]));
@@ -341,14 +341,14 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       (sourceLine.unitCents ?? 0) === 0 &&
       isBookishCatalogItem(sourceItem) &&
       isBookishCatalogItem(newItem);
-    // Gelt for gelt is always free and keeps the same people covered (party bag → a little
-    // bag each, big bag → two little bags).
+    // Gelt for gelt is free up to the household's biggest included bag and keeps the same
+    // chocolate (Big Bag → three Little Bags), never more than one Little Bag per person.
     const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
     const toGelt = geltSizeOf(newItem);
-    const geltHeadcount = children.length + defaultAdults();
+    const freeGeltSwap = !!fromGelt && !!toGelt && !isGeltSwapUp(fromGelt, toGelt, geltCeiling);
     const geltQty = (qty: number) =>
-      fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, geltHeadcount) : qty;
-    const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || bookSwap || (fromGelt && toGelt && (sourceLine.unitCents ?? 0) === 0))
+      fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, people) : qty;
+    const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || bookSwap || (freeGeltSwap && (sourceLine.unitCents ?? 0) === 0))
       ? 0
       : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
         boxAddOnUnitCents(newItem);
@@ -909,7 +909,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     const householdQty =
       (sectionId === 'dreidel' || sectionId === 'food') &&
       isHouseholdPracticeCatalogItem(item)
-        ? Math.max(1, householdPracticeQty(children, undefined, lineItems))
+        ? householdFreeQtyForItem(item, children, adults, lineItems)
         : 1;
     // This claim is the included allotment for the section — track so a later donate counts.
     const markIncludedBaseline = () => {
@@ -1291,6 +1291,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     draftLoading,
     estimatedDeliveryBy,
     freeAddOptionsBySection,
+    geltCeiling,
     goToCheckout,
     grouped,
     guestNeedsOnboarding,
@@ -1298,6 +1299,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     handleToggleVote,
     hasPresentsChecklist,
     hasSessionEdits,
+    people,
     includedBaselineByItemId,
     includedGiftIds,
     includedGiftOptions,

@@ -105,7 +105,7 @@ export function applyRavDraftActions(
         const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
         const toGelt = geltSizeOf(item);
         if (fromGelt && toGelt) {
-          // Free gelt swaps stay at or under the default bag and keep the same people covered.
+          // Free gelt swaps stay at or under the biggest included bag and keep the same chocolate.
           if (isGeltSwapUp(fromGelt, toGelt, options?.geltCeiling)) {
             skipped.push(action);
             continue;

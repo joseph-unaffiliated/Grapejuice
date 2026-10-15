@@ -29,7 +29,7 @@ import {
 } from '../../services/box/findSwapSourceLine';
 import { resolveFreeSwapUnitCents } from '../../services/box/sectionUpsells';
 import { boxAddOnUnitCents } from '../../services/box/pricing';
-import { defaultGeltSize, type GeltSize } from '../../services/box/boxRules';
+import { geltCeilingForPeople, type GeltSize } from '../../services/box/boxRules';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import type { BoxLineItem, CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
@@ -108,8 +108,8 @@ export function StorefrontProductGrid({
   const availHook = useCatalogAvailabilityMap();
   const availabilityById = availabilityProp ?? availHook.byId;
   const { items: catalog } = useCatalog();
-  const { lineItems, persist, children } = useBoxDraft();
-  const geltCeiling = defaultGeltSize(children.length);
+  const { lineItems, persist, people } = useBoxDraft();
+  const geltCeiling = geltCeilingForPeople(people);
   const { guardMutation } = usePaymentGate();
   const hasStartedBox = usePreviewedHasStartedBox();
   const [containerWidth, setContainerWidth] = useState(0);

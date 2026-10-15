@@ -28,7 +28,7 @@ import { isPilotLine, PILOT_PICK_META } from '../../services/box/pilotLines';
 import { ProductNote } from '../../components/box/ProductNote';
 import { PilotReturnBanner } from '../../components/pilot/PilotReturnBanner';
 import { formatCatalogDollars, toRulesRow } from '../../services/box/buildDefaultBox';
-import { defaultGeltSize, isLowWithDrafts, resolveByDefaultSlot } from '../../services/box/boxRules';
+import { isLowWithDrafts, resolveByDefaultSlot } from '../../services/box/boxRules';
 import { isStorefrontRavOpenable, openStorefrontRav } from '../../components/storefront/storefrontRavContext';
 import { kidPlannerAges, resolveFreeSwapUnitCents, resolveIncludedGiftOptions, storySwapShelf } from '../../services/box/sectionUpsells';
 import { HorizontalDragScrollView } from '../../components/home/HorizontalDragScrollView';
@@ -58,7 +58,7 @@ export type MobileBoxEditing = Pick<
   | 'boxPriceCents' | 'restoreDonated' | 'lockAt' | 'goToCheckout' | 'children' | 'swapOptionsBySlot' | 'savingOrder'
   | 'modalRemoveFromBox' | 'donatedLineSnapshots' | 'cardOnFile' | 'swapToPreWrap' | 'swapEligibleIdsBySection' | 'startsOn'
   | 'setProductModalSection' | 'saveOrderUpdates' | 'ordersLoading' | 'modalAddToBox' | 'hasSessionEdits' | 'guestViewOnly'
-  | 'freeAddOptionsBySection' | 'estimatedDeliveryBy' | 'changeBoxQuantity' | 'addFreeItemToEmptySlot'
+  | 'freeAddOptionsBySection' | 'estimatedDeliveryBy' | 'changeBoxQuantity' | 'addFreeItemToEmptySlot' | 'geltCeiling'
 > &
   /** Choosing which presents come wrapped after pre-wrap; the gift flow omits these. */
   Partial<Pick<ReturnType<typeof useMyBoxEditing>, 'wrapSelectedIds' | 'persistWrapSelection' | 'swapBackToPaper'>>;
@@ -126,7 +126,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const focusItemId = useGuestSessionStore((s) => s.myBoxFocusItemId);
   const clearFocusItem = useGuestSessionStore((s) => s.setMyBoxFocusItemId);
   const kids = e.children;
-  const geltCeiling = defaultGeltSize(kids.length);
+  const geltCeiling = e.geltCeiling;
   const { household, refresh } = useSession();
 
   const checkoutReady = !!household?.id && !e.guestViewOnly && !e.openOrder && !e.ordersLoading && !e.locked && e.lineItems.length > 0;

@@ -16,6 +16,7 @@ import {
   repairWoodDreidelIncluded,
   repairZeroExtraUnits,
 } from '../services/box/buildDefaultBox';
+import { householdPeople } from '../services/box/boxRules';
 import { retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { keepPilotLines } from '../services/box/pilotLines';
 import { syncWrappingPaperUnitCentsForWrapSelection } from '../components/box/boxLineDisplay';
@@ -49,7 +50,7 @@ function draftsToProfiles(drafts: ChildDraft[]): ChildProfile[] {
     }));
 }
 
-function adultCountFromDrafts(drafts: ChildDraft[]): number | undefined {
+function adultCountFromDrafts(drafts: ReadonlyArray<{ role?: unknown }>): number | undefined {
   const n = drafts.filter((d) => d.role === 'adult').length;
   return n > 0 ? n : undefined;
 }
@@ -100,6 +101,8 @@ type AuthBoxDraftLoadArgs = {
   uid: string;
   displayName: string | null | undefined;
   profileFamiliarity: FamiliarityLevel | undefined;
+  /** Adults from the family questionnaire; undefined when none were entered. */
+  adults: number | undefined;
 };
 
 /** Fetch + repair the signed-in draft (repairs persist once, not once per hook instance). */
@@ -108,6 +111,7 @@ async function fetchAuthBoxDraft({
   uid,
   displayName,
   profileFamiliarity,
+  adults,
 }: AuthBoxDraftLoadArgs): Promise<AuthBoxDraftSnapshot> {
   const [draft, catalog, kids] = await Promise.all([
     withAuthRetry(uid, () => boxDraftService.get(householdId)),
@@ -176,7 +180,7 @@ async function fetchAuthBoxDraft({
     }
   }
 
-  const repairedWood = repairWoodDreidelHouseholdQty(nextLines, nextKids);
+  const repairedWood = repairWoodDreidelHouseholdQty(nextLines, nextKids, adults);
   if (repairedWood.dirty) nextLines = repairedWood.lineItems;
 
   const repairedBooks = repairExtraPerKidPricing(nextLines, catalog);
@@ -339,6 +343,7 @@ export function useBoxDraft() {
   const guestLineItems = useGuestSessionStore((s) => s.lineItems);
   const guestFamiliarity = useGuestSessionStore((s) => s.familiarityLevel);
   const guestDrafts = useGuestSessionStore((s) => s.childDrafts);
+  const accountAdults = adultCountFromDrafts(profile?.lastBoxAnswers?.childDrafts ?? []);
   const guestOnboardingComplete = useGuestSessionStore((s) => s.onboardingComplete);
   const guestBoxRevealComplete = useGuestSessionStore((s) => s.boxRevealComplete);
   const guestWrapSelectedItemIds = useGuestSessionStore((s) => s.wrapSelectedItemIds);
@@ -455,6 +460,7 @@ export function useBoxDraft() {
       profile?.familiarityLevel,
       profile?.onboardingComplete,
       profile?.boxRevealComplete,
+      accountAdults,
       sessionLoading,
       guestFamiliarity,
       guestOnboardingComplete,
@@ -472,6 +478,7 @@ export function useBoxDraft() {
           uid: user.uid,
           displayName: user.displayName ?? profile?.displayName,
           profileFamiliarity: profile?.familiarityLevel,
+          adults: accountAdults,
         },
         options?.fresh === true
       );
@@ -503,6 +510,7 @@ export function useBoxDraft() {
     profile?.familiarityLevel,
     profile?.onboardingComplete,
     profile?.boxRevealComplete,
+    accountAdults,
     guestDrafts,
     guestFamiliarity,
     guestLineItems,
@@ -603,12 +611,18 @@ export function useBoxDraft() {
     await boxDraftService.saveSwapNotices(household.id, user.uid, []);
   }, [isAuthenticated, household?.id, user?.uid]);
 
+  const adults = isAuthenticated ? accountAdults : adultCountFromDrafts(guestDrafts);
+
   return {
     lineItems,
     slotVotes,
     sealedSectionIds,
     wrapSelectedItemIds,
     children,
+    /** Adults the family entered; undefined means unknown (rules assume 2). */
+    adults,
+    /** Kids + adults — the gelt allowance and dreidel count. */
+    people: householdPeople(children.length, adults),
     familiarity,
     loading: loading || (isAuthenticated && sessionLoading),
     /** Signed-in draft failed to load (after one retry) — not the same as an empty box. */

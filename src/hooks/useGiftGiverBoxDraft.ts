@@ -3,7 +3,7 @@ import { catalogService } from '../services/firestore/catalog';
 import {
   buildDefaultLineItems,
   catalogSlotId,
-  householdPracticeQty,
+  householdFreeQtyForItem,
   isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
 import {
@@ -12,6 +12,7 @@ import {
   resolveIncludedGiftOptions,
 } from '../services/box/sectionUpsells';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, extraUnitCents } from '../services/box/pricing';
+import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, isGeltSwapUp } from '../services/box/boxRules';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -70,6 +71,8 @@ export function useGiftGiverBoxDraft(
   const keepInitialRef = useRef(Boolean(initialLineItems?.length));
 
   const children = useMemo(() => giftChildrenToProfiles(childDrafts), [childDrafts]);
+  const people = children.length + adults;
+  const geltCeiling = geltCeilingForPeople(people);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,10 +104,10 @@ export function useGiftGiverBoxDraft(
       // Per-kid gift lines swap among the included gift set, not their section peers.
       next[li.slotId] = isGiftSlotLine(li)
         ? resolveIncludedGiftOptions(catalog, li.itemId, 6)
-        : resolveSwapOptionsForItem(current, catalog, 6);
+        : resolveSwapOptionsForItem(current, catalog, 6, { geltCeiling });
     }
     return next;
-  }, [lineItems, catalog]);
+  }, [lineItems, catalog, geltCeiling]);
 
   const applySwap = useCallback(
     (
@@ -119,15 +122,23 @@ export function useGiftGiverBoxDraft(
         const sourceLine = prev.find((li) => idSet.has(li.slotId));
         const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
         const sectionId = sourceItem ? displaySectionForCatalogItem(sourceItem) : undefined;
+        // Gelt for gelt keeps the same chocolate (Big Bag → three Little Bags), free up to
+        // the biggest bag the household's allowance covers.
+        const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
+        const toGelt = geltSizeOf(newItem);
+        const geltQty = (qty: number) =>
+          fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, people) : qty;
+        const freeGeltSwap =
+          !!fromGelt && !!toGelt && !isGeltSwapUp(fromGelt, toGelt, geltCeiling) && (sourceLine?.unitCents ?? 0) === 0;
         // Per-kid gift swaps stay free regardless of the target's catalog tier.
-        const nextUnit = sourceLine && isGiftSlotLine(sourceLine)
+        const nextUnit = sourceLine && (isGiftSlotLine(sourceLine) || freeGeltSwap)
           ? 0
           : (sectionId ? resolveFreeSwapUnitCents(sourceItem, newItem, sectionId) : undefined) ??
             boxAddOnUnitCents(newItem);
         if (sourceLine?.itemId) {
           const swappedQty = prev
             .filter((li) => idSet.has(li.slotId))
-            .reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+            .reduce((s, li) => s + geltQty(Math.max(1, li.quantity ?? 1)), 0);
           transferLiveIncludedBaselineOnSwap(
             sourceLine.itemId,
             newItem.id,
@@ -143,6 +154,12 @@ export function useGiftGiverBoxDraft(
                 itemId: newItem.id,
                 unitCents: nextUnit,
                 label: newItem.name,
+                ...(fromGelt && toGelt
+                  ? {
+                      quantity: geltQty(Math.max(1, li.quantity ?? 1)),
+                      ...(li.includedQty ? { includedQty: geltQty(li.includedQty) } : {}),
+                    }
+                  : null),
                 ...(opts?.displaySectionId
                   ? { displaySectionId: opts.displaySectionId }
                   : null),
@@ -151,7 +168,7 @@ export function useGiftGiverBoxDraft(
         );
       });
     },
-    [catalog]
+    [catalog, people, geltCeiling]
   );
 
   const swapToPreWrap = useCallback(
@@ -228,7 +245,7 @@ export function useGiftGiverBoxDraft(
     ) => {
       setLineItems((prev) => {
         const householdQty = isHouseholdPracticeCatalogItem(item)
-          ? Math.max(1, householdPracticeQty(children, undefined, prev))
+          ? householdFreeQtyForItem(item, children, adults, prev)
           : 1;
         // Prefer converting a paid copy rather than silent no-op / duplicate.
         const paid = prev.find(
@@ -315,7 +332,7 @@ export function useGiftGiverBoxDraft(
         ];
       });
     },
-    [children]
+    [children, adults]
   );
 
   /** Set (re-point or create) a kid's single gift line at $0; convert paid SKUs in place. */
@@ -395,6 +412,8 @@ export function useGiftGiverBoxDraft(
     catalog,
     lineItems,
     children,
+    people,
+    geltCeiling,
     loading,
     wrapSelectedItemIds,
     applySwap,

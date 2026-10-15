@@ -44,7 +44,7 @@ import {
 } from '../../services/catalog/availability';
 import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
 import { ProductNote } from '../../components/box/ProductNote';
-import { defaultGeltSize } from '../../services/box/boxRules';
+import { geltCeilingForPeople } from '../../services/box/boxRules';
 import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import { trackMetaProduct } from '../../services/analytics/metaPixel';
 import {
@@ -118,6 +118,7 @@ export function CatalogProductScreen() {
   const {
     lineItems,
     children,
+    people,
     loading: draftLoading,
     persist: saveDraft,
   } = useBoxDraft();
@@ -312,8 +313,8 @@ export function CatalogProductScreen() {
   }, [lineItems, hasStartedBox, catalog, children]);
   const swapSources = useMemo(() => {
     if (!item || !hasStartedBox || inBox) return [];
-    return findSwapSourceLines(item, swapLineItems, catalog, null, { geltCeiling: defaultGeltSize(children.length) });
-  }, [item, hasStartedBox, inBox, swapLineItems, catalog, children.length]);
+    return findSwapSourceLines(item, swapLineItems, catalog, null, { geltCeiling: geltCeilingForPeople(people) });
+  }, [item, hasStartedBox, inBox, swapLineItems, catalog, people]);
   const swapSource = swapSources[0] ?? null;
   /** When already in box: alternate SKUs to swap this line for. */
   const inBoxSwapOptions = useMemo(() => {
@@ -321,9 +322,9 @@ export function CatalogProductScreen() {
     if (inBoxUnitCents > 0) return [];
     const opts = isGiftSlotLine(inBoxPrimary)
       ? resolveIncludedGiftOptions(catalog, item.id, 12)
-      : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling: defaultGeltSize(children.length) });
+      : resolveSwapOptionsForItem(item, catalog, 12, { geltCeiling: geltCeilingForPeople(people) });
     return opts.filter((o) => o.id !== item.id);
-  }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog, children.length]);
+  }, [item, inBox, inBoxPrimary, inBoxUnitCents, catalog, people]);
   /** Cheapest policy-valid swap delta (included swaps are $0). */
   const swapDeltaCents = useMemo(() => {
     if (!item || swapSources.length === 0) return 0;

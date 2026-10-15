@@ -86,8 +86,9 @@ export type GeltSize = 'small' | 'medium' | 'party';
 export type GeltPlan = {
   size: GeltSize;
   quantity: number;
-  /** Never mix sizes in the *default* build; user may buy a mix later. */
-  mixedDefault: false;
+  /** True only for 5+ kids, where Big Bags cover each 3 people and Little Bags the rest. */
+  mixedDefault: boolean;
+  also?: { size: GeltSize; quantity: number };
 };
 
 export type DreidelKind = 'wood-dreidel' | 'blank-dreidel' | 'airdry-dreidel';
@@ -482,21 +483,46 @@ export function defaultAdults(adults?: number): number {
 }
 
 /**
- * Gelt defaults — never mix sizes in the default build.
- * 1 kid → medium; 2–4 kids → all small × (kids + adults); 5+ → party only.
+ * Little Bags' worth of chocolate in each bag: Little 2 big + 5 little coins (26g), Big 5 + 20
+ * (80g), Party 20 + 80 (320g).
+ */
+export const GELT_LITTLE_EQUIVALENT: Record<GeltSize, number> = { small: 1, medium: 3, party: 12 };
+
+/** Free gelt for a household, in Little Bags: one per person (kids + adults). */
+export function geltAllowance(people: number): number {
+  return Math.max(0, people);
+}
+
+/** Kids + adults, with 2 adults when the family didn't say. */
+export function householdPeople(kidCount: number, adults?: number): number {
+  return kidCount + defaultAdults(adults);
+}
+
+/**
+ * Gelt defaults, one Little Bag's worth per person:
+ * 1 kid in a 3-person household → one Big Bag; 5+ kids → Big Bags for each 3 people plus
+ * Little Bags for the rest; everyone else → a Little Bag each. Never a Party Bag.
  */
 export function planGelt(inputs: DefaultBoxInputs): GeltPlan {
   const kidCount = inputs.kids.length;
-  const size = defaultGeltSize(kidCount);
-  const quantity = size === 'small' ? kidCount + defaultAdults(inputs.adults) : 1;
-  return { size, quantity, mixedDefault: false };
+  const people = householdPeople(kidCount, inputs.adults);
+  if (kidCount === 1 && people === 3) return { size: 'medium', quantity: 1, mixedDefault: false };
+  if (kidCount >= 5) {
+    const big = Math.floor(people / 3);
+    const rest = people % 3;
+    return rest
+      ? { size: 'medium', quantity: big, mixedDefault: true, also: { size: 'small', quantity: rest } }
+      : { size: 'medium', quantity: big, mixedDefault: false };
+  }
+  return { size: 'small', quantity: Math.max(1, people), mixedDefault: false };
 }
 
-/** The bag the default build picks for a household with `kidCount` kids. */
-export function defaultGeltSize(kidCount: number): GeltSize {
-  if (kidCount >= 5) return 'party';
-  if (kidCount >= 2) return 'small';
-  return 'medium';
+/** Biggest bag a household can hold free: Party at 12+ people, Big at 3+, else Little. */
+export function geltCeilingForPeople(people: number): GeltSize {
+  const allowance = geltAllowance(people);
+  if (allowance >= GELT_LITTLE_EQUIVALENT.party) return 'party';
+  if (allowance >= GELT_LITTLE_EQUIVALENT.medium) return 'medium';
+  return 'small';
 }
 
 /** Which gelt bag a catalog row is, or null when it isn't gelt. */
@@ -516,21 +542,24 @@ export function geltSizeOf(row: BoxRulesCatalogRow): GeltSize | null {
 const GELT_RANK: Record<GeltSize, number> = { small: 1, medium: 2, party: 3 };
 
 /**
- * A free gelt swap never goes above the household's default bag (`ceiling`) — it can
- * size down and back up to the default; anything bigger is an add-on. Without a
- * ceiling, only same size or smaller.
+ * A free gelt swap never goes above the biggest bag the household's allowance covers
+ * (`ceiling`, from `geltCeiling`); anything bigger is an add-on. Without a ceiling, only
+ * same size or smaller.
  */
 export function isGeltSwapUp(from: GeltSize, to: GeltSize, ceiling?: GeltSize): boolean {
   return GELT_RANK[to] > Math.max(GELT_RANK[from], ceiling ? GELT_RANK[ceiling] : 0);
 }
 
 /**
- * Bags of `to` that cover the same people as `qty` bags of `from`. A little bag covers
- * one person, a big bag two, a party bag the whole household (`headcount`).
+ * Bags of `to` holding the same chocolate as `qty` bags of `from` (Little 1, Big 3, Party 12),
+ * never more than the household's allowance of `people` Little Bags. A Big Bag becomes 3
+ * Little Bags; 3 Little Bags become a Big Bag.
  */
-export function geltSwapQuantity(from: GeltSize, to: GeltSize, qty: number, headcount: number): number {
-  const covers = (size: GeltSize) => (size === 'small' ? 1 : size === 'medium' ? 2 : Math.max(1, headcount));
-  return Math.max(1, Math.ceil((Math.max(1, qty) * covers(from)) / covers(to)));
+export function geltSwapQuantity(from: GeltSize, to: GeltSize, qty: number, people: number): number {
+  const units = Math.max(1, qty) * GELT_LITTLE_EQUIVALENT[from];
+  const each = GELT_LITTLE_EQUIVALENT[to];
+  const cap = Math.max(each, geltAllowance(people));
+  return Math.max(1, Math.floor(Math.min(units, cap) / each));
 }
 
 export function geltSlotForSize(size: GeltSize): DefaultSlotId {
@@ -1373,10 +1402,11 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     'Section swap graphs:',
     sectionBlocks,
     '',
-    'Gelt planner (default build never mixes sizes; user may buy a mix later):',
-    '- 1 kid → medium ×1',
-    '- 2–4 kids → small × (kids + adults); adults default 2 if unknown',
-    '- 5+ kids → party ×1 only',
+    'Gelt planner (free gelt = one Little Bag\'s worth per person, kids + adults; adults default 2 if unknown):',
+    '- Exchange by chocolate: Little = 1, Big = 3, Party = 12',
+    '- 1 kid in a 3-person household → Big ×1; otherwise Little × people',
+    '- 5+ kids → Big × floor(people/3) + Little × the remainder; never a Party Bag by default',
+    '- Gelt swaps convert at the exchange rate, never above the allowance (Big → 3 Little); Party is paid unless 12+ people',
     '',
     'Scaling with kids:',
     '- 1 book + 1 present + 1 dreidel per kid; gelt as above',
