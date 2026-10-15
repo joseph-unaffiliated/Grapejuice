@@ -21,4 +21,6 @@ Uncommitted drafts changed by a script, logged here because the customer may not
 
 Committed boxes reported by the Oct 15 audit but **not changed** (your call pending):
 choconaut, smussmacher15, misssarcasm35, m.deitsch, brit, jestillman. See the Oct 15 audit
-report (`npx tsx scripts/box-audit.ts`).
+report (`npx tsx scripts/box-audit.ts`). Record your call on Admin → Boxes → Box problems
+(expand the row). Ready-to-send emails for the two committed edits above (and the draft
+restores) are in [`COMMITTED_BOX_CHANGE_EMAILS.md`](./COMMITTED_BOX_CHANGE_EMAILS.md).
