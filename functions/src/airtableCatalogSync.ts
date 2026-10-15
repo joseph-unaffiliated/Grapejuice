@@ -175,6 +175,20 @@ export function slugifyCatalogId(name: string): string {
   return slug || 'item';
 }
 
+/**
+ * Full Catalog rows whose catalog id must not follow their name. Boxes, orders and inventory
+ * store the id, so renaming these rows (e.g. adding coin counts) must keep the old id.
+ */
+const PINNED_LISTING_IDS: Record<string, string> = {
+  recxIaQkZ55qi5hv7: 'big-bag-of-gelt',
+  recF3yMAHEv61pJJR: 'party-bag-of-gelt',
+};
+
+/** Catalog id for a Full Catalog row: its pinned id, else the slug of its name. */
+export function listingCatalogId(recordId: string, name: string): string {
+  return PINNED_LISTING_IDS[recordId] ?? slugifyCatalogId(name);
+}
+
 function selectName(v: unknown): string | null {
   if (!v) return null;
   if (typeof v === 'string') return v;
@@ -538,7 +552,7 @@ function listingToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatal
   const unitCostCents = currencyToCents(f[F.unitCost]);
   const memberPriceCents = currencyToCents(f[F.memberPrice]);
   const nonMemberPriceCents = currencyToCents(f[F.nonMemberPrice]);
-  const id = slugifyCatalogId(name);
+  const id = listingCatalogId(rec.id, name);
   const skuRaw = String(f[F.sku] ?? '').trim();
 
   return {
@@ -800,7 +814,7 @@ export async function runAirtableCatalogReplaceSync(): Promise<CatalogSyncResult
     }
     const inProd = selectName(rec.fields[F.inProduction]);
     if (inProd && inProd !== 'Yes') continue;
-    const id = slugifyCatalogId(name);
+    const id = listingCatalogId(rec.id, name);
     const primary = attachments(rec.fields[F.primaryImage]);
     const other = attachments(rec.fields[F.otherImages]);
     let images = NO_IMAGES;
