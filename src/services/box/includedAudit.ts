@@ -93,6 +93,11 @@ export function auditSlotBase(slotId: string): string {
   return match ? match[1] : withoutExtra;
 }
 
+/** A free line in one of the two included food slots (its gelt is extra to the gelt allowance). */
+export function isIncludedFoodSlotLine(li: Pick<BoxLineItem, 'slotId'> & { unitCents?: number }): boolean {
+  return !/::x$/i.test(li.slotId) && (li.unitCents ?? 0) === 0 && FOOD_SLOT_IDS.has(auditSlotBase(li.slotId));
+}
+
 /** Kid key from a per-kid slot (`story-abc` → `abc`), else the line's childId. */
 export function auditKidKey(li: Pick<BoxLineItem, 'slotId' | 'childId'>): string | undefined {
   const m = li.slotId.replace(/::x$/i, '').match(/^(?:story|gift)-(.+)$/);

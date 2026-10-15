@@ -64,7 +64,7 @@ export type MobileBoxEditing = Pick<
   | 'modalRemoveFromBox' | 'donatedLineSnapshots' | 'cardOnFile' | 'swapToPreWrap' | 'swapEligibleIdsBySection' | 'startsOn'
   | 'setProductModalSection' | 'saveOrderUpdates' | 'ordersLoading' | 'modalAddToBox' | 'hasSessionEdits' | 'guestViewOnly'
   | 'freeAddOptionsBySection' | 'estimatedDeliveryBy' | 'changeBoxQuantity' | 'addFreeItemToEmptySlot' | 'geltCeiling'
-  | 'addOnTopCents'
+  | 'addOnTopCents' | 'swapQuantityFor'
 > &
   /** Choosing which presents come wrapped after pre-wrap; the gift flow omits these. */
   Partial<Pick<ReturnType<typeof useMyBoxEditing>, 'wrapSelectedIds' | 'persistWrapSelection' | 'swapBackToPaper' | 'people' | 'topUpIncludedDreidels'>>;
@@ -702,7 +702,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                           <BoxItemImage size={116} imageUrl={o.imageUrl} itemId={o.id} />
                         </Pressable>
                         <Text style={styles.altName} numberOfLines={2}>
-                          {o.name}
+                          {o.name}{swapQtyLabel(g, o)}
                         </Text>
                         <View style={styles.altBtns}>
                           <MobileButton
@@ -777,6 +777,10 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   };
 
   const priceToAdd = (it: CatalogItem, from: BoxDisplaySectionId) => e.addOnTopCents(it, homeSection(it, from));
+  const swapQtyLabel = (g: CoalescedBoxLine, o: CatalogItem) => {
+    const q = e.swapQuantityFor(g.lines.map((l) => l.slotId), o);
+    return q ? ` ×${q}` : '';
+  };
 
   const productSheet = (item: CatalogItem, group: CoalescedBoxLine | null, sectionId: BoxDisplaySectionId) => {
     const wrapping = group ? isWrapControlSlot(group.primary.slotId) : false;
@@ -861,7 +865,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                 <View key={o.id} style={styles.alt}>
                   <BoxItemImage size={104} imageUrl={o.imageUrl} itemId={o.id} />
                   <Text style={styles.altName} numberOfLines={2}>
-                    {o.name}
+                    {o.name}{swapQtyLabel(group, o)}
                   </Text>
                   <MobileButton label="Swap" variant="secondary" height={34} onPress={() => { void e.applySwap(group.lines.map((l) => l.slotId), o); setSheet(null); }} />
                 </View>

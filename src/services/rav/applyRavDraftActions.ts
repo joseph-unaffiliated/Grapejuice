@@ -1,7 +1,7 @@
 import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot';
 import { boxAddOnUnitCents, extraUnitCents } from '../box/pricing';
-import { swapUnitCents } from '../box/swapPricing';
-import { geltSizeOf, geltSwapQuantity, isGeltSwapUp, type GeltSize } from '../box/boxRules';
+import { swapQuantities, swapUnitCents } from '../box/swapPricing';
+import { type GeltSize } from '../box/boxRules';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import { includedPracticeSlotVacant } from '../../components/box/boxLineDisplay';
 
@@ -100,21 +100,17 @@ export function applyRavDraftActions(
       if (idx >= 0) {
         const existing = next[idx];
         const sourceItem = catalog.find((c) => c.id === existing.itemId);
-        const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
-        const toGelt = geltSizeOf(item);
-        if (fromGelt && toGelt) {
-          // Free gelt swaps stay at or under the biggest included bag and keep the same chocolate.
-          if (isGeltSwapUp(fromGelt, toGelt, options?.geltCeiling)) {
-            skipped.push(action);
-            continue;
-          }
-          const qty = geltSwapQuantity(fromGelt, toGelt, existing.quantity ?? 1, options?.geltHeadcount ?? 1);
-          next[idx] = { ...catalogLine(item, existing.slotId, existing.childId, 0), quantity: qty, includedQty: qty };
-        } else {
-          const unit = swapUnitCents(existing, sourceItem, item, { catalog, geltCeiling: options?.geltCeiling });
+        const unit = swapUnitCents(existing, sourceItem, item, { catalog, geltCeiling: options?.geltCeiling });
+        if (unit === undefined) {
           // Not an included swap: Rav adds it on top and the included item stays.
-          if (unit === undefined) next.push(catalogLine(item, `addon-${item.id}`, undefined, addUnitCents(item, next)));
-          else next[idx] = catalogLine(item, existing.slotId, existing.childId, unit);
+          next.push(catalogLine(item, `addon-${item.id}`, undefined, addUnitCents(item, next)));
+        } else {
+          // Gelt keeps the same chocolate; a food slot holds one kit, one Big Bag or three Little Bags.
+          const q = swapQuantities(existing, sourceItem, item, options?.geltHeadcount ?? 1);
+          next[idx] = {
+            ...catalogLine(item, existing.slotId, existing.childId, unit),
+            ...(q ? { quantity: q.quantity, ...(unit === 0 ? { includedQty: q.quantity } : {}) } : {}),
+          };
         }
       } else {
         const childId = action.childId;

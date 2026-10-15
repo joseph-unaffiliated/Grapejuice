@@ -23,7 +23,7 @@ import {
 } from '../../services/box/buildDefaultBox';
 import { geltCeilingForPeople, geltSizeOf, listBoxCentsForKids } from '../../services/box/boxRules';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
-import { addOnTopUnitCents, geltAddFitsAllowance, isIncludedSwap, swapUnitCents } from '../../services/box/swapPricing';
+import { addOnTopUnitCents, geltAddFitsAllowance, isIncludedSwap, swappedQuantity, swapUnitCents } from '../../services/box/swapPricing';
 import {
   resolveSectionUpsellItems,
   resolveFreeSlotAddOptions,
@@ -581,7 +581,8 @@ export function GiftGiverCustomizeContent({
                   group.itemId,
                   opt.id,
                   Math.max(1, group.quantity ?? 1),
-                  0
+                  0,
+                  swappedQuantity(lineItems, group.lines.map((line) => line.slotId), opt, catalog, people)
                 );
                 applySwap(group.lines.map((line) => line.slotId), opt);
               }}
@@ -830,7 +831,8 @@ export function GiftGiverCustomizeContent({
               source.itemId,
               next.id,
               Math.max(1, source.quantity ?? 1),
-              nextUnit
+              nextUnit,
+              swappedQuantity(lineItems, [source.slotId], next, catalog, people)
             );
           }
           applySwap(
@@ -846,12 +848,10 @@ export function GiftGiverCustomizeContent({
       />
       <SwapIntoBoxModal
         visible={swapPicker != null && (swapPicker?.options.length ?? 0) > 0}
-        options={(swapPicker?.options ?? []).map((opt) => ({
-          key: opt.id,
-          name: opt.name,
-          imageUrl: opt.imageUrl,
-          itemId: opt.id,
-        }))}
+        options={(swapPicker?.options ?? []).map((opt) => {
+          const qty = swappedQuantity(lineItems, swapPicker?.slotIds ?? [], opt, catalog, people);
+          return { key: opt.id, name: qty > 1 ? `${opt.name} ×${qty}` : opt.name, imageUrl: opt.imageUrl, itemId: opt.id };
+        })}
         onSelect={(key) => {
           if (!swapPicker) return;
           const opt = swapPicker.options.find((o) => o.id === key);
@@ -863,7 +863,8 @@ export function GiftGiverCustomizeContent({
             sourceItemId,
             opt.id,
             quantity,
-            0
+            0,
+            swappedQuantity(lineItems, slotIds, opt, catalog, people)
           );
           applySwap(slotIds, opt);
         }}

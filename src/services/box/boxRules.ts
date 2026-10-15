@@ -364,9 +364,9 @@ export const SECTION_RULES: SectionRules[] = [
         role: 'default',
         swaps: [
           {
-            targetSlotOrKind: 'gelt-small×2',
+            targetSlotOrKind: 'gelt-small×3',
             price: 'included',
-            note: 'From medium default: two small bags no charge',
+            note: 'From a Big Bag default: three Little Bags, same chocolate',
           },
           { targetSlotOrKind: 'more-gelt-small', price: 'extra' },
           { targetSlotOrKind: 'more-gelt-medium', price: 'extra' },
@@ -380,8 +380,8 @@ export const SECTION_RULES: SectionRules[] = [
     id: 'food',
     title: 'Eat & Drink',
     notes: [
-      'Latke mix + sufganiyot mix both default until either kit is nearly gone; then the default is one mix (whichever has more left).',
-      'Latke and sufganiyot swap independently; box may end with no mixes.',
+      'Always two food slots: latke kit + sufganiyot kit by default. When one kit is nearly gone its slot gets the other kit (two of one kit is fine), then a Big Bag of gelt.',
+      'Each food slot swaps independently to a kit, a Big Bag, or up to three Little Bags; there are always two.',
       'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
     ],
     slots: [
@@ -389,10 +389,10 @@ export const SECTION_RULES: SectionRules[] = [
         defaultKind: 'latke-mix',
         role: 'default',
         swaps: [
+          { targetSlotOrKind: 'sufganiyot-mix', price: 'included' },
           { targetSlotOrKind: 'cookie-cutters', price: 'included' },
-          { targetSlotOrKind: 'napkins', price: 'included' },
           { targetSlotOrKind: 'gelt-medium', price: 'included' },
-          { targetSlotOrKind: 'gelt-small×2', price: 'included' },
+          { targetSlotOrKind: 'gelt-small×3', price: 'included' },
           { targetSlotOrKind: 'gelt-party', price: 'extra' },
           { targetSlotOrKind: 'latke-stuffie', price: 'extra' },
           { targetSlotOrKind: 'donate', price: 'donate' },
@@ -402,10 +402,10 @@ export const SECTION_RULES: SectionRules[] = [
         defaultKind: 'sufganiyot-mix',
         role: 'default',
         swaps: [
+          { targetSlotOrKind: 'latke-mix', price: 'included' },
           { targetSlotOrKind: 'cookie-cutters', price: 'included' },
-          { targetSlotOrKind: 'napkins', price: 'included' },
           { targetSlotOrKind: 'gelt-medium', price: 'included' },
-          { targetSlotOrKind: 'gelt-small×2', price: 'included' },
+          { targetSlotOrKind: 'gelt-small×3', price: 'included' },
           { targetSlotOrKind: 'gelt-party', price: 'extra' },
           { targetSlotOrKind: 'sufganiyah-stuffie', price: 'extra' },
           { targetSlotOrKind: 'donate', price: 'donate' },
@@ -761,21 +761,26 @@ export function planCandlesDefault(
 }
 
 /**
- * Both mixes until either kit is down to its swap reserve; then the single mix
- * with more left. Later boxes may get no mix once both kits are gone.
+ * What fills each of the two food slots (latke slot, then sufganiyot slot) — always two.
+ * A kit down to its swap reserve gives its slot to the other kit (two of one kit is fine),
+ * then to a Big Bag of gelt; with nothing spare, whichever option has the most left.
  */
 export function planFoodDefaults(catalog: BoxRulesCatalogRow[] | undefined): DefaultSlotId[] {
   const both: DefaultSlotId[] = ['latke-mix', 'sufganiyot-mix'];
   if (!catalog?.length) return both;
-  const options = both
-    .map((slot) => ({ slot, row: resolveByDefaultSlot(catalog, slot) }))
-    .filter((o): o is { slot: DefaultSlotId; row: BoxRulesCatalogRow } => !!o.row);
-  if (options.length < 2) return both;
-  if (options.every((o) => isDefaultEligible(o.row))) return both;
-  const single = options
-    .filter((o) => canAssignUnit(o.row))
-    .sort((a, b) => (rowStockLeft(b.row) ?? 0) - (rowStockLeft(a.row) ?? 0))[0];
-  return single ? [single.slot] : [];
+  return both.map((preferred) => {
+    const order: DefaultSlotId[] = [preferred, ...both.filter((s) => s !== preferred), 'gelt-medium'];
+    const options = order
+      .map((slot) => ({ slot, row: resolveByDefaultSlot(catalog, slot) }))
+      .filter((o): o is { slot: DefaultSlotId; row: BoxRulesCatalogRow } => !!o.row);
+    return (
+      options.find((o) => isDefaultEligible(o.row))?.slot ??
+      options
+        .filter((o) => canAssignUnit(o.row))
+        .sort((a, b) => (rowStockLeft(b.row) ?? 0) - (rowStockLeft(a.row) ?? 0))[0]?.slot ??
+      preferred
+    );
+  });
 }
 
 /**
@@ -1370,7 +1375,7 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
   const exampleCandles = resolveCandlesRow(catalog, example.candlesDefault);
   const exampleFood = example.foodDefaults.length
     ? example.foodDefaults.map((slot) => annotateSlot(catalog, slot)).join(' + ')
-    : '(no mixes left)';
+    : '(no food options left)';
   const exampleGift = resolveGiftKind(catalog, giftEx.kind, giftEx.age);
 
   const sectionBlocks = SECTION_RULES.map((sec) => {
@@ -1394,7 +1399,7 @@ export function renderBoxRulesContext(catalog?: BoxRulesCatalogRow[]): string {
     'Simple default (know-nothing, 1 kid age 5):',
     `- Light Candles: ${example.candlesDefault}${exampleCandles ? `→${exampleCandles.id}` : ''} (not menorah)`,
     `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
-    `- Eat & Drink: ${exampleFood} (both mixes until kits are nearly gone, then one; latke kit includes applesauce spice mix)`,
+    `- Eat & Drink: ${exampleFood} (always two food slots; a nearly-gone kit is replaced by the other kit, then a Big Bag; latke kit includes applesauce spice mix)`,
     `- Tell the Story: 1 age-default book for the 5yo${resolveBookForAge(catalog, 5) ? ` (${resolveBookForAge(catalog, 5)!.id})` : ''}`,
     `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${exampleGift ? `≈${exampleGift.id}` : ''}`,
     '',

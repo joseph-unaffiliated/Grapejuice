@@ -4,7 +4,7 @@ import { useLockAt } from '../../hooks/useBoxLockDay';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { findSwapSourceLine } from '../../services/box/findSwapSourceLine';
-import { isIncludedSwap, swapUnitCents } from '../../services/box/swapPricing';
+import { isIncludedSwap, swappedQuantity, swapUnitCents } from '../../services/box/swapPricing';
 import {
   filterBooksForKidAges,
   kidPlannerAges,
@@ -299,6 +299,10 @@ export function useGiftMobileBoxEditing(draft: GiftDraft, onNext: () => void): M
     estimatedDeliveryBy: null,
     setProductModalSection,
     applySwap: async (slotIds, item) => draft.applySwap(slotIds, item),
+    swapQuantityFor: (slotIds, item) => {
+      const total = swappedQuantity(lineItems, slotIds, item, catalog, draft.people);
+      return total > 1 ? total : undefined;
+    },
     swapToPreWrap: async (slotIds) => {
       const idSet = new Set(slotIds);
       for (const li of latest.current.lineItems) {

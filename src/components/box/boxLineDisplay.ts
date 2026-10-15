@@ -1075,20 +1075,23 @@ export function restoreIncludedUnit(
 /**
  * Lateral included swaps replace one free SKU with another — they are not donations.
  * Drop (or reduce) the source baseline and, when the target stays free ($0), move that
- * included allotment onto the new itemId so Donated stays accurate.
+ * included allotment onto the new itemId so Donated stays accurate. `qty` units leave;
+ * `toQty` arrive (three Little Bags for one kit).
  */
 export function transferIncludedBaselineOnSwap(
   baselines: Map<string, number>,
   fromItemId: string,
   toItemId: string,
   qty: number,
-  toUnitCents: number
+  toUnitCents: number,
+  toQty = qty
 ): void {
   const n = Math.max(0, Math.floor(qty));
+  const arriving = Math.max(0, Math.floor(toQty));
   if (!fromItemId || n <= 0) return;
   if (fromItemId === toItemId) {
     if (toUnitCents === 0 && toItemId) {
-      baselines.set(toItemId, Math.max(baselines.get(toItemId) ?? 0, n));
+      baselines.set(toItemId, Math.max(baselines.get(toItemId) ?? 0, arriving));
     }
     return;
   }
@@ -1102,7 +1105,7 @@ export function transferIncludedBaselineOnSwap(
     baselines.delete(fromItemId);
   }
   if (toUnitCents === 0 && toItemId) {
-    baselines.set(toItemId, Math.max(baselines.get(toItemId) ?? 0, n));
+    baselines.set(toItemId, Math.max(baselines.get(toItemId) ?? 0, arriving));
   }
 }
 
@@ -1153,10 +1156,11 @@ export function transferLiveIncludedBaselineOnSwap(
   fromItemId: string,
   toItemId: string,
   qty: number,
-  toUnitCents: number
+  toUnitCents: number,
+  toQty = qty
 ): void {
   if (!liveIncludedBaselines) return;
-  transferIncludedBaselineOnSwap(liveIncludedBaselines, fromItemId, toItemId, qty, toUnitCents);
+  transferIncludedBaselineOnSwap(liveIncludedBaselines, fromItemId, toItemId, qty, toUnitCents, toQty);
 }
 
 /**

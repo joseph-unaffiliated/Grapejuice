@@ -27,8 +27,8 @@ import {
   findSwapSourceLine,
   findSwapSourceLines,
 } from '../../services/box/findSwapSourceLine';
-import { swapUnitCents } from '../../services/box/swapPricing';
-import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, type GeltSize } from '../../services/box/boxRules';
+import { swapQuantities, swapUnitCents } from '../../services/box/swapPricing';
+import { geltCeilingForPeople, type GeltSize } from '../../services/box/boxRules';
 import type { BoxLineItem, CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -187,13 +187,9 @@ export function StorefrontProductGrid({
     if (unitCents === undefined) return;
     const delta = Math.max(0, unitCents - (source.unitCents ?? 0));
     if (delta > 0 && !guardMutation()) return;
-    const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
-    const toGelt = geltSizeOf(swapIncoming);
     const quantity =
-      fromGelt && toGelt
-        ? geltSwapQuantity(fromGelt, toGelt, Math.max(1, source.quantity ?? 1), people)
-        : Math.max(1, source.quantity ?? 1);
-    transferLiveIncludedBaselineOnSwap(source.itemId, swapIncoming.id, quantity, unitCents);
+      swapQuantities(source, sourceItem, swapIncoming, people)?.quantity ?? Math.max(1, source.quantity ?? 1);
+    transferLiveIncludedBaselineOnSwap(source.itemId, swapIncoming.id, Math.max(1, source.quantity ?? 1), unitCents, quantity);
     const next = lineItems.map((li) =>
       li.slotId === source.slotId && li.itemId === source.itemId
         ? {

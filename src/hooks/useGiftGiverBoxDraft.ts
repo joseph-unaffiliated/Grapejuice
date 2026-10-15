@@ -7,9 +7,9 @@ import {
   isHouseholdPracticeCatalogItem,
 } from '../services/box/buildDefaultBox';
 import { resolveSwapOptionsForItem, resolveIncludedGiftOptions } from '../services/box/sectionUpsells';
-import { addOnTopUnitCents, swapOptionsForLine, swapUnitCents } from '../services/box/swapPricing';
+import { addOnTopUnitCents, swapOptionsForLine, swapQuantities, swapUnitCents } from '../services/box/swapPricing';
 import { EXTRA_FLAT_CENTS, extraUnitCents } from '../services/box/pricing';
-import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity } from '../services/box/boxRules';
+import { geltCeilingForPeople } from '../services/box/boxRules';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -182,23 +182,19 @@ export function useGiftGiverBoxDraft(
       setLineItems((prev) => {
         const sourceLine = prev.find((li) => idSet.has(li.slotId));
         const sourceItem = sourceLine ? catalog.find((c) => c.id === sourceLine.itemId) : undefined;
-        // Gelt for gelt keeps the same chocolate (Big Bag → three Little Bags).
-        const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
-        const toGelt = geltSizeOf(newItem);
-        const geltQty = (qty: number) =>
-          fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, people) : qty;
+        // Gelt keeps the same chocolate (Big Bag → three Little Bags); a food slot holds one kit,
+        // one Big Bag or three Little Bags.
+        const quantitiesFor = (li: BoxLineItem) => swapQuantities(li, sourceItem, newItem, people);
         const nextUnit =
           (sourceLine ? swapUnitCents(sourceLine, sourceItem, newItem, ctx) : undefined) ?? extraUnitCents(newItem);
         if (sourceLine?.itemId) {
-          const swappedQty = prev
-            .filter((li) => idSet.has(li.slotId))
-            .reduce((s, li) => s + geltQty(Math.max(1, li.quantity ?? 1)), 0);
-          transferLiveIncludedBaselineOnSwap(
-            sourceLine.itemId,
-            newItem.id,
-            swappedQty,
-            nextUnit
+          const swapped = prev.filter((li) => idSet.has(li.slotId));
+          const leavingQty = swapped.reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+          const swappedQty = swapped.reduce(
+            (s, li) => s + (quantitiesFor(li)?.quantity ?? Math.max(1, li.quantity ?? 1)),
+            0
           );
+          transferLiveIncludedBaselineOnSwap(sourceLine.itemId, newItem.id, leavingQty, nextUnit, swappedQty);
         }
         return prev.map((li) =>
           idSet.has(li.slotId)
@@ -208,12 +204,7 @@ export function useGiftGiverBoxDraft(
                 itemId: newItem.id,
                 unitCents: nextUnit,
                 label: newItem.name,
-                ...(fromGelt && toGelt
-                  ? {
-                      quantity: geltQty(Math.max(1, li.quantity ?? 1)),
-                      ...(li.includedQty ? { includedQty: geltQty(li.includedQty) } : {}),
-                    }
-                  : null),
+                ...quantitiesFor(li),
                 ...(opts?.displaySectionId
                   ? { displaySectionId: opts.displaySectionId }
                   : null),

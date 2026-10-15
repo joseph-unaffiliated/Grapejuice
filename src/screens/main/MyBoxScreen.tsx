@@ -205,6 +205,7 @@ export function MyBoxScreen() {
     swapEligibleIdsBySection,
     swapOptionsBySlot,
     swapPicker,
+    swapQuantityFor,
     swapToPreWrap,
     swapBackToPaper,
     toggleSurprise,
@@ -1221,12 +1222,10 @@ export function MyBoxScreen() {
       />
       <SwapIntoBoxModal
         visible={swapPicker != null && (swapPicker?.options.length ?? 0) > 0}
-        options={(swapPicker?.options ?? []).map((opt) => ({
-          key: opt.id,
-          name: opt.name,
-          imageUrl: opt.imageUrl,
-          itemId: opt.id,
-        }))}
+        options={(swapPicker?.options ?? []).map((opt) => {
+          const qty = swapQuantityFor(swapPicker?.slotIds ?? [], opt);
+          return { key: opt.id, name: qty ? `${opt.name} ×${qty}` : opt.name, imageUrl: opt.imageUrl, itemId: opt.id };
+        })}
         onSelect={(key) => {
           if (!swapPicker) return;
           const opt = swapPicker.options.find((o) => o.id === key);

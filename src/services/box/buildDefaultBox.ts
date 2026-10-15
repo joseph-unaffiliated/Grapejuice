@@ -258,10 +258,11 @@ export function buildCuratedBox(
     });
   }
 
-  for (const foodSlot of outline.foodDefaults) {
-    const item = resolveSlotItem(catalog, rows, foodSlot);
-    if (item) pushLineItem(lineItems, foodSlot, item);
-  }
+  const foodSlotIds = ['latke-mix', 'sufganiyot-mix'] as const;
+  outline.foodDefaults.forEach((content, i) => {
+    const item = resolveSlotItem(catalog, rows, content);
+    if (item && foodSlotIds[i]) pushLineItem(lineItems, foodSlotIds[i], item);
+  });
 
   const booksInBox = new Set<string>();
   for (const p of paired) {

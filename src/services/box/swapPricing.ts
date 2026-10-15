@@ -14,7 +14,15 @@ import {
   displaySectionForSlotId,
   type BoxDisplaySectionId,
 } from '../../constants/boxDisplaySections';
-import { GELT_LITTLE_EQUIVALENT, geltAllowance, geltSizeOf, isGeltSwapUp, type GeltSize } from './boxRules';
+import {
+  GELT_LITTLE_EQUIVALENT,
+  geltAllowance,
+  geltSizeOf,
+  geltSwapQuantity,
+  isGeltSwapUp,
+  type GeltSize,
+} from './boxRules';
+import { FOOD_SLOT_MAX_LITTLE_BAGS, isIncludedFoodSlotLine } from './includedAudit';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, extraUnitCents } from './pricing';
 import {
   isBookishCatalogItem,
@@ -88,6 +96,48 @@ export function swapOptionsForLine(
   return options.filter((o) => isIncludedSwap(line, sourceItem, o, ctx));
 }
 
+/**
+ * Quantities after swapping `target` into `line`, or null when they don't change (e.g. a
+ * household's wood dreidels swapped to airdry keep their count). A food slot holds one kit,
+ * one Big Bag or three Little Bags. Elsewhere gelt keeps the same chocolate, capped at the
+ * household's allowance (`geltSwapQuantity`).
+ */
+export function swapQuantities(
+  line: SwapLine,
+  sourceItem: CatalogItem | undefined | null,
+  target: CatalogItem,
+  people: number
+): { quantity: number; includedQty?: number } | null {
+  const qty = Math.max(1, line.quantity ?? 1);
+  const from = sourceItem ? geltSizeOf(sourceItem) : null;
+  const to = geltSizeOf(target);
+  if (isIncludedFoodSlotLine(line)) {
+    const quantity = to === 'small' ? (from === 'small' ? qty : FOOD_SLOT_MAX_LITTLE_BAGS) : 1;
+    if (quantity === qty && !line.includedQty) return null;
+    return { quantity, ...(line.includedQty ? { includedQty: quantity } : {}) };
+  }
+  if (!from || !to) return null;
+  const convert = (n: number) => geltSwapQuantity(from, to, n, people);
+  return { quantity: convert(qty), ...(line.includedQty ? { includedQty: convert(line.includedQty) } : {}) };
+}
+
+/** Units of `target` the box holds after swapping it into `slotIds` — a swap card's "×3". */
+export function swappedQuantity(
+  lineItems: BoxLineItem[],
+  slotIds: string[],
+  target: CatalogItem,
+  catalog: CatalogItem[],
+  people: number
+): number {
+  const idSet = new Set(slotIds);
+  const lines = lineItems.filter((li) => idSet.has(li.slotId));
+  const sourceItem = lines[0] ? catalog.find((c) => c.id === lines[0].itemId) : undefined;
+  return lines.reduce(
+    (s, li) => s + (swapQuantities(li, sourceItem, target, people)?.quantity ?? Math.max(1, li.quantity ?? 1)),
+    0
+  );
+}
+
 export type AddPricingContext = {
   catalog: CatalogItem[];
   lineItems: BoxLineItem[];
@@ -107,10 +157,10 @@ function isPaperItem(item: CatalogItem): boolean {
   );
 }
 
-/** Little Bags' worth of gelt the box already holds free. */
+/** Little Bags' worth of gelt the box already holds free, outside the food slots. */
 export function includedGeltLittleBags(lineItems: BoxLineItem[], catalog: CatalogItem[]): number {
   return lineItems.reduce((n, li) => {
-    if ((li.unitCents ?? 0) > 0 || li.program === 'pilot') return n;
+    if ((li.unitCents ?? 0) > 0 || li.program === 'pilot' || isIncludedFoodSlotLine(li)) return n;
     const row = catalog.find((c) => c.id === li.itemId) ?? { id: li.itemId, name: li.label ?? '' };
     const size = geltSizeOf(row);
     return size ? n + GELT_LITTLE_EQUIVALENT[size] * Math.max(1, li.quantity ?? 1) : n;

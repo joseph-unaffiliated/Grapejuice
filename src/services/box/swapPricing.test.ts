@@ -6,7 +6,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { addOnTopUnitCents, swapOptionsForLine, swapUnitCents } from './swapPricing';
+import {
+  addOnTopUnitCents,
+  includedGeltLittleBags,
+  swapOptionsForLine,
+  swappedQuantity,
+  swapQuantities,
+  swapUnitCents,
+} from './swapPricing';
+import { transferIncludedBaselineOnSwap } from '../../components/box/boxLineDisplay';
 import { EXTRA_FLAT_CENTS } from './pricing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 
@@ -92,5 +100,43 @@ assert.equal(addOnTopUnitCents(get('big-bag-of-gelt'), 'dreidel', addCtx([{ ...l
 // Paper is free back in place of pre-wrap, extra on top of an active wrap list.
 assert.equal(addOnTopUnitCents(paper, 'presents', addCtx([])), 0);
 assert.equal(addOnTopUnitCents(paper, 'presents', addCtx([], 4, 2)), EXTRA_FLAT_CENTS);
+
+// Food slots hold one kit, one Big Bag or three Little Bags — whatever the household size.
+const LITTLE = 'little-bag-of-gelt-2-big-5-little';
+const qtyAfter = (li: BoxLineItem, to: string, people = 2) => swapQuantities(li, get(li.itemId), get(to), people);
+assert.deepEqual(qtyAfter(line('latke-mix', 'latke-kit'), LITTLE), { quantity: 3 });
+assert.deepEqual(qtyAfter({ ...line('latke-mix', 'latke-kit'), includedQty: 1 }, LITTLE), { quantity: 3, includedQty: 3 });
+assert.equal(qtyAfter(line('latke-mix', 'latke-kit'), 'big-bag-of-gelt'), null);
+assert.deepEqual(qtyAfter({ ...line('sufganiyot-mix', LITTLE), quantity: 3 }, 'sufganiyot-kit'), { quantity: 1 });
+assert.deepEqual(qtyAfter({ ...line('sufganiyot-mix', LITTLE), quantity: 3 }, 'big-bag-of-gelt'), { quantity: 1 });
+assert.deepEqual(qtyAfter(line('sufganiyot-mix', 'big-bag-of-gelt'), LITTLE, 1), { quantity: 3 });
+// Outside the food slots gelt keeps its chocolate, capped at the allowance; other lines keep their count.
+assert.deepEqual(qtyAfter(line('gelt-medium', 'big-bag-of-gelt'), LITTLE, 3), { quantity: 3 });
+assert.deepEqual(qtyAfter(line('gelt-medium', 'big-bag-of-gelt'), LITTLE, 2), { quantity: 2 });
+assert.equal(qtyAfter({ ...line('wood-dreidel', 'classic-wooden-dreidel'), quantity: 3 }, 'airdry-clay-dreidel'), null);
+// A paid extra in a food slot isn't a food slot.
+assert.equal(qtyAfter(line('latke-mix::x', 'latke-kit', 500), LITTLE), null);
+
+// Food-slot gelt is extra to the one-Little-Bag-per-person allowance.
+const foodGelt = [{ ...line('latke-mix', LITTLE), quantity: 3 }, line('sufganiyot-mix', 'big-bag-of-gelt')];
+assert.equal(includedGeltLittleBags(foodGelt, catalog), 0);
+assert.equal(addOnTopUnitCents(get(LITTLE), 'dreidel', addCtx(foodGelt, 1)), 0);
+
+// A swap card's "×N": what the box holds after the swap.
+const kitBox = [line('latke-mix', 'latke-kit'), line('sufganiyot-mix', 'sufganiyot-kit')];
+assert.equal(swappedQuantity(kitBox, ['latke-mix'], get(LITTLE), catalog, 2), 3);
+assert.equal(swappedQuantity(kitBox, ['latke-mix'], get('sufganiyot-kit'), catalog, 2), 1);
+assert.equal(swappedQuantity([{ ...line('gelt-medium', 'big-bag-of-gelt') }], ['gelt-medium'], get(LITTLE), catalog, 4), 3);
+
+// Three Little Bags out, one kit in: nothing is left behind as donated.
+{
+  const baselines = new Map([[LITTLE, 3]]);
+  transferIncludedBaselineOnSwap(baselines, LITTLE, 'latke-kit', 3, 0, 1);
+  assert.equal(baselines.has(LITTLE), false);
+  assert.equal(baselines.get('latke-kit'), 1);
+  const back = new Map([['latke-kit', 1]]);
+  transferIncludedBaselineOnSwap(back, 'latke-kit', LITTLE, 1, 0, 3);
+  assert.equal(back.get(LITTLE), 3);
+}
 
 console.log('swapPricing.test: ok');

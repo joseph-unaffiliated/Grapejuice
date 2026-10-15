@@ -34,13 +34,15 @@ import {
   woodDreidelCatalogItem,
 } from '../services/box/buildDefaultBox';
 import { topUpDreidelLines } from '../services/box/includedAudit';
-import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity, listBoxCentsForKids } from '../services/box/boxRules';
+import { geltCeilingForPeople, geltSizeOf, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
 import {
   addOnTopUnitCents,
   geltAddFitsAllowance,
   isIncludedSwap,
   swapOptionsForLine,
+  swappedQuantity,
+  swapQuantities,
   swapUnitCents,
   type AddPricingContext,
 } from '../services/box/swapPricing';
@@ -348,6 +350,12 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     return next;
   }, [lineItems, catalog, geltCeiling, kidAgeById]);
 
+  /** How many of `option` a swap into these slots gives (e.g. three Little Bags), when more than one. */
+  const swapQuantityFor = (slotIds: string[], option: CatalogItem): number | undefined => {
+    const total = swappedQuantity(lineItems, slotIds, option, catalog, people);
+    return total > 1 ? total : undefined;
+  };
+
   const applySwap = async (slotIds: string[], newItem: CatalogItem) => {
     if (locked) return;
     const idSet = new Set(slotIds);
@@ -360,25 +368,23 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     // An included slot never swaps to something it doesn't include — that's an add-on on top.
     if (priced === undefined) return modalAddToBox(newItem);
     const nextUnit = priced;
-    // Gelt for gelt keeps the same chocolate (Big Bag → three Little Bags), never more
-    // than one Little Bag per person.
-    const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
-    const toGelt = geltSizeOf(newItem);
-    const geltQty = (qty: number) =>
-      fromGelt && toGelt ? geltSwapQuantity(fromGelt, toGelt, qty, people) : qty;
     // Guests edit the local draft (“Sign up to save”); payment gate is for signed-in paid extras.
     if (!guestViewOnly && nextUnit > 0 && !guardMutation()) return;
-    const swappedQty = lineItems
-      .filter((li) => idSet.has(li.slotId))
-      .reduce((s, li) => s + geltQty(Math.max(1, li.quantity ?? 1)), 0);
+    // Gelt keeps the same chocolate (Big Bag → three Little Bags); a food slot holds one kit,
+    // one Big Bag or three Little Bags. Other household sets (wood dreidels) keep their count.
+    const quantitiesFor = (li: BoxLineItem) => swapQuantities(li, sourceItem, newItem, people);
+    const swapped = lineItems.filter((li) => idSet.has(li.slotId));
+    const leavingQty = swapped.reduce((s, li) => s + Math.max(1, li.quantity ?? 1), 0);
+    const swappedQty = swapped.reduce((s, li) => s + (quantitiesFor(li)?.quantity ?? Math.max(1, li.quantity ?? 1)), 0);
     if (sourceLine?.itemId) {
       // Swaps replace included allotment — do not count the old SKU as Donated.
       transferIncludedBaselineOnSwap(
         includedBaselineByItemId.current,
         sourceLine.itemId,
         newItem.id,
-        swappedQty,
-        nextUnit
+        leavingQty,
+        nextUnit,
+        swappedQty
       );
     }
     const next = lineItems.map((li) =>
@@ -389,13 +395,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
             itemId: newItem.id,
             unitCents: nextUnit,
             label: newItem.name,
-            ...(fromGelt && toGelt
-              ? {
-                  quantity: geltQty(Math.max(1, li.quantity ?? 1)),
-                  ...(li.includedQty ? { includedQty: geltQty(li.includedQty) } : {}),
-                }
-              : {}),
-            // Other household sets (wood dreidels) keep qty/includedQty — never peel one unit.
+            ...quantitiesFor(li),
             // Fresh swap drops any prior curation note.
             curationNote: undefined,
           }
@@ -877,7 +877,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const modalSwapIntoBox = async (item: CatalogItem, source: BoxLineItem) => {
     if (locked) return;
     const sourceItem = catalog.find((c) => c.id === source.itemId);
-    if (sourceItem && geltSizeOf(sourceItem) && geltSizeOf(item)) return applySwap([source.slotId], item);
+    if (swapQuantities(source, sourceItem, item, people)) return applySwap([source.slotId], item);
     const priced = swapUnitCents(source, sourceItem, item, { catalog, geltCeiling });
     if (priced === undefined) return modalAddToBox(item);
     const nextUnit = priced;
@@ -1414,6 +1414,7 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     swapEligibleIdsBySection,
     swapOptionsBySlot,
     swapPicker,
+    swapQuantityFor,
     swapToPreWrap,
     swapBackToPaper,
     toggleSurprise,

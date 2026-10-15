@@ -275,7 +275,6 @@ const KIND_PATTERNS: Record<string, RegExp[]> = {
   'more-dreidels': [/dreidel/i],
   'electric-candles': [/electric.*candle|candle.*electric/i],
   'cookie-cutters': [/cookie.?cutter/i],
-  napkins: [/napkin/i],
   'latke-stuffie': [/latke.*(stuffie|plush)|plush.*latke|^latke,\s*the\s*latke\s*stuffie/i],
   'sufganiyah-stuffie': [
     /sufgan.*(stuffie|plush)|plush.*sufgan|donut.*plush|jelly,\s*the\s*sufganiyah\s*stuffie/i,
@@ -283,7 +282,7 @@ const KIND_PATTERNS: Record<string, RegExp[]> = {
   'menorah-stuffie': [/menorah.*stuffie|shamash,\s*the\s*menorah\s*stuffie|plush.*menorah/i],
   'more-gelt-small': [/gelt.*small|small.*gelt|little.?bag.*gelt|gelt.*little.?bag/i],
   'more-gelt-medium': [/gelt.*medium|medium.*gelt|big.?bag.*gelt|gelt.*big.?bag|^gelt$/i],
-  'gelt-small×2': [/gelt.*small|small.*gelt|little.?bag.*gelt|gelt.*little.?bag/i],
+  'gelt-small×3': [/gelt.*small|small.*gelt|little.?bag.*gelt|gelt.*little.?bag/i],
   // Party gelt already matched via gelt.*party|party.*gelt in section graphs.
   'more-books': [/book|story/i],
   'any-book': [/book|story/i],
@@ -369,11 +368,8 @@ function collectUpsellKinds(sectionId: BoxSectionId): string[] {
     }
   }
 
-  // Eat & Drink: keep napkins + cookie cutters even if a slot graph omits them.
-  if (sectionId === 'food') {
-    push('cookie-cutters');
-    push('napkins');
-  }
+  // Eat & Drink: keep cookie cutters even if a slot graph omits them.
+  if (sectionId === 'food') push('cookie-cutters');
 
   // Play Dreidel: surface gelt bags before the greedy `more-dreidels` catch-all
   // fills the rail (otherwise Little/Big/Party bag never appear).
@@ -382,7 +378,7 @@ function collectUpsellKinds(sectionId: BoxSectionId): string[] {
       'more-gelt-small',
       'more-gelt-medium',
       'gelt-party',
-      'gelt-small×2',
+      'gelt-small×3',
     ];
     const rest = kinds.filter((k) => !geltPreferred.includes(normalizeKind(k)) && k !== 'more-dreidels');
     const hasMoreDreidels = kinds.some((k) => normalizeKind(k) === 'more-dreidels');

@@ -121,15 +121,20 @@ function catalog(stockLeft: Record<string, number> = {}): BoxRulesCatalogRow[] {
   assert.ok(outline.gifts.every((g) => g.kind !== 'diy-candles'));
 }
 
-// Food: both mixes until either kit reaches its swap reserve, then the fuller one.
+// Food: always two slots. A kit at its swap reserve gives its slot to the other kit, then a Big Bag.
 {
   assert.deepEqual(planFoodDefaults(catalog()), ['latke-mix', 'sufganiyot-mix']);
   assert.deepEqual(
     planFoodDefaults(catalog({ 'latke-kit': 20, 'sufganiyot-kit': 25 })),
     ['latke-mix', 'sufganiyot-mix']
   );
-  assert.deepEqual(planFoodDefaults(catalog({ 'latke-kit': 15, 'sufganiyot-kit': 25 })), ['sufganiyot-mix']);
-  assert.deepEqual(planFoodDefaults(catalog({ 'latke-kit': 1, 'sufganiyot-kit': 1 })), []);
+  assert.deepEqual(
+    planFoodDefaults(catalog({ 'latke-kit': 15, 'sufganiyot-kit': 25 })),
+    ['sufganiyot-mix', 'sufganiyot-mix']
+  );
+  const withGelt = [...catalog({ 'latke-kit': 1, 'sufganiyot-kit': 1 }), row('big-bag-of-gelt', 'Big Bag of Gelt (5 big, 20 little)', 200, { defaultSlot: 'gelt-medium' })];
+  assert.deepEqual(planFoodDefaults(withGelt), ['gelt-medium', 'gelt-medium']);
+  assert.equal(planFoodDefaults(catalog({ 'latke-kit': 0, 'sufganiyot-kit': 0 })).length, 2);
 }
 
 console.log('boxRules stock tests passed');

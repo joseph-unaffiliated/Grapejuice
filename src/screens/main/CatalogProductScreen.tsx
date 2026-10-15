@@ -44,11 +44,11 @@ import {
 } from '../../services/catalog/availability';
 import { findSwapSourceLines } from '../../services/box/findSwapSourceLine';
 import { ProductNote } from '../../components/box/ProductNote';
-import { geltCeilingForPeople, geltSizeOf, geltSwapQuantity } from '../../services/box/boxRules';
+import { geltCeilingForPeople } from '../../services/box/boxRules';
 import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import { trackMetaProduct } from '../../services/analytics/metaPixel';
 import { resolveIncludedGiftOptions, resolveSwapOptionsForItem } from '../../services/box/sectionUpsells';
-import { swapOptionsForLine, swapUnitCents } from '../../services/box/swapPricing';
+import { swapOptionsForLine, swapQuantities, swapUnitCents } from '../../services/box/swapPricing';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { MobileBoundary } from '../../components/mobile/MobileBoundary';
 import { MobileProductBody, type RoleOption } from '../mobile/MobileProductBody';
@@ -387,15 +387,10 @@ export function CatalogProductScreen() {
     if (unitCents === undefined) return addToBox();
     const delta = Math.max(0, unitCents - (source.unitCents ?? 0));
     if (delta > 0 && !guardMutation()) return;
-    const fromGelt = sourceItem ? geltSizeOf(sourceItem) : null;
-    const toGelt = geltSizeOf(item);
-    const quantity =
-      fromGelt && toGelt
-        ? geltSwapQuantity(fromGelt, toGelt, Math.max(1, source.quantity ?? 1), people)
-        : Math.max(1, source.quantity ?? 1);
+    const quantity = swapQuantities(source, sourceItem, item, people)?.quantity ?? Math.max(1, source.quantity ?? 1);
     // Use live draft when present; otherwise persist the seeded default box + swap.
     const base = lineItems.length > 0 ? lineItems : swapLineItems;
-    transferLiveIncludedBaselineOnSwap(source.itemId, item.id, quantity, unitCents);
+    transferLiveIncludedBaselineOnSwap(source.itemId, item.id, Math.max(1, source.quantity ?? 1), unitCents, quantity);
     const next = base.map((li) =>
       li.slotId === source.slotId && li.itemId === source.itemId
         ? {
@@ -423,13 +418,9 @@ export function CatalogProductScreen() {
     });
     if (unitCents === undefined) return;
     if (unitCents > (inBoxPrimary.unitCents ?? 0) && !guardMutation()) return;
-    const fromGelt = geltSizeOf(item);
-    const toGelt = geltSizeOf(replacement);
     const quantity =
-      fromGelt && toGelt
-        ? geltSwapQuantity(fromGelt, toGelt, Math.max(1, inBoxPrimary.quantity ?? 1), people)
-        : Math.max(1, inBoxPrimary.quantity ?? 1);
-    transferLiveIncludedBaselineOnSwap(item.id, replacement.id, quantity, unitCents);
+      swapQuantities(inBoxPrimary, item, replacement, people)?.quantity ?? Math.max(1, inBoxPrimary.quantity ?? 1);
+    transferLiveIncludedBaselineOnSwap(item.id, replacement.id, Math.max(1, inBoxPrimary.quantity ?? 1), unitCents, quantity);
     const next = lineItems.map((li) =>
       li.slotId === inBoxPrimary.slotId && li.itemId === item.id
         ? {
