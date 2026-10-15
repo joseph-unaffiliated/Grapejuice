@@ -296,14 +296,19 @@ export type BoxAuditRecord = {
   people: number;
   sections: Record<string, SectionCount>;
   problems: BoxAuditProblem[];
-  /** Problems needing a look: not approved, not grandfathered, and not a gelt shortfall. */
+  /** Problems needing a look: not approved, not grandfathered, and not a likely donation. */
   open: number;
   ok: boolean;
 };
 
-/** A problem that counts against the box (gelt shortfalls are often donations). */
+/** Less gelt or fewer food slots than included: usually the customer donated them. */
+export function isLikelyDonation(p: AuditProblem): boolean {
+  return p.code === 'gelt-short' || p.code === 'food-slot-missing';
+}
+
+/** A problem that counts against the box. Likely donations stay listed but don't count. */
 export function isOpenProblem(p: BoxAuditProblem): boolean {
-  return !p.approved && !p.grandfathered && p.code !== 'gelt-short';
+  return !p.approved && !p.grandfathered && !isLikelyDonation(p);
 }
 
 export function auditBoxRef(

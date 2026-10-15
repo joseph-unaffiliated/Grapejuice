@@ -73,6 +73,16 @@ const lines = [
   assert.ok(other.open > 0);
 }
 
+// A donated food kit is listed but not open.
+{
+  const donated = guestBoxRefs('guestSessions/v5', {
+    snapshot: { guest: { onboardingComplete: true, lineItems: lines.filter((l) => l.slotId !== 'latke-mix'), childDrafts: [{ role: 'child' }] } },
+  }).guest!;
+  const record = auditBoxRef(donated, catalog);
+  assert.deepEqual(record.problems.map((p) => p.code), ['food-slot-missing']);
+  assert.equal(record.open, 0);
+}
+
 assert.equal(boxAuditId('guestSessions/v1#gift'), 'guestSessions__v1__gift');
 
 console.log('boxAuditLoad: ok');
