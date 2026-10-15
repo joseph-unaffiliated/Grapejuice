@@ -13,6 +13,8 @@ import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 import * as logger from './logger';
 import { withSentry } from './sentry';
 import { diffBoxLines, historyLines, nextDefault, withoutUndefined } from './boxHistoryDiff';
+import { BOX_AUDIT_HOLIDAY_ID } from './boxAuditLoad';
+import { refreshAccountBoxAudit, refreshGuestBoxAudits } from './boxAuditJob';
 
 type Doc = Record<string, unknown> | undefined;
 type ListName = 'box' | 'gift';
@@ -27,17 +29,27 @@ async function recordList(
   by: string | null,
   beforeRaw: unknown,
   afterRaw: unknown
-): Promise<void> {
+): Promise<boolean> {
   const before = historyLines(beforeRaw);
   const after = historyLines(afterRaw);
   const changes = diffBoxLines(before, after);
-  if (!changes.length) return;
+  if (!changes.length) return false;
   const at = new Date().toISOString();
   await historyRef.add(withoutUndefined({ at, source, by, list, changes, before, after }));
   const defaultRef = historyRef.doc('default');
   const existing = (await defaultRef.get()).data()?.[list];
   const next = nextDefault(existing, source, after);
   if (next) await defaultRef.set({ [list]: withoutUndefined({ ...next, at }) }, { merge: true });
+  return true;
+}
+
+/** The included-items audit never blocks history. */
+async function audited(path: string, run: () => Promise<unknown>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    logger.warn('boxHistory: box audit failed', { path, err: String(err) });
+  }
 }
 
 async function clearSource(ref: DocumentReference, after: Doc): Promise<void> {
@@ -56,8 +68,11 @@ export const recordBoxDraftHistory = onDocumentWritten(
     const ref = (afterSnap ?? event.data?.before)?.ref;
     if (!ref) return;
     const source = str(after?.lastChangeSource) ?? (after ? 'unknown' : 'deleted');
-    await recordList(ref.collection('history'), 'box', source, str(after?.updatedBy), before?.lineItems, after?.lineItems);
+    const changed = await recordList(ref.collection('history'), 'box', source, str(after?.updatedBy), before?.lineItems, after?.lineItems);
     await clearSource(ref, after);
+    if (changed && event.params.holidayId === BOX_AUDIT_HOLIDAY_ID) {
+      await audited(ref.path, () => refreshAccountBoxAudit(ref.firestore, event.params.householdId, ref.path, after));
+    }
   })
 );
 
@@ -80,9 +95,12 @@ export const recordGuestBoxHistory = onDocumentWritten(
     const jobSource = str(after?.lastChangeSource);
     const boxSource = jobSource ?? (next.builtAt && next.builtAt !== prev.builtAt ? 'default-build' : 'customer');
     const historyRef = afterSnap.ref.collection('history');
-    await recordList(historyRef, 'box', boxSource, null, prev.box, next.box);
-    await recordList(historyRef, 'gift', jobSource ?? 'customer', null, prev.gift, next.gift);
+    const boxChanged = await recordList(historyRef, 'box', boxSource, null, prev.box, next.box);
+    const giftChanged = await recordList(historyRef, 'gift', jobSource ?? 'customer', null, prev.gift, next.gift);
     await clearSource(afterSnap.ref, after);
+    if (boxChanged || giftChanged) {
+      await audited(afterSnap.ref.path, () => refreshGuestBoxAudits(afterSnap.ref.firestore, afterSnap.ref.path, after));
+    }
   })
 );
 

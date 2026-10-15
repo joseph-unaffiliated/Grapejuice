@@ -116,6 +116,7 @@ export { adminPromotions, awardDebriefCredit, checkPromo, getMyInfluencerStats }
 export { scheduledFollowUpListAudience } from './followUpListAudience';
 export { scheduledInventoryWatch } from './inventoryWatch';
 export { recordBoxDraftHistory, recordGuestBoxHistory } from './boxHistory';
+export { scheduledBoxAudit } from './boxAuditJob';
 export { scheduledInventoryEmails } from './inventoryEmails';
 export {
   adminPilotParticipants,

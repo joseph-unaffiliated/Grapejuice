@@ -1,5 +1,5 @@
 /** A box line as stored in Firestore; the same shape as the app's BoxLineItem (src/types/pilot.ts). */
-type BoxLineItem = {
+export type BoxLineItem = {
   slotId: string;
   itemId: string;
   quantity: number;
