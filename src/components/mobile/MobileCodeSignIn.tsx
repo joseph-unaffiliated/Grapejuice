@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import { useAuthStore } from '../../stores/authStore';
@@ -92,6 +92,7 @@ type Props = {
  */
 export function MobileCodeSignIn({ title, lead, createIfMissing = true, children, footer, onSignedIn, style, alternatives }: Props) {
   const signInWithToken = useAuthStore((s) => s.signInWithToken);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const { signIn, googleSignIn, error: authError, clearError } = useAuthStore();
   const guestEmail = useGuestSessionStore((s) => s.pendingAccountEmail || s.interestEmail || '');
   const [email, setEmail] = useState(guestEmail);
@@ -99,6 +100,7 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const verifying = busy || authLoading;
   const [passwordMode, setPasswordMode] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -189,11 +191,17 @@ export function MobileCodeSignIn({ title, lead, createIfMissing = true, children
               Change
             </Text>
           </Text>
-          <CodeEntry value={code} onChange={setCode} onComplete={(c) => void redeem(c)} disabled={busy} />
+          <CodeEntry value={code} onChange={setCode} onComplete={(c) => void redeem(c)} disabled={verifying} />
+          {verifying ? (
+            <View style={styles.verifying} accessibilityLabel="Signing you in" accessibilityRole="progressbar">
+              <ActivityIndicator color={m.ink} />
+              <Text style={styles.verifyingText}>Signing you in…</Text>
+            </View>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Text style={[styles.sentTo, { marginTop: 14, textAlign: 'center' }]}>
             Didn't get it?{' '}
-            <Text style={styles.link} onPress={() => void send()}>
+            <Text style={styles.link} onPress={verifying ? undefined : () => void send()}>
               Send again
             </Text>
           </Text>
@@ -280,6 +288,8 @@ const styles = StyleSheet.create({
   sentTo: { ...mType.small, marginTop: 20, marginBottom: 10 },
   link: { color: m.goldDark, textDecorationLine: 'underline' },
   error: { ...mType.small, color: m.warn, marginTop: 10 },
+  verifying: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
+  verifyingText: { fontSize: 14, color: m.body, ...mFont(400) },
   show: { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
   showText: { fontSize: 13.5, color: m.goldDark, ...mFont(400) },
   different: { alignSelf: 'center', marginTop: 16, paddingVertical: 4 },

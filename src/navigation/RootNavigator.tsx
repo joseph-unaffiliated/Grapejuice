@@ -14,6 +14,7 @@ import { MainStack } from './MainStack';
 import { ThemeProvider } from '../context/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
+import { useBoxPresenceStore } from '../stores/boxPresenceStore';
 import {
   useAuthFlowStore,
   authReturnSkipsBoxOnboarding,
@@ -223,6 +224,7 @@ function MainGate() {
 function RootRoutes() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const wasAuthenticated = useBoxPresenceStore((s) => s.wasAuthenticated);
   const { loading: sessionLoading, needsOnboarding, needsBoxReveal, refresh, profile } = useSession();
   const guestHydrated = useGuestSessionStore((s) => s._hasHydrated);
   const exploreStarted = useGuestSessionStore((s) => s.exploreStarted);
@@ -335,6 +337,9 @@ function RootRoutes() {
   } else if (buildBoxPath && !guestBoxRevealComplete) {
     gateKey = 'onboarding';
   } else if (guestHasMainSurface || giftResume) {
+    gateKey = 'main';
+  } else if (authLoading && wasAuthenticated) {
+    // Cold reload of a signed-in user — stay on Main until Firebase restores (no Auth flash).
     gateKey = 'main';
   }
 

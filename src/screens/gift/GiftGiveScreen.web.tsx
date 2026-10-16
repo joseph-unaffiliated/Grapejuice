@@ -7,6 +7,7 @@ import type { RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
 import { loadStripe } from '@stripe/stripe-js';
+import { getStripePromise } from '../../services/checkout/checkoutPrefetch';
 import { Elements } from '@stripe/react-stripe-js';
 import { listBoxCentsForKids } from '../../services/box/boxRules';
 import { orderSubtotalCents } from '../../services/box/pricing';
@@ -39,6 +40,7 @@ import { spacing, typography, typeface, semanticColors } from '../../constants/t
 import { useAuthStore } from '../../stores/authStore';
 import { giftPathToKind, useGiftIntentStore } from '../../stores/giftIntentStore';
 import { signInGiftGiver } from '../../services/auth/loginLinks';
+import { queueWelcomeAccountToast } from '../../services/auth/welcomeAccountToast';
 import { GiftCreditKidsField, GiftPathCards } from './GiftGiveForm';
 import { GIFT_PATH_LABEL, MobileGiftPathCards } from '../mobile/MobileGiftPathCards';
 import { StickyBar } from '../../components/mobile/StickyBar';
@@ -71,12 +73,12 @@ function stepAfter(step: GiftStep, path: GiftPath | null): FlowTarget {
     case 'type':
       return 'kids';
     case 'kids':
-      return path === 'customize' ? 'box' : 'note';
+      return path === 'customize' ? 'box' : 'send';
     case 'email':
       return 'box';
-    case 'note':
-      return 'send';
     case 'send':
+      return 'note';
+    case 'note':
     case 'pay':
       return 'pay';
   }
@@ -94,7 +96,8 @@ function reachableStep(
   if (step === 'email') return path === 'customize' ? 'box' : 'kids';
   const afterBox = step === 'note' || step === 'send' || step === 'pay';
   if (afterBox && path === 'customize' && !hasLineItems) return 'box';
-  if (step === 'pay' && !hasPayment) return 'send';
+  if (step === 'pay' && !hasPayment) return 'note';
+  if (step === 'note' && path === 'customize' && !hasLineItems) return 'box';
   return step;
 }
 
@@ -334,6 +337,12 @@ function GiftGiveBody() {
     recordGiftFunnelStep(step, { path: giftPath });
   }, [step, isFocused, draftAdopted, giftPath, lineItems, payment]);
 
+  // Warm Stripe.js while they write the note so pay isn't a blank wait.
+  useEffect(() => {
+    if (step !== 'note' || !stripeKey) return;
+    void getStripePromise(stripeKey)?.catch(() => undefined);
+  }, [step, stripeKey]);
+
   const patchValues = (patch: Partial<GiftGiveFormValues>) => {
     setStepError(null);
     if (patch.giftPath) {
@@ -360,6 +369,7 @@ function GiftGiveBody() {
     try {
       const result = await signInGiftGiver({ email, name: values.giverName.trim() || undefined });
       if (result.status === 'created') {
+        queueWelcomeAccountToast(email);
         await useAuthStore.getState().signInWithToken(result.customToken, { stayOnSurface: true });
       }
     } catch (e) {
@@ -398,6 +408,7 @@ function GiftGiveBody() {
     }
   };
 
+  /** Validate contact + start PaymentIntent so the note step can warm Stripe before pay. */
   const continueFromSend = async () => {
     const giverEmail = values.giverEmail?.trim() ?? '';
     const recipientEmail = values.recipientEmail.trim();
@@ -461,30 +472,28 @@ function GiftGiveBody() {
       };
       const signedIn = useAuthStore.getState().isAuthenticated;
       const key = JSON.stringify([form, childDrafts, lineItems, amountCents, signedIn, promo.request() ?? null]);
-      if (payment?.key === key) {
-        goTo('pay');
-        return;
+      if (payment?.key !== key) {
+        const result = await startGiftPurchase({
+          form,
+          customize,
+          lineItems: customize ? lineItems : undefined,
+          childAgeGroups: customize ? childDrafts.map((c) => c.ageGroup) : undefined,
+          giftChildren: customize ? childDrafts : undefined,
+          amountCents,
+        });
+        setPayment({
+          key,
+          clientSecret: result.clientSecret,
+          giftInviteId: result.giftInviteId,
+          claimToken: result.claimToken,
+          publishableKey: result.publishableKey,
+          discountCents: result.discountCents,
+          discountLabel: promo.discountLabel,
+          amountDueCents: result.amountDueCents,
+        });
+        recordGiftFunnelStep('checkout', { path: giftPath, inviteId: result.giftInviteId });
       }
-      const result = await startGiftPurchase({
-        form,
-        customize,
-        lineItems: customize ? lineItems : undefined,
-        childAgeGroups: customize ? childDrafts.map((c) => c.ageGroup) : undefined,
-        giftChildren: customize ? childDrafts : undefined,
-        amountCents,
-      });
-      setPayment({
-        key,
-        clientSecret: result.clientSecret,
-        giftInviteId: result.giftInviteId,
-        claimToken: result.claimToken,
-        publishableKey: result.publishableKey,
-        discountCents: result.discountCents,
-        discountLabel: promo.discountLabel,
-        amountDueCents: result.amountDueCents,
-      });
-      recordGiftFunnelStep('checkout', { path: giftPath, inviteId: result.giftInviteId });
-      goTo('pay', form);
+      goTo('note', form);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Try again.';
       notify('Could not start payment', /failed-precondition|Stripe is not configured/i.test(msg)
@@ -495,6 +504,14 @@ function GiftGiveBody() {
     }
   };
 
+  const continueFromNote = () => {
+    if (!payment) {
+      void continueFromSend();
+      return;
+    }
+    goTo('pay');
+  };
+
   const onContinue = () => {
     switch (step) {
       case 'type':
@@ -502,16 +519,22 @@ function GiftGiveBody() {
         return;
       case 'kids':
         recordGiftFunnelStep('family', { path: giftPath });
+        if (giftPath === 'customize') {
+          void import('../../services/firestore/catalog').then((m) => {
+            void m.catalogService.getAll().catch(() => undefined);
+          });
+        }
+        if (stripeKey) void getStripePromise(stripeKey)?.catch(() => undefined);
         goTo(stepAfter('kids', giftPath));
         return;
       case 'email':
         void continueFromEmail();
         return;
-      case 'note':
-        goTo('send');
-        return;
       case 'send':
         void continueFromSend();
+        return;
+      case 'note':
+        continueFromNote();
         return;
       case 'pay':
         return;
@@ -533,10 +556,8 @@ function GiftGiveBody() {
         return customize ? (
           <MobileGiftFamily
             kids={childDrafts}
-            familyName={values.familyName ?? ''}
             adults={values.giftAdults ?? 1}
             onChange={setChildDrafts}
-            onFamilyName={(familyName) => patchValues({ familyName })}
             onAdults={(giftAdults) => patchValues({ giftAdults })}
           />
         ) : (
@@ -565,7 +586,6 @@ function GiftGiveBody() {
             onName={(giverName) => patchValues({ giverName })}
             onMessage={(message) => patchValues({ message })}
             customize={customize}
-            familyName={values.familyName}
           />
         );
       case 'send':
@@ -877,8 +897,10 @@ function GiftGiveBody() {
       : step === 'email'
         ? 'Pick their box'
         : step === 'send'
-          ? 'Continue to payment'
-          : 'Continue';
+          ? 'Continue to note'
+          : step === 'note'
+            ? 'Continue to payment'
+            : 'Continue';
   const mobileBar = mobileLayout ? (
     <StickyBar
       layout="stack"
@@ -991,12 +1013,20 @@ export function GiftGiveScreen() {
 /** Phone: which of the four mockup steps a GiftGive step belongs to. */
 export function giftTaskStep(step: string, hasPayment: boolean, customize = true): { index: number; labels: string[] } {
   if (!customize) {
-    const labels = ['Amount', 'Note', 'Pay'];
-    const index = step === 'type' || step === 'kids' ? 0 : step === 'note' || step === 'send' ? 1 : 2;
-    return { index: hasPayment || step !== 'pay' ? index : 1, labels };
+    const labels = ['Amount', 'Send', 'Note', 'Pay'];
+    const index =
+      step === 'type' || step === 'kids' ? 0 : step === 'send' ? 1 : step === 'note' ? 2 : 3;
+    return { index: hasPayment || step !== 'pay' ? index : 2, labels };
   }
-  const labels = ['Their family', 'Their box', 'Note', 'Pay'];
-  const index = step === 'type' || step === 'kids' || step === 'email' ? 0 : step === 'customize' ? 1 : step === 'note' || step === 'send' ? 2 : 3;
+  const labels = ['Their family', 'Their box', 'Send', 'Pay'];
+  const index =
+    step === 'type' || step === 'kids' || step === 'email'
+      ? 0
+      : step === 'customize'
+        ? 1
+        : step === 'send' || step === 'note'
+          ? 2
+          : 3;
   return { index: hasPayment || step !== 'pay' ? index : 2, labels };
 }
 

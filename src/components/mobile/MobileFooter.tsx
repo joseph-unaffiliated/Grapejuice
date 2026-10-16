@@ -35,6 +35,9 @@ export const mobileFooterScrollStyle = {
   ...(Platform.OS === 'web' ? { minHeight: '100%' as const } : null),
 };
 
+/** Space above MobileFooterBleed so CTAs / lists don't sit tight on the ink footer. */
+export const MOBILE_FOOTER_TOP_GAP = 32;
+
 /** The phone site footer: mark and tagline, then Shop, Company and Contact columns on ink. */
 export function MobileFooter() {
   const navigation = useNavigation<Nav>();

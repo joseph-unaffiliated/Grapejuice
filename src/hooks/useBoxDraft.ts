@@ -337,6 +337,7 @@ function refId(value: object | null | undefined): number {
 
 export function useBoxDraft() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const user = useAuthStore((s) => s.user);
   const { household, profile, loading: sessionLoading } = useSession();
   const hasProfile = profile != null;
@@ -375,6 +376,11 @@ export function useBoxDraft() {
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async (options?: { fresh?: boolean }) => {
+    // Don't treat a cold load as a guest empty box while Firebase is still restoring.
+    if (!isAuthenticated && authLoading) {
+      setLoading(true);
+      return;
+    }
     if (!isAuthenticated) {
       clearAuthBoxDraftCache();
       setLoadError(false);
@@ -502,6 +508,7 @@ export function useBoxDraft() {
     setLoading(false);
   }, [
     isAuthenticated,
+    authLoading,
     household?.id,
     user?.uid,
     user?.displayName,
@@ -653,7 +660,7 @@ export function useBoxDraft() {
     /** Kids + adults — the gelt allowance and dreidel count. */
     people: householdPeople(children.length, adults),
     familiarity,
-    loading: loading || (isAuthenticated && sessionLoading),
+    loading: loading || authLoading || (isAuthenticated && sessionLoading),
     /** Signed-in draft failed to load (after one retry) — not the same as an empty box. */
     error: loadError,
     isGuest: !isAuthenticated,

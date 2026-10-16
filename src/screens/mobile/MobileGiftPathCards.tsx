@@ -11,7 +11,7 @@ import type { GiftPath } from '../gift/giftGiveTypes';
 
 export const GIFT_PATH_LABEL: Record<GiftPath, string> = { customize: 'A Hanukkah box', credit_only: 'Hanukkah credit' };
 
-/** Phone gift step 1 (gift.html s=2): title, then a radio card per path. */
+/** Phone gift step 1: tabs for Customize box | Send credit, then the active path summary. */
 export function MobileGiftPathCards({
   giftPath,
   onChange,
@@ -32,6 +32,9 @@ export function MobileGiftPathCards({
     return SAMPLE_BOX_IDS.map((id) => ({ id, imageUrl: primaryPhoto(byId.get(id)) }));
   }, [items]);
   const from = `From ${formatCatalogDollars(listBoxCentsForKids(1))}`;
+  const path = giftPath ?? (boxesClosed ? 'credit_only' : null);
+  const customizeOn = path === 'customize';
+  const creditOn = path === 'credit_only';
 
   return (
     <View>
@@ -43,81 +46,88 @@ export function MobileGiftPathCards({
           Either way, they get a note from you and everything arrives before {arrivesBefore}.
         </Text>
       </View>
-      <PathCard
-        on={giftPath === 'customize'}
-        error={hasError}
-        disabled={boxesClosed}
-        title={GIFT_PATH_LABEL.customize}
-        body={boxesClosed ? `Gift boxes for this Hanukkah closed on ${lockDay}. You can still send gift credit.` : 'We pick everything for their family. You can swap anything before you send it.'}
-        price={boxesClosed ? undefined : from}
-        onPress={() => onChange('customize')}
-      >
-        {boxesClosed ? null : (
-          <View style={{ marginTop: 12 }}>
-            <BoxThumbRow items={thumbs} size="sm" />
-          </View>
-        )}
-      </PathCard>
-      <PathCard
-        on={giftPath === 'credit_only'}
-        error={hasError}
-        title={GIFT_PATH_LABEL.credit_only}
-        body="They build their own box with it. Anything over the credit goes on their card."
-        price={`A box's worth for their family, ${from.toLowerCase()}`}
-        onPress={() => onChange('credit_only')}
-      />
+      <View style={[styles.tabs, hasError && !path ? styles.tabsError : null]} accessibilityRole="tablist">
+        <Pressable
+          accessibilityRole="tab"
+          accessibilityState={{ selected: customizeOn, disabled: boxesClosed }}
+          disabled={boxesClosed}
+          onPress={() => onChange('customize')}
+          style={[styles.tab, customizeOn && styles.tabOn, boxesClosed && styles.tabDisabled]}
+        >
+          <Text style={[styles.tabText, customizeOn && styles.tabTextOn]}>Customize a box</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="tab"
+          accessibilityState={{ selected: creditOn }}
+          onPress={() => onChange('credit_only')}
+          style={[styles.tab, creditOn && styles.tabOn]}
+        >
+          <Text style={[styles.tabText, creditOn && styles.tabTextOn]}>Send credit</Text>
+        </Pressable>
+      </View>
+      {customizeOn ? (
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>{GIFT_PATH_LABEL.customize}</Text>
+          <Text style={styles.panelBody}>
+            {boxesClosed
+              ? `Gift boxes for this Hanukkah closed on ${lockDay}. You can still send gift credit.`
+              : 'We pick everything for their family. You can swap anything before you send it.'}
+          </Text>
+          {boxesClosed ? null : (
+            <>
+              <View style={{ marginTop: 12 }}>
+                <BoxThumbRow items={thumbs} size="sm" />
+              </View>
+              <Text style={styles.price}>{from}</Text>
+            </>
+          )}
+        </View>
+      ) : null}
+      {creditOn ? (
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>{GIFT_PATH_LABEL.credit_only}</Text>
+          <Text style={styles.panelBody}>They build their own box with it. Anything over the credit goes on their card.</Text>
+          <Text style={styles.price}>A box&apos;s worth for their family, {from.toLowerCase()}</Text>
+        </View>
+      ) : null}
+      {!path ? (
+        <Text style={styles.hint}>Choose Customize a box or Send credit to continue.</Text>
+      ) : null}
     </View>
   );
 }
 
-function PathCard({
-  on,
-  error,
-  disabled,
-  title,
-  body,
-  price,
-  onPress,
-  children,
-}: {
-  on: boolean;
-  error?: boolean;
-  disabled?: boolean;
-  title: string;
-  body: string;
-  price?: string;
-  onPress: () => void;
-  children?: React.ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: on, disabled }}
-      style={[styles.card, on && styles.cardOn, error && !on && styles.cardError, disabled && { opacity: 0.55 }]}
-    >
-      <View style={[styles.dot, on && styles.dotOn]} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.body}>{body}</Text>
-        {children}
-        {price ? <Text style={styles.price}>{price}</Text> : null}
-      </View>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  head: { paddingHorizontal: mGutter, paddingTop: 24, paddingBottom: 22, gap: 10 },
+  head: { paddingHorizontal: mGutter, paddingTop: 24, paddingBottom: 18, gap: 10 },
   h1: { fontSize: 27, lineHeight: 31, letterSpacing: -0.8, color: m.ink, ...mFont(400) },
   sub: { fontSize: 15, lineHeight: 22, color: m.body, ...mFont(300) },
-  card: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16, marginHorizontal: mGutter, marginBottom: 12, borderWidth: 1, borderColor: m.line, borderRadius: 16, backgroundColor: m.white },
-  cardOn: { borderColor: m.gold, borderWidth: 2, padding: 15, backgroundColor: m.beige },
-  cardError: { borderColor: m.warn },
-  dot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: m.gold, marginTop: 2 },
-  dotOn: { backgroundColor: m.gold, ...({ boxShadow: `inset 0 0 0 3px ${m.beige}` } as object) },
-  title: { fontSize: 17, lineHeight: 22, letterSpacing: -0.2, color: m.ink, ...mFont(500) },
-  body: { fontSize: 14, lineHeight: 20, color: m.muted, marginTop: 4, ...mFont(400) },
-  price: { fontSize: 14, lineHeight: 20, color: m.ink, marginTop: 10, ...mFont(400) },
+  tabs: {
+    flexDirection: 'row',
+    marginHorizontal: mGutter,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: m.line,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: m.beige,
+  },
+  tabsError: { borderColor: m.warn },
+  tab: { flex: 1, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  tabOn: { backgroundColor: m.ink },
+  tabDisabled: { opacity: 0.45 },
+  tabText: { fontSize: 14, color: m.ink, textAlign: 'center', ...mFont(500) },
+  tabTextOn: { color: m.gold },
+  panel: {
+    marginHorizontal: mGutter,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: m.gold,
+    backgroundColor: m.beige,
+    gap: 6,
+  },
+  panelTitle: { fontSize: 17, lineHeight: 22, letterSpacing: -0.2, color: m.ink, ...mFont(500) },
+  panelBody: { fontSize: 14, lineHeight: 20, color: m.body, ...mFont(300) },
+  price: { fontSize: 13, color: m.goldDark, marginTop: 8, ...mFont(500) },
+  hint: { marginHorizontal: mGutter, marginTop: 12, fontSize: 13, color: m.warn, ...mFont(400) },
 });

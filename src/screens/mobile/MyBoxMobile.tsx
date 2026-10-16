@@ -56,6 +56,7 @@ import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyB
 import { ProductTileMobile } from '../../components/mobile/ProductTileMobile';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../../components/mobile/mobileTheme';
+import { consumeWelcomeAccountToast, welcomeAccountMessage } from '../../services/auth/welcomeAccountToast';
 
 /** The slice of useMyBoxEditing the phone box uses; the gift flow supplies the same shape. */
 export type MobileBoxEditing = Pick<
@@ -86,7 +87,14 @@ type Props = {
 
 type Sheet =
   | { kind: 'tradition'; sectionId: BoxDisplaySectionId }
-  | { kind: 'product'; item: CatalogItem; group: CoalescedBoxLine | null; sectionId: BoxDisplaySectionId }
+  | {
+      kind: 'product';
+      item: CatalogItem;
+      group: CoalescedBoxLine | null;
+      sectionId: BoxDisplaySectionId;
+      /** Opened from the box-summary receipt — back returns there, not the tradition sheet. */
+      fromReceipt?: boolean;
+    }
   | { kind: 'receipt'; donatedOpen?: boolean }
   | null;
 
@@ -110,6 +118,90 @@ const BROWSE_AISLE: Record<BoxDisplaySectionId, { slug: string; label: string }>
   presents: { slug: 'toys', label: 'Browse all gifts' },
 };
 
+type BoxLineRowProps = {
+  g: CoalescedBoxLine;
+  item: CatalogItem | undefined;
+  note: string;
+  donatedExtra: number;
+  locked: boolean;
+  onOpen: () => void;
+  onQuantity: (delta: 1 | -1) => void;
+};
+
+const BoxLineRow = React.memo(function BoxLineRow({
+  g,
+  item,
+  note,
+  donatedExtra,
+  locked,
+  onOpen,
+  onQuantity,
+}: BoxLineRowProps) {
+  const atFloor = g.quantity <= 1;
+  const donate = atFloor && g.unitCents === 0;
+  const pilotPick = g.lines.some(isPilotLine);
+  return (
+    <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Open ${item?.name ?? g.itemId}`} style={styles.row}>
+      <View style={[styles.rowImage, g.unitCents > 0 && styles.rowImageMine]}>
+        <BoxItemImage size={64} imageUrl={item?.imageUrl} itemId={g.itemId} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.rowName} numberOfLines={2}>
+          {item?.name ?? g.primary.label ?? g.itemId}
+        </Text>
+        <Text style={styles.rowMeta} numberOfLines={2}>
+          {pilotPick ? PILOT_PICK_META : note}
+          {!pilotPick && donatedExtra ? ` · donating ${donatedExtra}` : ''}
+        </Text>
+      </View>
+      {!locked && !pilotPick ? (
+        <View style={styles.stepper}>
+          <Pressable onPress={() => onQuantity(-1)} accessibilityRole="button" accessibilityLabel={atFloor ? (donate ? 'Donate' : 'Remove') : 'Decrease quantity'} style={styles.stepBtn} hitSlop={6}>
+            {donate ? <Icon icon={icons.donate} size={16} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
+          </Pressable>
+          <Text style={styles.stepQty}>{g.quantity}</Text>
+          <Pressable onPress={() => onQuantity(1)} accessibilityRole="button" accessibilityLabel="Increase quantity" style={styles.stepBtn} hitSlop={6}>
+            <Text style={styles.stepText}>+</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+});
+
+const DonatedLineRow = React.memo(function DonatedLineRow({
+  item,
+  missing,
+  locked,
+  onRestore,
+}: {
+  item: CatalogItem;
+  missing: number;
+  locked: boolean;
+  onRestore: () => void;
+}) {
+  return (
+    <View style={[styles.row, styles.rowDonated]} accessibilityLabel={`${item.name}, donating`}>
+      <View style={[styles.rowImage, styles.rowImageDonated]}>
+        <BoxItemImage size={64} imageUrl={item.imageUrl} itemId={item.id} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.rowName} numberOfLines={2}>
+          {item.name}
+        </Text>
+        <Text style={styles.rowMeta} numberOfLines={2}>
+          {missing > 1 ? `Donating ${missing}` : 'Donating'} · goes to a family who wouldn’t otherwise celebrate
+        </Text>
+      </View>
+      {!locked ? (
+        <Text style={styles.undo} onPress={onRestore} accessibilityRole="button" accessibilityLabel={`Undo donating ${item.name}`}>
+          Undo
+        </Text>
+      ) : null}
+    </View>
+  );
+});
+
 /**
  * My Box for the phone (mockups box-v3.html), on the same useMyBoxEditing hook as
  * desktop. Title and lock line, the small box summary, the not-held line, tradition
@@ -129,6 +221,16 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const [active, setActive] = useState<BoxDisplaySectionId>('candles');
   const scrollRef = useRef<ScrollView>(null);
   const sectionY = useRef<Partial<Record<BoxDisplaySectionId, number>>>({});
+  const programmaticScrollRef = useRef(false);
+  const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const welcomeToastShown = useRef(false);
+  useEffect(() => {
+    if (welcomeToastShown.current || gift) return;
+    const email = consumeWelcomeAccountToast();
+    if (!email) return;
+    welcomeToastShown.current = true;
+    setToast({ message: welcomeAccountMessage(email) });
+  }, [gift]);
   const byId = useMemo(() => new Map(e.catalog.map((c) => [c.id, c])), [e.catalog]);
   const focusItemId = useGuestSessionStore((s) => s.myBoxFocusItemId);
   const clearFocusItem = useGuestSessionStore((s) => s.setMyBoxFocusItemId);
@@ -271,9 +373,15 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     const y = sectionY.current[id];
     if (y == null) return;
     setActive(id);
+    programmaticScrollRef.current = true;
+    if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current);
+    programmaticScrollTimer.current = setTimeout(() => {
+      programmaticScrollRef.current = false;
+    }, 700);
     scrollRef.current?.scrollTo({ y: Math.max(0, y - 64), animated: true });
   };
   const onScroll = (ev: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (programmaticScrollRef.current) return;
     const y = ev.nativeEvent.contentOffset.y + 120;
     let current: BoxDisplaySectionId = 'candles';
     for (const s of BOX_DISPLAY_SECTIONS) {
@@ -395,61 +503,6 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   };
 
   const rowNote = (g: CoalescedBoxLine, item: CatalogItem | undefined) => lineNote(g, item, kidName);
-
-  const Row = ({ g, sectionId }: { g: CoalescedBoxLine; sectionId: BoxDisplaySectionId }) => {
-    const item = byId.get(g.itemId);
-    const atFloor = g.quantity <= 1;
-    const donate = atFloor && g.unitCents === 0;
-    const pilotPick = g.lines.some(isPilotLine);
-    return (
-      <Pressable onPress={() => item && setSheet({ kind: 'product', item, group: g, sectionId })} accessibilityRole="button" accessibilityLabel={`Open ${item?.name ?? g.itemId}`} style={styles.row}>
-        <View style={[styles.rowImage, g.unitCents > 0 && styles.rowImageMine]}>
-          <BoxItemImage size={64} imageUrl={item?.imageUrl} itemId={g.itemId} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.rowName} numberOfLines={2}>
-            {item?.name ?? g.primary.label ?? g.itemId}
-          </Text>
-          <Text style={styles.rowMeta} numberOfLines={2}>
-            {pilotPick ? PILOT_PICK_META : rowNote(g, item)}
-            {!pilotPick && g.unitCents === 0 && donatedQty.get(g.itemId) ? ` · donating ${donatedQty.get(g.itemId)}` : ''}
-          </Text>
-        </View>
-        {!e.locked && !pilotPick ? (
-          <View style={styles.stepper}>
-            <Pressable onPress={() => quantity(g, -1, sectionId)} accessibilityRole="button" accessibilityLabel={atFloor ? (donate ? 'Donate' : 'Remove') : 'Decrease quantity'} style={styles.stepBtn} hitSlop={6}>
-              {donate ? <Icon icon={icons.donate} size={16} color={m.goldDark} /> : <Text style={styles.stepText}>−</Text>}
-            </Pressable>
-            <Text style={styles.stepQty}>{g.quantity}</Text>
-            <Pressable onPress={() => quantity(g, 1, sectionId)} accessibilityRole="button" accessibilityLabel="Increase quantity" style={styles.stepBtn} hitSlop={6}>
-              <Text style={styles.stepText}>+</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </Pressable>
-    );
-  };
-
-  const DonatedRow = ({ item, missing }: { item: CatalogItem; missing: number }) => (
-    <View style={[styles.row, styles.rowDonated]} accessibilityLabel={`${item.name}, donating`}>
-      <View style={[styles.rowImage, styles.rowImageDonated]}>
-        <BoxItemImage size={64} imageUrl={item.imageUrl} itemId={item.id} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.rowName} numberOfLines={2}>
-          {item.name}
-        </Text>
-        <Text style={styles.rowMeta} numberOfLines={2}>
-          {missing > 1 ? `Donating ${missing}` : 'Donating'} · goes to a family who wouldn’t otherwise celebrate
-        </Text>
-      </View>
-      {!e.locked ? (
-        <Text style={styles.undo} onPress={() => void e.restoreDonated(item.id)} accessibilityRole="button" accessibilityLabel={`Undo donating ${item.name}`}>
-          Undo
-        </Text>
-      ) : null}
-    </View>
-  );
 
   /** An included slot with nothing in it — it goes to a family as a donation until it's added back. */
   const EmptySlotRow = ({ title, onAdd }: { title: string; onAdd: () => void }) => (
@@ -601,8 +654,30 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
           <Text style={styles.sectionTitle}>{sectionTitle(s.id, s.title)}</Text>
           {countLabel ? <Text style={styles.sectionCount}>{countLabel}</Text> : null}
         </View>
-        {rows.map((g) => <Row key={g.key} g={g} sectionId={s.id} />)}
-        {donatedRows.map((d) => <DonatedRow key={`donated:${d.item.id}`} item={d.item} missing={d.missing} />)}
+        {rows.map((g) => {
+          const item = byId.get(g.itemId);
+          return (
+            <BoxLineRow
+              key={g.key}
+              g={g}
+              item={item}
+              note={item ? rowNote(g, item) : lineNote(g, undefined, kidName)}
+              donatedExtra={g.unitCents === 0 && donatedQty.get(g.itemId) ? donatedQty.get(g.itemId)! : 0}
+              locked={e.locked}
+              onOpen={() => item && setSheet({ kind: 'product', item, group: g, sectionId: s.id })}
+              onQuantity={(delta) => quantity(g, delta, s.id)}
+            />
+          );
+        })}
+        {donatedRows.map((d) => (
+          <DonatedLineRow
+            key={`donated:${d.item.id}`}
+            item={d.item}
+            missing={d.missing}
+            locked={e.locked}
+            onRestore={() => void e.restoreDonated(d.item.id)}
+          />
+        ))}
         {empties.map((slot) => <EmptySlotRow key={`empty:${slot.key}`} title={slot.title} onAdd={slot.onAdd} />)}
         {wrapped}
         {!rows.length && !donatedRows.length && !empties.length && !wrapped ? <Text style={[mType.small, { paddingVertical: 10 }]}>Nothing here yet.</Text> : null}
@@ -800,18 +875,28 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     return q ? ` ×${q}` : '';
   };
 
-  const productSheet = (item: CatalogItem, group: CoalescedBoxLine | null, sectionId: BoxDisplaySectionId) => {
+  const productSheet = (
+    item: CatalogItem,
+    group: CoalescedBoxLine | null,
+    sectionId: BoxDisplaySectionId,
+    fromReceipt?: boolean,
+  ) => {
     const wrapping = group ? isWrapControlSlot(group.primary.slotId) : false;
     const alts = group && group.unitCents === 0 && !wrapping ? (e.swapOptionsBySlot[group.primary.slotId] ?? []).filter((o) => o.id !== group.itemId) : [];
     const desc = (item.description ?? '').trim();
     const offer = offerFor(item, sectionId, rowsFor(sectionId));
     const swapSource = !group && offer.swap && !e.locked ? findSwapSourceLine(item, e.lineItems, e.catalog, sectionId, { geltCeiling }) : null;
     const swapFrom = swapSource ? byId.get(swapSource.itemId) : undefined;
+    const backLabel = fromReceipt
+      ? `‹ ${gift ? 'Their box' : 'Your box'}`
+      : `‹ ${BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)?.title ?? 'Back'}`;
+    const backTo = () =>
+      setSheet(fromReceipt ? { kind: 'receipt' } : { kind: 'tradition', sectionId });
     return (
       <MobileSheet
         visible
         onClose={() => setSheet(null)}
-        titleAction={{ label: `‹ ${BOX_DISPLAY_SECTIONS.find((s) => s.id === sectionId)?.title ?? 'Back'}`, onPress: () => setSheet({ kind: 'tradition', sectionId }) }}
+        titleAction={{ label: backLabel, onPress: backTo }}
         footer={
           group ? (
             <View style={styles.sheetFoot}>
@@ -918,14 +1003,20 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             {rows.map((g) => {
               const item = byId.get(g.itemId);
               return (
-                <View key={g.key} style={styles.rcRow}>
+                <Pressable
+                  key={g.key}
+                  style={styles.rcRow}
+                  onPress={() => item && setSheet({ kind: 'product', item, group: g, sectionId: s.id, fromReceipt: true })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${item?.name ?? g.itemId}`}
+                >
                   <BoxItemImage size={32} imageUrl={item?.imageUrl} itemId={g.itemId} />
                   <Text style={styles.rcName} numberOfLines={1}>
                     {item?.name ?? g.itemId}
                     {g.quantity > 1 ? ` ×${g.quantity}` : ''}
                   </Text>
                   <Text style={[styles.rcVal, g.unitCents === 0 && styles.rcIncluded]}>{g.unitCents > 0 ? `+${formatCatalogDollars(g.unitCents * g.quantity)}` : 'Included'}</Text>
-                </View>
+                </Pressable>
               );
             })}
           </View>
@@ -1084,7 +1175,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
       />
 
       {sheet?.kind === 'tradition' ? traditionSheet(sheet.sectionId) : null}
-      {sheet?.kind === 'product' ? productSheet(sheet.item, sheet.group, sheet.sectionId) : null}
+      {sheet?.kind === 'product' ? productSheet(sheet.item, sheet.group, sheet.sectionId, sheet.fromReceipt) : null}
       {sheet?.kind === 'receipt' ? receiptSheet(!!sheet.donatedOpen) : null}
       <MobileSheet
         visible={resetOpen}
@@ -1137,7 +1228,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     );
   }
   return (
-    <StorefrontChrome scrollRef={scrollRef} onPageScroll={onScroll}>
+    <StorefrontChrome scrollRef={scrollRef} onPageScroll={onScroll} suppressScrollChromeRef={programmaticScrollRef}>
       {body}
       {overlays}
     </StorefrontChrome>

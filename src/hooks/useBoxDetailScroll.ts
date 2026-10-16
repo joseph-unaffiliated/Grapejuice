@@ -391,5 +391,7 @@ export function useBoxDetailScroll(options: UseBoxDetailScrollOptions = {}) {
     scrollToSection,
     scrollToItem,
     remeasureSections,
+    /** True while a tab jump is animating — skip chrome reveal / scroll spy side effects. */
+    scrollingToSectionRef: scrollingToSection,
   };
 }

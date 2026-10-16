@@ -33,9 +33,13 @@ function previewHasBox(preview: UserStatePreview | null): boolean | null {
 /** Effective signed-in flag for chrome / CTAs under an admin preview. */
 export function usePreviewedIsAuthenticated(): boolean {
   const real = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+  const wasAuthenticated = useBoxPresenceStore((s) => s.wasAuthenticated);
   const preview = useUserStatePreviewStore((s) => s.preview);
   if (isSignedOutPreview(preview)) return false;
   if (isSignedInPreview(preview)) return true;
+  // Cold load: keep signed-in chrome until Firebase finishes restoring the session.
+  if (!real && authLoading && wasAuthenticated) return true;
   return real;
 }
 

@@ -245,7 +245,7 @@ async function acceptInviteFromLink(
   db: FirebaseFirestore.Firestore,
   invitePath: string,
   tokenEmailHash: string
-): Promise<string | null> {
+): Promise<{ uid: string; accountCreated: boolean; email: string } | null> {
   const inviteRef = db.doc(invitePath);
   const invite = (await inviteRef.get()).data();
   const email = String(invite?.invitedEmail ?? '').trim().toLowerCase();
@@ -253,10 +253,10 @@ async function acceptInviteFromLink(
   if (invite.status !== 'pending' && invite.status !== 'accepted') return null;
 
   const auth = getAuth();
-  const user =
-    (await auth.getUserByEmail(email).catch(() => null)) ??
-    (await auth.createUser({ email, emailVerified: true }));
-  if (invite.status === 'accepted') return user.uid;
+  const existing = await auth.getUserByEmail(email).catch(() => null);
+  const accountCreated = !existing;
+  const user = existing ?? (await auth.createUser({ email, emailVerified: true }));
+  if (invite.status === 'accepted') return { uid: user.uid, accountCreated: false, email };
 
   const householdId = String(invite.householdId);
   const now = new Date().toISOString();
@@ -279,7 +279,7 @@ async function acceptInviteFromLink(
     { merge: true }
   );
   await inviteRef.update({ status: 'accepted', acceptedByUid: user.uid });
-  return user.uid;
+  return { uid: user.uid, accountCreated, email };
 }
 
 function loginUrl(token: string, next: string | null, query?: Record<string, string>): string {
@@ -588,6 +588,9 @@ export type RedeemLoginLinkResult =
       uid: string;
       next: string | null;
       snapshot: Record<string, unknown> | null;
+      /** True when this redeem just created a passwordless Auth user (invite / first join). */
+      accountCreated?: boolean;
+      email?: string;
     }
   /** `email` only for an expired order link, so the sign-in screen can offer a fresh link to that address. */
   | { status: 'invalid' | 'expired' | 'used'; email?: string };
@@ -630,9 +633,10 @@ export const redeemLoginLink = onCall(
     if (claimed.status !== 'ok') return claimed;
     await recordInventoryEmailClick(db, claimed.emailLogId, new Date(now));
 
-    const uid = claimed.invitePath
+    const accepted = claimed.invitePath
       ? await acceptInviteFromLink(db, claimed.invitePath, claimed.emailHash)
-      : claimed.uid;
+      : null;
+    const uid = accepted?.uid ?? claimed.uid;
     if (!uid) return { status: 'invalid' };
 
     const auth = getAuth();
@@ -653,7 +657,14 @@ export const redeemLoginLink = onCall(
         snapshot = session.snapshot as Record<string, unknown>;
       }
     }
-    return { status: 'ok', customToken, uid, next: claimed.next, snapshot };
+    return {
+      status: 'ok',
+      customToken,
+      uid,
+      next: claimed.next,
+      snapshot,
+      ...(accepted?.accountCreated ? { accountCreated: true, email: accepted.email } : {}),
+    };
   }
 );
 /* ------------------------------------------------------------------------------------------------

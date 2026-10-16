@@ -9,7 +9,8 @@ export function usePaymentGate() {
   const preview = useUserStatePreviewStore((s) => s.preview);
   const { openOrder, loading: ordersLoading, refresh: refreshOrders } = usePilotOrders(household?.id);
 
-  const cardOnFile = !!household?.cardOnFileAt;
+  // Prefer the stamp; also trust a stored default PM (admin dashboards already OR these).
+  const cardOnFile = !!(household?.cardOnFileAt || household?.stripeDefaultPaymentMethodId);
   const giftCreditCents = household?.giftCreditCents ?? 0;
   const platformCreditCents = household?.platformCreditCents ?? 0;
   const totalCreditCents = giftCreditCents + platformCreditCents;

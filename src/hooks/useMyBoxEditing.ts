@@ -17,6 +17,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useBoxDraft } from '../hooks/useBoxDraft';
 import { useGuestBoxFlow } from '../hooks/useGuestBoxFlow';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
+import { LAST_SIGNED_IN_KEY, useBoxPresenceStore } from '../stores/boxPresenceStore';
 import { getHanukkahConfig } from '../services/firestore/config';
 import { useEffectiveBoxLocked, usePreviewNow } from '../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../navigation/types';
@@ -259,16 +260,21 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
   const hadBoxThisVisitRef = useRef(false);
   if (lineItems.length > 0 || openOrder) hadBoxThisVisitRef.current = true;
 
+  const authLoading = useAuthStore((s) => s.isLoading);
+  const rememberedHadBox = useBoxPresenceStore((s) => s.byKey[LAST_SIGNED_IN_KEY]);
   // Signed-in with no box draft and no open box order (deep link, reload, Back, gift-only
   // account) — same handoff: start the build instead of showing an empty My Box.
+  // Don't fire during auth/draft cold load, or when we remember they had a box (reload race).
   const signedInWithoutBox =
     !hadBoxThisVisitRef.current &&
     !!user &&
     !guestViewOnly &&
+    !authLoading &&
     !sessionLoading &&
     !draftLoading &&
     !draftError &&
     !ordersLoading &&
+    rememberedHadBox !== true &&
     lineItems.length === 0 &&
     !openOrder;
   const startedOwnBuildRef = useRef(false);

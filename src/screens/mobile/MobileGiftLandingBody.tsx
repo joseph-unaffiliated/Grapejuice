@@ -4,6 +4,7 @@ import { MobileSheet } from '../../components/mobile/MobileSheet';
 import { Icon } from '../../components/ui/Icon';
 import { icons } from '../../constants/icons';
 import { MobileButton } from '../../components/mobile/MobileButton';
+import { MOBILE_FOOTER_TOP_GAP } from '../../components/mobile/MobileFooter';
 import { balanceProps, m, mFont, mGutter } from '../../components/mobile/mobileTheme';
 
 const DOORSTEP = require('../../../assets/storefront/box-doorstep.jpg');
@@ -18,6 +19,7 @@ type Props = {
   lockShort: string;
   faq: { title: string; body: string }[];
   onGive: () => void;
+  onGiveCredit: () => void;
 };
 
 /** Phone gift landing (gift.html s=1): short photo, send-by pill, one CTA, cream steps, questions. */
@@ -26,7 +28,7 @@ function firstSentence(text: string): string {
   return (m1 ? m1[0] : text).trim();
 }
 
-export function MobileGiftLandingBody({ lockShort, faq, onGive }: Props) {
+export function MobileGiftLandingBody({ lockShort, faq, onGive, onGiveCredit }: Props) {
   const [open, setOpen] = useState<{ title: string; body: string } | null>(null);
   return (
     <View style={styles.root}>
@@ -64,7 +66,7 @@ export function MobileGiftLandingBody({ lockShort, faq, onGive }: Props) {
 
       <View style={[styles.band, { paddingHorizontal: mGutter }]}>
         <Text style={[styles.h2, { marginBottom: 6 }]}>Questions</Text>
-        {faq.map((q, i) => (
+        {faq.map((q) => (
           <Pressable key={q.title} onPress={() => setOpen(q)} accessibilityRole="button" style={styles.row}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.rowTitle}>{q.title}</Text>
@@ -74,6 +76,19 @@ export function MobileGiftLandingBody({ lockShort, faq, onGive }: Props) {
           </Pressable>
         ))}
       </View>
+
+      <View style={styles.bottomCta}>
+        <Text style={[styles.h2, { marginBottom: 8 }]} {...balanceProps}>
+          Ready to send?
+        </Text>
+        <Text style={[styles.lede, { marginBottom: 16 }]} {...balanceProps}>
+          Curate everything for them, or gift credit and let them choose.
+        </Text>
+        <MobileButton label="Curate a box for them" onPress={onGive} height={52} />
+        <MobileButton label="Gift them credit" variant="secondary" onPress={onGiveCredit} height={52} style={{ marginTop: 10 }} />
+      </View>
+      {/* StorefrontChrome owns the site footer — leave room so CTAs don’t sit on it. */}
+      <View style={{ height: MOBILE_FOOTER_TOP_GAP + 24 }} />
       <MobileSheet visible={open != null} onClose={() => setOpen(null)} title={open?.title ?? ''}>
         <Text style={styles.sheetBody}>{open?.body}</Text>
       </MobileSheet>
@@ -102,5 +117,10 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 15.5, lineHeight: 21, color: m.ink, ...mFont(400) },
   rowBody: { fontSize: 13, lineHeight: 18, color: m.muted, marginTop: 2, ...mFont(300) },
   chev: { fontSize: 20, color: m.goldDark, ...mFont(400) },
+  bottomCta: {
+    paddingHorizontal: mGutter,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
   sheetBody: { fontSize: 15, lineHeight: 23, color: m.body, ...mFont(300) },
 });

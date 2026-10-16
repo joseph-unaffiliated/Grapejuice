@@ -564,7 +564,13 @@ function MobileGifts(p: {
 export function MyGiftsScreen() {
   const mobileLayout = useMobileLayout();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  if (mobileLayout && isAuthenticated) return <MyGiftsBody />;
+  if (mobileLayout && isAuthenticated) {
+    return (
+      <StorefrontChrome bodyMode="fill" hideServicesNav fillChromeHidden>
+        <MyGiftsBody />
+      </StorefrontChrome>
+    );
+  }
   return (
     <StorefrontChrome bodyMode="fill" hideServicesNav>
       <MyGiftsBody />

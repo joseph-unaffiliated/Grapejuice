@@ -52,7 +52,7 @@ export function usePilotPayment({ enabled }: { enabled: boolean }) {
 
   const stripeKey = (Constants.expoConfig?.extra as Record<string, string | undefined> | undefined)?.stripePublishableKey ?? '';
   const stripePromise = useMemo(() => getStripePromise(stripeKey), [stripeKey]);
-  const cardOnFile = !!household?.cardOnFileAt;
+  const cardOnFile = !!(household?.cardOnFileAt || household?.stripeDefaultPaymentMethodId);
   const [replacing, setReplacing] = useState(false);
   const needsCard = enabled && (!cardOnFile || replacing);
   const [secret, setSecret] = useState<string | null>(null);

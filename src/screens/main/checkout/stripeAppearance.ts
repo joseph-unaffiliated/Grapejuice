@@ -6,7 +6,8 @@ export const STRIPE_APPEARANCE: Appearance = {
   theme: 'stripe',
   variables: {
     fontFamily: `"${WEB_FONT_FAMILY}", system-ui, sans-serif`,
-    fontSizeBase: '14px',
+    // Match Account/checkout inputs; below 16px iOS Safari zooms the Payment Element.
+    fontSizeBase: '16px',
     borderRadius: `${borderRadius.xl}px`,
     colorPrimary: semanticColors.goldMuted,
     colorText: semanticColors.textPrimary,

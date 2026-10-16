@@ -42,6 +42,8 @@ import {
 import type { CatalogItem } from '../../types/pilot';
 import { BoxItemRow } from '../../components/box/BoxItemRow';
 import { BoxProductModal } from '../../components/box/BoxProductModal';
+import { MobileToast, type ToastState } from '../../components/mobile/MobileToast';
+import { consumeWelcomeAccountToast, welcomeAccountMessage } from '../../services/auth/welcomeAccountToast';
 import { SwapIntoBoxModal, swapTitleForItem } from '../../components/storefront/SwapIntoBoxModal';
 import { BoxSlotVoteRow, WrappedGiftPlaceholder } from '../../components/box/BoxSlotVoteRow';
 import { StickySectionNav } from '../../components/box/StickySectionNav';
@@ -285,23 +287,36 @@ export function MyBoxScreen() {
     onScroll,
     scrollToSection,
     scrollToItem,
+    scrollingToSectionRef,
   } = useBoxDetailScroll({ visibleSectionIds });
   scrollToSectionRef.current = scrollToSection;
 
   /** Mobile: hide pinned chrome on scroll down, bring it back on scroll up (like Home). */
   const [chromeHidden, setChromeHidden] = useState(false);
   const lastScrollY = useRef(0);
+  const [welcomeToast, setWelcomeToast] = useState<ToastState>(null);
+  const welcomeToastShown = useRef(false);
+  useEffect(() => {
+    // Phone My Box consumes this itself inside MyBoxMobile.
+    if (mobileLayout || welcomeToastShown.current) return;
+    const email = consumeWelcomeAccountToast();
+    if (!email) return;
+    welcomeToastShown.current = true;
+    setWelcomeToast({ message: welcomeAccountMessage(email) });
+  }, [mobileLayout]);
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       onScroll(e);
       if (isDesktop) return;
+      // Tab jumps animate through many offsets — don't flash chrome mid-jump.
+      if (scrollingToSectionRef.current) return;
       const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastScrollY.current;
       lastScrollY.current = y;
       if (y < CHROME_REVEAL_TOP_Y || dy < -CHROME_SCROLL_DIR_THRESHOLD) setChromeHidden(false);
       else if (dy > CHROME_SCROLL_DIR_THRESHOLD) setChromeHidden(true);
     },
-    [isDesktop, onScroll]
+    [isDesktop, onScroll, scrollingToSectionRef]
   );
 
   const renderSection = (sectionId: BoxDisplaySectionId, isLast = false) => {
@@ -1145,17 +1160,7 @@ export function MyBoxScreen() {
           omitDesktopTopPadding
           style={styles.panel}
         >
-          <View
-            style={[
-              styles.scrollHost,
-              // Constrain the scrollport (not an inner shell) so the scrollbar sits
-              // on the content column edge instead of floating in the side margin.
-              isDesktop
-                ? { maxWidth: widePanelMaxWidth, width: '100%', alignSelf: 'center' }
-                : null,
-            ]}
-            testID="box-scroll-host"
-          >
+          <View style={styles.scrollHost} testID="box-scroll-host">
             <ScrollView
               ref={scrollRef}
               style={[styles.root, isDesktop && styles.desktopRoot]}
@@ -1177,7 +1182,11 @@ export function MyBoxScreen() {
                 : null)}
             >
               <View
-                style={isDesktop ? styles.desktopShell : undefined}
+                style={
+                  isDesktop
+                    ? [styles.desktopShell, { maxWidth: widePanelMaxWidth }]
+                    : undefined
+                }
                 ref={contentRef}
                 collapsable={false}
               >
@@ -1292,6 +1301,7 @@ export function MyBoxScreen() {
             : undefined
         }
       />
+      <MobileToast toast={welcomeToast} onDismiss={() => setWelcomeToast(null)} bottomOffset={24} />
     </StorefrontChrome>
   );
 }

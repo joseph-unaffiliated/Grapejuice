@@ -65,7 +65,8 @@ export const checkoutUi = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     minHeight: 44,
-    fontSize: Platform.OS === 'web' ? 14 : 16,
+    // 16px minimum on web mobile — iOS Safari zooms inputs below that.
+    fontSize: 16,
     color: semanticColors.textPrimary,
     backgroundColor: semanticColors.bgPrimary,
   },

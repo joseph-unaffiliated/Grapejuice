@@ -82,7 +82,7 @@ export function GiftLandingScreen() {
     const lockShort = boxLockDayLabel(config?.lockAt) ?? 'Nov 7';
     return (
       <StorefrontChrome>
-        <MobileGiftLandingBody lockShort={lockShort} faq={c.faq.items} onGive={giveBox} />
+        <MobileGiftLandingBody lockShort={lockShort} faq={c.faq.items} onGive={giveBox} onGiveCredit={giveCredit} />
       </StorefrontChrome>
     );
   }
@@ -173,8 +173,11 @@ export function GiftLandingScreen() {
           type: 'band',
           heading: c.closing.heading,
           body: c.closing.body,
-          cta: { label: c.closing.cta, onPress: giveBox },
+          cta: { label: 'Curate a box for them', onPress: giveBox },
+          secondaryCta: { label: 'Gift them credit', onPress: giveCredit },
         },
+        // Generous gap before the site footer so dual CTAs don’t sit on the ink bar.
+        { type: 'node', node: <View style={{ height: spacing.xxl }} /> },
       ]}
     />
   );

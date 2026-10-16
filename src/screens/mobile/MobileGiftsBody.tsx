@@ -9,7 +9,7 @@ import { icons } from '../../constants/icons';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { MobileChip, type MobileOrderAction } from './MobileOrdersBody';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
-import { MobileFooterBleed, MobileFooterSpacer, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
+import { MobileFooterBleed, MobileFooterSpacer, MOBILE_FOOTER_TOP_GAP, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 
 export type MobileGiftRow = {
   id: string;
@@ -41,9 +41,9 @@ export function MobileGiftsBody(p: Props) {
   const rows = tab === 'sent' ? p.sent : p.received;
 
   return (
-    <View style={{ flex: 1, backgroundColor: m.white }}>
+    <View style={{ flex: 1, minHeight: 0, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Account', onPress: p.onBack }} title="Gifts" />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, mobileFooterScrollStyle, { paddingBottom: 0 }]}>
+      <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={[styles.content, mobileFooterScrollStyle, { paddingBottom: 0 }]}>
         <Text style={styles.h1}>Gifts</Text>
         <View style={styles.chips}>
           <MobileChip label="Sent" on={tab === 'sent'} onPress={() => setTab('sent')} />
@@ -111,6 +111,7 @@ export function MobileGiftsBody(p: Props) {
         {tab === 'received' && p.creditLine ? <Text style={[mType.smallDark, { marginTop: 16 }]}>{p.creditLine}</Text> : null}
         <MobileButton label={p.sent.length ? 'Send another gift' : 'Send a gift'} variant="secondary" onPress={p.onSend} style={{ marginTop: 20 }} />
         <MobileFooterSpacer />
+        <View style={{ height: MOBILE_FOOTER_TOP_GAP }} />
         <MobileFooterBleed inset={16} />
       </ScrollView>
     </View>

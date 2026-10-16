@@ -21,7 +21,7 @@ export function MobileToast({ toast, onDismiss, bottomOffset = 84, durationMs = 
   return pinToViewport(
     <View style={[styles.root, { bottom: bottomOffset + insets.bottom }]} pointerEvents="box-none">
       <View style={styles.toast} accessibilityLiveRegion="polite">
-        <Text style={styles.text} numberOfLines={2}>
+        <Text style={styles.text} numberOfLines={4}>
           {toast.message}
         </Text>
         {toast.action ? (

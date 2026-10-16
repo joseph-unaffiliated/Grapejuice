@@ -47,6 +47,9 @@ export type RedeemLoginLinkResult =
       customToken: string;
       next: string | null;
       snapshot: GuestSessionSnapshot | null;
+      /** Invite redeem just created a passwordless Auth user. */
+      accountCreated?: boolean;
+      email?: string;
     }
   /** `email`: only on an expired order link, to prefill the email-me-a-link form. */
   | { status: 'invalid' | 'expired' | 'used'; email?: string };

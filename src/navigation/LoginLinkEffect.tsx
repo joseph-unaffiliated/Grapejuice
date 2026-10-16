@@ -15,6 +15,7 @@ import {
   scrubLoginUrl,
 } from './loginLink';
 import { redeemLoginLink, type RedeemLoginLinkResult } from '../services/auth/loginLinks';
+import { queueWelcomeAccountToast } from '../services/auth/welcomeAccountToast';
 import { applyGuestSnapshot } from '../services/guest/guestSessionSync';
 import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
 import { semanticColors } from '../constants/theme';
@@ -117,6 +118,9 @@ export function LoginLinkEffect() {
           useAuthStore.setState({ error: failedLinkMessage('invalid') });
           return;
         }
+      }
+      if (result.accountCreated && result.email) {
+        queueWelcomeAccountToast(result.email);
       }
       await whenMainSettled();
       setWorking(false);

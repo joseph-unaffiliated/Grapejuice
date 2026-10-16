@@ -63,17 +63,13 @@ function NoteLine({ icon, text }: { icon: (typeof icons)[keyof typeof icons]; te
 /** gift.html s=3: family name, how many kids, and roughly how old. Names are optional. */
 export function MobileGiftFamily({
   kids,
-  familyName,
   adults,
   onChange,
-  onFamilyName,
   onAdults,
 }: {
   kids: GiftChildDraft[];
-  familyName: string;
   adults: number;
   onChange: (next: GiftChildDraft[]) => void;
-  onFamilyName: (v: string) => void;
   onAdults: (n: number) => void;
 }) {
   const [naming, setNaming] = React.useState<number | null>(null);
@@ -98,7 +94,6 @@ export function MobileGiftFamily({
     <View>
       <Head title="Who is it for?" lede="We pick a book and a present for each kid, based on their age." />
       <View style={styles.pad}>
-        <MobileField label="Family name" value={familyName} onChangeText={onFamilyName} placeholder="The Golds" autoComplete="off" hint="Shown on the note and the box" />
         <View style={styles.kidRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Kids</Text>
@@ -222,9 +217,8 @@ export const MobileGiftSave = forwardRef<TextInput, SaveProps>(function MobileGi
 });
 
 /** gift.html s=7: the note, with what they'll see. */
-export function MobileGiftNote({ name, message, onName, onMessage, customize, familyName }: { name: string; message: string; onName: (v: string) => void; onMessage: (v: string) => void; customize: boolean; familyName?: string }) {
+export function MobileGiftNote({ name, message, onName, onMessage, customize }: { name: string; message: string; onName: (v: string) => void; onMessage: (v: string) => void; customize: boolean; familyName?: string }) {
   const from = name.trim() || 'you';
-  const family = familyName?.trim();
   return (
     <View>
       <Head title="Add a note" lede="They'll see it in the email with your gift." />
@@ -235,7 +229,7 @@ export function MobileGiftNote({ name, message, onName, onMessage, customize, fa
         <View style={styles.preview}>
           <Text style={styles.previewLab}>What they'll see</Text>
           <View style={styles.previewCard}>
-            <Text style={styles.previewEyebrow}>A gift from {from}{family ? ` for ${family}` : ''}</Text>
+            <Text style={styles.previewEyebrow}>A gift from {from}</Text>
             <Text style={styles.previewH2}>{customize ? 'Your Hanukkah box is on the way' : 'You got Hanukkah credit'}</Text>
             {message.trim() ? <Text style={styles.previewBody}>{message.trim()}</Text> : null}
             <View style={styles.previewBtn}>

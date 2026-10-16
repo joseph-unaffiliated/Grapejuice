@@ -83,22 +83,22 @@ export function GiftGiverCustomizeScreen() {
     });
   }, [form, childDrafts, lineItems, draftHydrated]);
 
-  const continueToNote = () => {
+  const continueToSend = () => {
     const nextForm = latestCustomizeForm(form);
     useGiftIntentStore.getState().markIncomplete('customize', {
       form: nextForm,
       childDrafts,
       lineItems,
-      step: 'note',
+      step: 'send',
     });
-    // Own history entry, so browser Back from the note step returns to the box.
-    pushBrowserPath(`${GIFT_GIVE_PATH}?step=note`);
+    // Own history entry, so browser Back from the send step returns to the box.
+    pushBrowserPath(`${GIFT_GIVE_PATH}?step=send`);
     navigation.push('GiftGive', {
       form: nextForm,
       childDrafts,
       lineItems,
       initialGiftPath: 'customize',
-      step: 'note',
+      step: 'send',
     });
   };
 
@@ -108,7 +108,7 @@ export function GiftGiverCustomizeScreen() {
     navigation.navigate('StorefrontHome');
   };
 
-  const mobileEditing = useGiftMobileBoxEditing(draft, continueToNote);
+  const mobileEditing = useGiftMobileBoxEditing(draft, continueToSend);
 
   if (mobileLayout) {
     const header = (
@@ -116,12 +116,11 @@ export function GiftGiverCustomizeScreen() {
         back={{ label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('GiftLanding')) }}
         title="Send a gift"
         right="Step 2 of 4"
-        steps={['Their family', 'Their box', 'Note', 'Pay']}
+        steps={['Their family', 'Their box', 'Send', 'Pay']}
         on={1}
       />
     );
     const kids = Math.max(1, children.length);
-    const family = latestCustomizeForm(form).familyName?.trim();
     return (
       <StorefrontChrome bodyMode="fill" hideServicesNav hideSearchAndRav fillChromeHidden>
         {loading || !lineItems.length ? (
@@ -135,7 +134,7 @@ export function GiftGiverCustomizeScreen() {
           <MyBoxMobile
             editing={mobileEditing}
             navigation={navigation}
-            gift={{ header, banner: family ? `A gift for ${family}` : `A gift for a family with ${kids === 1 ? 'one kid' : `${kids} kids`}`, nextLabel: 'Next: Note', onNext: continueToNote }}
+            gift={{ header, banner: `A gift for a family with ${kids === 1 ? 'one kid' : `${kids} kids`}`, nextLabel: 'Next: Send', onNext: continueToSend }}
           />
         )}
       </StorefrontChrome>
@@ -162,7 +161,7 @@ export function GiftGiverCustomizeScreen() {
         setKidBook={setKidBook}
         persistWrapSelection={persistWrapSelection}
         setCashDonation={setCashDonation}
-        onPay={continueToNote}
+        onPay={continueToSend}
         onCancelGift={cancelGift}
       />
     </StorefrontChrome>

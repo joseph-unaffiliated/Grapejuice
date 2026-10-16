@@ -57,6 +57,7 @@ import {
 } from './webBrowserHistory';
 import { DEFAULT_STOREFRONT_CATEGORY } from '../constants/storefrontCategories';
 import { BrandLoadingMark } from '../components/brand/BrandLoadingMark';
+import { queueWelcomeAccountToast } from '../services/auth/welcomeAccountToast';
 import { trackBoxBuilt, trackBoxEmail } from '../services/analytics/metaServerEvents';
 import { revealBoxWithEmail } from '../services/auth/loginLinks';
 import { getVisitorId } from '../services/guest/visitorId';
@@ -711,6 +712,7 @@ export function OnboardingStack({
       if (result.status === 'created') {
         pendingRevealToken = result.customToken;
         setGuestPendingAccountEmail('');
+        queueWelcomeAccountToast(email);
         // Preserve the guest draft, but defer the slow account merge until the
         // short build splash hands off to My Box.
         markHandoff();

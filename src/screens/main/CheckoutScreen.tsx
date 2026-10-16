@@ -112,7 +112,7 @@ function CheckoutScreenBody() {
 
   const extra = Constants.expoConfig?.extra as Record<string, string | undefined> | undefined;
   const stripeKey = extra?.stripePublishableKey ?? '';
-  const cardOnFile = !!household?.cardOnFileAt;
+  const cardOnFile = !!(household?.cardOnFileAt || household?.stripeDefaultPaymentMethodId);
   const skipShipStation = useMockFlowStore((s) => s.active);
 
   const handleSaveCard = useCallback(async (): Promise<boolean> => {

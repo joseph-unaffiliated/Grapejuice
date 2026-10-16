@@ -8,7 +8,13 @@ export const LAST_SIGNED_IN_KEY = 'last-signed-in';
 type BoxPresenceState = {
   /** Last resolved “has a Hanukkah box” answer, keyed by household id (plus LAST_SIGNED_IN_KEY). */
   byKey: Record<string, boolean>;
+  /**
+   * Survives reload until logout so chrome can stay signed-in while Firebase
+   * `onAuthStateChanged` is still resolving (avoids a guest flash).
+   */
+  wasAuthenticated: boolean;
   setHasBox: (householdId: string, hasBox: boolean) => void;
+  setWasAuthenticated: (value: boolean) => void;
   clearLastSignedIn: () => void;
 };
 
@@ -20,22 +26,25 @@ export const useBoxPresenceStore = create<BoxPresenceState>()(
   persist(
     (set) => ({
       byKey: {},
+      wasAuthenticated: false,
       setHasBox: (householdId, hasBox) =>
         set((state) =>
           state.byKey[householdId] === hasBox && state.byKey[LAST_SIGNED_IN_KEY] === hasBox
             ? state
             : { byKey: { ...state.byKey, [householdId]: hasBox, [LAST_SIGNED_IN_KEY]: hasBox } }
         ),
+      setWasAuthenticated: (value) =>
+        set((state) => (state.wasAuthenticated === value ? state : { wasAuthenticated: value })),
       clearLastSignedIn: () =>
         set((state) => {
           const { [LAST_SIGNED_IN_KEY]: _dropped, ...rest } = state.byKey;
-          return { byKey: rest };
+          return { byKey: rest, wasAuthenticated: false };
         }),
     }),
     {
       name: 'grapejuice-box-presence',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ byKey: state.byKey }),
+      partialize: (state) => ({ byKey: state.byKey, wasAuthenticated: state.wasAuthenticated }),
     }
   )
 );

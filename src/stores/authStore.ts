@@ -62,6 +62,7 @@ function commitAuthenticatedUser(
   clearGuest: boolean
 ) {
   set({ user, isAuthenticated: true, isLoading: false, error: null });
+  useBoxPresenceStore.getState().setWasAuthenticated(true);
   // Mid box-reveal the guest store IS the box. Wiping it before the profile
   // catches up remounts onboarding on Your Family.
   if (clearGuest && !boxRevealHandoffActive()) {
@@ -218,6 +219,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return;
         }
         authStateSettled = true;
+        useBoxPresenceStore.getState().setWasAuthenticated(true);
         set({ user, isAuthenticated: true });
       } else if (redirectSettled) {
         // Ignore null until redirect completion — Auth often emits null before getRedirectResult.
@@ -225,6 +227,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         authStateSettled = true;
         const current = getCurrentAuthUser();
         if (current) {
+          useBoxPresenceStore.getState().setWasAuthenticated(true);
           set({ user: current, isAuthenticated: true });
         } else {
           set({ user: null, isAuthenticated: false });

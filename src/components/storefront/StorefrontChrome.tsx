@@ -113,6 +113,11 @@ type Props = {
    * sticky bottom bar (the bar owns the bottom; no clearance is reserved).
    */
   hideFooter?: boolean;
+  /**
+   * When `.current` is true, sticky chrome ignore scroll direction (e.g. while a
+   * section tab jump animates). Page scroll callbacks still fire.
+   */
+  suppressScrollChromeRef?: React.MutableRefObject<boolean>;
 };
 
 type ChromeProps = {
@@ -263,6 +268,7 @@ function StorefrontChromeInner({
   fillChromeHidden = false,
   onPageScroll,
   hideFooter = false,
+  suppressScrollChromeRef,
 }: Props) {
   const navigation = useNavigation<Nav>();
   const isFocused = useIsFocused();
@@ -690,6 +696,11 @@ function StorefrontChromeInner({
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       onPageScroll?.(e);
       if (!useOverlaySticky) return;
+      // Programmatic section jumps — don't flash sticky chrome mid-animation.
+      if (suppressScrollChromeRef?.current) {
+        lastY.current = Math.max(0, e.nativeEvent.contentOffset.y);
+        return;
+      }
       const y = Math.max(0, e.nativeEvent.contentOffset.y);
       const dy = y - lastY.current;
       lastY.current = y;
@@ -739,6 +750,7 @@ function StorefrontChromeInner({
       animateOverlay,
       clearTopFadeTimer,
       dismissStickyNearTop,
+      suppressScrollChromeRef,
       syncRavTop,
       syncScrollAwayChrome,
       useOverlaySticky,
