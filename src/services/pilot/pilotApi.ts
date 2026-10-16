@@ -69,6 +69,17 @@ export type AdminPilotInvite = {
   createdByEmail: string;
   source: 'auto' | 'manual';
   jewishScore: number | null;
+  /** Onboarding Hanukkah slider (0–100). Null when unanswered. */
+  hanukkahScore: number | null;
+  householdId: string | null;
+  /** Ship-to state, else IP region. */
+  location: string | null;
+  locationFromIp: boolean;
+  /** Kids' planner ages, youngest first ("3", "7", "18+"). */
+  kidAges: string[];
+  boxKind: 'order' | 'draft' | 'none';
+  /** Item names currently in their draft or open order. */
+  boxItems: string[];
   emailedAt: string | null;
   followUpAt: string | null;
   openedAt: string | null;

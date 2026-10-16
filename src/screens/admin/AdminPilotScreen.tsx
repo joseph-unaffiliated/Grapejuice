@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
@@ -15,6 +15,7 @@ import { paintOpsMobile } from './opsMobileSkin';
 import { spacing, typography, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
+import { ADMIN_ORDERS_PATH } from '../../navigation/adminBoxesLink';
 import { adminPilot, type AdminPilotInvite } from '../../services/pilot/pilotApi';
 import { copyText } from '../../services/promo/copyText';
 import {
@@ -42,6 +43,22 @@ const STATUS_LABEL: Record<string, string> = {
   enrolled: 'enrolled',
   cancelled: 'cancelled',
 };
+
+const BOX_KIND_LABEL: Record<AdminPilotInvite['boxKind'], string> = {
+  order: 'Checked out',
+  draft: 'Draft',
+  none: 'No box',
+};
+
+/** Opens Orders & Inventory with the search box prefilled to this email. */
+function openBoxInOrders(email: string) {
+  const path = `${ADMIN_ORDERS_PATH}?q=${encodeURIComponent(email)}&tab=boxes`;
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.open(path, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  void Linking.openURL(path);
+}
 
 function CopyLinkRow({ link, styles }: { link: string; styles: Styles }) {
   const [copied, setCopied] = useState(false);
@@ -135,6 +152,15 @@ function InviteRow({
       setBusy(false);
     }
   };
+  const boxKind = inv.boxKind ?? 'none';
+  const place =
+    inv.location != null ? `${inv.location}${inv.locationFromIp ? ' (IP)' : ''}` : '—';
+  const ages = inv.kidAges?.length ? inv.kidAges.join(', ') : '—';
+  const boxLabel =
+    boxKind === 'none'
+      ? 'No box yet'
+      : `${BOX_KIND_LABEL[boxKind]}${inv.boxItems?.length ? ` · ${inv.boxItems.length} items` : ''}`;
+
   return (
     <View style={styles.card}>
       <View style={styles.rowHead}>
@@ -150,14 +176,28 @@ function InviteRow({
           v={`${day(inv.createdAt)} ${inv.source === 'auto' ? 'automatically' : `by ${inv.createdByEmail || '—'}`}`}
           styles={styles}
         />
-        {inv.jewishScore != null ? <Fact k="Jewish score" v={String(inv.jewishScore)} styles={styles} /> : null}
+        <Fact k="Jewish" v={inv.jewishScore != null ? String(inv.jewishScore) : '—'} styles={styles} />
+        <Fact k="Hanukkah" v={inv.hanukkahScore != null ? String(inv.hanukkahScore) : '—'} styles={styles} />
+        <Fact k="Location" v={place} styles={styles} />
+        <Fact k="Kids ages" v={ages} styles={styles} />
+        <Fact k="Box" v={boxLabel} styles={styles} />
         <Fact k="Account" v={inv.accountCreated ? 'Created for them' : 'Already existed'} styles={styles} />
         <Fact k="Opened" v={day(inv.openedAt)} styles={styles} />
         {joined ? <Fact k="Joined" v={day(inv.joinedAt)} styles={styles} /> : null}
         {joined ? <Fact k="Value" v={money(inv.deferredTotalCents)} styles={styles} /> : null}
         {joined ? <Fact k="May quote" v={inv.quoteConsent ? 'Yes, first name' : 'No'} styles={styles} /> : null}
       </View>
-      {inv.picks.length ? <Text style={styles.caption}>{inv.picks.join(' · ')}</Text> : null}
+      {inv.picks.length ? <Text style={styles.caption}>{`Pilot picks: ${inv.picks.join(' · ')}`}</Text> : null}
+      {inv.boxItems?.length ? (
+        <Text style={styles.caption} numberOfLines={4}>
+          {`In box: ${inv.boxItems.join(' · ')}`}
+        </Text>
+      ) : null}
+      {boxKind !== 'none' ? (
+        <View style={styles.chipRow}>
+          <Chip label="View box in Orders ›" onPress={() => openBoxInOrders(inv.email)} styles={styles} />
+        </View>
+      ) : null}
       {inv.status !== 'cancelled' ? <CopyLinkRow link={inv.link} styles={styles} /> : null}
       {inv.status !== 'cancelled' ? (
         <View style={check.group}>
@@ -175,7 +215,7 @@ function InviteRow({
   );
 }
 
-type Filter = 'all' | 'notEmailed' | 'needsFollowUp' | 'joined';
+type Filter = 'all' | 'notEmailed' | 'needsFollowUp' | 'joined' | 'enrolled' | 'draft' | 'auto' | 'cancelled';
 
 const FILTERS: Array<{ id: Filter; label: string; match: (i: AdminPilotInvite) => boolean }> = [
   { id: 'all', label: 'All', match: () => true },
@@ -186,7 +226,65 @@ const FILTERS: Array<{ id: Filter; label: string; match: (i: AdminPilotInvite) =
     match: (i) => i.status !== 'cancelled' && !i.joinedAt && !!i.emailedAt && !i.followUpAt,
   },
   { id: 'joined', label: 'Joined', match: (i) => !!i.joinedAt },
+  { id: 'enrolled', label: 'Enrolled', match: (i) => i.status === 'enrolled' },
+  { id: 'draft', label: 'Draft box', match: (i) => i.boxKind === 'draft' },
+  { id: 'auto', label: 'Auto', match: (i) => i.source === 'auto' && i.status !== 'cancelled' },
+  { id: 'cancelled', label: 'Cancelled', match: (i) => i.status === 'cancelled' },
 ];
+
+type SortKey = 'invited' | 'jewish' | 'hanukkah' | 'location' | 'kids' | 'name' | 'status';
+
+const SORTS: Array<{ id: SortKey; label: string }> = [
+  { id: 'invited', label: 'Newest' },
+  { id: 'name', label: 'Name' },
+  { id: 'jewish', label: 'Jewish ↑' },
+  { id: 'hanukkah', label: 'Hanukkah ↑' },
+  { id: 'location', label: 'Location' },
+  { id: 'kids', label: 'Kids' },
+  { id: 'status', label: 'Status' },
+];
+
+function compareInvites(a: AdminPilotInvite, b: AdminPilotInvite, sort: SortKey): number {
+  const nullLast = (n: number | null | undefined) => (n == null ? Number.POSITIVE_INFINITY : n);
+  switch (sort) {
+    case 'jewish':
+      return nullLast(a.jewishScore) - nullLast(b.jewishScore) || a.name.localeCompare(b.name);
+    case 'hanukkah':
+      return nullLast(a.hanukkahScore) - nullLast(b.hanukkahScore) || a.name.localeCompare(b.name);
+    case 'location':
+      return (a.location ?? 'ZZZ').localeCompare(b.location ?? 'ZZZ') || a.name.localeCompare(b.name);
+    case 'kids': {
+      const ak = a.kidAges?.[0] ? Number(a.kidAges[0] === '18+' ? 18 : a.kidAges[0]) : 99;
+      const bk = b.kidAges?.[0] ? Number(b.kidAges[0] === '18+' ? 18 : b.kidAges[0]) : 99;
+      return ak - bk || (b.kidAges?.length ?? 0) - (a.kidAges?.length ?? 0);
+    }
+    case 'name':
+      return a.name.localeCompare(b.name) || a.email.localeCompare(b.email);
+    case 'status':
+      return (STATUS_LABEL[a.status] ?? a.status).localeCompare(STATUS_LABEL[b.status] ?? b.status) || a.name.localeCompare(b.name);
+    case 'invited':
+    default:
+      return (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0);
+  }
+}
+
+function matchesQuery(inv: AdminPilotInvite, q: string): boolean {
+  if (!q) return true;
+  const hay = [
+    inv.name,
+    inv.email,
+    inv.location ?? '',
+    inv.kidAges?.join(' ') ?? '',
+    inv.picks.join(' '),
+    inv.boxItems?.join(' ') ?? '',
+    STATUS_LABEL[inv.status] ?? inv.status,
+    inv.jewishScore != null ? String(inv.jewishScore) : '',
+    inv.hanukkahScore != null ? String(inv.hanukkahScore) : '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
+}
 
 function AutoInviteCard({ onChanged, styles }: { onChanged: () => Promise<void>; styles: Styles }) {
   const [busy, setBusy] = useState(false);
@@ -215,8 +313,8 @@ function AutoInviteCard({ onChanged, styles }: { onChanged: () => Promise<void>;
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Automatic invites</Text>
       <Text style={styles.caption}>
-        Families get a link automatically when their Jewish score is under 50, we have their email and a first name (not just an
-        initial), and they’ve built a box but haven’t checked out. Test accounts and anyone already invited (even if cancelled) are
+        Families get a link automatically when their Jewish practice score is 59 or below, we have their email and a first name (not just an
+        initial), and they’ve built a box but haven’t checked out. A practice score of exactly 50 counts only when Hanukkah is also answered and under 60; both sliders left at 50 are skipped. Test accounts and anyone already invited (even if cancelled) are
         skipped. Checks every hour; use the button to check now.
       </Text>
       <View style={styles.chipRow}>
@@ -231,6 +329,8 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
   const { rows, error, reload } = useAdminList(adminPilot.list);
   const check = useMemo(() => createCheckStyles(colors), [colors]);
   const [filter, setFilter] = useState<Filter>('all');
+  const [sort, setSort] = useState<SortKey>('invited');
+  const [query, setQuery] = useState('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -268,7 +368,15 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
   const list = rows ?? [];
   const count = (s: (i: AdminPilotInvite) => boolean) => list.filter(s).length;
   const live = (i: AdminPilotInvite) => i.status !== 'cancelled';
-  const shown = list.filter(FILTERS.find((f) => f.id === filter)!.match);
+  const q = query.trim().toLowerCase();
+  const shown = useMemo(() => {
+    const match = FILTERS.find((f) => f.id === filter)!.match;
+    return list
+      .filter(match)
+      .filter((i) => matchesQuery(i, q))
+      .slice()
+      .sort((a, b) => compareInvites(a, b, sort));
+  }, [list, filter, q, sort]);
 
   return (
     <View style={styles.body}>
@@ -301,22 +409,44 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
               `${count((i) => !!i.openedAt)} opened`,
               `${count((i) => !!i.joinedAt)} joined`,
               `${count((i) => i.status === 'enrolled')} enrolled`,
+              `${count((i) => i.boxKind === 'draft')} draft boxes`,
             ].join(' · ')
           : error ?? 'Loading invites…'}
       </Text>
       {rows && error ? <Text style={styles.error}>{error}</Text> : null}
       {rows ? (
-        <View style={styles.chipRow}>
-          {FILTERS.map((f) => (
-            <Chip
-              key={f.id}
-              label={`${f.label} (${count(f.match)})`}
-              active={filter === f.id}
-              onPress={() => setFilter(f.id)}
-              styles={styles}
-            />
-          ))}
-        </View>
+        <>
+          <Field
+            label="Search"
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Name, email, state, ages, picks…"
+            width={360}
+            styles={styles}
+            colors={colors}
+          />
+          <Text style={styles.caption}>Filter</Text>
+          <View style={styles.chipRow}>
+            {FILTERS.map((f) => (
+              <Chip
+                key={f.id}
+                label={`${f.label} (${count(f.match)})`}
+                active={filter === f.id}
+                onPress={() => setFilter(f.id)}
+                styles={styles}
+              />
+            ))}
+          </View>
+          <Text style={styles.caption}>Sort</Text>
+          <View style={styles.chipRow}>
+            {SORTS.map((s) => (
+              <Chip key={s.id} label={s.label} active={sort === s.id} onPress={() => setSort(s.id)} styles={styles} />
+            ))}
+          </View>
+          <Text style={styles.caption}>
+            {shown.length === list.length ? `${shown.length} invites` : `${shown.length} of ${list.length} invites`}
+          </Text>
+        </>
       ) : null}
       {shown.map((inv) => (
         <InviteRow key={inv.token} inv={inv} onChanged={reload} styles={styles} check={check} />

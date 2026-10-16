@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { countsAsLowPractice } from '../../services/analytics/metaServerEvents';
 import { useAuthStore } from '../../stores/authStore';
 import { isOpsAdmin } from '../../constants/admin';
 import { WebContentPanel } from '../../components/layout/WebContentPanel';
@@ -678,19 +679,22 @@ function BoxesSection({
   inventoryById,
   styles,
   colors,
+  initialQuery = '',
 }: {
   data: BoxesDashboard;
   hideTests: boolean;
   inventoryById: Map<string, InventoryView>;
   styles: Styles;
   colors: SemanticColors;
+  /** Prefill from `/admin/orders?q=…` (Pilot “View box” link). */
+  initialQuery?: string;
 }) {
   const [status, setStatus] = useState<BoxStatusFilter>('active');
   const [card, setCard] = useState<YesNoAny>('any');
   const [addOns, setAddOns] = useState<YesNoAny>('any');
   const [kosherOnly, setKosherOnly] = useState(false);
   const [showPlaythrough, setShowPlaythrough] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [openId, setOpenId] = useState<string | null>(null);
   const mobile = useMobileLayout();
 
@@ -2144,8 +2148,30 @@ type Tab = 'boxes' | 'shop' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'g
 const TABS: readonly Tab[] = ['boxes', 'shop', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory', 'problems'];
 const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
 
-/** The open tab survives a browser refresh of /admin/orders. */
+/** Deep-link from Pilot admin: `/admin/orders?q=email&tab=boxes`. */
+function readOrdersLinkQuery(): string {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
+  try {
+    return new URLSearchParams(window.location.search).get('q')?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function readOrdersLinkTab(): Tab | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  try {
+    const raw = new URLSearchParams(window.location.search).get('tab');
+    return TABS.includes(raw as Tab) ? (raw as Tab) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The open tab survives a browser refresh of /admin/orders. URL `?tab=` wins when present. */
 function readStoredTab(): Tab {
+  const fromLink = readOrdersLinkTab();
+  if (fromLink) return fromLink;
   try {
     const raw = typeof window !== 'undefined' ? window.sessionStorage?.getItem(TAB_STORAGE_KEY) : null;
     return TABS.includes(raw as Tab) ? (raw as Tab) : 'boxes';
@@ -2207,10 +2233,12 @@ export function AdminBoxesScreen() {
     setTabState(next);
     storeTab(next);
   };
-  const [hideTests, setHideTests] = useState(true);
+  /** One-shot from `/admin/orders?q=` so Pilot “View box” lands on the right row. */
+  const linkQuery = useMemo(() => readOrdersLinkQuery(), []);
+  const [hideTests, setHideTests] = useState(() => !linkQuery);
   const [usOnly, setUsOnly] = useState(true);
-  /** Practice frequency ("how often do you practice?") under 50. Unknown / untouched answers are out. */
-  const [under50Practicing, setUnder50Practicing] = useState(false);
+  /** Jewish practice at or under 59. A 50 counts only when Hanukkah is answered and under 60. Unknown answers are out. */
+  const [lowPracticeOnly, setLowPracticeOnly] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -2223,24 +2251,28 @@ export function AdminBoxesScreen() {
   // Inventory keeps every row: stock held by a non-US / high-practice box is still held.
   const shown = useMemo(() => {
     if (!data) return data;
-    if (!usOnly && !under50Practicing) return data;
-    const keepPractice = (jewish: number | null | undefined) =>
-      !under50Practicing || (typeof jewish === 'number' && jewish < 50);
+    if (!usOnly && !lowPracticeOnly) return data;
+    const keepPractice = (jewish: number | null | undefined, hanukkah: number | null | undefined) =>
+      !lowPracticeOnly || countsAsLowPractice(jewish, hanukkah);
     return {
       ...data,
-      boxes: data.boxes.filter((b) => (!usOnly || !b.outsideUs) && keepPractice(b.answers?.jewish)),
-      guests: data.guests.filter((g) => (!usOnly || !g.outsideUs) && keepPractice(g.answers?.jewish)),
+      boxes: data.boxes.filter(
+        (b) => (!usOnly || !b.outsideUs) && keepPractice(b.answers?.jewish, b.answers?.hanukkah)
+      ),
+      guests: data.guests.filter(
+        (g) => (!usOnly || !g.outsideUs) && keepPractice(g.answers?.jewish, g.answers?.hanukkah)
+      ),
       gifts: data.gifts.filter(
-        (g) => (!usOnly || !g.outsideUs) && keepPractice(g.recipientAnswers?.jewish)
+        (g) => (!usOnly || !g.outsideUs) && keepPractice(g.recipientAnswers?.jewish, g.recipientAnswers?.hanukkah)
       ),
       adPeople: (data.adPeople ?? []).filter(
-        (p) => (!usOnly || !p.outsideUs) && keepPractice(p.jewish)
+        (p) => (!usOnly || !p.outsideUs) && keepPractice(p.jewish, p.hanukkah)
       ),
       // Funnel rows have no practice score — US-only still applies; practice filter leaves them alone.
       funnel: (data.funnel ?? []).filter((p) => !usOnly || !p.outsideUs),
       giftFunnel: (data.giftFunnel ?? []).filter((p) => !usOnly || !p.outsideUs),
     };
-  }, [data, usOnly, under50Practicing]);
+  }, [data, usOnly, lowPracticeOnly]);
 
   const panelProps = {
     flush: isDesktop,
@@ -2304,13 +2336,17 @@ export function AdminBoxesScreen() {
   const outsideBoxes = data.boxes.filter((b) => b.outsideUs && !b.playthrough && !(hideTests && b.test)).length;
   const outsideGuests = data.guests.filter((g) => g.outsideUs).length;
   const outsideGifts = data.gifts.filter((g) => g.outsideUs && !g.playthrough && !(hideTests && g.test)).length;
-  const notUnder50 = (jewish: number | null | undefined) => !(typeof jewish === 'number' && jewish < 50);
+  const notLowPractice = (jewish: number | null | undefined, hanukkah: number | null | undefined) =>
+    !countsAsLowPractice(jewish, hanukkah);
   const highPracticeBoxes = data.boxes.filter(
-    (b) => !b.playthrough && !(hideTests && b.test) && notUnder50(b.answers?.jewish)
+    (b) => !b.playthrough && !(hideTests && b.test) && notLowPractice(b.answers?.jewish, b.answers?.hanukkah)
   ).length;
-  const highPracticeGuests = data.guests.filter((g) => notUnder50(g.answers?.jewish)).length;
+  const highPracticeGuests = data.guests.filter((g) => notLowPractice(g.answers?.jewish, g.answers?.hanukkah)).length;
   const highPracticeGifts = data.gifts.filter(
-    (g) => !g.playthrough && !(hideTests && g.test) && notUnder50(g.recipientAnswers?.jewish)
+    (g) =>
+      !g.playthrough &&
+      !(hideTests && g.test) &&
+      notLowPractice(g.recipientAnswers?.jewish, g.recipientAnswers?.hanukkah)
   ).length;
   const openGuests = view.guests.filter((g) => !g.converted);
   const guestBoxes = openGuests.filter((g) => g.stage === 'built' || g.stage === 'revealed');
@@ -2379,19 +2415,20 @@ export function AdminBoxesScreen() {
               <Chip
                 label={
                   mobile
-                    ? `Under 50% practicing (${highPracticeBoxes + highPracticeGuests + highPracticeGifts} out)`
-                    : `Only under 50% practicing · ${highPracticeBoxes} boxes, ${highPracticeGuests} anonymous, ${highPracticeGifts} gifts at/above 50% or unknown`
+                    ? `Practice ≤59 (${highPracticeBoxes + highPracticeGuests + highPracticeGifts} out)`
+                    : `Only practice 59 or below · ${highPracticeBoxes} boxes, ${highPracticeGuests} anonymous, ${highPracticeGifts} gifts above 59 or unknown`
                 }
-                active={under50Practicing}
-                onPress={() => setUnder50Practicing((v) => !v)}
+                active={lowPracticeOnly}
+                onPress={() => setLowPracticeOnly((v) => !v)}
                 styles={styles}
               />
             </ChipRow>
             {mobile ? null : (
               <Text style={styles.meta}>
                 US only hides rows known to be outside the US: a non-US ship-to address, else a non-US IP. Rows with no
-                location stay in. Only under 50% practicing keeps rows whose Jewish practice answer is below 50;
-                untouched or missing answers are out. Funnel tabs and inventory are unaffected by practice; inventory is
+                location stay in. Only practice 59 or below keeps a Jewish practice answer of 59 or lower. A 50 counts
+                only when Hanukkah is also answered and under 60; both sliders left at 50, and missing answers, are
+                out. Funnel tabs and inventory are unaffected by practice; inventory is
                 unaffected by US only too.
               </Text>
             )}
@@ -2505,7 +2542,14 @@ export function AdminBoxesScreen() {
           {tab === 'boxes' ? (
             <>
               {mobile ? null : <Text style={styles.section}>Boxes</Text>}
-              <BoxesSection data={view} hideTests={hideTests} inventoryById={inventoryById} styles={styles} colors={colors} />
+              <BoxesSection
+                data={view}
+                hideTests={hideTests}
+                inventoryById={inventoryById}
+                styles={styles}
+                colors={colors}
+                initialQuery={linkQuery}
+              />
             </>
           ) : null}
           {tab === 'shop' ? (

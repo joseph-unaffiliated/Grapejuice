@@ -270,16 +270,159 @@ async function createInvite(
   return { token, link: pilotLink(token), existing: false, accountCreated: account.accountCreated };
 }
 
+/** State / province label for admin (no street). Mirrors adminDashboard.locationOf, trimmed down. */
+function adminLocationOf(addr: unknown): string | null {
+  if (!addr || typeof addr !== 'object') return null;
+  const a = addr as Record<string, unknown>;
+  const raw = typeof a.stateProvince === 'string' ? a.stateProvince.trim().replace(/\.|\s+/g, ' ').toUpperCase() : '';
+  if (!raw) return null;
+  const compact = raw.replace(/\s+/g, ' ');
+  if (a.country === 'CA' || /\b(ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|NT|NU|YT)\b/.test(compact)) {
+    const m = compact.match(/\b(ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|NT|NU|YT)\b/);
+    return m ? `${m[1]}, Canada` : `${compact}, Canada`;
+  }
+  if (/^[A-Z]{2}$/.test(compact)) return compact;
+  if (a.country === 'OTHER') return `${compact} (intl)`;
+  return compact.length <= 24 ? compact : compact.slice(0, 24);
+}
+
+function adminIpLocation(geo: unknown): string | null {
+  if (!geo || typeof geo !== 'object') return null;
+  const g = geo as Record<string, unknown>;
+  const country = str(g.country);
+  const region = str(g.region);
+  if (!country) return null;
+  if (country === 'US') return region || 'US';
+  if (country === 'CA') return region ? `${region}, Canada` : 'Canada';
+  return country;
+}
+
+function ageLabel(plannerAge: unknown): string | null {
+  if (typeof plannerAge !== 'number' || !Number.isFinite(plannerAge)) return null;
+  const n = Math.max(0, Math.floor(plannerAge));
+  return n >= 18 ? '18+' : String(n);
+}
+
+/** Chunked getAll — Firestore caps at 100 refs. */
+async function getAllChunked(db: Firestore, refs: FirebaseFirestore.DocumentReference[]) {
+  const out: FirebaseFirestore.DocumentSnapshot[] = [];
+  for (let i = 0; i < refs.length; i += 100) {
+    out.push(...(await db.getAll(...refs.slice(i, i + 100))));
+  }
+  return out;
+}
+
 async function listInvites(db: Firestore) {
   const [invites, enrollments] = await Promise.all([
     db.collection('pilotInvites').orderBy('createdAt', 'desc').get(),
     db.collection('pilotEnrollments').get(),
   ]);
   const byToken = new Map(enrollments.docs.map((d) => [str(d.data().inviteToken), d.data()]));
+
+  const householdIds = [
+    ...new Set(invites.docs.map((d) => str(d.data().householdId) || str(byToken.get(d.id)?.householdId)).filter(Boolean)),
+  ];
+  const uids = [...new Set(invites.docs.map((d) => str(d.data().uid)).filter(Boolean))];
+
+  const [userSnaps, draftSnaps, childrenSnap, openOrdersSnap, itemSnaps] = await Promise.all([
+    uids.length ? getAllChunked(db, uids.map((uid) => db.doc(`users/${uid}`))) : Promise.resolve([]),
+    householdIds.length
+      ? getAllChunked(db, householdIds.map((hid) => db.doc(`households/${hid}/boxDrafts/${HOLIDAY_ID}`)))
+      : Promise.resolve([]),
+    uids.length ? db.collectionGroup('children').get() : Promise.resolve(null),
+    householdIds.length
+      ? db
+          .collectionGroup('orders')
+          // Index is status + holidayId (firestore.indexes.json).
+          .where('status', 'in', [...OPEN_ORDER_STATUSES])
+          .where('holidayId', '==', HOLIDAY_ID)
+          .get()
+      : Promise.resolve(null),
+    db.collection(`catalog/${CATALOG_HOLIDAY}/items`).select('name').get(),
+  ]);
+
+  const users = new Map(userSnaps.map((s) => [s.id, s.data() ?? {}]));
+  const drafts = new Map<string, DocumentData>();
+  for (const s of draftSnaps) {
+    const hid = s.ref.parent.parent?.id;
+    if (hid && s.exists) drafts.set(hid, s.data() ?? {});
+  }
+  const kidAgesByUid = new Map<string, number[]>();
+  if (childrenSnap) {
+    const want = new Set(uids);
+    for (const d of childrenSnap.docs) {
+      const owner = d.ref.parent.parent;
+      if (!owner || owner.parent.id !== 'users' || !want.has(owner.id)) continue;
+      const age = ageLabel(d.data().plannerAge);
+      if (age == null) continue;
+      const n = age === '18+' ? 18 : Number(age);
+      const list = kidAgesByUid.get(owner.id) ?? [];
+      list.push(n);
+      kidAgesByUid.set(owner.id, list);
+    }
+  }
+  for (const [, ages] of kidAgesByUid) ages.sort((a, b) => a - b);
+
+  const orderByHousehold = new Map<string, DocumentData>();
+  if (openOrdersSnap) {
+    const want = new Set(householdIds);
+    for (const d of openOrdersSnap.docs) {
+      const hid = d.ref.parent.parent?.id;
+      if (!hid || !want.has(hid)) continue;
+      const o = d.data();
+      if ((o.orderType ?? 'hanukkah_box') !== 'hanukkah_box') continue;
+      // Prefer committed over pending when both exist.
+      const prev = orderByHousehold.get(hid);
+      if (!prev || (str(prev.status) === 'pending' && str(o.status) === 'committed')) {
+        orderByHousehold.set(hid, { ...o, _orderId: d.id });
+      }
+    }
+  }
+
+  const itemName = new Map(itemSnaps.docs.map((d) => [d.id, str(d.data().name) || d.id]));
+
+  const boxItemNames = (lines: Line[]) => {
+    const qty = new Map<string, { name: string; n: number }>();
+    for (const li of lines) {
+      const id = str(li.itemId);
+      if (!id) continue;
+      const name = itemName.get(id) || str((li as { label?: unknown }).label) || id;
+      const prev = qty.get(id);
+      const n = Math.max(1, Math.floor(Number(li.quantity) || 1));
+      qty.set(id, { name, n: (prev?.n ?? 0) + n });
+    }
+    return [...qty.values()].map(({ name, n }) => (n > 1 ? `${name} ×${n}` : name));
+  };
+
   return invites.docs.map((d) => {
     const i = d.data();
     const e = byToken.get(d.id);
     const picks = Array.isArray(e?.picks) ? (e!.picks as PilotPick[]) : [];
+    const householdId = str(i.householdId) || str(e?.householdId) || null;
+    const uid = str(i.uid);
+    const user = uid ? users.get(uid) : undefined;
+    const last = (user?.lastBoxAnswers ?? {}) as DocumentData;
+    const jewishFromUser = scoreOf(last.practiceFrequencyScore);
+    const jewishScore =
+      typeof i.jewishScore === 'number' ? i.jewishScore : jewishFromUser;
+    const hanukkahScore = scoreOf(last.familiarityScore);
+    const order = householdId ? orderByHousehold.get(householdId) : undefined;
+    const draft = householdId ? drafts.get(householdId) : undefined;
+    const orderLines = order ? linesOf(order.lineItems) : [];
+    const draftLines = draft ? linesOf(draft.lineItems) : [];
+    const boxKind: 'order' | 'draft' | 'none' = order
+      ? 'order'
+      : draftLines.length
+        ? 'draft'
+        : 'none';
+    const boxItems = boxItemNames(orderLines.length ? orderLines : draftLines);
+    const addr = order?.shippingAddress;
+    const location =
+      adminLocationOf(addr) || adminIpLocation(user?.ipGeo) || null;
+    const locationFromIp = !adminLocationOf(addr) && !!adminIpLocation(user?.ipGeo);
+    const ages = uid ? kidAgesByUid.get(uid) ?? [] : [];
+    const kidAges = ages.map((n) => (n >= 18 ? '18+' : String(n)));
+
     return {
       token: d.id,
       link: pilotLink(d.id),
@@ -290,7 +433,14 @@ async function listInvites(db: Firestore) {
       createdAt: str(i.createdAt),
       createdByEmail: str(i.createdByEmail),
       source: (i.source === 'auto' ? 'auto' : 'manual') as InviteSource,
-      jewishScore: typeof i.jewishScore === 'number' ? i.jewishScore : null,
+      jewishScore,
+      hanukkahScore,
+      householdId,
+      location,
+      locationFromIp,
+      kidAges,
+      boxKind,
+      boxItems,
       emailedAt: str(i.emailedAt) || null,
       followUpAt: str(i.followUpAt) || null,
       openedAt: str(i.openedAt) || null,
@@ -299,7 +449,7 @@ async function listInvites(db: Firestore) {
       picks: picks.map((p) => p.name),
       deferredTotalCents: typeof e?.deferredTotalCents === 'number' ? e.deferredTotalCents : 0,
       quoteConsent: e?.quoteConsent === true,
-      orderId: str(e?.orderId) || null,
+      orderId: str(e?.orderId) || str(order?._orderId) || null,
     };
   });
 }
@@ -337,7 +487,8 @@ const scoreOf = (v: unknown): number | null =>
 export type AutoInviteFamily = { email: string; name: string; jewishScore: number; householdId: string };
 
 /**
- * Invites every family that qualifies (pilotRules.isAutoInviteEligible): Jewish score under 50, a
+ * Invites every family that qualifies (pilotRules.isAutoInviteEligible): Jewish practice at or
+ * under 59 (a 50 is kept only when Hanukkah is also answered and under 60), a
  * real first name and an email, a Hanukkah draft with items and no checked-out box. Anyone with an
  * invite already (cancelled included) or an enrollment is left alone. Stops once the box locks.
  * Scores and names are read the way the Boxes dashboard reads them (adminDashboard.ts).
@@ -402,13 +553,15 @@ export async function runPilotAutoInvites(
   }
 
   // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
-  const guestJewish = new Map<string, number>();
+  const guestScores = new Map<string, { jewish: number; hanukkah: number | null }>();
   for (const d of guestSnap.docs) {
     const x = d.data();
     const uid = str(x.convertedUid);
     const guest = x.snapshot?.guest;
     const s = guest ? scoreOf(guest.practiceFrequencyScore) : null;
-    if (uid && guest && s != null && guestAnsweredSliders(guest)) guestJewish.set(uid, s);
+    if (uid && guest && s != null && guestAnsweredSliders(guest)) {
+      guestScores.set(uid, { jewish: s, hanukkah: scoreOf(guest.familiarityScore) });
+    }
   }
 
   const families: AutoInviteFamily[] = [];
@@ -419,9 +572,14 @@ export async function runPilotAutoInvites(
     const auth = authByUid.get(owner.ownerId);
     const email = (str(u.email) || auth?.email || '').trim().toLowerCase() || null;
     const name = (str(u.displayName) || auth?.name || '').trim() || null;
-    const jewish = scoreOf(u.lastBoxAnswers?.practiceFrequencyScore) ?? guestJewish.get(owner.ownerId) ?? null;
+    const savedPractice = scoreOf(u.lastBoxAnswers?.practiceFrequencyScore);
+    const guest = guestScores.get(owner.ownerId);
+    const jewish = savedPractice ?? guest?.jewish ?? null;
+    const hanukkah =
+      savedPractice != null ? scoreOf(u.lastBoxAnswers?.familiarityScore) : (guest?.hanukkah ?? null);
     const eligible = isAutoInviteEligible({
       jewish,
+      hanukkah,
       email,
       name,
       hasDraftLines: true,
