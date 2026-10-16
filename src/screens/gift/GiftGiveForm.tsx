@@ -48,6 +48,7 @@ type Props = {
   children?: React.ReactNode;
 };
 
+/** Desktop path switcher — pill chips matching storefront/mobile tab chips (not a separate step). */
 export function GiftPathCards({
   giftPath,
   onChange,
@@ -62,44 +63,33 @@ export function GiftPathCards({
   hasError?: boolean;
 }) {
   const lockDay = useBoxLockDay();
-  const customize = giftPath === 'customize';
-  const creditOnly = giftPath === 'credit_only';
+  const path = giftPath ?? (boxesClosed ? 'credit_only' : 'customize');
+  const customize = path === 'customize';
+  const creditOnly = path === 'credit_only';
   return (
-    <>
+    <View style={styles.pathTabs} accessibilityRole="tablist">
       <TouchableOpacity
-        style={[
-          styles.pathCard,
-          hasError && styles.pathCardError,
-          customize && styles.pathCardOn,
-          boxesClosed && styles.pathCardClosed,
-        ]}
+        style={[styles.pathChip, customize && styles.pathChipOn, boxesClosed && styles.pathChipClosed, hasError && !giftPath && styles.pathChipError]}
         onPress={() => onChange('customize')}
         disabled={disabled || boxesClosed}
-        accessibilityRole="radio"
-        accessibilityState={{ checked: customize, disabled: boxesClosed }}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: customize, disabled: boxesClosed }}
       >
-        <Text style={[styles.pathTitle, customize && styles.pathTitleOn]}>Curate items for them</Text>
-        <Text style={[styles.pathBody, customize && styles.pathBodyOn]}>
-          {boxesClosed
-            ? `Gift boxes for this Hanukkah closed on ${lockDay}. You can still send gift credit.`
-            : `A curated Hanukkah box, chosen by you. ${giftBoxPriceLine()}.`}
-        </Text>
+        <Text style={[styles.pathChipText, customize && styles.pathChipTextOn]}>Customize a box</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[styles.pathCard, hasError && styles.pathCardError, creditOnly && styles.pathCardOn]}
+        style={[styles.pathChip, creditOnly && styles.pathChipOn, hasError && !giftPath && styles.pathChipError]}
         onPress={() => onChange('credit_only')}
         disabled={disabled}
-        accessibilityRole="radio"
-        accessibilityState={{ checked: creditOnly }}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: creditOnly }}
       >
-        <Text style={[styles.pathTitle, creditOnly && styles.pathTitleOn]}>Let them choose</Text>
-        <Text style={[styles.pathBody, creditOnly && styles.pathBodyOn]}>
-          {boxesClosed
-            ? 'Gift credit for the Grapejuice store.'
-            : 'Gift credit worth a box for their family. Their parents build their own box or shop the store.'}
-        </Text>
+        <Text style={[styles.pathChipText, creditOnly && styles.pathChipTextOn]}>Send credit</Text>
       </TouchableOpacity>
-    </>
+      {boxesClosed ? (
+        <Text style={styles.pathHint}>Gift boxes closed on {lockDay}. Credit still works.</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -413,22 +403,45 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     paddingTop: spacing.sm,
   },
-  pathHint: { marginTop: spacing.md },
-  pathCard: {
+  pathTabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  pathChip: {
+    height: 36,
+    paddingHorizontal: spacing.md,
+    borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
-    borderRadius: borderRadius.xl,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.sm,
     backgroundColor: semanticColors.bgPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  pathCardOn: {
+  pathChipOn: {
     backgroundColor: semanticColors.logoDark,
     borderColor: semanticColors.logoDark,
   },
-  pathCardClosed: { opacity: 0.55 },
-  pathCardError: { borderColor: semanticColors.error, borderWidth: 1 },
+  pathChipClosed: { opacity: 0.45 },
+  pathChipError: { borderColor: semanticColors.error },
+  pathChipText: {
+    ...typeface('regular'),
+    fontSize: typography.md,
+    letterSpacing: -0.22,
+    color: semanticColors.textPrimary,
+  },
+  pathChipTextOn: {
+    color: semanticColors.brand,
+  },
+  pathHint: {
+    ...typeface('regular'),
+    width: '100%',
+    marginTop: spacing.xs,
+    fontSize: typography.sm,
+    color: semanticColors.textSecondary,
+  },
   kidsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -465,26 +478,6 @@ const styles = StyleSheet.create({
     color: semanticColors.textPrimary,
     minWidth: 24,
     textAlign: 'center',
-  },
-  pathTitle: {
-    ...typeface('medium'),
-    fontSize: typography.lg,
-    letterSpacing: -0.26,
-    color: semanticColors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  pathTitleOn: {
-    color: semanticColors.textInverse,
-  },
-  pathBody: {
-    ...typeface('regular'),
-    fontSize: typography.md,
-    letterSpacing: -0.22,
-    lineHeight: 18,
-    color: semanticColors.textSecondary,
-  },
-  pathBodyOn: {
-    color: 'rgba(255,255,255,0.78)',
   },
   ctaSpacing: { marginTop: spacing.xl },
   addressToggle: { alignSelf: 'flex-start', marginTop: spacing.xs },

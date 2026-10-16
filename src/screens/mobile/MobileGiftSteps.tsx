@@ -66,11 +66,14 @@ export function MobileGiftFamily({
   adults,
   onChange,
   onAdults,
+  hideHead = false,
 }: {
   kids: GiftChildDraft[];
   adults: number;
   onChange: (next: GiftChildDraft[]) => void;
   onAdults: (n: number) => void;
+  /** When path tabs sit above this module. */
+  hideHead?: boolean;
 }) {
   const [naming, setNaming] = React.useState<number | null>(null);
   const setCount = (n: number) => {
@@ -92,7 +95,7 @@ export function MobileGiftFamily({
   };
   return (
     <View>
-      <Head title="Who is it for?" lede="We pick a book and a present for each kid, based on their age." />
+      {hideHead ? null : <Head title="Who is it for?" lede="We pick a book and a present for each kid, based on their age." />}
       <View style={styles.pad}>
         <View style={styles.kidRow}>
           <View style={{ flex: 1 }}>
@@ -143,12 +146,20 @@ export function MobileGiftFamily({
 }
 
 /** gift.html s=2b. Credit always matches a box price, so the amounts are boxes for 1, 2 or 3 kids. */
-export function MobileGiftCredit({ creditKids, onChange }: { creditKids: number; onChange: (n: number) => void }) {
+export function MobileGiftCredit({
+  creditKids,
+  onChange,
+  hideHead = false,
+}: {
+  creditKids: number;
+  onChange: (n: number) => void;
+  hideHead?: boolean;
+}) {
   const one = listBoxCentsForKids(1);
   const cards = [1, 2, 3].map((n) => ({ n, cents: listBoxCentsForKids(n), sub: n === 1 ? 'A box' : `Box for ${n} kids` }));
   return (
     <View>
-      <Head title="How much credit?" lede={`They build their own box with it. A box for one kid is ${dollars(one)}.`} />
+      {hideHead ? null : <Head title="How much credit?" lede={`They build their own box with it. A box for one kid is ${dollars(one)}.`} />}
       <View style={styles.pad}>
         <View style={styles.amounts}>
           {cards.map((c) => {

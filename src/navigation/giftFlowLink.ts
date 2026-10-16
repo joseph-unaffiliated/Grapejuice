@@ -82,7 +82,8 @@ export function giftGiveStepFromState(
 ): GiftStep | null {
   const route = focusedRoute(state, 'GiftGive');
   if (!route) return null;
-  return parseGiftStep((route.params as { step?: unknown } | undefined)?.step) ?? 'type';
+  const step = parseGiftStep((route.params as { step?: unknown } | undefined)?.step) ?? 'kids';
+  return step === 'type' ? 'kids' : step;
 }
 
 export function giftCustomizeFromState(

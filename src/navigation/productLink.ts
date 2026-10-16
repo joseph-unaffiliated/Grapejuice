@@ -124,7 +124,8 @@ export function browserPathForNavigationState(
     if (search.includes('preview=')) {
       return `${GIFT_GIVE_PATH}${search}`;
     }
-    return giftStep === 'type' ? GIFT_GIVE_PATH : `${GIFT_GIVE_PATH}?step=${giftStep}`;
+    const step = giftStep === 'type' ? 'kids' : giftStep;
+    return step === 'kids' ? GIFT_GIVE_PATH : `${GIFT_GIVE_PATH}?step=${step}`;
   }
 
   const marketingLanding = dynamicLandingPathFromState(state);

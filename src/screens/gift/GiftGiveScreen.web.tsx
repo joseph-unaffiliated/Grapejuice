@@ -42,10 +42,9 @@ import { giftPathToKind, useGiftIntentStore } from '../../stores/giftIntentStore
 import { signInGiftGiver } from '../../services/auth/loginLinks';
 import { queueWelcomeAccountToast } from '../../services/auth/welcomeAccountToast';
 import { GiftCreditKidsField, GiftPathCards } from './GiftGiveForm';
-import { GIFT_PATH_LABEL, MobileGiftPathCards } from '../mobile/MobileGiftPathCards';
+import { MobileGiftPathTabs } from '../mobile/MobileGiftPathCards';
+import { balanceProps, m, mFont, mGutter } from '../../components/mobile/mobileTheme';
 import { StickyBar } from '../../components/mobile/StickyBar';
-import { formatShortMonthDay, HANUKKAH_STARTS_FALLBACK_ISO } from '../../constants/hanukkahBoxLock';
-import { peekHanukkahConfig } from '../../services/firestore/config';
 import { GiftGiverChildrenFields } from './GiftGiverChildrenFields';
 import {
   DEFAULT_GIFT_CHILDREN,
@@ -71,7 +70,6 @@ type FlowTarget = GiftStep | 'box';
 function stepAfter(step: GiftStep, path: GiftPath | null): FlowTarget {
   switch (step) {
     case 'type':
-      return 'kids';
     case 'kids':
       return path === 'customize' ? 'box' : 'send';
     case 'email':
@@ -91,7 +89,8 @@ function reachableStep(
   hasLineItems: boolean,
   hasPayment: boolean
 ): FlowTarget {
-  if (!path) return 'type';
+  // Path is chosen via tabs on the kids/amount screen — never a solo step.
+  if (step === 'type' || !path) return 'kids';
   // Retired pre-box email URLs/drafts skip directly to the curated box.
   if (step === 'email') return path === 'customize' ? 'box' : 'kids';
   const afterBox = step === 'note' || step === 'send' || step === 'pay';
@@ -102,7 +101,8 @@ function reachableStep(
 }
 
 function giftStepUrl(step: GiftStep): string {
-  return step === 'type' ? GIFT_GIVE_PATH : `${GIFT_GIVE_PATH}?step=${step}`;
+  const resolved = step === 'type' ? 'kids' : step;
+  return resolved === 'kids' ? GIFT_GIVE_PATH : `${GIFT_GIVE_PATH}?step=${resolved}`;
 }
 
 function notify(title: string, message: string) {
@@ -136,15 +136,16 @@ function GiftGiveBody() {
   const restored = params?.form;
   const entryGiftPath = params?.initialGiftPath ?? restored?.giftPath ?? null;
   const lineItems = params?.lineItems;
-  /** Chose a path on an earlier page (e.g. /gift CTAs): skip the type step. */
-  const skippedType = useRef(!params?.step && !!params?.initialGiftPath);
   const step: GiftStep =
-    params?.step ?? (params?.autoStartPayment ? 'send' : skippedType.current ? 'kids' : 'type');
+    params?.step === 'type'
+      ? 'kids'
+      : (params?.step ?? (params?.autoStartPayment ? 'send' : 'kids'));
 
   const [values, setValues] = useState<GiftGiveFormValues>(() => {
+    const defaultPath: GiftPath = entryGiftPath ?? 'customize';
     const base: GiftGiveFormValues = restored
-      ? { ...restored, giftPath: entryGiftPath }
-      : { recipientEmail: '', giverName: '', message: '', giftPath: entryGiftPath };
+      ? { ...restored, giftPath: restored.giftPath ?? defaultPath }
+      : { recipientEmail: '', giverName: '', message: '', giftPath: defaultPath };
     // Mid-flow (remount or reload): later steps' answers live in the saved draft.
     const intent = useGiftIntentStore.getState();
     const saved = intent.status === 'incomplete' ? intent.draft?.form : null;
@@ -180,9 +181,10 @@ function GiftGiveBody() {
     [activeStripeKey]
   );
 
-  const giftPath = values.giftPath;
-  const customize = giftPath === 'customize';
   const boxesClosed = useBoxLockPassed();
+  const giftPath = values.giftPath;
+  const activePath: GiftPath = giftPath ?? (boxesClosed ? 'credit_only' : 'customize');
+  const customize = activePath === 'customize';
   const amountCents = customize
     ? orderSubtotalCents(lineItems ?? [], listBoxCentsForKids(Math.max(1, childDrafts.length)))
     : listBoxCentsForKids(values.creditKids ?? 1);
@@ -377,15 +379,6 @@ function GiftGiveBody() {
     }
   };
 
-  const continueFromType = () => {
-    if (!giftPath) {
-      setStepError('Choose one to continue.');
-      revealField(pathRef.current, { focus: false });
-      return;
-    }
-    goTo(stepAfter('type', giftPath));
-  };
-
   const continueFromEmail = async () => {
     if (isAuthenticated) {
       recordGiftFunnelStep('email', { path: giftPath });
@@ -515,18 +508,20 @@ function GiftGiveBody() {
   const onContinue = () => {
     switch (step) {
       case 'type':
-        continueFromType();
-        return;
-      case 'kids':
-        recordGiftFunnelStep('family', { path: giftPath });
-        if (giftPath === 'customize') {
+      case 'kids': {
+        const path = giftPath ?? (boxesClosed ? 'credit_only' : 'customize');
+        if (!giftPath) patchValues({ giftPath: path });
+        recordGiftFunnelStep('family', { path });
+        recordGiftFunnelStep('path', { path });
+        if (path === 'customize') {
           void import('../../services/firestore/catalog').then((m) => {
             void m.catalogService.getAll().catch(() => undefined);
           });
         }
         if (stripeKey) void getStripePromise(stripeKey)?.catch(() => undefined);
-        goTo(stepAfter('kids', giftPath));
+        goTo(stepAfter('kids', path));
         return;
+      }
       case 'email':
         void continueFromEmail();
         return;
@@ -550,18 +545,48 @@ function GiftGiveBody() {
     goHome();
   };
 
+  const setGiftPath = (path: GiftPath) => patchValues({ giftPath: path });
+
   const renderMobileStep = () => {
     switch (step) {
+      case 'type':
       case 'kids':
-        return customize ? (
-          <MobileGiftFamily
-            kids={childDrafts}
-            adults={values.giftAdults ?? 1}
-            onChange={setChildDrafts}
-            onAdults={(giftAdults) => patchValues({ giftAdults })}
-          />
-        ) : (
-          <MobileGiftCredit creditKids={values.creditKids ?? 1} onChange={(creditKids) => patchValues({ creditKids })} />
+        return (
+          <View>
+            <View style={kidsHeadStyles.head}>
+              <Text style={kidsHeadStyles.h1} role="heading" aria-level={1} {...balanceProps}>
+                {activePath === 'customize' ? 'Who is it for?' : 'How much credit?'}
+              </Text>
+              <Text style={kidsHeadStyles.lede} {...balanceProps}>
+                {activePath === 'customize'
+                  ? 'We pick a book and a present for each kid, based on their age.'
+                  : 'They build their own box with it. Credit matches a box for their family.'}
+              </Text>
+            </View>
+            <View ref={pathRef}>
+              <MobileGiftPathTabs
+                giftPath={activePath}
+                onChange={setGiftPath}
+                boxesClosed={boxesClosed}
+                hasError={!!stepError}
+              />
+            </View>
+            {activePath === 'customize' ? (
+              <MobileGiftFamily
+                kids={childDrafts}
+                adults={values.giftAdults ?? 1}
+                onChange={setChildDrafts}
+                onAdults={(giftAdults) => patchValues({ giftAdults })}
+                hideHead
+              />
+            ) : (
+              <MobileGiftCredit
+                creditKids={values.creditKids ?? 1}
+                onChange={(creditKids) => patchValues({ creditKids })}
+                hideHead
+              />
+            )}
+          </View>
         );
       case 'email':
         return (
@@ -635,47 +660,28 @@ function GiftGiveBody() {
   };
 
   const renderStep = () => {
-    if (mobileLayout && step !== 'type' && step !== 'pay') return renderMobileStep();
+    if (mobileLayout && step !== 'pay') return renderMobileStep();
     switch (step) {
       case 'type':
-        if (mobileLayout) {
-          return (
-            <View ref={pathRef}>
-              <MobileGiftPathCards
-                giftPath={giftPath}
-                onChange={(path) => patchValues({ giftPath: path })}
-                boxesClosed={boxesClosed}
-                arrivesBefore={formatShortMonthDay(peekHanukkahConfig()?.startsOn) ?? formatShortMonthDay(HANUKKAH_STARTS_FALLBACK_ISO)!}
-                hasError={!!stepError}
-              />
-            </View>
-          );
-        }
-        return (
-          <>
-            <Text style={checkoutUi.title}>Send a gift</Text>
-            <Text style={checkoutUi.lead}>Two ways to give. Choose one.</Text>
-            <View ref={pathRef} style={styles.section}>
-              <GiftPathCards
-                giftPath={giftPath}
-                onChange={(path) => patchValues({ giftPath: path })}
-                boxesClosed={boxesClosed}
-                hasError={!!stepError}
-              />
-            </View>
-          </>
-        );
       case 'kids':
         return (
           <>
-            <Text style={checkoutUi.title}>{customize ? 'Every box is unique' : 'Their family'}</Text>
+            <Text style={checkoutUi.title}>{activePath === 'customize' ? 'Every box is unique' : 'Gift them credit'}</Text>
             <Text style={checkoutUi.lead}>
-              {customize
+              {activePath === 'customize'
                 ? 'Tell us who we’re building for and we’ll pick books and presents that are age-appropriate.'
                 : 'How many kids are in their family? The credit covers a Hanukkah box for all of them.'}
             </Text>
+            <View ref={pathRef} style={styles.section}>
+              <GiftPathCards
+                giftPath={activePath}
+                onChange={setGiftPath}
+                boxesClosed={boxesClosed}
+                hasError={!!stepError}
+              />
+            </View>
             <View style={checkoutUi.divider} />
-            {customize ? (
+            {activePath === 'customize' ? (
               <GiftGiverChildrenFields children={childDrafts} onChange={setChildDrafts} showHeading={false} />
             ) : (
               <GiftCreditKidsField
@@ -866,41 +872,39 @@ function GiftGiveBody() {
 
   const paymentReady = step === 'pay' && payment && stripePromise;
   const taskStep = giftTaskStep(step, !!payment, customize);
+  const firstStep = step === 'kids' || step === 'type';
   const mobileHeader = mobileLayout ? (
     <TaskHeader
-      back={step === 'type' ? { label: 'Cancel', onPress: cancelGift } : { label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : cancelGift()) }}
+      back={firstStep ? { label: 'Cancel', onPress: cancelGift } : { label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : cancelGift()) }}
       title="Send a gift"
-      right={step === 'type' ? undefined : `Step ${taskStep.index + 1} of ${taskStep.labels.length}`}
-      steps={step === 'type' ? undefined : taskStep.labels}
+      right={`Step ${taskStep.index + 1} of ${taskStep.labels.length}`}
+      steps={taskStep.labels}
       on={taskStep.index}
     />
   ) : null;
   const busy = submitting || deliverability.checking;
   const kidCount = Math.max(1, childDrafts.length);
-  const beforeBox = customize && !lineItems?.length;
+  const beforeBox = activePath === 'customize' && !lineItems?.length;
   const shownCents = beforeBox ? listBoxCentsForKids(kidCount) : amountCents;
   const barLabel =
-    step === 'type'
-      ? giftPath ? GIFT_PATH_LABEL[giftPath] : 'Choose one'
-      : !customize
-        ? 'Hanukkah credit'
-        : beforeBox
-          ? `Gift box for ${kidCount} ${kidCount === 1 ? 'kid' : 'kids'}`
-          : 'Their box';
-  const barTotal =
-    step === 'type'
-      ? giftPath === 'customize' ? `From ${formatCatalogDollars(listBoxCentsForKids(1))}` : undefined
-      : formatCatalogDollars(shownCents);
+    !customize
+      ? 'Hanukkah credit'
+      : beforeBox
+        ? `Gift box for ${kidCount} ${kidCount === 1 ? 'kid' : 'kids'}`
+        : 'Their box';
+  const barTotal = formatCatalogDollars(shownCents);
   const barCta =
-    step === 'kids' && customize
+    firstStep && activePath === 'customize'
       ? 'Pick their box'
-      : step === 'email'
-        ? 'Pick their box'
-        : step === 'send'
-          ? 'Continue to note'
-          : step === 'note'
-            ? 'Continue to payment'
-            : 'Continue';
+      : firstStep
+        ? 'Continue'
+        : step === 'email'
+          ? 'Pick their box'
+          : step === 'send'
+            ? 'Continue to note'
+            : step === 'note'
+              ? 'Continue to payment'
+              : 'Continue';
   const mobileBar = mobileLayout ? (
     <StickyBar
       layout="stack"
@@ -1029,6 +1033,12 @@ export function giftTaskStep(step: string, hasPayment: boolean, customize = true
           : 3;
   return { index: hasPayment || step !== 'pay' ? index : 2, labels };
 }
+
+const kidsHeadStyles = StyleSheet.create({
+  head: { paddingHorizontal: mGutter, paddingTop: 24, paddingBottom: 14, gap: 10 },
+  h1: { fontSize: 27, lineHeight: 31, letterSpacing: -0.8, color: m.ink, ...mFont(400) },
+  lede: { fontSize: 15, lineHeight: 22, color: m.body, ...mFont(300) },
+});
 
 const styles = StyleSheet.create({
   footerGap: {
