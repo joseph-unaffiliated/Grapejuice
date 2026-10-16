@@ -120,17 +120,24 @@ function InviteRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'link' | 'name' | 'email' | null>(null);
   const [emailedAt, setEmailedAt] = useState(inv.emailedAt);
   const [followUpAt, setFollowUpAt] = useState(inv.followUpAt);
   useEffect(() => setEmailedAt(inv.emailedAt), [inv.emailedAt]);
   useEffect(() => setFollowUpAt(inv.followUpAt), [inv.followUpAt]);
   const joined = !!inv.joinedAt;
+  const flashCopied = (kind: 'link' | 'name' | 'email') => {
+    setCopied(kind);
+    setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1200);
+  };
   const copyLink = async () => {
-    if (await copyText(inv.link)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    }
+    if (await copyText(inv.link)) flashCopied('link');
+  };
+  const copyName = async () => {
+    if (await copyText(inv.name)) flashCopied('name');
+  };
+  const copyEmail = async () => {
+    if (await copyText(inv.email)) flashCopied('email');
   };
   const toggle = async (kind: 'emailed' | 'followUp') => {
     const current = kind === 'emailed' ? emailedAt : followUpAt;
@@ -171,9 +178,19 @@ function InviteRow({
   return (
     <View style={styles.card}>
       <View style={styles.rowHead}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {`${inv.name} · ${inv.email}`}
-        </Text>
+        <View style={styles.chipRow}>
+          <TouchableOpacity onPress={() => void copyName()} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Copy name ${inv.name}`}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {copied === 'name' ? 'Copied name' : inv.name}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.caption}>·</Text>
+          <TouchableOpacity onPress={() => void copyEmail()} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Copy email ${inv.email}`}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {copied === 'email' ? 'Copied email' : inv.email}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.chipRow}>
           {inv.source === 'auto' ? <Text style={styles.badge}>Auto</Text> : null}
           <Text style={[styles.badge, inv.status === 'enrolled' ? styles.badgeOn : null]}>{STATUS_LABEL[inv.status] ?? inv.status}</Text>
@@ -204,7 +221,7 @@ function InviteRow({
       <View style={styles.chipRow}>
         {boxKind !== 'none' ? <Chip label="View box ›" onPress={() => openBoxInOrders(inv.email)} styles={styles} /> : null}
         {inv.status !== 'cancelled' ? (
-          <Chip label={copied ? 'Copied' : 'Copy link'} onPress={() => void copyLink()} styles={styles} />
+          <Chip label={copied === 'link' ? 'Copied' : 'Copy link'} onPress={() => void copyLink()} styles={styles} />
         ) : null}
         {inv.status !== 'cancelled' ? (
           <>
@@ -354,6 +371,9 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
   const [query, setQuery] = useState('');
   const [jewishMaxRaw, setJewishMaxRaw] = useState('');
   const [hanukkahMaxRaw, setHanukkahMaxRaw] = useState('');
+  /** Same defaults as Orders & Inventory. */
+  const [hideTests, setHideTests] = useState(true);
+  const [usOnly, setUsOnly] = useState(true);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -398,11 +418,16 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
     const match = FILTERS.find((f) => f.id === filter)!.match;
     return list
       .filter(match)
+      .filter((i) => !(hideTests && i.test))
+      .filter((i) => !(usOnly && i.outsideUs))
       .filter((i) => matchesQuery(i, q))
       .filter((i) => underScoreCap(i.jewishScore, jewishMax) && underScoreCap(i.hanukkahScore, hanukkahMax))
       .slice()
       .sort((a, b) => compareInvites(a, b, sort));
-  }, [list, filter, q, sort, jewishMax, hanukkahMax]);
+  }, [list, filter, q, sort, jewishMax, hanukkahMax, hideTests, usOnly]);
+
+  const hiddenTests = list.filter((i) => i.test).length;
+  const hiddenOutside = list.filter((i) => i.outsideUs).length;
 
   return (
     <View style={styles.body}>
@@ -472,6 +497,20 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
               width={88}
               styles={styles}
               colors={colors}
+            />
+          </View>
+          <View style={styles.chipRow}>
+            <Chip
+              label={hideTests ? `Hide tests (${hiddenTests})` : `Show tests (${hiddenTests})`}
+              active={hideTests}
+              onPress={() => setHideTests((v) => !v)}
+              styles={styles}
+            />
+            <Chip
+              label={usOnly ? `US only (${hiddenOutside} hidden)` : `All countries (${hiddenOutside} outside US)`}
+              active={usOnly}
+              onPress={() => setUsOnly((v) => !v)}
+              styles={styles}
             />
           </View>
           <View style={styles.chipRow}>

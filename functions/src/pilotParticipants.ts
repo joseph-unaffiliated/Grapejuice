@@ -297,6 +297,15 @@ function adminIpLocation(geo: unknown): string | null {
   return country;
 }
 
+/** Address label known to be Canada / international (mirrors adminDashboard). */
+const addressOutsideUs = (location: string | null): boolean =>
+  Boolean(location && /(, Canada|\(intl\))$/.test(location));
+
+function ipOutsideUs(geo: unknown): boolean {
+  const country = geo && typeof geo === 'object' ? str((geo as Record<string, unknown>).country) : '';
+  return Boolean(country && country.toUpperCase() !== 'US');
+}
+
 function ageLabel(plannerAge: unknown): string | null {
   if (typeof plannerAge !== 'number' || !Number.isFinite(plannerAge)) return null;
   const n = Math.max(0, Math.floor(plannerAge));
@@ -430,18 +439,22 @@ async function listInvites(db: Firestore) {
         ? 'draft'
         : 'none';
     const boxItems = boxItemNames(orderLines.length ? orderLines : draftLines);
+    const email = str(i.email);
+    const name = str(i.name);
     const addr = order?.shippingAddress;
-    const location =
-      adminLocationOf(addr) || adminIpLocation(user?.ipGeo) || null;
-    const locationFromIp = !adminLocationOf(addr) && !!adminIpLocation(user?.ipGeo);
+    const fromAddr = adminLocationOf(addr);
+    const fromIp = adminIpLocation(user?.ipGeo);
+    const location = fromAddr || fromIp || null;
+    const locationFromIp = !fromAddr && !!fromIp;
+    const outsideUs = fromAddr ? addressOutsideUs(fromAddr) : fromIp ? ipOutsideUs(user?.ipGeo) : false;
     const ages = uid ? kidAgesByUid.get(uid) ?? [] : [];
     const kidAges = ages.map((n) => (n >= 18 ? '18+' : String(n)));
 
     return {
       token: d.id,
       link: pilotLink(d.id),
-      email: str(i.email),
-      name: str(i.name),
+      email,
+      name,
       status: str(e?.status) || str(i.status) || 'invited',
       accountCreated: i.accountCreated === true,
       /** When the Firebase/user account was created (not the invite). */
@@ -454,6 +467,10 @@ async function listInvites(db: Firestore) {
       householdId,
       location,
       locationFromIp,
+      /** Team / QA email (isTest). */
+      test: isTest(email, name),
+      /** Ship-to or IP known outside the US. Missing location counts as US. */
+      outsideUs,
       kidAges,
       boxKind,
       boxItems,

@@ -77,6 +77,10 @@ export type AdminPilotInvite = {
   /** Ship-to state, else IP region. */
   location: string | null;
   locationFromIp: boolean;
+  /** Team / QA account (unaffiliated / joseph / etc.). */
+  test: boolean;
+  /** Ship-to or IP known outside the US. Missing location counts as US. */
+  outsideUs: boolean;
   /** Kids' planner ages, youngest first ("3", "7", "18+"). */
   kidAges: string[];
   boxKind: 'order' | 'draft' | 'none';
