@@ -303,6 +303,20 @@ function ageLabel(plannerAge: unknown): string | null {
   return n >= 18 ? '18+' : String(n);
 }
 
+/** Firestore Timestamp or ISO string → ISO, else null. */
+function toIso(v: unknown): string | null {
+  if (!v) return null;
+  if (typeof v === 'string') return v;
+  if (typeof (v as { toDate?: unknown }).toDate === 'function') {
+    try {
+      return (v as { toDate: () => Date }).toDate().toISOString();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 /** Chunked getAll — Firestore caps at 100 refs. */
 async function getAllChunked(db: Firestore, refs: FirebaseFirestore.DocumentReference[]) {
   const out: FirebaseFirestore.DocumentSnapshot[] = [];
@@ -430,6 +444,8 @@ async function listInvites(db: Firestore) {
       name: str(i.name),
       status: str(e?.status) || str(i.status) || 'invited',
       accountCreated: i.accountCreated === true,
+      /** When the Firebase/user account was created (not the invite). */
+      accountCreatedAt: toIso(user?.createdAt),
       createdAt: str(i.createdAt),
       createdByEmail: str(i.createdByEmail),
       source: (i.source === 'auto' ? 'auto' : 'manual') as InviteSource,

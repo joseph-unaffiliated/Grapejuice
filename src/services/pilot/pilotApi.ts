@@ -65,6 +65,8 @@ export type AdminPilotInvite = {
   name: string;
   status: string;
   accountCreated: boolean;
+  /** When their user account was created (ISO). Null if unknown. */
+  accountCreatedAt: string | null;
   createdAt: string;
   createdByEmail: string;
   source: 'auto' | 'manual';

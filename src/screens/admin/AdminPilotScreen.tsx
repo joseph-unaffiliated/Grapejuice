@@ -181,7 +181,11 @@ function InviteRow({
         <Fact k="Location" v={place} styles={styles} />
         <Fact k="Kids ages" v={ages} styles={styles} />
         <Fact k="Box" v={boxLabel} styles={styles} />
-        <Fact k="Account" v={inv.accountCreated ? 'Created for them' : 'Already existed'} styles={styles} />
+        <Fact
+          k="Account"
+          v={`${inv.accountCreated ? 'Created for them' : 'Already existed'}${inv.accountCreatedAt ? ` · ${day(inv.accountCreatedAt)}` : ''}`}
+          styles={styles}
+        />
         <Fact k="Opened" v={day(inv.openedAt)} styles={styles} />
         {joined ? <Fact k="Joined" v={day(inv.joinedAt)} styles={styles} /> : null}
         {joined ? <Fact k="Value" v={money(inv.deferredTotalCents)} styles={styles} /> : null}
@@ -232,10 +236,11 @@ const FILTERS: Array<{ id: Filter; label: string; match: (i: AdminPilotInvite) =
   { id: 'cancelled', label: 'Cancelled', match: (i) => i.status === 'cancelled' },
 ];
 
-type SortKey = 'invited' | 'jewish' | 'hanukkah' | 'location' | 'kids' | 'name' | 'status';
+type SortKey = 'invited' | 'account' | 'jewish' | 'hanukkah' | 'location' | 'kids' | 'name' | 'status';
 
 const SORTS: Array<{ id: SortKey; label: string }> = [
-  { id: 'invited', label: 'Newest' },
+  { id: 'invited', label: 'Invited' },
+  { id: 'account', label: 'Signed up' },
   { id: 'name', label: 'Name' },
   { id: 'jewish', label: 'Jewish ↑' },
   { id: 'hanukkah', label: 'Hanukkah ↑' },
@@ -262,6 +267,8 @@ function compareInvites(a: AdminPilotInvite, b: AdminPilotInvite, sort: SortKey)
       return a.name.localeCompare(b.name) || a.email.localeCompare(b.email);
     case 'status':
       return (STATUS_LABEL[a.status] ?? a.status).localeCompare(STATUS_LABEL[b.status] ?? b.status) || a.name.localeCompare(b.name);
+    case 'account':
+      return (Date.parse(b.accountCreatedAt ?? '') || 0) - (Date.parse(a.accountCreatedAt ?? '') || 0) || a.name.localeCompare(b.name);
     case 'invited':
     default:
       return (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0);
@@ -284,6 +291,19 @@ function matchesQuery(inv: AdminPilotInvite, q: string): boolean {
     .join(' ')
     .toLowerCase();
   return hay.includes(q);
+}
+
+/** Digits only, capped 0–100; empty string means no filter. */
+function parseScoreCap(raw: string): number | null {
+  const digits = raw.replace(/\D/g, '').slice(0, 3);
+  if (!digits) return null;
+  return Math.min(100, Math.max(0, Number(digits)));
+}
+
+/** Keep invites at or under the cap; blank score is out when a cap is set. */
+function underScoreCap(score: number | null | undefined, cap: number | null): boolean {
+  if (cap == null) return true;
+  return typeof score === 'number' && score <= cap;
 }
 
 function AutoInviteCard({ onChanged, styles }: { onChanged: () => Promise<void>; styles: Styles }) {
@@ -331,11 +351,15 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<SortKey>('invited');
   const [query, setQuery] = useState('');
+  const [jewishMaxRaw, setJewishMaxRaw] = useState('');
+  const [hanukkahMaxRaw, setHanukkahMaxRaw] = useState('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [created, setCreated] = useState<string | null>(null);
+  const jewishMax = parseScoreCap(jewishMaxRaw);
+  const hanukkahMax = parseScoreCap(hanukkahMaxRaw);
 
   const create = async () => {
     const to = email.trim().toLowerCase();
@@ -374,9 +398,10 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
     return list
       .filter(match)
       .filter((i) => matchesQuery(i, q))
+      .filter((i) => underScoreCap(i.jewishScore, jewishMax) && underScoreCap(i.hanukkahScore, hanukkahMax))
       .slice()
       .sort((a, b) => compareInvites(a, b, sort));
-  }, [list, filter, q, sort]);
+  }, [list, filter, q, sort, jewishMax, hanukkahMax]);
 
   return (
     <View style={styles.body}>
@@ -425,6 +450,31 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
             styles={styles}
             colors={colors}
           />
+          <View style={styles.formRow}>
+            <Field
+              label="Jewish ≤"
+              value={jewishMaxRaw}
+              onChangeText={(v) => setJewishMaxRaw(v.replace(/\D/g, '').slice(0, 3))}
+              placeholder="e.g. 59"
+              keyboardType="number-pad"
+              width={120}
+              styles={styles}
+              colors={colors}
+            />
+            <Field
+              label="Hanukkah ≤"
+              value={hanukkahMaxRaw}
+              onChangeText={(v) => setHanukkahMaxRaw(v.replace(/\D/g, '').slice(0, 3))}
+              placeholder="e.g. 59"
+              keyboardType="number-pad"
+              width={120}
+              styles={styles}
+              colors={colors}
+            />
+          </View>
+          <Text style={styles.caption}>
+            Score caps keep answered scores at or under the number. Blank = no cap. Unanswered scores drop out when a cap is set.
+          </Text>
           <Text style={styles.caption}>Filter</Text>
           <View style={styles.chipRow}>
             {FILTERS.map((f) => (
@@ -445,6 +495,9 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
           </View>
           <Text style={styles.caption}>
             {shown.length === list.length ? `${shown.length} invites` : `${shown.length} of ${list.length} invites`}
+            {jewishMax != null || hanukkahMax != null
+              ? ` · scores${jewishMax != null ? ` Jewish≤${jewishMax}` : ''}${hanukkahMax != null ? ` Hanukkah≤${hanukkahMax}` : ''}`
+              : ''}
           </Text>
         </>
       ) : null}
