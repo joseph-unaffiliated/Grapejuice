@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
@@ -120,11 +120,18 @@ function InviteRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [emailedAt, setEmailedAt] = useState(inv.emailedAt);
   const [followUpAt, setFollowUpAt] = useState(inv.followUpAt);
   useEffect(() => setEmailedAt(inv.emailedAt), [inv.emailedAt]);
   useEffect(() => setFollowUpAt(inv.followUpAt), [inv.followUpAt]);
   const joined = !!inv.joinedAt;
+  const copyLink = async () => {
+    if (await copyText(inv.link)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    }
+  };
   const toggle = async (kind: 'emailed' | 'followUp') => {
     const current = kind === 'emailed' ? emailedAt : followUpAt;
     const set = kind === 'emailed' ? setEmailedAt : setFollowUpAt;
@@ -164,56 +171,51 @@ function InviteRow({
   return (
     <View style={styles.card}>
       <View style={styles.rowHead}>
-        <Text style={styles.cardTitle}>{`${inv.name} · ${inv.email}`}</Text>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {`${inv.name} · ${inv.email}`}
+        </Text>
         <View style={styles.chipRow}>
           {inv.source === 'auto' ? <Text style={styles.badge}>Auto</Text> : null}
           <Text style={[styles.badge, inv.status === 'enrolled' ? styles.badgeOn : null]}>{STATUS_LABEL[inv.status] ?? inv.status}</Text>
         </View>
       </View>
       <View style={styles.facts}>
-        <Fact
-          k="Invited"
-          v={`${day(inv.createdAt)} ${inv.source === 'auto' ? 'automatically' : `by ${inv.createdByEmail || '—'}`}`}
-          styles={styles}
-        />
+        <Fact k="Invited" v={day(inv.createdAt)} styles={styles} />
         <Fact k="Jewish" v={inv.jewishScore != null ? String(inv.jewishScore) : '—'} styles={styles} />
         <Fact k="Hanukkah" v={inv.hanukkahScore != null ? String(inv.hanukkahScore) : '—'} styles={styles} />
         <Fact k="Location" v={place} styles={styles} />
-        <Fact k="Kids ages" v={ages} styles={styles} />
+        <Fact k="Kids" v={ages} styles={styles} />
         <Fact k="Box" v={boxLabel} styles={styles} />
-        <Fact
-          k="Account"
-          v={`${inv.accountCreated ? 'Created for them' : 'Already existed'}${inv.accountCreatedAt ? ` · ${day(inv.accountCreatedAt)}` : ''}`}
-          styles={styles}
-        />
-        <Fact k="Opened" v={day(inv.openedAt)} styles={styles} />
+        <Fact k="Signed up" v={day(inv.accountCreatedAt)} styles={styles} />
         {joined ? <Fact k="Joined" v={day(inv.joinedAt)} styles={styles} /> : null}
         {joined ? <Fact k="Value" v={money(inv.deferredTotalCents)} styles={styles} /> : null}
-        {joined ? <Fact k="May quote" v={inv.quoteConsent ? 'Yes, first name' : 'No'} styles={styles} /> : null}
+        {joined ? <Fact k="Quote" v={inv.quoteConsent ? 'Yes' : 'No'} styles={styles} /> : null}
       </View>
-      {inv.picks.length ? <Text style={styles.caption}>{`Pilot picks: ${inv.picks.join(' · ')}`}</Text> : null}
+      {inv.picks.length ? (
+        <Text style={styles.caption} numberOfLines={1}>
+          {`Picks: ${inv.picks.join(' · ')}`}
+        </Text>
+      ) : null}
       {inv.boxItems?.length ? (
-        <Text style={styles.caption} numberOfLines={4}>
+        <Text style={styles.caption} numberOfLines={2}>
           {`In box: ${inv.boxItems.join(' · ')}`}
         </Text>
       ) : null}
-      {boxKind !== 'none' ? (
-        <View style={styles.chipRow}>
-          <Chip label="View box in Orders ›" onPress={() => openBoxInOrders(inv.email)} styles={styles} />
-        </View>
-      ) : null}
-      {inv.status !== 'cancelled' ? <CopyLinkRow link={inv.link} styles={styles} /> : null}
-      {inv.status !== 'cancelled' ? (
-        <View style={check.group}>
-          <SentCheck label="Emailed" at={emailedAt} onToggle={() => void toggle('emailed')} styles={styles} check={check} />
-          <SentCheck label="Follow-up sent" at={followUpAt} onToggle={() => void toggle('followUp')} styles={styles} check={check} />
-        </View>
-      ) : null}
-      {!joined && inv.status !== 'cancelled' ? (
-        <View style={styles.chipRow}>
-          <Chip label={busy ? 'Cancelling…' : 'Cancel invite'} onPress={() => void cancel()} styles={styles} />
-        </View>
-      ) : null}
+      <View style={styles.chipRow}>
+        {boxKind !== 'none' ? <Chip label="View box ›" onPress={() => openBoxInOrders(inv.email)} styles={styles} /> : null}
+        {inv.status !== 'cancelled' ? (
+          <Chip label={copied ? 'Copied' : 'Copy link'} onPress={() => void copyLink()} styles={styles} />
+        ) : null}
+        {inv.status !== 'cancelled' ? (
+          <>
+            <SentCheck label="Emailed" at={emailedAt} onToggle={() => void toggle('emailed')} styles={styles} check={check} />
+            <SentCheck label="Follow-up" at={followUpAt} onToggle={() => void toggle('followUp')} styles={styles} check={check} />
+          </>
+        ) : null}
+        {!joined && inv.status !== 'cancelled' ? (
+          <Chip label={busy ? 'Cancelling…' : 'Cancel'} onPress={() => void cancel()} styles={styles} />
+        ) : null}
+      </View>
       {msg ? <Text style={styles.error}>{msg}</Text> : null}
     </View>
   );
@@ -331,15 +333,14 @@ function AutoInviteCard({ onChanged, styles }: { onChanged: () => Promise<void>;
   };
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Automatic invites</Text>
-      <Text style={styles.caption}>
-        Families get a link automatically when their Jewish practice score is 59 or below, we have their email and a first name (not just an
-        initial), and they’ve built a box but haven’t checked out. A practice score of exactly 50 counts only when Hanukkah is also answered and under 60; both sliders left at 50 are skipped. Test accounts and anyone already invited (even if cancelled) are
-        skipped. Checks every hour; use the button to check now.
-      </Text>
-      <View style={styles.chipRow}>
+      <View style={styles.rowHead}>
+        <Text style={styles.cardTitle}>Automatic invites</Text>
         <Button label="Find new families" onPress={() => void run()} busy={busy} styles={styles} />
       </View>
+      <Text style={styles.caption}>
+        Auto-invites when Jewish practice ≤59 (a 50 only if Hanukkah is answered and under 60), with email + real first name and a draft box.
+        Hourly; button runs now.
+      </Text>
       <Notice ok={notice?.ok ?? false} text={notice?.text ?? null} styles={styles} />
     </View>
   );
@@ -406,18 +407,16 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
   return (
     <View style={styles.body}>
       <Text style={styles.hint}>
-        Makes a personal link for someone to join Pilot Participants. Nothing is emailed from here: copy the link and send it yourself. If
-        there’s no account for that email, one is created and they sign in with “email me a link”. Links stop working when boxes lock.
+        Personal links only — nothing emails from here. Missing accounts are created; they sign in with “email me a link”. Links stop at lock.
       </Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Invite someone</Text>
         <View style={styles.formRow}>
-          <Field label="Email" value={email} onChangeText={setEmail} placeholder="name@example.com" keyboardType="email-address" width={280} styles={styles} colors={colors} />
-          <Field label="Name" value={name} onChangeText={setName} placeholder="Full name" width={240} styles={styles} colors={colors} />
-        </View>
-        <View style={styles.chipRow}>
-          <Button label="Create link" onPress={() => void create()} busy={busy} styles={styles} />
+          <Field label="Email" value={email} onChangeText={setEmail} placeholder="name@example.com" keyboardType="email-address" width={260} styles={styles} colors={colors} />
+          <Field label="Name" value={name} onChangeText={setName} placeholder="Full name" width={200} styles={styles} colors={colors} />
+          <View style={[styles.fieldAction, { paddingTop: 18 }]}>
+            <Button label="Create link" onPress={() => void create()} busy={busy} styles={styles} />
+          </View>
         </View>
         <Notice ok={notice?.ok ?? false} text={notice?.text ?? null} styles={styles} />
         {created ? <CopyLinkRow link={created} styles={styles} /> : null}
@@ -434,30 +433,33 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
               `${count((i) => !!i.openedAt)} opened`,
               `${count((i) => !!i.joinedAt)} joined`,
               `${count((i) => i.status === 'enrolled')} enrolled`,
-              `${count((i) => i.boxKind === 'draft')} draft boxes`,
+              `${count((i) => i.boxKind === 'draft')} drafts`,
             ].join(' · ')
           : error ?? 'Loading invites…'}
       </Text>
       {rows && error ? <Text style={styles.error}>{error}</Text> : null}
       {rows ? (
-        <>
-          <Field
-            label="Search"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Name, email, state, ages, picks…"
-            width={360}
-            styles={styles}
-            colors={colors}
-          />
+        <View style={styles.card}>
           <View style={styles.formRow}>
+            <View style={[styles.field, { flexGrow: 1, flexBasis: 220, maxWidth: 420 }]}>
+              <Text style={styles.fieldLabel}>Search</Text>
+              <TextInput
+                style={styles.input}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Name, email, state, ages, picks…"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
             <Field
               label="Jewish ≤"
               value={jewishMaxRaw}
               onChangeText={(v) => setJewishMaxRaw(v.replace(/\D/g, '').slice(0, 3))}
-              placeholder="e.g. 59"
+              placeholder="59"
               keyboardType="number-pad"
-              width={120}
+              width={88}
               styles={styles}
               colors={colors}
             />
@@ -465,18 +467,15 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
               label="Hanukkah ≤"
               value={hanukkahMaxRaw}
               onChangeText={(v) => setHanukkahMaxRaw(v.replace(/\D/g, '').slice(0, 3))}
-              placeholder="e.g. 59"
+              placeholder="59"
               keyboardType="number-pad"
-              width={120}
+              width={88}
               styles={styles}
               colors={colors}
             />
           </View>
-          <Text style={styles.caption}>
-            Score caps keep answered scores at or under the number. Blank = no cap. Unanswered scores drop out when a cap is set.
-          </Text>
-          <Text style={styles.caption}>Filter</Text>
           <View style={styles.chipRow}>
+            <Text style={styles.fieldLabel}>Filter</Text>
             {FILTERS.map((f) => (
               <Chip
                 key={f.id}
@@ -487,19 +486,19 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
               />
             ))}
           </View>
-          <Text style={styles.caption}>Sort</Text>
           <View style={styles.chipRow}>
+            <Text style={styles.fieldLabel}>Sort</Text>
             {SORTS.map((s) => (
               <Chip key={s.id} label={s.label} active={sort === s.id} onPress={() => setSort(s.id)} styles={styles} />
             ))}
           </View>
           <Text style={styles.caption}>
-            {shown.length === list.length ? `${shown.length} invites` : `${shown.length} of ${list.length} invites`}
+            {shown.length === list.length ? `${shown.length} invites` : `${shown.length} of ${list.length}`}
             {jewishMax != null || hanukkahMax != null
-              ? ` · scores${jewishMax != null ? ` Jewish≤${jewishMax}` : ''}${hanukkahMax != null ? ` Hanukkah≤${hanukkahMax}` : ''}`
+              ? ` ·${jewishMax != null ? ` Jewish≤${jewishMax}` : ''}${hanukkahMax != null ? ` Hanukkah≤${hanukkahMax}` : ''} (blank scores hidden)`
               : ''}
           </Text>
-        </>
+        </View>
       ) : null}
       {shown.map((inv) => (
         <InviteRow key={inv.token} inv={inv} onChanged={reload} styles={styles} check={check} />
@@ -519,7 +518,8 @@ export function AdminPilotScreen() {
   const styles = useMemo(() => (mobile ? paintOpsMobile(baseStyles) : baseStyles), [mobile, baseStyles]);
   const sectionStyles = useMemo(() => {
     const base = createSectionStyles(colors);
-    return mobile ? paintOpsMobile(base) : base;
+    const dense = paintPilotDense(base);
+    return mobile ? paintOpsMobile(dense) : dense;
   }, [colors, mobile]);
   const user = useAuthStore((s) => s.user);
   const allowed = isOpsAdmin(user);
@@ -565,9 +565,7 @@ export function AdminPilotScreen() {
           </TouchableOpacity>
           <View style={styles.headerBlock}>
             <Text style={styles.title}>Pilot Participants</Text>
-            <Text style={styles.subtitle}>Invite links, picks and agreements</Text>
           </View>
-          <View style={styles.sectionDivider} />
           <PilotSection styles={sectionStyles} colors={colors} />
         </ScrollView>
       </WebContentPanel>
@@ -577,20 +575,41 @@ export function AdminPilotScreen() {
 
 function createCheckStyles(colors: SemanticColors) {
   return StyleSheet.create({
-    group: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg, rowGap: spacing.xs },
-    row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 32 },
+    group: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm, rowGap: 2 },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 28 },
     box: {
-      width: 18,
-      height: 18,
-      borderRadius: 4,
+      width: 16,
+      height: 16,
+      borderRadius: 3,
       borderWidth: 1,
       borderColor: colors.brand,
       alignItems: 'center',
       justifyContent: 'center',
     },
     boxOn: { backgroundColor: colors.brand },
-    tick: { ...typeface('medium'), fontSize: 12, lineHeight: 14, color: colors.bgPrimary },
+    tick: { ...typeface('medium'), fontSize: 11, lineHeight: 12, color: colors.bgPrimary },
   });
+}
+
+/** Denser gaps/padding for scanning ~140 invites — Field must not flexGrow or it eats the page. */
+function paintPilotDense(base: Styles): Styles {
+  return {
+    ...base,
+    body: { ...base.body, gap: spacing.sm },
+    hint: { ...base.hint, fontSize: typography.sm, lineHeight: 16 },
+    caption: { ...base.caption, lineHeight: 15 },
+    card: { ...base.card, padding: spacing.sm, gap: spacing.xs, borderRadius: 10 },
+    cardTitle: { ...base.cardTitle, fontSize: typography.md },
+    field: { ...base.field, flexGrow: 0, flexBasis: 0, gap: 2 },
+    formRow: { ...base.formRow, gap: spacing.sm, alignItems: 'flex-end' },
+    fieldAction: { ...base.fieldAction, alignSelf: 'flex-end', justifyContent: 'flex-end' },
+    input: { ...base.input, minHeight: 34, paddingVertical: 4, paddingHorizontal: spacing.sm },
+    chip: { ...base.chip, minHeight: 28, paddingVertical: 3, paddingHorizontal: 10 },
+    chipRow: { ...base.chipRow, gap: 6 },
+    facts: { ...base.facts, columnGap: spacing.md, rowGap: 2 },
+    button: { ...base.button, minHeight: 34, paddingHorizontal: spacing.md },
+    linkRow: { ...base.linkRow, gap: spacing.xs },
+  } as unknown as Styles;
 }
 
 function createStyles(colors: SemanticColors, isDesktop: boolean) {
@@ -599,33 +618,19 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     panel: { flex: 1, width: '100%', minHeight: 0, backgroundColor: colors.bgPrimary },
     root: { flex: 1, backgroundColor: colors.bgPrimary },
     content: {
-      padding: spacing.lg,
-      paddingTop: spacing.xl,
-      paddingBottom: 120,
-      maxWidth: isDesktop ? 1120 : undefined,
+      padding: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: 96,
+      maxWidth: isDesktop ? 1200 : undefined,
       width: '100%',
       alignSelf: isDesktop ? 'center' : undefined,
+      gap: spacing.sm,
     },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.sm },
     backWrap: { alignSelf: 'flex-start' },
     backLink: { ...typeface('regular'), fontSize: typography.md, color: colors.textSecondary, letterSpacing: -0.22 },
-    headerBlock: { alignItems: 'center', marginTop: spacing.sm },
-    title: { ...typeface('medium'), fontSize: 36, letterSpacing: -0.8, color: colors.textPrimary, textAlign: 'center' },
-    subtitle: {
-      ...typeface('light'),
-      fontSize: typography.lg,
-      marginTop: spacing.sm,
-      color: colors.textPrimary,
-      letterSpacing: -0.26,
-      textAlign: 'center',
-    },
-    hint: { ...typeface('regular'), fontSize: typography.md, letterSpacing: -0.22, color: colors.textSecondary, lineHeight: 18 },
-    sectionDivider: {
-      alignSelf: 'stretch',
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginTop: spacing.lg,
-      marginBottom: spacing.md,
-    },
+    headerBlock: { alignItems: 'flex-start', marginTop: 0, marginBottom: 0 },
+    title: { ...typeface('medium'), fontSize: 28, letterSpacing: -0.6, color: colors.textPrimary, textAlign: 'left' },
+    hint: { ...typeface('regular'), fontSize: typography.sm, letterSpacing: -0.22, color: colors.textSecondary, lineHeight: 16 },
   });
 }
