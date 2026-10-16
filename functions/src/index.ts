@@ -1,5 +1,6 @@
 import * as logger from './logger';
 import { isPlaythroughTestEmail } from './testAccounts';
+import { practiceAboveMetaCutoff, practiceEligibleForFollowUp } from './metaPracticeCutoff';
 import { onRequest, onCall, HttpsError, onSchedule, reportWarning } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -2688,9 +2689,9 @@ export const finalizePilotGiftPayment = onCall(async (request) => {
 /**
  * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
  * per account (`reg_<uid>`); PreRegister and BoxBuilt reuse the browser's event id for dedupe.
- * Every BoxBuilt also sends a server-only BoxFollowUp, which feeds the Meta follow-up audience
- * (purchasers are excluded in the ad set). The practice-frequency score is never sent to Meta:
- * religious practice is sensitive data under Meta's Business Tools Terms.
+ * BoxBuilt and the server-only BoxFollowUp are both withheld when practice is above 49.
+ * BoxFollowUp also requires a score, so an unscored box never joins the follow-up audience.
+ * The score is never sent to Meta.
  */
 export const trackMetaEvent = onCall(async (request) => {
   const eventName = request.data?.eventName;
@@ -2725,17 +2726,32 @@ export const trackMetaEvent = onCall(async (request) => {
 
   const contentName =
     typeof request.data?.contentName === 'string' ? request.data.contentName.trim().slice(0, 100) : '';
-  await sendMetaEvent({
-    eventName,
-    eventId:
-      context.eventId ??
-      `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${randomBytes(8).toString('hex')}`,
-    context,
-    user: { email, externalId: uid },
-    ...(contentName ? { customData: { content_name: contentName } } : {}),
-  });
-
+  let suppressBoxBuilt = false;
+  let storedPractice: unknown;
   if (eventName === 'BoxBuilt') {
+    if (uid) {
+      const snap = await db.doc(`users/${uid}`).get();
+      storedPractice = snap.data()?.lastBoxAnswers?.practiceFrequencyScore;
+    }
+    suppressBoxBuilt =
+      practiceAboveMetaCutoff(request.data?.practiceFrequencyScore) || practiceAboveMetaCutoff(storedPractice);
+  }
+  if (!suppressBoxBuilt) {
+    await sendMetaEvent({
+      eventName,
+      eventId:
+        context.eventId ??
+        `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${randomBytes(8).toString('hex')}`,
+      context,
+      user: { email, externalId: uid },
+      ...(contentName ? { customData: { content_name: contentName } } : {}),
+    });
+  }
+
+  if (
+    eventName === 'BoxBuilt' &&
+    practiceEligibleForFollowUp(request.data?.practiceFrequencyScore, storedPractice)
+  ) {
     await sendMetaEvent({
       eventName: 'BoxFollowUp',
       eventId: `followup_${randomBytes(8).toString('hex')}`,

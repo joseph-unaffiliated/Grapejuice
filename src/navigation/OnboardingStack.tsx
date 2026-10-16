@@ -20,6 +20,7 @@ import {
 } from '../services/box/boxBuildResume';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { buildCuratedBox } from '../services/box/buildDefaultBox';
+import { applyDietNotes } from '../services/box/dietNotes';
 import { foldItemIntoCuratedBox } from '../services/box/foldItemIntoCuratedBox';
 import { curateBox, applyCurateBoxResult } from '../services/rav/curateBox';
 import { remapGuestChildIds } from '../services/guest/persistGuestToAccount';
@@ -389,6 +390,7 @@ export function OnboardingStack({
             : buildCuratedBox(catalog, kids, {
                 practice: profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate',
                 childInterests: draft?.childInterests ?? [],
+                notes: profile?.ravNotes,
               }).lineItems;
         setFamiliarity(profile?.familiarityLevel ?? draft?.familiarityLevel ?? 'moderate');
         setLineItems(items);
@@ -441,9 +443,10 @@ export function OnboardingStack({
         practice: level,
         adults,
         childInterests: interests,
+        notes,
       });
       const pickedId = useGuestSessionStore.getState().pendingBoxItemId;
-      let items = foldItemIntoCuratedBox(curated.lineItems, catalog, pickedId);
+      let items = applyDietNotes(foldItemIntoCuratedBox(curated.lineItems, catalog, pickedId), notes);
       if (!items.length) {
         throw new Error('We could not build a default box from the catalog. Please try again later.');
       }
@@ -473,7 +476,7 @@ export function OnboardingStack({
           deviations: curated.deviations,
           catalog,
         });
-        return applyCurateBoxResult(baseline, catalog, result, curated.deviations);
+        return applyDietNotes(applyCurateBoxResult(baseline, catalog, result, curated.deviations), notes);
       };
 
       const publishCurated = (next: BoxLineItem[]) => {
@@ -502,7 +505,7 @@ export function OnboardingStack({
         // The email screen covers Rav. The loader after it only waits a short splash.
         setBuildingReady(true);
         goToStep('email');
-        trackBoxBuilt(items.length);
+        trackBoxBuilt(items.length, useGuestSessionStore.getState().practiceFrequencyScore);
         void runRavPass(items, profiles).then(publishCurated).catch((err) => {
           console.warn('[onboarding] curateBox failed (guest)', err);
         });
@@ -544,7 +547,7 @@ export function OnboardingStack({
       setFamiliarity(level);
       setLineItems(remappedItems);
       setGuestLineItems(remappedItems);
-      trackBoxBuilt(remappedItems.length);
+      trackBoxBuilt(remappedItems.length, useGuestSessionStore.getState().practiceFrequencyScore);
       // Both flags together. Writing boxRevealComplete false here is what bounced
       // a slow reveal back into the questionnaire.
       const save = Promise.all([

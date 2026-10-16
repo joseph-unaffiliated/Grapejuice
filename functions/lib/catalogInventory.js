@@ -5,10 +5,16 @@ exports.inventoryDocRef = inventoryDocRef;
 exports.parseCounters = parseCounters;
 exports.reserveMarketplaceInventoryInTx = reserveMarketplaceInventoryInTx;
 exports.commitMarketplaceReservations = commitMarketplaceReservations;
+exports.sellMarketplaceInventory = sellMarketplaceInventory;
+exports.paidMarketplaceInventoryAction = paidMarketplaceInventoryAction;
+exports.lateCreditReapply = lateCreditReapply;
+exports.reapplyLateCreditInTx = reapplyLateCreditInTx;
+exports.applyPaidMarketplaceInventory = applyPaidMarketplaceInventory;
 exports.releaseMarketplaceReservations = releaseMarketplaceReservations;
 exports.reservedLinesFromOrder = reservedLinesFromOrder;
 exports.aggregateLineQuantities = aggregateLineQuantities;
 exports.assertBoxLinesWithinInventory = assertBoxLinesWithinInventory;
+exports.reserveBoxLinesInTx = reserveBoxLinesInTx;
 exports.createdAtMs = createdAtMs;
 exports.receivedGiftOrderHoldsStock = receivedGiftOrderHoldsStock;
 exports.receivedGiftKey = receivedGiftKey;
@@ -57,37 +63,46 @@ function itemFromSnap(itemId, data) {
  * inside an existing Firestore transaction.
  */
 async function reserveMarketplaceInventoryInTx(db, tx, lines, lockAt, now = new Date()) {
-    var _a, _b, _c, _d;
-    const reserved = [];
-    // Deterministic order avoids transaction deadlocks.
-    const sorted = [...lines].sort((a, b) => a.itemId.localeCompare(b.itemId));
-    for (const line of sorted) {
+    var _a, _b;
+    const qtyById = new Map();
+    for (const line of lines) {
         const itemId = String((_a = line.itemId) !== null && _a !== void 0 ? _a : '').trim();
-        const quantity = Math.max(1, Math.floor(Number(line.quantity) || 1));
         if (!itemId) {
             throw new https_1.HttpsError('invalid-argument', 'Each line item needs an itemId.');
         }
-        const itemRef = db.doc(`catalog/${exports.CATALOG_HOLIDAY}/items/${itemId}`);
-        const invRef = inventoryDocRef(db, itemId);
-        const [itemSnap, invSnap] = await Promise.all([tx.get(itemRef), tx.get(invRef)]);
+        const quantity = Math.max(1, Math.floor(Number(line.quantity) || 1));
+        qtyById.set(itemId, ((_b = qtyById.get(itemId)) !== null && _b !== void 0 ? _b : 0) + quantity);
+    }
+    // Deterministic order avoids transaction deadlocks.
+    const reserved = [...qtyById.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([itemId, quantity]) => ({ itemId, quantity }));
+    // Firestore transactions reject any read after a write, so read every item first.
+    const snaps = await Promise.all(reserved.map(({ itemId }) => Promise.all([
+        tx.get(db.doc(`catalog/${exports.CATALOG_HOLIDAY}/items/${itemId}`)),
+        tx.get(inventoryDocRef(db, itemId)),
+    ])));
+    reserved.forEach(({ itemId, quantity }, i) => {
+        var _a, _b, _c;
+        const [itemSnap, invSnap] = snaps[i];
         if (!itemSnap.exists) {
             throw new https_1.HttpsError('invalid-argument', `Unknown product: ${itemId}`);
         }
-        const item = itemFromSnap(itemId, (_b = itemSnap.data()) !== null && _b !== void 0 ? _b : {});
-        const counters = parseCounters(invSnap.data());
-        const avail = (0, catalogAvailability_1.resolveAvailability)(item, counters, lockAt, now);
+        const item = itemFromSnap(itemId, (_a = itemSnap.data()) !== null && _a !== void 0 ? _a : {});
+        const avail = (0, catalogAvailability_1.resolveAvailability)(item, parseCounters(invSnap.data()), lockAt, now);
         if (!(0, catalogAvailability_1.availabilityAllowsDirectPurchase)(avail)) {
-            throw new https_1.HttpsError('failed-precondition', (0, catalogAvailability_1.availabilityRejectMessage)((_c = item.name) !== null && _c !== void 0 ? _c : itemId, avail));
+            throw new https_1.HttpsError('failed-precondition', (0, catalogAvailability_1.availabilityRejectMessage)((_b = item.name) !== null && _b !== void 0 ? _b : itemId, avail));
         }
         const remaining = (0, catalogAvailability_1.availabilityRemaining)(avail);
         if (remaining != null && quantity > remaining) {
-            throw new https_1.HttpsError('failed-precondition', `Only ${remaining} of ${(_d = item.name) !== null && _d !== void 0 ? _d : itemId} left for direct purchase.`);
+            throw new https_1.HttpsError('failed-precondition', `Only ${remaining} of ${(_c = item.name) !== null && _c !== void 0 ? _c : itemId} left for direct purchase.`);
         }
-        tx.set(invRef, {
+    });
+    for (const { itemId, quantity } of reserved) {
+        tx.set(inventoryDocRef(db, itemId), {
             directReservedQty: firestore_1.FieldValue.increment(quantity),
             updatedAt: new Date().toISOString(),
         }, { merge: true });
-        reserved.push({ itemId, quantity });
     }
     return reserved;
 }
@@ -105,6 +120,81 @@ async function commitMarketplaceReservations(db, lines) {
         }, { merge: true });
     }
     await batch.commit();
+}
+/** Count units as sold straight from stock (their reservation was already released). */
+async function sellMarketplaceInventory(db, lines) {
+    if (!lines.length)
+        return;
+    const batch = db.batch();
+    for (const line of lines) {
+        batch.set(inventoryDocRef(db, line.itemId), {
+            directSoldQty: firestore_1.FieldValue.increment(line.quantity),
+            updatedAt: new Date().toISOString(),
+        }, { merge: true });
+    }
+    await batch.commit();
+}
+/**
+ * How stock moves when a marketplace order is paid: a live hold becomes sold ('commit'); a hold
+ * the stale sweep already released (shopper paid after the TTL) is sold from stock ('sell').
+ */
+function paidMarketplaceInventoryAction(order) {
+    if (!order || order.inventoryCommittedAt)
+        return null;
+    if (order.inventoryReserved === true)
+        return 'commit';
+    if (order.reservationReleasedAt && reservedLinesFromOrder(order).length)
+        return 'sell';
+    return null;
+}
+/**
+ * Credit to take back when a stale-swept order (whose credit the sweep returned to the household)
+ * is paid late. Takes what the household still has; the rest is the shortfall. Null when nothing
+ * is owed or it was already taken back.
+ */
+function lateCreditReapply(order, household) {
+    const owed = lateCreditOwed(order);
+    if (!owed)
+        return null;
+    const giftCents = Math.min(owed.gift, nonNegInt(household === null || household === void 0 ? void 0 : household.giftCreditCents));
+    const platformCents = Math.min(owed.platform, nonNegInt(household === null || household === void 0 ? void 0 : household.platformCreditCents));
+    return { giftCents, platformCents, shortfallCents: owed.gift - giftCents + (owed.platform - platformCents) };
+}
+const nonNegInt = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+function lateCreditOwed(order) {
+    if (!order || order.creditReappliedAt)
+        return null;
+    if (order.cancelReason !== 'stale_inventory_reservation' || !order.reservationReleasedAt)
+        return null;
+    const gift = nonNegInt(order.giftCreditAppliedCents);
+    const platform = nonNegInt(order.platformCreditAppliedCents);
+    return gift || platform ? { gift, platform } : null;
+}
+/**
+ * Inside a transaction, after the order was read and before any write: reads the household and
+ * queues the late credit re-apply on it. Returns the fields to merge into the order update.
+ */
+async function reapplyLateCreditInTx(tx, householdRef, order) {
+    if (!lateCreditOwed(order))
+        return null;
+    const household = (await tx.get(householdRef)).data();
+    const reapply = lateCreditReapply(order, household);
+    if (!reapply)
+        return null;
+    const nowIso = new Date().toISOString();
+    if (reapply.giftCents || reapply.platformCents) {
+        tx.update(householdRef, Object.assign(Object.assign(Object.assign({}, (reapply.giftCents ? { giftCreditCents: firestore_1.FieldValue.increment(-reapply.giftCents) } : {})), (reapply.platformCents ? { platformCreditCents: firestore_1.FieldValue.increment(-reapply.platformCents) } : {})), { updatedAt: nowIso }));
+    }
+    return {
+        reapply,
+        orderFields: Object.assign({ creditReappliedAt: nowIso, creditReappliedCents: reapply.giftCents + reapply.platformCents }, (reapply.shortfallCents ? { creditShortfallCents: reapply.shortfallCents } : {})),
+    };
+}
+async function applyPaidMarketplaceInventory(db, action, lines) {
+    if (action === 'commit')
+        await commitMarketplaceReservations(db, lines);
+    else if (action === 'sell')
+        await sellMarketplaceInventory(db, lines);
 }
 /** Release reserved qty (payment failed / canceled / stale). */
 async function releaseMarketplaceReservations(db, lines) {
@@ -155,7 +245,7 @@ function aggregateLineQuantities(lines) {
  * already counted in boxAllocatedQty for this order (pass prior lines on update).
  */
 async function assertBoxLinesWithinInventory(db, proposedLines, options) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c;
     const proposed = aggregateLineQuantities(proposedLines);
     const credit = aggregateLineQuantities((_a = options === null || options === void 0 ? void 0 : options.creditLines) !== null && _a !== void 0 ? _a : []);
     const itemIds = [...proposed.keys()].sort();
@@ -165,29 +255,61 @@ async function assertBoxLinesWithinInventory(db, proposedLines, options) {
         const itemRef = db.doc(`catalog/${exports.CATALOG_HOLIDAY}/items/${itemId}`);
         const invRef = inventoryDocRef(db, itemId);
         const [itemSnap, invSnap] = await Promise.all([itemRef.get(), invRef.get()]);
-        if (!itemSnap.exists) {
-            throw new https_1.HttpsError('invalid-argument', `Unknown product: ${itemId}`);
-        }
-        const item = itemFromSnap(itemId, (_b = itemSnap.data()) !== null && _b !== void 0 ? _b : {});
-        if ((0, catalogAvailability_1.isCatalogBookItem)(item))
-            continue;
-        if (item.inventory == null || !Number.isFinite(item.inventory))
-            continue;
-        const inventory = Math.max(0, Math.floor(item.inventory));
-        const counters = parseCounters(invSnap.data());
-        const direct = ((_c = counters.directReservedQty) !== null && _c !== void 0 ? _c : 0) + ((_d = counters.directSoldQty) !== null && _d !== void 0 ? _d : 0);
-        const boxAllocated = (_e = counters.boxAllocatedQty) !== null && _e !== void 0 ? _e : 0;
-        const credited = (_f = credit.get(itemId)) !== null && _f !== void 0 ? _f : 0;
-        const want = (_g = proposed.get(itemId)) !== null && _g !== void 0 ? _g : 0;
-        const available = inventory - boxAllocated - direct + credited;
-        if (want > available) {
-            const name = (_h = item.name) !== null && _h !== void 0 ? _h : itemId;
-            const left = Math.max(0, available);
-            throw new https_1.HttpsError('failed-precondition', left <= 0
-                ? `${name} is out of stock for boxes.`
-                : `Only ${left} of ${name} left for boxes.`);
-        }
+        assertBoxItemWithinInventory(itemId, itemSnap, invSnap, (_b = proposed.get(itemId)) !== null && _b !== void 0 ? _b : 0, (_c = credit.get(itemId)) !== null && _c !== void 0 ? _c : 0);
     }
+}
+/** Items the box allocation counter tracks (books and uncapped items are skipped). */
+function boxAllocationTracked(item) {
+    if ((0, catalogAvailability_1.isCatalogBookItem)(item))
+        return false;
+    return item.inventory != null && Number.isFinite(item.inventory);
+}
+function assertBoxItemWithinInventory(itemId, itemSnap, invSnap, want, credited) {
+    var _a, _b, _c, _d, _e;
+    if (!itemSnap.exists) {
+        throw new https_1.HttpsError('invalid-argument', `Unknown product: ${itemId}`);
+    }
+    const item = itemFromSnap(itemId, (_a = itemSnap.data()) !== null && _a !== void 0 ? _a : {});
+    if (!boxAllocationTracked(item))
+        return false;
+    const inventory = Math.max(0, Math.floor(item.inventory));
+    const counters = parseCounters(invSnap.data());
+    const direct = ((_b = counters.directReservedQty) !== null && _b !== void 0 ? _b : 0) + ((_c = counters.directSoldQty) !== null && _c !== void 0 ? _c : 0);
+    const boxAllocated = (_d = counters.boxAllocatedQty) !== null && _d !== void 0 ? _d : 0;
+    const available = inventory - boxAllocated - direct + credited;
+    if (want > available) {
+        const name = (_e = item.name) !== null && _e !== void 0 ? _e : itemId;
+        const left = Math.max(0, available);
+        throw new https_1.HttpsError('failed-precondition', left <= 0
+            ? `${name} is out of stock for boxes.`
+            : `Only ${left} of ${name} left for boxes.`);
+    }
+    return true;
+}
+/**
+ * Transaction form of assertBoxLinesWithinInventory: reads every item first, validates, and
+ * returns a function that queues the boxAllocatedQty increments. Call the returned function only
+ * after the caller has finished all of its own reads (Firestore rejects reads after writes).
+ * recomputeBoxAllocations afterwards replaces these counters with the full recount.
+ */
+async function reserveBoxLinesInTx(db, tx, lines) {
+    const proposed = aggregateLineQuantities(lines);
+    const itemIds = [...proposed.keys()].sort();
+    const snaps = await Promise.all(itemIds.map((itemId) => Promise.all([
+        tx.get(db.doc(`catalog/${exports.CATALOG_HOLIDAY}/items/${itemId}`)),
+        tx.get(inventoryDocRef(db, itemId)),
+    ])));
+    const tracked = itemIds.filter((itemId, i) => { var _a; return assertBoxItemWithinInventory(itemId, snaps[i][0], snaps[i][1], (_a = proposed.get(itemId)) !== null && _a !== void 0 ? _a : 0, 0); });
+    return () => {
+        var _a;
+        const nowIso = new Date().toISOString();
+        for (const itemId of tracked) {
+            tx.set(inventoryDocRef(db, itemId), {
+                boxAllocatedQty: firestore_1.FieldValue.increment((_a = proposed.get(itemId)) !== null && _a !== void 0 ? _a : 0),
+                updatedAt: nowIso,
+            }, { merge: true });
+        }
+    };
 }
 const BOX_ALLOCATION_STATUSES = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
 function addLines(totals, lines) {

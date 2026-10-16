@@ -6,6 +6,7 @@ exports.metaContextFromCallable = metaContextFromCallable;
 exports.metaContextToStripeMetadata = metaContextToStripeMetadata;
 exports.metaContextFromStripeMetadata = metaContextFromStripeMetadata;
 exports.metaContextForDoc = metaContextForDoc;
+exports.sanitizeTouch = sanitizeTouch;
 exports.sanitizeAttribution = sanitizeAttribution;
 exports.sendMetaEvent = sendMetaEvent;
 const crypto_1 = require("crypto");

@@ -10,7 +10,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerioAppApiKey = void 0;
 exports.getCustomerioAppApiKey = getCustomerioAppApiKey;
@@ -30,7 +30,8 @@ const TEMPLATE_IDS = {
     'order-confirmed': parseInt((_b = process.env.CUSTOMERIO_TEMPLATE_ORDER_CONFIRMED) !== null && _b !== void 0 ? _b : '0', 10) || 10,
     /** À la carte / marketplace — must not reuse Hanukkah-box copy. */
     'marketplace-order-confirmed': parseInt((_c = process.env.CUSTOMERIO_TEMPLATE_MARKETPLACE_ORDER_CONFIRMED) !== null && _c !== void 0 ? _c : '0', 10) || 13,
-    'partner-invite': parseInt((_d = process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE) !== null && _d !== void 0 ? _d : '0', 10) || 0,
+    /** Collaborator invite with a sign-in accept link — transactional message 20. */
+    'partner-invite': parseInt((_d = process.env.CUSTOMERIO_TEMPLATE_PARTNER_INVITE) !== null && _d !== void 0 ? _d : '0', 10) || 20,
     'debrief-reminder': parseInt((_e = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_REMINDER) !== null && _e !== void 0 ? _e : '0', 10) || 0,
     'lock-reminder': parseInt((_f = process.env.CUSTOMERIO_TEMPLATE_LOCK_REMINDER) !== null && _f !== void 0 ? _f : '0', 10) || 0,
     'gift-claim': parseInt((_g = process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM) !== null && _g !== void 0 ? _g : '0', 10) || 0,
@@ -47,6 +48,14 @@ const TEMPLATE_IDS = {
     'box-charge-failed': parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _p !== void 0 ? _p : '0', 10) || 17,
     /** Passwordless login / save-this-box link — transactional message 19 (sends fail until it's published). */
     'login-link': parseInt((_q = process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK) !== null && _q !== void 0 ? _q : '0', 10) || 19,
+    /** Draft box holds an almost-sold-out item — transactional message 21 (docs/customerio-inventory-low.html). */
+    'inventory-low': parseInt((_r = process.env.CUSTOMERIO_TEMPLATE_INVENTORY_LOW) !== null && _r !== void 0 ? _r : '0', 10) || 21,
+    /** Sold-out item swapped out of a draft box — transactional message 22 (docs/customerio-inventory-swapped.html). */
+    'inventory-swapped': parseInt((_s = process.env.CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED) !== null && _s !== void 0 ? _s : '0', 10) || 22,
+    /** Six-digit sign-in code — transactional message 23 (docs/customerio-login-code.html). */
+    'login-code': parseInt((_t = process.env.CUSTOMERIO_TEMPLATE_LOGIN_CODE) !== null && _t !== void 0 ? _t : '0', 10) || 23,
+    /** Pilot Participants "You're in" — skipped until a transactional message exists for it. */
+    'pilot-joined': parseInt((_u = process.env.CUSTOMERIO_TEMPLATE_PILOT_JOINED) !== null && _u !== void 0 ? _u : '0', 10) || 0,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
@@ -58,6 +67,7 @@ const TEMPLATE_IDS = {
  *  CUSTOMERIO_TEMPLATE_BOX_DISCOUNT, CUSTOMERIO_TEMPLATE_WELCOME
  *  CUSTOMERIO_TEMPLATE_BOX_SHIPPED, CUSTOMERIO_TEMPLATE_ORDER_SHIPPED
  *  CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED, CUSTOMERIO_TEMPLATE_LOGIN_LINK
+ *  CUSTOMERIO_TEMPLATE_INVENTORY_LOW, CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED
  *
  *  Set once: npx firebase-tools functions:secrets:set CUSTOMERIO_APP_API_KEY --project grapejuice-pilot
  */

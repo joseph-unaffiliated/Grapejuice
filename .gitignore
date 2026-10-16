@@ -19,3 +19,12 @@ tmp/
 assets/catalog/archive/
 assets/storefront/archive/
 scripts/flows/fixtures/
+# Local customer and ads analysis (scores, account exports, Meta pulls). Never commit.
+/analysis/
+/slider-analysis/
+analysis-export/
+docs/RESEARCH_*.md
+docs/*VOICE_NOTE_CLEANED.md
+docs/COMMITTED_BOX_CHANGES.md
+docs/COMMITTED_BOX_CHANGE_EMAILS.md
+scripts/box-cleanup-*.ts

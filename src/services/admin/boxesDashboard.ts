@@ -60,6 +60,10 @@ export type DashBox = {
   /** `location` is known to be outside the US. */
   outsideUs?: boolean;
   answers: DashAnswers;
+  /** Onboarding note or a message to Rav says the household keeps kosher. */
+  kosher?: boolean;
+  /** The note or message that set `kosher`. */
+  kosherNote?: string | null;
   lines: DashLine[];
 };
 

@@ -8,18 +8,23 @@ exports.emailHash = emailHash;
 exports.summarizeSnapshot = summarizeSnapshot;
 exports.validateSnapshot = validateSnapshot;
 exports.validateVisitorId = validateVisitorId;
+exports.keptEntry = keptEntry;
 exports.saveGuestSessionRecord = saveGuestSessionRecord;
 exports.scrubChildNames = scrubChildNames;
 exports.mintResumeToken = mintResumeToken;
+exports.recordInventoryEmailClick = recordInventoryEmailClick;
 exports.resumeGuestSessionByToken = resumeGuestSessionByToken;
 exports.purgeExpiredGuestData = purgeExpiredGuestData;
 exports.isAdminEmail = isAdminEmail;
+exports.isAdminToken = isAdminToken;
 const logger = require("./logger");
 const sentry_1 = require("./sentry");
 const firestore_1 = require("firebase-admin/firestore");
 const crypto_1 = require("crypto");
 const untraditionalCio_1 = require("./untraditionalCio");
 const geo_1 = require("./geo");
+const boxHistory_1 = require("./boxHistory");
+const catalogInventory_1 = require("./catalogInventory");
 /**
  * Guest box recovery — server-side copy of a signed-out visitor's in-progress box.
  *
@@ -115,6 +120,19 @@ function validateVisitorId(raw) {
 function expireAtFrom(now, days) {
     return firestore_1.Timestamp.fromMillis(now.getTime() + days * 24 * 60 * 60 * 1000);
 }
+const hasCampaign = (e) => (isRecord(e.utm) && Object.values(e.utm).some((v) => typeof v === 'string' && v.length > 0)) ||
+    (typeof e.fbclid === 'string' && e.fbclid.length > 0);
+/**
+ * In-app browsers can lose the stored touch between saves; never trade an entry for
+ * nothing, or an ad-tagged entry for an untagged one.
+ */
+function keptEntry(next, prior) {
+    if (!prior)
+        return next;
+    if (!next)
+        return prior;
+    return hasCampaign(prior) && !hasCampaign(next) ? prior : next;
+}
 /**
  * Upsert guestSessions/{visitorId}. Rate-limited per visitor; preserves createdAt,
  * convertedUid and lead linkage across saves.
@@ -129,7 +147,7 @@ async function saveGuestSessionRecord(db, visitorId, snapshot, now = new Date(),
     if (priorUpdated && now.getTime() - priorUpdated < SAVE_MIN_INTERVAL_MS) {
         return { ok: true, skipped: 'rate_limited' };
     }
-    const entry = isRecord(snapshot.entry) ? snapshot.entry : null;
+    const entry = keptEntry(isRecord(snapshot.entry) ? snapshot.entry : null, isRecord(prior === null || prior === void 0 ? void 0 : prior.entry) ? prior.entry : null);
     await ref.set(Object.assign(Object.assign(Object.assign({ schemaVersion: exports.GUEST_SESSION_SCHEMA_VERSION, snapshot }, summary), { path: typeof snapshot.path === 'string' ? snapshot.path.slice(0, 200) : null, entry, createdAt: (_a = prior === null || prior === void 0 ? void 0 : prior.createdAt) !== null && _a !== void 0 ? _a : firestore_1.Timestamp.fromDate(now), updatedAt: firestore_1.Timestamp.fromDate(now), expireAt: expireAtFrom(now, exports.GUEST_SESSION_TTL_DAYS), convertedUid: (_b = prior === null || prior === void 0 ? void 0 : prior.convertedUid) !== null && _b !== void 0 ? _b : null, convertedAt: (_c = prior === null || prior === void 0 ? void 0 : prior.convertedAt) !== null && _c !== void 0 ? _c : null, lastLeadEmailHash: (_d = prior === null || prior === void 0 ? void 0 : prior.lastLeadEmailHash) !== null && _d !== void 0 ? _d : null, lastLeadAt: (_e = prior === null || prior === void 0 ? void 0 : prior.lastLeadAt) !== null && _e !== void 0 ? _e : null, resumeCount: (_f = prior === null || prior === void 0 ? void 0 : prior.resumeCount) !== null && _f !== void 0 ? _f : 0, saveCount: firestore_1.FieldValue.increment(1) }), (geo ? { ipGeo: (0, geo_1.ipGeoField)(geo) } : {})), { merge: true });
     return { ok: true };
 }
@@ -186,7 +204,7 @@ function scrubChildNames(snapshot) {
  * and scrubs child names from the stored snapshot.
  */
 exports.markGuestSessionConverted = (0, sentry_1.onCall)({ memory: '512MiB' }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid))
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
@@ -194,7 +212,7 @@ exports.markGuestSessionConverted = (0, sentry_1.onCall)({ memory: '512MiB' }, a
     const db = (0, firestore_1.getFirestore)();
     const geo = (0, geo_1.geoFromRequest)(request.rawRequest);
     if (geo)
-        await db.doc(`users/${request.auth.uid}`).set({ ipGeo: (0, geo_1.ipGeoField)(geo) }, { merge: true });
+        await noteProfileGeo(request.auth.uid, geo);
     const ref = db.doc(`guestSessions/${visitorId}`);
     const snap = await ref.get();
     if (!snap.exists)
@@ -202,6 +220,10 @@ exports.markGuestSessionConverted = (0, sentry_1.onCall)({ memory: '512MiB' }, a
     const stored = (_c = snap.data()) !== null && _c !== void 0 ? _c : {};
     const scrubbed = isRecord(stored.snapshot) ? scrubChildNames(stored.snapshot) : null;
     await ref.set(Object.assign({ convertedUid: request.auth.uid, convertedAt: firestore_1.FieldValue.serverTimestamp() }, (scrubbed ? { snapshot: scrubbed } : null)), { merge: true });
+    const householdId = (_d = (await db.doc(`users/${request.auth.uid}`).get()).data()) === null || _d === void 0 ? void 0 : _d.householdId;
+    if (typeof householdId === 'string' && householdId) {
+        await (0, boxHistory_1.carryGuestDefaultToHousehold)(db, visitorId, householdId, catalogInventory_1.HOLIDAY_ID).catch((err) => logger.warn('markGuestSessionConverted: default box not carried over', { err: String(err) }));
+    }
     return { ok: true, found: true };
 });
 /**
@@ -214,22 +236,47 @@ exports.noteVisitorRegion = (0, sentry_1.onCall)({ memory: '512MiB' }, async (re
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
     const geo = (0, geo_1.geoFromRequest)(request.rawRequest);
     if (geo)
-        await (0, firestore_1.getFirestore)().doc(`users/${request.auth.uid}`).set({ ipGeo: (0, geo_1.ipGeoField)(geo) }, { merge: true });
+        await noteProfileGeo(request.auth.uid, geo);
     return { ok: true };
 });
+/**
+ * Update only: creating users/{uid} here races the client's first profile write, which then
+ * sees a profile and never saves email, name, or attribution.
+ */
+async function noteProfileGeo(uid, geo) {
+    try {
+        await (0, firestore_1.getFirestore)().doc(`users/${uid}`).update({ ipGeo: (0, geo_1.ipGeoField)(geo) });
+    }
+    catch (err) {
+        if ((err === null || err === void 0 ? void 0 : err.code) !== 5)
+            throw err;
+    }
+}
 /** Mint a one-click resume link; only the SHA-256 of the token is stored. */
-async function mintResumeToken(db, visitorId, leadEmail, now = new Date()) {
+async function mintResumeToken(db, visitorId, leadEmail, now = new Date(), 
+/** inventoryEmailLog doc this link went out in; a click is recorded there. */
+emailLogId = null) {
     const token = (0, crypto_1.randomBytes)(32).toString('base64url');
     const hash = sha256Hex(token);
-    await db.doc(`guestResumeTokens/${hash}`).set({
-        visitorId,
-        emailHash: emailHash(leadEmail),
-        createdAt: firestore_1.Timestamp.fromDate(now),
-        expiresAt: expireAtFrom(now, exports.RESUME_TOKEN_TTL_DAYS),
-        usedCount: 0,
-        lastUsedAt: null,
-    });
+    await db.doc(`guestResumeTokens/${hash}`).set(Object.assign({ visitorId, emailHash: emailHash(leadEmail), createdAt: firestore_1.Timestamp.fromDate(now), expiresAt: expireAtFrom(now, exports.RESUME_TOKEN_TTL_DAYS), usedCount: 0, lastUsedAt: null }, (emailLogId ? { emailLogId } : {})));
     return { token, hash, url: `${APP_ORIGIN}/?resume=${token}` };
+}
+/**
+ * A link from an inventory email (functions/src/inventoryEmails.ts) was opened: count it on that
+ * send's inventoryEmailLog doc. Never throws — tracking must not break sign-in or resume.
+ */
+async function recordInventoryEmailClick(db, emailLogId, now = new Date()) {
+    if (typeof emailLogId !== 'string' || !emailLogId || emailLogId.includes('/'))
+        return;
+    try {
+        await db.doc(`inventoryEmailLog/${emailLogId}`).update({
+            clicks: firestore_1.FieldValue.increment(1),
+            lastClickedAt: firestore_1.Timestamp.fromDate(now),
+        });
+    }
+    catch (err) {
+        logger.warn('recordInventoryEmailClick failed', { err: String(err).slice(0, 200) });
+    }
 }
 async function resumeGuestSessionByToken(db, token, now = new Date()) {
     var _a;
@@ -259,6 +306,7 @@ async function resumeGuestSessionByToken(db, token, now = new Date()) {
             // A click means the box is still wanted — give it another full window.
             expireAt: expireAtFrom(now, exports.GUEST_SESSION_TTL_DAYS),
         }, { merge: true }),
+        recordInventoryEmailClick(db, tok.emailLogId, now),
     ]);
     return {
         status: 'ok',
@@ -287,10 +335,13 @@ async function purgeExpiredGuestData(db, now = new Date()) {
     const counts = { sessions: 0, tokens: 0, loginTokens: 0, rateLimits: 0 };
     for (const [collection, field, key] of [
         ['guestSessions', 'expireAt', 'sessions'],
+        ['giftFunnel', 'expireAt', 'sessions'],
         ['guestResumeTokens', 'expiresAt', 'tokens'],
         // loginLinks.ts — single-use login links and rate-limit windows.
         ['loginTokens', 'expiresAt', 'loginTokens'],
         ['rateLimits', 'expiresAt', 'rateLimits'],
+        // inventoryEmails.ts — cached lead matches for signed-out boxes.
+        ['inventoryAlertContacts', 'expireAt', 'sessions'],
     ]) {
         // Bounded per run; the schedule picks up the rest tomorrow.
         const snap = await db.collection(collection).where(field, '<=', cutoff).limit(400).get();
@@ -299,7 +350,7 @@ async function purgeExpiredGuestData(db, now = new Date()) {
         const batch = db.batch();
         snap.docs.forEach((d) => batch.delete(d.ref));
         await batch.commit();
-        counts[key] = snap.size;
+        counts[key] += snap.size;
     }
     return counts;
 }
@@ -307,35 +358,58 @@ exports.scheduledPurgeGuestSessions = (0, sentry_1.onSchedule)('every day 04:00'
     const counts = await purgeExpiredGuestData((0, firestore_1.getFirestore)());
     logger.info('scheduledPurgeGuestSessions', counts);
 });
-/** Mirrors firestore.rules isAdmin() — pilot ops allowlist with plus-aliases. */
+/** Pilot ops allowlist with plus-aliases. */
 function isAdminEmail(email) {
     if (!email)
         return false;
-    return /^(brendan|joseph|maya)(\+[^@]*)?@unaffiliated\.co$/i.test(email.trim());
+    return /^(brendan|joseph|maya|shameem)(\+[^@]*)?@unaffiliated\.co$/i.test(email.trim());
+}
+/**
+ * Mirrors firestore.rules isAdmin(): a verified allowlisted email, or the `admin` custom claim.
+ * Unverified matches don't count — anyone can register a password account for an unused alias.
+ */
+function isAdminToken(token) {
+    if (!token)
+        return false;
+    if (token.admin === true)
+        return true;
+    return token.email_verified === true && typeof token.email === 'string' && isAdminEmail(token.email);
 }
 /**
  * Data-rights path: remove everything we hold for a lead email — guest sessions linked to it,
  * resume tokens, lead events, and the Untraditional Customer.io person. Admin only.
  */
 exports.deleteGuestDataByEmail = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e;
-    if (!isAdminEmail((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.email)) {
+    var _a, _b, _c, _d;
+    if (!isAdminToken((_a = request.auth) === null || _a === void 0 ? void 0 : _a.token)) {
         throw new sentry_1.HttpsError('permission-denied', 'Admin only.');
     }
-    const data = ((_c = request.data) !== null && _c !== void 0 ? _c : {});
+    const data = ((_b = request.data) !== null && _b !== void 0 ? _b : {});
     if (typeof data.email !== 'string' || !data.email.includes('@')) {
         throw new sentry_1.HttpsError('invalid-argument', 'email required.');
     }
     const hash = emailHash(data.email);
     const db = (0, firestore_1.getFirestore)();
-    const [sessions, tokens, events] = await Promise.all([
+    const [sessions, tokens, events, inventoryLog, inventoryLow, inventoryContacts] = await Promise.all([
         db.collection('guestSessions').where('lastLeadEmailHash', '==', hash).get(),
         db.collection('guestResumeTokens').where('emailHash', '==', hash).get(),
         db.collection('retentionLeadEvents').where('emailHash', '==', hash).get(),
+        // inventoryEmails.ts — daily send claims and per-item low-stock dedupe.
+        db.collection('inventoryEmailLog').where('emailHash', '==', hash).get(),
+        db.collection('inventoryLowSent').where('emailHash', '==', hash).get(),
+        db.collection('inventoryAlertContacts').where('emailHash', '==', hash).get(),
     ]);
     const batch = db.batch();
-    for (const d of [...sessions.docs, ...tokens.docs, ...events.docs])
+    for (const d of [
+        ...sessions.docs,
+        ...tokens.docs,
+        ...events.docs,
+        ...inventoryLog.docs,
+        ...inventoryLow.docs,
+        ...inventoryContacts.docs,
+    ]) {
         batch.delete(d.ref);
+    }
     await batch.commit();
     let customerio = false;
     try {
@@ -345,7 +419,7 @@ exports.deleteGuestDataByEmail = (0, sentry_1.onCall)(async (request) => {
         logger.error('deleteGuestDataByEmail: Customer.io delete failed', err);
     }
     logger.info('deleteGuestDataByEmail', {
-        by: (_e = (_d = request.auth) === null || _d === void 0 ? void 0 : _d.token) === null || _e === void 0 ? void 0 : _e.email,
+        by: (_d = (_c = request.auth) === null || _c === void 0 ? void 0 : _c.token) === null || _d === void 0 ? void 0 : _d.email,
         sessions: sessions.size,
         tokens: tokens.size,
         events: events.size,

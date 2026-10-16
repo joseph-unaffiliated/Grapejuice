@@ -13,6 +13,7 @@ import {
   DEFAULT_BOX_PRICE_CENTS,
   EXTRA_FLAT_CENTS,
 } from './pricing';
+import { applyDietNotes } from './dietNotes';
 import {
   defaultAdults,
   geltSlotForSize,
@@ -163,6 +164,8 @@ export type BuildCuratedBoxOptions = {
   practice?: PracticeLevel;
   adults?: number;
   childInterests?: string[];
+  /** Household note. Kosher drops all food, gluten drops sufganiyot, no chocolate drops gelt. */
+  notes?: string;
 };
 
 /**
@@ -331,7 +334,7 @@ export function buildCuratedBox(
     });
   }
 
-  return { lineItems, deviations, practice };
+  return { lineItems: applyDietNotes(lineItems, options.notes), deviations, practice };
 }
 
 /**

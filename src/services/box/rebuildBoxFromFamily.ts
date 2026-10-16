@@ -3,6 +3,7 @@ import { childrenService } from '../firestore/children';
 import { catalogService } from '../firestore/catalog';
 import { boxDraftService } from '../firestore/boxDraft';
 import { buildCuratedBox } from './buildDefaultBox';
+import { applyDietNotes } from './dietNotes';
 import { clearBoxDraftCache } from '../../hooks/useBoxDraft';
 import { useGuestSessionStore } from '../../stores/guestSessionStore';
 import { curateBox, applyCurateBoxResult } from '../rav/curateBox';
@@ -89,6 +90,7 @@ export async function rebuildBoxFromFamily(opts: {
     practice: familiarityLevel,
     adults,
     childInterests: interests,
+    notes: ravNotes,
   });
   let items = curated.lineItems;
   if (!items.length) {
@@ -131,7 +133,7 @@ export async function rebuildBoxFromFamily(opts: {
       deviations: curated.deviations,
       catalog,
     });
-    items = applyCurateBoxResult(items, catalog, result, curated.deviations);
+    items = applyDietNotes(applyCurateBoxResult(items, catalog, result, curated.deviations), ravNotes);
   } catch (err) {
     console.warn('[account] curateBox failed during rebuild', err);
   }

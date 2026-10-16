@@ -3,6 +3,7 @@ var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HttpsError = void 0;
 exports.reportError = reportError;
+exports.reportWarning = reportWarning;
 exports.onCall = onCall;
 exports.onRequest = onRequest;
 exports.onSchedule = onSchedule;
@@ -59,6 +60,16 @@ function reportError(err, message) {
             Sentry.captureException(err);
         else
             Sentry.captureMessage(message !== null && message !== void 0 ? message : String(err), 'error');
+    });
+}
+/** A Sentry warning for something ops should follow up on. Pass ids and amounts only, no PII. */
+function reportWarning(message) {
+    if (!enabled)
+        return;
+    Sentry.withScope((scope) => {
+        if (process.env.K_SERVICE)
+            scope.setTag('function', process.env.K_SERVICE);
+        Sentry.captureMessage(message, 'warning');
     });
 }
 /** Cloud Functions throttles CPU once a handler returns, so send queued events first. */

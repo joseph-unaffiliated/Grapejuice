@@ -10,14 +10,45 @@ import {
 
 type ServerEventName = 'CompleteRegistration' | 'PreRegister' | 'BoxBuilt';
 
+/**
+ * Broad ad sets optimize on BoxBuilt. A practice score above this is not reported as that
+ * conversion. The number itself is never a pixel or CAPI parameter.
+ */
+export const META_BOX_BUILT_MAX_PRACTICE = 49;
+
+export function boxBuiltCountsForMeta(practiceFrequencyScore: number | null | undefined): boolean {
+  return !(
+    typeof practiceFrequencyScore === 'number' &&
+    Number.isFinite(practiceFrequencyScore) &&
+    practiceFrequencyScore > META_BOX_BUILT_MAX_PRACTICE
+  );
+}
+
 /** Conversions API copy of a browser event (same event id → Meta dedupes). Never throws. */
-function sendServerEvent(eventName: ServerEventName, meta: MetaServerContext, contentName?: string): void {
+function sendServerEvent(
+  eventName: ServerEventName,
+  meta: MetaServerContext,
+  contentName?: string,
+  practiceFrequencyScore?: number | null,
+): void {
   if (!functions || meta.skip) return;
   const callable = httpsCallable<
-    { eventName: ServerEventName; meta: MetaServerContext; contentName?: string },
+    {
+      eventName: ServerEventName;
+      meta: MetaServerContext;
+      contentName?: string;
+      practiceFrequencyScore?: number;
+    },
     { ok: boolean }
   >(functions, 'trackMetaEvent');
-  void callable({ eventName, meta, ...(contentName ? { contentName } : {}) }).catch(() => undefined);
+  void callable({
+    eventName,
+    meta,
+    ...(contentName ? { contentName } : {}),
+    ...(eventName === 'BoxBuilt' && typeof practiceFrequencyScore === 'number'
+      ? { practiceFrequencyScore }
+      : {}),
+  }).catch(() => undefined);
 }
 
 const REG_SENT_KEY = 'gj.metaRegSent';
@@ -69,12 +100,14 @@ export function trackBoxEmail(): MetaServerContext {
 
 /**
  * Box builder produced a curated box (guest or signed in). Quiz-built boxes never fire
- * AddToCart, so this is the only ad-side signal that a visitor got as far as a box.
- * The server copy also adds the visitor to the follow-up audience. Never put slider scores
- * in pixel params.
+ * AddToCart, so BoxBuilt is the signal the broad campaigns optimize on.
+ * Practice above 49 does not fire BoxBuilt or join the follow-up audience. The score is
+ * never a pixel param.
  */
-export function trackBoxBuilt(numItems: number): void {
+export function trackBoxBuilt(numItems: number, practiceFrequencyScore?: number | null): void {
   const eventId = newMetaEventId('boxbuilt');
-  trackMetaCustom('BoxBuilt', { content_name: 'Hanukkah box', num_items: numItems }, eventId);
-  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box');
+  if (boxBuiltCountsForMeta(practiceFrequencyScore)) {
+    trackMetaCustom('BoxBuilt', { content_name: 'Hanukkah box', num_items: numItems }, eventId);
+  }
+  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box', practiceFrequencyScore);
 }

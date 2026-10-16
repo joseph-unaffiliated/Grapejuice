@@ -13,13 +13,16 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CATALOG_HOLIDAY = exports.BOOKS_TABLE_ID = exports.FULL_CATALOG_TABLE_ID = exports.AIRTABLE_BASE_ID_DEFAULT = void 0;
 exports.slugifyCatalogId = slugifyCatalogId;
-exports.parseApproxPriceHighCents = parseApproxPriceHighCents;
+exports.listingCatalogId = listingCatalogId;
+exports.bookToItem = bookToItem;
 exports.runAirtableCatalogReplaceSync = runAirtableCatalogReplaceSync;
 exports.assertCatalogSyncSecret = assertCatalogSyncSecret;
 /**
  * Airtable → Firestore catalog replace sync.
  *
- * Source of truth: Grapejuice base Full Catalog (Listings) + Hanukkah Books.
+ * Source of truth: Grapejuice base Full Catalog (Listings). Book rows there decide which
+ * books are listed, their prices, ages and default ages; the linked Hanukkah Books row
+ * supplies title, author, copy and gallery images.
  * Writes catalog/hanukkah/items/* and deletes orphans not in the synced set.
  *
  * Env:
@@ -32,6 +35,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const storage_1 = require("firebase-admin/storage");
 const crypto_1 = require("crypto");
 const sharp = require("sharp");
+const catalogThumbs_1 = require("./catalogThumbs");
 exports.AIRTABLE_BASE_ID_DEFAULT = 'appQscrPCQUIj4shh';
 exports.FULL_CATALOG_TABLE_ID = 'tblCUCVfohWTQy8fP';
 exports.BOOKS_TABLE_ID = 'tbleo48j2H34DRAu1';
@@ -74,6 +78,12 @@ const F = {
     boxRoles: 'fldxFZn1AVEGMCjjD',
     /** Warehouse / ShipStation SKU (e.g. CDL-STR-001). Empty → fall back to slugified ID. */
     sku: 'fld1xjteLPXlU4VsW',
+    /** Book rows: link to the Hanukkah Books record with title, author and copy. */
+    hanukkahBooks: 'fldMOUzSLUQ5qOzvu',
+    /** Book rows: exact kid ages (0–12) this book is the included default for. */
+    defaultBookAges: 'fldhdftdVkGmSQvCP',
+    /** Present rows: exact kid ages (0–12) this item can be the included present for. */
+    defaultGiftAges: 'fld29wcLrL0kf4N58',
 };
 const B = {
     title: 'fldCZVbxyEy7pFpl5',
@@ -83,15 +93,7 @@ const B = {
     primaryImage: 'fldPIYO00g9QwhpVC',
     /** Other Images — secondary gallery, same role as Full Catalog Other Images. */
     otherImages: 'fldlxFU6PXF2LWutu',
-    defaultForAge: 'fldZcr2Dzq9JivS7u',
-    age: 'fldCQ9GdNJMI4f300',
     interest: 'fld0HXR8bybF5jJlf',
-    cut: 'fldRZaX3mVlFqWntD',
-    /** Free-text approx price, e.g. "$8-18 depending on edition". */
-    price: 'fldP8mVb5xMC9CQg3',
-    unitCost: 'fldocbJQ59NOnn52q',
-    memberPrice: 'fldDxCYzoVa8kECiK',
-    nonMemberPrice: 'fld98ErDMv4fjIXNV',
     description: 'fld4sz0NbEfYURoas',
     whatsIncluded: 'fldibf87uviMr3F1p',
     careNotes: 'fldOgYIzuMOiKypF8',
@@ -116,6 +118,19 @@ function slugifyCatalogId(name) {
         .replace(/^-+|-+$/g, '')
         .slice(0, 80);
     return slug || 'item';
+}
+/**
+ * Full Catalog rows whose catalog id must not follow their name. Boxes, orders and inventory
+ * store the id, so renaming these rows (e.g. adding coin counts) must keep the old id.
+ */
+const PINNED_LISTING_IDS = {
+    recxIaQkZ55qi5hv7: 'big-bag-of-gelt',
+    recF3yMAHEv61pJJR: 'party-bag-of-gelt',
+};
+/** Catalog id for a Full Catalog row: its pinned id, else the slug of its name. */
+function listingCatalogId(recordId, name) {
+    var _a;
+    return (_a = PINNED_LISTING_IDS[recordId]) !== null && _a !== void 0 ? _a : slugifyCatalogId(name);
 }
 function selectName(v) {
     if (!v)
@@ -187,31 +202,6 @@ function currencyToCents(v) {
     if (typeof v !== 'number' || !Number.isFinite(v))
         return 0;
     return Math.max(0, Math.round(v * 100));
-}
-/**
- * High end of Hanukkah Books "Price (approx, USD)" free text.
- * Examples: "$4.99 board book" → 499; "$8-18 depending on edition" → 1800;
- * "$8-20 …; $24.99 gift ed." → 2499.
- */
-function parseApproxPriceHighCents(raw) {
-    const s = String(raw !== null && raw !== void 0 ? raw : '');
-    if (!s.trim())
-        return 0;
-    const amounts = [];
-    const re = /~?\$?\s*(\d+(?:\.\d{1,2})?)/g;
-    let m;
-    while ((m = re.exec(s))) {
-        const n = Number.parseFloat(m[1]);
-        if (!Number.isFinite(n))
-            continue;
-        // Book prices are small; skip page counts / years accidentally captured.
-        if (n <= 0 || n > 500)
-            continue;
-        amounts.push(n);
-    }
-    if (!amounts.length)
-        return 0;
-    return Math.max(0, Math.round(Math.max(...amounts) * 100));
 }
 function attachments(v) {
     if (!Array.isArray(v))
@@ -391,28 +381,84 @@ async function mirrorAttachmentToStorage(itemId, kind, index, att) {
     await file.makePublic().catch(() => undefined);
     const [meta] = await file.getMetadata();
     if (meta.mediaLink) {
-        return `https://storage.googleapis.com/${bucket.name}/${finalPath}`;
+        return {
+            url: `https://storage.googleapis.com/${bucket.name}/${finalPath}`,
+            path: finalPath,
+            buffer: buf,
+        };
     }
     const [signed] = await file.getSignedUrl({
         action: 'read',
         expires: '2099-01-01',
     });
-    return signed;
+    return { url: signed, path: null, buffer: buf };
 }
-async function resolveImages(itemId, primary, other) {
+const NO_IMAGES = { imageUrl: null, imageUrls: [], imageThumbUrls: [] };
+/**
+ * New thumbs encoded per sync run — the first run after deploy would otherwise encode every
+ * photo inside the 300s timeout. Later runs (or backfillCatalogThumbs) pick up the rest.
+ */
+const MAX_NEW_THUMBS_PER_SYNC = 60;
+async function loadKnownThumbs(col) {
+    const known = new Map();
+    const snap = await col.select('imageUrls', 'imageThumbUrls').get();
+    for (const d of snap.docs) {
+        const urls = d.get('imageUrls');
+        const thumbs = d.get('imageThumbUrls');
+        if (!Array.isArray(urls) || !Array.isArray(thumbs))
+            continue;
+        urls.forEach((u, i) => {
+            const t = thumbs[i];
+            if (typeof u === 'string' && typeof t === 'string' && (0, catalogThumbs_1.thumbMatchesFull)(u, t))
+                known.set(u, t);
+        });
+    }
+    return known;
+}
+async function thumbFor(itemId, img, ctx) {
+    const known = ctx.known.get(img.url);
+    if (known)
+        return known;
+    if (!img.path)
+        return null;
+    const allowCreate = ctx.createBudget > 0;
+    try {
+        const ensured = await (0, catalogThumbs_1.ensureCatalogThumb)(img.path, { fullBuffer: img.buffer, allowCreate });
+        if (ensured.created) {
+            ctx.createBudget -= 1;
+            ctx.created += 1;
+        }
+        return ensured.url;
+    }
+    catch (e) {
+        logger.warn('Catalog thumb failed', { itemId, error: String(e) });
+        return null;
+    }
+}
+async function resolveImages(itemId, primary, other, thumbs) {
     var _a;
-    const urls = [];
+    const mirrored = [];
     if (primary[0]) {
-        const u = await mirrorAttachmentToStorage(itemId, 'primary', 0, primary[0]);
-        if (u)
-            urls.push(u);
+        const m = await mirrorAttachmentToStorage(itemId, 'primary', 0, primary[0]);
+        if (m)
+            mirrored.push(m);
     }
     for (let i = 0; i < other.length; i++) {
-        const u = await mirrorAttachmentToStorage(itemId, 'other', i, other[i]);
-        if (u)
-            urls.push(u);
+        const m = await mirrorAttachmentToStorage(itemId, 'other', i, other[i]);
+        if (m)
+            mirrored.push(m);
     }
-    return { imageUrl: (_a = urls[0]) !== null && _a !== void 0 ? _a : null, imageUrls: urls };
+    const imageThumbUrls = [];
+    for (const m of mirrored)
+        imageThumbUrls.push(await thumbFor(itemId, m, thumbs));
+    const urls = mirrored.map((m) => m.url);
+    return { imageUrl: (_a = urls[0]) !== null && _a !== void 0 ? _a : null, imageUrls: urls, imageThumbUrls };
+}
+function exactAges(v) {
+    return selectNames(v)
+        .map((a) => parseInt(a, 10))
+        .filter((n) => Number.isFinite(n))
+        .sort((x, y) => x - y);
 }
 function listingToItem(rec, images) {
     var _a, _b, _c;
@@ -431,7 +477,7 @@ function listingToItem(rec, images) {
     const unitCostCents = currencyToCents(f[F.unitCost]);
     const memberPriceCents = currencyToCents(f[F.memberPrice]);
     const nonMemberPriceCents = currencyToCents(f[F.nonMemberPrice]);
-    const id = slugifyCatalogId(name);
+    const id = listingCatalogId(rec.id, name);
     const skuRaw = String((_b = f[F.sku]) !== null && _b !== void 0 ? _b : '').trim();
     return {
         id,
@@ -441,6 +487,7 @@ function listingToItem(rec, images) {
         slotId: placement.slotId,
         ageGroups: ages.length ? ageYearsToGroups(ages) : ['0-2', '3-5', '6-8', '9-12'],
         defaultFor: contexts.includes('Default') ? ['0-2', '3-5', '6-8', '9-12'] : [],
+        defaultGiftAges: exactAges(f[F.defaultGiftAges]),
         swapOptions: [],
         unitCostCents,
         memberPriceCents,
@@ -458,6 +505,7 @@ function listingToItem(rec, images) {
         brand: null,
         imageUrl: images.imageUrl,
         imageUrls: images.imageUrls,
+        imageThumbUrls: images.imageThumbUrls,
         buyLink: typeof f[F.link] === 'string' ? f[F.link] : null,
         interest: null,
         curationTags: curationTagsFor(categories),
@@ -474,36 +522,48 @@ function listingToItem(rec, images) {
         sku: skuRaw || null,
     };
 }
-function bookToItem(rec, images) {
-    var _a, _b, _c;
-    const f = rec.fields;
-    if (f[B.cut] === true)
-        return null;
-    const title = String((_a = f[B.title]) !== null && _a !== void 0 ? _a : '').trim();
+/** Book title: the linked Hanukkah Books Title, else the Full Catalog ID. Drives the item id. */
+function bookTitle(fcRec, bookRec) {
+    var _a, _b;
+    return String((_b = (_a = bookRec === null || bookRec === void 0 ? void 0 : bookRec.fields[B.title]) !== null && _a !== void 0 ? _a : fcRec.fields[F.id]) !== null && _b !== void 0 ? _b : '').trim();
+}
+/**
+ * A Full Catalog Book row → catalog item. Full Catalog owns listing (In production?),
+ * prices, ages and default ages; the linked Hanukkah Books row only supplies copy.
+ * Inventory is ignored for books — they stay untracked so stock rules never swap them.
+ */
+function bookToItem(fcRec, bookRec, images) {
+    var _a, _b, _c, _d;
+    const f = fcRec.fields;
+    const b = (_a = bookRec === null || bookRec === void 0 ? void 0 : bookRec.fields) !== null && _a !== void 0 ? _a : {};
+    const title = bookTitle(fcRec, bookRec);
     if (!title)
         return null;
-    const age = selectName(f[B.age]);
-    const ageGroups = age && age !== '-' ? ageYearsToGroups([age]) : ['0-2', '3-5', '6-8', '9-12'];
-    const isDefault = f[B.defaultForAge] === true;
-    const author = String((_b = f[B.author]) !== null && _b !== void 0 ? _b : '').trim();
+    const inProd = selectName(f[F.inProduction]);
+    if (inProd && inProd !== 'Yes')
+        return null;
+    const ageGroups = ageYearsToGroups(selectNames(f[F.age]));
+    const defaultBookAges = exactAges(f[F.defaultBookAges]);
+    const author = String((_b = b[B.author]) !== null && _b !== void 0 ? _b : '').trim();
     const id = `book-${slugifyCatalogId(title)}`;
-    const priceCents = currencyToCents(f[B.memberPrice]) ||
-        currencyToCents(f[B.nonMemberPrice]) ||
-        currencyToCents(f[B.unitCost]) ||
-        parseApproxPriceHighCents(f[B.price]);
+    const memberPriceCents = currencyToCents(f[F.memberPrice]);
+    const nonMemberPriceCents = currencyToCents(f[F.nonMemberPrice]) || memberPriceCents;
     return {
         id,
         name: title,
-        description: String((_c = f[B.description]) !== null && _c !== void 0 ? _c : '').trim() || (author ? `By ${author}` : title),
+        description: String((_c = b[B.description]) !== null && _c !== void 0 ? _c : '').trim() ||
+            String((_d = f[F.description]) !== null && _d !== void 0 ? _d : '').trim() ||
+            (author ? `By ${author}` : title),
         slot: 'story',
         slotId: 'story',
         ageGroups,
-        defaultFor: isDefault ? ageGroups : [],
+        defaultFor: defaultBookAges.length ? ageYearsToGroups(defaultBookAges.map(String)) : [],
+        defaultBookAges,
         swapOptions: [],
-        unitCostCents: priceCents,
-        memberPriceCents: priceCents,
-        nonMemberPriceCents: priceCents,
-        dollarCostCents: priceCents,
+        unitCostCents: currencyToCents(f[F.unitCost]),
+        memberPriceCents,
+        nonMemberPriceCents,
+        dollarCostCents: nonMemberPriceCents || memberPriceCents,
         pricingTier: 'perKid',
         holiday: exports.CATALOG_HOLIDAY,
         categories: ['Book'],
@@ -511,21 +571,22 @@ function bookToItem(rec, images) {
         context: ['Default'],
         source: 'Curated',
         inventory: null,
-        airtableRecordId: rec.id,
+        airtableRecordId: fcRec.id,
         airtableTable: 'books',
         brand: author || null,
         imageUrl: images.imageUrl,
         imageUrls: images.imageUrls,
-        buyLink: typeof f[B.buyLink] === 'string' ? f[B.buyLink] : null,
-        interest: selectName(f[B.interest]),
+        imageThumbUrls: images.imageThumbUrls,
+        buyLink: typeof b[B.buyLink] === 'string' ? b[B.buyLink] : null,
+        interest: selectName(b[B.interest]),
         curationTags: ['collection'],
-        storefrontRails: selectNames(f[B.storefrontRails]),
+        storefrontRails: selectNames(b[B.storefrontRails]),
         storefrontRank: null,
         dimensions: null,
         weight: null,
         materials: null,
-        whatsIncluded: textField(f[B.whatsIncluded]),
-        careNotes: textField(f[B.careNotes]),
+        whatsIncluded: textField(b[B.whatsIncluded]),
+        careNotes: textField(b[B.careNotes]),
         // Books are never sold à la carte — caps/FBA unused by the resolver.
         directSaleCapBeforeLock: null,
         sellAfterLock: null,
@@ -620,32 +681,44 @@ async function runAirtableCatalogReplaceSync() {
     const db = (0, firestore_1.getFirestore)();
     const listingFields = Object.values(F);
     const bookFields = Object.values(B);
-    const [listingRecs, bookRecs] = await Promise.all([
+    const col = db.collection('catalog').doc(exports.CATALOG_HOLIDAY).collection('items');
+    const [listingRecs, bookRecs, knownThumbs] = await Promise.all([
         airtableListAll(exports.FULL_CATALOG_TABLE_ID, listingFields),
         airtableListAll(exports.BOOKS_TABLE_ID, bookFields),
+        loadKnownThumbs(col).catch((e) => {
+            logger.warn('Could not read existing catalog thumbs', { error: String(e) });
+            return new Map();
+        }),
     ]);
+    const thumbs = {
+        known: knownThumbs,
+        createBudget: MAX_NEW_THUMBS_PER_SYNC,
+        created: 0,
+    };
     const items = [];
     let skippedImages = 0;
     const bookRenderings = buildFullCatalogBookRenderingIndex(listingRecs);
     logger.info('Full Catalog book renderings indexed', { count: bookRenderings.size });
+    const fcBookRecs = [];
     for (const rec of listingRecs) {
         const name = String((_a = rec.fields[F.id]) !== null && _a !== void 0 ? _a : '').trim();
         if (!name)
             continue;
-        // Book products come from Hanukkah Books; Full Catalog Book rows supply renderings only.
         const cats = selectNames(rec.fields[F.category]).map((c) => c.toLowerCase());
-        if (cats.includes('book'))
+        if (cats.includes('book')) {
+            fcBookRecs.push(rec);
             continue;
+        }
         const inProd = selectName(rec.fields[F.inProduction]);
         if (inProd && inProd !== 'Yes')
             continue;
-        const id = slugifyCatalogId(name);
+        const id = listingCatalogId(rec.id, name);
         const primary = attachments(rec.fields[F.primaryImage]);
         const other = attachments(rec.fields[F.otherImages]);
-        let images = { imageUrl: null, imageUrls: [] };
+        let images = NO_IMAGES;
         if (primary.length || other.length) {
             try {
-                images = await resolveImages(id, primary, other);
+                images = await resolveImages(id, primary, other, thumbs);
             }
             catch (e) {
                 skippedImages += 1;
@@ -656,16 +729,22 @@ async function runAirtableCatalogReplaceSync() {
         if (item)
             items.push(item);
     }
+    const bookRecsById = new Map(bookRecs.map((r) => [r.id, r]));
     let booksUsingFcPrimary = 0;
-    for (const rec of bookRecs) {
-        if (rec.fields[B.cut] === true)
+    for (const fcRec of fcBookRecs) {
+        const inProd = selectName(fcRec.fields[F.inProduction]);
+        if (inProd && inProd !== 'Yes')
             continue;
-        const title = String((_b = rec.fields[B.title]) !== null && _b !== void 0 ? _b : '').trim();
+        const linkedId = Array.isArray(fcRec.fields[F.hanukkahBooks])
+            ? fcRec.fields[F.hanukkahBooks].find((v) => typeof v === 'string')
+            : undefined;
+        const rec = linkedId ? (_b = bookRecsById.get(linkedId)) !== null && _b !== void 0 ? _b : null : null;
+        const title = bookTitle(fcRec, rec);
         if (!title)
             continue;
         const id = `book-${slugifyCatalogId(title)}`;
-        const bookPrimary = attachments(rec.fields[B.primaryImage]);
-        const bookOther = attachments(rec.fields[B.otherImages]);
+        const bookPrimary = attachments(rec === null || rec === void 0 ? void 0 : rec.fields[B.primaryImage]);
+        const bookOther = attachments(rec === null || rec === void 0 ? void 0 : rec.fields[B.otherImages]);
         const fc = findBookRendering(title, bookRenderings);
         // Book grid/PDP primary always comes from Full Catalog Primary Image when matched.
         // Hanukkah Books attachments are gallery-only (never the storefront primary).
@@ -682,17 +761,17 @@ async function runAirtableCatalogReplaceSync() {
             other = bookOther;
             logger.warn('No Full Catalog primary rendering for book', { id, title });
         }
-        let images = { imageUrl: null, imageUrls: [] };
+        let images = NO_IMAGES;
         if (primary.length || other.length) {
             try {
-                images = await resolveImages(id, primary, other);
+                images = await resolveImages(id, primary, other, thumbs);
             }
             catch (e) {
                 skippedImages += 1;
                 logger.warn('Book image mirror failed', { id, error: String(e) });
             }
         }
-        const item = bookToItem(rec, images);
+        const item = bookToItem(fcRec, rec, images);
         if (item)
             items.push(item);
     }
@@ -701,7 +780,6 @@ async function runAirtableCatalogReplaceSync() {
     if (items.length === 0) {
         throw new Error('Airtable sync produced 0 items — refusing to delete Firestore catalog. Check PAT scopes and field mapping.');
     }
-    const col = db.collection('catalog').doc(exports.CATALOG_HOLIDAY).collection('items');
     const existing = await col.listDocuments();
     const keep = new Set(items.map((i) => i.id));
     // Firestore batches max 500
@@ -744,6 +822,7 @@ async function runAirtableCatalogReplaceSync() {
         skippedImages,
         booksUsingFcPrimary,
         bookRenderingsIndexed: bookRenderings.size,
+        thumbsCreated: thumbs.created,
     };
 }
 function assertCatalogSyncSecret(authHeader) {

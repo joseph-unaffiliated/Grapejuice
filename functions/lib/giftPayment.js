@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resolveGiftInviteKind = resolveGiftInviteKind;
 exports.finalizeGiftInvitePayment = finalizeGiftInvitePayment;
+exports.sanitizeGiftFamilyName = sanitizeGiftFamilyName;
+exports.sanitizeGiftChildren = sanitizeGiftChildren;
 const logger = require("./logger");
 const stripe_1 = require("./stripe");
 const email_1 = require("./email");
@@ -127,5 +129,34 @@ fallbackMetaContext) {
         recipientEmail: invite.recipientEmail,
     });
     return { claimUrl, alreadyFinalized: true };
+}
+const GIFT_AGE_GROUPS = new Set(['0-2', '3-5', '6-8', '9-12']);
+function cleanGiftLabel(raw, max) {
+    if (typeof raw !== 'string')
+        return undefined;
+    const s = raw.replace(/[\u0000-\u001F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+    return s || undefined;
+}
+/** Household label the giver typed. Empty and junk become undefined. */
+function sanitizeGiftFamilyName(raw) {
+    return cleanGiftLabel(raw, 60);
+}
+/** Ages the box was planned for, plus an optional name. Drops rows that aren't objects. */
+function sanitizeGiftChildren(raw) {
+    if (!Array.isArray(raw))
+        return undefined;
+    const out = [];
+    for (const row of raw.slice(0, 8)) {
+        if (!row || typeof row !== 'object')
+            continue;
+        const r = row;
+        const ageGroup = typeof r.ageGroup === 'string' && GIFT_AGE_GROUPS.has(r.ageGroup) ? r.ageGroup : '6-8';
+        const plannerAge = typeof r.plannerAge === 'number' && Number.isFinite(r.plannerAge)
+            ? Math.max(0, Math.min(17, Math.floor(r.plannerAge)))
+            : 6;
+        const name = cleanGiftLabel(r.name, 40);
+        out.push(Object.assign({ ageGroup, plannerAge }, (name ? { name } : {})));
+    }
+    return out.length ? out : undefined;
 }
 //# sourceMappingURL=giftPayment.js.map

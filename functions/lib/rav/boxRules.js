@@ -5,18 +5,33 @@
  * SOURCE OF TRUTH for Rav CONTEXT. Client mirror: `src/services/box/boxRules.ts`
  * (keep in sync). Pure planners + catalog resolution; no firebase-admin.
  */
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SECTION_RULES = exports.STOCK_POLICY = exports.WRAP_POLICY = exports.DONATE_POLICY = exports.PRICING_POLICY = exports.REPRESENTATIVE_AGE_BY_BAND = exports.SECTION_ID_BY_TITLE = exports.BOX_SECTION_ORDER = void 0;
+exports.GELT_LITTLE_EQUIVALENT = exports.SECTION_RULES = exports.STOCK_POLICY = exports.WRAP_POLICY = exports.DONATE_POLICY = exports.PRICING_POLICY = exports.REPRESENTATIVE_AGE_BY_BAND = exports.SECTION_ID_BY_TITLE = exports.BOX_SECTION_ORDER = void 0;
 exports.representativeAgeForBand = representativeAgeForBand;
 exports.ageGroupForNumericAge = ageGroupForNumericAge;
 exports.defaultAdults = defaultAdults;
 exports.planGelt = planGelt;
 exports.geltSlotForSize = geltSlotForSize;
 exports.defaultGiftKindForAge = defaultGiftKindForAge;
+exports.defaultGiftKindOrder = defaultGiftKindOrder;
 exports.giftKindFallbackOrder = giftKindFallbackOrder;
 exports.planGifts = planGifts;
 exports.rowStockLeft = rowStockLeft;
 exports.swapReserveUnits = swapReserveUnits;
+exports.rowRemainingWithDrafts = rowRemainingWithDrafts;
+exports.isLowWithDrafts = isLowWithDrafts;
+exports.isSoldOutForBoxes = isSoldOutForBoxes;
 exports.isDefaultEligible = isDefaultEligible;
 exports.canAssignUnit = canAssignUnit;
 exports.giftDefaultScore = giftDefaultScore;
@@ -32,6 +47,9 @@ exports.planCuratedOutline = planCuratedOutline;
 exports.resolveByDefaultSlot = resolveByDefaultSlot;
 exports.resolveBookForAge = resolveBookForAge;
 exports.resolveGiftKind = resolveGiftKind;
+exports.soldOutReplacement = soldOutReplacement;
+exports.plannerAgeOf = plannerAgeOf;
+exports.swapSoldOutLines = swapSoldOutLines;
 exports.annotateSlot = annotateSlot;
 exports.renderBoxRulesContext = renderBoxRulesContext;
 /** Matches Airtable Full Catalog "Box sections" choices (order = UI order). */
@@ -91,16 +109,15 @@ exports.WRAP_POLICY = {
     defaultSlot: 'wrapping-paper',
     /** Same member price as wrapping paper; catalog wrap-service role. */
     preWrapSlot: 'pre-wrap',
-    includedPreWrapSlots: 3,
-    /** 4+ wrappable items → one extra wrap charge (catalog price). */
-    extraWrapChargeAt: 4,
+    /** Pre-wrap covers any number of wrappable presents; this is only how many get marked by default. */
+    defaultPreWrapPicks: 3,
     /** Paper can be added back on top of pre-wrap (extra). */
     paperOnTopOfPreWrap: 'extra',
     /** Storefront-only wrap add-on — out of scope for box CONTEXT for now. */
     storefrontOnlyWrapOutOfScope: true,
     /**
      * Wrappable kinds when catalog `wrappable` is unset.
-     * NOT: gelt, mixes, normal/electric candles, napkins.
+     * NOT: gelt, mixes, normal/electric candles.
      */
     wrappableKinds: [
         'books',
@@ -114,7 +131,6 @@ exports.WRAP_POLICY = {
         'mixes',
         'candles-normal',
         'candles-electric',
-        'napkins',
     ],
 };
 exports.STOCK_POLICY = {
@@ -125,6 +141,13 @@ exports.STOCK_POLICY = {
      * available as a swap for shoppers who ask for it.
      */
     swapReserveFraction: 0.15,
+    /**
+     * Stop defaulting once this few units remain after real holds AND every
+     * unsecured account draft. Drafts hold nothing, so the count can go below zero.
+     */
+    lowRemainingWithDrafts: 5,
+    /** Restockable: drafts don't count against these, only real holds (same 5-left line). */
+    draftCountExemptIds: ['latke-kit', 'sufganiyot-kit'],
     /** Books: infinite / no hold (Hold inventory unchecked). */
     booksHoldInventory: false,
     dualHomeBrowseOk: true,
@@ -212,7 +235,8 @@ exports.SECTION_RULES = [
         id: 'dreidel',
         title: 'Play Dreidel',
         notes: [
-            'Scale: 1 wood dreidel per kid (adults never get a default dreidel).',
+            "Scale: 1 dreidel per person, kids and adults (2 adults when the family didn't say).",
+            "Gelt: one Little Bag's worth per person (Little 1, Big 3, Party 12). Gelt added on top is free while it fits that allowance; past it, it is paid.",
             'At 5+ kids: mix wood / airdry / blank by age (older → activity); no consolidation.',
         ],
         slots: [
@@ -234,9 +258,9 @@ exports.SECTION_RULES = [
                 role: 'default',
                 swaps: [
                     {
-                        targetSlotOrKind: 'gelt-small×2',
+                        targetSlotOrKind: 'gelt-small×3',
                         price: 'included',
-                        note: 'From medium default: two small bags no charge',
+                        note: 'From a Big Bag default: three Little Bags, same chocolate',
                     },
                     { targetSlotOrKind: 'more-gelt-small', price: 'extra' },
                     { targetSlotOrKind: 'more-gelt-medium', price: 'extra' },
@@ -250,8 +274,9 @@ exports.SECTION_RULES = [
         id: 'food',
         title: 'Eat & Drink',
         notes: [
-            'Latke mix + sufganiyot mix both default until either kit is nearly gone; then the default is one mix (whichever has more left).',
-            'Latke and sufganiyot swap independently; box may end with no mixes.',
+            'Always two food slots: latke kit + sufganiyot kit by default. When one kit is nearly gone its slot gets the other kit (two of one kit is fine), then a Big Bag of gelt.',
+            'Each food slot holds exactly one of: a latke kit, a sufganiyot kit, cookie cutters, one Big Bag of gelt, or three Little Bags of gelt. Each slot swaps on its own, and both may hold the same thing (two latke kits is fine).',
+            'Gelt in a food slot is extra to the household gelt allowance. Swapping a food slot to Little Bags gives three; swapping back to a kit gives one.',
             'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
         ],
         slots: [
@@ -259,10 +284,10 @@ exports.SECTION_RULES = [
                 defaultKind: 'latke-mix',
                 role: 'default',
                 swaps: [
+                    { targetSlotOrKind: 'sufganiyot-mix', price: 'included' },
                     { targetSlotOrKind: 'cookie-cutters', price: 'included' },
-                    { targetSlotOrKind: 'napkins', price: 'included' },
                     { targetSlotOrKind: 'gelt-medium', price: 'included' },
-                    { targetSlotOrKind: 'gelt-small×2', price: 'included' },
+                    { targetSlotOrKind: 'gelt-small×3', price: 'included' },
                     { targetSlotOrKind: 'gelt-party', price: 'extra' },
                     { targetSlotOrKind: 'latke-stuffie', price: 'extra' },
                     { targetSlotOrKind: 'donate', price: 'donate' },
@@ -272,10 +297,10 @@ exports.SECTION_RULES = [
                 defaultKind: 'sufganiyot-mix',
                 role: 'default',
                 swaps: [
+                    { targetSlotOrKind: 'latke-mix', price: 'included' },
                     { targetSlotOrKind: 'cookie-cutters', price: 'included' },
-                    { targetSlotOrKind: 'napkins', price: 'included' },
                     { targetSlotOrKind: 'gelt-medium', price: 'included' },
-                    { targetSlotOrKind: 'gelt-small×2', price: 'included' },
+                    { targetSlotOrKind: 'gelt-small×3', price: 'included' },
                     { targetSlotOrKind: 'gelt-party', price: 'extra' },
                     { targetSlotOrKind: 'sufganiyah-stuffie', price: 'extra' },
                     { targetSlotOrKind: 'donate', price: 'donate' },
@@ -307,8 +332,8 @@ exports.SECTION_RULES = [
         id: 'presents',
         title: 'Give Presents',
         notes: [
-            'Wrapping paper default; swap to pre-wrap (same price as paper) for up to 3 wrappable items.',
-            'Unused pre-wrap slots OK; 4+ wrappable → one extra wrap charge; paper on top of pre-wrap = extra.',
+            'Wrapping paper default; swap to pre-wrap (same price as paper) for any number of wrappable items.',
+            'Pre-wrap has no limit: every wrappable present is wrapped at the same price. Paper added back on top of pre-wrap = extra.',
             'Per kid: one present from (toy menorah | blank/clay dreidel | stuffie | extra book | DIY candles); donate OK (empty slot).',
             'Prefer distinct gifts across kids; stock-aware.',
         ],
@@ -320,7 +345,7 @@ exports.SECTION_RULES = [
                     {
                         targetSlotOrKind: 'pre-wrap',
                         price: 'included',
-                        note: 'same price as paper; covers up to 3 wrappable items',
+                        note: 'same price as paper; covers every wrappable item',
                     },
                     { targetSlotOrKind: 'donate', price: 'donate' },
                 ],
@@ -349,22 +374,28 @@ function defaultAdults(adults) {
     return adults != null && adults >= 0 ? adults : 2;
 }
 /**
- * Gelt defaults — never mix sizes in the default build.
- * 1 kid → medium; 2–4 kids → all small × (kids + adults); 5+ → party only.
+ * Little Bags' worth of chocolate in each bag: Little 2 big + 5 little coins (26g), Big 5 + 20
+ * (80g), Party 20 + 80 (320g).
+ */
+exports.GELT_LITTLE_EQUIVALENT = { small: 1, medium: 3, party: 12 };
+/**
+ * Gelt defaults, one Little Bag's worth per person (kids + adults):
+ * 1 kid in a 3-person household → one Big Bag; 5+ kids → Big Bags for each 3 people plus
+ * Little Bags for the rest; everyone else → a Little Bag each. Never a Party Bag.
  */
 function planGelt(inputs) {
     const kidCount = inputs.kids.length;
-    const adults = defaultAdults(inputs.adults);
-    if (kidCount <= 0) {
+    const people = kidCount + defaultAdults(inputs.adults);
+    if (kidCount === 1 && people === 3)
         return { size: 'medium', quantity: 1, mixedDefault: false };
-    }
-    if (kidCount === 1) {
-        return { size: 'medium', quantity: 1, mixedDefault: false };
-    }
     if (kidCount >= 5) {
-        return { size: 'party', quantity: 1, mixedDefault: false };
+        const big = Math.floor(people / 3);
+        const rest = people % 3;
+        return rest
+            ? { size: 'medium', quantity: big, mixedDefault: true, also: { size: 'small', quantity: rest } }
+            : { size: 'medium', quantity: big, mixedDefault: false };
     }
-    return { size: 'small', quantity: kidCount + adults, mixedDefault: false };
+    return { size: 'small', quantity: Math.max(1, people), mixedDefault: false };
 }
 function geltSlotForSize(size) {
     if (size === 'small')
@@ -373,72 +404,46 @@ function geltSlotForSize(size) {
         return 'gelt-party';
     return 'gelt-medium';
 }
-/** Fixed defaults ages 0–8; 9+ bias blank / DIY / lego / airdry / books. */
+/**
+ * Default present by age: toddler play menorah 0–2, a stuffie 3–5, an airdry clay kit
+ * (menorah or dreidel) 6+. Never a book, gelt, or any other gift; those stay free swaps.
+ */
 function defaultGiftKindForAge(age) {
-    const clamped = Math.max(0, Math.floor(age));
-    const map = {
-        0: 'stuffie',
-        1: 'wood-toy-menorah',
-        2: 'stuffie',
-        3: 'stuffie',
-        4: 'airdry',
-        5: 'stuffie',
-        6: 'lego-menorah',
-        7: 'blank',
-        8: 'diy-candles',
-    };
-    if (clamped in map)
-        return map[clamped];
-    // 9+: prefer activity / older picks
-    return 'blank';
+    return defaultGiftKindOrder(age)[0];
+}
+/** Kinds a default present can be at this age, best first; low stock falls through. */
+function defaultGiftKindOrder(age) {
+    const n = Math.max(0, Math.floor(age));
+    if (n <= 2)
+        return ['wood-toy-menorah', 'stuffie'];
+    if (n <= 5)
+        return ['stuffie', 'airdry'];
+    return ['airdry', 'stuffie'];
 }
 /**
- * Gift kinds for this age, best first. With catalog rows: kinds whose best
- * age-tagged row is above its swap reserve, ranked by stock headroom per
- * eligible age; then low-stock kinds that can still spare a unit. Without
- * catalog rows: the fixed age table.
+ * Siblings can share these kinds; each kid then gets a different row (another stuffie
+ * character, the other clay kit). One toddler play menorah per box.
+ */
+const SHAREABLE_GIFT_KINDS = new Set(['stuffie', 'airdry']);
+/**
+ * Default present kinds for this age, best first. With catalog rows: kinds with a row
+ * above its swap reserve keep the age order, then kinds that can still spare a unit.
  */
 function giftKindFallbackOrder(age, catalog) {
-    const legacy = legacyGiftKindOrder(age);
+    const order = defaultGiftKindOrder(age);
     if (!(catalog === null || catalog === void 0 ? void 0 : catalog.length))
-        return legacy;
+        return order;
     const ranked = rankGiftKindsForAge(catalog, age);
-    const rest = legacy.filter((k) => !ranked.includes(k) && giftKindHasAssignableRow(catalog, k, age));
+    const rest = order.filter((k) => !ranked.includes(k) && giftKindHasAssignableRow(catalog, k, age));
     const out = [...ranked, ...rest];
-    return out.length ? out : legacy;
-}
-function legacyGiftKindOrder(age) {
-    const primary = defaultGiftKindForAge(age);
-    if (age >= 9) {
-        const older = ['blank', 'diy-candles', 'lego-menorah', 'airdry', 'extra-book', 'stuffie', 'wood-toy-menorah'];
-        return [primary, ...older.filter((k) => k !== primary)];
-    }
-    const general = [
-        primary,
-        'stuffie',
-        'blank',
-        'airdry',
-        'wood-toy-menorah',
-        'lego-menorah',
-        'diy-candles',
-        'extra-book',
-    ];
-    return [...new Set(general)];
+    return out.length ? out : order;
 }
 function planGifts(inputs, excludeKinds = new Set()) {
-    var _a;
-    if (!((_a = inputs.catalog) === null || _a === void 0 ? void 0 : _a.length)) {
-        return inputs.kids.map((kid, kidIndex) => ({
-            kidIndex,
-            age: kid.age,
-            kind: defaultGiftKindForAge(kid.age),
-        }));
-    }
     const used = new Set();
     return inputs.kids.map((kid, kidIndex) => {
         var _a, _b;
         const order = giftKindFallbackOrder(kid.age, inputs.catalog).filter((k) => !excludeKinds.has(k));
-        const kind = (_b = (_a = order.find((k) => !used.has(k))) !== null && _a !== void 0 ? _a : order[0]) !== null && _b !== void 0 ? _b : defaultGiftKindForAge(kid.age);
+        const kind = (_b = (_a = order.find((k) => !used.has(k) || SHAREABLE_GIFT_KINDS.has(k))) !== null && _a !== void 0 ? _a : order[0]) !== null && _b !== void 0 ? _b : defaultGiftKindForAge(kid.age);
         used.add(kind);
         return { kidIndex, age: kid.age, kind };
     });
@@ -459,10 +464,33 @@ function swapReserveUnits(row) {
     const inventory = typeof row.inventory === 'number' && Number.isFinite(row.inventory) ? Math.max(0, row.inventory) : 0;
     return Math.max(exports.STOCK_POLICY.minInventoryToAssign, Math.ceil(inventory * exports.STOCK_POLICY.swapReserveFraction));
 }
-/** Above its swap reserve (or untracked) — OK to hand out as a default. */
+/**
+ * Units left after real holds and every unsecured account draft. Internal only: it can
+ * go negative and never blocks adding or swapping. Null = untracked.
+ */
+function rowRemainingWithDrafts(row) {
+    const left = rowStockLeft(row);
+    if (left == null)
+        return null;
+    if (exports.STOCK_POLICY.draftCountExemptIds.includes(row.id))
+        return left;
+    const held = typeof row.draftHeld === 'number' && Number.isFinite(row.draftHeld) ? Math.max(0, Math.floor(row.draftHeld)) : 0;
+    return left - held;
+}
+/** Few enough left (counting drafts) to stop defaulting it and warn draft holders. */
+function isLowWithDrafts(row) {
+    const remaining = rowRemainingWithDrafts(row);
+    return remaining != null && remaining <= exports.STOCK_POLICY.lowRemainingWithDrafts;
+}
+/** Every unit is held by a secured box, paid gift, or purchase. */
+function isSoldOutForBoxes(row) {
+    const left = rowStockLeft(row);
+    return left != null && left <= 0;
+}
+/** Above its swap reserve and not low counting drafts (or untracked) — OK to hand out as a default. */
 function isDefaultEligible(row) {
     const left = rowStockLeft(row);
-    return left == null || left > swapReserveUnits(row);
+    return left == null || (left > swapReserveUnits(row) && !isLowWithDrafts(row));
 }
 /** Can spare a unit without handing out the last one. */
 function canAssignUnit(row) {
@@ -472,6 +500,11 @@ function canAssignUnit(row) {
 function rowCoversGiftAge(row, age) {
     var _a;
     return ((_a = row.defaultGiftAges) !== null && _a !== void 0 ? _a : []).map(String).includes(String(Math.floor(age)));
+}
+/** Untagged rows serve any age; tagged rows only their Default gift ages. */
+function rowServesGiftAge(row, age) {
+    var _a;
+    return !((_a = row.defaultGiftAges) !== null && _a !== void 0 ? _a : []).length || rowCoversGiftAge(row, age);
 }
 /**
  * Stock headroom above the swap reserve, spread over the ages the gift serves.
@@ -486,10 +519,11 @@ function giftDefaultScore(row) {
     return (left - swapReserveUnits(row)) / ages;
 }
 function giftKindRows(catalog, kind, age) {
-    const ageTagged = catalog.filter((r) => { var _a; return ((_a = r.defaultGiftAges) !== null && _a !== void 0 ? _a : []).length > 0; });
-    const pool = ageTagged.length ? ageTagged : catalog;
     const patterns = GIFT_KIND_PATTERNS[kind];
-    const matches = pool.filter((r) => patterns.some((re) => re.test(haystack(r))));
+    const ofKind = (rows) => rows.filter((r) => patterns.some((re) => re.test(haystack(r))));
+    const ageTagged = catalog.filter((r) => { var _a; return ((_a = r.defaultGiftAges) !== null && _a !== void 0 ? _a : []).length > 0; });
+    const tagged = ofKind(ageTagged);
+    const matches = tagged.length ? tagged : ofKind(catalog);
     if (age == null)
         return matches;
     const covering = matches.filter((r) => rowCoversGiftAge(r, age));
@@ -498,20 +532,9 @@ function giftKindRows(catalog, kind, age) {
 function giftKindHasAssignableRow(catalog, kind, age) {
     return giftKindRows(catalog, kind, age).some(canAssignUnit);
 }
-/** Kinds with a default-eligible row tagged for this age, best stock headroom first. */
+/** Default kinds for this age with a row above its swap reserve, in age order. */
 function rankGiftKindsForAge(catalog, age) {
-    const legacy = legacyGiftKindOrder(age);
-    const scored = [];
-    for (const kind of Object.keys(GIFT_KIND_PATTERNS)) {
-        const rows = giftKindRows(catalog, kind, age).filter((r) => rowCoversGiftAge(r, age) && isDefaultEligible(r));
-        if (!rows.length)
-            continue;
-        const score = Math.max(...rows.map(giftDefaultScore));
-        const idx = legacy.indexOf(kind);
-        scored.push({ kind, score, tiebreak: idx < 0 ? legacy.length : idx });
-    }
-    scored.sort((a, b) => b.score - a.score || a.tiebreak - b.tiebreak);
-    return scored.map((s) => s.kind);
+    return defaultGiftKindOrder(age).filter((kind) => giftKindRows(catalog, kind, age).some((r) => rowServesGiftAge(r, age) && isDefaultEligible(r)));
 }
 const ELECTRIC_CANDLES_RE = /electric.*candle|candle.*electric|led.*candle/i;
 /** Catalog row behind a candles kind (beeswax default, roll-your-own, electric). */
@@ -527,8 +550,8 @@ function resolveCandlesRow(catalog, kind) {
 const CANDLES_FALLBACK_ORDER = ['candles', 'diy-candles', 'electric-candles'];
 /**
  * Keep the preferred candles while it's above its swap reserve; then the next
- * option in beeswax → roll-your-own → electric order that is; then anything
- * that can still spare a unit.
+ * option in beeswax → roll-your-own → electric order that is; when none is,
+ * whichever has the most real stock left.
  */
 function planCandlesDefault(catalog, preferred = 'candles') {
     var _a, _b, _c, _d;
@@ -538,27 +561,29 @@ function planCandlesDefault(catalog, preferred = 'candles') {
     const options = order
         .map((kind) => ({ kind, row: resolveCandlesRow(catalog, kind) }))
         .filter((o) => !!o.row);
-    return ((_d = (_b = (_a = options.find((o) => isDefaultEligible(o.row))) === null || _a === void 0 ? void 0 : _a.kind) !== null && _b !== void 0 ? _b : (_c = options.find((o) => canAssignUnit(o.row))) === null || _c === void 0 ? void 0 : _c.kind) !== null && _d !== void 0 ? _d : preferred);
+    return ((_d = (_b = (_a = options.find((o) => isDefaultEligible(o.row))) === null || _a === void 0 ? void 0 : _a.kind) !== null && _b !== void 0 ? _b : (_c = options
+        .filter((o) => canAssignUnit(o.row))
+        .sort((a, b) => { var _a, _b; return ((_a = rowStockLeft(b.row)) !== null && _a !== void 0 ? _a : Infinity) - ((_b = rowStockLeft(a.row)) !== null && _b !== void 0 ? _b : Infinity); })[0]) === null || _c === void 0 ? void 0 : _c.kind) !== null && _d !== void 0 ? _d : preferred);
 }
 /**
- * Both mixes until either kit is down to its swap reserve; then the single mix
- * with more left. Later boxes may get no mix once both kits are gone.
+ * What fills each of the two food slots (latke slot, then sufganiyot slot) — always two.
+ * A kit down to its swap reserve gives its slot to the other kit (two of one kit is fine),
+ * then to a Big Bag of gelt; with nothing spare, whichever option has the most left.
  */
 function planFoodDefaults(catalog) {
     const both = ['latke-mix', 'sufganiyot-mix'];
     if (!(catalog === null || catalog === void 0 ? void 0 : catalog.length))
         return both;
-    const options = both
-        .map((slot) => ({ slot, row: resolveByDefaultSlot(catalog, slot) }))
-        .filter((o) => !!o.row);
-    if (options.length < 2)
-        return both;
-    if (options.every((o) => isDefaultEligible(o.row)))
-        return both;
-    const single = options
-        .filter((o) => canAssignUnit(o.row))
-        .sort((a, b) => { var _a, _b; return ((_a = rowStockLeft(b.row)) !== null && _a !== void 0 ? _a : 0) - ((_b = rowStockLeft(a.row)) !== null && _b !== void 0 ? _b : 0); })[0];
-    return single ? [single.slot] : [];
+    return both.map((preferred) => {
+        var _a, _b, _c, _d;
+        const order = [preferred, ...both.filter((s) => s !== preferred), 'gelt-medium'];
+        const options = order
+            .map((slot) => ({ slot, row: resolveByDefaultSlot(catalog, slot) }))
+            .filter((o) => !!o.row);
+        return ((_d = (_b = (_a = options.find((o) => isDefaultEligible(o.row))) === null || _a === void 0 ? void 0 : _a.slot) !== null && _b !== void 0 ? _b : (_c = options
+            .filter((o) => canAssignUnit(o.row))
+            .sort((a, b) => { var _a, _b; return ((_a = rowStockLeft(b.row)) !== null && _a !== void 0 ? _a : 0) - ((_b = rowStockLeft(a.row)) !== null && _b !== void 0 ? _b : 0); })[0]) === null || _c === void 0 ? void 0 : _c.slot) !== null && _d !== void 0 ? _d : preferred);
+    });
 }
 /**
  * Dreidel assignment by kid (used for mixed 5+ boxes).
@@ -605,13 +630,6 @@ function planKnowNothingOutline(inputs = { kids: [{ age: 5 }] }) {
         candlesDefault,
     };
 }
-const ACTIVITY_GIFT_KINDS = [
-    'lego-menorah',
-    'diy-candles',
-    'blank',
-    'airdry',
-    'wood-toy-menorah',
-];
 function giftConflictsWithPractice(gift, practiceKinds) {
     if (gift === 'airdry' && practiceKinds.has('airdry-dreidel'))
         return true;
@@ -653,33 +671,8 @@ function planCuratedOutline(inputs = { kids: [{ age: 5 }] }) {
     const candlesDefault = practice === 'all-in' ? planCandlesDefault(inputs.catalog, 'diy-candles') : base.candlesDefault;
     // Dreidels stay on the know-nothing household wood set (never split for practice).
     const dreidels = planDreidels(inputs);
+    // Presents follow the age rule at every practice level.
     let gifts = base.gifts.map((g) => (Object.assign({}, g)));
-    const activityOrder = (age) => {
-        var _a;
-        return ((_a = inputs.catalog) === null || _a === void 0 ? void 0 : _a.length)
-            ? giftKindFallbackOrder(age, inputs.catalog).filter((k) => ACTIVITY_GIFT_KINDS.includes(k))
-            : ACTIVITY_GIFT_KINDS;
-    };
-    // all-in: tilt passive gifts (stuffie) toward activity kinds when possible.
-    // Prefer distinct kinds across kids — never give every kid the same activity gift.
-    if (practice === 'all-in') {
-        const usedKinds = new Set();
-        for (const g of gifts) {
-            if (ACTIVITY_GIFT_KINDS.includes(g.kind))
-                usedKinds.add(g.kind);
-        }
-        gifts = gifts.map((g) => {
-            var _a;
-            if (ACTIVITY_GIFT_KINDS.includes(g.kind))
-                return g;
-            const tilted = (_a = activityOrder(g.age).find((k) => k !== g.kind && !usedKinds.has(k))) !== null && _a !== void 0 ? _a : giftKindFallbackOrder(g.age, inputs.catalog).find((k) => ACTIVITY_GIFT_KINDS.includes(k) && k !== g.kind && !usedKinds.has(k));
-            if (tilted) {
-                usedKinds.add(tilted);
-                return Object.assign(Object.assign({}, g), { kind: tilted });
-            }
-            return g;
-        });
-    }
     // Dedupe: never put the same kind in a kid's practice slot and gift slot.
     // Prefer reassigning the gift; if no alternative, drop the practice deviation.
     for (const g of gifts) {
@@ -709,7 +702,7 @@ function planCuratedOutline(inputs = { kids: [{ age: 5 }] }) {
     {
         const claimed = new Set();
         gifts = gifts.map((g) => {
-            if (!claimed.has(g.kind)) {
+            if (!claimed.has(g.kind) || SHAREABLE_GIFT_KINDS.has(g.kind)) {
                 claimed.add(g.kind);
                 return g;
             }
@@ -838,40 +831,210 @@ function resolveByDefaultSlot(catalog, slot) {
     }
     return bestScore > 0 ? best : undefined;
 }
-function resolveBookForAge(catalog, age) {
+/** Book whose Default book ages sit closest to `age` (e.g. a 15-year-old gets the 12 default). */
+function nearestDefaultBook(catalog, age) {
+    var _a;
+    let best;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const row of catalog) {
+        for (const raw of (_a = row.defaultBookAges) !== null && _a !== void 0 ? _a : []) {
+            const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+            if (!Number.isFinite(n))
+                continue;
+            const distance = Math.abs(n - age);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = row;
+            }
+        }
+    }
+    return best;
+}
+const isStoryRow = (r) => {
+    var _a, _b;
+    return ((_a = r.slotId) !== null && _a !== void 0 ? _a : '').startsWith('story') ||
+        /book/i.test(haystack(r)) ||
+        ((_b = r.boxSections) !== null && _b !== void 0 ? _b : []).some((s) => /story/i.test(s));
+};
+/**
+ * Default book for a kid's age. `avoid` (books already in the box) steers siblings to a
+ * different title; it only gives way when every book is taken.
+ */
+function resolveBookForAge(catalog, age, avoid) {
     var _a, _b;
     if (!(catalog === null || catalog === void 0 ? void 0 : catalog.length))
+        return undefined;
+    if (avoid === null || avoid === void 0 ? void 0 : avoid.size) {
+        const rest = catalog.filter((r) => !avoid.has(r.id));
+        const picked = (_b = (_a = exactDefaultBook(rest, age)) !== null && _a !== void 0 ? _a : cheapNearbyDefaultBook(rest, age)) !== null && _b !== void 0 ? _b : pickBookForAge(rest, age);
+        if (picked && isStoryRow(picked))
+            return picked;
+    }
+    return pickBookForAge(catalog, age);
+}
+function bookAgeDistance(row, age) {
+    var _a;
+    const ages = ((_a = row.defaultBookAges) !== null && _a !== void 0 ? _a : [])
+        .map((raw) => (typeof raw === 'number' ? raw : parseInt(String(raw), 10)))
+        .filter((n) => Number.isFinite(n));
+    return ages.length ? Math.min(...ages.map((n) => Math.abs(n - Math.floor(age)))) : null;
+}
+function exactDefaultBook(catalog, age) {
+    return catalog.find((r) => bookAgeDistance(r, age) === 0);
+}
+/**
+ * A second book (the kid's own default is taken): the cheapest default book within a
+ * year of their age, or among the nearest ones when none is that close.
+ */
+function cheapNearbyDefaultBook(catalog, age) {
+    var _a;
+    const scored = catalog.flatMap((r) => {
+        const d = bookAgeDistance(r, age);
+        return d == null ? [] : [{ r, d }];
+    });
+    if (!scored.length)
+        return undefined;
+    const window = Math.max(1, Math.min(...scored.map((s) => s.d)));
+    const price = (r) => { var _a; return (_a = r.memberPriceCents) !== null && _a !== void 0 ? _a : Number.POSITIVE_INFINITY; };
+    return (_a = scored.filter((s) => s.d <= window).sort((x, y) => price(x.r) - price(y.r) || x.d - y.d)[0]) === null || _a === void 0 ? void 0 : _a.r;
+}
+function pickBookForAge(catalog, age) {
+    var _a, _b;
+    if (!catalog.length)
         return undefined;
     const ageStr = String(Math.floor(age));
     const tagged = catalog.find((r) => { var _a; return ((_a = r.defaultBookAges) !== null && _a !== void 0 ? _a : []).map(String).includes(ageStr); });
     if (tagged)
         return tagged;
+    const nearest = nearestDefaultBook(catalog, Math.floor(age));
+    if (nearest)
+        return nearest;
     const band = ageGroupForNumericAge(age);
-    const storyish = (r) => {
-        var _a, _b;
-        return ((_a = r.slotId) !== null && _a !== void 0 ? _a : '').startsWith('story') ||
-            /book/i.test(haystack(r)) ||
-            ((_b = r.boxSections) !== null && _b !== void 0 ? _b : []).some((s) => /story/i.test(s));
-    };
-    const pool = catalog.filter(storyish);
+    const pool = catalog.filter(isStoryRow);
     const candidates = pool.length ? pool : catalog;
     return ((_b = (_a = candidates.find((r) => { var _a; return ((_a = r.defaultFor) !== null && _a !== void 0 ? _a : []).includes(band); })) !== null && _a !== void 0 ? _a : candidates.find((r) => { var _a; return ((_a = r.ageGroups) !== null && _a !== void 0 ? _a : []).includes(band); })) !== null && _b !== void 0 ? _b : undefined);
 }
 /**
  * Catalog row for a gift kind. Several rows can share a kind (four stuffies,
- * clay dreidel + clay menorah): prefer rows tagged for `age`, above their swap
- * reserve, with the most stock headroom; catalog order breaks ties.
+ * clay dreidel + clay menorah): prefer rows tagged for `age` that a sibling doesn't
+ * already have (`avoidIds`), above their swap reserve, with the most stock headroom;
+ * catalog order breaks ties.
  */
-function resolveGiftKind(catalog, kind, age) {
+function resolveGiftKind(catalog, kind, age, avoidIds) {
     if (!(catalog === null || catalog === void 0 ? void 0 : catalog.length))
         return undefined;
     const candidates = giftKindRows(catalog, kind, age);
     if (candidates.length <= 1)
         return candidates[0];
     const assignable = candidates.filter(canAssignUnit);
-    const pool = assignable.length ? assignable : candidates;
+    const fresh = (avoidIds === null || avoidIds === void 0 ? void 0 : avoidIds.size) ? assignable.filter((r) => !avoidIds.has(r.id)) : assignable;
+    const pool = fresh.length ? fresh : assignable.length ? assignable : candidates;
     return [...pool].sort((a, b) => Number(isDefaultEligible(b)) - Number(isDefaultEligible(a)) ||
         giftDefaultScore(b) - giftDefaultScore(a))[0];
+}
+function giftKindOfRow(row) {
+    const h = haystack(row);
+    return Object.keys(GIFT_KIND_PATTERNS).find((kind) => kind !== 'extra-book' && GIFT_KIND_PATTERNS[kind].some((re) => re.test(h)));
+}
+function isGiftLineSlot(slotId) {
+    return slotId === 'gift' || slotId.startsWith('gift-');
+}
+function bestReplacement(rows) {
+    var _a;
+    const usable = rows.filter((r) => !!r && !isSoldOutForBoxes(r));
+    return (_a = usable.find(isDefaultEligible)) !== null && _a !== void 0 ? _a : usable.find(canAssignUnit);
+}
+/**
+ * What replaces a sold-out line, by the same rules that build a box: the
+ * candles fallback for candles, the kid's next gift kind for gifts, the same
+ * default slot or gift kind otherwise. Prefers rows that pass the default rule,
+ * then anything that can spare a unit. Undefined → drop the line.
+ */
+function soldOutReplacement(catalog, line, options = {}) {
+    var _a, _b, _c, _d;
+    const soldOut = catalog.find((r) => r.id === line.itemId);
+    if (!soldOut)
+        return undefined;
+    const avoid = new Set([line.itemId, ...((_a = options.avoidIds) !== null && _a !== void 0 ? _a : [])]);
+    const pool = catalog.filter((r) => !avoid.has(r.id) && !isSoldOutForBoxes(r));
+    const paid = ((_b = line.unitCents) !== null && _b !== void 0 ? _b : 0) > 0;
+    const candleKind = CANDLES_FALLBACK_ORDER.find((k) => { var _a; return ((_a = resolveCandlesRow(catalog, k)) === null || _a === void 0 ? void 0 : _a.id) === line.itemId; });
+    if (candleKind && !isGiftLineSlot(line.slotId)) {
+        return bestReplacement(CANDLES_FALLBACK_ORDER.filter((k) => k !== candleKind)
+            .map((k) => resolveCandlesRow(catalog, k))
+            .filter((r) => r && !avoid.has(r.id)));
+    }
+    const kind = giftKindOfRow(soldOut);
+    const age = options.age;
+    const sameKind = kind ? giftKindRows(pool, kind, age) : [];
+    if (isGiftLineSlot(line.slotId) && !paid) {
+        const kidAge = age !== null && age !== void 0 ? age : Number((_d = ((_c = soldOut.defaultGiftAges) !== null && _c !== void 0 ? _c : [])[0]) !== null && _d !== void 0 ? _d : 5);
+        const claimedKinds = new Set([...avoid].map((id) => catalog.find((r) => r.id === id)).flatMap((r) => (r ? [giftKindOfRow(r)] : [])));
+        const otherKinds = giftKindFallbackOrder(kidAge, pool)
+            .filter((k) => k !== kind && !claimedKinds.has(k))
+            .map((k) => resolveGiftKind(pool, k, kidAge));
+        return bestReplacement([...sameKind, ...otherKinds]);
+    }
+    const slot = Object.keys(DEFAULT_SLOT_PATTERNS).find((s) => { var _a; return ((_a = resolveByDefaultSlot(catalog, s)) === null || _a === void 0 ? void 0 : _a.id) === line.itemId; });
+    const slotPeers = slot
+        ? pool
+            .map((r) => ({ r, score: scoreDefaultSlotCandidate(r, slot) }))
+            .filter((x) => x.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .map((x) => x.r)
+        : [];
+    return bestReplacement([...sameKind, ...slotPeers]);
+}
+/** Planner age for a kid's band or explicit planner age; undefined when unknown. */
+function plannerAgeOf(kid) {
+    if (!kid)
+        return undefined;
+    if (typeof kid.plannerAge === 'number' && Number.isFinite(kid.plannerAge))
+        return Math.max(0, Math.floor(kid.plannerAge));
+    const band = kid.ageGroup;
+    return band === '0-2' || band === '3-5' || band === '6-8' || band === '9-12'
+        ? representativeAgeForBand(band)
+        : undefined;
+}
+/**
+ * Replace every truly sold-out line in a draft (see `soldOutReplacement`); lines
+ * with no replacement are dropped. Quantity and price stay as they were.
+ * Pilot Participants picks are never swapped: they're fixed once the family joins.
+ * Returns the same array when nothing changed.
+ */
+function swapSoldOutLines(lines, catalog, ageForChild = () => undefined) {
+    var _a;
+    const byId = new Map(catalog.map((r) => [r.id, r]));
+    const soldOut = (line) => {
+        if (line.program === 'pilot')
+            return false;
+        const row = byId.get(line.itemId);
+        return !!row && isSoldOutForBoxes(row);
+    };
+    if (!lines.some(soldOut))
+        return { lines, swaps: [] };
+    const inBox = new Set(lines.map((l) => l.itemId));
+    const swaps = [];
+    const out = [];
+    for (const line of lines) {
+        if (!soldOut(line)) {
+            out.push(line);
+            continue;
+        }
+        const replacement = soldOutReplacement(catalog, line, {
+            age: ageForChild(line.childId),
+            avoidIds: inBox,
+        });
+        if (!swaps.some((s) => s.fromItemId === line.itemId)) {
+            swaps.push({ fromItemId: line.itemId, toItemId: (_a = replacement === null || replacement === void 0 ? void 0 : replacement.id) !== null && _a !== void 0 ? _a : null });
+        }
+        if (!replacement)
+            continue;
+        inBox.add(replacement.id);
+        const { curationNote: _note } = line, rest = __rest(line, ["curationNote"]);
+        out.push(Object.assign(Object.assign({}, rest), { itemId: replacement.id, label: replacement.name }));
+    }
+    return { lines: out, swaps };
 }
 function annotateSlot(catalog, slot) {
     const row = resolveByDefaultSlot(catalog, slot);
@@ -922,7 +1085,7 @@ function renderBoxRulesContext(catalog) {
     const exampleCandles = resolveCandlesRow(catalog, example.candlesDefault);
     const exampleFood = example.foodDefaults.length
         ? example.foodDefaults.map((slot) => annotateSlot(catalog, slot)).join(' + ')
-        : '(no mixes left)';
+        : '(no food options left)';
     const exampleGift = resolveGiftKind(catalog, giftEx.kind, giftEx.age);
     const sectionBlocks = exports.SECTION_RULES.map((sec) => {
         var _a;
@@ -943,27 +1106,38 @@ function renderBoxRulesContext(catalog) {
         `- Sections (order, catalog items only): ${exports.BOX_SECTION_ORDER.join(' → ')}`,
         '- Instruction booklet: never listed / never mutable — physical insert only.',
         '',
+        'How swaps and adds work (every section):',
+        '- An included line swaps only to its slot\'s [included] options, at no charge; the new item replaces it.',
+        '- [extra] items and anything not listed are never swaps: they are add-ons on top at their price, and the included item stays.',
+        '- A paid line (marked "paid" in Current box) swaps at the new item\'s price.',
+        '- Removing an included item donates it to a family who wouldn\'t otherwise celebrate. The box price stays the same, and they can add it back free until lock.',
+        '- Adding into an empty included slot is free (an empty food slot takes any food-slot option, even a second of the same kit).',
+        '',
         'Simple default (know-nothing, 1 kid age 5):',
         `- Light Candles: ${example.candlesDefault}${exampleCandles ? `→${exampleCandles.id}` : ''} (not menorah)`,
-        `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
-        `- Eat & Drink: ${exampleFood} (both mixes until kits are nearly gone, then one; latke kit includes applesauce spice mix)`,
+        `- Play Dreidel: ${annotateSlot(catalog, 'wood-dreidel')} ×${1 + defaultAdults()} (1 per person: the kid + 2 adults) + ${annotateSlot(catalog, geltSlotForSize(geltEx.size))} ×${geltEx.quantity}`,
+        `- Eat & Drink: ${exampleFood} (always two food slots; a nearly-gone kit is replaced by the other kit, then a Big Bag; latke kit includes applesauce spice mix)`,
         `- Tell the Story: 1 age-default book for the 5yo${resolveBookForAge(catalog, 5) ? ` (${resolveBookForAge(catalog, 5).id})` : ''}`,
         `- Give Presents: ${annotateSlot(catalog, 'wrapping-paper')} + gift=${giftEx.kind}${exampleGift ? `≈${exampleGift.id}` : ''}`,
         '',
         'Section swap graphs:',
         sectionBlocks,
         '',
-        'Gelt planner (default build never mixes sizes; user may buy a mix later):',
-        '- 1 kid → medium ×1',
-        '- 2–4 kids → small × (kids + adults); adults default 2 if unknown',
-        '- 5+ kids → party ×1 only',
+        'Gelt planner (free gelt = one Little Bag\'s worth per person, kids + adults; adults default 2 if unknown):',
+        '- Exchange by chocolate: Little = 1, Big = 3, Party = 12',
+        '- 1 kid in a 3-person household → Big ×1; otherwise Little × people',
+        '- 5+ kids → Big × floor(people/3) + Little × the remainder; never a Party Bag by default',
+        '- Gelt swaps convert at the exchange rate, never above the allowance (Big → 3 Little); Party is paid unless 12+ people',
+        '- Gelt added on top is free while the box\'s free gelt (outside the food slots) fits the allowance; past it, it is paid',
+        '- Gelt filling a food slot (one Big Bag or three Little Bags) does not count toward the allowance',
         '',
         'Scaling with kids:',
-        '- 1 book + 1 present + 1 dreidel per kid; gelt as above',
+        '- 1 book + 1 present per kid; 1 dreidel per person; gelt as above',
         '- 5+ kids dreidels: mix wood/airdry/blank by age (older → activity); no consolidation',
         '',
         'Gift defaults (prefer distinct across kids; never last unit; books infinite/no hold):',
-        `- Stock-led: among gifts tagged for the kid's age, default to the one with the most stock left per age it serves (big-stock items like airdry clay and toddler menorahs go first). Items within ~${Math.round(exports.STOCK_POLICY.swapReserveFraction * 100)}% of their starting inventory stop being defaults but stay available as swaps.`,
+        '- Presents by age: toddler play menorah 0–2 (a second toddler gets a stuffie), a stuffie 3–5 (siblings get different characters), an airdry clay menorah or dreidel 6+ (siblings get the other kit). Never default a book or gelt as the present; draw-your-own dreidel, Lego menorah and roll-your-own candles are free present swaps, not defaults.',
+        `- Stock-led within those: the stuffie character or clay kit with the most stock left goes first. Items within ~${Math.round(exports.STOCK_POLICY.swapReserveFraction * 100)}% of their starting inventory stop being defaults but stay available as swaps.`,
         '- Fallback age table when stock is unknown: 0 stuffie, 1 wood-toy-menorah, 2 stuffie, 3 stuffie, 4 airdry, 5 stuffie, 6 lego-menorah, 7 blank, 8 DIY-candles; 9+ bias blank/DIY/lego/airdry/books',
         '- When suggesting gifts, swaps, or add-ons, lean toward items with plenty left (Catalog left=N).',
         '- Items marked low are still fair game for an explicit, exact match: the shopper names the item (says "Lego" → lego menorah) or states the need it uniquely solves (fire / open-flame / candle-safety worry → electric candles). Use them then, as long as any are left. A loose affinity ("likes building", "crafty") is not enough when an item is low — pick a well-stocked option instead.',
@@ -971,11 +1145,11 @@ function renderBoxRulesContext(catalog) {
         '',
         'Practice level policy (onboarding slider — current practice intensity, NOT knowledge):',
         '- Left / minimal: household does little Hanukkah now — traditional defaults (beeswax candles, wooden dreidel, age-default book + gift).',
-        '- Middle / moderate: keep traditional wood dreidel household set + beeswax candles; express practice via gift tilt only when stock allows (prefer activity gifts over peeling practice slots).',
-        '- Right / all-in: fuller practice — roll-your-own candles when it doesn’t collide with a DIY gift; wood dreidel stays the household set; gifts tilt toward activity kinds (lego menorah, DIY, blank) with distinct kinds across kids.',
+        '- Middle / moderate: keep traditional wood dreidel household set + beeswax candles; presents follow the age rule.',
+        '- Right / all-in: fuller practice — roll-your-own candles when it doesn’t collide with a DIY gift; wood dreidel stays the household set; presents still follow the age rule.',
         '- Wood dreidel / gelt are household “1 per person” sets — never peel one unit out for a craft kit or per-kid airdry/blank practice line; swap the whole set or leave it. Craft kits stay gift/swap/add-more choices.',
         '- Never put the same kind in a kid practice slot and gift slot; reassign gift first, else drop the practice deviation (candles DIY ↔ DIY gift).',
-        '- Prefer distinct gifts across kids. Matching gifts only when the shopper explicitly asks.',
+        '- Siblings never get the identical present by default (different stuffie characters, the other clay kit). Matching gifts only when the shopper explicitly asks.',
         '- Explaining a deliberate swap: one short sentence in your voice — why this household got the less-traditional pick. Do not recite this policy.',
         '',
         'Pricing:',
@@ -985,10 +1159,11 @@ function renderBoxRulesContext(catalog) {
         '- included → covered by box; extras / upsells → catalog member/retail prices',
         '',
         'Donate:',
-        '- Remove from section lists; roll up Donated value at member price in summary (tooltip); no box price reduction',
+        '- Removing an included item donates it (shown as donated, value at member price); no box price reduction',
+        '- Donated items go to a family who wouldn\'t otherwise celebrate; the family can add them back free until lock',
         '',
         'Wrap:',
-        `- Default ${exports.WRAP_POLICY.defaultSlot}; pre-wrap same price, covers ≤${exports.WRAP_POLICY.includedPreWrapSlots} wrappable; ${exports.WRAP_POLICY.extraWrapChargeAt}+ → one extra wrap charge`,
+        `- Default ${exports.WRAP_POLICY.defaultSlot}; pre-wrap same price, covers any number of wrappable presents (one wrap choice per box)`,
         `- Wrappable: ${exports.WRAP_POLICY.wrappableKinds.join(', ')}. NOT: ${exports.WRAP_POLICY.notWrappableKinds.join(', ')}`,
         '- Prefer catalog Wrappable checkbox when present. Storefront-only wrap add-on out of scope for box CONTEXT.',
         '',

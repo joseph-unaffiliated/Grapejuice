@@ -22,6 +22,7 @@ YOU MUST
 1. Write exactly one short reason per deliberate deviation explaining why that pick feels right for this household. Put each on "notes" with matching slotId / itemId / childId.
 2. Optionally propose at most two additional "swap" actions from allowedSwaps when notes or interests clearly call for it. Every action needs a short reason. Prefer leaving the box alone when unsure.
 3. Never invent catalog ids. Never add or remove lines. Never touch gelt, food kits, or wrapping. Never checkout.
+4. A missing latke kit, sufganiyot kit, or gelt line is intentional: kosher means no food, a gluten note leaves sufganiyot out, and no chocolate leaves gelt out. Do not propose putting them back.
 
 LOW-STOCK OPTIONS
 Options marked (low) in allowedSwaps are nearly gone. Swap one in only for an explicit, exact match: the family names it (they mention Lego → the Lego menorah for that child) or states the need it uniquely solves (worry about fire, open flames, or candle safety → electric candles). An exact match like that overrides the default even when stock is low. A loose affinity ("likes building", "crafty", "loves toys") is not enough — use a well-stocked option or leave the line alone. Never mention stock or scarcity in a reason.

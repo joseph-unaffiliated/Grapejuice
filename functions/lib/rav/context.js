@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadCatalogRows = loadCatalogRows;
+exports.toBoxRulesRows = toBoxRulesRows;
 exports.buildCatalogContext = buildCatalogContext;
 exports.buildBoxRulesContext = buildBoxRulesContext;
 exports.buildHouseholdContext = buildHouseholdContext;
@@ -144,9 +145,8 @@ function scoreRow(row, priority, focusCategory) {
     return score;
 }
 /** Load catalog/hanukkah/items once for catalog + box-rules context. */
-async function loadCatalogRows() {
+async function loadCatalogRows(db = (0, firestore_1.getFirestore)()) {
     var _a;
-    const db = (0, firestore_1.getFirestore)();
     const catalogDoc = db.collection('catalog').doc(CATALOG_HOLIDAY);
     const [snap, invSnap] = await Promise.all([
         catalogDoc.collection('items').limit(200).get(),
@@ -156,16 +156,18 @@ async function loadCatalogRows() {
         return [];
     const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
     const committed = new Map();
+    const draftHeld = new Map();
     for (const d of (_a = invSnap === null || invSnap === void 0 ? void 0 : invSnap.docs) !== null && _a !== void 0 ? _a : []) {
         const c = d.data();
         committed.set(d.id, n(c.boxAllocatedQty) + n(c.directReservedQty) + n(c.directSoldQty));
+        draftHeld.set(d.id, n(c.draftHeldQty));
     }
     return snap.docs.map((d) => {
-        var _a;
+        var _a, _b;
         const row = docToRow(d.id, d.data());
         if (row.inventory == null)
             return row;
-        return Object.assign(Object.assign({}, row), { stockLeft: Math.max(0, Math.floor(row.inventory) - ((_a = committed.get(d.id)) !== null && _a !== void 0 ? _a : 0)) });
+        return Object.assign(Object.assign({}, row), { stockLeft: Math.max(0, Math.floor(row.inventory) - ((_a = committed.get(d.id)) !== null && _a !== void 0 ? _a : 0)), draftHeld: (_b = draftHeld.get(d.id)) !== null && _b !== void 0 ? _b : 0 });
     });
 }
 function toBoxRulesRows(catalog) {
@@ -181,6 +183,7 @@ function toBoxRulesRows(catalog) {
         defaultFor: r.defaultFor,
         inventory: r.inventory,
         stockLeft: r.stockLeft,
+        draftHeld: r.draftHeld,
         holdInventory: r.holdInventory,
         wrappable: r.wrappable,
         memberPriceCents: r.memberPriceCents,
@@ -278,10 +281,12 @@ async function buildHouseholdContext(uid, clientDraft, opts) {
         if (items.length) {
             const summary = items
                 .map((li) => {
-                const name = li.label || li.itemId || li.slotId || 'item';
+                var _a, _b, _c;
+                const name = li.itemId || li.label || 'item';
                 const qty = li.quantity && li.quantity > 1 ? ` ×${li.quantity}` : '';
-                const kid = li.childId ? ` [${li.childId}]` : '';
-                return `${name}${qty}${kid}`;
+                const kid = li.childId ? ` [child:${li.childId}]` : '';
+                const price = ((_a = li.unitCents) !== null && _a !== void 0 ? _a : 0) > 0 ? ` (paid $${(((_b = li.unitCents) !== null && _b !== void 0 ? _b : 0) / 100).toFixed(0)} each)` : ' (included)';
+                return `${(_c = li.slotId) !== null && _c !== void 0 ? _c : 'extra'}:${name}${qty}${kid}${price}`;
             })
                 .join('; ');
             lines.push(`Current box: ${summary}`);

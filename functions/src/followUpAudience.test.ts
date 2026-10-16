@@ -14,7 +14,7 @@ import {
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 const box = [{ itemId: 'candles', quantity: 1 }];
-const base = { draftLineItems: box, orderStatuses: [], email: 'Sarah@Gmail.com ' };
+const base = { draftLineItems: box, orderStatuses: [], email: 'Sarah@Gmail.com ', practiceFrequencyScore: 20 };
 
 assert.equal(followUpSkipReason(base), null);
 assert.equal(followUpSkipReason({ ...base, draftLineItems: [] }), 'no_box');
@@ -24,6 +24,9 @@ assert.equal(followUpSkipReason({ ...base, orderStatuses: ['pending'] }), null);
 assert.equal(followUpSkipReason({ ...base, orderStatuses: ['committed'] }), 'paid_order');
 assert.equal(followUpSkipReason({ ...base, email: null }), 'no_email');
 assert.equal(followUpSkipReason({ ...base, email: 'qa@unaffiliated.co' }), 'test');
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 49 }), null);
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 50 }), 'practice');
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: undefined }), 'practice');
 
 assert.equal(normalizePhone('+1 (212) 555-0100'), '12125550100');
 assert.equal(normalizePhone('212-555-0100'), '12125550100');

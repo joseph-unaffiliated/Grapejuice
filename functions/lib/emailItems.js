@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.catalogEmailImage = catalogEmailImage;
 exports.boxEmailItems = boxEmailItems;
 exports.lineItemsEmailItems = lineItemsEmailItems;
 exports.pickEmailItems = pickEmailItems;
@@ -20,9 +21,10 @@ function formatPrice(cents) {
         return '';
     return n % 100 === 0 ? `$${n / 100}` : `$${(n / 100).toFixed(2)}`;
 }
-async function emailImageUrl(itemId, sourceUrl) {
+async function emailImageUrl(itemId, sourceUrl, shape = 'card') {
     const bucket = (0, storage_1.getStorage)().bucket();
-    const path = `email/catalog/${itemId}-${(0, crypto_1.createHash)('sha1').update(sourceUrl).digest('hex').slice(0, 10)}.jpg`;
+    const hash = (0, crypto_1.createHash)('sha1').update(sourceUrl).digest('hex').slice(0, 10);
+    const path = `email/catalog/${itemId}-${hash}${shape === 'hero' ? '-hero' : ''}.jpg`;
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${path}`;
     const file = bucket.file(path);
     const [exists] = await file.exists();
@@ -35,7 +37,9 @@ async function emailImageUrl(itemId, sourceUrl) {
     }
     const jpg = await sharp(Buffer.from(await res.arrayBuffer()))
         .rotate()
-        .resize({ width: IMAGE_PX, height: IMAGE_PX, fit: 'contain', background: '#ffffff' })
+        .resize(shape === 'hero'
+        ? { width: IMAGE_PX, withoutEnlargement: true }
+        : { width: IMAGE_PX, height: IMAGE_PX, fit: 'contain', background: '#ffffff' })
         .flatten({ background: '#ffffff' })
         .jpeg({ quality: 82, mozjpeg: true })
         .toBuffer();
@@ -46,6 +50,24 @@ async function emailImageUrl(itemId, sourceUrl) {
     });
     await file.makePublic().catch(() => undefined);
     return publicUrl;
+}
+/**
+ * 600px JPG of an item's secondary photo (`imageUrls[1]`, kept at its own proportions) or main
+ * photo (square card), falling back to the other.
+ */
+async function catalogEmailImage(id, cat, prefer) {
+    const urls = Array.isArray(cat.imageUrls) ? cat.imageUrls.filter((u) => typeof u === 'string') : [];
+    const primary = typeof cat.imageUrl === 'string' ? cat.imageUrl : urls[0];
+    const secondary = urls[1];
+    const order = prefer === 'secondary' ? [secondary, primary] : [primary, secondary];
+    for (const source of order) {
+        if (!source)
+            continue;
+        const image = await emailImageUrl(id, source, prefer === 'secondary' && source === secondary ? 'hero' : 'card');
+        if (image)
+            return image;
+    }
+    return null;
 }
 async function toEmailItem(id, cat, opts) {
     var _a;

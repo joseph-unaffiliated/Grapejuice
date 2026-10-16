@@ -84,6 +84,10 @@ export type DashBox = {
   /** `location` is known to be outside the US. */
   outsideUs: boolean;
   answers: DashAnswers;
+  /** Onboarding note or a message to Rav says the household keeps kosher. */
+  kosher: boolean;
+  /** The note or message that set `kosher`. */
+  kosherNote: string | null;
   lines: DashLine[];
 };
 
@@ -306,6 +310,14 @@ const score = (v: unknown): number | null => {
   return n == null ? null : Math.round(Math.max(0, Math.min(100, n)));
 };
 const NO_ANSWERS: DashAnswers = { hanukkah: null, hanukkahLevel: null, jewish: null };
+
+/** "We keep kosher" / "kosher home". Not a product description. */
+const KOSHER_WORD = /\bkosher\b/i;
+function kosherQuote(text: string): string | null {
+  if (!KOSHER_WORD.test(text)) return null;
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > 180 ? `${flat.slice(0, 177)}…` : flat;
+}
 
 function hostOf(url: unknown): string | null {
   if (typeof url !== 'string' || !url) return null;
@@ -669,6 +681,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     guestSnap,
     giftFunnelSnap,
     inventoryEmailSnap,
+    chatSnap,
   ] = await Promise.all([
       db.doc(`config/${HOLIDAY_ID}`).get(),
       db.collection('households').get(),
@@ -685,6 +698,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
         .get(),
       db.collection('giftFunnel').get(),
       db.collection(INVENTORY_EMAIL_LOG).where('status', '==', 'sent').get(),
+      db.collectionGroup('aiChats').select('messages').get(),
     ]);
   const guestDocs = guestSnap.docs.filter((d) => !d.id.startsWith('agenttest'));
   const config = configSnap.data() ?? {};
@@ -786,8 +800,24 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       createdAt: string | null;
       ipLocation: string | null;
       ipOutsideUs: boolean;
+      kosherNote: string | null;
     }
   >();
+  const kosherFromChat = new Map<string, string>();
+  for (const d of chatSnap.docs) {
+    const uid = d.ref.parent.parent?.id;
+    if (!uid || d.ref.parent.id !== 'aiChats' || kosherFromChat.has(uid)) continue;
+    const msgs = d.data().messages;
+    if (!Array.isArray(msgs)) continue;
+    for (const m of msgs) {
+      if (!m || m.role === 'assistant') continue;
+      const quote = kosherQuote(String(m.content ?? ''));
+      if (quote) {
+        kosherFromChat.set(uid, quote);
+        break;
+      }
+    }
+  }
   for (const s of userSnaps) {
     const x = s.data() ?? {};
     const last = x.lastBoxAnswers ?? {};
@@ -817,6 +847,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       createdAt: iso(x.createdAt),
       ipLocation: ipLocationOf(x.ipGeo) ?? guestIpLocationByUid.get(s.id) ?? null,
       ipOutsideUs: ipLocationOf(x.ipGeo) ? ipOutsideUs(x.ipGeo) : guestIpOutsideUsByUid.get(s.id) ?? false,
+      kosherNote: kosherQuote(str(last.ravNotes) ?? str(x.ravNotes) ?? '') ?? kosherFromChat.get(s.id) ?? null,
     });
   }
 
@@ -842,6 +873,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       email,
       test: isTest(email, u?.name),
       answers: u?.answers ?? NO_ANSWERS,
+      kosher: Boolean(u?.kosherNote),
+      kosherNote: u?.kosherNote ?? null,
       kids: Math.max(1, childNames.size),
       childNames,
       cardOnFile: Boolean(h.cardOnFileAt || h.stripeDefaultPaymentMethodId),
@@ -988,6 +1021,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       cardSession: cardSessionFor(hid, str(o.userId), o),
       ...placeFor(hid, str(o.userId), locationOf(o.shippingAddress)),
       answers: c.answers,
+      kosher: c.kosher,
+      kosherNote: c.kosherNote,
       lines,
     });
   }
@@ -1027,6 +1062,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       cardSession: cardSessionFor(hid, editorUid, null),
       ...placeFor(hid, editorUid, null),
       answers: c.answers,
+      kosher: c.kosher,
+      kosherNote: c.kosherNote,
       lines,
     });
   }

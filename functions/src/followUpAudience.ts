@@ -1,5 +1,6 @@
 import { createHash, randomInt } from 'crypto';
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
+import { practiceEligibleForFollowUp } from './metaPracticeCutoff';
 import { isTest } from './testAccounts';
 
 /**
@@ -33,9 +34,11 @@ export type FollowUpHousehold = {
   stripeDefaultPaymentMethodId?: unknown;
   orderStatuses: unknown[];
   email: string | null;
+  /** Jewish practice slider. Missing or above 49 stays out of the follow-up list. */
+  practiceFrequencyScore?: unknown;
 };
 
-export type FollowUpSkipReason = 'no_box' | 'card_on_file' | 'paid_order' | 'no_email' | 'test';
+export type FollowUpSkipReason = 'no_box' | 'card_on_file' | 'paid_order' | 'no_email' | 'test' | 'practice';
 
 function boxItemCount(lineItems: unknown): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -58,6 +61,7 @@ export function followUpSkipReason(h: FollowUpHousehold): FollowUpSkipReason | n
   if (hasPaid(h)) return 'paid_order';
   if (!normalizeEmail(h.email)) return 'no_email';
   if (isTest(h.email)) return 'test';
+  if (!practiceEligibleForFollowUp(h.practiceFrequencyScore)) return 'practice';
   return null;
 }
 
@@ -144,7 +148,7 @@ export async function selectBuilderRows(db: Firestore): Promise<BuilderSelection
     db.collection('households').select('ownerId', 'cardOnFileAt', 'stripeDefaultPaymentMethodId').get(),
     db.collectionGroup('boxDrafts').get(),
     db.collectionGroup('orders').select('status').get(),
-    db.collection('users').select('email', 'displayName', 'phone').get(),
+    db.collection('users').select('email', 'displayName', 'phone', 'lastBoxAnswers').get(),
   ]);
   const users = new Map(userSnap.docs.map((d) => [d.id, d.data()]));
   const statusesByHousehold = new Map<string, unknown[]>();
@@ -176,6 +180,7 @@ export async function selectBuilderRows(db: Firestore): Promise<BuilderSelection
       stripeDefaultPaymentMethodId: h?.stripeDefaultPaymentMethodId,
       orderStatuses: statusesByHousehold.get(hh.id) ?? [],
       email: typeof owner?.email === 'string' ? owner.email : null,
+      practiceFrequencyScore: owner?.lastBoxAnswers?.practiceFrequencyScore,
     });
     if (reason) {
       skipped[reason] = (skipped[reason] ?? 0) + 1;

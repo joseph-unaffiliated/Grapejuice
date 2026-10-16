@@ -688,6 +688,7 @@ function BoxesSection({
   const [status, setStatus] = useState<BoxStatusFilter>('active');
   const [card, setCard] = useState<YesNoAny>('any');
   const [addOns, setAddOns] = useState<YesNoAny>('any');
+  const [kosherOnly, setKosherOnly] = useState(false);
   const [showPlaythrough, setShowPlaythrough] = useState(false);
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
@@ -707,16 +708,18 @@ function BoxesSection({
       if (card === 'no' && b.cardOnFile) return false;
       if (addOns === 'yes' && b.addOnCents <= 0) return false;
       if (addOns === 'no' && b.addOnCents > 0) return false;
+      if (kosherOnly && !b.kosher) return false;
       if (q && !`${b.customer ?? ''} ${b.email ?? ''} ${b.householdId}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [data, status, card, addOns, showPlaythrough, hideTests, query]);
+  }, [data, status, card, addOns, kosherOnly, showPlaythrough, hideTests, query]);
 
   const columns: Column<DashBox>[] = [
     { label: 'Customer', width: 200, cell: (b) => <Who name={b.customer} email={b.email} styles={styles} />, sort: (b) => (b.customer ?? b.email ?? '').toLowerCase() },
     { label: 'State', width: 100, cell: (b) => placeLabel({ location: b.location, fromIp: b.locationFromIp }), sort: (b) => b.location ?? null },
     { label: 'Kids', width: 50, align: 'right', cell: (b) => String(b.kids), sort: (b) => b.kids },
     ...answerColumns<DashBox>((b) => b.answers),
+    { label: 'Kosher', width: 70, cell: (b) => (b.kosher ? 'Yes' : '—'), sort: (b) => (b.kosher ? 1 : 0) },
     { label: 'Status', width: 120, cell: (b) => statusLabel(b.status), sort: (b) => b.status },
     {
       label: 'Card',
@@ -766,6 +769,7 @@ function BoxesSection({
       <ChipRow styles={styles}>
         <ChipGroup<YesNoAny> value={card} onChange={setCard} styles={styles} options={[['any', 'Card: any'], ['yes', 'Card on file'], ['no', 'No card']]} />
         <ChipGroup<YesNoAny> value={addOns} onChange={setAddOns} styles={styles} options={[['any', 'Add-ons: any'], ['yes', 'Has add-ons'], ['no', 'No add-ons']]} />
+        <Chip label="Kosher" active={kosherOnly} onPress={() => setKosherOnly((v) => !v)} styles={styles} />
         <Chip label={mobile ? 'Playthroughs' : 'Show playthrough'} active={showPlaythrough} onPress={() => setShowPlaythrough((v) => !v)} styles={styles} />
       </ChipRow>
       <TextInput
@@ -803,6 +807,7 @@ function BoxesSection({
                 ['Credit applied', b.creditCents ? `−${money(b.creditCents)}` : '—'],
                 ['Total', money(b.totalCents)],
                 ['Committed', when(b.committedAt)],
+                ['Kosher', b.kosher ? b.kosherNote ?? 'Yes' : '—'],
                 ...(b.cardOnFile
                   ? ([['Card added', b.cardSession ? cardSessionLong(b.cardSession) : 'Session not recorded']] as Array<[string, string]>)
                   : []),
@@ -820,7 +825,7 @@ function BoxesSection({
       <Text style={styles.caption}>
         {mobile
           ? `${rows.length} of ${data.boxes.length} boxes. Tap one for items. Dot: green charged, amber no card, grey cancelled. Card: where the session that saved it started and its device; ? = estimated.`
-          : `${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. Card added from: where the session that saved the card started (IG or FB app, email link, ad click, else organic) and its device; ? means estimated from a campaign click that day. ${ANSWERS_CAPTION}`}
+          : `${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. Kosher is Yes when their note or a message to Rav says the household keeps kosher; open the row for the quote. The Kosher chip shows only those. Card added from: where the session that saved the card started (IG or FB app, email link, ad click, else organic) and its device; ? means estimated from a campaign click that day. ${ANSWERS_CAPTION}`}
       </Text>
     </View>
   );
@@ -2204,6 +2209,8 @@ export function AdminBoxesScreen() {
   };
   const [hideTests, setHideTests] = useState(true);
   const [usOnly, setUsOnly] = useState(true);
+  /** Practice frequency ("how often do you practice?") under 50. Unknown / untouched answers are out. */
+  const [under50Practicing, setUnder50Practicing] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -2213,22 +2220,27 @@ export function AdminBoxesScreen() {
 
   const inventory = useMemo(() => (data ? inventoryFor(data, hideTests) : []), [data, hideTests]);
   const inventoryById = useMemo(() => new Map(inventory.map((i) => [i.id, i])), [inventory]);
-  // Inventory keeps every row: stock held by a non-US box is still held.
-  const shown = useMemo(
-    () =>
-      data && usOnly
-        ? {
-            ...data,
-            boxes: data.boxes.filter((b) => !b.outsideUs),
-            guests: data.guests.filter((g) => !g.outsideUs),
-            gifts: data.gifts.filter((g) => !g.outsideUs),
-            adPeople: (data.adPeople ?? []).filter((p) => !p.outsideUs),
-            funnel: (data.funnel ?? []).filter((p) => !p.outsideUs),
-            giftFunnel: (data.giftFunnel ?? []).filter((p) => !p.outsideUs),
-          }
-        : data,
-    [data, usOnly],
-  );
+  // Inventory keeps every row: stock held by a non-US / high-practice box is still held.
+  const shown = useMemo(() => {
+    if (!data) return data;
+    if (!usOnly && !under50Practicing) return data;
+    const keepPractice = (jewish: number | null | undefined) =>
+      !under50Practicing || (typeof jewish === 'number' && jewish < 50);
+    return {
+      ...data,
+      boxes: data.boxes.filter((b) => (!usOnly || !b.outsideUs) && keepPractice(b.answers?.jewish)),
+      guests: data.guests.filter((g) => (!usOnly || !g.outsideUs) && keepPractice(g.answers?.jewish)),
+      gifts: data.gifts.filter(
+        (g) => (!usOnly || !g.outsideUs) && keepPractice(g.recipientAnswers?.jewish)
+      ),
+      adPeople: (data.adPeople ?? []).filter(
+        (p) => (!usOnly || !p.outsideUs) && keepPractice(p.jewish)
+      ),
+      // Funnel rows have no practice score — US-only still applies; practice filter leaves them alone.
+      funnel: (data.funnel ?? []).filter((p) => !usOnly || !p.outsideUs),
+      giftFunnel: (data.giftFunnel ?? []).filter((p) => !usOnly || !p.outsideUs),
+    };
+  }, [data, usOnly, under50Practicing]);
 
   const panelProps = {
     flush: isDesktop,
@@ -2292,6 +2304,14 @@ export function AdminBoxesScreen() {
   const outsideBoxes = data.boxes.filter((b) => b.outsideUs && !b.playthrough && !(hideTests && b.test)).length;
   const outsideGuests = data.guests.filter((g) => g.outsideUs).length;
   const outsideGifts = data.gifts.filter((g) => g.outsideUs && !g.playthrough && !(hideTests && g.test)).length;
+  const notUnder50 = (jewish: number | null | undefined) => !(typeof jewish === 'number' && jewish < 50);
+  const highPracticeBoxes = data.boxes.filter(
+    (b) => !b.playthrough && !(hideTests && b.test) && notUnder50(b.answers?.jewish)
+  ).length;
+  const highPracticeGuests = data.guests.filter((g) => notUnder50(g.answers?.jewish)).length;
+  const highPracticeGifts = data.gifts.filter(
+    (g) => !g.playthrough && !(hideTests && g.test) && notUnder50(g.recipientAnswers?.jewish)
+  ).length;
   const openGuests = view.guests.filter((g) => !g.converted);
   const guestBoxes = openGuests.filter((g) => g.stage === 'built' || g.stage === 'revealed');
   const guestLeads = openGuests.filter((g) => g.leadAt);
@@ -2356,10 +2376,23 @@ export function AdminBoxesScreen() {
                 onPress={() => setUsOnly((v) => !v)}
                 styles={styles}
               />
+              <Chip
+                label={
+                  mobile
+                    ? `Under 50% practicing (${highPracticeBoxes + highPracticeGuests + highPracticeGifts} out)`
+                    : `Only under 50% practicing · ${highPracticeBoxes} boxes, ${highPracticeGuests} anonymous, ${highPracticeGifts} gifts at/above 50% or unknown`
+                }
+                active={under50Practicing}
+                onPress={() => setUnder50Practicing((v) => !v)}
+                styles={styles}
+              />
             </ChipRow>
             {mobile ? null : (
               <Text style={styles.meta}>
-                US only hides rows known to be outside the US: a non-US ship-to address, else a non-US IP. Rows with no location stay in. Inventory is unaffected.
+                US only hides rows known to be outside the US: a non-US ship-to address, else a non-US IP. Rows with no
+                location stay in. Only under 50% practicing keeps rows whose Jewish practice answer is below 50;
+                untouched or missing answers are out. Funnel tabs and inventory are unaffected by practice; inventory is
+                unaffected by US only too.
               </Text>
             )}
           </View>
