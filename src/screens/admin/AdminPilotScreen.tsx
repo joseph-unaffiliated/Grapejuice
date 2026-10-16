@@ -325,6 +325,16 @@ function underScoreCap(score: number | null | undefined, cap: number | null): bo
   return typeof score === 'number' && score <= cap;
 }
 
+/** Untouched or extreme slider stops people often park on. */
+const ROUND_SCORES = new Set([0, 50, 100]);
+
+function hasRoundSlider(inv: AdminPilotInvite): boolean {
+  return (
+    (inv.jewishScore != null && ROUND_SCORES.has(inv.jewishScore)) ||
+    (inv.hanukkahScore != null && ROUND_SCORES.has(inv.hanukkahScore))
+  );
+}
+
 function AutoInviteCard({ onChanged, styles }: { onChanged: () => Promise<void>; styles: Styles }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -374,6 +384,8 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
   /** Same defaults as Orders & Inventory. */
   const [hideTests, setHideTests] = useState(true);
   const [usOnly, setUsOnly] = useState(true);
+  /** Hide anyone with Jewish or Hanukkah at 0, 50, or 100. */
+  const [hideRoundScores, setHideRoundScores] = useState(false);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -420,14 +432,16 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
       .filter(match)
       .filter((i) => !(hideTests && i.test))
       .filter((i) => !(usOnly && i.outsideUs))
+      .filter((i) => !(hideRoundScores && hasRoundSlider(i)))
       .filter((i) => matchesQuery(i, q))
       .filter((i) => underScoreCap(i.jewishScore, jewishMax) && underScoreCap(i.hanukkahScore, hanukkahMax))
       .slice()
       .sort((a, b) => compareInvites(a, b, sort));
-  }, [list, filter, q, sort, jewishMax, hanukkahMax, hideTests, usOnly]);
+  }, [list, filter, q, sort, jewishMax, hanukkahMax, hideTests, usOnly, hideRoundScores]);
 
   const hiddenTests = list.filter((i) => i.test).length;
   const hiddenOutside = list.filter((i) => i.outsideUs).length;
+  const roundScoreCount = list.filter(hasRoundSlider).length;
 
   return (
     <View style={styles.body}>
@@ -510,6 +524,16 @@ function PilotSection({ styles, colors }: { styles: Styles; colors: SemanticColo
               label={usOnly ? `US only (${hiddenOutside} hidden)` : `All countries (${hiddenOutside} outside US)`}
               active={usOnly}
               onPress={() => setUsOnly((v) => !v)}
+              styles={styles}
+            />
+            <Chip
+              label={
+                hideRoundScores
+                  ? `Hide 0/50/100 (${roundScoreCount})`
+                  : `Show 0/50/100 (${roundScoreCount})`
+              }
+              active={hideRoundScores}
+              onPress={() => setHideRoundScores((v) => !v)}
               styles={styles}
             />
           </View>
