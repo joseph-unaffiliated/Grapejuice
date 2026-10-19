@@ -285,17 +285,19 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
   const lock = shortDate(view.dates.lockAt, 'Nov 7');
   const picker = hasBox ? (
     <>
-      <Section
-        title={`Pick ${s.pickCount} of ${s.items.length}`}
-        hint={s.full ? 'That’s three. Tap one to swap it out.' : `${s.chosen.length} of ${s.pickCount} chosen`}
-      >
-        <View style={styles.grid}>
-          {s.items.map((item) => {
-            const on = s.picks.includes(item.id);
-            return <ItemCard key={item.id} item={item} chosen={on} disabled={s.full && !on} onPress={() => s.toggle(item.id)} />;
-          })}
-        </View>
-      </Section>
+      <View ref={s.picksRef}>
+        <Section
+          title={`Pick ${s.pickCount} of ${s.items.length}`}
+          hint={s.full ? 'That’s three. Tap one to swap it out.' : `${s.chosen.length} of ${s.pickCount} chosen`}
+        >
+          <View style={styles.grid}>
+            {s.items.map((item) => {
+              const on = s.picks.includes(item.id);
+              return <ItemCard key={item.id} item={item} chosen={on} disabled={s.full && !on} onPress={() => s.toggle(item.id)} />;
+            })}
+          </View>
+        </Section>
+      </View>
 
       {s.collectsPayment ? (
         <Section title="Shipping and card" hint={pilotCopy.payHint}>
@@ -307,8 +309,10 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
               {...s.pay.deliverability.fieldsProps}
             />
             {s.pay.formError ? <Text style={checkoutUi.fieldError}>{s.pay.formError}</Text> : null}
-            <Text style={[checkoutUi.sectionHeading, styles.cardHeading]}>Card</Text>
-            <PilotCardField pay={s.pay} preview={s.preview} />
+            <View ref={s.cardRef}>
+              <Text style={[checkoutUi.sectionHeading, styles.cardHeading]}>Card</Text>
+              <PilotCardField pay={s.pay} preview={s.preview} />
+            </View>
             <Text style={[styles.fine, styles.fineLeft]}>{pilotCopy.cardFine(lock, s.pay.totalLabel)}</Text>
           </View>
         </Section>
@@ -333,6 +337,7 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
         <View style={styles.form}>
           <Text style={checkoutUi.label}>Typed full name</Text>
           <TextInput
+            ref={s.nameRef}
             style={checkoutUi.input}
             value={s.typedName}
             onChangeText={s.setTypedName}
@@ -350,7 +355,7 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
         <Cta
           label="Join the pilot"
           onPress={() => void s.join()}
-          disabled={!s.canJoin}
+          disabled={s.joining}
           loading={s.joining}
           note={s.joinError ? null : !s.canJoin && !s.joining ? s.joinHint : null}
         />

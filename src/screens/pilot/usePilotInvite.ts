@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, type TextInput, type View } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
@@ -11,6 +11,7 @@ import { enrollPilot, getPilotInvite, type PilotDates, type PilotInviteView, typ
 import { formatPilotDollars, pilotAgreementText } from '../../services/pilot/pilotAgreement';
 import { isPilotPreviewToken, pilotPreviewView, withPreviewImages } from '../../services/pilot/pilotPreview';
 import { replaceBrowserPath } from '../../navigation/webBrowserHistory';
+import { revealField } from '../../utils/revealField';
 import { usePilotPayment } from './usePilotPayment';
 
 type Route = RouteProp<MainStackParamList, 'PilotInvite'>;
@@ -154,6 +155,10 @@ export function usePilotInvite() {
   const [quoteConsent, setQuoteConsent] = useState(resume?.quoteConsent ?? false);
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  /** Anchors for incomplete-join taps (Clarity dead clicks on the sticky CTA). */
+  const picksRef = useRef<View>(null);
+  const cardRef = useRef<View>(null);
+  const nameRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (token) persistPilotToken(token);
@@ -292,8 +297,35 @@ export function usePilotInvite() {
     }
   };
 
+  /** Incomplete CTA: scroll to what’s missing instead of a dead click. */
+  const revealJoinGap = () => {
+    if (!full) {
+      revealField(picksRef.current, { focus: false });
+      return;
+    }
+    if (!cardReady) {
+      revealField(cardRef.current, { focus: false });
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.setTimeout(() => {
+          try {
+            pay.stripeRef.current?.elements.getElement('payment')?.focus();
+          } catch {
+            // Payment Element not mounted yet
+          }
+        }, 350);
+      }
+      return;
+    }
+    revealField(nameRef.current);
+  };
+
   const join = async () => {
-    if (canJoin) await runJoin(false);
+    if (joining) return;
+    if (canJoin) {
+      await runJoin(false);
+      return;
+    }
+    revealJoinGap();
   };
 
   const resumed = useRef(false);
@@ -330,6 +362,9 @@ export function usePilotInvite() {
     joining,
     joinError,
     join,
+    picksRef,
+    cardRef,
+    nameRef,
     pay,
     collectsPayment,
     preview,

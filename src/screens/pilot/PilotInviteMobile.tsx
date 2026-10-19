@@ -286,7 +286,13 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
       label={s.full ? 'Your three picks' : `${s.chosen.length} of ${s.pickCount} picked`}
       total={s.full && s.totalLabel ? `${s.totalLabel} value · Free` : 'Free'}
       hint={s.joinError ?? undefined}
-      cta={{ label: s.canJoin || s.joining ? 'Done!' : (s.joinHint ?? 'Done!'), onPress: () => void s.join(), disabled: !s.canJoin, busy: s.joining }}
+      cta={{
+        label: s.canJoin || s.joining ? 'Done!' : (s.joinHint ?? 'Done!'),
+        onPress: () => void s.join(),
+        /** Stay pressable when incomplete so the tap scrolls to the gap (card / picks / name). */
+        disabled: s.joining,
+        busy: s.joining,
+      }}
     />
   ) : null;
 
@@ -299,7 +305,7 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
 
       {hasBox ? (
         <>
-          <View style={styles.section}>
+          <View ref={s.picksRef} style={styles.section}>
             <SectionHead
               title={`Pick ${s.pickCount} of ${s.items.length}`}
               sub={s.full ? 'Tap one to swap it' : `${s.chosen.length} of ${s.pickCount} chosen`}
@@ -326,8 +332,10 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
                   {...s.pay.deliverability.fieldsProps}
                 />
                 {s.pay.formError ? <Text style={styles.error}>{s.pay.formError}</Text> : null}
-                <Text style={[mType.bodyStrong, styles.cardHeading]}>Card</Text>
-                <PilotCardField pay={s.pay} preview={s.preview} mobile />
+                <View ref={s.cardRef}>
+                  <Text style={[mType.bodyStrong, styles.cardHeading]}>Card</Text>
+                  <PilotCardField pay={s.pay} preview={s.preview} mobile />
+                </View>
               </>
             ) : (
               <>
@@ -349,6 +357,7 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
             </View>
             {s.agreement ? null : <Text style={[mType.small, styles.agreementPending]}>{pilotCopy.agreementPendingNote}</Text>}
             <MobileField
+              ref={s.nameRef}
               label="Typed full name"
               value={s.typedName}
               onChangeText={s.setTypedName}
