@@ -22,6 +22,13 @@
     "trailingSlash": false,
     "headers": [
       {
+        "source": "/d/**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, nosnippet" },
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      },
+      {
         "source": "/index.html",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
@@ -58,6 +65,9 @@
         ]
       }
     ],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    "rewrites": [
+      { "source": "/d/legomenorahinstructions", "destination": "/d/legomenorahinstructions.pdf" },
+      { "source": "**", "destination": "/index.html" }
+    ]
   }
 }

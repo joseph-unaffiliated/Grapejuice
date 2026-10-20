@@ -31,6 +31,9 @@ export const PRIVATE_PATH_PREFIXES: readonly string[] = [
   '/reset-password',
   '/__',
   '/store/favorites',
+  // Unlisted documents (e.g. /d/legomenorahinstructions): served by direct link only,
+  // disallowed in robots.txt and absent from sitemap/llms/site nav.
+  '/d',
 ];
 
 export function isPrivatePath(pathname: string): boolean {
