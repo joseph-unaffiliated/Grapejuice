@@ -47,6 +47,8 @@ import {
 } from '../../constants/storefrontCategoryFilters';
 import { icons } from '../../constants/icons';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import { useCatalogInventory } from '../../hooks/useCatalogInventory';
+import { sortBooksFeatured } from '../../services/catalog/featuredSort';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
@@ -256,6 +258,7 @@ export function StorefrontCategoryScreen() {
     loading,
   } = useCatalogAvailabilityMap();
   const { goHome, askRav, startBox, goCategory } = useStorefrontActions();
+  const { byId: inventoryCounters } = useCatalogInventory();
   const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const startAuthFromGuest = useAuthFlowStore((s) => s.startAuthFromGuest);
   const guestFavoritesPrompt = useGuestFavoritesPrompt();
@@ -401,8 +404,17 @@ export function StorefrontCategoryScreen() {
     if (slug === 'candles' && sort === 'relevant') {
       return orderCandlesRollYourOwnBeforeElectric(sorted);
     }
+    if (slug === 'books' && sort === 'relevant') {
+      // Featured books: popularity (units in committed + gifted boxes), then
+      // price low→high; books being delisted sink to the bottom.
+      const popularity: Record<string, number> = {};
+      for (const item of sorted) {
+        popularity[item.id] = inventoryCounters[item.id]?.boxAllocatedQty ?? 0;
+      }
+      return sortBooksFeatured(sorted, popularity);
+    }
     return sorted;
-  }, [categoryItems, slug, facetFilters, sort, availabilityById]);
+  }, [categoryItems, slug, facetFilters, sort, availabilityById, inventoryCounters]);
 
   const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';
   const shopEverything = slug === 'collection' && !searchQuery;
