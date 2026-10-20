@@ -61,4 +61,23 @@ const ids = (items: CatalogItem[]) => items.map((b) => b.id);
   assert.deepEqual(ids(sortBooksFeatured(books, { 'gone-b': 5 })), ['gone-b', 'gone-a']);
 }
 
+// Sold out goes to the very bottom — below available winding-down books.
+{
+  const books = [
+    book({ id: 'out', name: 'Out', dollarCostCents: 100, inventory: 3, boxStockLeft: 0 }),
+    book({ id: 'winding', name: 'Winding', dollarCostCents: 900, holdInventory: true, inventory: 5, boxStockLeft: 2 }),
+    book({ id: 'plain', name: 'Plain', dollarCostCents: 500 }),
+  ];
+  assert.deepEqual(ids(sortBooksFeatured(books, { out: 99 })), ['plain', 'winding', 'out']);
+}
+
+// Sold out via raw inventory when no boxStockLeft; untracked books never count as sold out.
+{
+  const books = [
+    book({ id: 'zero', name: 'Zero', inventory: 0 }),
+    book({ id: 'untracked', name: 'Untracked', inventory: null, boxStockLeft: null }),
+  ];
+  assert.deepEqual(ids(sortBooksFeatured(books, {})), ['untracked', 'zero']);
+}
+
 console.log('featuredSort tests passed');
