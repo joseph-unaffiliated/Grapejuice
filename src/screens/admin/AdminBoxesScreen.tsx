@@ -48,6 +48,7 @@ import {
   type GiftFunnelKey,
   type MetaAdStats,
 } from '../../services/admin/boxesDashboard';
+import { copyText } from '../../services/promo/copyText';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 type Styles = ReturnType<typeof createStyles>;
@@ -1452,6 +1453,38 @@ function ShopOrdersSection({
   );
 }
 
+/** Inventory item name — click to copy the full product name to the clipboard. */
+function CopyableItemName({ name, styles }: { name: string; styles: Styles }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
+  const onCopy = () => {
+    void copyText(name).then((ok) => {
+      if (!ok) return;
+      setCopied(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1200);
+    });
+  };
+  return (
+    <Text
+      style={[styles.td, Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null]}
+      numberOfLines={1}
+      onPress={onCopy}
+      accessibilityRole="button"
+      accessibilityLabel={`Copy ${name}`}
+      accessibilityHint="Copies the product name to your clipboard"
+    >
+      {copied ? `${name} ✓` : name}
+    </Text>
+  );
+}
+
 function InventorySection({
   inventory,
   styles,
@@ -1486,7 +1519,13 @@ function InventorySection({
   }, [inventory]);
 
   const columns: Column<InventoryView>[] = [
-    { label: 'Item', width: 240, maxWidth: itemMaxWidth, cell: (i) => i.name, sort: (i) => i.name.toLowerCase() },
+    {
+      label: 'Item',
+      width: 240,
+      maxWidth: itemMaxWidth,
+      cell: (i) => <CopyableItemName name={i.name} styles={styles} />,
+      sort: (i) => i.name.toLowerCase(),
+    },
     { label: 'Favorited', width: 80, align: 'right', cell: (i) => dash(i.favoritesShown), sort: (i) => i.favoritesShown },
     { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'N/A' : String(i.stock)), sort: (i) => i.stock },
     { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
@@ -1567,7 +1606,7 @@ function InventorySection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${inventory.length} items. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts. Procured = copies physically ordered (Airtable "Procured"; display-only — gap to close is Committed − Procured). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Available = on hand − in boxes − in gifts − sold direct − reserved. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
+        {`${rows.length} of ${inventory.length} items. Click an item name to copy it. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts. Procured = copies physically ordered (Airtable "Procured"; display-only — gap to close is Committed − Procured). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Available = on hand − in boxes − in gifts − sold direct − reserved. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
       </Text>
     </View>
   );
