@@ -859,10 +859,24 @@ const isStoryRow = (r) => {
 /**
  * Default book for a kid's age. `avoid` (books already in the box) steers siblings to a
  * different title; it only gives way when every book is taken.
+ *
+ * Stock gates books the same way gifts are gated: default-eligible titles first
+ * (untracked books always are), then anything that can still spare a unit. A
+ * sold-out tracked title is never handed out as a default.
  */
 function resolveBookForAge(catalog, age, avoid) {
-    var _a, _b;
     if (!(catalog === null || catalog === void 0 ? void 0 : catalog.length))
+        return undefined;
+    const eligible = catalog.filter((r) => isDefaultEligible(r));
+    const fromEligible = pickBook(eligible, age, avoid);
+    if (fromEligible)
+        return fromEligible;
+    const spare = catalog.filter((r) => !isSoldOutForBoxes(r) && canAssignUnit(r));
+    return pickBook(spare, age, avoid);
+}
+function pickBook(catalog, age, avoid) {
+    var _a, _b;
+    if (!catalog.length)
         return undefined;
     if (avoid === null || avoid === void 0 ? void 0 : avoid.size) {
         const rest = catalog.filter((r) => !avoid.has(r.id));
@@ -951,24 +965,30 @@ function bestReplacement(rows) {
  * then anything that can spare a unit. Undefined → drop the line.
  */
 function soldOutReplacement(catalog, line, options = {}) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     const soldOut = catalog.find((r) => r.id === line.itemId);
     if (!soldOut)
         return undefined;
     const avoid = new Set([line.itemId, ...((_a = options.avoidIds) !== null && _a !== void 0 ? _a : [])]);
     const pool = catalog.filter((r) => !avoid.has(r.id) && !isSoldOutForBoxes(r));
     const paid = ((_b = line.unitCents) !== null && _b !== void 0 ? _b : 0) > 0;
+    const age = options.age;
     const candleKind = CANDLES_FALLBACK_ORDER.find((k) => { var _a; return ((_a = resolveCandlesRow(catalog, k)) === null || _a === void 0 ? void 0 : _a.id) === line.itemId; });
     if (candleKind && !isGiftLineSlot(line.slotId)) {
         return bestReplacement(CANDLES_FALLBACK_ORDER.filter((k) => k !== candleKind)
             .map((k) => resolveCandlesRow(catalog, k))
             .filter((r) => r && !avoid.has(r.id)));
     }
+    // A story line always stays a book: the kid's age-appropriate title that isn't
+    // already in the box (never dropped, unlike an unlisted paid add-on).
+    if (isStoryRow(soldOut)) {
+        const kidAge = age !== null && age !== void 0 ? age : Number((_d = ((_c = soldOut.defaultBookAges) !== null && _c !== void 0 ? _c : [])[0]) !== null && _d !== void 0 ? _d : 5);
+        return resolveBookForAge(pool, kidAge, avoid);
+    }
     const kind = giftKindOfRow(soldOut);
-    const age = options.age;
     const sameKind = kind ? giftKindRows(pool, kind, age) : [];
     if (isGiftLineSlot(line.slotId) && !paid) {
-        const kidAge = age !== null && age !== void 0 ? age : Number((_d = ((_c = soldOut.defaultGiftAges) !== null && _c !== void 0 ? _c : [])[0]) !== null && _d !== void 0 ? _d : 5);
+        const kidAge = age !== null && age !== void 0 ? age : Number((_f = ((_e = soldOut.defaultGiftAges) !== null && _e !== void 0 ? _e : [])[0]) !== null && _f !== void 0 ? _f : 5);
         const claimedKinds = new Set([...avoid].map((id) => catalog.find((r) => r.id === id)).flatMap((r) => (r ? [giftKindOfRow(r)] : [])));
         const otherKinds = giftKindFallbackOrder(kidAge, pool)
             .filter((k) => k !== kind && !claimedKinds.has(k))

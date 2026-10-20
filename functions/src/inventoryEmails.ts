@@ -320,16 +320,31 @@ export function displayName(name: string): string {
   return name.replace(/["“”]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-/** "The Lego Menorah is" / "The Roll Your Own Beeswax Candles are". */
-export function subjectWords(name: string): { item_title: string; is_are: string; it_they: string; it_them: string } {
+/** "The Lego Menorah is" / "The Roll Your Own Beeswax Candles are". Books are quoted, no "The". */
+export function subjectWords(
+  name: string,
+  isBook = false
+): { item_title: string; is_are: string; it_they: string; it_them: string } {
   const clean = displayName(name);
   const plural = /s$/i.test(clean) && !/ss$/i.test(clean);
   return {
-    item_title: `The ${clean}`,
+    item_title: isBook ? `"${clean}"` : `The ${clean}`,
     is_are: plural ? 'are' : 'is',
     it_they: plural ? 'they' : 'it',
     it_them: plural ? 'them' : 'it',
   };
+}
+
+/** Book titles are quoted in emails ("A Rugrats Chanukah"); other items stay bare. */
+function emailName(id: string, catalog: CatalogDocs): string {
+  const doc = catalog.get(id);
+  const clean = displayName(String(doc?.name ?? id));
+  const isBook = id.startsWith('book-') || doc?.category === 'Book';
+  return isBook ? `"${clean}"` : clean;
+}
+
+function isBookItem(id: string, catalog: CatalogDocs): boolean {
+  return id.startsWith('book-') || catalog.get(id)?.category === 'Book';
 }
 
 type CatalogDocs = Map<string, FirebaseFirestore.DocumentData>;
@@ -356,10 +371,11 @@ export async function emailDataFor(
     return {
       template: 'inventory-low',
       data: {
-        ...subjectWords(name(pick.itemId)),
+        ...subjectWords(name(pick.itemId), isBookItem(pick.itemId, catalog)),
         item_id: pick.itemId,
-        item_name: displayName(name(pick.itemId)),
-        image_url: (await imageFor(pick.itemId, 'secondary')) ?? '',
+        item_name: emailName(pick.itemId, catalog),
+        // Books show their cover (primary); everything else keeps the secondary shot.
+        image_url: (await imageFor(pick.itemId, isBookItem(pick.itemId, catalog) ? 'primary' : 'secondary')) ?? '',
         cta_url: links.secure,
       },
     };
@@ -368,13 +384,13 @@ export async function emailDataFor(
   return {
     template: 'inventory-swapped',
     data: {
-      ...subjectWords(name(fromItemId)),
+      ...subjectWords(name(fromItemId), isBookItem(fromItemId, catalog)),
       item_id: fromItemId,
-      item_name: displayName(name(fromItemId)),
+      item_name: emailName(fromItemId, catalog),
       image_url: (await imageFor(fromItemId, 'primary')) ?? '',
       has_replacement: !!toItemId,
       replacement_id: toItemId ?? '',
-      replacement_name: toItemId ? displayName(name(toItemId)) : '',
+      replacement_name: toItemId ? emailName(toItemId, catalog) : '',
       replacement_image_url: toItemId ? (await imageFor(toItemId, 'primary')) ?? '' : '',
       cta_url: links.secure,
       customize_url: links.customize ?? '',

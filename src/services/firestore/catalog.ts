@@ -129,6 +129,7 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
       : undefined,
     inventory: typeof data.inventory === 'number' ? data.inventory : null,
     holdInventory: typeof data.holdInventory === 'boolean' ? data.holdInventory : null,
+    procured: typeof data.procured === 'number' ? data.procured : null,
     wrappable: typeof data.wrappable === 'boolean' ? data.wrappable : null,
     directSaleCapBeforeLock:
       data.directSaleCapBeforeLock != null && Number.isFinite(Number(data.directSaleCapBeforeLock))

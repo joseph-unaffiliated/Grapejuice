@@ -71,6 +71,14 @@ assert.deepEqual(subjectWords('Roll Your Own Beeswax Candles'), {
 });
 assert.equal(subjectWords('Glass Dreidel Glass').is_are, 'is');
 assert.equal(subjectWords('Chess').is_are, 'is');
+// Books: quoted title, no "The".
+assert.deepEqual(subjectWords('A Rugrats Chanukah', true), {
+  item_title: '"A Rugrats Chanukah"',
+  is_are: 'is',
+  it_they: 'it',
+  it_them: 'it',
+});
+assert.equal(subjectWords('The Story of Hanukkah', true).item_title, '"The Story of Hanukkah"');
 
 // 10am ET date key, across the UTC midnight.
 assert.equal(etDate(new Date('2026-10-11T02:30:00Z')), '2026-10-10');

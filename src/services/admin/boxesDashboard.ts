@@ -137,6 +137,8 @@ export type DashInventoryRow = {
   shopRemaining?: number | null;
   favorites: number;
   favoritesReal: number;
+  /** Copies physically ordered (Airtable "Procured"); missing until the server function is redeployed. */
+  procured?: number | null;
 };
 
 export type DashShopLine = { itemId: string | null; name: string; qty: number; unitCents: number };

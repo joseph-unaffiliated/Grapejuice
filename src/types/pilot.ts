@@ -207,6 +207,8 @@ export type CatalogItem = {
   /** Units sitting in unsecured account drafts (signed-out boxes don't count). They hold no stock. */
   boxDraftHeld?: number | null;
   holdInventory?: boolean | null;
+  /** Copies physically ordered (sourcing tracker). Display-only; never gates. */
+  procured?: number | null;
   wrappable?: boolean | null;
   /**
    * Airtable "Available for Sale Before Box Close" — max units sellable à la carte

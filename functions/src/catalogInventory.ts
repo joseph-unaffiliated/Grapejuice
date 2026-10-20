@@ -8,7 +8,6 @@ import {
   availabilityAllowsDirectPurchase,
   availabilityRejectMessage,
   availabilityRemaining,
-  isCatalogBookItem,
   resolveAvailability,
   type CatalogAvailabilityItem,
   type CatalogInventoryCounters,
@@ -332,9 +331,13 @@ export async function assertBoxLinesWithinInventory(
   }
 }
 
-/** Items the box allocation counter tracks (books and uncapped items are skipped). */
+/**
+ * Items the box allocation counter tracks. Uncapped items (inventory null) are
+ * skipped — that covers almost all books; a book whose Airtable row checks
+ * "Hold inventory" carries a real ceiling and is tracked like any other item,
+ * so its committed holds can't be oversold at commit time.
+ */
 function boxAllocationTracked(item: CatalogAvailabilityItem): boolean {
-  if (isCatalogBookItem(item)) return false;
   return item.inventory != null && Number.isFinite(item.inventory);
 }
 

@@ -132,8 +132,11 @@ function formatCatalogRow(row: CatalogRow, detail: boolean): string {
     : row.directSaleCapBeforeLock != null && row.directSaleCapBeforeLock > 0
       ? ` avail=direct_cap=${row.directSaleCapBeforeLock}`
       : ' avail=box_only';
-  const left = isBook ? null : rowStockLeft(row);
-  const stock = left == null ? '' : ` left=${left}${isDefaultEligible(row) ? '' : ' low'}`;
+  // Untracked books have no stock story; a tracked book (Hold inventory) reports
+  // real units left so it's never offered once sold out or defaulted once low.
+  const left = isBook && row.inventory == null ? null : rowStockLeft(row);
+  const stock =
+    left == null ? '' : ` left=${left}${left <= 0 ? ' sold_out' : isDefaultEligible(row) ? '' : ' low'}`;
   const head = `${row.id} (${row.slotId}): ${row.name}${ages}${cat}${brand}${rails}${tier}${price}${avail}${stock}${swaps}`;
   if (!detail) return head;
   const extras: string[] = [];

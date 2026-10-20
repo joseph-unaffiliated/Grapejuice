@@ -8,6 +8,7 @@ import {
   isSoldOutForBoxes,
   planCandlesDefault,
   planGifts,
+  resolveBookForAge,
   rowRemainingWithDrafts,
   swapSoldOutLines,
   type BoxRulesCatalogRow,
@@ -171,6 +172,69 @@ const find = (c: BoxRulesCatalogRow[], id: string) => c.find((r) => r.id === id)
   const result = swapSoldOutLines(lines, c, () => 6);
   assert.equal(result.lines, lines);
   assert.deepEqual(result.swaps, []);
+}
+
+// ——— Books: untracked stays unlimited; tracked gates like any other item ———
+
+const bookRow = (id: string, name: string, inventory: number | null, extra: Partial<BoxRulesCatalogRow> = {}) =>
+  row(id, name, inventory, { slotId: 'story', defaultBookAges: [5], ...extra });
+
+const bookShelf = (over: Record<string, Partial<BoxRulesCatalogRow>> = {}) =>
+  [
+    bookRow('book-untracked', 'Untracked Book', null),
+    bookRow('book-tracked', 'Tracked Book', 10, { stockLeft: 10, draftHeld: 0 }),
+    bookRow('book-tracked-low', 'Low Book', 10, { stockLeft: 6, draftHeld: 3 }),
+    bookRow('book-tracked-gone', 'Gone Book', 10, { stockLeft: 0, draftHeld: 0 }),
+  ].map((r) => (r.id in over ? { ...r, ...over[r.id] } : r));
+
+// Untracked book: never low, never sold out, always the default when it's the age pick.
+{
+  const c = bookShelf();
+  assert.equal(isSoldOutForBoxes(find(c, 'book-untracked')), false);
+  assert.equal(isLowWithDrafts(find(c, 'book-untracked')), false);
+  assert.equal(resolveBookForAge(c, 5)?.id, 'book-untracked');
+}
+
+// Tracked book at 0: sold out, and never handed out as a default.
+{
+  const c = bookShelf();
+  assert.equal(isSoldOutForBoxes(find(c, 'book-tracked-gone')), true);
+  const picked = resolveBookForAge(c, 5, new Set(['book-untracked', 'book-tracked', 'book-tracked-low']));
+  assert.notEqual(picked?.id, 'book-tracked-gone');
+}
+
+// Tracked book that's low counting drafts: not a default while a healthy title exists.
+{
+  const c = bookShelf();
+  assert.equal(isLowWithDrafts(find(c, 'book-tracked-low')), true);
+  assert.equal(isDefaultEligible(find(c, 'book-tracked-low')), false);
+  assert.equal(resolveBookForAge(c, 5)?.id, 'book-untracked');
+}
+
+// Sold-out book in a draft is replaced with another book for the kid, not dropped.
+{
+  const c = bookShelf();
+  const lines = [{ slotId: 'story-k1', itemId: 'book-tracked-gone', childId: 'k1', quantity: 1, label: 'Gone Book' }];
+  const { lines: out, swaps } = swapSoldOutLines(lines, c, () => 5);
+  assert.equal(out.length, 1);
+  assert.notEqual(out[0].itemId, 'book-tracked-gone');
+  assert.equal(out[0].childId, 'k1');
+  assert.equal(swaps.length, 1);
+  assert.equal(swaps[0].fromItemId, 'book-tracked-gone');
+  assert.equal(swaps[0].toItemId, out[0].itemId);
+}
+
+// Every book sold out or untrackable: the story line is dropped only as a last resort.
+{
+  const c = bookShelf({
+    'book-untracked': { stockLeft: 0, inventory: 0 },
+    'book-tracked': { stockLeft: 0 },
+    'book-tracked-low': { stockLeft: 0 },
+  });
+  const lines = [{ slotId: 'story-k1', itemId: 'book-tracked-gone', childId: 'k1', quantity: 1 }];
+  const { lines: out, swaps } = swapSoldOutLines(lines, c, () => 5);
+  assert.equal(out.length, 0);
+  assert.deepEqual(swaps, [{ fromItemId: 'book-tracked-gone', toItemId: null }]);
 }
 
 console.log('boxRules sold-out tests passed');

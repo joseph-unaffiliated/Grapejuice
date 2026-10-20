@@ -258,10 +258,13 @@ async function assertBoxLinesWithinInventory(db, proposedLines, options) {
         assertBoxItemWithinInventory(itemId, itemSnap, invSnap, (_b = proposed.get(itemId)) !== null && _b !== void 0 ? _b : 0, (_c = credit.get(itemId)) !== null && _c !== void 0 ? _c : 0);
     }
 }
-/** Items the box allocation counter tracks (books and uncapped items are skipped). */
+/**
+ * Items the box allocation counter tracks. Uncapped items (inventory null) are
+ * skipped — that covers almost all books; a book whose Airtable row checks
+ * "Hold inventory" carries a real ceiling and is tracked like any other item,
+ * so its committed holds can't be oversold at commit time.
+ */
 function boxAllocationTracked(item) {
-    if ((0, catalogAvailability_1.isCatalogBookItem)(item))
-        return false;
     return item.inventory != null && Number.isFinite(item.inventory);
 }
 function assertBoxItemWithinInventory(itemId, itemSnap, invSnap, want, credited) {

@@ -1032,6 +1032,10 @@ const isStoryRow = (r: BoxRulesCatalogRow) =>
 /**
  * Default book for a kid's age. `avoid` (books already in the box) steers siblings to a
  * different title; it only gives way when every book is taken.
+ *
+ * Stock gates books the same way gifts are gated: default-eligible titles first
+ * (untracked books always are), then anything that can still spare a unit. A
+ * sold-out tracked title is never handed out as a default.
  */
 export function resolveBookForAge(
   catalog: BoxRulesCatalogRow[] | undefined,
@@ -1039,6 +1043,19 @@ export function resolveBookForAge(
   avoid?: ReadonlySet<string>
 ): BoxRulesCatalogRow | undefined {
   if (!catalog?.length) return undefined;
+  const eligible = catalog.filter((r) => isDefaultEligible(r));
+  const fromEligible = pickBook(eligible, age, avoid);
+  if (fromEligible) return fromEligible;
+  const spare = catalog.filter((r) => !isSoldOutForBoxes(r) && canAssignUnit(r));
+  return pickBook(spare, age, avoid);
+}
+
+function pickBook(
+  catalog: BoxRulesCatalogRow[],
+  age: number,
+  avoid?: ReadonlySet<string>
+): BoxRulesCatalogRow | undefined {
+  if (!catalog.length) return undefined;
   if (avoid?.size) {
     const rest = catalog.filter((r) => !avoid.has(r.id));
     const picked = exactDefaultBook(rest, age) ?? cheapNearbyDefaultBook(rest, age) ?? pickBookForAge(rest, age);
@@ -1167,6 +1184,7 @@ export function soldOutReplacement(
   const avoid = new Set([line.itemId, ...(options.avoidIds ?? [])]);
   const pool = catalog.filter((r) => !avoid.has(r.id) && !isSoldOutForBoxes(r));
   const paid = (line.unitCents ?? 0) > 0;
+  const age = options.age;
 
   const candleKind = CANDLES_FALLBACK_ORDER.find((k) => resolveCandlesRow(catalog, k)?.id === line.itemId);
   if (candleKind && !isGiftLineSlot(line.slotId)) {
@@ -1177,8 +1195,14 @@ export function soldOutReplacement(
     );
   }
 
+  // A story line always stays a book: the kid's age-appropriate title that isn't
+  // already in the box (never dropped, unlike an unlisted paid add-on).
+  if (isStoryRow(soldOut)) {
+    const kidAge = age ?? Number((soldOut.defaultBookAges ?? [])[0] ?? 5);
+    return resolveBookForAge(pool, kidAge, avoid);
+  }
+
   const kind = giftKindOfRow(soldOut);
-  const age = options.age;
   const sameKind = kind ? giftKindRows(pool, kind, age) : [];
 
   if (isGiftLineSlot(line.slotId) && !paid) {

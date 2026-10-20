@@ -455,6 +455,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
         items.set(d.id, {
             name: (_c = str(x.name)) !== null && _c !== void 0 ? _c : d.id,
             inventory: num(x.inventory),
+            procured: num(x.procured),
             category: str(x.category),
             categories: Array.isArray(x.categories) ? x.categories.filter((c) => typeof c === 'string') : undefined,
             directSaleCapBeforeLock: num(x.directSaleCapBeforeLock),
@@ -920,6 +921,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             shopRemaining: (0, catalogAvailability_1.availabilityRemaining)(shop),
             favorites: (_53 = favorites.get(id)) !== null && _53 !== void 0 ? _53 : 0,
             favoritesReal: (_54 = favoritesReal.get(id)) !== null && _54 !== void 0 ? _54 : 0,
+            procured: it.procured,
         });
     }
     boxes.sort((a, b) => { var _a, _b; return String((_a = b.updatedAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.updatedAt) !== null && _b !== void 0 ? _b : '')); });

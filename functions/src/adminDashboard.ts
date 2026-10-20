@@ -163,6 +163,8 @@ export type DashInventoryRow = {
   shopRemaining: number | null;
   favorites: number;
   favoritesReal: number;
+  /** Copies physically ordered (Airtable "Procured"); display-only, null when unset. */
+  procured: number | null;
 };
 
 /** One person per row for the By ad tab: raw slider answers (scored client-side) and how far they got. */
@@ -710,6 +712,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     {
       name: string;
       inventory: number | null;
+      procured: number | null;
       category: string | null;
       categories: string[] | undefined;
       directSaleCapBeforeLock: number | null;
@@ -721,6 +724,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     items.set(d.id, {
       name: str(x.name) ?? d.id,
       inventory: num(x.inventory),
+      procured: num(x.procured),
       category: str(x.category),
       categories: Array.isArray(x.categories) ? x.categories.filter((c: unknown): c is string => typeof c === 'string') : undefined,
       directSaleCapBeforeLock: num(x.directSaleCapBeforeLock),
@@ -1264,6 +1268,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       shopRemaining: availabilityRemaining(shop),
       favorites: favorites.get(id) ?? 0,
       favoritesReal: favoritesReal.get(id) ?? 0,
+      procured: it.procured,
     });
   }
   boxes.sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));

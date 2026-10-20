@@ -45,6 +45,10 @@ const F = {
     description: 'fldMEo3Bys38SVisV',
     inProduction: 'fldN3303eOahUbJFU',
     inventory: 'fldXpTJPasuaXfoeW',
+    /** Checkbox: when checked, the sync treats Inventory as a real ceiling (books too). */
+    holdInventory: 'fldFpeHc3sxneJ1TH',
+    /** Number: copies physically ordered (Joseph's sourcing tracker; display-only). */
+    procured: 'flduff7svNVQ4pkEw',
     unitCost: 'fldJNKCjYA1aLC2KU',
     memberPrice: 'fldSKmIeWfuRoB2IC',
     nonMemberPrice: 'fld9ipf5vOEkaMGes',
@@ -500,6 +504,8 @@ function listingToItem(rec, images) {
         context: contexts,
         source: selectName(f[F.source]),
         inventory: typeof f[F.inventory] === 'number' ? f[F.inventory] : null,
+        holdInventory: f[F.holdInventory] === true,
+        procured: typeof f[F.procured] === 'number' ? f[F.procured] : null,
         airtableRecordId: rec.id,
         airtableTable: 'full-catalog',
         brand: null,
@@ -530,7 +536,9 @@ function bookTitle(fcRec, bookRec) {
 /**
  * A Full Catalog Book row → catalog item. Full Catalog owns listing (In production?),
  * prices, ages and default ages; the linked Hanukkah Books row only supplies copy.
- * Inventory is ignored for books — they stay untracked so stock rules never swap them.
+ * Books stay inventory-untracked (infinite, stock rules never swap them) unless
+ * "Hold inventory" is checked — then Inventory is the sellable ceiling (blank = 0)
+ * and Procured rides along display-only for the admin sourcing view.
  */
 function bookToItem(fcRec, bookRec, images) {
     var _a, _b, _c, _d;
@@ -570,7 +578,13 @@ function bookToItem(fcRec, bookRec, images) {
         category: 'Book',
         context: ['Default'],
         source: 'Curated',
-        inventory: null,
+        inventory: f[F.holdInventory] === true
+            ? typeof f[F.inventory] === 'number'
+                ? f[F.inventory]
+                : 0
+            : null,
+        holdInventory: f[F.holdInventory] === true,
+        procured: typeof f[F.procured] === 'number' ? f[F.procured] : null,
         airtableRecordId: fcRec.id,
         airtableTable: 'books',
         brand: author || null,

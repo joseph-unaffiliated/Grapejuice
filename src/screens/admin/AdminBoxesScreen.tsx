@@ -1464,10 +1464,12 @@ function InventorySection({
   const [view, setView] = useState<'all' | 'tracked' | 'shop' | 'held' | 'low'>('all');
   const [query, setQuery] = useState('');
   const [hideBooks, setHideBooks] = useState(false);
+  const [onlyBooks, setOnlyBooks] = useState(false);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return inventory.filter((i) => {
       if (hideBooks && i.id.startsWith('book-')) return false;
+      if (onlyBooks && !i.id.startsWith('book-')) return false;
       if (view === 'tracked' && i.stock == null) return false;
       if (view === 'shop' && !(i.directCap ?? 0) && i.directSold + i.directReserved === 0) return false;
       if (view === 'low' && (i.remainingAfterDrafts == null || i.remainingAfterDrafts > LOW_THRESHOLD)) return false;
@@ -1475,7 +1477,7 @@ function InventorySection({
       if (q && !i.name.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [inventory, view, query, hideBooks]);
+  }, [inventory, view, query, hideBooks, onlyBooks]);
   const dash = (n: number) => (n ? String(n) : '—');
   // Wide enough for the longest non-book name; long book titles truncate.
   const itemMaxWidth = useMemo(() => {
@@ -1489,6 +1491,8 @@ function InventorySection({
     { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'N/A' : String(i.stock)), sort: (i) => i.stock },
     { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
     { label: 'In gifts', width: 65, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
+    { label: 'Committed', width: 85, align: 'right', cell: (i) => dash(i.heldByBoxes + i.heldByGifts), sort: (i) => i.heldByBoxes + i.heldByGifts },
+    { label: 'Procured', width: 75, align: 'right', cell: (i) => (i.procured == null ? '—' : dash(i.procured)), sort: (i) => i.procured ?? null },
     { label: 'Sold direct', width: 85, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
     { label: 'Reserved (unpaid)', width: 125, align: 'right', cell: (i) => dash(i.directReserved), sort: (i) => i.directReserved },
     { label: 'Available', width: 80, align: 'right', cell: (i) => (i.remaining == null ? '—' : String(i.remaining)), sort: (i) => i.remaining },
@@ -1519,7 +1523,24 @@ function InventorySection({
         ]}
       />
       <ChipRow styles={styles}>
-        <Chip label="Hide books" active={hideBooks} onPress={() => setHideBooks((v) => !v)} styles={styles} />
+        <Chip
+          label="Hide books"
+          active={hideBooks}
+          onPress={() => setHideBooks((v) => {
+            if (!v) setOnlyBooks(false);
+            return !v;
+          })}
+          styles={styles}
+        />
+        <Chip
+          label="Only books"
+          active={onlyBooks}
+          onPress={() => setOnlyBooks((v) => {
+            if (!v) setHideBooks(false);
+            return !v;
+          })}
+          styles={styles}
+        />
       </ChipRow>
       <TextInput
         style={styles.input}
@@ -1546,7 +1567,7 @@ function InventorySection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${inventory.length} items. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Available = on hand − in boxes − in gifts − sold direct − reserved. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
+        {`${rows.length} of ${inventory.length} items. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts. Procured = copies physically ordered (Airtable "Procured"; display-only — gap to close is Committed − Procured). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Available = on hand − in boxes − in gifts − sold direct − reserved. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
       </Text>
     </View>
   );

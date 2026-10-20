@@ -258,16 +258,28 @@ function previousDate(date) {
 function displayName(name) {
     return name.replace(/["“”]/g, '').replace(/\s+/g, ' ').trim();
 }
-/** "The Lego Menorah is" / "The Roll Your Own Beeswax Candles are". */
-function subjectWords(name) {
+/** "The Lego Menorah is" / "The Roll Your Own Beeswax Candles are". Books are quoted, no "The". */
+function subjectWords(name, isBook = false) {
     const clean = displayName(name);
     const plural = /s$/i.test(clean) && !/ss$/i.test(clean);
     return {
-        item_title: `The ${clean}`,
+        item_title: isBook ? `"${clean}"` : `The ${clean}`,
         is_are: plural ? 'are' : 'is',
         it_they: plural ? 'they' : 'it',
         it_them: plural ? 'them' : 'it',
     };
+}
+/** Book titles are quoted in emails ("A Rugrats Chanukah"); other items stay bare. */
+function emailName(id, catalog) {
+    var _a;
+    const doc = catalog.get(id);
+    const clean = displayName(String((_a = doc === null || doc === void 0 ? void 0 : doc.name) !== null && _a !== void 0 ? _a : id));
+    const isBook = id.startsWith('book-') || (doc === null || doc === void 0 ? void 0 : doc.category) === 'Book';
+    return isBook ? `"${clean}"` : clean;
+}
+function isBookItem(id, catalog) {
+    var _a;
+    return id.startsWith('book-') || ((_a = catalog.get(id)) === null || _a === void 0 ? void 0 : _a.category) === 'Book';
 }
 async function loadCatalogDocs(db, ids) {
     const unique = [...new Set(ids)];
@@ -283,13 +295,15 @@ async function emailDataFor(pick, catalog, links, imageFor) {
     if (pick.kind === 'low') {
         return {
             template: 'inventory-low',
-            data: Object.assign(Object.assign({}, subjectWords(name(pick.itemId))), { item_id: pick.itemId, item_name: displayName(name(pick.itemId)), image_url: (_a = (await imageFor(pick.itemId, 'secondary'))) !== null && _a !== void 0 ? _a : '', cta_url: links.secure }),
+            data: Object.assign(Object.assign({}, subjectWords(name(pick.itemId), isBookItem(pick.itemId, catalog))), { item_id: pick.itemId, item_name: emailName(pick.itemId, catalog), 
+                // Books show their cover (primary); everything else keeps the secondary shot.
+                image_url: (_a = (await imageFor(pick.itemId, isBookItem(pick.itemId, catalog) ? 'primary' : 'secondary'))) !== null && _a !== void 0 ? _a : '', cta_url: links.secure }),
         };
     }
     const { fromItemId, toItemId } = pick.swap;
     return {
         template: 'inventory-swapped',
-        data: Object.assign(Object.assign({}, subjectWords(name(fromItemId))), { item_id: fromItemId, item_name: displayName(name(fromItemId)), image_url: (_b = (await imageFor(fromItemId, 'primary'))) !== null && _b !== void 0 ? _b : '', has_replacement: !!toItemId, replacement_id: toItemId !== null && toItemId !== void 0 ? toItemId : '', replacement_name: toItemId ? displayName(name(toItemId)) : '', replacement_image_url: toItemId ? (_c = (await imageFor(toItemId, 'primary'))) !== null && _c !== void 0 ? _c : '' : '', cta_url: links.secure, customize_url: (_d = links.customize) !== null && _d !== void 0 ? _d : '' }),
+        data: Object.assign(Object.assign({}, subjectWords(name(fromItemId), isBookItem(fromItemId, catalog))), { item_id: fromItemId, item_name: emailName(fromItemId, catalog), image_url: (_b = (await imageFor(fromItemId, 'primary'))) !== null && _b !== void 0 ? _b : '', has_replacement: !!toItemId, replacement_id: toItemId !== null && toItemId !== void 0 ? toItemId : '', replacement_name: toItemId ? emailName(toItemId, catalog) : '', replacement_image_url: toItemId ? (_c = (await imageFor(toItemId, 'primary'))) !== null && _c !== void 0 ? _c : '' : '', cta_url: links.secure, customize_url: (_d = links.customize) !== null && _d !== void 0 ? _d : '' }),
     };
 }
 /** UTMs on every link so the order's client attribution (lastTouch) names the email. */
