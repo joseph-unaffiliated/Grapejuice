@@ -121,6 +121,7 @@ export { recordBoxDraftHistory, recordGuestBoxHistory } from './boxHistory';
 export { scheduledBoxAudit } from './boxAuditJob';
 export { decideBoxAuditProblem } from './boxAuditDecisions';
 export { scheduledInventoryEmails } from './inventoryEmails';
+export { scheduledBookSelloutFlips } from './bookSelloutFlips';
 export {
   adminPilotParticipants,
   enrollPilot,

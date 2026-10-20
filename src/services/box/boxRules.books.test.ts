@@ -70,4 +70,16 @@ assert.equal(
   );
 }
 
+// Winding-down books (Hold inventory) are the last resort for a default: an
+// ordinary title wins even at a worse age fit; a held title still fills in
+// when nothing ordinary fits.
+{
+  const shelf = [
+    book('book-held-exact', [5], '3-5'),
+    book('book-plain-near', [7], '6-8'),
+  ].map((r) => (r.id === 'book-held-exact' ? { ...r, holdInventory: true } : r));
+  assert.equal(resolveBookForAge(shelf, 5)?.id, 'book-plain-near');
+  assert.equal(resolveBookForAge([shelf[0]], 5)?.id, 'book-held-exact');
+}
+
 console.log('boxRules books ok');

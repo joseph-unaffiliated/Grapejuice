@@ -119,4 +119,15 @@ const ids = (items: CatalogItem[]) => items.map((b) => b.id);
   assert.equal(STORY_SWAP_PREVIEW, 12);
 }
 
+// Winding-down books (Hold inventory — the sell-out set) sink to the bottom,
+// even when one of them is the age-default.
+{
+  const books = [
+    book({ id: 'held-default', name: 'Held Default', defaultBookAges: [5], holdInventory: true }),
+    book({ id: 'plain', name: 'Plain', defaultBookAges: [12] }),
+    book({ id: 'held-other', name: 'Held Other', holdInventory: true }),
+  ];
+  assert.deepEqual(ids(orderStorySwapBooks(books, [5])), ['plain', 'held-default', 'held-other']);
+}
+
 console.log('sectionUpsells.storyOrder: ok');

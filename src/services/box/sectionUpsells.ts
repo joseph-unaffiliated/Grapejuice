@@ -172,6 +172,10 @@ export function orderStorySwapBooks(books: CatalogItem[], kidAges: readonly numb
   };
 
   return [...books].sort((a, b) => {
+    // Winding-down books ('Hold inventory' in Airtable — the sell-out set) sink
+    // below everything else, however good an age fit they are.
+    const hd = demoteRank(a) - demoteRank(b);
+    if (hd) return hd;
     const td = tier(a) - tier(b);
     if (td) return td;
     if (tier(a) === 0) {
@@ -183,6 +187,16 @@ export function orderStorySwapBooks(books: CatalogItem[], kidAges: readonly numb
     }
     return (index.get(a.id) ?? 0) - (index.get(b.id) ?? 0);
   });
+}
+
+/** 1 for books being wound down (inventory-held), so they sort after all others. */
+export function demoteRank(item: { holdInventory?: boolean | null }): number {
+  return item.holdInventory === true ? 1 : 0;
+}
+
+/** Held (winding-down) books last; order otherwise preserved. */
+export function demoteHeldBooks<T extends { holdInventory?: boolean | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) => demoteRank(a) - demoteRank(b));
 }
 
 /** Ordered story shelf, capped for the phone swap row (Browse all follows in the UI). */
@@ -614,8 +628,8 @@ export function resolveSectionUpsellItems(
     }
   }
 
-  // Story: keep books in natural kind order. Other sections should have none.
-  if (sectionId === 'story') return out.slice(0, limit);
+  // Story: keep books in natural kind order, winding-down titles last.
+  if (sectionId === 'story') return demoteHeldBooks(out).slice(0, limit);
   return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
 }
 
@@ -651,7 +665,7 @@ export function resolveSectionSwapItems(
     }
   }
 
-  return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
+  return (sectionId === 'story' ? demoteHeldBooks(out) : excludeBooksUnlessStory(sectionId, out)).slice(0, limit);
 }
 
 /**
@@ -925,11 +939,13 @@ export function resolveSwapOptionsForItem(
   }
   const peers = openSwapPeers(item, catalog);
   if (peers) {
-    // Books: any book for any book. Stuffies: every other stuffie first, then the graph.
-    if (isBookishCatalogItem(item) && !isStuffieCatalogItem(item)) return peers;
+    // Books: any book for any book (winding-down titles last). Stuffies: every
+    // other stuffie first, then the graph.
+    if (isBookishCatalogItem(item) && !isStuffieCatalogItem(item)) return demoteHeldBooks(peers);
     return withOpenPeersFirst(peers, resolveSwapOptionsForItemGraph(item, catalog, limit, opts), limit);
   }
-  return resolveSwapOptionsForItemGraph(item, catalog, limit, opts);
+  const graph = resolveSwapOptionsForItemGraph(item, catalog, limit, opts);
+  return isBookishCatalogItem(item) ? demoteHeldBooks(graph) : graph;
 }
 
 function resolveSwapOptionsForItemGraph(

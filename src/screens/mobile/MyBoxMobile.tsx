@@ -973,6 +973,19 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
                   <MobileButton label="Swap" variant="secondary" height={34} onPress={() => { void e.applySwap(group.lines.map((l) => l.slotId), o); setSheet(null); }} />
                 </View>
               ))}
+              {sectionId === 'story' ? (
+                <Pressable
+                  onPress={() => {
+                    setSheet(null);
+                    navigateMainStack('StorefrontCategory', { category: 'books' });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="See all books"
+                  style={styles.browseCard}
+                >
+                  <Text style={styles.browseTitle}>See all books</Text>
+                </Pressable>
+              ) : null}
             </ScrollView>
           </>
         ) : null}

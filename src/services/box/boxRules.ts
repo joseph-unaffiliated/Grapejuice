@@ -1104,11 +1104,20 @@ export function resolveBookForAge(
   avoid?: ReadonlySet<string>
 ): BoxRulesCatalogRow | undefined {
   if (!catalog?.length) return undefined;
-  const eligible = catalog.filter((r) => isDefaultEligible(r));
-  const fromEligible = pickBook(eligible, age, avoid);
-  if (fromEligible) return fromEligible;
-  const spare = catalog.filter((r) => !isSoldOutForBoxes(r) && canAssignUnit(r));
-  return pickBook(spare, age, avoid);
+  // Books being wound down ('Hold inventory') are the last resort at every tier:
+  // only picked when no ordinary title fits.
+  const ordinary = catalog.filter((r) => r.holdInventory !== true);
+  const windingDown = catalog.filter((r) => r.holdInventory === true);
+  for (const pool of [ordinary, windingDown]) {
+    if (!pool.length) continue;
+    const eligible = pool.filter((r) => isDefaultEligible(r));
+    const fromEligible = pickBook(eligible, age, avoid);
+    if (fromEligible) return fromEligible;
+    const spare = pool.filter((r) => !isSoldOutForBoxes(r) && canAssignUnit(r));
+    const fromSpare = pickBook(spare, age, avoid);
+    if (fromSpare) return fromSpare;
+  }
+  return undefined;
 }
 
 function pickBook(
