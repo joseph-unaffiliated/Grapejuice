@@ -7,6 +7,7 @@ import { useWishlist } from '../../hooks/useWishlist';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import { availabilityRemaining, LOW_STOCK_AT } from '../../services/catalog/availability';
+import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import { MobileButton } from './MobileButton';
 import { balanceProps, m, mFont, mRadius } from './mobileTheme';
@@ -19,9 +20,12 @@ export type TileStatus =
   | null;
 
 /** Sold out, or "Low stock" once 4 or fewer are left. Shoppers never see the count. */
-export function stockStatus(avail: CatalogAvailability | undefined): TileStatus {
+export function stockStatus(avail: CatalogAvailability | undefined, item?: CatalogItem): TileStatus {
+  if (avail?.status === 'sold_out') return { kind: 'sold' };
+  // Box-only items (books) never report sold_out through availability; their
+  // catalog stock count is the authority.
+  if (item && isCatalogItemSoldOut(item)) return { kind: 'sold' };
   if (!avail) return null;
-  if (avail.status === 'sold_out') return { kind: 'sold' };
   const left = availabilityRemaining(avail);
   return left != null && left > 0 && left <= LOW_STOCK_AT ? { kind: 'low' } : null;
 }
@@ -89,7 +93,11 @@ export function ProductTileMobile({ item, width, onPress, status = null, action,
           <Text style={styles.price}>{formatCatalogDollars(price)}</Text>
         ) : null}
       </Pressable>
-      {action ? <MobileButton label={action.label} onPress={action.onPress} variant={action.variant ?? 'secondary'} height={38} style={styles.action} /> : null}
+      {sold ? (
+        <MobileButton label="Sold out" onPress={() => {}} variant="secondary" disabled height={38} style={styles.action} />
+      ) : action ? (
+        <MobileButton label={action.label} onPress={action.onPress} variant={action.variant ?? 'secondary'} height={38} style={styles.action} />
+      ) : null}
     </View>
   );
 }

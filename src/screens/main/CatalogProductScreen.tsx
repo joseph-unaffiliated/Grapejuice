@@ -862,7 +862,7 @@ export function CatalogProductScreen() {
                   </TouchableOpacity>
                 ) : null}
               </View>
-              {!hasStartedBox || !inCart ? (
+              {!marketplaceBlocked && !boxBlocked && (!hasStartedBox || !inCart) ? (
                 <Text style={styles.shipNote}>
                   Arrives in time for Hanukkah (est. {shipWindow})
                 </Text>

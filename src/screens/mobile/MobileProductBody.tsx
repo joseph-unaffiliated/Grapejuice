@@ -132,7 +132,7 @@ export function MobileProductBody(p: Props) {
   const boxPrice = p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included';
 
   const bar = p.soldOut ? (
-    <StickyBar label="Sold out" total={p.onNotifyBack ? 'We can email you if it comes back' : ''} layout="row" cta={{ label: 'Email me if it’s back', onPress: p.onNotifyBack ?? (() => {}), variant: 'secondary', disabled: !p.onNotifyBack }} />
+    <StickyBar label="Sold out" total="" layout="row" />
   ) : p.inBox ? (
     <StickyBar label={p.inBoxUnitCents > 0 ? `Added${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''}` : 'In your box'} total={p.inBoxUnitCents > 0 ? `+${formatCatalogDollars(p.inBoxUnitCents * p.boxQuantity)}` : 'Included'} cta={{ label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }} />
   ) : p.hasBox ? (
@@ -318,7 +318,7 @@ function ProductShelf({
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
         {items.slice(0, 8).map((it) => (
-          <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(availabilityById?.[it.id])} onPress={() => onOpenProduct(it.id)} />
+          <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(availabilityById?.[it.id], it)} onPress={() => onOpenProduct(it.id)} />
         ))}
       </ScrollView>
     </View>

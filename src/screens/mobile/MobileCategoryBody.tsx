@@ -61,7 +61,7 @@ export function MobileCategoryBody(p: Props) {
     const inBox = p.boxState.get(it.id);
     let status: TileStatus = null;
     if (inBox) status = inBox.paid ? { kind: 'added', text: `Added${inBox.kid ? ` for ${inBox.kid}` : ''}` } : { kind: 'inbox' };
-    else status = stockStatus(avail);
+    else status = stockStatus(avail, it);
     return (
       <ProductTileMobile
         key={it.id}

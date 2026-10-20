@@ -14,7 +14,7 @@ type Props = {
   total?: string;
   /** Tapping the label/total area (opens the receipt). */
   onSummaryPress?: () => void;
-  cta: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean; variant?: 'primary' | 'secondary' };
+  cta?: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean; variant?: 'primary' | 'secondary' };
   /** Side by side (box editor) or stacked (checkout, gifts). */
   layout?: 'row' | 'stack';
   /** Shown above the bar, e.g. "Move both sliders to continue". */
@@ -52,9 +52,11 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
       {layout === 'row' ? (
         <View style={styles.row}>
           {summary}
-          <View style={ctaFill ? styles.rowCta : null}>
-            <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={ctaFill ? 50 : 48} style={ctaFill ? null : styles.ctaHug} />
-          </View>
+          {cta ? (
+            <View style={ctaFill ? styles.rowCta : null}>
+              <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={ctaFill ? 50 : 48} style={ctaFill ? null : styles.ctaHug} />
+            </View>
+          ) : null}
         </View>
       ) : (
         <>
@@ -64,7 +66,7 @@ export function StickyBar({ label, total, onSummaryPress, cta, layout = 'row', h
               <Text style={styles.stackTotal}>{total}</Text>
             </View>
           ) : null}
-          <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={54} />
+          {cta ? <MobileButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} busy={cta.busy} variant={cta.variant} height={54} /> : null}
         </>
       )}
     </View>,

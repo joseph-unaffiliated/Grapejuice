@@ -43,7 +43,7 @@ export function MobileFavoritesBody(p: Props) {
           <View style={styles.grid}>
             {p.items.map((it) => {
               const inBox = p.boxIds.has(it.id);
-              const status = inBox ? ({ kind: 'inbox' } as const) : stockStatus(p.availabilityById[it.id]);
+              const status = inBox ? ({ kind: 'inbox' } as const) : stockStatus(p.availabilityById[it.id], it);
               return (
                 <ProductTileMobile
                   key={it.id}

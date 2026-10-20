@@ -25,6 +25,7 @@ import {
   boxOnlyNotAvailableWithoutBoxLine,
 } from '../../services/catalog/availabilityCopy';
 import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
+import { isCatalogItemSoldOut } from '../../services/box/soldOutReconcile';
 import {
   borderRadius,
   semanticColors,
@@ -283,6 +284,8 @@ export function StorefrontProductTile({
   const showWelcomeBadge = isWelcomeMenorah(item);
   const isBoxOnly = availability?.status === 'box_only';
   const isSoldOut = availability?.status === 'sold_out';
+  /** Box stock exhausted (box-only items like books never report sold_out via availability). */
+  const boxSoldOut = isCatalogItemSoldOut(item);
   const description = item.description?.trim() ?? '';
   const secondaryUrl = firstSecondaryUrl(item);
   const [hoverSecondary, setHoverSecondary] = useState(false);
@@ -449,6 +452,18 @@ export function StorefrontProductTile({
             label={item.name}
           />
         </View>
+      ) : boxSoldOut ? (
+        <View style={styles.chipRow}>
+          <TouchableOpacity
+            style={[styles.chip, styles.chipDisabled]}
+            disabled
+            accessibilityRole="button"
+            accessibilityState={{ disabled: true }}
+            accessibilityLabel={`Sold out ${item.name}`}
+          >
+            <Text style={[styles.chipText, styles.chipTextDisabled]}>sold out</Text>
+          </TouchableOpacity>
+        </View>
       ) : boxRelation === 'swap' ? (
         <View style={styles.chipRow}>
           <TouchableOpacity
@@ -606,6 +621,13 @@ const styles = StyleSheet.create({
   chipPrimary: {
     backgroundColor: semanticColors.brand,
     borderColor: semanticColors.brand,
+  },
+  chipDisabled: {
+    backgroundColor: semanticColors.bgElevated,
+    borderColor: semanticColors.border,
+  },
+  chipTextDisabled: {
+    color: semanticColors.textTertiary,
   },
   chipSpaced: {
     marginTop: spacing.sm,
