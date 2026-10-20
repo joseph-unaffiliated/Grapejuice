@@ -4,6 +4,7 @@ import {
   auditIncluded,
   freeDreidelUnits,
   geltBagOf,
+  healIncludedInCustomerFavor,
   includedCountLabel,
   topUpDreidelLines,
   type AuditCatalogRow,
@@ -18,6 +19,7 @@ const catalog: AuditCatalogRow[] = [
   { id: 'party-bag-of-gelt', name: 'Party Bag of Gelt (20 big, 80 little)', category: 'Gelt' },
   { id: 'latke-kit', category: 'Food' },
   { id: 'sufganiyot-kit', category: 'Food' },
+  { id: 'dreidel-cookie-cutters', name: 'Dreidel Cookie Cutters', category: 'Food' },
   { id: 'wrapping-paper', category: 'Other' },
   { id: 'book-hanukkah-bear', category: 'Book' },
   { id: 'book-latke-s-first-hanukkah', category: 'Book' },
@@ -171,6 +173,22 @@ const codes = (lines: BoxLineItem[], hh: { kidKeys: string[]; adults?: number } 
   assert.deepEqual(codes(stuffie), ['food:not-included-item', 'food:food-slot-missing']);
   const paidKit = twoKidBox().map((l) => (l.slotId === 'latke-mix' ? { ...l, unitCents: 500 } : l));
   assert.deepEqual(codes(paidKit), ['food:paid-in-included-slot', 'food:food-slot-missing']);
+  // Cookie cutters on catalog `decor` are a free-add-on until rehomed into a food slot.
+  const cuttersOnDecor = [
+    ...twoKidBox().filter((l) => l.slotId !== 'sufganiyot-mix'),
+    L('decor', 'dreidel-cookie-cutters'),
+  ];
+  assert.deepEqual(codes(cuttersOnDecor), ['other:free-add-on', 'food:food-slot-missing']);
+  const healedCutters = healIncludedInCustomerFavor(cuttersOnDecor, catalog, twoKids);
+  assert.equal(
+    healedCutters.lineItems.find((l) => l.itemId === 'dreidel-cookie-cutters')?.slotId,
+    'sufganiyot-mix'
+  );
+  assert.deepEqual(codes(healedCutters.lineItems), []);
+  // Both food slots full: free cookie cutters on decor stay a free-add-on (not a third slot).
+  const fullPlusCutters = [...twoKidBox(), L('decor', 'dreidel-cookie-cutters')];
+  assert.deepEqual(codes(fullPlusCutters), ['other:free-add-on']);
+  assert.deepEqual(healIncludedInCustomerFavor(fullPlusCutters, catalog, twoKids).lineItems, fullPlusCutters);
 }
 
 // Wrap: one included wrap; paper on top of pre-wrap is paid.

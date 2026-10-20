@@ -11,6 +11,7 @@ const plainTalk_1 = require("./plainTalk");
 const context_1 = require("./context");
 const boxCurator_1 = require("./modes/boxCurator");
 const boxRules_1 = require("./boxRules");
+const anthropicCache_1 = require("./anthropicCache");
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 const MAX_ACTIONS = 2;
 const BLOCKED_SLOT_PREFIXES = ['gelt', 'latke', 'sufgan', 'wrapping', 'pre-wrap'];
@@ -251,7 +252,12 @@ exports.curatePilotBox = (0, sentry_1.onCall)({ secrets: [anthropicApiKey], maxI
     }
     const catalogRows = await (0, context_1.loadCatalogRows)();
     const boxRulesContext = await (0, context_1.buildBoxRulesContext)(catalogRows);
-    const system = `${boxCurator_1.BOX_CURATOR_SYSTEM}${presence_1.PRESENCE_APPEND}${plainTalk_1.PLAIN_TALK_APPEND}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}\n\n${boxCurator_1.BOX_CURATOR_JSON_INSTRUCTIONS}`;
+    // Static curator voice + JSON schema, then shared box-rules CONTEXT — both
+    // cacheable across onboarding families (1h TTL). Per-family payload stays in messages.
+    const system = [
+        (0, anthropicCache_1.cachedText)(`${boxCurator_1.BOX_CURATOR_SYSTEM}${presence_1.PRESENCE_APPEND}${plainTalk_1.PLAIN_TALK_APPEND}\n\n${boxCurator_1.BOX_CURATOR_JSON_INSTRUCTIONS}`, '1h'),
+        (0, anthropicCache_1.cachedText)(`---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}`, '1h'),
+    ];
     const anthropic = new sdk_1.default({ apiKey });
     try {
         const response = await anthropic.messages.create({
@@ -260,6 +266,7 @@ exports.curatePilotBox = (0, sentry_1.onCall)({ secrets: [anthropicApiKey], maxI
             system,
             messages: [{ role: 'user', content: buildUserMessage(data) }],
         });
+        logger.info('curatePilotBox Anthropic usage', (0, anthropicCache_1.formatCacheUsage)(response.usage));
         const textBlock = response.content.find((b) => b.type === 'text');
         const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
         const parsed = parseJsonObject(raw);

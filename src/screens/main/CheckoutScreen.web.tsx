@@ -508,11 +508,16 @@ function CheckoutScreenBody() {
 
   const handleCommitRef = useRef(handleCommit);
   handleCommitRef.current = handleCommit;
+  /** Card-save and the bank-redirect return can both reach this. Only the first one commits. */
+  const cardCommitStarted = useRef(false);
 
   /** Card saved → wait for the webhook to record it, then commit without another click. */
   const waitForCardThenCommit = async () => {
+    if (cardCommitStarted.current) return;
+    cardCommitStarted.current = true;
     const householdId = household?.id;
     if (!householdId) {
+      cardCommitStarted.current = false;
       await refreshSession({ silent: true });
       return;
     }
@@ -527,6 +532,7 @@ function CheckoutScreenBody() {
     }
     setAwaitingCardOnFile(false);
     if (saved) await handleCommitRef.current();
+    else cardCommitStarted.current = false;
   };
 
   const onCardSaved = async () => {

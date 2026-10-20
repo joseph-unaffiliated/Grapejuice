@@ -16,7 +16,28 @@ export type CommitPilotBoxResult = {
   status: 'committed';
 };
 
+const inflightCommits = new Map<string, Promise<CommitPilotBoxResult>>();
+
 export async function commitPilotBox(
+  householdId: string,
+  shippingAddress: ShippingAddress,
+  options?: {
+    expeditedShipping?: boolean;
+    contactPhone?: string;
+    smsOptIn?: boolean;
+    skipShipStation?: boolean;
+  }
+): Promise<CommitPilotBoxResult> {
+  const running = inflightCommits.get(householdId);
+  if (running) return running;
+  const promise = commitPilotBoxOnce(householdId, shippingAddress, options).finally(() => {
+    if (inflightCommits.get(householdId) === promise) inflightCommits.delete(householdId);
+  });
+  inflightCommits.set(householdId, promise);
+  return promise;
+}
+
+async function commitPilotBoxOnce(
   householdId: string,
   shippingAddress: ShippingAddress,
   options?: {

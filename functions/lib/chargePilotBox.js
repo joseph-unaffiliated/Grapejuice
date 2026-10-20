@@ -7,6 +7,8 @@ exports.checkoutTotalsAfterCredit = checkoutTotalsAfterCredit;
 exports.computeCommittedBoxTotals = computeCommittedBoxTotals;
 exports.settleLockCredit = settleLockCredit;
 exports.isHanukkahBoxOrder = isHanukkahBoxOrder;
+exports.isOpenHanukkahBoxOrder = isOpenHanukkahBoxOrder;
+exports.openHanukkahBoxOrder = openHanukkahBoxOrder;
 exports.notifyHanukkahBoxChargeFailed = notifyHanukkahBoxChargeFailed;
 exports.retryFailedHanukkahBoxCharges = retryFailedHanukkahBoxCharges;
 exports.fulfillHanukkahBoxOrder = fulfillHanukkahBoxOrder;
@@ -115,6 +117,29 @@ function isHanukkahBoxOrder(order) {
     if (order.orderType === 'hanukkah_box')
         return true;
     return order.holidayId === exports.HOLIDAY_ID || !order.orderType;
+}
+/** A Hanukkah box that lock will still charge. Cancelled and already-charged orders are not open. */
+function isOpenHanukkahBoxOrder(order, holidayId = exports.HOLIDAY_ID) {
+    if (order.status !== 'committed' && order.status !== 'pending')
+        return false;
+    if (!isHanukkahBoxOrder(order))
+        return false;
+    return typeof order.holidayId !== 'string' || order.holidayId === holidayId;
+}
+function createdMs(data) {
+    const created = data.createdAt;
+    if (created && typeof created === 'object' && typeof created.toMillis === 'function')
+        return created.toMillis();
+    if (typeof created === 'string')
+        return Date.parse(created) || 0;
+    return 0;
+}
+/** The open box to keep when checkout is submitted again. Oldest first, so a duplicate commit never replaces it. */
+function openHanukkahBoxOrder(docs, holidayId = exports.HOLIDAY_ID) {
+    var _a;
+    const open = docs.filter((d) => isOpenHanukkahBoxOrder(d.data, holidayId));
+    open.sort((a, b) => createdMs(a.data) - createdMs(b.data));
+    return (_a = open[0]) !== null && _a !== void 0 ? _a : null;
 }
 const ORDERS_URL = 'https://grapejuice-pilot.web.app/orders';
 function customerFacingChargeFailure(message) {

@@ -183,6 +183,30 @@ export function isHanukkahBoxOrder(order: FirebaseFirestore.DocumentData): boole
   return order.holidayId === HOLIDAY_ID || !order.orderType;
 }
 
+/** A Hanukkah box that lock will still charge. Cancelled and already-charged orders are not open. */
+export function isOpenHanukkahBoxOrder(order: FirebaseFirestore.DocumentData, holidayId = HOLIDAY_ID): boolean {
+  if (order.status !== 'committed' && order.status !== 'pending') return false;
+  if (!isHanukkahBoxOrder(order)) return false;
+  return typeof order.holidayId !== 'string' || order.holidayId === holidayId;
+}
+
+function createdMs(data: FirebaseFirestore.DocumentData): number {
+  const created = data.createdAt as { toMillis?: () => number } | string | undefined;
+  if (created && typeof created === 'object' && typeof created.toMillis === 'function') return created.toMillis();
+  if (typeof created === 'string') return Date.parse(created) || 0;
+  return 0;
+}
+
+/** The open box to keep when checkout is submitted again. Oldest first, so a duplicate commit never replaces it. */
+export function openHanukkahBoxOrder<T extends { id: string; data: FirebaseFirestore.DocumentData }>(
+  docs: T[],
+  holidayId = HOLIDAY_ID
+): T | null {
+  const open = docs.filter((d) => isOpenHanukkahBoxOrder(d.data, holidayId));
+  open.sort((a, b) => createdMs(a.data) - createdMs(b.data));
+  return open[0] ?? null;
+}
+
 const ORDERS_URL = 'https://grapejuice-pilot.web.app/orders';
 
 function customerFacingChargeFailure(message: string): boolean {

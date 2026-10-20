@@ -15,7 +15,6 @@ exports.loadStaticRows = loadStaticRows;
 exports.createFollowUpListAudience = createFollowUpListAudience;
 exports.replaceAudienceMembers = replaceAudienceMembers;
 const crypto_1 = require("crypto");
-const metaPracticeCutoff_1 = require("./metaPracticeCutoff");
 const testAccounts_1 = require("./testAccounts");
 /**
  * Customer-list side of the Meta follow-up audience. The website audience only holds browsers that
@@ -60,8 +59,6 @@ function followUpSkipReason(h) {
         return 'no_email';
     if ((0, testAccounts_1.isTest)(h.email))
         return 'test';
-    if (!(0, metaPracticeCutoff_1.practiceEligibleForFollowUp)(h.practiceFrequencyScore))
-        return 'practice';
     return null;
 }
 function normalizeEmail(raw) {
@@ -126,7 +123,7 @@ function combineFollowUpRows(builderRows, staticRows, paidEmailHashes) {
 }
 /** Account holders with a box draft, no card and no paid order (test accounts skipped). Read-only. */
 async function selectBuilderRows(db) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f;
     const [householdSnap, draftSnap, orderSnap, userSnap] = await Promise.all([
         db.collection('households').select('ownerId', 'cardOnFileAt', 'stripeDefaultPaymentMethodId').get(),
         db.collectionGroup('boxDrafts').get(),
@@ -163,13 +160,12 @@ async function selectBuilderRows(db) {
             stripeDefaultPaymentMethodId: h === null || h === void 0 ? void 0 : h.stripeDefaultPaymentMethodId,
             orderStatuses: (_d = statusesByHousehold.get(hh.id)) !== null && _d !== void 0 ? _d : [],
             email: typeof (owner === null || owner === void 0 ? void 0 : owner.email) === 'string' ? owner.email : null,
-            practiceFrequencyScore: (_e = owner === null || owner === void 0 ? void 0 : owner.lastBoxAnswers) === null || _e === void 0 ? void 0 : _e.practiceFrequencyScore,
         });
         if (reason) {
-            skipped[reason] = ((_f = skipped[reason]) !== null && _f !== void 0 ? _f : 0) + 1;
+            skipped[reason] = ((_e = skipped[reason]) !== null && _e !== void 0 ? _e : 0) + 1;
             continue;
         }
-        const [firstName, ...rest] = String((_g = owner === null || owner === void 0 ? void 0 : owner.displayName) !== null && _g !== void 0 ? _g : '').trim().split(/\s+/);
+        const [firstName, ...rest] = String((_f = owner === null || owner === void 0 ? void 0 : owner.displayName) !== null && _f !== void 0 ? _f : '').trim().split(/\s+/);
         const lastName = rest[rest.length - 1];
         const row = hashedAudienceRow({ email: owner === null || owner === void 0 ? void 0 : owner.email, phone: owner === null || owner === void 0 ? void 0 : owner.phone, firstName, lastName });
         if (row)

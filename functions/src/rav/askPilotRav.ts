@@ -16,6 +16,7 @@ import { assertKidRavAllowed, stripKidRavActions } from './kidRavGuard';
 import type { AskPilotRavData, RavBlock, RavPaneHint, RavResponse } from './types';
 import { sanitizeRavNavigate, sanitizeRavPane } from './types';
 import { PLAIN_TALK_APPEND } from './plainTalk';
+import { cachedText, formatCacheUsage, plainText } from './anthropicCache';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
@@ -195,21 +196,21 @@ export const askPilotRav = onCall(
             buildBoxRulesContext(catalogRows),
           ]);
 
-    const contextParts = [
-      surfaceContext,
-      householdContext,
-      userMemoryContext,
-      boxRulesContext,
-      catalogContext,
-    ]
+    // Per-user / per-surface context stays uncached so shared prefixes stay stable.
+    const dynamicContext = [surfaceContext, householdContext, userMemoryContext, catalogContext]
       .filter(Boolean)
       .join('\n\n');
 
     const plainTalk = modeName === 'project_partner' ? '' : PLAIN_TALK_APPEND;
-    const systemBase = `${modeConfig.systemPrompt}${PRESENCE_APPEND}${plainTalk}`;
-    const system = contextParts
-      ? `${systemBase}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${contextParts}`
-      : systemBase;
+    const systemBase = `${modeConfig.systemPrompt}${PRESENCE_APPEND}${plainTalk}\n\n${modeConfig.jsonInstructions}`;
+    // Explicit breakpoints only (SDK 0.39 has no top-level cache_control).
+    const system = [
+      cachedText(systemBase),
+      ...(boxRulesContext ? [cachedText(boxRulesContext)] : []),
+      ...(dynamicContext
+        ? [plainText(`---\nCONTEXT (use when relevant; do not recite verbatim):\n${dynamicContext}`)]
+        : []),
+    ];
 
     const anthropic = new Anthropic({ apiKey });
     const history = Array.isArray(data.conversationHistory) ? data.conversationHistory : [];
@@ -223,9 +224,10 @@ export const askPilotRav = onCall(
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
-        system: `${system}\n\n${modeConfig.jsonInstructions}`,
+        system,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
       });
+      logger.info('askPilotRav Anthropic usage', formatCacheUsage(response.usage));
       const textBlock = response.content.find((b) => b.type === 'text');
       const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
       const parsed = parseRavResponse(raw);

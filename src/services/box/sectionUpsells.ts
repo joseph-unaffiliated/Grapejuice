@@ -668,7 +668,16 @@ export function resolveFreeSlotAddOptions(
   catalog = withoutSoldOut(catalog);
   if (!catalog.length || limit <= 0) return [];
   const kinds = collectSwapKinds(sectionId);
-  return excludeBooksUnlessStory(sectionId, resolveKindsToCatalog(kinds, catalog, new Set(), limit));
+  let items = excludeBooksUnlessStory(
+    sectionId,
+    resolveKindsToCatalog(kinds, catalog, new Set(), limit)
+  );
+  // Play Dreidel's section also owns household gelt, but gelt is its own slot — never offer
+  // Little Bags as a free fill for a donated wood-dreidel (that double-counts gelt).
+  if (sectionId === 'dreidel') {
+    items = items.filter((item) => !/gelt/i.test(`${item.id} ${item.name}`));
+  }
+  return items;
 }
 
 /**

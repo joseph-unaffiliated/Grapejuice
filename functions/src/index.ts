@@ -1,6 +1,6 @@
 import * as logger from './logger';
 import { isPlaythroughTestEmail } from './testAccounts';
-import { practiceAboveMetaCutoff, practiceEligibleForFollowUp } from './metaPracticeCutoff';
+import { practiceAboveMetaCutoff } from './metaPracticeCutoff';
 import { onRequest, onCall, HttpsError, onSchedule, reportWarning } from './sentry';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -40,6 +40,7 @@ import {
   checkoutTotalsAfterCredit,
   fulfillHanukkahBoxOrder,
   isHanukkahBoxOrder,
+  openHanukkahBoxOrder,
   notifyHanukkahBoxChargeFailed,
   retryFailedHanukkahBoxCharges,
   runChargeEligiblePilotBoxOrders,
@@ -1635,7 +1636,7 @@ export const commitPilotBox = onCall(async (request) => {
     platformCreditCents,
     discountCents
   );
-  const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
+  const totalCents = priced.totalCents;
 
   const totalAvailableCredit = giftCreditCents + platformCreditCents;
   if (!cardOnFile && totalAvailableCredit + priced.discountApplied < boxPriceCents) {
@@ -1649,6 +1650,20 @@ export const commitPilotBox = onCall(async (request) => {
   }
 
   const isPlaythrough = data.skipShipStation === true || isPlaythroughTestEmail(buyerEmail);
+
+  const ordersRef = db.collection(`households/${householdId}/orders`);
+  const already = openHanukkahBoxOrder((await ordersRef.get()).docs.map((d) => ({ id: d.id, data: d.data() })));
+  if (already) {
+    const existing = already.data;
+    logger.info('commitPilotBox already has an open box', { householdId, orderId: already.id });
+    return {
+      orderId: already.id,
+      totalCents: typeof existing.totalCents === 'number' ? existing.totalCents : 0,
+      discountCents: typeof existing.discountCents === 'number' ? existing.discountCents : 0,
+      status: 'committed' as const,
+    };
+  }
+
   if (!isPlaythrough) {
     await assertBoxLinesWithinInventory(db, lineItems);
   }
@@ -1656,35 +1671,93 @@ export const commitPilotBox = onCall(async (request) => {
   const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
   const attribution = sanitizeAttribution(data.attribution);
 
-  const orderRef = db.collection(`households/${householdId}/orders`).doc();
-  const orderPayload: Record<string, unknown> = {
-    status: 'committed',
-    orderType: 'hanukkah_box',
-    lineItems,
-    boxPriceCents,
-    kidCount,
-    subtotalCents,
-    shippingCents,
-    discountCents: priced.discountApplied,
-    taxCents,
-    totalCents,
-    creditAppliedCents: creditApplied,
-    giftCreditAppliedCents: giftCreditApplied,
-    platformCreditAppliedCents: platformCreditApplied,
-    expeditedShipping: false,
-    shippingAddress,
-    holidayId: HOLIDAY_ID,
-    userId: request.auth.uid,
-    lockAt,
-    estimatedDelivery,
-    committedAt: FieldValue.serverTimestamp(),
-    createdAt: FieldValue.serverTimestamp(),
-    ...(isPlaythrough ? { playthrough: true } : {}),
-    ...(attribution ? { attribution } : {}),
-    ...(promo ? { promo } : {}),
-    checkoutSession: checkoutSessionFromCallable(request),
-  };
-  await orderRef.set(orderPayload);
+  const orderRef = ordersRef.doc();
+  const hhRef = db.doc(`households/${householdId}`);
+  // The household write is what makes two overlapping commits contend: the loser retries,
+  // sees the order the winner just wrote, and returns it instead of creating another.
+  const committed = await db.runTransaction(async (tx) => {
+    const [hhFresh, ordersSnap] = await Promise.all([tx.get(hhRef), tx.get(ordersRef)]);
+    const open = openHanukkahBoxOrder(ordersSnap.docs.map((d) => ({ id: d.id, data: d.data() })));
+    if (open) {
+      const existing = open.data;
+      return {
+        created: false as const,
+        orderId: open.id,
+        totalCents: typeof existing.totalCents === 'number' ? existing.totalCents : 0,
+        discountCents: typeof existing.discountCents === 'number' ? existing.discountCents : 0,
+        priced,
+        orderPayload: null,
+      };
+    }
+    const fresh = hhFresh.data() ?? {};
+    const freshPriced = checkoutTotalsAfterCredit(
+      subtotalCents + shippingCents,
+      typeof fresh.giftCreditCents === 'number' ? fresh.giftCreditCents : 0,
+      typeof fresh.platformCreditCents === 'number' ? fresh.platformCreditCents : 0,
+      discountCents
+    );
+    const orderPayload: Record<string, unknown> = {
+      status: 'committed',
+      orderType: 'hanukkah_box',
+      lineItems,
+      boxPriceCents,
+      kidCount,
+      subtotalCents,
+      shippingCents,
+      discountCents: freshPriced.discountApplied,
+      taxCents: freshPriced.taxCents,
+      totalCents: freshPriced.totalCents,
+      creditAppliedCents: freshPriced.creditApplied,
+      giftCreditAppliedCents: freshPriced.giftCreditApplied,
+      platformCreditAppliedCents: freshPriced.platformCreditApplied,
+      expeditedShipping: false,
+      shippingAddress,
+      holidayId: HOLIDAY_ID,
+      userId: request.auth!.uid,
+      lockAt,
+      estimatedDelivery,
+      committedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      ...(isPlaythrough ? { playthrough: true } : {}),
+      ...(attribution ? { attribution } : {}),
+      ...(promo ? { promo } : {}),
+      checkoutSession: checkoutSessionFromCallable(request),
+    };
+    tx.set(orderRef, orderPayload);
+    tx.update(hhRef, {
+      updatedAt: new Date().toISOString(),
+      ...(freshPriced.giftCreditApplied > 0
+        ? { giftCreditCents: (typeof fresh.giftCreditCents === 'number' ? fresh.giftCreditCents : 0) - freshPriced.giftCreditApplied }
+        : {}),
+      ...(freshPriced.platformCreditApplied > 0
+        ? {
+            platformCreditCents:
+              (typeof fresh.platformCreditCents === 'number' ? fresh.platformCreditCents : 0) -
+              freshPriced.platformCreditApplied,
+          }
+        : {}),
+    });
+    return {
+      created: true as const,
+      orderId: orderRef.id,
+      totalCents: freshPriced.totalCents,
+      discountCents: freshPriced.discountApplied,
+      priced: freshPriced,
+      orderPayload,
+    };
+  });
+
+  if (!committed.created) {
+    logger.info('commitPilotBox already has an open box', { householdId, orderId: committed.orderId });
+    return {
+      orderId: committed.orderId,
+      totalCents: committed.totalCents,
+      discountCents: committed.discountCents,
+      status: 'committed' as const,
+    };
+  }
+
+  const orderPayload = committed.orderPayload;
   await markPilotEnrollmentCommitted(db, householdId, orderRef.id);
   await recordPromoRedemption(db, {
     sourcePath: orderRef.path,
@@ -1693,14 +1766,6 @@ export const commitPilotBox = onCall(async (request) => {
     promo,
     householdId,
   });
-
-  if (giftCreditApplied > 0 || platformCreditApplied > 0) {
-    await db.doc(`households/${householdId}`).update({
-      ...(giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {}),
-      ...(platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {}),
-      updatedAt: new Date().toISOString(),
-    });
-  }
 
   await db.doc(`users/${request.auth.uid}`).set(
     {
@@ -1749,8 +1814,8 @@ export const commitPilotBox = onCall(async (request) => {
 
   return {
     orderId: orderRef.id,
-    totalCents,
-    discountCents: priced.discountApplied,
+    totalCents: committed.totalCents,
+    discountCents: committed.discountCents,
     status: 'committed' as const,
   };
 });
@@ -2689,9 +2754,11 @@ export const finalizePilotGiftPayment = onCall(async (request) => {
 /**
  * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
  * per account (`reg_<uid>`); PreRegister and BoxBuilt reuse the browser's event id for dedupe.
- * BoxBuilt and the server-only BoxFollowUp are both withheld when practice is above 49.
- * BoxFollowUp also requires a score, so an unscored box never joins the follow-up audience.
- * The score is never sent to Meta.
+ * BoxBuilt is withheld above the practice cutoff in metaPracticeCutoff.ts (practice score,
+ * tie-broken by Hanukkah at exactly 50) so Broad keeps optimizing on lower-practice builders.
+ * The server-only BoxFollowUp fires for every box build at every practice level (scored or
+ * not) — the follow-up audience includes high-practice builders too.
+ * The scores are never sent to Meta.
  */
 export const trackMetaEvent = onCall(async (request) => {
   const eventName = request.data?.eventName;
@@ -2728,13 +2795,16 @@ export const trackMetaEvent = onCall(async (request) => {
     typeof request.data?.contentName === 'string' ? request.data.contentName.trim().slice(0, 100) : '';
   let suppressBoxBuilt = false;
   let storedPractice: unknown;
+  let storedFamiliarity: unknown;
   if (eventName === 'BoxBuilt') {
     if (uid) {
       const snap = await db.doc(`users/${uid}`).get();
       storedPractice = snap.data()?.lastBoxAnswers?.practiceFrequencyScore;
+      storedFamiliarity = snap.data()?.lastBoxAnswers?.familiarityScore;
     }
     suppressBoxBuilt =
-      practiceAboveMetaCutoff(request.data?.practiceFrequencyScore) || practiceAboveMetaCutoff(storedPractice);
+      practiceAboveMetaCutoff(request.data?.practiceFrequencyScore, request.data?.familiarityScore) ||
+      practiceAboveMetaCutoff(storedPractice, storedFamiliarity);
   }
   if (!suppressBoxBuilt) {
     await sendMetaEvent({
@@ -2748,10 +2818,7 @@ export const trackMetaEvent = onCall(async (request) => {
     });
   }
 
-  if (
-    eventName === 'BoxBuilt' &&
-    practiceEligibleForFollowUp(request.data?.practiceFrequencyScore, storedPractice)
-  ) {
+  if (eventName === 'BoxBuilt') {
     await sendMetaEvent({
       eventName: 'BoxFollowUp',
       eventId: `followup_${randomBytes(8).toString('hex')}`,

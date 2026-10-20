@@ -2,7 +2,14 @@
  * Run: npx tsx src/components/box/kidSlots.test.ts
  */
 import assert from 'node:assert/strict';
-import { fillOpenKidSlot, includedClaimAlreadyTaken, includedPracticeSlotVacant, kidsMissingIncluded, openKidSlotFor } from './boxLineDisplay';
+import {
+  fillOpenKidSlot,
+  includedClaimAlreadyTaken,
+  includedPracticeSlotVacant,
+  kidsMissingIncluded,
+  openKidSlotFor,
+  uniqueSlotForFreeSectionAdd,
+} from './boxLineDisplay';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 
 function book(id: string): CatalogItem {
@@ -62,5 +69,25 @@ assert.equal(
   false
 );
 assert.equal(includedPracticeSlotVacant('candles', [kit('candles', 'beeswax-candles')]), false);
+
+// Free food adds claim vacant food slots — never catalog catch-alls like `decor`.
+const cookieCutters = {
+  id: 'dreidel-cookie-cutters',
+  name: 'Dreidel Cookie Cutters',
+  slotId: 'decor',
+  memberPriceCents: 400,
+  pricingTier: 'included',
+  swapOptions: [],
+  inventory: 50,
+} as unknown as CatalogItem;
+assert.equal(uniqueSlotForFreeSectionAdd('food', cookieCutters, [kit('latke-mix', 'latke-kit')]), 'sufganiyot-mix');
+assert.equal(uniqueSlotForFreeSectionAdd('food', cookieCutters, []), 'latke-mix');
+assert.equal(
+  uniqueSlotForFreeSectionAdd('food', cookieCutters, [
+    kit('latke-mix', 'latke-kit'),
+    kit('sufganiyot-mix', 'sufganiyot-kit'),
+  ]),
+  'addon-dreidel-cookie-cutters'
+);
 
 console.log('kidSlots.test: ok');

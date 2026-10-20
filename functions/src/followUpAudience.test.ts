@@ -24,9 +24,13 @@ assert.equal(followUpSkipReason({ ...base, orderStatuses: ['pending'] }), null);
 assert.equal(followUpSkipReason({ ...base, orderStatuses: ['committed'] }), 'paid_order');
 assert.equal(followUpSkipReason({ ...base, email: null }), 'no_email');
 assert.equal(followUpSkipReason({ ...base, email: 'qa@unaffiliated.co' }), 'test');
+// Practice scores never gate the follow-up list — high-practice and unscored builders are in.
 assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 49 }), null);
-assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 50 }), 'practice');
-assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: undefined }), 'practice');
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 59 }), null);
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 60 }), null);
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 100 }), null);
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: undefined }), null);
+assert.equal(followUpSkipReason({ ...base, practiceFrequencyScore: 50, familiarityScore: 50 }), null);
 
 assert.equal(normalizePhone('+1 (212) 555-0100'), '12125550100');
 assert.equal(normalizePhone('212-555-0100'), '12125550100');

@@ -11,6 +11,7 @@ const context_1 = require("./context");
 const kidRavGuard_1 = require("./kidRavGuard");
 const types_1 = require("./types");
 const plainTalk_1 = require("./plainTalk");
+const anthropicCache_1 = require("./anthropicCache");
 const anthropicApiKey = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 function blockHasProducts(blocks) {
     return blocks.some((b) => (b.type === 'curation' && Array.isArray(b.swapOptions) && b.swapOptions.length > 0) ||
@@ -162,20 +163,20 @@ exports.askPilotRav = (0, sentry_1.onCall)({ secrets: [anthropicApiKey], maxInst
             (0, context_1.buildCatalogContext)(data.surface, data.userMemory, catalogRows),
             (0, context_1.buildBoxRulesContext)(catalogRows),
         ]);
-    const contextParts = [
-        surfaceContext,
-        householdContext,
-        userMemoryContext,
-        boxRulesContext,
-        catalogContext,
-    ]
+    // Per-user / per-surface context stays uncached so shared prefixes stay stable.
+    const dynamicContext = [surfaceContext, householdContext, userMemoryContext, catalogContext]
         .filter(Boolean)
         .join('\n\n');
     const plainTalk = modeName === 'project_partner' ? '' : plainTalk_1.PLAIN_TALK_APPEND;
-    const systemBase = `${modeConfig.systemPrompt}${presence_1.PRESENCE_APPEND}${plainTalk}`;
-    const system = contextParts
-        ? `${systemBase}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${contextParts}`
-        : systemBase;
+    const systemBase = `${modeConfig.systemPrompt}${presence_1.PRESENCE_APPEND}${plainTalk}\n\n${modeConfig.jsonInstructions}`;
+    // Explicit breakpoints only (SDK 0.39 has no top-level cache_control).
+    const system = [
+        (0, anthropicCache_1.cachedText)(systemBase),
+        ...(boxRulesContext ? [(0, anthropicCache_1.cachedText)(boxRulesContext)] : []),
+        ...(dynamicContext
+            ? [(0, anthropicCache_1.plainText)(`---\nCONTEXT (use when relevant; do not recite verbatim):\n${dynamicContext}`)]
+            : []),
+    ];
     const anthropic = new sdk_1.default({ apiKey });
     const history = Array.isArray(data.conversationHistory) ? data.conversationHistory : [];
     const historyLimit = modeName === 'facilitator_kid' ? 6 : 20;
@@ -187,9 +188,10 @@ exports.askPilotRav = (0, sentry_1.onCall)({ secrets: [anthropicApiKey], maxInst
         const response = await anthropic.messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 1024,
-            system: `${system}\n\n${modeConfig.jsonInstructions}`,
+            system,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
         });
+        logger.info('askPilotRav Anthropic usage', (0, anthropicCache_1.formatCacheUsage)(response.usage));
         const textBlock = response.content.find((b) => b.type === 'text');
         const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
         const parsed = parseRavResponse(raw);

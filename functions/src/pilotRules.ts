@@ -4,6 +4,7 @@
  * it, the server rebuilds it and refuses to enroll when the two differ.
  */
 import { createHash } from 'node:crypto';
+import { practiceQualifies } from './metaPracticeCutoff';
 
 export const PILOT_PICK_COUNT = 3;
 export const PILOT_AGREEMENT_VERSION = '2026-10-14';
@@ -130,9 +131,6 @@ export function agreementHash(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-/** Families scoring below this on the "Jewish" slider (0–100) are invited automatically. */
-export const PILOT_AUTO_INVITE_MAX_JEWISH = 50;
-
 /** The invite greets by first name, so a lone initial ("J", "J.") isn't enough. */
 export function hasRealFirstName(name: string | null | undefined): boolean {
   const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
@@ -141,6 +139,8 @@ export function hasRealFirstName(name: string | null | undefined): boolean {
 
 export type AutoInviteCandidate = {
   jewish: number | null;
+  /** Hanukkah slider — breaks the tie when jewish is exactly 50 (see metaPracticeCutoff.ts). */
+  hanukkah: number | null;
   email: string | null;
   name: string | null;
   hasDraftLines: boolean;
@@ -152,8 +152,7 @@ export type AutoInviteCandidate = {
 
 export function isAutoInviteEligible(c: AutoInviteCandidate): boolean {
   return (
-    c.jewish != null &&
-    c.jewish < PILOT_AUTO_INVITE_MAX_JEWISH &&
+    practiceQualifies(c.jewish, c.hanukkah) &&
     !!c.email?.includes('@') &&
     hasRealFirstName(c.name) &&
     c.hasDraftLines &&

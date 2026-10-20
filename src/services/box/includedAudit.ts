@@ -82,6 +82,8 @@ export const FOOD_SLOT_MAX_LITTLE_BAGS = 3;
 
 const DEFAULT_ADULTS = 2;
 const FOOD_SLOT_IDS = new Set(['latke-mix', 'sufganiyot-mix', 'latke-kit', 'sufganiyot-kit', 'food', 'applesauce']);
+/** Claim order when adding into an empty included food slot (never catalog catch-alls like `decor`). */
+export const FOOD_SLOT_CLAIM_IDS = ['latke-mix', 'sufganiyot-mix', 'food'] as const;
 const DREIDEL_SLOT_IDS = new Set(['wood-dreidel', 'blank-dreidel', 'airdry-dreidel', 'keepsake-dreidel']);
 const WRAP_SLOT_IDS = new Set(['wrapping-paper', 'wrapping', 'pre-wrap']);
 const CASH_DONATION_SLOT = 'cash-donation';
@@ -96,6 +98,25 @@ export function auditSlotBase(slotId: string): string {
 /** Units of `item` one food slot holds: three Little Bags, otherwise one. */
 export function foodSlotQuantity(item: { id: string; name?: string }): number {
   return geltBagOf(item.id, item.name ?? '') === 'little' ? FOOD_SLOT_MAX_LITTLE_BAGS : 1;
+}
+
+/**
+ * Next unused included food slot id, or null when two free food-slot lines already fill the
+ * allowance (even if a preferred id like `sufganiyot-mix` is unused because a second kit sits
+ * on `latke-kit`).
+ */
+export function nextVacantFoodSlotId(
+  existing: Array<Pick<BoxLineItem, 'slotId'> & { unitCents?: number; quantity?: number }>
+): string | null {
+  const filled = existing.filter(
+    (li) => isFoodSlotLine(li) && (li.unitCents ?? 0) === 0 && (li.quantity ?? 0) > 0
+  ).length;
+  if (filled >= FOOD_SLOTS_INCLUDED) return null;
+  const used = new Set(existing.map((li) => li.slotId));
+  for (const id of FOOD_SLOT_CLAIM_IDS) {
+    if (!used.has(id)) return id;
+  }
+  return null;
 }
 
 /** A line in one of the two food slots, whatever it holds (not a paid `::x` extra). */
@@ -502,11 +523,12 @@ export type IncludedHeal = {
 };
 
 /**
- * Fixes that only lower the price: a charged line that is a valid included item in its own
- * empty slot becomes free, and wrapping paper charged as the only wrap becomes free. Each fix
- * is kept only when the audit then drops that problem without any new over-allowance or
- * not-included problem, so a paid Party Bag, brass dreidel or second candle set stays paid.
- * Missing gelt or food slots are never refilled here (the customer may have donated them).
+ * Customer-favor fixes: a charged line that is a valid included item in its own empty slot
+ * becomes free; wrapping paper charged as the only wrap becomes free; and a free food-slot
+ * option parked outside the food slots (e.g. cookie cutters on catalog `decor`) is rehomed
+ * into a vacant food slot. Each fix is kept only when the audit then drops that problem
+ * without any new over-allowance or not-included problem. Missing gelt or food slots are
+ * never filled by inventing new items (the customer may have donated them).
  */
 export function healIncludedInCustomerFavor(
   lineItems: BoxLineItem[],
@@ -517,11 +539,25 @@ export function healIncludedInCustomerFavor(
   let lines = lineItems;
   let audit = auditIncluded(lines, catalog, household, opts);
   const healed: AuditProblem[] = [];
+  const rows = new Map(catalog.map((r) => [r.id, r]));
   const free = (li: BoxLineItem): BoxLineItem => ({
     ...li,
     unitCents: 0,
     includedQty: Math.max(li.includedQty ?? 0, li.quantity),
   });
+
+  const accept = (candidate: BoxLineItem[], problem: AuditProblem): boolean => {
+    const after = auditIncluded(candidate, catalog, household, opts);
+    const key = auditProblemKey(problem);
+    const overBefore = new Set(overProblems(audit).map(auditProblemKey));
+    const fixed = !after.problems.some((p) => auditProblemKey(p) === key);
+    const noNewOver = overProblems(after).every((p) => overBefore.has(auditProblemKey(p)));
+    if (!fixed || !noNewOver) return false;
+    lines = candidate;
+    audit = after;
+    healed.push(problem);
+    return true;
+  };
 
   for (const problem of audit.problems) {
     if (problem.code !== 'paid-in-included-slot' && problem.code !== 'wrap-charged') continue;
@@ -531,16 +567,41 @@ export function healIncludedInCustomerFavor(
         : lines.filter((li) => li.slotId === problem.slotId && li.itemId === problem.itemId && !isFreeLine(li));
     if (targets.length !== 1) continue;
     const target = targets[0];
-    const candidate = lines.map((li) => (li === target ? free(li) : li));
-    const after = auditIncluded(candidate, catalog, household, opts);
-    const key = auditProblemKey(problem);
-    const overBefore = new Set(overProblems(audit).map(auditProblemKey));
-    const fixed = !after.problems.some((p) => auditProblemKey(p) === key);
-    const noNewOver = overProblems(after).every((p) => overBefore.has(auditProblemKey(p)));
-    if (!fixed || !noNewOver) continue;
-    lines = candidate;
-    audit = after;
-    healed.push(problem);
+    accept(
+      lines.map((li) => (li === target ? free(li) : li)),
+      problem
+    );
+  }
+
+  // Cookie cutters (or another food-slot option) flagged as free-add-on while a food slot is
+  // empty — move them into the vacant slot. Never steal household gelt from gelt-* slots.
+  for (;;) {
+    const missing = audit.problems.find((p) => p.code === 'food-slot-missing' && !p.grandfathered);
+    if (!missing) break;
+    const vacant = nextVacantFoodSlotId(lines);
+    if (!vacant) break;
+    const freeAddOn = audit.problems.find(
+      (p) =>
+        p.code === 'free-add-on' &&
+        !p.grandfathered &&
+        p.itemId &&
+        foodContent(
+          lines.find((li) => li.slotId === p.slotId && li.itemId === p.itemId) ?? {
+            slotId: p.slotId ?? '',
+            itemId: p.itemId,
+            quantity: 1,
+            unitCents: 0,
+          },
+          rows.get(p.itemId)
+        ).valid
+    );
+    if (!freeAddOn?.slotId || !freeAddOn.itemId) break;
+    const parked = lines.find((li) => li.slotId === freeAddOn.slotId && li.itemId === freeAddOn.itemId);
+    if (!parked) break;
+    const candidate = lines.map((li) =>
+      li === parked ? { ...li, slotId: vacant, displaySectionId: 'food' as const } : li
+    );
+    if (!accept(candidate, missing)) break;
   }
 
   return { lineItems: lines, healed, audit };

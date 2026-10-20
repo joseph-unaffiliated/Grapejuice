@@ -1,6 +1,5 @@
 import { createHash, randomInt } from 'crypto';
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
-import { practiceEligibleForFollowUp } from './metaPracticeCutoff';
 import { isTest } from './testAccounts';
 
 /**
@@ -34,11 +33,12 @@ export type FollowUpHousehold = {
   stripeDefaultPaymentMethodId?: unknown;
   orderStatuses: unknown[];
   email: string | null;
-  /** Jewish practice slider. Missing or above 49 stays out of the follow-up list. */
-  practiceFrequencyScore?: unknown;
+  // Practice scores are deliberately not consulted: the follow-up audience includes
+  // builders at every practice level (the 59 cutoff only gates Broad's BoxBuilt signal,
+  // the admin low-practice filter and pilot invites — see metaPracticeCutoff.ts).
 };
 
-export type FollowUpSkipReason = 'no_box' | 'card_on_file' | 'paid_order' | 'no_email' | 'test' | 'practice';
+export type FollowUpSkipReason = 'no_box' | 'card_on_file' | 'paid_order' | 'no_email' | 'test';
 
 function boxItemCount(lineItems: unknown): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -61,7 +61,6 @@ export function followUpSkipReason(h: FollowUpHousehold): FollowUpSkipReason | n
   if (hasPaid(h)) return 'paid_order';
   if (!normalizeEmail(h.email)) return 'no_email';
   if (isTest(h.email)) return 'test';
-  if (!practiceEligibleForFollowUp(h.practiceFrequencyScore)) return 'practice';
   return null;
 }
 
@@ -180,7 +179,6 @@ export async function selectBuilderRows(db: Firestore): Promise<BuilderSelection
       stripeDefaultPaymentMethodId: h?.stripeDefaultPaymentMethodId,
       orderStatuses: statusesByHousehold.get(hh.id) ?? [],
       email: typeof owner?.email === 'string' ? owner.email : null,
-      practiceFrequencyScore: owner?.lastBoxAnswers?.practiceFrequencyScore,
     });
     if (reason) {
       skipped[reason] = (skipped[reason] ?? 0) + 1;

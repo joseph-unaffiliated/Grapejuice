@@ -12,16 +12,44 @@ type ServerEventName = 'CompleteRegistration' | 'PreRegister' | 'BoxBuilt';
 
 /**
  * Broad ad sets optimize on BoxBuilt. A practice score above this is not reported as that
- * conversion. The number itself is never a pixel or CAPI parameter.
+ * conversion. The numbers themselves are never a pixel or CAPI parameter.
+ *
+ * Both sliders default to 50 when untouched, so a practice score of exactly 50 is ambiguous.
+ * Keep in sync with functions/src/metaPracticeCutoff.ts, which has the full tie-break rule:
+ * practice 50 + Hanukkah 50 is ignored, practice 50 + Hanukkah under 60 counts, practice 50 +
+ * Hanukkah 60 or above doesn't.
  */
-export const META_BOX_BUILT_MAX_PRACTICE = 49;
+export const META_BOX_BUILT_MAX_PRACTICE = 59;
 
-export function boxBuiltCountsForMeta(practiceFrequencyScore: number | null | undefined): boolean {
-  return !(
-    typeof practiceFrequencyScore === 'number' &&
-    Number.isFinite(practiceFrequencyScore) &&
-    practiceFrequencyScore > META_BOX_BUILT_MAX_PRACTICE
-  );
+function finite(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * True when a known practice score counts as low practice. A missing practice score is false
+ * (admin filter and pilot invites leave those out). BoxBuilt is the exception: see
+ * boxBuiltCountsForMeta, which still fires when there is no score.
+ */
+export function countsAsLowPractice(
+  practiceFrequencyScore: number | null | undefined,
+  familiarityScore?: number | null | undefined
+): boolean {
+  const practice = finite(practiceFrequencyScore);
+  if (practice == null || practice > META_BOX_BUILT_MAX_PRACTICE) return false;
+  if (practice === 50) {
+    const hanukkah = finite(familiarityScore) ?? 50;
+    if (hanukkah === 50) return false;
+    return hanukkah < 60;
+  }
+  return true;
+}
+
+export function boxBuiltCountsForMeta(
+  practiceFrequencyScore: number | null | undefined,
+  familiarityScore?: number | null | undefined
+): boolean {
+  if (finite(practiceFrequencyScore) == null) return true;
+  return countsAsLowPractice(practiceFrequencyScore, familiarityScore);
 }
 
 /** Conversions API copy of a browser event (same event id → Meta dedupes). Never throws. */
@@ -30,6 +58,7 @@ function sendServerEvent(
   meta: MetaServerContext,
   contentName?: string,
   practiceFrequencyScore?: number | null,
+  familiarityScore?: number | null,
 ): void {
   if (!functions || meta.skip) return;
   const callable = httpsCallable<
@@ -38,6 +67,7 @@ function sendServerEvent(
       meta: MetaServerContext;
       contentName?: string;
       practiceFrequencyScore?: number;
+      familiarityScore?: number;
     },
     { ok: boolean }
   >(functions, 'trackMetaEvent');
@@ -48,6 +78,7 @@ function sendServerEvent(
     ...(eventName === 'BoxBuilt' && typeof practiceFrequencyScore === 'number'
       ? { practiceFrequencyScore }
       : {}),
+    ...(eventName === 'BoxBuilt' && typeof familiarityScore === 'number' ? { familiarityScore } : {}),
   }).catch(() => undefined);
 }
 
@@ -101,13 +132,18 @@ export function trackBoxEmail(): MetaServerContext {
 /**
  * Box builder produced a curated box (guest or signed in). Quiz-built boxes never fire
  * AddToCart, so BoxBuilt is the signal the broad campaigns optimize on.
- * Practice above 49 does not fire BoxBuilt or join the follow-up audience. The score is
- * never a pixel param.
+ * A practice score above the cutoff (see boxBuiltCountsForMeta) does not fire BoxBuilt, but
+ * still joins the follow-up audience (the server fires BoxFollowUp for every build).
+ * The scores are never a pixel param.
  */
-export function trackBoxBuilt(numItems: number, practiceFrequencyScore?: number | null): void {
+export function trackBoxBuilt(
+  numItems: number,
+  practiceFrequencyScore?: number | null,
+  familiarityScore?: number | null
+): void {
   const eventId = newMetaEventId('boxbuilt');
-  if (boxBuiltCountsForMeta(practiceFrequencyScore)) {
+  if (boxBuiltCountsForMeta(practiceFrequencyScore, familiarityScore)) {
     trackMetaCustom('BoxBuilt', { content_name: 'Hanukkah box', num_items: numItems }, eventId);
   }
-  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box', practiceFrequencyScore);
+  sendServerEvent('BoxBuilt', metaServerContext(eventId), 'Hanukkah box', practiceFrequencyScore, familiarityScore);
 }

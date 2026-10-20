@@ -213,27 +213,215 @@ async function createInvite(db, actor, input, extra = {}) {
     logger.info('pilot invite created', { accountCreated: account.accountCreated, source: (_b = extra.source) !== null && _b !== void 0 ? _b : 'manual' });
     return { token, link: pilotLink(token), existing: false, accountCreated: account.accountCreated };
 }
+/** State / province label for admin (no street). Mirrors adminDashboard.locationOf, trimmed down. */
+function adminLocationOf(addr) {
+    if (!addr || typeof addr !== 'object')
+        return null;
+    const a = addr;
+    const raw = typeof a.stateProvince === 'string' ? a.stateProvince.trim().replace(/\.|\s+/g, ' ').toUpperCase() : '';
+    if (!raw)
+        return null;
+    const compact = raw.replace(/\s+/g, ' ');
+    if (a.country === 'CA' || /\b(ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|NT|NU|YT)\b/.test(compact)) {
+        const m = compact.match(/\b(ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|NT|NU|YT)\b/);
+        return m ? `${m[1]}, Canada` : `${compact}, Canada`;
+    }
+    if (/^[A-Z]{2}$/.test(compact))
+        return compact;
+    if (a.country === 'OTHER')
+        return `${compact} (intl)`;
+    return compact.length <= 24 ? compact : compact.slice(0, 24);
+}
+function adminIpLocation(geo) {
+    if (!geo || typeof geo !== 'object')
+        return null;
+    const g = geo;
+    const country = str(g.country);
+    const region = str(g.region);
+    if (!country)
+        return null;
+    if (country === 'US')
+        return region || 'US';
+    if (country === 'CA')
+        return region ? `${region}, Canada` : 'Canada';
+    return country;
+}
+/** Address label known to be Canada / international (mirrors adminDashboard). */
+const addressOutsideUs = (location) => Boolean(location && /(, Canada|\(intl\))$/.test(location));
+function ipOutsideUs(geo) {
+    const country = geo && typeof geo === 'object' ? str(geo.country) : '';
+    return Boolean(country && country.toUpperCase() !== 'US');
+}
+function ageLabel(plannerAge) {
+    if (typeof plannerAge !== 'number' || !Number.isFinite(plannerAge))
+        return null;
+    const n = Math.max(0, Math.floor(plannerAge));
+    return n >= 18 ? '18+' : String(n);
+}
+/** Firestore Timestamp or ISO string → ISO, else null. */
+function toIso(v) {
+    if (!v)
+        return null;
+    if (typeof v === 'string')
+        return v;
+    if (typeof v.toDate === 'function') {
+        try {
+            return v.toDate().toISOString();
+        }
+        catch (_a) {
+            return null;
+        }
+    }
+    return null;
+}
+/** Chunked getAll — Firestore caps at 100 refs. */
+async function getAllChunked(db, refs) {
+    const out = [];
+    for (let i = 0; i < refs.length; i += 100) {
+        out.push(...(await db.getAll(...refs.slice(i, i + 100))));
+    }
+    return out;
+}
 async function listInvites(db) {
+    var _a, _b, _c, _d, _e;
     const [invites, enrollments] = await Promise.all([
         db.collection('pilotInvites').orderBy('createdAt', 'desc').get(),
         db.collection('pilotEnrollments').get(),
     ]);
     const byToken = new Map(enrollments.docs.map((d) => [str(d.data().inviteToken), d.data()]));
+    const householdIds = [
+        ...new Set(invites.docs.map((d) => { var _a; return str(d.data().householdId) || str((_a = byToken.get(d.id)) === null || _a === void 0 ? void 0 : _a.householdId); }).filter(Boolean)),
+    ];
+    const uids = [...new Set(invites.docs.map((d) => str(d.data().uid)).filter(Boolean))];
+    const [userSnaps, draftSnaps, childrenSnap, openOrdersSnap, itemSnaps] = await Promise.all([
+        uids.length ? getAllChunked(db, uids.map((uid) => db.doc(`users/${uid}`))) : Promise.resolve([]),
+        householdIds.length
+            ? getAllChunked(db, householdIds.map((hid) => db.doc(`households/${hid}/boxDrafts/${catalogInventory_1.HOLIDAY_ID}`)))
+            : Promise.resolve([]),
+        uids.length ? db.collectionGroup('children').get() : Promise.resolve(null),
+        householdIds.length
+            ? db
+                .collectionGroup('orders')
+                // Index is status + holidayId (firestore.indexes.json).
+                .where('status', 'in', [...OPEN_ORDER_STATUSES])
+                .where('holidayId', '==', catalogInventory_1.HOLIDAY_ID)
+                .get()
+            : Promise.resolve(null),
+        db.collection(`catalog/${CATALOG_HOLIDAY}/items`).select('name').get(),
+    ]);
+    const users = new Map(userSnaps.map((s) => { var _a; return [s.id, (_a = s.data()) !== null && _a !== void 0 ? _a : {}]; }));
+    const drafts = new Map();
+    for (const s of draftSnaps) {
+        const hid = (_a = s.ref.parent.parent) === null || _a === void 0 ? void 0 : _a.id;
+        if (hid && s.exists)
+            drafts.set(hid, (_b = s.data()) !== null && _b !== void 0 ? _b : {});
+    }
+    const kidAgesByUid = new Map();
+    if (childrenSnap) {
+        const want = new Set(uids);
+        for (const d of childrenSnap.docs) {
+            const owner = d.ref.parent.parent;
+            if (!owner || owner.parent.id !== 'users' || !want.has(owner.id))
+                continue;
+            const age = ageLabel(d.data().plannerAge);
+            if (age == null)
+                continue;
+            const n = age === '18+' ? 18 : Number(age);
+            const list = (_c = kidAgesByUid.get(owner.id)) !== null && _c !== void 0 ? _c : [];
+            list.push(n);
+            kidAgesByUid.set(owner.id, list);
+        }
+    }
+    for (const [, ages] of kidAgesByUid)
+        ages.sort((a, b) => a - b);
+    const orderByHousehold = new Map();
+    if (openOrdersSnap) {
+        const want = new Set(householdIds);
+        for (const d of openOrdersSnap.docs) {
+            const hid = (_d = d.ref.parent.parent) === null || _d === void 0 ? void 0 : _d.id;
+            if (!hid || !want.has(hid))
+                continue;
+            const o = d.data();
+            if (((_e = o.orderType) !== null && _e !== void 0 ? _e : 'hanukkah_box') !== 'hanukkah_box')
+                continue;
+            // Prefer committed over pending when both exist.
+            const prev = orderByHousehold.get(hid);
+            if (!prev || (str(prev.status) === 'pending' && str(o.status) === 'committed')) {
+                orderByHousehold.set(hid, Object.assign(Object.assign({}, o), { _orderId: d.id }));
+            }
+        }
+    }
+    const itemName = new Map(itemSnaps.docs.map((d) => [d.id, str(d.data().name) || d.id]));
+    const boxItemNames = (lines) => {
+        var _a;
+        const qty = new Map();
+        for (const li of lines) {
+            const id = str(li.itemId);
+            if (!id)
+                continue;
+            const name = itemName.get(id) || str(li.label) || id;
+            const prev = qty.get(id);
+            const n = Math.max(1, Math.floor(Number(li.quantity) || 1));
+            qty.set(id, { name, n: ((_a = prev === null || prev === void 0 ? void 0 : prev.n) !== null && _a !== void 0 ? _a : 0) + n });
+        }
+        return [...qty.values()].map(({ name, n }) => (n > 1 ? `${name} ×${n}` : name));
+    };
     return invites.docs.map((d) => {
+        var _a, _b;
         const i = d.data();
         const e = byToken.get(d.id);
         const picks = Array.isArray(e === null || e === void 0 ? void 0 : e.picks) ? e.picks : [];
+        const householdId = str(i.householdId) || str(e === null || e === void 0 ? void 0 : e.householdId) || null;
+        const uid = str(i.uid);
+        const user = uid ? users.get(uid) : undefined;
+        const last = ((_a = user === null || user === void 0 ? void 0 : user.lastBoxAnswers) !== null && _a !== void 0 ? _a : {});
+        const jewishFromUser = scoreOf(last.practiceFrequencyScore);
+        const jewishScore = typeof i.jewishScore === 'number' ? i.jewishScore : jewishFromUser;
+        const hanukkahScore = scoreOf(last.familiarityScore);
+        const order = householdId ? orderByHousehold.get(householdId) : undefined;
+        const draft = householdId ? drafts.get(householdId) : undefined;
+        const orderLines = order ? linesOf(order.lineItems) : [];
+        const draftLines = draft ? linesOf(draft.lineItems) : [];
+        const boxKind = order
+            ? 'order'
+            : draftLines.length
+                ? 'draft'
+                : 'none';
+        const boxItems = boxItemNames(orderLines.length ? orderLines : draftLines);
+        const email = str(i.email);
+        const name = str(i.name);
+        const addr = order === null || order === void 0 ? void 0 : order.shippingAddress;
+        const fromAddr = adminLocationOf(addr);
+        const fromIp = adminIpLocation(user === null || user === void 0 ? void 0 : user.ipGeo);
+        const location = fromAddr || fromIp || null;
+        const locationFromIp = !fromAddr && !!fromIp;
+        const outsideUs = fromAddr ? addressOutsideUs(fromAddr) : fromIp ? ipOutsideUs(user === null || user === void 0 ? void 0 : user.ipGeo) : false;
+        const ages = uid ? (_b = kidAgesByUid.get(uid)) !== null && _b !== void 0 ? _b : [] : [];
+        const kidAges = ages.map((n) => (n >= 18 ? '18+' : String(n)));
         return {
             token: d.id,
             link: pilotLink(d.id),
-            email: str(i.email),
-            name: str(i.name),
+            email,
+            name,
             status: str(e === null || e === void 0 ? void 0 : e.status) || str(i.status) || 'invited',
             accountCreated: i.accountCreated === true,
+            /** When the Firebase/user account was created (not the invite). */
+            accountCreatedAt: toIso(user === null || user === void 0 ? void 0 : user.createdAt),
             createdAt: str(i.createdAt),
             createdByEmail: str(i.createdByEmail),
             source: (i.source === 'auto' ? 'auto' : 'manual'),
-            jewishScore: typeof i.jewishScore === 'number' ? i.jewishScore : null,
+            jewishScore,
+            hanukkahScore,
+            householdId,
+            location,
+            locationFromIp,
+            /** Team / QA email (isTest). */
+            test: (0, testAccounts_1.isTest)(email, name),
+            /** Ship-to or IP known outside the US. Missing location counts as US. */
+            outsideUs,
+            kidAges,
+            boxKind,
+            boxItems,
             emailedAt: str(i.emailedAt) || null,
             followUpAt: str(i.followUpAt) || null,
             openedAt: str(i.openedAt) || null,
@@ -242,7 +430,7 @@ async function listInvites(db) {
             picks: picks.map((p) => p.name),
             deferredTotalCents: typeof (e === null || e === void 0 ? void 0 : e.deferredTotalCents) === 'number' ? e.deferredTotalCents : 0,
             quoteConsent: (e === null || e === void 0 ? void 0 : e.quoteConsent) === true,
-            orderId: str(e === null || e === void 0 ? void 0 : e.orderId) || null,
+            orderId: str(e === null || e === void 0 ? void 0 : e.orderId) || str(order === null || order === void 0 ? void 0 : order._orderId) || null,
         };
     });
 }
@@ -276,13 +464,14 @@ async function markSent(db, actor, input, field) {
 }
 const scoreOf = (v) => typeof v === 'number' && Number.isFinite(v) ? Math.round(Math.max(0, Math.min(100, v))) : null;
 /**
- * Invites every family that qualifies (pilotRules.isAutoInviteEligible): Jewish score under 50, a
+ * Invites every family that qualifies (pilotRules.isAutoInviteEligible): Jewish practice at or
+ * under 59 (a 50 is kept only when Hanukkah is also answered and under 60), a
  * real first name and an email, a Hanukkah draft with items and no checked-out box. Anyone with an
  * invite already (cancelled included) or an enrollment is left alone. Stops once the box locks.
  * Scores and names are read the way the Boxes dashboard reads them (adminDashboard.ts).
  */
 async function runPilotAutoInvites(db, opts = {}) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const dryRun = opts.dryRun === true;
     const { lockAt } = await boxConfig(db);
     if (isPast(lockAt))
@@ -339,14 +528,15 @@ async function runPilotAutoInvites(db, opts = {}) {
             authByUid.set(r.uid, { email: (_d = r.email) !== null && _d !== void 0 ? _d : null, name: (_e = r.displayName) !== null && _e !== void 0 ? _e : null });
     }
     // Slider answers from a converted guest session fill in for accounts with no saved lastBoxAnswers.
-    const guestJewish = new Map();
+    const guestScores = new Map();
     for (const d of guestSnap.docs) {
         const x = d.data();
         const uid = str(x.convertedUid);
         const guest = (_f = x.snapshot) === null || _f === void 0 ? void 0 : _f.guest;
         const s = guest ? scoreOf(guest.practiceFrequencyScore) : null;
-        if (uid && guest && s != null && (0, adminDashboard_1.guestAnsweredSliders)(guest))
-            guestJewish.set(uid, s);
+        if (uid && guest && s != null && (0, adminDashboard_1.guestAnsweredSliders)(guest)) {
+            guestScores.set(uid, { jewish: s, hanukkah: scoreOf(guest.familiarityScore) });
+        }
     }
     const families = [];
     for (const [hid, draft] of drafts) {
@@ -357,9 +547,13 @@ async function runPilotAutoInvites(db, opts = {}) {
         const auth = authByUid.get(owner.ownerId);
         const email = (str(u.email) || (auth === null || auth === void 0 ? void 0 : auth.email) || '').trim().toLowerCase() || null;
         const name = (str(u.displayName) || (auth === null || auth === void 0 ? void 0 : auth.name) || '').trim() || null;
-        const jewish = (_k = (_j = scoreOf((_h = u.lastBoxAnswers) === null || _h === void 0 ? void 0 : _h.practiceFrequencyScore)) !== null && _j !== void 0 ? _j : guestJewish.get(owner.ownerId)) !== null && _k !== void 0 ? _k : null;
+        const savedPractice = scoreOf((_h = u.lastBoxAnswers) === null || _h === void 0 ? void 0 : _h.practiceFrequencyScore);
+        const guest = guestScores.get(owner.ownerId);
+        const jewish = (_j = savedPractice !== null && savedPractice !== void 0 ? savedPractice : guest === null || guest === void 0 ? void 0 : guest.jewish) !== null && _j !== void 0 ? _j : null;
+        const hanukkah = savedPractice != null ? scoreOf((_k = u.lastBoxAnswers) === null || _k === void 0 ? void 0 : _k.familiarityScore) : ((_l = guest === null || guest === void 0 ? void 0 : guest.hanukkah) !== null && _l !== void 0 ? _l : null);
         const eligible = (0, pilotRules_1.isAutoInviteEligible)({
             jewish,
+            hanukkah,
             email,
             name,
             hasDraftLines: true,

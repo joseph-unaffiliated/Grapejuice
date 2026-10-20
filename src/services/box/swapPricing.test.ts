@@ -90,6 +90,9 @@ assert.equal(addOnTopUnitCents(get('beeswax-candles'), 'candles', addCtx(full)),
 assert.equal(addOnTopUnitCents(get('beeswax-candles'), 'candles', addCtx(full.slice(1))), 0);
 assert.equal(addOnTopUnitCents(get('latke-kit'), 'food', addCtx(full)), 500);
 assert.equal(addOnTopUnitCents(get('latke-kit'), 'food', addCtx(full.slice(0, 3))), 0);
+// Empty practice slot does not make à la carte free (brass dreidel, stuffie in food).
+assert.equal(addOnTopUnitCents(get('solid-brass-dreidel'), 'dreidel', addCtx(full.slice(1))), 3000);
+assert.equal(addOnTopUnitCents(get('crispy-the-latke-stuffie'), 'food', addCtx(full.slice(0, 3))), 1000);
 // Gelt is free only while it fits one Little Bag per person — an empty dreidel slot doesn't open it.
 const littles = { ...line('gelt-small', 'little-bag-of-gelt-2-big-5-little'), quantity: 4 };
 assert.equal(addOnTopUnitCents(get('little-bag-of-gelt-2-big-5-little'), 'dreidel', addCtx([littles])), 200);

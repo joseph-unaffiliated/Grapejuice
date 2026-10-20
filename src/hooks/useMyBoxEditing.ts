@@ -35,7 +35,7 @@ import {
   repairZeroExtraUnits,
   woodDreidelCatalogItem,
 } from '../services/box/buildDefaultBox';
-import { foodSlotQuantity, topUpDreidelLines } from '../services/box/includedAudit';
+import { foodSlotQuantity, geltBagOf, isFoodSlotLine, topUpDreidelLines } from '../services/box/includedAudit';
 import { geltCeilingForPeople, geltSizeOf, listBoxCentsForKids } from '../services/box/boxRules';
 import { findSwapSourceLine } from '../services/box/findSwapSourceLine';
 import {
@@ -1253,18 +1253,24 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     // A kid's book or present comes back in that kid's slot, never stacked on a sibling's copy.
     if (!replacement && freeLines[0] && !kidOf(freeLines[0])) {
       const target = freeLines[0];
-      await persist(
-        lineItems.map((li) =>
-          li.slotId === target.slotId
-            ? {
-                ...li,
-                quantity: (li.quantity ?? 1) + missing,
-                includedQty: li.includedQty ?? (li.quantity ?? 1) + missing,
-              }
-            : li
-        )
-      );
-      return;
+      // Food-slot kits / cookie cutters hold quantity 1 — never stack "missing" onto them.
+      // (Gelt in a food slot may be up to 3 Little Bags; household gelt may grow.)
+      const foodKit =
+        isFoodSlotLine(target) && !geltBagOf(target.itemId, target.label ?? '');
+      if (!foodKit) {
+        await persist(
+          lineItems.map((li) =>
+            li.slotId === target.slotId
+              ? {
+                  ...li,
+                  quantity: (li.quantity ?? 1) + missing,
+                  includedQty: Math.max(li.includedQty ?? 0, (li.quantity ?? 1) + missing),
+                }
+              : li
+          )
+        );
+        return;
+      }
     }
     const snapshot = donatedLineSnapshots.current.get(itemId) ?? [];
     const kidIds = children.map((c) => c.id);

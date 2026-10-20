@@ -4,7 +4,12 @@ import { isPilotLine } from '../../services/box/pilotLines';
 import { WRAP_POLICY } from '../../services/box/boxRules';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
 import { isBookishCatalogItem, resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
-import { FOOD_SLOTS_INCLUDED, geltBagOf, isIncludedFoodSlotLine } from '../../services/box/includedAudit';
+import {
+  FOOD_SLOTS_INCLUDED,
+  geltBagOf,
+  isIncludedFoodSlotLine,
+  nextVacantFoodSlotId,
+} from '../../services/box/includedAudit';
 import {
   displaySectionForCatalogItem,
   displaySectionForLineItem,
@@ -643,10 +648,14 @@ export function uniqueSlotForFreeSectionAdd(
   item: CatalogItem,
   existing: BoxLineItem[]
 ): string {
+  // Food options share catalog catch-alls like `decor` with napkins/gelt — never claim those
+  // as an included food slot. Prefer a vacant latke/sufganiyot (etc.) slot; otherwise add-on.
+  if (sectionId === 'food') {
+    return nextVacantFoodSlotId(existing) ?? `addon-${item.id}`;
+  }
   const sectionPreferred: Partial<Record<BoxDisplaySectionId, string>> = {
     candles: 'candles',
     dreidel: 'wood-dreidel',
-    food: 'latke-mix',
   };
   const used = new Set(existing.map((li) => li.slotId));
   const isUsableSlot = (s: string) =>

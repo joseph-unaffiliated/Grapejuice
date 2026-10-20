@@ -10,6 +10,7 @@ import {
   BOX_CURATOR_SYSTEM,
 } from './modes/boxCurator';
 import { SECTION_RULES } from './boxRules';
+import { cachedText, formatCacheUsage } from './anthropicCache';
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 
@@ -339,7 +340,18 @@ export const curatePilotBox = onCall(
 
     const catalogRows = await loadCatalogRows();
     const boxRulesContext = await buildBoxRulesContext(catalogRows);
-    const system = `${BOX_CURATOR_SYSTEM}${PRESENCE_APPEND}${PLAIN_TALK_APPEND}\n\n---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}\n\n${BOX_CURATOR_JSON_INSTRUCTIONS}`;
+    // Static curator voice + JSON schema, then shared box-rules CONTEXT — both
+    // cacheable across onboarding families (1h TTL). Per-family payload stays in messages.
+    const system = [
+      cachedText(
+        `${BOX_CURATOR_SYSTEM}${PRESENCE_APPEND}${PLAIN_TALK_APPEND}\n\n${BOX_CURATOR_JSON_INSTRUCTIONS}`,
+        '1h'
+      ),
+      cachedText(
+        `---\nCONTEXT (use when relevant; do not recite verbatim):\n${boxRulesContext}`,
+        '1h'
+      ),
+    ];
 
     const anthropic = new Anthropic({ apiKey });
     try {
@@ -349,6 +361,7 @@ export const curatePilotBox = onCall(
         system,
         messages: [{ role: 'user', content: buildUserMessage(data) }],
       });
+      logger.info('curatePilotBox Anthropic usage', formatCacheUsage(response.usage));
       const textBlock = response.content.find((b) => b.type === 'text');
       const raw = textBlock && textBlock.type === 'text' ? textBlock.text : '';
       const parsed = parseJsonObject(raw);

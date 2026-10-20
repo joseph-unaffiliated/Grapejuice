@@ -1303,7 +1303,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     const resolvedPromo = await (0, promotions_1.resolveCheckoutPromo)(db, data.promo, buyerEmail);
     const { discountCents, promo } = (0, promotions_1.applyResolvedPromo)(resolvedPromo, subtotalCents);
     const priced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, giftCreditCents, platformCreditCents, discountCents);
-    const { taxCents, totalCents, giftCreditApplied, platformCreditApplied, creditApplied } = priced;
+    const totalCents = priced.totalCents;
     const totalAvailableCredit = giftCreditCents + platformCreditCents;
     if (!cardOnFile && totalAvailableCredit + priced.discountApplied < boxPriceCents) {
         throw new sentry_1.HttpsError('failed-precondition', 'Save a payment method before committing your box.');
@@ -1315,20 +1315,78 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         throw new sentry_1.HttpsError('invalid-argument', 'Order total is invalid.');
     }
     const isPlaythrough = data.skipShipStation === true || (0, testAccounts_1.isPlaythroughTestEmail)(buyerEmail);
+    const ordersRef = db.collection(`households/${householdId}/orders`);
+    const already = (0, chargePilotBox_1.openHanukkahBoxOrder)((await ordersRef.get()).docs.map((d) => ({ id: d.id, data: d.data() })));
+    if (already) {
+        const existing = already.data;
+        logger.info('commitPilotBox already has an open box', { householdId, orderId: already.id });
+        return {
+            orderId: already.id,
+            totalCents: typeof existing.totalCents === 'number' ? existing.totalCents : 0,
+            discountCents: typeof existing.discountCents === 'number' ? existing.discountCents : 0,
+            status: 'committed',
+        };
+    }
     if (!isPlaythrough) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
     const estimatedDelivery = (_l = configData.estimatedDeliveryBy) !== null && _l !== void 0 ? _l : '2026-11-24';
     const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
-    const orderRef = db.collection(`households/${householdId}/orders`).doc();
-    const orderPayload = Object.assign(Object.assign(Object.assign(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
-        boxPriceCents,
-        kidCount,
-        subtotalCents,
-        shippingCents, discountCents: priced.discountApplied, taxCents,
-        totalCents, creditAppliedCents: creditApplied, giftCreditAppliedCents: giftCreditApplied, platformCreditAppliedCents: platformCreditApplied, expeditedShipping: false, shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
-        estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})), (attribution ? { attribution } : {})), (promo ? { promo } : {})), { checkoutSession: (0, checkoutSession_1.checkoutSessionFromCallable)(request) });
-    await orderRef.set(orderPayload);
+    const orderRef = ordersRef.doc();
+    const hhRef = db.doc(`households/${householdId}`);
+    // The household write is what makes two overlapping commits contend: the loser retries,
+    // sees the order the winner just wrote, and returns it instead of creating another.
+    const committed = await db.runTransaction(async (tx) => {
+        var _a;
+        const [hhFresh, ordersSnap] = await Promise.all([tx.get(hhRef), tx.get(ordersRef)]);
+        const open = (0, chargePilotBox_1.openHanukkahBoxOrder)(ordersSnap.docs.map((d) => ({ id: d.id, data: d.data() })));
+        if (open) {
+            const existing = open.data;
+            return {
+                created: false,
+                orderId: open.id,
+                totalCents: typeof existing.totalCents === 'number' ? existing.totalCents : 0,
+                discountCents: typeof existing.discountCents === 'number' ? existing.discountCents : 0,
+                priced,
+                orderPayload: null,
+            };
+        }
+        const fresh = (_a = hhFresh.data()) !== null && _a !== void 0 ? _a : {};
+        const freshPriced = (0, chargePilotBox_1.checkoutTotalsAfterCredit)(subtotalCents + shippingCents, typeof fresh.giftCreditCents === 'number' ? fresh.giftCreditCents : 0, typeof fresh.platformCreditCents === 'number' ? fresh.platformCreditCents : 0, discountCents);
+        const orderPayload = Object.assign(Object.assign(Object.assign(Object.assign({ status: 'committed', orderType: 'hanukkah_box', lineItems,
+            boxPriceCents,
+            kidCount,
+            subtotalCents,
+            shippingCents, discountCents: freshPriced.discountApplied, taxCents: freshPriced.taxCents, totalCents: freshPriced.totalCents, creditAppliedCents: freshPriced.creditApplied, giftCreditAppliedCents: freshPriced.giftCreditApplied, platformCreditAppliedCents: freshPriced.platformCreditApplied, expeditedShipping: false, shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
+            estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})), (attribution ? { attribution } : {})), (promo ? { promo } : {})), { checkoutSession: (0, checkoutSession_1.checkoutSessionFromCallable)(request) });
+        tx.set(orderRef, orderPayload);
+        tx.update(hhRef, Object.assign(Object.assign({ updatedAt: new Date().toISOString() }, (freshPriced.giftCreditApplied > 0
+            ? { giftCreditCents: (typeof fresh.giftCreditCents === 'number' ? fresh.giftCreditCents : 0) - freshPriced.giftCreditApplied }
+            : {})), (freshPriced.platformCreditApplied > 0
+            ? {
+                platformCreditCents: (typeof fresh.platformCreditCents === 'number' ? fresh.platformCreditCents : 0) -
+                    freshPriced.platformCreditApplied,
+            }
+            : {})));
+        return {
+            created: true,
+            orderId: orderRef.id,
+            totalCents: freshPriced.totalCents,
+            discountCents: freshPriced.discountApplied,
+            priced: freshPriced,
+            orderPayload,
+        };
+    });
+    if (!committed.created) {
+        logger.info('commitPilotBox already has an open box', { householdId, orderId: committed.orderId });
+        return {
+            orderId: committed.orderId,
+            totalCents: committed.totalCents,
+            discountCents: committed.discountCents,
+            status: 'committed',
+        };
+    }
+    const orderPayload = committed.orderPayload;
     await (0, pilotParticipants_1.markPilotEnrollmentCommitted)(db, householdId, orderRef.id);
     await (0, promotions_1.recordPromoRedemption)(db, {
         sourcePath: orderRef.path,
@@ -1337,9 +1395,6 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         promo,
         householdId,
     });
-    if (giftCreditApplied > 0 || platformCreditApplied > 0) {
-        await db.doc(`households/${householdId}`).update(Object.assign(Object.assign(Object.assign({}, (giftCreditApplied > 0 ? { giftCreditCents: giftCreditCents - giftCreditApplied } : {})), (platformCreditApplied > 0 ? { platformCreditCents: platformCreditCents - platformCreditApplied } : {})), { updatedAt: new Date().toISOString() }));
-    }
     await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_m = data.contactPhone) === null || _m === void 0 ? void 0 : _m.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
     // Exit signal for the account setup nudge (Untraditional workspace).
     const commitEmail = typeof request.auth.token.email === 'string' ? request.auth.token.email : '';
@@ -1373,8 +1428,8 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     }
     return {
         orderId: orderRef.id,
-        totalCents,
-        discountCents: priced.discountApplied,
+        totalCents: committed.totalCents,
+        discountCents: committed.discountCents,
         status: 'committed',
     };
 });
@@ -2185,12 +2240,14 @@ exports.finalizePilotGiftPayment = (0, sentry_1.onCall)(async (request) => {
 /**
  * Conversions API copy of non-checkout browser events. CompleteRegistration sends once
  * per account (`reg_<uid>`); PreRegister and BoxBuilt reuse the browser's event id for dedupe.
- * BoxBuilt and the server-only BoxFollowUp are both withheld when practice is above 49.
- * BoxFollowUp also requires a score, so an unscored box never joins the follow-up audience.
- * The score is never sent to Meta.
+ * BoxBuilt is withheld above the practice cutoff in metaPracticeCutoff.ts (practice score,
+ * tie-broken by Hanukkah at exactly 50) so Broad keeps optimizing on lower-practice builders.
+ * The server-only BoxFollowUp fires for every box build at every practice level (scored or
+ * not) — the follow-up audience includes high-practice builders too.
+ * The scores are never sent to Meta.
  */
 exports.trackMetaEvent = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     const eventName = (_a = request.data) === null || _a === void 0 ? void 0 : _a.eventName;
     if (eventName !== 'CompleteRegistration' && eventName !== 'PreRegister' && eventName !== 'BoxBuilt') {
         throw new sentry_1.HttpsError('invalid-argument', 'Unsupported event.');
@@ -2226,19 +2283,21 @@ exports.trackMetaEvent = (0, sentry_1.onCall)(async (request) => {
     const contentName = typeof ((_e = request.data) === null || _e === void 0 ? void 0 : _e.contentName) === 'string' ? request.data.contentName.trim().slice(0, 100) : '';
     let suppressBoxBuilt = false;
     let storedPractice;
+    let storedFamiliarity;
     if (eventName === 'BoxBuilt') {
         if (uid) {
             const snap = await db.doc(`users/${uid}`).get();
             storedPractice = (_g = (_f = snap.data()) === null || _f === void 0 ? void 0 : _f.lastBoxAnswers) === null || _g === void 0 ? void 0 : _g.practiceFrequencyScore;
+            storedFamiliarity = (_j = (_h = snap.data()) === null || _h === void 0 ? void 0 : _h.lastBoxAnswers) === null || _j === void 0 ? void 0 : _j.familiarityScore;
         }
         suppressBoxBuilt =
-            (0, metaPracticeCutoff_1.practiceAboveMetaCutoff)((_h = request.data) === null || _h === void 0 ? void 0 : _h.practiceFrequencyScore) || (0, metaPracticeCutoff_1.practiceAboveMetaCutoff)(storedPractice);
+            (0, metaPracticeCutoff_1.practiceAboveMetaCutoff)((_k = request.data) === null || _k === void 0 ? void 0 : _k.practiceFrequencyScore, (_l = request.data) === null || _l === void 0 ? void 0 : _l.familiarityScore) ||
+                (0, metaPracticeCutoff_1.practiceAboveMetaCutoff)(storedPractice, storedFamiliarity);
     }
     if (!suppressBoxBuilt) {
-        await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_j = context.eventId) !== null && _j !== void 0 ? _j : `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${(0, crypto_1.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
+        await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_m = context.eventId) !== null && _m !== void 0 ? _m : `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${(0, crypto_1.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
     }
-    if (eventName === 'BoxBuilt' &&
-        (0, metaPracticeCutoff_1.practiceEligibleForFollowUp)((_k = request.data) === null || _k === void 0 ? void 0 : _k.practiceFrequencyScore, storedPractice)) {
+    if (eventName === 'BoxBuilt') {
         await (0, metaCapi_1.sendMetaEvent)({
             eventName: 'BoxFollowUp',
             eventId: `followup_${(0, crypto_1.randomBytes)(8).toString('hex')}`,

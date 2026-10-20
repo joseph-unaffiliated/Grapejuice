@@ -28,6 +28,7 @@ import {
   isBookishCatalogItem,
   isIncludedFoodSlotOption,
   isStuffieCatalogItem,
+  resolveFreeSlotAddOptions,
   resolveFreeSwapUnitCents,
   resolveIncludedGiftOptions,
   resolveSectionSwapItems,
@@ -201,6 +202,8 @@ export function geltAddFitsAllowance(item: CatalogItem, ctx: AddPricingContext):
  * (An open kid slot or a donated item it stands in for is claimed free before this runs.)
  * Listed add-ons cost their add-on price; an included-tier item is free only while its included
  * slot is empty — gelt while it fits the gelt allowance, paper while nothing is marked to wrap.
+ * An empty practice slot only restores items that section's free rail offers (wood/airdry
+ * dreidel, beeswax, a food-slot kit) — never brass, a stuffie, or other à la carte SKUs.
  */
 export function addOnTopUnitCents(
   item: CatalogItem,
@@ -211,5 +214,7 @@ export function addOnTopUnitCents(
   if (listed > 0) return listed;
   if (isPaperItem(item)) return ctx.wrapSelectedCount > 0 && !ctx.includedPaper ? EXTRA_FLAT_CENTS : 0;
   if (geltSizeOf(item)) return geltAddFitsAllowance(item, ctx) ? 0 : extraUnitCents(item);
-  return includedPracticeSlotVacant(sectionId, ctx.lineItems) ? 0 : extraUnitCents(item);
+  if (!includedPracticeSlotVacant(sectionId, ctx.lineItems)) return extraUnitCents(item);
+  const freeRestore = resolveFreeSlotAddOptions(sectionId, ctx.catalog, 64).some((i) => i.id === item.id);
+  return freeRestore ? 0 : extraUnitCents(item);
 }

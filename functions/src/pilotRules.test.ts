@@ -92,7 +92,7 @@ const clay = { itemId: 'airdry-clay-dreidel', name: 'Air-dry clay dreidel', defe
   assert.equal(clientAgreementText([{ ...crispy, deferredChargeCents: 1050 }, gelt, clay]), pilotAgreementText([{ ...crispy, deferredChargeCents: 1050 }, gelt, clay]));
 }
 
-// Auto invites: a real first name, Jewish score under 50, an open box, nobody already invited.
+// Auto invites: a real first name, Jewish practice at or under 59, an open box, nobody already invited.
 {
   assert.equal(hasRealFirstName('Rachel Cohen'), true);
   assert.equal(hasRealFirstName('Al'), true);
@@ -104,6 +104,7 @@ const clay = { itemId: 'airdry-clay-dreidel', name: 'Air-dry clay dreidel', defe
 
   const base = {
     jewish: 20,
+    hanukkah: 80,
     email: 'rachel@gmail.com',
     name: 'Rachel',
     hasDraftLines: true,
@@ -114,8 +115,14 @@ const clay = { itemId: 'airdry-clay-dreidel', name: 'Air-dry clay dreidel', defe
   };
   assert.equal(isAutoInviteEligible(base), true);
   assert.equal(isAutoInviteEligible({ ...base, jewish: 0 }), true);
-  assert.equal(isAutoInviteEligible({ ...base, jewish: 49 }), true);
-  assert.equal(isAutoInviteEligible({ ...base, jewish: 50 }), false);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 59 }), true);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 60 }), false);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 50, hanukkah: 50 }), false);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 50, hanukkah: null }), false);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 50, hanukkah: 40 }), true);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 50, hanukkah: 58 }), true);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 50, hanukkah: 59 }), true);
+  assert.equal(isAutoInviteEligible({ ...base, jewish: 50, hanukkah: 60 }), false);
   assert.equal(isAutoInviteEligible({ ...base, jewish: null }), false);
   assert.equal(isAutoInviteEligible({ ...base, email: null }), false);
   assert.equal(isAutoInviteEligible({ ...base, name: 'R.' }), false);

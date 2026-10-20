@@ -4,8 +4,25 @@ import {
   boxPriceForUser,
   checkoutTotalsAfterCredit,
   computeCommittedBoxTotals,
+  isOpenHanukkahBoxOrder,
+  openHanukkahBoxOrder,
   settleLockCredit,
 } from './chargePilotBox';
+
+assert.equal(isOpenHanukkahBoxOrder({ status: 'committed', orderType: 'hanukkah_box', holidayId: 'hanukkah-2026' }), true);
+assert.equal(isOpenHanukkahBoxOrder({ status: 'pending', holidayId: 'hanukkah-2026' }), true);
+assert.equal(isOpenHanukkahBoxOrder({ status: 'cancelled', orderType: 'hanukkah_box', holidayId: 'hanukkah-2026' }), false);
+assert.equal(isOpenHanukkahBoxOrder({ status: 'confirmed', orderType: 'hanukkah_box', holidayId: 'hanukkah-2026' }), false);
+assert.equal(isOpenHanukkahBoxOrder({ status: 'committed', orderType: 'marketplace', holidayId: 'hanukkah-2026' }), false);
+assert.equal(isOpenHanukkahBoxOrder({ status: 'committed', orderType: 'hanukkah_box', holidayId: 'passover-2027' }), false);
+
+const kept = openHanukkahBoxOrder([
+  { id: 'later', data: { status: 'committed', orderType: 'hanukkah_box', holidayId: 'hanukkah-2026', createdAt: '2026-10-16T13:08:05.977Z' } },
+  { id: 'shop', data: { status: 'committed', orderType: 'marketplace', holidayId: 'hanukkah-2026', createdAt: '2026-10-16T12:00:00.000Z' } },
+  { id: 'first', data: { status: 'committed', orderType: 'hanukkah_box', holidayId: 'hanukkah-2026', createdAt: '2026-10-16T12:56:32.994Z' } },
+]);
+assert.equal(kept?.id, 'first');
+assert.equal(openHanukkahBoxOrder([{ id: 'void', data: { status: 'cancelled', orderType: 'hanukkah_box', holidayId: 'hanukkah-2026' } }]), null);
 
 assert.equal(boxPriceCentsForKids(1), 8000);
 assert.equal(boxPriceCentsForKids(2), 9000);

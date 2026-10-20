@@ -505,7 +505,11 @@ export function OnboardingStack({
         // The email screen covers Rav. The loader after it only waits a short splash.
         setBuildingReady(true);
         goToStep('email');
-        trackBoxBuilt(items.length, useGuestSessionStore.getState().practiceFrequencyScore);
+        trackBoxBuilt(
+          items.length,
+          useGuestSessionStore.getState().practiceFrequencyScore,
+          useGuestSessionStore.getState().familiarityScore
+        );
         void runRavPass(items, profiles).then(publishCurated).catch((err) => {
           console.warn('[onboarding] curateBox failed (guest)', err);
         });
@@ -547,7 +551,11 @@ export function OnboardingStack({
       setFamiliarity(level);
       setLineItems(remappedItems);
       setGuestLineItems(remappedItems);
-      trackBoxBuilt(remappedItems.length, useGuestSessionStore.getState().practiceFrequencyScore);
+      trackBoxBuilt(
+        remappedItems.length,
+        useGuestSessionStore.getState().practiceFrequencyScore,
+        useGuestSessionStore.getState().familiarityScore
+      );
       // Both flags together. Writing boxRevealComplete false here is what bounced
       // a slow reveal back into the questionnaire.
       const save = Promise.all([

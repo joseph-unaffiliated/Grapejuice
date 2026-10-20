@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PILOT_AUTO_INVITE_MAX_JEWISH = exports.PILOT_DEFAULT_ITEMS = exports.PILOT_SURVEY_DUE_AT = exports.PILOT_SURVEY_DUE_LABEL = exports.PILOT_AGREEMENT_VERSION = exports.PILOT_PICK_COUNT = void 0;
+exports.PILOT_DEFAULT_ITEMS = exports.PILOT_SURVEY_DUE_AT = exports.PILOT_SURVEY_DUE_LABEL = exports.PILOT_AGREEMENT_VERSION = exports.PILOT_PICK_COUNT = void 0;
 exports.isPilotLine = isPilotLine;
 exports.pilotLineFor = pilotLineFor;
 exports.mergePilotLines = mergePilotLines;
@@ -18,6 +18,7 @@ exports.maskEmail = maskEmail;
  * it, the server rebuilds it and refuses to enroll when the two differ.
  */
 const node_crypto_1 = require("node:crypto");
+const metaPracticeCutoff_1 = require("./metaPracticeCutoff");
 exports.PILOT_PICK_COUNT = 3;
 exports.PILOT_AGREEMENT_VERSION = '2026-10-14';
 exports.PILOT_SURVEY_DUE_LABEL = 'January 15, 2027';
@@ -115,8 +116,6 @@ function pilotAgreementText(picks) {
 function agreementHash(text) {
     return (0, node_crypto_1.createHash)('sha256').update(text, 'utf8').digest('hex');
 }
-/** Families scoring below this on the "Jewish" slider (0–100) are invited automatically. */
-exports.PILOT_AUTO_INVITE_MAX_JEWISH = 50;
 /** The invite greets by first name, so a lone initial ("J", "J.") isn't enough. */
 function hasRealFirstName(name) {
     var _a;
@@ -125,8 +124,7 @@ function hasRealFirstName(name) {
 }
 function isAutoInviteEligible(c) {
     var _a;
-    return (c.jewish != null &&
-        c.jewish < exports.PILOT_AUTO_INVITE_MAX_JEWISH &&
+    return ((0, metaPracticeCutoff_1.practiceQualifies)(c.jewish, c.hanukkah) &&
         !!((_a = c.email) === null || _a === void 0 ? void 0 : _a.includes('@')) &&
         hasRealFirstName(c.name) &&
         c.hasDraftLines &&
