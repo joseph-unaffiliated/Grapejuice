@@ -92,6 +92,7 @@ export {
   scheduledPurgeGuestSessions,
 } from './guestSessions';
 export { recordGiftStep } from './giftFunnel';
+export { recordCheckoutStep } from './checkoutFunnel';
 export { restorePilotBoxOrder } from './orderRestore';
 export { cancelPilotGift, resumePilotGiftPayment } from './pendingGift';
 export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink, requestLoginCode, redeemLoginCode } from './loginLinks';

@@ -110,6 +110,10 @@ service cloud.firestore {
     match /guestSessions/{visitorId} {
       allow read, write: if false;
     }
+    /** Box checkout funnel (functions/src/checkoutFunnel.ts) — functions only, never clients. */
+    match /checkoutFunnel/{visitorId} {
+      allow read, write: if false;
+    }
     match /guestResumeTokens/{tokenHash} {
       allow read, write: if false;
     }

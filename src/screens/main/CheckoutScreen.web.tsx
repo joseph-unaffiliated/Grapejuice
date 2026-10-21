@@ -17,6 +17,11 @@ import { getStripePromise, peekSavedCard, releaseSetupIntent, takeSetupIntent } 
 import { commitPilotBox } from '../../services/checkout/commitPilotBox';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
 import { metaEventIds, trackMeta } from '../../services/analytics/metaPixel';
+import {
+  recordCheckoutCommitAttempt,
+  recordCheckoutError,
+  recordCheckoutStep,
+} from '../../services/analytics/checkoutFunnel';
 import type { MainStackParamList } from '../../navigation/types';
 import { SystemPage, systemPageStyles as page } from '../../components/layout/SystemPage';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
@@ -176,13 +181,17 @@ function SetupCardStep({
         redirect: 'if_required',
       });
       if (error) {
+        recordCheckoutError('card', error.message ?? 'Card save failed');
         notifyCheckout('Could not save card', error.message ?? 'Please try again.');
         return;
       }
+      recordCheckoutStep('card');
       if (setupIntent?.id) {
         trackMeta('AddPaymentInfo', undefined, metaEventIds.addPaymentInfo(setupIntent.id));
       }
       onSaved();
+    } catch (e) {
+      recordCheckoutError('card', e instanceof Error ? e.message : 'Card save threw');
     } finally {
       setSaving(false);
     }
@@ -288,6 +297,7 @@ function CheckoutScreenBody() {
     }
     setAddressFieldErrors(result.fields);
     setAddressFormError(result.message);
+    recordCheckoutError('address', result.message, household?.id);
     return false;
   };
 
@@ -299,6 +309,7 @@ function CheckoutScreenBody() {
     if (verdict.ok) return true;
     setAddressFieldErrors(verdict.fields);
     setAddressFormError(verdict.message);
+    recordCheckoutError('address', verdict.message, household?.id);
     return false;
   };
 
@@ -319,6 +330,7 @@ function CheckoutScreenBody() {
   const handleCommit = useCallback(async () => {
     if (!user || !household?.id) return;
     if (locked) {
+      recordCheckoutError('commit', 'Box locked at commit', household.id);
       notifyCheckout('Box locked', 'The customization window has closed. Contact support for changes.');
       return;
     }
@@ -326,6 +338,7 @@ function CheckoutScreenBody() {
 
     setCommitting(true);
     setCommittedHere(true);
+    recordCheckoutCommitAttempt(household.id);
     try {
       const { orderId, totalCents } = await commitPilotBox(household.id, normalizedAddress(), {
         contactPhone: contactPhone.trim() || undefined,
@@ -344,11 +357,13 @@ function CheckoutScreenBody() {
         },
         metaEventIds.purchase(orderId)
       );
+      recordCheckoutStep('purchased', household.id);
       clearStoredCheckoutAddress();
       writeShippingConfirmed(false);
       setShowCongrats(true);
     } catch (e) {
       setCommittedHere(false);
+      recordCheckoutError('commit', e instanceof Error ? e.message : 'Could not commit your box.', household.id);
       notifyCheckout('Error', e instanceof Error ? e.message : 'Could not commit your box.');
     } finally {
       setCommitting(false);
@@ -370,6 +385,7 @@ function CheckoutScreenBody() {
   useEffect(() => {
     if (initiateCheckoutTracked.current || loading || !lineItems.length || openOrder) return;
     initiateCheckoutTracked.current = true;
+    recordCheckoutStep('view', household?.id);
     trackMeta('InitiateCheckout', {
       value: total / 100,
       currency: 'USD',
@@ -378,6 +394,11 @@ function CheckoutScreenBody() {
       num_items: lineItems.length,
     });
   }, [loading, lineItems.length, openOrder, total]);
+
+  // Checkout funnel: reaching the card form (SetupIntent created) is the payment step.
+  useEffect(() => {
+    if (setupClientSecret) recordCheckoutStep('payment', household?.id);
+  }, [setupClientSecret, household?.id]);
 
   const startSetup = async (fromShippingForm = false) => {
     if (!household?.id) return;
@@ -396,6 +417,7 @@ function CheckoutScreenBody() {
     try {
       const result = await takeSetupIntent(household.id);
       if (!result.clientSecret) {
+        recordCheckoutError('setup', 'No setup secret returned.', household.id);
         notifyCheckout('Error', 'No setup secret returned.');
         if (!keepShipping) setShippingConfirmed(false);
         return;
@@ -406,6 +428,7 @@ function CheckoutScreenBody() {
       pushBrowserPath(checkoutPath('payment'));
     } catch (e) {
       if (!keepShipping) setShippingConfirmed(false);
+      recordCheckoutError('setup', e instanceof Error ? e.message : 'Could not continue to payment', household.id);
       notifyCheckout('Could not continue to payment', formatSetupIntentError(e));
     } finally {
       setPreparing(false);
@@ -440,6 +463,7 @@ function CheckoutScreenBody() {
       setSetupClientSecret(result.clientSecret);
     } catch (e) {
       setReplacingCard(false);
+      recordCheckoutError('setup', e instanceof Error ? e.message : 'Could not load the card form', household.id);
       notifyCheckout('Could not load the card form', formatSetupIntentError(e));
     }
   };
@@ -460,6 +484,7 @@ function CheckoutScreenBody() {
           setSetupClientSecret(result.clientSecret);
         }
       } catch (e) {
+        recordCheckoutError('setup', e instanceof Error ? e.message : 'Could not load payment', household.id);
         notifyCheckout('Could not load payment', formatSetupIntentError(e));
       }
     })();
@@ -532,7 +557,10 @@ function CheckoutScreenBody() {
     }
     setAwaitingCardOnFile(false);
     if (saved) await handleCommitRef.current();
-    else cardCommitStarted.current = false;
+    else {
+      recordCheckoutError('card', 'Card saved but not confirmed on server after polling', householdId);
+      cardCommitStarted.current = false;
+    }
   };
 
   const onCardSaved = async () => {
