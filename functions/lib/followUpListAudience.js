@@ -30,9 +30,11 @@ exports.scheduledFollowUpListAudience = (0, sentry_1.onSchedule)({ schedule: '0 
         return;
     }
     const builders = await (0, followUpAudience_1.selectBuilderRows)(db);
-    const { rows, duplicates, staticPaid } = (0, followUpAudience_1.combineFollowUpRows)(builders.rows, staticRows, builders.paidEmailHashes);
+    const abandoners = await (0, followUpAudience_1.selectAbandonerRows)(db, builders.paidEmailHashes);
+    const { rows, duplicates, staticPaid } = (0, followUpAudience_1.combineFollowUpRows)([...builders.rows, ...abandoners], staticRows, builders.paidEmailHashes);
     const counts = {
         builders: builders.rows.length,
+        abandoners: abandoners.length,
         skipped: builders.skipped,
         staticRows: staticRows.length,
         staticPaid,

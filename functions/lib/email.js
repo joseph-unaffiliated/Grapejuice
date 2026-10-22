@@ -10,7 +10,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerioAppApiKey = void 0;
 exports.getCustomerioAppApiKey = getCustomerioAppApiKey;
@@ -18,7 +18,7 @@ exports.sendEmail = sendEmail;
 exports.sendDebriefReminderEmail = sendDebriefReminderEmail;
 exports.sendGiftClaimEmail = sendGiftClaimEmail;
 exports.sendGiftConfirmReminderEmail = sendGiftConfirmReminderEmail;
-exports.sendDebriefAmazonFallbackEmail = sendDebriefAmazonFallbackEmail;
+exports.sendDebriefChoiceEmail = sendDebriefChoiceEmail;
 exports.sendLockReminderEmail = sendLockReminderEmail;
 const params_1 = require("firebase-functions/params");
 /** Customer.io App API key — bind on every function that calls sendEmail / SMS. */
@@ -44,8 +44,8 @@ const TEMPLATE_IDS = {
     'box-shipped': parseInt((_m = process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED) !== null && _m !== void 0 ? _m : '0', 10) || 15,
     /** Marketplace / à la carte — transactional message 16. */
     'order-shipped': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _o !== void 0 ? _o : '0', 10) || 16,
-    /** Hanukkah box off-session decline — transactional message 17. */
-    'box-charge-failed': parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _p !== void 0 ? _p : '0', 10) || 17,
+    /** Hanukkah box off-session decline — transactional message 43 (shared HTML). */
+    'box-charge-failed': parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _p !== void 0 ? _p : '0', 10) || 43,
     /** Passwordless login / save-this-box link — transactional message 19 (sends fail until it's published). */
     'login-link': parseInt((_q = process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK) !== null && _q !== void 0 ? _q : '0', 10) || 19,
     /** Draft box holds an almost-sold-out item — transactional message 21 (docs/customerio-inventory-low.html). */
@@ -56,6 +56,24 @@ const TEMPLATE_IDS = {
     'login-code': parseInt((_t = process.env.CUSTOMERIO_TEMPLATE_LOGIN_CODE) !== null && _t !== void 0 ? _t : '0', 10) || 23,
     /** Pilot Participants "You're in" — skipped until a transactional message exists for it. */
     'pilot-joined': parseInt((_u = process.env.CUSTOMERIO_TEMPLATE_PILOT_JOINED) !== null && _u !== void 0 ? _u : '0', 10) || 0,
+    /** Conversion program. Values are Customer.io transactional message ids. */
+    'program-pilot-invite': parseInt((_v = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_INVITE) !== null && _v !== void 0 ? _v : '0', 10) || 25,
+    'program-pilot-d3': parseInt((_w = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D3) !== null && _w !== void 0 ? _w : '0', 10) || 26,
+    'program-pilot-d7': parseInt((_x = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D7) !== null && _x !== void 0 ? _x : '0', 10) || 27,
+    'program-d1': parseInt((_y = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D1) !== null && _y !== void 0 ? _y : '0', 10) || 28,
+    'program-s6': parseInt((_z = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_S6) !== null && _z !== void 0 ? _z : '0', 10) || 29,
+    'program-d4': parseInt((_0 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D4) !== null && _0 !== void 0 ? _0 : '0', 10) || 30,
+    'program-d8': parseInt((_1 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D8) !== null && _1 !== void 0 ? _1 : '0', 10) || 31,
+    'program-abandoner': parseInt((_2 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ABANDONER) !== null && _2 !== void 0 ? _2 : '0', 10) || 32,
+    'program-wave2': parseInt((_3 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_WAVE2) !== null && _3 !== void 0 ? _3 : '0', 10) || 33,
+    'program-lock-t1': parseInt((_4 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1) !== null && _4 !== void 0 ? _4 : '0', 10) || 34,
+    'program-survey': parseInt((_5 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_SURVEY) !== null && _5 !== void 0 ? _5 : '0', 10) || 35,
+    'program-lock-t1-committed': parseInt((_6 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1_COMMITTED) !== null && _6 !== void 0 ? _6 : '0', 10) || 37,
+    'program-lock-sorry': parseInt((_7 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_SORRY) !== null && _7 !== void 0 ? _7 : '0', 10) || 38,
+    'program-lock-charged': parseInt((_8 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_CHARGED) !== null && _8 !== void 0 ? _8 : '0', 10) || 39,
+    'program-extend-draft': parseInt((_9 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_DRAFT) !== null && _9 !== void 0 ? _9 : '0', 10) || 40,
+    'program-extend-new': parseInt((_10 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_NEW) !== null && _10 !== void 0 ? _10 : '0', 10) || 41,
+    'program-order-cancelled': parseInt((_11 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ORDER_CANCELLED) !== null && _11 !== void 0 ? _11 : '0', 10) || 42,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)
@@ -85,9 +103,13 @@ function getCustomerioAppApiKey() {
     return ((_b = process.env.CUSTOMERIO_APP_API_KEY) === null || _b === void 0 ? void 0 : _b.trim()) || '';
 }
 async function sendEmail({ to, template, data, }) {
+    if (!(template in TEMPLATE_IDS)) {
+        console.warn('sendEmail: unknown template', template);
+        return 'skipped';
+    }
     const transactionalMessageId = TEMPLATE_IDS[template];
     if (!transactionalMessageId) {
-        console.warn('sendEmail: unknown template', template);
+        console.warn('sendEmail: template not configured', template);
         return 'skipped';
     }
     if (!(to === null || to === void 0 ? void 0 : to.includes('@')))
@@ -117,19 +139,19 @@ async function sendEmail({ to, template, data, }) {
     }
     return 'sent';
 }
-/** Debrief outreach — up to 2 reminder attempts (Q5 panel). Stub when template/key missing. */
+/** December debrief reminders (attempts 1–2): a completed debrief earns the $80 credit through Dec 31. */
 async function sendDebriefReminderEmail({ to, attempt, claimUrl, }) {
     const template = 'debrief-reminder';
     const transactionalMessageId = TEMPLATE_IDS[template];
     if (!transactionalMessageId || !getCustomerioAppApiKey()) {
         console.warn('sendDebriefReminderEmail: stub (Customer.io not configured)', { to, attempt });
-        return;
+        return false;
     }
-    await sendEmail({
+    return ((await sendEmail({
         to,
         template,
         data: { attempt, claimUrl: claimUrl !== null && claimUrl !== void 0 ? claimUrl : 'https://app.grapejuice.co' },
-    });
+    })) === 'sent');
 }
 /** Magic link for gift recipient claim. */
 async function sendGiftClaimEmail({ to, giverName, claimUrl, message, kind, deadlineLabel, arrivesByLabel, }) {
@@ -153,19 +175,18 @@ async function sendGiftConfirmReminderEmail(data) {
     const { to } = data, messageData = __rest(data, ["to"]);
     return (await sendEmail({ to, template, data: messageData })) === 'sent';
 }
-/** Q5 panel — $20 Amazon gift card fallback after 2 debrief nudges + 14 days. */
-async function sendDebriefAmazonFallbackEmail({ to, claimUrl, }) {
-    var _a;
-    const templateId = parseInt((_a = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _a !== void 0 ? _a : '0', 10) || 0;
-    if (!templateId || !getCustomerioAppApiKey()) {
-        console.warn('sendDebriefAmazonFallbackEmail: stub (template not configured)', { to, claimUrl });
-        return;
+/** January debrief email (message 8): finish by Jan 31, then pick the $80 credit or a $20 Amazon gift card. */
+async function sendDebriefChoiceEmail({ to, claimUrl, final, }) {
+    const template = 'debrief-amazon';
+    if (!TEMPLATE_IDS[template] || !getCustomerioAppApiKey()) {
+        console.warn('sendDebriefChoiceEmail: stub (template not configured)', { to, final });
+        return false;
     }
-    await sendEmail({
+    return ((await sendEmail({
         to,
-        template: 'debrief-amazon',
-        data: { claimUrl: claimUrl !== null && claimUrl !== void 0 ? claimUrl : 'https://app.grapejuice.co' },
-    });
+        template,
+        data: { claimUrl: claimUrl !== null && claimUrl !== void 0 ? claimUrl : 'https://app.grapejuice.co', final },
+    })) === 'sent');
 }
 /** Lock countdown — up to 2 reminder attempts before customization closes. */
 async function sendLockReminderEmail({ to, attempt, daysRemaining, myBoxUrl, checkoutUrl, lockDate, hasCard, items, itemsMore, }) {

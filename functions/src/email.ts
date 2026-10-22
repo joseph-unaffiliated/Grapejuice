@@ -29,8 +29,8 @@ const TEMPLATE_IDS: Record<string, number> = {
   'box-shipped': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED ?? '0', 10) || 15,
   /** Marketplace / à la carte — transactional message 16. */
   'order-shipped': parseInt(process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED ?? '0', 10) || 16,
-  /** Hanukkah box off-session decline — transactional message 17. */
-  'box-charge-failed': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED ?? '0', 10) || 17,
+  /** Hanukkah box off-session decline — transactional message 43 (shared HTML). */
+  'box-charge-failed': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED ?? '0', 10) || 43,
   /** Passwordless login / save-this-box link — transactional message 19 (sends fail until it's published). */
   'login-link': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK ?? '0', 10) || 19,
   /** Draft box holds an almost-sold-out item — transactional message 21 (docs/customerio-inventory-low.html). */
@@ -41,6 +41,24 @@ const TEMPLATE_IDS: Record<string, number> = {
   'login-code': parseInt(process.env.CUSTOMERIO_TEMPLATE_LOGIN_CODE ?? '0', 10) || 23,
   /** Pilot Participants "You're in" — skipped until a transactional message exists for it. */
   'pilot-joined': parseInt(process.env.CUSTOMERIO_TEMPLATE_PILOT_JOINED ?? '0', 10) || 0,
+  /** Conversion program. Values are Customer.io transactional message ids. */
+  'program-pilot-invite': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_INVITE ?? '0', 10) || 25,
+  'program-pilot-d3': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D3 ?? '0', 10) || 26,
+  'program-pilot-d7': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D7 ?? '0', 10) || 27,
+  'program-d1': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D1 ?? '0', 10) || 28,
+  'program-s6': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_S6 ?? '0', 10) || 29,
+  'program-d4': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D4 ?? '0', 10) || 30,
+  'program-d8': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D8 ?? '0', 10) || 31,
+  'program-abandoner': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ABANDONER ?? '0', 10) || 32,
+  'program-wave2': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_WAVE2 ?? '0', 10) || 33,
+  'program-lock-t1': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1 ?? '0', 10) || 34,
+  'program-survey': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_SURVEY ?? '0', 10) || 35,
+  'program-lock-t1-committed': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1_COMMITTED ?? '0', 10) || 37,
+  'program-lock-sorry': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_SORRY ?? '0', 10) || 38,
+  'program-lock-charged': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_CHARGED ?? '0', 10) || 39,
+  'program-extend-draft': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_DRAFT ?? '0', 10) || 40,
+  'program-extend-new': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_NEW ?? '0', 10) || 41,
+  'program-order-cancelled': parseInt(process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ORDER_CANCELLED ?? '0', 10) || 42,
 };
 
 /** Env vars for Customer.io transactional templates:
@@ -78,9 +96,13 @@ export async function sendEmail({
   template: string;
   data: Record<string, unknown>;
 }): Promise<'sent' | 'skipped'> {
+  if (!(template in TEMPLATE_IDS)) {
+    console.warn('sendEmail: unknown template', template);
+    return 'skipped';
+  }
   const transactionalMessageId = TEMPLATE_IDS[template];
   if (!transactionalMessageId) {
-    console.warn('sendEmail: unknown template', template);
+    console.warn('sendEmail: template not configured', template);
     return 'skipped';
   }
   if (!to?.includes('@')) return 'skipped';
@@ -110,7 +132,7 @@ export async function sendEmail({
   return 'sent';
 }
 
-/** Debrief outreach — up to 2 reminder attempts (Q5 panel). Stub when template/key missing. */
+/** December debrief reminders (attempts 1–2): a completed debrief earns the $80 credit through Dec 31. */
 export async function sendDebriefReminderEmail({
   to,
   attempt,
@@ -119,18 +141,20 @@ export async function sendDebriefReminderEmail({
   to: string;
   attempt: 1 | 2;
   claimUrl?: string;
-}): Promise<void> {
+}): Promise<boolean> {
   const template = 'debrief-reminder';
   const transactionalMessageId = TEMPLATE_IDS[template];
   if (!transactionalMessageId || !getCustomerioAppApiKey()) {
     console.warn('sendDebriefReminderEmail: stub (Customer.io not configured)', { to, attempt });
-    return;
+    return false;
   }
-  await sendEmail({
-    to,
-    template,
-    data: { attempt, claimUrl: claimUrl ?? 'https://app.grapejuice.co' },
-  });
+  return (
+    (await sendEmail({
+      to,
+      template,
+      data: { attempt, claimUrl: claimUrl ?? 'https://app.grapejuice.co' },
+    })) === 'sent'
+  );
 }
 
 /** Magic link for gift recipient claim. */
@@ -181,24 +205,28 @@ export async function sendGiftConfirmReminderEmail(data: {
   return (await sendEmail({ to, template, data: messageData })) === 'sent';
 }
 
-/** Q5 panel — $20 Amazon gift card fallback after 2 debrief nudges + 14 days. */
-export async function sendDebriefAmazonFallbackEmail({
+/** January debrief email (message 8): finish by Jan 31, then pick the $80 credit or a $20 Amazon gift card. */
+export async function sendDebriefChoiceEmail({
   to,
   claimUrl,
+  final,
 }: {
   to: string;
   claimUrl?: string;
-}): Promise<void> {
-  const templateId = parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON ?? '0', 10) || 0;
-  if (!templateId || !getCustomerioAppApiKey()) {
-    console.warn('sendDebriefAmazonFallbackEmail: stub (template not configured)', { to, claimUrl });
-    return;
+  final: boolean;
+}): Promise<boolean> {
+  const template = 'debrief-amazon';
+  if (!TEMPLATE_IDS[template] || !getCustomerioAppApiKey()) {
+    console.warn('sendDebriefChoiceEmail: stub (template not configured)', { to, final });
+    return false;
   }
-  await sendEmail({
-    to,
-    template: 'debrief-amazon',
-    data: { claimUrl: claimUrl ?? 'https://app.grapejuice.co' },
-  });
+  return (
+    (await sendEmail({
+      to,
+      template,
+      data: { claimUrl: claimUrl ?? 'https://app.grapejuice.co', final },
+    })) === 'sent'
+  );
 }
 
 /** Lock countdown — up to 2 reminder attempts before customization closes. */

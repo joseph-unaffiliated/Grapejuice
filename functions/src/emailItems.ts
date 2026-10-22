@@ -139,12 +139,16 @@ export async function lineItemsEmailItems(
   const ids = [...quantities.keys()];
   if (!ids.length) return { items: [], more: 0 };
   const snaps = await db.getAll(...ids.map((id) => db.doc(`${CATALOG_ITEMS}/${id}`)));
+  const ranked = snaps
+    .map((snap, index) => ({ snap, index }))
+    .filter((row) => row.snap.exists)
+    .sort(
+      (a, b) =>
+        boxThumbTier(a.snap.id, a.snap.data() ?? {}) - boxThumbTier(b.snap.id, b.snap.data() ?? {}) || a.index - b.index
+    );
   const items: EmailItem[] = [];
-  let available = 0;
-  for (const snap of snaps) {
-    if (!snap.exists) continue;
-    available += 1;
-    if (items.length >= MAX_BOX_ITEMS) continue;
+  for (const { snap } of ranked) {
+    if (items.length >= MAX_BOX_ITEMS) break;
     const item = await toEmailItem(snap.id, snap.data() ?? {}, {
       quantity: quantities.get(snap.id) ?? 1,
       url,
@@ -152,7 +156,106 @@ export async function lineItemsEmailItems(
     });
     if (item) items.push(item);
   }
-  return { items, more: Math.max(0, available - items.length) };
+  return { items, more: Math.max(0, ranked.length - items.length) };
+}
+
+/** `items_partial` is true when the box has more items than the six cards. */
+export function boxThumbFields(picked: { items: EmailItem[]; more: number }): { items: EmailItem[]; items_partial: boolean } {
+  return { items: picked.items, items_partial: picked.more > 0 };
+}
+
+function catCategory(cat: CatalogDoc): string {
+  return typeof cat.category === 'string' ? cat.category.trim().toLowerCase() : '';
+}
+
+function catSections(cat: CatalogDoc): string[] {
+  return Array.isArray(cat.boxSections) ? cat.boxSections.map((s) => String(s).trim().toLowerCase()) : [];
+}
+
+function isBookDoc(id: string, cat: CatalogDoc): boolean {
+  const category = catCategory(cat);
+  return id.startsWith('book-') || category === 'book' || category === 'books' || catSections(cat).some((s) => s === 'story' || s === 'books' || s.includes('tell the story'));
+}
+
+function isGiftDoc(id: string, cat: CatalogDoc): boolean {
+  const category = catCategory(cat);
+  if (category === 'stuffies' || category === 'gift' || category === 'gifts' || category === 'wrapping') return true;
+  if (catSections(cat).some((s) => s === 'gifts' || s === 'presents' || s.includes('present'))) return true;
+  const slot = typeof cat.slotId === 'string' ? cat.slotId : '';
+  if (slot === 'wrapping' || slot === 'wrapping-paper' || slot === 'pre-wrap') return true;
+  return /wrapping|stuffie/.test(id);
+}
+
+function isFoodDoc(id: string, cat: CatalogDoc): boolean {
+  if (catCategory(cat) === 'stuffies' || /stuffie/.test(id)) return false;
+  if (catCategory(cat) === 'food') return true;
+  if (catSections(cat).some((s) => s === 'food' || s.includes('eat'))) return true;
+  return /latke-kit|latke-mix|sufganiyot|applesauce/.test(id);
+}
+
+/** Gifts and books first, food last, original order kept within a tier. */
+function boxThumbTier(id: string, cat: CatalogDoc): number {
+  if (isFoodDoc(id, cat)) return 2;
+  if (isBookDoc(id, cat) || isGiftDoc(id, cat)) return 0;
+  return 1;
+}
+
+/** Storefront items to suggest adding: not in `exclude`, not sold out, "most loved" first, then by storefront rank. */
+export async function suggestEmailItems(
+  db: FirebaseFirestore.Firestore,
+  exclude: Set<string>,
+  soldOut: Set<string>,
+  utm: string,
+  limit = MAX_PICKS
+): Promise<EmailItem[]> {
+  const snap = await db.collection(CATALOG_ITEMS).get();
+  const rank = (d: FirebaseFirestore.QueryDocumentSnapshot) => {
+    const data = d.data();
+    const loved = Array.isArray(data.storefrontRails) && data.storefrontRails.includes('most-loved') ? 0 : 1;
+    const r = typeof data.storefrontRank === 'number' ? data.storefrontRank : Infinity;
+    return [loved, r] as const;
+  };
+  const ranked = snap.docs
+    .filter((d) => !exclude.has(d.id) && !soldOut.has(d.id) && Array.isArray(d.data().storefrontRails) && d.data().storefrontRails.length > 0)
+    .sort((a, b) => {
+      const [al, ar] = rank(a);
+      const [bl, br] = rank(b);
+      return al - bl || ar - br;
+    });
+  const origin = process.env.GJ_APP_ORIGIN?.trim() || 'https://grapejuice.co';
+  const items: EmailItem[] = [];
+  for (const doc of ranked) {
+    if (items.length >= limit) break;
+    const item = await toEmailItem(doc.id, doc.data(), {
+      quantity: 1,
+      url: `${origin}/product/${encodeURIComponent(doc.id)}?${utm}`,
+      withPrice: true,
+    });
+    if (item) items.push(item);
+  }
+  return items;
+}
+
+/** The most recent sold-out book swapped out of this draft (`hh_<id>` or `guest_<visitorId>`), as a card. */
+export async function soldOutBookItem(
+  db: FirebaseFirestore.Firestore,
+  draftKey: string,
+  url: string
+): Promise<EmailItem | null> {
+  const swaps = await db.collection('inventorySwaps').where('draftKey', '==', draftKey).get();
+  const recent = swaps.docs.sort((a, b) => {
+    const at = (d: FirebaseFirestore.QueryDocumentSnapshot) => d.data().swappedAt?.toMillis?.() ?? 0;
+    return at(b) - at(a);
+  });
+  for (const swap of recent) {
+    const id = swap.data().fromItemId;
+    if (typeof id !== 'string') continue;
+    const cat = await db.doc(`${CATALOG_ITEMS}/${id}`).get();
+    if (!cat.exists || !isBookDoc(id, cat.data() ?? {})) continue;
+    const item = await toEmailItem(id, cat.data() ?? {}, { quantity: 1, url, withPrice: false });
+    if (item) return item;
+  }
+  return null;
 }
 
 /** Three "most loved" storefront products, for leads without a saved box. */

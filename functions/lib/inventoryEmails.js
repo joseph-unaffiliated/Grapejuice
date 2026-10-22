@@ -453,8 +453,23 @@ async function runInventoryEmails(db, options = {}) {
         return images.get(key);
     };
     const byHash = new Map(recipients.map((r) => [r.hash, r]));
+    const { etDate: programDay } = await Promise.resolve().then(() => require('./program/time'));
+    const marketedToday = new Set();
+    const logSnap = await db.collection('messageLog').select('sends').get();
+    for (const doc of logSnap.docs) {
+        const sends = doc.data().sends;
+        if (!Array.isArray(sends))
+            continue;
+        if (sends.some((s) => s && s.marketing === true && s.skipped !== true && typeof s.at === 'string' && programDay(s.at) === date)) {
+            marketedToday.add(doc.id);
+        }
+    }
     for (const pick of plan.picks) {
         const r = byHash.get(pick.hash);
+        if (pick.kind === 'low' && marketedToday.has(pick.hash)) {
+            result.skipped.lowCooldown += 1;
+            continue;
+        }
         if (!(await claimDailySlot(db, r, date, pick)))
             continue;
         const logRef = db.doc(`${exports.INVENTORY_EMAIL_LOG}/${r.hash}_${date}`);

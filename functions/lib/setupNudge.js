@@ -73,6 +73,10 @@ async function hasCommittedOrder(db, householdId) {
 }
 async function runSetupNudgeBatch(db, lockAt, now = new Date()) {
     var _a;
+    const { enabledStageSet } = await Promise.resolve().then(() => require('./program/config'));
+    if ((await enabledStageSet(db)).has('d1')) {
+        return { sent: 0, skipped: { replaced_by_program: 1 } };
+    }
     const drafts = await db.collectionGroup('boxDrafts').get();
     const skipped = {};
     const skip = (reason) => {

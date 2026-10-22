@@ -11,8 +11,9 @@ exports.runPilotAutoInvites = runPilotAutoInvites;
  * lines on the box. Survey tracking, the deferred charge and refunds come later.
  *
  * - pilotInvites/{token}: one per email, made by an admin (adminPilotParticipants) or by the
- *   auto-invite sweep (runPilotAutoInvites, `source: 'auto'`). Joseph emails the link himself and
- *   ticks `emailedAt` / `followUpAt` in the admin; nothing here sends it.
+ *   auto-invite sweep (runPilotAutoInvites, `source: 'auto'`). draftLifecycle sends the invite,
+ *   the day-3 note and the day-7 note once those pieces are approved, and stamps emailedAt /
+ *   followUpAt / d7At. The admin tick still works. Nothing sends while the pieces are pending.
  * - pilotEnrollments/{householdId}: picks (price snapshot), agreement record, status
  *   `awaiting_checkout` (picks are in the draft; the box isn't checked out yet) → `enrolled`.
  * - adminConfig/pilotParticipants (optional): `itemIds` overrides the approved list and its order.

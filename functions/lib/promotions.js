@@ -20,6 +20,7 @@ const auth_1 = require("firebase-admin/auth");
 const firestore_1 = require("firebase-admin/firestore");
 const logger = require("./logger");
 const sentry_1 = require("./sentry");
+const debriefReward_1 = require("./debriefReward");
 const guestSessions_1 = require("./guestSessions");
 const loginLinks_1 = require("./loginLinks");
 const promoPricing_1 = require("./promoPricing");
@@ -27,8 +28,6 @@ const HOLIDAY_ID = 'hanukkah-2026';
 /** An unpaid checkout holds a limited code's slot this long (stale ones are cancelled anyway). */
 const PENDING_HOLD_MS = 2 * 60 * 60 * 1000;
 const MAX_GRANT_CENTS = 200000;
-/** Matches src/services/box/pricing.ts DEBRIEF_PLATFORM_CREDIT_CENTS. */
-const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;
 const NO_PROMO = { code: null, influencer: null, selfReferral: false, buyerKey: null };
 function termsOf(d) {
     return {
@@ -376,7 +375,7 @@ async function recordInfluencerVisit(db, slug, rawVisitorId) {
 // awardDebriefCredit: the post-Hanukkah reflection credit, server-side so clients can't write credit
 // ---------------------------------------------------------------------------
 exports.awardDebriefCredit = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     const uid = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid;
     if (!uid)
         throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
@@ -385,27 +384,66 @@ exports.awardDebriefCredit = (0, sentry_1.onCall)(async (request) => {
     const householdId = typeof ((_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.householdId) === 'string' ? userSnap.data().householdId : '';
     if (!householdId)
         throw new sentry_1.HttpsError('failed-precondition', 'No household.');
-    const reflection = await db.doc(`users/${uid}/reflection/${HOLIDAY_ID}`).get();
-    if (!reflection.exists)
-        throw new sentry_1.HttpsError('failed-precondition', 'Finish the debrief first.');
+    const enrollment = await db.doc(`pilotEnrollments/${householdId}`).get();
+    const pilotStatus = (_c = enrollment.data()) === null || _c === void 0 ? void 0 : _c.status;
+    const pilot = pilotStatus === 'enrolled' || pilotStatus === 'awaiting_checkout';
     const markerRef = db.doc(`creditAwards/debrief_${HOLIDAY_ID}_${uid}`);
+    const options = pilot ? [] : (0, debriefReward_1.debriefRewardOptions)((0, debriefReward_1.etDay)());
+    if (((_d = request.data) === null || _d === void 0 ? void 0 : _d.dryRun) === true) {
+        const marker = await markerRef.get();
+        return {
+            awardedCents: 0,
+            reward: (_f = (_e = marker.data()) === null || _e === void 0 ? void 0 : _e.reward) !== null && _f !== void 0 ? _f : (marker.exists ? 'credit' : null),
+            options: marker.exists ? [] : options,
+            skipped: pilot ? 'pilot' : options.length ? null : 'closed',
+        };
+    }
+    if (pilot)
+        return { awardedCents: 0, reward: null, options: [], skipped: 'pilot' };
+    if (!options.length)
+        return { awardedCents: 0, reward: null, options: [], skipped: 'closed' };
+    const reward = ((_g = request.data) === null || _g === void 0 ? void 0 : _g.reward) === 'gift_card' ? 'gift_card' : 'credit';
+    if (!options.includes(reward))
+        throw new sentry_1.HttpsError('failed-precondition', 'That reward is not available today.');
+    const reflection = await db.doc(`users/${uid}/reflection/${HOLIDAY_ID}`).get();
+    if (!(0, debriefReward_1.isDebriefComplete)(reflection.data()))
+        throw new sentry_1.HttpsError('failed-precondition', 'Finish every question in the debrief first.');
+    const email = typeof ((_h = request.auth) === null || _h === void 0 ? void 0 : _h.token.email) === 'string' ? request.auth.token.email : String((_k = (_j = userSnap.data()) === null || _j === void 0 ? void 0 : _j.email) !== null && _k !== void 0 ? _k : '');
     const hhRef = db.doc(`households/${householdId}`);
-    const awarded = await db.runTransaction(async (tx) => {
-        var _a, _b;
+    const giftRef = db.doc(`giftCardRequests/debrief_${HOLIDAY_ID}_${uid}`);
+    const now = new Date().toISOString();
+    const result = await db.runTransaction(async (tx) => {
+        var _a, _b, _c, _d;
         const [marker, hh] = await Promise.all([tx.get(markerRef), tx.get(hhRef)]);
         if (marker.exists)
-            return 0;
-        const members = (_b = (_a = hh.data()) === null || _a === void 0 ? void 0 : _a.memberIds) !== null && _b !== void 0 ? _b : [];
+            return { awardedCents: 0, reward: (_b = (_a = marker.data()) === null || _a === void 0 ? void 0 : _a.reward) !== null && _b !== void 0 ? _b : 'credit' };
+        const members = (_d = (_c = hh.data()) === null || _c === void 0 ? void 0 : _c.memberIds) !== null && _d !== void 0 ? _d : [];
         if (!hh.exists || !members.includes(uid))
             throw new sentry_1.HttpsError('permission-denied', 'Not a household member.');
-        tx.set(markerRef, { uid, householdId, amountCents: DEBRIEF_PLATFORM_CREDIT_CENTS, createdAt: new Date().toISOString() });
-        tx.update(hhRef, {
-            platformCreditCents: firestore_1.FieldValue.increment(DEBRIEF_PLATFORM_CREDIT_CENTS),
-            updatedAt: new Date().toISOString(),
-        });
-        return DEBRIEF_PLATFORM_CREDIT_CENTS;
+        const amountCents = reward === 'credit' ? debriefReward_1.DEBRIEF_CREDIT_CENTS : debriefReward_1.DEBRIEF_GIFT_CARD_CENTS;
+        tx.set(markerRef, { uid, householdId, reward, amountCents, createdAt: now });
+        if (reward === 'credit') {
+            tx.update(hhRef, { platformCreditCents: firestore_1.FieldValue.increment(debriefReward_1.DEBRIEF_CREDIT_CENTS), updatedAt: now });
+        }
+        else {
+            tx.set(giftRef, {
+                uid,
+                householdId,
+                email,
+                vendor: 'amazon',
+                amountCents,
+                holidayId: HOLIDAY_ID,
+                status: 'pending',
+                debriefVerifiedAt: now,
+                createdAt: now,
+            });
+        }
+        return { awardedCents: amountCents, reward };
     });
-    return { awardedCents: awarded };
+    if (result.awardedCents > 0 && result.reward === 'gift_card') {
+        await db.collection('programAlerts').add({ at: now, kind: 'debrief_gift_card', uid, email, open: true });
+    }
+    return Object.assign(Object.assign({}, result), { options: [], skipped: null });
 });
 function fail(message) {
     throw new sentry_1.HttpsError('invalid-argument', message);
@@ -497,6 +535,24 @@ async function saveCode(db, actor, input) {
         await ref.update(fields);
     }
     return { code };
+}
+/** Remove a code that has never been placed on a counted or in-progress order. */
+async function deleteCode(db, input) {
+    const code = (0, promoPricing_1.normalizeCode)(input.code);
+    if (!code)
+        fail('Codes are 3–32 letters, numbers, - or _.');
+    const ref = db.doc(`discountCodes/${code}`);
+    if (!(await ref.get()).exists)
+        fail('Code not found.');
+    const nowMs = Date.now();
+    const snap = await db.collection('promoRedemptions').where('code', '==', code).get();
+    const rows = await withSources(db, snap.docs);
+    if (rows.some((row) => rowCounted(row) || rowPendingHold(row, nowMs))) {
+        fail('That code has been used, so it stays on the list.');
+    }
+    await ref.delete();
+    logger.info('deleteCode', { code });
+    return { ok: true };
 }
 async function listCredits(db) {
     const snap = await db.collection('creditGrants').orderBy('createdAt', 'desc').limit(500).get();
@@ -709,6 +765,8 @@ exports.adminPromotions = (0, sentry_1.onCall)(async (request) => {
             return { codes: await listCodes(db) };
         case 'saveCode':
             return saveCode(db, actor, input);
+        case 'deleteCode':
+            return deleteCode(db, input);
         case 'listCredits':
             return { grants: await listCredits(db) };
         case 'grantCredit':

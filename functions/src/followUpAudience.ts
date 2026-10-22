@@ -192,6 +192,49 @@ export async function selectBuilderRows(db: Firestore): Promise<BuilderSelection
   return { rows, paidEmailHashes, skipped };
 }
 
+/**
+ * People who reached payment (Stripe customer or a checkoutFunnel payment step) and have not
+ * bought. They already have a card, so selectBuilderRows leaves them out.
+ */
+export async function selectAbandonerRows(db: Firestore, paidEmailHashes: Set<string>): Promise<HashedRow[]> {
+  const [householdSnap, userSnap, funnelSnap] = await Promise.all([
+    db.collection('households').select('ownerId', 'stripeCustomerId', 'cardOnFileAt', 'stripeDefaultPaymentMethodId').get(),
+    db.collection('users').select('email', 'displayName', 'phone', 'householdId').get(),
+    db.collection('checkoutFunnel').select('steps', 'uid', 'householdId').get(),
+  ]);
+  const reached = new Set<string>();
+  for (const h of householdSnap.docs) {
+    const d = h.data();
+    if (d.stripeCustomerId || d.cardOnFileAt || d.stripeDefaultPaymentMethodId) reached.add(h.id);
+  }
+  for (const f of funnelSnap.docs) {
+    const steps = f.data().steps;
+    if (!steps || typeof steps !== 'object' || 'purchased' in (steps as object)) continue;
+    if (!('payment' in (steps as object) || 'card' in (steps as object))) continue;
+    const hid = f.data().householdId;
+    if (typeof hid === 'string') reached.add(hid);
+    const uid = f.data().uid;
+    if (typeof uid === 'string') {
+      const user = userSnap.docs.find((u) => u.id === uid);
+      const hidFromUser = user?.data().householdId;
+      if (typeof hidFromUser === 'string') reached.add(hidFromUser);
+    }
+  }
+  const users = new Map(userSnap.docs.map((d) => [d.id, d.data()]));
+  const rows: HashedRow[] = [];
+  for (const hid of reached) {
+    const h = householdSnap.docs.find((d) => d.id === hid)?.data();
+    const ownerId = typeof h?.ownerId === 'string' ? h.ownerId : null;
+    const owner = ownerId ? users.get(ownerId) : undefined;
+    const email = normalizeEmail(owner?.email);
+    if (!email || isTest(email) || paidEmailHashes.has(sha256(email))) continue;
+    const [firstName, ...rest] = String(owner?.displayName ?? '').trim().split(/\s+/);
+    const row = hashedAudienceRow({ email, phone: owner?.phone, firstName, lastName: rest[rest.length - 1] });
+    if (row) rows.push(row);
+  }
+  return rows;
+}
+
 /** Rows stored by `scripts/meta-followup-list-audience.mjs --seed-static`, or null when never seeded. */
 export async function loadStaticRows(db: Firestore): Promise<HashedRow[] | null> {
   const snap = await db.doc(STATIC_ROWS_DOC).get();

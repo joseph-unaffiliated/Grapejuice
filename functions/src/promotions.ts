@@ -13,6 +13,14 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore, type DocumentData, type Firestore } from 'firebase-admin/firestore';
 import * as logger from './logger';
 import { onCall, HttpsError } from './sentry';
+import {
+  DEBRIEF_CREDIT_CENTS,
+  DEBRIEF_GIFT_CARD_CENTS,
+  debriefRewardOptions,
+  etDay,
+  isDebriefComplete,
+  type DebriefReward,
+} from './debriefReward';
 import { appOrigin, emailHash, isAdminToken, VISITOR_ID_RE } from './guestSessions';
 import { enforceRateLimits, normalizeEmail } from './loginLinks';
 import {
@@ -44,9 +52,6 @@ const HOLIDAY_ID = 'hanukkah-2026';
 /** An unpaid checkout holds a limited code's slot this long (stale ones are cancelled anyway). */
 const PENDING_HOLD_MS = 2 * 60 * 60 * 1000;
 const MAX_GRANT_CENTS = 200_000;
-/** Matches src/services/box/pricing.ts DEBRIEF_PLATFORM_CREDIT_CENTS. */
-const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;
-
 /** What checkout callables accept from the browser. Never trusted beyond the code text and slug. */
 export type PromoRequest = { code?: unknown; ref?: unknown; refAt?: unknown };
 
@@ -502,24 +507,61 @@ export const awardDebriefCredit = onCall(async (request) => {
   const userSnap = await db.doc(`users/${uid}`).get();
   const householdId = typeof userSnap.data()?.householdId === 'string' ? (userSnap.data()!.householdId as string) : '';
   if (!householdId) throw new HttpsError('failed-precondition', 'No household.');
-  const reflection = await db.doc(`users/${uid}/reflection/${HOLIDAY_ID}`).get();
-  if (!reflection.exists) throw new HttpsError('failed-precondition', 'Finish the debrief first.');
-
+  const enrollment = await db.doc(`pilotEnrollments/${householdId}`).get();
+  const pilotStatus = enrollment.data()?.status;
+  const pilot = pilotStatus === 'enrolled' || pilotStatus === 'awaiting_checkout';
   const markerRef = db.doc(`creditAwards/debrief_${HOLIDAY_ID}_${uid}`);
+  const options = pilot ? [] : debriefRewardOptions(etDay());
+  if (request.data?.dryRun === true) {
+    const marker = await markerRef.get();
+    return {
+      awardedCents: 0,
+      reward: (marker.data()?.reward as DebriefReward | undefined) ?? (marker.exists ? 'credit' : null),
+      options: marker.exists ? [] : options,
+      skipped: pilot ? 'pilot' : options.length ? null : 'closed',
+    };
+  }
+  if (pilot) return { awardedCents: 0, reward: null, options: [], skipped: 'pilot' };
+  if (!options.length) return { awardedCents: 0, reward: null, options: [], skipped: 'closed' };
+
+  const reward: DebriefReward = request.data?.reward === 'gift_card' ? 'gift_card' : 'credit';
+  if (!options.includes(reward)) throw new HttpsError('failed-precondition', 'That reward is not available today.');
+
+  const reflection = await db.doc(`users/${uid}/reflection/${HOLIDAY_ID}`).get();
+  if (!isDebriefComplete(reflection.data())) throw new HttpsError('failed-precondition', 'Finish every question in the debrief first.');
+
+  const email = typeof request.auth?.token.email === 'string' ? request.auth.token.email : String(userSnap.data()?.email ?? '');
   const hhRef = db.doc(`households/${householdId}`);
-  const awarded = await db.runTransaction(async (tx) => {
+  const giftRef = db.doc(`giftCardRequests/debrief_${HOLIDAY_ID}_${uid}`);
+  const now = new Date().toISOString();
+  const result = await db.runTransaction(async (tx) => {
     const [marker, hh] = await Promise.all([tx.get(markerRef), tx.get(hhRef)]);
-    if (marker.exists) return 0;
+    if (marker.exists) return { awardedCents: 0, reward: (marker.data()?.reward as DebriefReward | undefined) ?? 'credit' };
     const members = (hh.data()?.memberIds as unknown[]) ?? [];
     if (!hh.exists || !members.includes(uid)) throw new HttpsError('permission-denied', 'Not a household member.');
-    tx.set(markerRef, { uid, householdId, amountCents: DEBRIEF_PLATFORM_CREDIT_CENTS, createdAt: new Date().toISOString() });
-    tx.update(hhRef, {
-      platformCreditCents: FieldValue.increment(DEBRIEF_PLATFORM_CREDIT_CENTS),
-      updatedAt: new Date().toISOString(),
-    });
-    return DEBRIEF_PLATFORM_CREDIT_CENTS;
+    const amountCents = reward === 'credit' ? DEBRIEF_CREDIT_CENTS : DEBRIEF_GIFT_CARD_CENTS;
+    tx.set(markerRef, { uid, householdId, reward, amountCents, createdAt: now });
+    if (reward === 'credit') {
+      tx.update(hhRef, { platformCreditCents: FieldValue.increment(DEBRIEF_CREDIT_CENTS), updatedAt: now });
+    } else {
+      tx.set(giftRef, {
+        uid,
+        householdId,
+        email,
+        vendor: 'amazon',
+        amountCents,
+        holidayId: HOLIDAY_ID,
+        status: 'pending',
+        debriefVerifiedAt: now,
+        createdAt: now,
+      });
+    }
+    return { awardedCents: amountCents, reward };
   });
-  return { awardedCents: awarded };
+  if (result.awardedCents > 0 && result.reward === 'gift_card') {
+    await db.collection('programAlerts').add({ at: now, kind: 'debrief_gift_card', uid, email, open: true });
+  }
+  return { ...result, options: [], skipped: null };
 });
 
 // ---------------------------------------------------------------------------
@@ -629,6 +671,23 @@ async function saveCode(db: Firestore, actor: AdminActor, input: Record<string, 
     await ref.update(fields);
   }
   return { code };
+}
+
+/** Remove a code that has never been placed on a counted or in-progress order. */
+async function deleteCode(db: Firestore, input: Record<string, unknown>) {
+  const code = normalizeCode(input.code);
+  if (!code) fail('Codes are 3–32 letters, numbers, - or _.');
+  const ref = db.doc(`discountCodes/${code}`);
+  if (!(await ref.get()).exists) fail('Code not found.');
+  const nowMs = Date.now();
+  const snap = await db.collection('promoRedemptions').where('code', '==', code).get();
+  const rows = await withSources(db, snap.docs);
+  if (rows.some((row) => rowCounted(row) || rowPendingHold(row, nowMs))) {
+    fail('That code has been used, so it stays on the list.');
+  }
+  await ref.delete();
+  logger.info('deleteCode', { code });
+  return { ok: true as const };
 }
 
 async function listCredits(db: Firestore) {
@@ -851,6 +910,8 @@ export const adminPromotions = onCall(async (request) => {
       return { codes: await listCodes(db) };
     case 'saveCode':
       return saveCode(db, actor, input);
+    case 'deleteCode':
+      return deleteCode(db, input);
     case 'listCredits':
       return { grants: await listCredits(db) };
     case 'grantCredit':

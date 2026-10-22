@@ -11,6 +11,7 @@ exports.toStoredRow = toStoredRow;
 exports.fromStoredRow = fromStoredRow;
 exports.combineFollowUpRows = combineFollowUpRows;
 exports.selectBuilderRows = selectBuilderRows;
+exports.selectAbandonerRows = selectAbandonerRows;
 exports.loadStaticRows = loadStaticRows;
 exports.createFollowUpListAudience = createFollowUpListAudience;
 exports.replaceAudienceMembers = replaceAudienceMembers;
@@ -172,6 +173,56 @@ async function selectBuilderRows(db) {
             rows.push(row);
     }
     return { rows, paidEmailHashes, skipped };
+}
+/**
+ * People who reached payment (Stripe customer or a checkoutFunnel payment step) and have not
+ * bought. They already have a card, so selectBuilderRows leaves them out.
+ */
+async function selectAbandonerRows(db, paidEmailHashes) {
+    var _a, _b;
+    const [householdSnap, userSnap, funnelSnap] = await Promise.all([
+        db.collection('households').select('ownerId', 'stripeCustomerId', 'cardOnFileAt', 'stripeDefaultPaymentMethodId').get(),
+        db.collection('users').select('email', 'displayName', 'phone', 'householdId').get(),
+        db.collection('checkoutFunnel').select('steps', 'uid', 'householdId').get(),
+    ]);
+    const reached = new Set();
+    for (const h of householdSnap.docs) {
+        const d = h.data();
+        if (d.stripeCustomerId || d.cardOnFileAt || d.stripeDefaultPaymentMethodId)
+            reached.add(h.id);
+    }
+    for (const f of funnelSnap.docs) {
+        const steps = f.data().steps;
+        if (!steps || typeof steps !== 'object' || 'purchased' in steps)
+            continue;
+        if (!('payment' in steps || 'card' in steps))
+            continue;
+        const hid = f.data().householdId;
+        if (typeof hid === 'string')
+            reached.add(hid);
+        const uid = f.data().uid;
+        if (typeof uid === 'string') {
+            const user = userSnap.docs.find((u) => u.id === uid);
+            const hidFromUser = user === null || user === void 0 ? void 0 : user.data().householdId;
+            if (typeof hidFromUser === 'string')
+                reached.add(hidFromUser);
+        }
+    }
+    const users = new Map(userSnap.docs.map((d) => [d.id, d.data()]));
+    const rows = [];
+    for (const hid of reached) {
+        const h = (_a = householdSnap.docs.find((d) => d.id === hid)) === null || _a === void 0 ? void 0 : _a.data();
+        const ownerId = typeof (h === null || h === void 0 ? void 0 : h.ownerId) === 'string' ? h.ownerId : null;
+        const owner = ownerId ? users.get(ownerId) : undefined;
+        const email = normalizeEmail(owner === null || owner === void 0 ? void 0 : owner.email);
+        if (!email || (0, testAccounts_1.isTest)(email) || paidEmailHashes.has((0, exports.sha256)(email)))
+            continue;
+        const [firstName, ...rest] = String((_b = owner === null || owner === void 0 ? void 0 : owner.displayName) !== null && _b !== void 0 ? _b : '').trim().split(/\s+/);
+        const row = hashedAudienceRow({ email, phone: owner === null || owner === void 0 ? void 0 : owner.phone, firstName, lastName: rest[rest.length - 1] });
+        if (row)
+            rows.push(row);
+    }
+    return rows;
 }
 /** Rows stored by `scripts/meta-followup-list-audience.mjs --seed-static`, or null when never seeded. */
 async function loadStaticRows(db) {

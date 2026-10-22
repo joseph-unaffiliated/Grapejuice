@@ -3,6 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.catalogEmailImage = catalogEmailImage;
 exports.boxEmailItems = boxEmailItems;
 exports.lineItemsEmailItems = lineItemsEmailItems;
+exports.boxThumbFields = boxThumbFields;
+exports.suggestEmailItems = suggestEmailItems;
+exports.soldOutBookItem = soldOutBookItem;
 exports.pickEmailItems = pickEmailItems;
 const logger = require("./logger");
 const storage_1 = require("firebase-admin/storage");
@@ -108,14 +111,14 @@ async function lineItemsEmailItems(db, lineItems, url) {
     if (!ids.length)
         return { items: [], more: 0 };
     const snaps = await db.getAll(...ids.map((id) => db.doc(`${CATALOG_ITEMS}/${id}`)));
+    const ranked = snaps
+        .map((snap, index) => ({ snap, index }))
+        .filter((row) => row.snap.exists)
+        .sort((a, b) => { var _a, _b; return boxThumbTier(a.snap.id, (_a = a.snap.data()) !== null && _a !== void 0 ? _a : {}) - boxThumbTier(b.snap.id, (_b = b.snap.data()) !== null && _b !== void 0 ? _b : {}) || a.index - b.index; });
     const items = [];
-    let available = 0;
-    for (const snap of snaps) {
-        if (!snap.exists)
-            continue;
-        available += 1;
+    for (const { snap } of ranked) {
         if (items.length >= MAX_BOX_ITEMS)
-            continue;
+            break;
         const item = await toEmailItem(snap.id, (_b = snap.data()) !== null && _b !== void 0 ? _b : {}, {
             quantity: (_c = quantities.get(snap.id)) !== null && _c !== void 0 ? _c : 1,
             url,
@@ -124,7 +127,102 @@ async function lineItemsEmailItems(db, lineItems, url) {
         if (item)
             items.push(item);
     }
-    return { items, more: Math.max(0, available - items.length) };
+    return { items, more: Math.max(0, ranked.length - items.length) };
+}
+/** `items_partial` is true when the box has more items than the six cards. */
+function boxThumbFields(picked) {
+    return { items: picked.items, items_partial: picked.more > 0 };
+}
+function catCategory(cat) {
+    return typeof cat.category === 'string' ? cat.category.trim().toLowerCase() : '';
+}
+function catSections(cat) {
+    return Array.isArray(cat.boxSections) ? cat.boxSections.map((s) => String(s).trim().toLowerCase()) : [];
+}
+function isBookDoc(id, cat) {
+    const category = catCategory(cat);
+    return id.startsWith('book-') || category === 'book' || category === 'books' || catSections(cat).some((s) => s === 'story' || s === 'books' || s.includes('tell the story'));
+}
+function isGiftDoc(id, cat) {
+    const category = catCategory(cat);
+    if (category === 'stuffies' || category === 'gift' || category === 'gifts' || category === 'wrapping')
+        return true;
+    if (catSections(cat).some((s) => s === 'gifts' || s === 'presents' || s.includes('present')))
+        return true;
+    const slot = typeof cat.slotId === 'string' ? cat.slotId : '';
+    if (slot === 'wrapping' || slot === 'wrapping-paper' || slot === 'pre-wrap')
+        return true;
+    return /wrapping|stuffie/.test(id);
+}
+function isFoodDoc(id, cat) {
+    if (catCategory(cat) === 'stuffies' || /stuffie/.test(id))
+        return false;
+    if (catCategory(cat) === 'food')
+        return true;
+    if (catSections(cat).some((s) => s === 'food' || s.includes('eat')))
+        return true;
+    return /latke-kit|latke-mix|sufganiyot|applesauce/.test(id);
+}
+/** Gifts and books first, food last, original order kept within a tier. */
+function boxThumbTier(id, cat) {
+    if (isFoodDoc(id, cat))
+        return 2;
+    if (isBookDoc(id, cat) || isGiftDoc(id, cat))
+        return 0;
+    return 1;
+}
+/** Storefront items to suggest adding: not in `exclude`, not sold out, "most loved" first, then by storefront rank. */
+async function suggestEmailItems(db, exclude, soldOut, utm, limit = MAX_PICKS) {
+    var _a;
+    const snap = await db.collection(CATALOG_ITEMS).get();
+    const rank = (d) => {
+        const data = d.data();
+        const loved = Array.isArray(data.storefrontRails) && data.storefrontRails.includes('most-loved') ? 0 : 1;
+        const r = typeof data.storefrontRank === 'number' ? data.storefrontRank : Infinity;
+        return [loved, r];
+    };
+    const ranked = snap.docs
+        .filter((d) => !exclude.has(d.id) && !soldOut.has(d.id) && Array.isArray(d.data().storefrontRails) && d.data().storefrontRails.length > 0)
+        .sort((a, b) => {
+        const [al, ar] = rank(a);
+        const [bl, br] = rank(b);
+        return al - bl || ar - br;
+    });
+    const origin = ((_a = process.env.GJ_APP_ORIGIN) === null || _a === void 0 ? void 0 : _a.trim()) || 'https://grapejuice.co';
+    const items = [];
+    for (const doc of ranked) {
+        if (items.length >= limit)
+            break;
+        const item = await toEmailItem(doc.id, doc.data(), {
+            quantity: 1,
+            url: `${origin}/product/${encodeURIComponent(doc.id)}?${utm}`,
+            withPrice: true,
+        });
+        if (item)
+            items.push(item);
+    }
+    return items;
+}
+/** The most recent sold-out book swapped out of this draft (`hh_<id>` or `guest_<visitorId>`), as a card. */
+async function soldOutBookItem(db, draftKey, url) {
+    var _a, _b;
+    const swaps = await db.collection('inventorySwaps').where('draftKey', '==', draftKey).get();
+    const recent = swaps.docs.sort((a, b) => {
+        const at = (d) => { var _a, _b, _c; return (_c = (_b = (_a = d.data().swappedAt) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) !== null && _c !== void 0 ? _c : 0; };
+        return at(b) - at(a);
+    });
+    for (const swap of recent) {
+        const id = swap.data().fromItemId;
+        if (typeof id !== 'string')
+            continue;
+        const cat = await db.doc(`${CATALOG_ITEMS}/${id}`).get();
+        if (!cat.exists || !isBookDoc(id, (_a = cat.data()) !== null && _a !== void 0 ? _a : {}))
+            continue;
+        const item = await toEmailItem(id, (_b = cat.data()) !== null && _b !== void 0 ? _b : {}, { quantity: 1, url, withPrice: false });
+        if (item)
+            return item;
+    }
+    return null;
 }
 /** Three "most loved" storefront products, for leads without a saved box. */
 async function pickEmailItems(db, utm) {

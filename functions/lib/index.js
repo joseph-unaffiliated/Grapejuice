@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = exports.healPilotDraftLines = exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = void 0;
+exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = exports.healPilotDraftLines = exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramDryRun = exports.adminProgramApprove = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = void 0;
 const logger = require("./logger");
 const testAccounts_1 = require("./testAccounts");
 const metaPracticeCutoff_1 = require("./metaPracticeCutoff");
@@ -26,6 +26,8 @@ const unaffiliated_1 = require("./unaffiliated");
 const airtableCatalogSync_1 = require("./airtableCatalogSync");
 const catalogThumbs_1 = require("./catalogThumbs");
 const chargePilotBox_1 = require("./chargePilotBox");
+const lockWindow_1 = require("./program/lockWindow");
+const lockNotes_1 = require("./program/lockNotes");
 const catalogInventory_1 = require("./catalogInventory");
 const metaCapi_1 = require("./metaCapi");
 const crypto_1 = require("crypto");
@@ -34,6 +36,7 @@ const checkoutSession_1 = require("./checkoutSession");
 const usAddress_1 = require("./usAddress");
 const promotions_1 = require("./promotions");
 const pilotParticipants_1 = require("./pilotParticipants");
+const programDashboard_1 = require("./programDashboard");
 const promoPricing_1 = require("./promoPricing");
 var welcome_1 = require("./welcome");
 Object.defineProperty(exports, "sendWelcomeOnSignup", { enumerable: true, get: function () { return welcome_1.sendWelcomeOnSignup; } });
@@ -91,6 +94,18 @@ var inventoryEmails_1 = require("./inventoryEmails");
 Object.defineProperty(exports, "scheduledInventoryEmails", { enumerable: true, get: function () { return inventoryEmails_1.scheduledInventoryEmails; } });
 var bookSelloutFlips_1 = require("./bookSelloutFlips");
 Object.defineProperty(exports, "scheduledBookSelloutFlips", { enumerable: true, get: function () { return bookSelloutFlips_1.scheduledBookSelloutFlips; } });
+var draftLifecycle_1 = require("./draftLifecycle");
+Object.defineProperty(exports, "scheduledCheckoutAbandoner", { enumerable: true, get: function () { return draftLifecycle_1.scheduledCheckoutAbandoner; } });
+Object.defineProperty(exports, "scheduledDraftLifecycle", { enumerable: true, get: function () { return draftLifecycle_1.scheduledDraftLifecycle; } });
+Object.defineProperty(exports, "scheduledDraftLifecycleSunday", { enumerable: true, get: function () { return draftLifecycle_1.scheduledDraftLifecycleSunday; } });
+var newsletterSuppression_1 = require("./newsletterSuppression");
+Object.defineProperty(exports, "scheduledNewsletterSuppression", { enumerable: true, get: function () { return newsletterSuppression_1.scheduledNewsletterSuppression; } });
+var pilotSurveyReminder_1 = require("./pilotSurveyReminder");
+Object.defineProperty(exports, "scheduledPilotSurveyReminders", { enumerable: true, get: function () { return pilotSurveyReminder_1.scheduledPilotSurveyReminders; } });
+var programSnapshots_1 = require("./programSnapshots");
+Object.defineProperty(exports, "scheduledProgramSnapshots", { enumerable: true, get: function () { return programSnapshots_1.scheduledProgramSnapshots; } });
+var programMetaGuard_1 = require("./programMetaGuard");
+Object.defineProperty(exports, "scheduledMetaGuard", { enumerable: true, get: function () { return programMetaGuard_1.scheduledMetaGuard; } });
 var pilotParticipants_2 = require("./pilotParticipants");
 Object.defineProperty(exports, "adminPilotParticipants", { enumerable: true, get: function () { return pilotParticipants_2.adminPilotParticipants; } });
 Object.defineProperty(exports, "enrollPilot", { enumerable: true, get: function () { return pilotParticipants_2.enrollPilot; } });
@@ -100,6 +115,12 @@ Object.defineProperty(exports, "sendPilotJoinedEmail", { enumerable: true, get: 
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 exports.getAdminBoxesDashboard = (0, adminDashboard_1.createAdminBoxesDashboard)(db);
+const programDashboardApi = (0, programDashboard_1.createAdminProgramDashboard)(db);
+exports.getAdminProgramDashboard = programDashboardApi.getAdminProgramDashboard;
+exports.adminProgramPerson = programDashboardApi.adminProgramPerson;
+exports.adminProgramTrackOverride = programDashboardApi.adminProgramTrackOverride;
+exports.adminProgramApprove = programDashboardApi.adminProgramApprove;
+exports.adminProgramDryRun = programDashboardApi.adminProgramDryRun;
 const HOLIDAY_ID = 'hanukkah-2026';
 const DEFAULT_BOX_PRICE_CENTS = 8000;
 const SHIPPING_FLAT_CENTS = 0;
@@ -1283,6 +1304,8 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     const giftCreditCents = typeof hhData.giftCreditCents === 'number' ? hhData.giftCreditCents : 0;
     const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
     const lockAt = await getLockAt(false);
+    const extensionCheckout = (0, lockWindow_1.isExtensionWindow)(new Date());
+    const orderLockAt = extensionCheckout ? new Date(Date.now() - 1000).toISOString() : lockAt;
     if (isLocked(lockAt)) {
         throw new sentry_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
@@ -1361,8 +1384,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
             boxPriceCents,
             kidCount,
             subtotalCents,
-            shippingCents, discountCents: freshPriced.discountApplied, taxCents: freshPriced.taxCents, totalCents: freshPriced.totalCents, creditAppliedCents: freshPriced.creditApplied, giftCreditAppliedCents: freshPriced.giftCreditApplied, platformCreditAppliedCents: freshPriced.platformCreditApplied, expeditedShipping: false, shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt,
-            estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})), (attribution ? { attribution } : {})), (promo ? { promo } : {})), { checkoutSession: (0, checkoutSession_1.checkoutSessionFromCallable)(request) });
+            shippingCents, discountCents: freshPriced.discountApplied, taxCents: freshPriced.taxCents, totalCents: freshPriced.totalCents, creditAppliedCents: freshPriced.creditApplied, giftCreditAppliedCents: freshPriced.giftCreditApplied, platformCreditAppliedCents: freshPriced.platformCreditApplied, expeditedShipping: false, shippingAddress, holidayId: HOLIDAY_ID, userId: request.auth.uid, lockAt: orderLockAt, estimatedDelivery, committedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, (isPlaythrough ? { playthrough: true } : {})), (attribution ? { attribution } : {})), (promo ? { promo } : {})), { checkoutSession: (0, checkoutSession_1.checkoutSessionFromCallable)(request) });
         tx.set(orderRef, orderPayload);
         tx.update(hhRef, Object.assign(Object.assign({ updatedAt: new Date().toISOString() }, (freshPriced.giftCreditApplied > 0
             ? { giftCreditCents: (typeof fresh.giftCreditCents === 'number' ? fresh.giftCreditCents : 0) - freshPriced.giftCreditApplied }
@@ -1430,6 +1452,20 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     if (!isPlaythrough) {
         await (0, unaffiliated_1.reportUnaffiliatedShippingGeo)({ attribution, shippingAddress, email: commitEmail });
     }
+    if (extensionCheckout && !isPlaythrough && stripe_1.stripe) {
+        try {
+            const charged = await (0, chargePilotBox_1.chargePilotBoxOrderForUser)(db, stripe_1.stripe, request.auth.uid, householdId, orderRef.id);
+            if (charged.outcome === 'charged' || charged.outcome === 'confirmed_zero') {
+                await (0, lockNotes_1.notifyBoxChargedIfAwake)(db, householdId, orderRef.id);
+            }
+        }
+        catch (err) {
+            logger.error('commitPilotBox extension charge failed', {
+                orderId: orderRef.id,
+                err: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
     return {
         orderId: orderRef.id,
         totalCents: committed.totalCents,
@@ -1464,7 +1500,7 @@ exports.updatePilotBoxOrder = (0, sentry_1.onCall)(async (request) => {
         throw new sentry_1.HttpsError('failed-precondition', 'This order can no longer be updated. Contact support if you need changes.');
     }
     const lockAt = (_e = (typeof order.lockAt === 'string' ? order.lockAt : null)) !== null && _e !== void 0 ? _e : (await getLockAt(order.expeditedShipping === true));
-    if (isLocked(lockAt)) {
+    if (isLocked(lockAt) || (0, lockWindow_1.isHouseholdBoxFrozen)(order)) {
         throw new sentry_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
@@ -2963,7 +2999,10 @@ exports.scheduledChargePilotBoxes = (0, sentry_1.onSchedule)('every 1 hours', as
     else {
         await (0, chargePilotBox_1.runChargeEligiblePilotBoxOrders)(db, stripe_1.stripe);
         await runChargeEligibleMarketplaceOrders();
+        await (0, lockNotes_1.cancelUnpaidAfterDeadline)(db);
     }
+    await (0, lockNotes_1.maybeOpenExtension)(db);
+    await (0, lockNotes_1.runLockNotes)(db);
     try {
         await runSettleUnconfirmedGiftBoxes();
         await runExportHeldOrders();

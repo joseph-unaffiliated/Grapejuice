@@ -27,6 +27,11 @@ async function householdHasCommittedOrder(db, householdId) {
 /** Lock countdown reminders — up to 2 email (+ optional SMS) attempts before box lock. */
 async function runLockReminderBatch(db, lockAt) {
     var _a, _b, _c, _d;
+    const { enabledStageSet } = await Promise.resolve().then(() => require('./program/config'));
+    const enabled = await enabledStageSet(db);
+    if (enabled.has('lock_t7') || enabled.has('lock_t3')) {
+        return { sent: 0, skipped: 0 };
+    }
     const daysLeft = daysUntil(lockAt);
     const usersSnap = await db.collection('users').where('lockReminderEligible', '==', true).get();
     let sent = 0;

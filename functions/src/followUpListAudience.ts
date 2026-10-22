@@ -8,6 +8,7 @@ import {
   combineFollowUpRows,
   loadStaticRows,
   replaceAudienceMembers,
+  selectAbandonerRows,
   selectBuilderRows,
 } from './followUpAudience';
 
@@ -37,9 +38,15 @@ export const scheduledFollowUpListAudience = onSchedule(
       return;
     }
     const builders = await selectBuilderRows(db);
-    const { rows, duplicates, staticPaid } = combineFollowUpRows(builders.rows, staticRows, builders.paidEmailHashes);
+    const abandoners = await selectAbandonerRows(db, builders.paidEmailHashes);
+    const { rows, duplicates, staticPaid } = combineFollowUpRows(
+      [...builders.rows, ...abandoners],
+      staticRows,
+      builders.paidEmailHashes
+    );
     const counts = {
       builders: builders.rows.length,
+      abandoners: abandoners.length,
       skipped: builders.skipped,
       staticRows: staticRows.length,
       staticPaid,

@@ -45,6 +45,8 @@ import {
   retryFailedHanukkahBoxCharges,
   runChargeEligiblePilotBoxOrders,
 } from './chargePilotBox';
+import { isExtensionWindow, isHouseholdBoxFrozen } from './program/lockWindow';
+import { cancelUnpaidAfterDeadline, maybeOpenExtension, notifyBoxChargedIfAwake, runLockNotes } from './program/lockNotes';
 import {
   applyPaidMarketplaceInventory,
   assertBoxLinesWithinInventory,
@@ -78,6 +80,7 @@ import {
 import { checkUsAddressFormat } from './usAddress';
 import { applyResolvedPromo, recordPromoRedemption, resolveCheckoutPromo } from './promotions';
 import { markPilotEnrollmentCommitted, runPilotAutoInvites, withPilotLines } from './pilotParticipants';
+import { createAdminProgramDashboard } from './programDashboard';
 import { discountCentsForTerms, type PromoTerms } from './promoPricing';
 
 export { askPilotRav, curatePilotBox, scanBeamAgeTriggers };
@@ -124,6 +127,15 @@ export { decideBoxAuditProblem } from './boxAuditDecisions';
 export { scheduledInventoryEmails } from './inventoryEmails';
 export { scheduledBookSelloutFlips } from './bookSelloutFlips';
 export {
+  scheduledCheckoutAbandoner,
+  scheduledDraftLifecycle,
+  scheduledDraftLifecycleSunday,
+} from './draftLifecycle';
+export { scheduledNewsletterSuppression } from './newsletterSuppression';
+export { scheduledPilotSurveyReminders } from './pilotSurveyReminder';
+export { scheduledProgramSnapshots } from './programSnapshots';
+export { scheduledMetaGuard } from './programMetaGuard';
+export {
   adminPilotParticipants,
   enrollPilot,
   getPilotInvite,
@@ -135,6 +147,12 @@ initializeApp();
 const db = getFirestore();
 
 export const getAdminBoxesDashboard = createAdminBoxesDashboard(db);
+const programDashboardApi = createAdminProgramDashboard(db);
+export const getAdminProgramDashboard = programDashboardApi.getAdminProgramDashboard;
+export const adminProgramPerson = programDashboardApi.adminProgramPerson;
+export const adminProgramTrackOverride = programDashboardApi.adminProgramTrackOverride;
+export const adminProgramApprove = programDashboardApi.adminProgramApprove;
+export const adminProgramDryRun = programDashboardApi.adminProgramDryRun;
 
 const HOLIDAY_ID = 'hanukkah-2026';
 const DEFAULT_BOX_PRICE_CENTS = 8000;
@@ -1604,6 +1622,8 @@ export const commitPilotBox = onCall(async (request) => {
   const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
 
   const lockAt = await getLockAt(false);
+  const extensionCheckout = isExtensionWindow(new Date());
+  const orderLockAt = extensionCheckout ? new Date(Date.now() - 1000).toISOString() : lockAt;
   if (isLocked(lockAt)) {
     throw new HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
   }
@@ -1716,7 +1736,7 @@ export const commitPilotBox = onCall(async (request) => {
       shippingAddress,
       holidayId: HOLIDAY_ID,
       userId: request.auth!.uid,
-      lockAt,
+      lockAt: orderLockAt,
       estimatedDelivery,
       committedAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
@@ -1814,6 +1834,20 @@ export const commitPilotBox = onCall(async (request) => {
     await reportUnaffiliatedShippingGeo({ attribution, shippingAddress, email: commitEmail });
   }
 
+  if (extensionCheckout && !isPlaythrough && stripe) {
+    try {
+      const charged = await chargePilotBoxOrderForUser(db, stripe, request.auth.uid, householdId, orderRef.id);
+      if (charged.outcome === 'charged' || charged.outcome === 'confirmed_zero') {
+        await notifyBoxChargedIfAwake(db, householdId, orderRef.id);
+      }
+    } catch (err) {
+      logger.error('commitPilotBox extension charge failed', {
+        orderId: orderRef.id,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   return {
     orderId: orderRef.id,
     totalCents: committed.totalCents,
@@ -1857,7 +1891,7 @@ export const updatePilotBoxOrder = onCall(async (request) => {
   const lockAt =
     (typeof order.lockAt === 'string' ? order.lockAt : null) ??
     (await getLockAt(order.expeditedShipping === true));
-  if (isLocked(lockAt)) {
+  if (isLocked(lockAt) || isHouseholdBoxFrozen(order)) {
     throw new HttpsError(
       'failed-precondition',
       'The box lock date has passed. Contact support to change your order.'
@@ -3626,7 +3660,10 @@ export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () =>
   } else {
     await runChargeEligiblePilotBoxOrders(db, stripe);
     await runChargeEligibleMarketplaceOrders();
+    await cancelUnpaidAfterDeadline(db);
   }
+  await maybeOpenExtension(db);
+  await runLockNotes(db);
   try {
     await runSettleUnconfirmedGiftBoxes();
     await runExportHeldOrders();

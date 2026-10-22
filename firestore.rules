@@ -177,5 +177,27 @@ service cloud.firestore {
     match /adminConfig/{docId} {
       allow read, write: if false;
     }
+    /** Conversion program (functions/src/draftLifecycle.ts, programDashboard.ts) — functions only. */
+    match /programConfig/{docId} {
+      allow read, write: if false;
+    }
+    match /messageLog/{personKey} {
+      allow read, write: if false;
+    }
+    match /programJobs/{jobId} {
+      allow read, write: if false;
+    }
+    match /programAlerts/{alertId} {
+      allow read, write: if false;
+    }
+    match /programSnapshots/{date} {
+      allow read, write: if false;
+    }
+    match /programApprovals/{pieceId} {
+      allow read, write: if false;
+    }
+    match /programOverrides/{personKey} {
+      allow read, write: if false;
+    }
   }
 }

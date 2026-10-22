@@ -23,6 +23,7 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { m, mFont, mGutter } from '../../components/mobile/mobileTheme';
 import { paintOpsMobile } from './opsMobileSkin';
+import { AdminProgramTab } from './AdminProgramTab';
 import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
@@ -2204,8 +2205,8 @@ function FunnelSection({
   );
 }
 
-type Tab = 'boxes' | 'shop' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory' | 'problems';
-const TABS: readonly Tab[] = ['boxes', 'shop', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory', 'problems'];
+type Tab = 'boxes' | 'shop' | 'funnel' | 'giftFunnel' | 'anonymous' | 'ads' | 'gifts' | 'inventory' | 'problems' | 'program';
+const TABS: readonly Tab[] = ['boxes', 'shop', 'funnel', 'giftFunnel', 'anonymous', 'ads', 'gifts', 'inventory', 'problems', 'program'];
 const TAB_STORAGE_KEY = 'gj.adminBoxes.tab';
 
 /** Deep-link from Pilot admin: `/admin/orders?q=email&tab=boxes`. */
@@ -2590,6 +2591,7 @@ export function AdminBoxesScreen() {
             <Chip label="By ad" active={tab === 'ads'} onPress={() => setTab('ads')} styles={styles} />
             <Chip label={`Gifts (${realGifts.length})`} active={tab === 'gifts'} onPress={() => setTab('gifts')} styles={styles} />
             <Chip label={`Inventory (${inventory.length})`} active={tab === 'inventory'} onPress={() => setTab('inventory')} styles={styles} />
+            <Chip label="Program" active={tab === 'program'} onPress={() => setTab('program')} styles={styles} />
             <Chip
               label={`Box problems (${(data.boxProblems ?? []).filter((b) => b.open > 0 && !(hideTests && b.test)).length})`}
               active={tab === 'problems'}
@@ -2662,6 +2664,11 @@ export function AdminBoxesScreen() {
             <>
               <Text style={styles.section}>Inventory: stock, boxes, shop sales and holds</Text>
               <InventorySection inventory={inventory} styles={styles} colors={colors} />
+            </>
+          ) : null}
+          {tab === 'program' ? (
+            <>
+              <AdminProgramTab styles={styles} colors={colors} />
             </>
           ) : null}
           {tab === 'problems' ? (

@@ -4,6 +4,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 import { exportOrderToShipStation } from './shipstation';
 import { sendEmail } from './email';
+import { boxThumbFields, lineItemsEmailItems } from './emailItems';
 import { orderViewUrl } from './loginLinks';
 import { claimOrderEmail, orderConfirmationTemplate } from './orderEmails';
 import { untraditionalMarkSafe } from './untraditionalCio';
@@ -256,7 +257,13 @@ export async function notifyHanukkahBoxChargeFailed(
     const result = await sendEmail({
       to,
       template: 'box-charge-failed',
-      data: { ordersUrl: ORDERS_URL, message },
+      data: {
+        ordersUrl: ORDERS_URL,
+        message,
+        ...(await lineItemsEmailItems(db, Array.isArray(order.lineItems) ? order.lineItems : [], ORDERS_URL)
+          .then(boxThumbFields)
+          .catch(() => ({ items: [], items_partial: false }))),
+      },
     });
     if (result === 'skipped') {
       await ref.update({ chargeFailureEmailForAttempt: FieldValue.delete() });

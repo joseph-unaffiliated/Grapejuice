@@ -77,6 +77,10 @@ export async function runSetupNudgeBatch(
   lockAt: string,
   now: Date = new Date()
 ): Promise<{ sent: number; skipped: Record<string, number> }> {
+  const { enabledStageSet } = await import('./program/config');
+  if ((await enabledStageSet(db)).has('d1')) {
+    return { sent: 0, skipped: { replaced_by_program: 1 } };
+  }
   const drafts = await db.collectionGroup('boxDrafts').get();
   const skipped: Record<string, number> = {};
   const skip = (reason: string) => {

@@ -38,6 +38,11 @@ async function householdHasCommittedOrder(db: Firestore, householdId: string): P
 
 /** Lock countdown reminders — up to 2 email (+ optional SMS) attempts before box lock. */
 export async function runLockReminderBatch(db: Firestore, lockAt: string): Promise<{ sent: number; skipped: number }> {
+  const { enabledStageSet } = await import('./program/config');
+  const enabled = await enabledStageSet(db);
+  if (enabled.has('lock_t7') || enabled.has('lock_t3')) {
+    return { sent: 0, skipped: 0 };
+  }
   const daysLeft = daysUntil(lockAt);
   const usersSnap = await db.collection('users').where('lockReminderEligible', '==', true).get();
   let sent = 0;

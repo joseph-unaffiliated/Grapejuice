@@ -20,6 +20,7 @@ const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const shipstation_1 = require("./shipstation");
 const email_1 = require("./email");
+const emailItems_1 = require("./emailItems");
 const loginLinks_1 = require("./loginLinks");
 const orderEmails_1 = require("./orderEmails");
 const untraditionalCio_1 = require("./untraditionalCio");
@@ -185,7 +186,9 @@ async function notifyHanukkahBoxChargeFailed(db, householdId, orderId, attempt, 
         const result = await (0, email_1.sendEmail)({
             to,
             template: 'box-charge-failed',
-            data: { ordersUrl: ORDERS_URL, message },
+            data: Object.assign({ ordersUrl: ORDERS_URL, message }, (await (0, emailItems_1.lineItemsEmailItems)(db, Array.isArray(order.lineItems) ? order.lineItems : [], ORDERS_URL)
+                .then(emailItems_1.boxThumbFields)
+                .catch(() => ({ items: [], items_partial: false })))),
         });
         if (result === 'skipped') {
             await ref.update({ chargeFailureEmailForAttempt: firestore_1.FieldValue.delete() });
