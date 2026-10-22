@@ -1,66 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<!--
+  Customer.io transactional message 43 ("box charge failed"), workspace 208456, template 47.
+  Subject: We couldn’t charge your Grapejuice box
+  Preheader: Update the card on file and we’ll try again.
+  Trigger data: message, ordersUrl, items, items_partial.
+-->
+<html lang="en" dir="auto">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>We couldn’t charge your Grapejuice box</title>
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>We couldn’t charge your box</title>
+  <link media="screen" rel="stylesheet" href="https://fonts.googleapis.com/css?family=DM%20Sans:400,700" />
 </head>
-<body style="margin:0;padding:0;background-color:#fafafa;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fafafa;">
+<body style="margin:0;padding:0;background:#fefefe;">
+  <span style="display:none;max-height:0;max-width:0;overflow:hidden;font-size:1px;line-height:1px;color:transparent;">Update the card on file and we’ll try again.</span>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fefefe;font-family:'DM Sans',Helvetica,Arial,sans-serif;color:#2F2412;font-size:16px;line-height:1.8;letter-spacing:-0.02em;">
     <tr>
-      <td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e4d7c1;border-radius:8px;">
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
           <tr>
-            <td style="padding:32px 28px 8px;">
-              <a href="https://grapejuice.co" style="text-decoration:none;">
-                <img
-                  src="https://grapejuice.co/brand/grapejuice-wordmark.png"
-                  alt="Grapejuice"
-                  width="178"
-                  height="56"
-                  style="display:block;border:0;width:178px;height:auto;"
-                />
+            <td align="center" style="padding:32px 24px 8px;">
+              <a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email&amp;utm_campaign=box_charge_failed" style="text-decoration:none;display:inline-block;">
+                <img src="https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/email/brand/grapejuice-wordmark-on-white-v1.jpg" alt="Grapejuice" width="104" style="vertical-align:middle;max-width:100%;width:104px;height:auto;border:0;background:#ffffff;" />
               </a>
-              <h1 style="margin:20px 0 0;font-size:26px;line-height:1;color:#2f2412;font-weight:700;">
-                We couldn’t charge your box
-              </h1>
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 28px 24px;">
-              <p style="margin:0 0 16px;font-size:16px;line-height:1.5;color:#433c32;">
-                The card on file for your Hanukkah box was declined, so the box isn’t paid yet. Update the card and we’ll try the charge again right away.
-              </p>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:rgb(184, 172, 127);border-radius:6px;">
-                <tr>
-                  <td style="padding:16px 18px;">
-                    <p style="margin:0 0 8px;font-size:13px;color:#433c32;">From the bank</p>
-                    <p style="margin:0;font-size:15px;font-weight:600;color:#2f2412;">
-                      {{ trigger.message }}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:24px 0 0;">
-                <a
-                  href="{{ trigger.ordersUrl }}"
-                  style="display:inline-block;background-color:#2f2412;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:12px 20px;border-radius:8px;"
-                >Update payment method</a>
-              </p>
+            <td style="padding:44px 0 36px;">
+              <!--[if mso]><table role="presentation" align="center" width="400" cellspacing="0" cellpadding="0"><tr><td style="padding:0 16px;"><![endif]--><div style="max-width:400px;margin:0 auto;padding:0 16px;box-sizing:border-box;"><h1 style="color:#2F2412;font-size:40px;line-height:1;letter-spacing:-0.03em;text-align:center;margin:0 0 28px;">We couldn’t charge your box</h1></div><!--[if mso]></td></tr></table><![endif]-->
+              <!--[if mso]><table role="presentation" align="center" width="400" cellspacing="0" cellpadding="0"><tr><td style="padding:0 16px;"><![endif]--><div style="max-width:400px;margin:0 auto;padding:0 16px;box-sizing:border-box;"><p style="color:#433C32;text-align:center;margin:0 0 14px;line-height:1.8;letter-spacing:-0.02em;">The card on file for your Hanukkah box was declined, so the box isn’t paid yet. Update the card and we’ll try the charge again right away. If we don’t have a valid card on file <strong>by Nov. 12th at noon ET</strong>, we will need to cancel your order.</p></div><!--[if mso]></td></tr></table><![endif]-->
+              <!--[if mso]><table role="presentation" align="center" width="400" cellspacing="0" cellpadding="0"><tr><td style="padding:0 16px;"><![endif]--><div style="max-width:400px;margin:0 auto;padding:0 16px;box-sizing:border-box;"><div style="background:#F4EEE4;border-radius:6px;padding:18px 20px 6px;margin:10px 0 18px;"><p style="color:#7A6F5E;font-size:12px;text-align:center;margin:0;letter-spacing:-0.02em;">From your bank</p><p style="color:#2F2412;font-size:15px;font-weight:700;text-align:center;margin:0 0 12px;letter-spacing:-0.02em;">{{ trigger.message }}</p></div></div><!--[if mso]></td></tr></table><![endif]-->
+              {% if trigger.items and trigger.items.size > 0 %}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr><td height="32" style="height:32px;font-size:0;line-height:32px;mso-line-height-rule:exactly;">&nbsp;</td></tr></table>{% if trigger.items_partial %}<!--[if mso]><table role="presentation" align="center" width="400" cellspacing="0" cellpadding="0"><tr><td style="padding:0 16px;"><![endif]--><div style="max-width:400px;margin:0 auto;padding:0 16px;box-sizing:border-box;"><p style="color:#433C32;font-size:16px;font-weight:700;text-align:center;margin:8px 0 24px;line-height:1.8;letter-spacing:-0.02em;">•&nbsp;&nbsp;&nbsp;Some of the items in your box&nbsp;&nbsp;&nbsp;•</p></div><!--[if mso]></td></tr></table><![endif]-->{% else %}<!--[if mso]><table role="presentation" align="center" width="400" cellspacing="0" cellpadding="0"><tr><td style="padding:0 16px;"><![endif]--><div style="max-width:400px;margin:0 auto;padding:0 16px;box-sizing:border-box;"><p style="color:#433C32;font-size:16px;font-weight:700;text-align:center;margin:8px 0 24px;line-height:1.8;letter-spacing:-0.02em;">•&nbsp;&nbsp;&nbsp;In your box&nbsp;&nbsp;&nbsp;•</p></div><!--[if mso]></td></tr></table><![endif]-->{% endif %}<table role="presentation" align="center" width="522" cellspacing="0" cellpadding="0" style="width:522px;max-width:100%;margin:0 auto 8px;"><tr>{% for item in trigger.items limit:6 %}{% assign col = forloop.index0 | modulo: 3 %}{% if col == 0 and forloop.index0 > 0 %}</tr><tr>{% endif %}<td width="33%" valign="top" style="padding:12px 12px;text-align:center;"><a href="{{ item.url }}" style="text-decoration:none;"><img src="{{ item.image_url }}" alt="{{ item.name | escape }}" width="150" style="display:block;width:100%;max-width:150px;height:auto;margin:0 auto;border:0;border-radius:8px;background:#F4EEE4;" /></a><p style="color:#433C32;font-size:13px;line-height:1.35;text-align:center;margin:8px 0 0;letter-spacing:-0.02em;">{{ item.name }}</p></td>{% endfor %}{% assign shown = trigger.items.size | at_most: 6 %}{% assign rem = shown | modulo: 3 %}{% if rem == 1 %}<td width="33%"></td><td width="33%"></td>{% elsif rem == 2 %}<td width="33%"></td>{% endif %}</tr></table>{% endif %}
+              <!--[if mso]><table role="presentation" align="center" width="400" cellspacing="0" cellpadding="0"><tr><td style="padding:0 16px;"><![endif]--><div style="max-width:400px;margin:0 auto;padding:0 16px;box-sizing:border-box;"><div style="text-align:center;margin:48px 0 64px;font-size:24px;"><a href="https://grapejuice.co/orders?utm_source=transactional&utm_medium=email" style="display:inline-block;color:rgb(184, 172, 127);font-family:Helvetica,sans-serif;font-weight:400;text-decoration:none;text-align:center;background-color:rgb(17, 24, 39);border-style:solid;border-color:rgb(184, 172, 127);border-width:0 4px 4px 0;border-radius:16px;"><span style="padding:24px 36px;display:block;">Update payment method</span></a></div></div><!--[if mso]></td></tr></table><![endif]-->
+              <!--[if mso]><table role="presentation" align="center" width="400" cellspacing="0" cellpadding="0"><tr><td style="padding:0 16px;"><![endif]--><div style="max-width:400px;margin:0 auto;padding:0 16px;box-sizing:border-box;"><p style="color:#7A6F5E;font-size:14px;text-align:center;margin:28px 0 0;">Questions? Just reply to this email.</p></div><!--[if mso]></td></tr></table><![endif]-->
             </td>
           </tr>
           <tr>
-            <td style="padding:0 28px 28px;">
-              <p style="margin:0;font-size:12px;line-height:1.5;color:#8a8175;">
-                Questions? Reply to this email or visit
-                <a href="https://grapejuice.co/support" style="color:#433c32;">grapejuice.co/support</a>.
-              </p>
+            <td align="center" style="background-color:rgb(17, 24, 39);border-radius:16px;padding:34px 32px 30px;">
+              <a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email&amp;utm_campaign=box_charge_failed" style="text-decoration:none;display:inline-block;margin:0 0 18px;">
+                <img src="https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/email/brand/grapejuice-wordmark-gold-v1.png" alt="Grapejuice" width="120" style="vertical-align:middle;max-width:100%;width:120px;border:0;" />
+              </a>
+              <p style="color:rgb(184, 172, 127);font-size:12px;text-align:center;margin:0 0 16px;"><a href="https://grapejuice.co/?utm_source=transactional&amp;utm_medium=email&amp;utm_campaign=box_charge_failed" style="color:rgb(184, 172, 127);text-decoration:none;">Shop</a> &nbsp;·&nbsp; <a href="https://grapejuice.co/story?utm_source=transactional&amp;utm_medium=email&amp;utm_campaign=box_charge_failed" style="color:rgb(184, 172, 127);text-decoration:none;">Our story</a> &nbsp;·&nbsp; <a href="https://grapejuice.co/privacy" style="color:rgb(184, 172, 127);text-decoration:none;">Privacy</a></p>
+              <p style="color:rgb(184, 172, 127);font-size:12px;text-align:center;margin:0 0 10px;">Grapejuice by Untraditional · <a href="mailto:hello@grapejuice.co" style="color:rgb(184, 172, 127);text-decoration:none;">hello@grapejuice.co</a></p>
+              <p style="color:rgb(184, 172, 127);font-size:12px;text-align:center;margin:0;"><a href="{% unsubscribe_url %}" style="color:rgb(184, 172, 127);text-decoration:underline;">Unsubscribe</a></p>
             </td>
           </tr>
         </table>
-        <p style="margin:16px 0 0;font-size:11px;color:#8a8175;">
-          Grapejuice · Hanukkah 2026 pilot
-        </p>
       </td>
     </tr>
   </table>
