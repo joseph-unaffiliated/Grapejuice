@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Text, TextInput, TouchableOpacity, View, type TextStyle, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View, type TextStyle, type ViewStyle } from 'react-native';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -29,17 +29,6 @@ type OpsStyles = {
   sectionBody: ViewStyle;
 };
 
-type Piece = {
-  id: string;
-  title: string;
-  channel: string;
-  subject: string;
-  who: string;
-  when: string;
-  status: string;
-  session: number;
-};
-
 type Dashboard = {
   generatedAt: string;
   scoreboard: {
@@ -56,7 +45,6 @@ type Dashboard = {
   checkout: { steps: Record<string, number>; errors: Record<string, number> };
   jobs: Array<{ id: string; at?: string; ok?: boolean; error?: string; skipped?: string }>;
   alerts: Array<{ id: string; kind?: string; job?: string; at?: string }>;
-  approvals: Piece[];
   enabledStages: string[];
   snapshots: Array<{ date?: string; scoreboard?: { commits?: number } }>;
 };
@@ -69,90 +57,6 @@ type PersonView = {
 };
 
 const call = <T,>(name: string) => httpsCallable<Record<string, unknown>, T>(functions, name);
-
-/** Grapejuice transactional drafts are the code editor. The ’90s Parent dedicated is Design Studio. */
-const CIO_EDITOR: Record<string, { href: string; label: string }> = {
-  pilot_invite: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/25/templates/29',
-    label: 'Edit in Customer.io',
-  },
-  pilot_d3: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/26/templates/30',
-    label: 'Edit in Customer.io',
-  },
-  pilot_d7: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/27/templates/31',
-    label: 'Edit in Customer.io',
-  },
-  d1: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/28/templates/32',
-    label: 'Edit in Customer.io',
-  },
-  s6: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/29/templates/33',
-    label: 'Edit in Customer.io',
-  },
-  d4: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/30/templates/34',
-    label: 'Edit in Customer.io',
-  },
-  d8: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/31/templates/35',
-    label: 'Edit in Customer.io',
-  },
-  abandoner: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/32/templates/36',
-    label: 'Edit in Customer.io',
-  },
-  wave2: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/33/templates/37',
-    label: 'Edit in Customer.io',
-  },
-  lock_t1: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/34/templates/38',
-    label: 'Edit in Customer.io',
-  },
-  lock_t1_committed: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/37/templates/41',
-    label: 'Edit in Customer.io',
-  },
-  lock_sorry: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/38/templates/42',
-    label: 'Edit in Customer.io',
-  },
-  lock_charged: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/39/templates/43',
-    label: 'Edit in Customer.io',
-  },
-  extend_draft: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/40/templates/44',
-    label: 'Edit in Customer.io',
-  },
-  extend_new: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/41/templates/45',
-    label: 'Edit in Customer.io',
-  },
-  order_cancelled: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/42/templates/46',
-    label: 'Edit in Customer.io',
-  },
-  survey: {
-    href: 'https://fly.customer.io/messaging/env/208456/composer/transactional/35/templates/39',
-    label: 'Edit in Customer.io',
-  },
-  dedicated_tnp: {
-    href: 'https://fly.customer.io/workspaces/198880/design-studio/editor/2e031c4d-cb34-4612-a96b-c298182ad5b2',
-    label: 'Edit in Design Studio',
-  },
-};
-
-function openCustomerIo(href: string) {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.open(href, '_blank', 'noopener,noreferrer');
-    return;
-  }
-  void Linking.openURL(href);
-}
 
 const JOB_LABEL: Record<string, string> = {
   draftLifecycle: 'Daily email pass',
@@ -203,12 +107,6 @@ export function AdminProgramTab({ styles, colors }: { styles: OpsStyles; colors:
     void load();
   }, [load]);
 
-  const approve = async (id: string, status: 'approved' | 'pending') => {
-    setNote(null);
-    await call('adminProgramApprove')({ id, status });
-    await load();
-  };
-
   const lookup = async () => {
     setNote(null);
     const res = await call<PersonView>('adminProgramPerson')({ email });
@@ -231,7 +129,7 @@ export function AdminProgramTab({ styles, colors }: { styles: OpsStyles; colors:
     <View style={styles.sectionBody}>
       <Text style={styles.section}>Conversion program, Oct 21 to Nov 7</Text>
       <Text style={styles.hint}>
-        Goal is {s.target} committed Hanukkah boxes by the lock. Nothing in the approval list sends until you approve it, and the email templates are still unwired, so an approval does not send on its own.
+        Live impact monitoring for the conversion program. Goal is {s.target} committed Hanukkah boxes by the lock; {data.enabledStages.length} lifecycle stages are enabled.
       </Text>
 
       <View style={styles.stats}>
@@ -294,46 +192,6 @@ export function AdminProgramTab({ styles, colors }: { styles: OpsStyles; colors:
       ))}
 
       <View style={styles.sectionDivider} />
-      <Text style={styles.section}>Approvals</Text>
-      <Text style={styles.hint}>
-        Approved right now: {data.enabledStages.length ? data.enabledStages.join(', ') : 'none'}. The subject line is the live Customer.io email. Open that email to review the words. Approving here only allows it to send.
-      </Text>
-      {[1, 2].map((session) => (
-        <View key={session} style={{ gap: 0 }}>
-          <Text style={[styles.caption, { marginTop: 12 }]}>Review session {session}</Text>
-          {data.approvals.filter((p) => p.session === session).map((p) => (
-            <View key={p.id} style={styles.detail}>
-              <View style={styles.detailInner}>
-                <Text style={styles.tdStrong}>{p.title}</Text>
-                <Text style={styles.td}>{p.subject}</Text>
-                <Text style={styles.caption}>{p.who}. {p.when}.</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  <TouchableOpacity
-                    style={[styles.chip, p.status === 'approved' && styles.chipActive, { alignSelf: 'flex-start' }]}
-                    onPress={() => void approve(p.id, p.status === 'approved' ? 'pending' : 'approved')}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.chipLabel}>
-                      {p.status === 'approved' ? 'Approved · undo' : 'Approve'}
-                    </Text>
-                  </TouchableOpacity>
-                  {CIO_EDITOR[p.id] ? (
-                    <TouchableOpacity
-                      style={[styles.chip, { alignSelf: 'flex-start' }]}
-                      onPress={() => openCustomerIo(CIO_EDITOR[p.id].href)}
-                      accessibilityRole="link"
-                    >
-                      <Text style={styles.chipLabel}>{CIO_EDITOR[p.id].label}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-      ))}
-
-      <View style={styles.sectionDivider} />
       <Text style={styles.section}>Morning snapshots</Text>
       {data.snapshots.length === 0 ? <Text style={styles.hint}>The first snapshot is written at 7:30am ET.</Text> : null}
       {data.snapshots.map((row) => (
@@ -385,16 +243,6 @@ export function AdminProgramTab({ styles, colors }: { styles: OpsStyles; colors:
           </View>
         </View>
       ) : null}
-
-      <View style={styles.sectionDivider} />
-      <TouchableOpacity
-        style={[styles.chip, { alignSelf: 'flex-start' }]}
-        onPress={() => void call('adminProgramDryRun')({}).then(() => load()).then(() => setNote('Today’s pass ran. Only approved pieces can send.'))}
-        accessibilityRole="button"
-      >
-        <Text style={styles.chipLabel}>Run today’s email pass</Text>
-      </TouchableOpacity>
-      <Text style={styles.caption}>Approved pieces only. Templates are still unwired, so this records the decision and does not email anyone.</Text>
       {note ? <Text style={styles.hint}>{note}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>

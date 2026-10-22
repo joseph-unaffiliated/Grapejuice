@@ -6,7 +6,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { semanticColors, typography, borderRadius, typeface } from '../../constants/theme';
+import { semanticColors, typography, borderRadius, typeface, INK } from '../../constants/theme';
 import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 
 type PrimaryProps = {
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   primary: {
     width: '100%',
     minHeight: 48,
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
     borderRadius: borderRadius.md,
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   secondaryLabel: {
     ...typeface('light'),
     fontSize: typography.sm,
-    color: '#000000',
+    color: INK,
     letterSpacing: -0.22,
     textAlign: 'center',
   },

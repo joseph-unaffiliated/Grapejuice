@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({
           backgroundImage:
-            'linear-gradient(90deg, rgba(216, 201, 144, 0.18) 0%, rgba(255, 255, 255, 0.55) 42%, rgba(255, 255, 255, 0.62) 50%, rgba(255, 255, 255, 0.55) 58%, rgba(216, 201, 144, 0.18) 100%)',
+            'linear-gradient(90deg, rgba(184, 172, 127, 0.18) 0%, rgba(255, 255, 255, 0.55) 42%, rgba(255, 255, 255, 0.62) 50%, rgba(255, 255, 255, 0.55) 58%, rgba(184, 172, 127, 0.18) 100%)',
         } as object)
       : null),
   },

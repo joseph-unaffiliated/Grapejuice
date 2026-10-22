@@ -8,7 +8,7 @@ import {
   giftCreditProductLabel,
 } from '../../constants/giftCopy';
 import { DEFAULT_BOX_PRICE_CENTS } from '../../services/box/pricing';
-import { spacing, typography, typeface, semanticColors } from '../../constants/theme';
+import { spacing, typography, typeface, semanticColors, INK } from '../../constants/theme';
 import { GrapejuiceButton } from '../../components/ui/GrapejuiceButton';
 import { checkoutUi } from '../main/checkout/checkoutUi';
 import { PAYMENT_ELEMENT_OPTIONS } from '../main/checkout/stripeAppearance';
@@ -26,9 +26,9 @@ import { m, mFont, mType } from '../../components/mobile/mobileTheme';
 export const GIFT_STRIPE_APPEARANCE = {
   theme: 'stripe' as const,
   variables: {
-    colorPrimary: '#D8C990',
+    colorPrimary: '#B8AC7F',
     colorBackground: '#FFFFFF',
-    colorText: '#110222',
+    colorText: INK,
     colorDanger: '#B91C1C',
     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     borderRadius: '8px',

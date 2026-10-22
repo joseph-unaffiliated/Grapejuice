@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   browseMore: {
     borderRadius: borderRadius.md,
     borderWidth: 1.5,
-    borderColor: 'rgba(216, 201, 144, 0.55)',
+    borderColor: 'rgba(184, 172, 127, 0.55)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',

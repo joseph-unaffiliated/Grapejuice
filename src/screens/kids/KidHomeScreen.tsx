@@ -134,7 +134,7 @@ export function KidHomeScreen() {
                   style={[
                     styles.myPicksCard,
                     Platform.OS === 'web'
-                      ? ({ boxShadow: '0px 0px 12px rgba(216, 201, 144, 0.50)' } as object)
+                      ? ({ boxShadow: '0px 0px 12px rgba(184, 172, 127, 0.50)' } as object)
                       : undefined,
                     { backgroundColor: colors.bgElevated },
                   ]}

@@ -91,14 +91,14 @@ import {
   createBoxDetailStyles,
   BOX_SUMMARY_SCROLL_INSET,
 } from '../../components/box/boxDetailLayout';
-import {
-  spacing,
+import { spacing,
   typography,
   borderRadius,
   shadows,
   shadowsWeb,
   MOBILE_GUTTER,
   typeface,
+  INK,
 } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -803,6 +803,7 @@ export function MyBoxScreen() {
       <BoxDetailToolbar
         lockAt={lockAt}
         now={now}
+        locked={locked}
         hideBack
         title="Your Hanukkah Box"
         startsOn={startsOn}
@@ -1407,7 +1408,7 @@ function createMyBoxStyles(colors: SemanticColors, isDesktop = false) {
   },
   summaryCard: {
     width: '100%',
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     borderRadius: isDesktop ? 12 : 0,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,

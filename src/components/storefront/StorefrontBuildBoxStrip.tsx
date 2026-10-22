@@ -13,12 +13,12 @@ import {
   STOREFRONT_BOX_REVEAL_STRIP,
 } from '../../constants/storefrontMedia';
 import { icons } from '../../constants/icons';
-import {
-  borderRadius,
+import { borderRadius,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
+  INK,
 } from '../../constants/theme';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { DreidelIcon } from '../ui/DreidelIcon';
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
   },

@@ -9,7 +9,7 @@ import {
   onboardingBodyText,
 } from '../../components/onboarding/OnboardingScreenLayout';
 import { FamiliaritySliderControl } from '../../components/onboarding/FamiliaritySliderControl';
-import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
+import { semanticColors, spacing, typography, borderRadius, typeface, INK } from '../../constants/theme';
 import { familiarityScoreToLevel } from '../../stores/guestSessionStore';
 
 const INPUT_MIN_HEIGHT = 120;
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     minHeight: INPUT_MIN_HEIGHT,
     maxHeight: INPUT_MAX_HEIGHT,
     backgroundColor: semanticColors.bgPrimary,
-    color: '#000000',
+    color: INK,
     ...typeface('light'),
     ...(Platform.OS === 'web' ? ({ resize: 'none' } as object) : null),
   },

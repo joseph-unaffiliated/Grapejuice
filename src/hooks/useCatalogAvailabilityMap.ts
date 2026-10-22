@@ -2,7 +2,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { useCatalog } from './useCatalog';
 import { useCatalogInventory } from './useCatalogInventory';
 import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
-import { useEffectiveBoxLocked, usePreviewNow, useUserStatePreview } from './useUserStatePreview';
+import { usePreviewNow, useUserStatePreview } from './useUserStatePreview';
+import { useLiveBoxLocked } from './useLiveBoxLocked';
 import {
   resolveAvailability,
   emptyInventoryCounters,
@@ -26,7 +27,7 @@ export function useCatalogAvailabilityMap(): {
   const [configLoading, setConfigLoading] = useState(() => peekHanukkahConfig() == null);
   const now = usePreviewNow();
   const preview = useUserStatePreview();
-  const locked = useEffectiveBoxLocked(lockAt);
+  const locked = useLiveBoxLocked(lockAt);
 
   useEffect(() => {
     let cancelled = false;

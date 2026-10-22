@@ -3,7 +3,7 @@ import { getHanukkahConfig } from '../services/firestore/config';
 import { useBoxDraft } from './useBoxDraft';
 import { usePaymentGate } from './usePaymentGate';
 import {
-  useEffectiveBoxLocked,
+  useBoxEditingLocked,
   usePreviewedIsAuthenticated,
 } from './useUserStatePreview';
 
@@ -29,9 +29,9 @@ export type OwnBoxStep =
 export function useOwnBoxStep(): OwnBoxStep {
   const isAuthenticated = usePreviewedIsAuthenticated();
   const { lineItems } = useBoxDraft();
-  const { canMutateBox } = usePaymentGate();
+  const { canMutateBox, openOrder } = usePaymentGate();
   const [lockAt, setLockAt] = useState<string | null>(null);
-  const locked = useEffectiveBoxLocked(lockAt);
+  const locked = useBoxEditingLocked(lockAt, openOrder);
 
   useEffect(() => {
     let cancelled = false;

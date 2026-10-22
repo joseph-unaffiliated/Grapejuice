@@ -22,11 +22,11 @@ import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
-import {
-  semanticColors,
+import { semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 import { useStorefrontLeave } from './storefrontLeaveContext';
 import { useStorefrontRav } from './storefrontRavContext';
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000000',
+    backgroundColor: INK,
   },
   drawer: {
     ...StyleSheet.absoluteFillObject,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
           boxShadow: '8px 0 32px rgba(17, 2, 34, 0.18)',
         } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 8, height: 0 },
           shadowOpacity: 0.18,
           shadowRadius: 24,

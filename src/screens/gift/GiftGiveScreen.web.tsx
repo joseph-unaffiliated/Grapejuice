@@ -507,7 +507,6 @@ function GiftGiveBody() {
 
   const onContinue = () => {
     switch (step) {
-      case 'type':
       case 'kids': {
         const path = giftPath ?? (boxesClosed ? 'credit_only' : 'customize');
         if (!giftPath) patchValues({ giftPath: path });
@@ -549,7 +548,6 @@ function GiftGiveBody() {
 
   const renderMobileStep = () => {
     switch (step) {
-      case 'type':
       case 'kids':
         return (
           <View>
@@ -662,7 +660,6 @@ function GiftGiveBody() {
   const renderStep = () => {
     if (mobileLayout && step !== 'pay') return renderMobileStep();
     switch (step) {
-      case 'type':
       case 'kids':
         return (
           <>
@@ -872,7 +869,7 @@ function GiftGiveBody() {
 
   const paymentReady = step === 'pay' && payment && stripePromise;
   const taskStep = giftTaskStep(step, !!payment, customize);
-  const firstStep = step === 'kids' || step === 'type';
+  const firstStep = step === 'kids';
   const mobileHeader = mobileLayout ? (
     <TaskHeader
       back={firstStep ? { label: 'Cancel', onPress: cancelGift } : { label: 'Back', onPress: () => (navigation.canGoBack() ? navigation.goBack() : cancelGift()) }}
@@ -987,7 +984,7 @@ function GiftGiveBody() {
               textStyle={checkoutUi.buttonText}
             />
           )}
-          {step !== 'type' && !mobileLayout ? (
+          {!mobileLayout ? (
             <TouchableOpacity
               onPress={cancelGift}
               disabled={submitting}

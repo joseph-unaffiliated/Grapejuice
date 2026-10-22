@@ -8,7 +8,7 @@ import type { SemanticColors } from '../../constants/themeMode';
 
 const THUMB_WIDTH = 64;
 const GOLD = palette.warm[200];
-const ROW_TINT = 'rgba(216, 201, 144, 0.22)';
+const ROW_TINT = 'rgba(184, 172, 127, 0.22)';
 
 type Props = {
   holiday: MyBoxesHoliday;

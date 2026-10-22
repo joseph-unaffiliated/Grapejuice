@@ -19,7 +19,7 @@ import { useGuestBoxFlow } from '../hooks/useGuestBoxFlow';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { LAST_SIGNED_IN_KEY, useBoxPresenceStore } from '../stores/boxPresenceStore';
 import { getHanukkahConfig } from '../services/firestore/config';
-import { useEffectiveBoxLocked, usePreviewNow } from '../hooks/useUserStatePreview';
+import { useBoxEditingLocked, usePreviewNow } from '../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../navigation/types';
 import { startOwnBoxBuild } from '../navigation/boxEntry';
 import { useCatalog } from '../hooks/useCatalog';
@@ -216,8 +216,8 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
     options: CatalogItem[];
   } | null>(null);
   const now = usePreviewNow();
-  const locked = useEffectiveBoxLocked(lockAt);
   const { cardOnFile, openOrder, ordersLoading, guardMutation, refreshOrders, totalCreditCents } = usePaymentGate();
+  const locked = useBoxEditingLocked(lockAt, openOrder);
   /** What lock settles against: credit checkout reserved on the order plus the account balance. */
   const boxCreditCents =
     totalCreditCents + (openOrder?.giftCreditAppliedCents ?? 0) + (openOrder?.platformCreditAppliedCents ?? 0);

@@ -14,7 +14,7 @@ import {
 import { icons } from '../../constants/icons';
 import { DreidelIcon } from '../ui/DreidelIcon';
 import { Icon } from '../ui/Icon';
-import { semanticColors, spacing, typography, borderRadius, shadows, shadowsWeb } from '../../constants/theme';
+import { semanticColors, spacing, typography, borderRadius, shadows, shadowsWeb, INK } from '../../constants/theme';
 import { useEffectiveWindowDimensions } from '../../hooks/useEffectiveWindowDimensions';
 import { useWebLayout } from '../../hooks/useWebLayout';
 
@@ -253,12 +253,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: typography.xl,
     fontWeight: '400',
-    color: '#000000',
+    color: INK,
   },
   stackBody: {
     fontSize: typography.sm,
     fontWeight: '200',
-    color: '#000000',
+    color: INK,
     lineHeight: 16.5,
     paddingLeft: 14 + spacing.sm,
   },

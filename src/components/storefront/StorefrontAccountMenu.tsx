@@ -24,13 +24,13 @@ import { usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
 import type { PendingMainNav } from '../../navigation/pendingMainNav';
 import { useStorefrontLeave } from './storefrontLeaveContext';
-import {
-  borderRadius,
+import { borderRadius,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 type Nav = StackNavigationProp<MainStackParamList>;
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   },
   mobileBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000000',
+    backgroundColor: INK,
   },
   dropdown: {
     position: 'absolute',
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
           overflow: 'auto',
         } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.12,
           shadowRadius: 16,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
           boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.18)',
         } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: -8, height: 0 },
           shadowOpacity: 0.18,
           shadowRadius: 24,

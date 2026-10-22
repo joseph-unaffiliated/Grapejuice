@@ -260,7 +260,7 @@ geq.load("X2JHJ4WE");}();
         overflow: auto;
         overscroll-behavior-y: contain;
         /* Match storefront footer so any svh/viewport seam below #root isn’t a white flash. */
-        background: #000000;
+        background: #111827;
         font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
       #root {
@@ -307,6 +307,14 @@ geq.load("X2JHJ4WE");}();
       #root input:focus,
       #root textarea:focus {
         outline: none;
+      }
+      /* Cookie banner uses brand ink, not pure black. */
+      #onetrust-banner-sdk,
+      #onetrust-banner-sdk .ot-sdk-container,
+      #onetrust-banner-sdk #onetrust-group-container,
+      #onetrust-banner-sdk #onetrust-policy,
+      #onetrust-banner-sdk .ot-sdk-row {
+        background-color: #111827 !important;
       }
       /* Rav mobile: hide OneTrust cookie FAB while the sheet is open (and when keyboard is up). */
       body.rav-sheet-open #ot-sdk-btn-floating,

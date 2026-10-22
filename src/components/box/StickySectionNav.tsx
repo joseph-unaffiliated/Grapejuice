@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import type { BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { BOX_DISPLAY_SECTIONS } from '../../constants/boxDisplaySections';
-import { typography, spacing, typeface, MOBILE_GUTTER, semanticColors } from '../../constants/theme';
+import { typography, spacing, typeface, MOBILE_GUTTER, semanticColors, INK } from '../../constants/theme';
 import { BOX_DETAIL_TAB_GUTTER } from './boxDetailLayout';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
@@ -168,7 +168,7 @@ function createNavStyles(
       paddingTop: services ? 0 : spacing.md,
       paddingBottom: 0,
       paddingHorizontal: services ? 0 : isDesktop ? 0 : BOX_DETAIL_TAB_GUTTER,
-      backgroundColor: services ? '#000000' : colors.bgPrimary,
+      backgroundColor: services ? INK : colors.bgPrimary,
       // Dark secondary bar — no light/white bottom stroke.
       borderBottomWidth: 0,
       zIndex: 10,
@@ -187,7 +187,7 @@ function createNavStyles(
       position: 'relative',
       // Page variant keeps a soft gold rule; services bar has none.
       borderBottomWidth: services ? 0 : 0.5,
-      borderBottomColor: 'rgba(216,201,144,0.5)',
+      borderBottomColor: 'rgba(184, 172, 127,0.5)',
       gap: services || isDesktop ? spacing.lg : spacing.md,
       paddingHorizontal: services ? MOBILE_GUTTER : 0,
       paddingVertical: services ? spacing.sm : 0,

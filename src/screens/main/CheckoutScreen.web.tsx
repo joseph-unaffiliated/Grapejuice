@@ -48,6 +48,7 @@ import { getSavedCardSummary, type SavedCardSummary } from '../../services/check
 import { savedCardLabel } from '../storefront/MarketplacePaymentPanel.web';
 import { StickyBar } from '../../components/mobile/StickyBar';
 import { lockShortLabel } from '../../hooks/useBoxGlance';
+import { checkoutChargeBar, checkoutChargeLine } from '../../constants/hanukkahBoxLock';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
 import { formatCatalogDollars, formatDollars } from '../../services/box/buildDefaultBox';
@@ -57,6 +58,7 @@ import { householdsService } from '../../services/firestore/households';
 import { CHECKOUT_PATH, checkoutPath, readCheckoutPaymentStepFromWindow } from '../../navigation/checkoutLink';
 import { pushBrowserPath, replaceBrowserPath } from '../../navigation/webBrowserHistory';
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
+import { useBoxEditingLocked } from '../../hooks/useUserStatePreview';
 
 const SHIPPING_CONFIRMED_KEY = 'gj.checkout.shippingConfirmed';
 
@@ -229,7 +231,6 @@ function CheckoutScreenBody() {
     address,
     updateAddress,
     loading,
-    locked,
     lockAt,
     boxPriceCents,
     total,
@@ -297,7 +298,7 @@ function CheckoutScreenBody() {
     }
     setAddressFieldErrors(result.fields);
     setAddressFormError(result.message);
-    recordCheckoutError('address', result.message, household?.id);
+    recordCheckoutError('address', result.message ?? 'Address validation failed', household?.id);
     return false;
   };
 
@@ -309,7 +310,7 @@ function CheckoutScreenBody() {
     if (verdict.ok) return true;
     setAddressFieldErrors(verdict.fields);
     setAddressFormError(verdict.message);
-    recordCheckoutError('address', verdict.message, household?.id);
+    recordCheckoutError('address', verdict.message ?? 'Address deliverability check failed', household?.id);
     return false;
   };
 
@@ -319,6 +320,7 @@ function CheckoutScreenBody() {
   const cardOnFile = !!(household?.cardOnFileAt || household?.stripeDefaultPaymentMethodId);
   const skipShipStation = useMockFlowStore((s) => s.active);
   const { openOrder, loading: ordersLoading } = usePilotOrders(household?.id);
+  const locked = useBoxEditingLocked(lockAt, openOrder);
   /** Set once the box commits here — the congrats overlay owns the exit to My Box. */
   const [committedHere, setCommittedHere] = useState(false);
 
@@ -733,6 +735,8 @@ function CheckoutScreenBody() {
   const onPaymentStep = !!setupClientSecret && !cardReady;
 
   const lockShort = lockShortLabel(lockAt);
+  const chargeLine = checkoutChargeLine(lockShort);
+  const chargeBar = checkoutChargeBar(lockShort);
   if (showCongrats) {
     if (mobileLayout) {
       const startsLabel = startsOnForDone ? new Date(startsOnForDone).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : null;
@@ -808,7 +812,7 @@ function CheckoutScreenBody() {
           <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret, appearance: STRIPE_APPEARANCE, fonts: STRIPE_FONTS }}>
             <MobileCardAndPlaceOrder
               total={totalLabel}
-              chargeLabel={`Charged after ${lockShort}`}
+              chargeLabel={chargeLine}
               beforeConfirm={ensureAddressDeliverable}
               onSaved={() => {
                 setReplacingCard(false);
@@ -845,7 +849,7 @@ function CheckoutScreenBody() {
     const bar =
       needsCard && setupClientSecret ? null : (
         <StickyBar
-          label={`Charged after ${lockShort}`}
+          label={chargeBar}
           total={totalLabel}
           layout="stack"
           cookieGap
@@ -891,7 +895,7 @@ function CheckoutScreenBody() {
         {onPaymentStep || commitOnly ? 'Payment' : 'Shipping'}
       </Text>
       <Text style={checkoutUi.lead}>
-        You won&apos;t be charged until your box ships.
+        {chargeLine}
         {!cardOnFile && !commitOnly
           ? ' Your box will not ship until you add payment information and a shipping address.'
           : null}

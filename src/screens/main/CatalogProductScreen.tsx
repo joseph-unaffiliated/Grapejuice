@@ -23,11 +23,11 @@ import {
 import { CartQtyStepper } from '../../components/storefront/CartQtyStepper';
 import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import {
-  useEffectiveBoxLocked,
   usePreviewNow,
   usePreviewedHasStartedBox,
   useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
+import { useLiveBoxLocked } from '../../hooks/useLiveBoxLocked';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { formatCatalogDollars, buildDefaultLineItems } from '../../services/box/buildDefaultBox';
 import { boxLockChipLabel, shipWindowLabel } from '../../constants/hanukkahBoxLock';
@@ -164,7 +164,7 @@ export function CatalogProductScreen() {
   const [loadingConfig, setLoadingConfig] = useState(() => peekHanukkahConfig() == null);
   const [saving, setSaving] = useState(false);
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
-  const locked = useEffectiveBoxLocked(lockAt);
+  const locked = useLiveBoxLocked(lockAt);
   const [shipWindow, setShipWindow] = useState(() => {
     const cached = peekHanukkahConfig();
     return cached ? shipWindowLabel(cached.estimatedDeliveryBy) : HANUKKAH_SHIP_WINDOW_LABEL;

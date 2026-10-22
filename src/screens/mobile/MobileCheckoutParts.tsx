@@ -16,6 +16,7 @@ import { MobileButton } from '../../components/mobile/MobileButton';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { MobileFooterBleed, MobileFooterSpacer, MOBILE_FOOTER_TOP_GAP, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 import { m, mFont, mGutter, mRadius, mType, balanceProps } from '../../components/mobile/mobileTheme';
+import { checkoutChargeLine, isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
 import { MobileCodeSignIn, CodeEntry } from '../../components/mobile/MobileCodeSignIn';
 export { CodeEntry };
 
@@ -93,6 +94,8 @@ type LayoutProps = {
 export function MobileCheckoutLayout(p: LayoutProps) {
   const [open, setOpen] = useState(false);
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const chargeLine = checkoutChargeLine(p.lockShort);
+  const immediate = isImmediateChargeWindow();
   return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Box', onPress: p.onBack }} title="Checkout" right={<Secure />} />
@@ -100,7 +103,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
         <View style={styles.pad}>
           <View style={styles.assure}>
             <Icon icon={icons.calendar} size={14} color={m.goldDark} />
-            <Text style={styles.assureText}>Keep editing your box until {p.lockShort}</Text>
+            <Text style={styles.assureText}>{chargeLine}</Text>
           </View>
           <Text style={styles.held}>{NOT_HELD_COPY}</Text>
           {p.lockedNote ? <Text style={styles.error}>{p.lockedNote}</Text> : null}
@@ -115,7 +118,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
               }
               items={p.thumbs}
               lines={p.lines}
-              totalLabel={`Charged after ${p.lockShort}`}
+              totalLabel={immediate ? 'Charged today' : `Charged after ${p.lockShort}`}
               total={p.total}
             >
               {open ? p.receipt : null}
@@ -133,7 +136,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
         <View style={[styles.pad, { paddingTop: 26 }]}>
           <View style={styles.sectionHead}>
             <Text style={mType.h2}>Payment</Text>
-            <Text style={mType.small}>Saved now, charged after {p.lockShort}</Text>
+            <Text style={mType.small}>{chargeLine}</Text>
           </View>
           {p.payment}
           {p.discount ? <View style={{ marginTop: 12 }}>{p.discount}</View> : null}
@@ -156,7 +159,7 @@ export function MobileCheckoutLayout(p: LayoutProps) {
             >
               Privacy Policy
             </Text>
-            . Your card is charged after {p.lockShort}, when your box is prepared to ship.
+            . {chargeLine}
           </Text>
         </View>
       </ScrollView>
@@ -221,20 +224,27 @@ export function MobileCardAndPlaceOrder({
 /* ------------------------------------------------------------------ confirmation */
 
 export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }: { lockShort: string; startsLabel: string | null; onViewBox: () => void; onShop: () => void }) {
-  const steps: [string, string][] = [
-    ['Today', 'Order placed. Card saved, not charged.'],
-    [`Until ${lockShort}`, 'Swap, add or remove anything in My Box.'],
-    [`End of ${lockShort}`, 'Your box locks and we start packing.'],
-    ['When it ships', 'Your card is charged and we email you tracking.'],
-    [startsLabel ? `Before ${startsLabel}` : 'Before the first night', 'It arrives in time for the first candle.'],
-  ];
+  const immediate = isImmediateChargeWindow();
+  const steps: [string, string][] = immediate
+    ? [
+        ['Today', 'Your card is charged and this box locks.'],
+        ['Next', 'We start packing. The box can no longer be changed.'],
+        [startsLabel ? `Before ${startsLabel}` : 'Before the first night', 'It arrives in time for the first candle.'],
+      ]
+    : [
+        ['Today', 'Order placed. Card saved, not charged.'],
+        [`Until ${lockShort}`, 'Swap, add or remove anything in My Box.'],
+        [`End of ${lockShort}`, 'Your box locks and we start packing.'],
+        ['When it ships', 'Your card is charged and we email you tracking.'],
+        [startsLabel ? `Before ${startsLabel}` : 'Before the first night', 'It arrives in time for the first candle.'],
+      ];
   const ics = () => {
     if (Platform.OS !== 'web') return;
     const body = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `SUMMARY:Last day to change your Grapejuice Hanukkah box`, `DESCRIPTION:Open grapejuice.co/box to make any last changes.`, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
     void Linking.openURL(`data:text/calendar;charset=utf8,${encodeURIComponent(body)}`);
   };
   return (
-    <MobileDoneLayout title="Your box is set" lede={`You can change anything until ${lockShort}. Nothing is charged until then.`} steps={steps}>
+    <MobileDoneLayout title="Your box is set" lede={immediate ? 'Your card was charged and this box is locked.' : `You can change anything until ${lockShort}. $0 today. Cancel free before then.`} steps={steps}>
       <MobileButton label="View my box" onPress={onViewBox} />
       <MobileButton label="Shop extras" variant="secondary" onPress={onShop} style={{ marginTop: 10 }} />
       <Pressable onPress={ics} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: 16 }}>

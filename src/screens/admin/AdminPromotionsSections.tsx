@@ -342,6 +342,25 @@ function DiscountsSection({ styles, colors }: { styles: Styles; colors: Semantic
     void save({ ...codeFormFrom(c), active: !c.active }, c.code);
   };
 
+  const remove = (c: AdminDiscountCode) => {
+    if (c.used > 0 || c.pending > 0) return;
+    if (!confirmAction(`Delete ${c.code}? It has never been used.`)) return;
+    void (async () => {
+      setBusy(`delete:${c.code}`);
+      setNotice(null);
+      try {
+        await adminPromotions.deleteCode(c.code);
+        if (form.editing === c.code) setForm(EMPTY_CODE);
+        setNotice({ ok: true, text: `Deleted ${c.code}.` });
+        await reload();
+      } catch (err) {
+        setNotice({ ok: false, text: errMsg(err) });
+      } finally {
+        setBusy(null);
+      }
+    })();
+  };
+
   const live = (rows ?? []).filter((c) => c.status === 'active');
   const totalUsed = (rows ?? []).reduce((s, c) => s + c.used, 0);
   const totalGiven = (rows ?? []).reduce((s, c) => s + c.discountGivenCents, 0);
@@ -421,6 +440,9 @@ function DiscountsSection({ styles, colors }: { styles: Styles; colors: Semantic
           <View style={styles.chipRow}>
             <Chip label="Edit" onPress={() => setForm(codeFormFrom(c))} styles={styles} />
             <Chip label={busy === c.code ? 'Saving…' : c.active ? 'Deactivate' : 'Reactivate'} onPress={() => toggleActive(c)} styles={styles} />
+            {c.used === 0 && c.pending === 0 ? (
+              <Chip label={busy === `delete:${c.code}` ? 'Deleting…' : 'Delete'} onPress={() => remove(c)} styles={styles} />
+            ) : null}
           </View>
         </View>
       ))}

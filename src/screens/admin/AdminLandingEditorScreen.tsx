@@ -55,7 +55,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { m, mGutter } from '../../components/mobile/mobileTheme';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { paintOpsMobile } from './opsMobileSkin';
-import { spacing, typography, borderRadius, semanticColors } from '../../constants/theme';
+import { spacing, typography, borderRadius, semanticColors, INK } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
 import { navigateToLanding } from '../../navigation/mainStackNavigation';
@@ -1388,7 +1388,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean, showLivePrevie
             boxShadow: '0 12px 40px rgba(17, 2, 34, 0.16), 0 2px 8px rgba(17, 2, 34, 0.08)',
           } as object)
         : {
-            shadowColor: '#110222',
+            shadowColor: INK,
             shadowOffset: { width: 0, height: 8 },
             shadowOpacity: 0.16,
             shadowRadius: 20,

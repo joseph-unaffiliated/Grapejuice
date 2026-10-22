@@ -5,18 +5,13 @@
 import { firestoreFromFirebaseCliLogin } from './lib/firebaseCliCredential.mjs';
 import { auditIncluded } from '../src/services/box/includedAudit';
 import { boxAuditId, isLikelyDonation } from '../functions/src/boxAuditLoad';
+import type { BoxLineItem } from '../src/types/pilot';
 
-const db = firestoreFromFirebaseCliLogin('grapejuice-pilot');
+const authenticatedDb = firestoreFromFirebaseCliLogin('grapejuice-pilot');
+if (!authenticatedDb) throw new Error('Firebase CLI credentials are unavailable.');
+const db = authenticatedDb;
 
-type Line = {
-  slotId: string;
-  itemId: string;
-  quantity: number;
-  unitCents: number;
-  label?: string;
-  includedQty?: number;
-  displaySectionId?: string;
-  childId?: string;
+type Line = BoxLineItem & {
   [k: string]: unknown;
 };
 
@@ -270,7 +265,7 @@ async function main() {
     const result = await writeAudit(path, lines);
     // open count in audit doc doesn't apply decisions — loadBoxProblems does.
     // Stamp approved on the problem in the audit for clarity.
-    const stamped = result.problems.map((p) =>
+    const stamped: Array<(typeof result.problems)[number] & { approved?: string }> = result.problems.map((p) =>
       p.code === 'not-included-item' && p.itemId === 'gimmel-the-dreidel-stuffie'
         ? { ...p, approved: 'Approved: gimmel in food slot (admin 2026-10-19)' }
         : p

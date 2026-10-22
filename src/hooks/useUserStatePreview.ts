@@ -10,6 +10,7 @@ import {
 import { useSession } from './useSession';
 import { useBoxDraft } from './useBoxDraft';
 import { isBoxLocked } from '../services/firestore/config';
+import { isHouseholdBoxFrozen } from '../constants/hanukkahBoxLock';
 
 function isSignedOutPreview(preview: UserStatePreview | null): boolean {
   return preview === 'signed_out' || preview === 'signed_out_box';
@@ -102,6 +103,21 @@ export function useEffectiveBoxLocked(lockAt: string | null): boolean {
     return false;
   }
   return isBoxLocked(lockAt, now);
+}
+
+/**
+ * Seasonal lock, plus a household whose own box is already frozen.
+ * Preview states that force the box open stay open.
+ */
+export function useBoxEditingLocked(
+  lockAt: string | null,
+  openOrder: { status?: string | null; lockAt?: string | null } | null | undefined
+): boolean {
+  const preview = useUserStatePreviewStore((s) => s.preview);
+  const now = usePreviewNow();
+  const seasonal = useEffectiveBoxLocked(lockAt);
+  if (preview) return seasonal;
+  return seasonal || isHouseholdBoxFrozen(openOrder, now);
 }
 
 /** Payment-gate override: null = use real household; boolean = force. */

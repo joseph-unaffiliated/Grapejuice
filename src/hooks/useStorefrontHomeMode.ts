@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import {
-  useEffectiveBoxLocked,
+  useBoxEditingLocked,
   usePreviewedHasStartedBox,
   usePreviewedIsAuthenticated,
   usePreviewNow,
@@ -108,8 +108,8 @@ export function useStorefrontHomeMode(
   const hasStartedBox = usePreviewedHasStartedBox();
   const { loading: sessionLoading } = useSession();
   const { lineItems, loading: boxLoading } = useBoxDraft();
-  const locked = useEffectiveBoxLocked(lockAt);
   const { canMutateBox, openOrder } = usePaymentGate();
+  const locked = useBoxEditingLocked(lockAt, openOrder);
   const now = usePreviewNow();
   const afterHanukkah = getHanukkahStatus(startsOn, now).phase === 'after';
   const giftStatus = useGiftIntentStore((s) => s.status);

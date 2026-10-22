@@ -15,13 +15,13 @@ import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { isValidEmail } from '../../utils/formValidation';
 import { PRIVACY_PATH, TERMS_PATH } from '../../navigation/contentLink';
-import {
-  semanticColors,
+import { semanticColors,
   spacing,
   typography,
   borderRadius,
   typeface,
   MOBILE_GUTTER,
+  INK,
 } from '../../constants/theme';
 
 type Props = {
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
     letterSpacing: -0.72,
-    color: '#000000',
+    color: INK,
     textAlign: 'center',
     marginBottom: spacing.xl,
   },
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     /** Under 16px, iOS Safari zooms the page on focus. */
     fontSize: 16,
-    color: '#000000',
+    color: INK,
     textAlign: 'center',
   },
   error: {

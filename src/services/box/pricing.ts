@@ -22,8 +22,11 @@ export const DEFAULT_BOX_PRICE_CENTS = 8000;
 /** Display window for “arrives in time for Hanukkah” (inclusive). */
 export const HANUKKAH_SHIP_WINDOW_LABEL = shipWindowLabel(null);
 
-/** Awarded on Hanukkah debrief completion (panel Jun 10). */
+/** Awarded on Hanukkah debrief completion (panel Jun 10). Matches functions/src/debriefReward.ts. */
 export const DEBRIEF_PLATFORM_CREDIT_CENTS = 8000;
+
+/** January alternative to the debrief credit, chosen by the user. Matches functions/src/debriefReward.ts. */
+export const DEBRIEF_GIFT_CARD_CENTS = 2000;
 
 /** Flat expedited shipping add-on (Build 3). */
 export const EXPEDITED_SHIPPING_CENTS = 1500;

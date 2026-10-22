@@ -10,12 +10,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebLayout } from '../../hooks/useWebLayout';
-import {
-  semanticColors,
+import { semanticColors,
   spacing,
   typography,
   typeface,
   MOBILE_GUTTER,
+  INK,
 } from '../../constants/theme';
 import {
   OnboardingPrimaryButton,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   title: {
     ...typeface('regular'),
     fontSize: 28,
-    color: '#000000',
+    color: INK,
     letterSpacing: -0.72,
     lineHeight: 34,
     ...(Platform.OS === 'web' ? ({ textWrap: 'balance' } as object) : null),
@@ -407,14 +407,14 @@ export const onboardingBodyText = StyleSheet.create({
   text: {
     ...typeface('light'),
     fontSize: typography.titleLg,
-    color: '#000000',
+    color: INK,
     letterSpacing: -0.26,
     lineHeight: 24,
   },
   lead: {
     ...typeface('light'),
     fontSize: typography.titleLg,
-    color: '#000000',
+    color: INK,
     letterSpacing: -0.26,
     lineHeight: 24,
     marginBottom: spacing.sm,

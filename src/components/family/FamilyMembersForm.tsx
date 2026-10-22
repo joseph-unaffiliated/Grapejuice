@@ -7,7 +7,7 @@ import {
   KidAgePicker,
   type KidAgeChoice,
 } from './KidAgePicker';
-import { semanticColors, spacing, typography, borderRadius, typeface } from '../../constants/theme';
+import { semanticColors, spacing, typography, borderRadius, typeface, INK } from '../../constants/theme';
 import { ageGroupForNumericAge } from '../../services/box/boxRules';
 import type { AgeGroup } from '../../types/pilot';
 import { CHILD_INTEREST_OPTIONS, type ChildInterestId } from '../../constants/childInterests';
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     /** Under 16px, iOS Safari zooms the page on focus. */
     fontSize: 16,
-    color: '#000000',
+    color: INK,
   },
   inputDense: {
     height: 40,
@@ -294,11 +294,11 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     flexBasis: 'auto',
   },
-  ageChipOn: { backgroundColor: '#000000' },
+  ageChipOn: { backgroundColor: INK },
   ageText: {
     ...typeface('light'),
     fontSize: typography.xs,
-    color: '#000000',
+    color: INK,
   },
   ageTextOn: {
     ...typeface('light'),

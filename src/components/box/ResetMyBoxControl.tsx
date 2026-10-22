@@ -12,11 +12,11 @@ import { useThemeMode } from '../../context/ThemeContext';
 import { useSession } from '../../hooks/useSession';
 import { abandonOwnBox, startOwnBoxBuild } from '../../navigation/boxEntry';
 import { navigateMainStack } from '../../navigation/mainStackNavigation';
-import {
-  borderRadius,
+import { borderRadius,
   spacing,
   typography,
   typeface,
+  INK,
 } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 
@@ -168,7 +168,7 @@ function createStyles(colors: SemanticColors) {
       ...(Platform.OS === 'web'
         ? ({ boxShadow: '0 16px 48px rgba(17, 2, 34, 0.28)' } as object)
         : {
-            shadowColor: '#110222',
+            shadowColor: INK,
             shadowOffset: { width: 0, height: 12 },
             shadowOpacity: 0.28,
             shadowRadius: 24,

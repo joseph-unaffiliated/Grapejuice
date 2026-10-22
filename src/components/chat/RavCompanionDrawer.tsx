@@ -17,7 +17,7 @@ const PANE_CLOSE_MS = 280;
 /** Soft gold edge glow toward chat — lighter than sidebar goldBar. */
 const PANE_GOLD_SHADOW =
   Platform.OS === 'web'
-    ? ({ boxShadow: '-2px 0 20px rgba(216, 201, 144, 0.28)' } as object)
+    ? ({ boxShadow: '-2px 0 20px rgba(184, 172, 127, 0.28)' } as object)
     : undefined;
 
 type Props = {

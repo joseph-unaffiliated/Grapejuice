@@ -17,7 +17,7 @@ const LOOP_COPIES = 3;
 const CHIP_GAP = 6;
 const ROW_GAP = CHIP_GAP;
 const EDGE_FADE_W = 72;
-const CHIP_STROKE_IDLE = 'rgba(216, 201, 144, 0.35)';
+const CHIP_STROKE_IDLE = 'rgba(184, 172, 127, 0.35)';
 const DRAG_THRESHOLD_PX = 4;
 
 /** Desktop marquee speed. */

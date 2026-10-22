@@ -11,12 +11,12 @@ import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import { useScrollActiveIntoView } from '../../hooks/useScrollActiveIntoView';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
-import {
-  MOBILE_GUTTER,
+import { MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 type Props = {
@@ -84,7 +84,7 @@ export function StorefrontCategoryNav({ activeSlug, onPress }: Props) {
 
 const styles = StyleSheet.create({
   root: {
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     // No light/white bottom stroke on the dark secondary bar.
     borderBottomWidth: 0,
     borderTopWidth: 0,

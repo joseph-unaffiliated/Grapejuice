@@ -8,8 +8,21 @@ function callable<Req, Res>(name: string) {
   return httpsCallable<Req, Res>(functions, name);
 }
 
-export async function awardDebriefCredit(): Promise<{ awardedCents: number }> {
-  const { data } = await callable<Record<string, never>, { awardedCents: number }>('awardDebriefCredit')({});
+export type DebriefReward = 'credit' | 'gift_card';
+
+export type DebriefRewardResult = {
+  awardedCents: number;
+  /** Reward already given (or just given) to this user, if any. */
+  reward: DebriefReward | null;
+  /** Rewards still on offer today: credit only through Dec 31, credit or gift card Jan 1–31, none after. */
+  options: DebriefReward[];
+  skipped: 'pilot' | 'closed' | null;
+};
+
+export async function awardDebriefCredit(opts?: { dryRun?: boolean; reward?: DebriefReward }): Promise<DebriefRewardResult> {
+  const { data } = await callable<{ dryRun?: boolean; reward?: DebriefReward }, DebriefRewardResult>('awardDebriefCredit')(
+    opts?.dryRun ? { dryRun: true } : { reward: opts?.reward ?? 'credit' }
+  );
   return data;
 }
 
@@ -129,6 +142,7 @@ async function admin<Res>(payload: Record<string, unknown>): Promise<Res> {
 export const adminPromotions = {
   listCodes: () => admin<{ codes: AdminDiscountCode[] }>({ action: 'listCodes' }).then((d) => d.codes),
   saveCode: (input: SaveDiscountCodeInput) => admin<{ code: string }>({ action: 'saveCode', ...input }),
+  deleteCode: (code: string) => admin<{ ok: true }>({ action: 'deleteCode', code }),
   listCredits: () => admin<{ grants: AdminCreditGrant[] }>({ action: 'listCredits' }).then((d) => d.grants),
   grantCredit: (input: { email: string; amountCents: number; note?: string; name?: string }) =>
     admin<{ id: string; accountCreated: boolean }>({ action: 'grantCredit', ...input }),

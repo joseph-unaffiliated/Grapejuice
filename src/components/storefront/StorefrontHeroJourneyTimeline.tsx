@@ -266,7 +266,7 @@ export function StorefrontHeroJourneyTimeline({
   const railDotCount = isBanner ? 80 : 64;
   const pinColor = isBanner ? semanticColors.brand : '#FFFFFF';
   const markerBg = isBanner ? semanticColors.brand : '#FFFFFF';
-  const trackDotBg = isBanner ? 'rgba(216, 201, 144, 0.45)' : 'rgba(255, 255, 255, 0.55)';
+  const trackDotBg = isBanner ? 'rgba(184, 172, 127, 0.45)' : 'rgba(255, 255, 255, 0.55)';
 
   return (
     <View

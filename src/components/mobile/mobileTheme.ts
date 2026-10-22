@@ -1,6 +1,6 @@
 /**
- * Tokens for the phone layouts (mockups/mobile-box). Imported only by the mobile
- * components, never by the shared theme, so desktop styling is untouched.
+ * Core storefront tokens. Phone layouts use these directly; the shared theme
+ * aliases the same values so desktop and mobile stay visually aligned.
  *
  * One beige, one gold for lines and fills, one dark gold for text, one black (ink).
  */

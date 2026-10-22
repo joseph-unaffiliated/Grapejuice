@@ -66,11 +66,11 @@ import { useSession } from '../../hooks/useSession';
 import { prefetchPartnerInvites } from '../../services/account/accountPrefetch';
 import { usePreviewedIsAuthenticated, usePreviewNow } from '../../hooks/useUserStatePreview';
 import type { MainStackParamList } from '../../navigation/types';
-import {
-  MOBILE_GUTTER,
+import { MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
+  INK,
 } from '../../constants/theme';
 
 const DREIDELS_LIFESTYLE_IMG = require('../../../assets/storefront/dreidels-lifestyle-banner.webp');
@@ -634,20 +634,20 @@ function SubSectionHeader({
 const styles = StyleSheet.create({
   journeyBanner: {
     width: '100%',
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     paddingTop: spacing.md - 2,
     paddingBottom: spacing.md,
     paddingHorizontal: MOBILE_GUTTER,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(216, 201, 144, 0.35)',
+    borderTopColor: 'rgba(184, 172, 127, 0.35)',
   },
   /** Matches journey banner block height while Hanukkah config resolves. */
   journeyBannerReserve: {
     width: '100%',
     height: 88,
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(216, 201, 144, 0.35)',
+    borderTopColor: 'rgba(184, 172, 127, 0.35)',
   },
   subHead: {
     width: '100%',

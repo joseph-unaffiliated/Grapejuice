@@ -14,12 +14,12 @@ import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthFlowStore } from '../../stores/authFlowStore';
 import { HOME_HOLIDAY_THUMBS } from '../../constants/homeImages';
 import { GrapejuiceWordmarkLockup } from '../brand/GrapejuiceWordmarkLockup';
-import {
-  spacing,
+import { spacing,
   shadows,
   shadowsWeb,
   LAYOUT,
   semanticColors,
+  INK,
 } from '../../constants/theme';
 
 const IMAGE_SHADOW =
@@ -161,7 +161,7 @@ export function AuthHeroShell({ children, modal }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0C0A08',
+    backgroundColor: INK,
     ...(Platform.OS === 'web' ? ({ minHeight: '100%' } as object) : null),
   },
   rootOverlay: {

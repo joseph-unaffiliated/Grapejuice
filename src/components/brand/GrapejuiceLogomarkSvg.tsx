@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 
+import { INK } from '../../constants/theme';
 /** Intrinsic SVG ratio from the brand file (1487 × 1360). */
 export const LOGOMARK_ASPECT = 1487 / 1360;
 
@@ -311,7 +312,7 @@ function WobbleGrape({
 export function GrapejuiceLogomarkSvg({
   width = 30,
   height,
-  color = '#000000',
+  color = INK,
   animating = false,
   emphasis = false,
   loop = true,

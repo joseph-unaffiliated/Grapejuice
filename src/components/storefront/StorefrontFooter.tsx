@@ -17,14 +17,14 @@ import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { isStorefrontRavOpenable, openStorefrontRav } from './storefrontRavContext';
-import {
-  MOBILE_GUTTER,
+import { MOBILE_GUTTER,
   WEB_FONT_FAMILY,
   borderRadius,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 type Nav = StackNavigationProp<MainStackParamList>;
@@ -43,8 +43,8 @@ type FooterColumn = {
   linkColumns?: number;
 };
 
-/** True black — not brand grey (`logoDark`). */
-const FOOTER_BG = '#000000';
+/** Shared brand ink used by the footer and surrounding page seam. */
+const FOOTER_BG = INK;
 const FOOTER_FG = '#FFFFFF';
 const FOOTER_LINK = semanticColors.brand;
 const WORDMARK_LABEL = 'Grapejuice';
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   wordmarkWatermark: {
     ...typeface('bold'),
     color: FOOTER_LINK,
-    opacity: 0.1,
+    opacity: 0.03,
     alignSelf: 'flex-start',
     marginTop: spacing.lg,
     marginBottom: 0,
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   copyright: {
     ...typeface('regular'),
     fontSize: typography.xs,
-    color: 'rgba(216, 201, 144, 0.72)',
+    color: 'rgba(184, 172, 127, 0.72)',
     letterSpacing: -0.1,
     // Air under the wordmark watermark before the legal line.
     marginTop: spacing.xl,
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   linkMuted: {
-    color: 'rgba(216, 201, 144, 0.72)',
+    color: 'rgba(184, 172, 127, 0.72)',
   },
   badge: {
     backgroundColor: 'rgba(244, 237, 220, 0.12)',

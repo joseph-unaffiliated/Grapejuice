@@ -90,13 +90,13 @@ import { useBoxDetailScroll } from '../../hooks/useBoxDetailScroll';
 import { useCookieButtonClearance } from '../../hooks/useCookieButtonClearance';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useThemeMode } from '../../context/ThemeContext';
-import {
-  spacing,
+import { spacing,
   typography,
   borderRadius,
   typeface,
   shadows,
   shadowsWeb,
+  INK,
 } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { GiftGiveFormValues } from './giftGiveTypes';
@@ -940,7 +940,7 @@ function createGiftCustomizeStyles(colors: SemanticColors, isDesktop = false) {
     },
     summaryCard: {
       width: '100%',
-      backgroundColor: '#000000',
+      backgroundColor: INK,
       borderRadius: isDesktop ? 12 : 0,
       paddingHorizontal: spacing.md,
       paddingTop: spacing.sm,

@@ -13,7 +13,7 @@ import { BoxItemImage } from '../box/BoxItemImage';
 import { catalogThumbUrl } from '../../constants/catalogImages';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
-import { LAYOUT, borderRadius, spacing } from '../../constants/theme';
+import { LAYOUT, borderRadius, spacing, INK } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import {
   WelcomeSubscriberBadge,
@@ -150,7 +150,7 @@ export function ProductImageGallery({
             <Icon
               icon={wishlisted ? icons.heart : icons.heartOutline}
               size={18}
-              color={wishlisted ? '#000' : '#fff'}
+              color={wishlisted ? INK : '#fff'}
             />
           </TouchableOpacity>
         ) : null}

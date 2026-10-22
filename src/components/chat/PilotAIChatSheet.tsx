@@ -29,7 +29,7 @@ import { getHanukkahConfig } from '../../services/firestore/config';
 import { catalogService } from '../../services/firestore/catalog';
 import { formatHanukkahWelcomeSubtext, formatRelativeTime, formatThreadListDate } from '../../services/hanukkah/dates';
 import type { AIChatMessage, AIChatThreadSummary } from '../../types/aiChat';
-import { useEffectiveBoxLocked } from '../../hooks/useUserStatePreview';
+import { useBoxEditingLocked } from '../../hooks/useUserStatePreview';
 import type { CatalogItem } from '../../types/pilot';
 import { spacing, typography, borderRadius, shadows, shadowsWeb, MOBILE_GUTTER, tabBarTotalHeight, typeface } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -215,8 +215,8 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
   const isGuest = !user?.uid;
   const useKidRavThreads =
     !PILOT_PARENT_ONLY && isChildProfile && ravEnabledForActiveChild && !!activeChild?.id && !isGuest;
-  const boxLocked = useEffectiveBoxLocked(lockAt);
-  const { canMutateBox, guardMutation } = usePaymentGate();
+  const { canMutateBox, guardMutation, openOrder } = usePaymentGate();
+  const boxLocked = useBoxEditingLocked(lockAt, openOrder);
   const paymentGated = !canMutateBox;
   const tabBarHeight = tabBarTotalHeight(Math.max(insets.bottom, 0));
   const bottomPad = isDrawerOverlay
@@ -1403,7 +1403,7 @@ function createPilotStyles(colors: SemanticColors) {
     justifyContent: 'space-between',
     borderWidth: 0.5,
     // Softer than goldMuted — same gold family as brand at reduced strength.
-    borderColor: 'rgba(216, 201, 144, 0.45)',
+    borderColor: 'rgba(184, 172, 127, 0.45)',
     borderRadius: borderRadius.chip,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -1464,7 +1464,7 @@ function createPilotStyles(colors: SemanticColors) {
     justifyContent: 'space-between',
     gap: spacing.md,
     borderWidth: 0.5,
-    borderColor: 'rgba(216, 201, 144, 0.45)',
+    borderColor: 'rgba(184, 172, 127, 0.45)',
     borderRadius: borderRadius.chip,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,

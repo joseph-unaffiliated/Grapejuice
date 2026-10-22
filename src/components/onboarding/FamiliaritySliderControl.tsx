@@ -8,7 +8,7 @@ import {
   Platform,
   type LayoutChangeEvent,
 } from 'react-native';
-import { semanticColors, spacing } from '../../constants/theme';
+import { semanticColors, spacing, INK } from '../../constants/theme';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { m } from '../mobile/mobileTheme';
 
@@ -292,14 +292,14 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     borderRadius: TRACK_H / 2,
-    backgroundColor: '#000000',
+    backgroundColor: INK,
   },
   thumb: {
     position: 'absolute',
     width: THUMB,
     height: THUMB,
     borderRadius: THUMB / 2,
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     top: -(THUMB - TRACK_H) / 2,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: semanticColors.brand,
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     backgroundColor: semanticColors.border,
   },
   stepDotOn: {
-    backgroundColor: '#000000',
+    backgroundColor: INK,
   },
   thumbUnset: {
     width: THUMB * 1.9,

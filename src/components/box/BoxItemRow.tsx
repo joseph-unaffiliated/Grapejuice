@@ -18,7 +18,7 @@ import {
   HorizontalScrollEdgeFades,
   useHorizontalScrollEdges,
 } from '../ui/ScrollEdgeFades';
-import { spacing, typography, borderRadius, shadowsWeb, typeface } from '../../constants/theme';
+import { spacing, typography, borderRadius, shadowsWeb, typeface, INK } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -619,7 +619,7 @@ function createBoxItemRowStyles(
           height: 22,
           paddingHorizontal: spacing.xs,
           borderRadius: 0,
-          backgroundColor: '#000000',
+          backgroundColor: INK,
           borderWidth: 0,
           alignItems: 'center',
           justifyContent: 'center',
@@ -682,7 +682,7 @@ function createBoxItemRowStyles(
           paddingHorizontal: spacing.xs,
           borderRadius: 0,
           borderWidth: 0,
-          backgroundColor: '#000000',
+          backgroundColor: INK,
           alignItems: 'center',
           justifyContent: 'center',
           alignSelf: 'stretch',
@@ -693,7 +693,7 @@ function createBoxItemRowStyles(
           paddingHorizontal: 8,
           borderRadius: 11,
           borderWidth: 1,
-          borderColor: '#000000',
+          borderColor: INK,
           backgroundColor: 'transparent',
           alignItems: 'center',
           justifyContent: 'center',
@@ -713,7 +713,7 @@ function createBoxItemRowStyles(
       : {
           fontSize: typography.sm,
           lineHeight: 14,
-          color: '#000000',
+          color: INK,
           ...typeface('medium'),
           letterSpacing: -0.2,
         },

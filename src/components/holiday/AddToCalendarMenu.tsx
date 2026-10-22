@@ -120,7 +120,7 @@ function createStyles(colors: ReturnType<typeof useThemeMode>['colors']) {
       paddingVertical: spacing.sm,
       borderRadius: borderRadius.xxl,
       /** Pale gold wash — brand gold at low opacity over white. */
-      backgroundColor: 'rgba(216, 201, 144, 0.22)',
+      backgroundColor: 'rgba(184, 172, 127, 0.22)',
     },
     wrapCompact: { marginHorizontal: 0 },
     label: {

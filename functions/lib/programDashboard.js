@@ -2,19 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildProgramDashboard = buildProgramDashboard;
 exports.createAdminProgramDashboard = createAdminProgramDashboard;
-/**
- * Admin Program tab. Read-only scoreboard plus the few writes an admin can make:
- * approve a piece, look up a person, move one pilot onto the coupon.
- */
-const firestore_1 = require("firebase-admin/firestore");
 const sentry_1 = require("./sentry");
 const guestSessions_1 = require("./guestSessions");
 const metaAdsInsights_1 = require("./metaAdsInsights");
 const config_1 = require("./program/config");
 const decideNext_1 = require("./program/decideNext");
 const loadPeople_1 = require("./program/loadPeople");
-const pieces_1 = require("./program/pieces");
-const draftLifecycle_1 = require("./draftLifecycle");
 const time_1 = require("./program/time");
 const LAUNCH = '2026-10-21T04:00:00.000Z';
 const TARGET = 50;
@@ -33,11 +26,10 @@ function millis(v) {
 async function buildProgramDashboard(db) {
     var _a, _b, _c, _d;
     const since = Date.parse(LAUNCH);
-    const [orders, jobs, alerts, approvals, snapshots, funnels, enrollments, enabled, meta] = await Promise.all([
+    const [orders, jobs, alerts, snapshots, funnels, enrollments, enabled, meta] = await Promise.all([
         db.collectionGroup('orders').select('status', 'holidayId', 'createdAt', 'promo', 'totalCents').get(),
         db.collection('programJobs').get(),
         db.collection('programAlerts').where('open', '==', true).limit(20).get().catch(() => null),
-        db.collection('programApprovals').get(),
         db.collection('programSnapshots').orderBy('date', 'desc').limit(21).get().catch(() => null),
         db.collection('checkoutFunnel').limit(500).get(),
         db.collection('pilotEnrollments').select('status', 'enrolledAt').get(),
@@ -95,11 +87,6 @@ async function buildProgramDashboard(db) {
             purchases += row.purchases;
         }
     }
-    const approvalRows = pieces_1.PROGRAM_PIECES.map((piece) => {
-        var _a;
-        const saved = (_a = approvals.docs.find((d) => d.id === piece.id)) === null || _a === void 0 ? void 0 : _a.data();
-        return Object.assign(Object.assign({}, piece), { status: typeof (saved === null || saved === void 0 ? void 0 : saved.status) === 'string' ? saved.status : 'pending', approvedAt: typeof (saved === null || saved === void 0 ? void 0 : saved.approvedAt) === 'string' ? saved.approvedAt : null });
-    });
     return {
         generatedAt: new Date().toISOString(),
         scoreboard: {
@@ -116,7 +103,6 @@ async function buildProgramDashboard(db) {
         checkout: { steps, errors },
         jobs: jobs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))),
         alerts: ((_c = alerts === null || alerts === void 0 ? void 0 : alerts.docs) !== null && _c !== void 0 ? _c : []).map((d) => (Object.assign({ id: d.id }, d.data()))),
-        approvals: approvalRows,
         enabledStages: [...enabled],
         snapshots: ((_d = snapshots === null || snapshots === void 0 ? void 0 : snapshots.docs) !== null && _d !== void 0 ? _d : []).map((d) => d.data()),
     };
@@ -172,28 +158,6 @@ function createAdminProgramDashboard(db) {
         });
         return { ok: true };
     });
-    const approve = (0, sentry_1.onCall)(async (request) => {
-        var _a, _b;
-        requireAdmin(request.auth);
-        const id = typeof ((_a = request.data) === null || _a === void 0 ? void 0 : _a.id) === 'string' ? request.data.id : '';
-        const status = ((_b = request.data) === null || _b === void 0 ? void 0 : _b.status) === 'approved' ? 'approved' : 'pending';
-        const piece = pieces_1.PROGRAM_PIECES.find((p) => p.id === id);
-        if (!piece)
-            throw new sentry_1.HttpsError('invalid-argument', 'Unknown piece.');
-        await db.doc(`programApprovals/${id}`).set(Object.assign(Object.assign({}, piece), { status, approvedAt: status === 'approved' ? new Date().toISOString() : null }), { merge: true });
-        const stage = (0, pieces_1.stageForPiece)(id);
-        if (stage) {
-            await db.doc('programConfig/lifecycle').set(status === 'approved'
-                ? { enabledStages: firestore_1.FieldValue.arrayUnion(stage) }
-                : { enabledStages: firestore_1.FieldValue.arrayRemove(stage) }, { merge: true });
-        }
-        return { ok: true, status };
-    });
-    const dryRun = (0, sentry_1.onCall)({ memory: '1GiB', timeoutSeconds: 540 }, async (request) => {
-        requireAdmin(request.auth);
-        const counts = await (0, draftLifecycle_1.runDraftLifecycle)(db);
-        return { ok: true, counts };
-    });
-    return { getAdminProgramDashboard: dashboard, adminProgramPerson: person, adminProgramTrackOverride: override, adminProgramApprove: approve, adminProgramDryRun: dryRun };
+    return { getAdminProgramDashboard: dashboard, adminProgramPerson: person, adminProgramTrackOverride: override };
 }
 //# sourceMappingURL=programDashboard.js.map

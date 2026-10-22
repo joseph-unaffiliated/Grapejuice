@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { BoxItemImage } from '../box/BoxItemImage';
 import { UPSELL_TILE_MEDIUM } from '../box/BoxSectionUpsellStrip';
-import {
-  borderRadius,
+import { borderRadius,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 import type { CatalogItem } from '../../types/pilot';
 
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
           maxWidth: `min(100%, ${MAX_ROW_WIDTH + spacing.md * 2}px)`,
         } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 12 },
           shadowOpacity: 0.2,
           shadowRadius: 24,

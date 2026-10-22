@@ -6,6 +6,7 @@ import {
   type GrapeWobbleTune,
 } from './GrapejuiceLogomarkSvg';
 
+import { INK } from '../../constants/theme';
 type Props = {
   compact?: boolean;
   markOnly?: boolean;
@@ -54,7 +55,7 @@ export function GrapejuiceBrandMark({
   variant = 'default',
   align = 'center',
   decorative = variant === 'sidebar',
-  color = '#000000',
+  color = INK,
   animating = false,
   emphasis = false,
   loop = true,

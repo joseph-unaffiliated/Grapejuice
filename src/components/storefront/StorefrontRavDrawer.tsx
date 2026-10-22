@@ -18,13 +18,13 @@ import {
   RAV_FLOATING_CHROME_TOP,
   type PilotAIChatSheetRef,
 } from '../chat/PilotAIChatSheet';
-import {
-  semanticColors,
+import { semanticColors,
   shadows,
   shadowsWeb,
   spacing,
   typography,
   typeface,
+  INK,
 } from '../../constants/theme';
 import { pinToViewport } from '../mobile/StickyBar';
 import { useRavSurfaceStore } from '../../stores/ravSurfaceStore';
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '-8px 0 32px rgba(17, 2, 34, 0.12)' } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: -6, height: 0 },
           shadowOpacity: 0.12,
           shadowRadius: 16,
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '0 0 32px rgba(17, 2, 34, 0.18)' } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 0.18,
           shadowRadius: 24,

@@ -3,5 +3,5 @@
   "compilerOptions": {
     "strict": true
   },
-  "exclude": ["functions"]
+  "exclude": ["functions", "scripts/rav-cache-smoke.ts"]
 }

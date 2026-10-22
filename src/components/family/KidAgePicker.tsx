@@ -9,13 +9,13 @@ import {
 } from 'react-native';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
-import {
-  LAYOUT,
+import { LAYOUT,
   borderRadius,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 /** Numeric ages plus optional teen / adult bands (onboarding includes `18+`). */
@@ -174,11 +174,11 @@ function createStyles() {
       flexBasis: 'auto',
       paddingHorizontal: 8,
     },
-    chipOn: { backgroundColor: '#000000' },
+    chipOn: { backgroundColor: INK },
     chipText: {
       ...typeface('light'),
       fontSize: typography.xs,
-      color: '#000000',
+      color: INK,
     },
     chipTextBand: {
       ...typeface('light'),
@@ -234,7 +234,7 @@ function createStyles() {
             boxShadow: '0 8px 24px rgba(17, 2, 34, 0.12)',
           } as object)
         : {
-            shadowColor: '#110222',
+            shadowColor: INK,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.12,
             shadowRadius: 12,
@@ -253,13 +253,13 @@ function createStyles() {
       backgroundColor: semanticColors.bgPrimary,
     },
     menuItemOn: {
-      backgroundColor: '#000000',
-      borderColor: '#000000',
+      backgroundColor: INK,
+      borderColor: INK,
     },
     menuItemText: {
       ...typeface('regular'),
       fontSize: typography.md,
-      color: '#000000',
+      color: INK,
     },
     menuItemTextOn: {
       color: '#FFFFFF',

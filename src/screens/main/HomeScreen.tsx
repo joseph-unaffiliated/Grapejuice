@@ -25,7 +25,7 @@ import { applyStorefrontInterest } from '../../hooks/useStorefrontInterest';
 import { ordersService } from '../../services/firestore/orders';
 import { useCatalog } from '../../hooks/useCatalog';
 import { getHanukkahConfig, getPassoverWaitlistConfig } from '../../services/firestore/config';
-import { useEffectiveBoxLocked } from '../../hooks/useUserStatePreview';
+import { useLiveBoxLocked } from '../../hooks/useLiveBoxLocked';
 import { formatCountdown, formatHanukkahWelcomeSubtext } from '../../services/hanukkah/dates';
 import {
   deriveBoxLifecycle,
@@ -281,7 +281,7 @@ export function HomeScreen() {
   }, []);
 
   const { phase, hanukkah, primaryOrder } = useHolidayPhase(startsOn, hasOrder, orders, now);
-  const locked = useEffectiveBoxLocked(lockAt);
+  const locked = useLiveBoxLocked(lockAt);
   const lockCountdown = !locked ? formatCountdown(lockAt, now) : null;
 
   const boxLifecycle = deriveBoxLifecycle({ itemCount, hasOrder, primaryOrder });
@@ -344,7 +344,7 @@ export function HomeScreen() {
   const myBoxCardStyle = [
     styles.myBoxCard,
     { width: cardWidth, minWidth: cardWidth },
-    Platform.OS === 'web' ? { boxShadow: '0px 0px 12px rgba(216, 201, 144, 0.50)' } : shadows.goldGlow,
+    Platform.OS === 'web' ? { boxShadow: '0px 0px 12px rgba(184, 172, 127, 0.50)' } : shadows.goldGlow,
   ];
 
   const headerShadow =

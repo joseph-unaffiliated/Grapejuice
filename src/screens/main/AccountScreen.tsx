@@ -25,11 +25,11 @@ import { peekBoxDraftCache } from '../../hooks/useBoxDraft';
 import { createPartnerInvite, acceptPartnerInvite } from '../../services/householdInvites';
 import type { PartnerInvite, Household, UserProfile } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
-import {
-  spacing,
+import { spacing,
   typography,
   borderRadius,
   typeface,
+  INK,
 } from '../../constants/theme';
 import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
@@ -1070,7 +1070,7 @@ function createAccountStyles(colors: SemanticColors, isDesktop: boolean) {
       ...(Platform.OS === 'web'
         ? ({ boxShadow: '0 16px 48px rgba(17, 2, 34, 0.28)' } as object)
         : {
-            shadowColor: '#110222',
+            shadowColor: INK,
             shadowOffset: { width: 0, height: 12 },
             shadowOpacity: 0.28,
             shadowRadius: 24,

@@ -1,16 +1,14 @@
 /**
- * Admin Program tab. Read-only scoreboard plus the few writes an admin can make:
- * approve a piece, look up a person, move one pilot onto the coupon.
+ * Admin Program tab. Read-only impact monitoring plus person lookup
+ * and the explicit pilot-to-coupon override.
  */
-import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from './sentry';
 import { isAdminToken, emailHash } from './guestSessions';
 import { metaAdsAccessToken, metaStatsByAd } from './metaAdsInsights';
 import { enabledStageSet } from './program/config';
 import { decideNext } from './program/decideNext';
 import { loadProgramPeople } from './program/loadPeople';
-import { PROGRAM_PIECES, stageForPiece } from './program/pieces';
-import { runDraftLifecycle } from './draftLifecycle';
 import { etDate } from './program/time';
 
 const LAUNCH = '2026-10-21T04:00:00.000Z';
@@ -30,11 +28,10 @@ function millis(v: unknown): number {
 
 export async function buildProgramDashboard(db: Firestore) {
   const since = Date.parse(LAUNCH);
-  const [orders, jobs, alerts, approvals, snapshots, funnels, enrollments, enabled, meta] = await Promise.all([
+  const [orders, jobs, alerts, snapshots, funnels, enrollments, enabled, meta] = await Promise.all([
     db.collectionGroup('orders').select('status', 'holidayId', 'createdAt', 'promo', 'totalCents').get(),
     db.collection('programJobs').get(),
     db.collection('programAlerts').where('open', '==', true).limit(20).get().catch(() => null),
-    db.collection('programApprovals').get(),
     db.collection('programSnapshots').orderBy('date', 'desc').limit(21).get().catch(() => null),
     db.collection('checkoutFunnel').limit(500).get(),
     db.collection('pilotEnrollments').select('status', 'enrolledAt').get(),
@@ -89,15 +86,6 @@ export async function buildProgramDashboard(db: Firestore) {
     }
   }
 
-  const approvalRows = PROGRAM_PIECES.map((piece) => {
-    const saved = approvals.docs.find((d) => d.id === piece.id)?.data();
-    return {
-      ...piece,
-      status: typeof saved?.status === 'string' ? saved.status : 'pending',
-      approvedAt: typeof saved?.approvedAt === 'string' ? saved.approvedAt : null,
-    };
-  });
-
   return {
     generatedAt: new Date().toISOString(),
     scoreboard: {
@@ -114,7 +102,6 @@ export async function buildProgramDashboard(db: Firestore) {
     checkout: { steps, errors },
     jobs: jobs.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) })),
     alerts: (alerts?.docs ?? []).map((d) => ({ id: d.id, ...d.data() })),
-    approvals: approvalRows,
     enabledStages: [...enabled],
     snapshots: (snapshots?.docs ?? []).map((d) => d.data()),
   };
@@ -170,33 +157,5 @@ export function createAdminProgramDashboard(db: Firestore) {
     return { ok: true };
   });
 
-  const approve = onCall(async (request) => {
-    requireAdmin(request.auth);
-    const id = typeof request.data?.id === 'string' ? request.data.id : '';
-    const status = request.data?.status === 'approved' ? 'approved' : 'pending';
-    const piece = PROGRAM_PIECES.find((p) => p.id === id);
-    if (!piece) throw new HttpsError('invalid-argument', 'Unknown piece.');
-    await db.doc(`programApprovals/${id}`).set(
-      { ...piece, status, approvedAt: status === 'approved' ? new Date().toISOString() : null },
-      { merge: true }
-    );
-    const stage = stageForPiece(id);
-    if (stage) {
-      await db.doc('programConfig/lifecycle').set(
-        status === 'approved'
-          ? { enabledStages: FieldValue.arrayUnion(stage) }
-          : { enabledStages: FieldValue.arrayRemove(stage) },
-        { merge: true }
-      );
-    }
-    return { ok: true, status };
-  });
-
-  const dryRun = onCall({ memory: '1GiB', timeoutSeconds: 540 }, async (request) => {
-    requireAdmin(request.auth);
-    const counts = await runDraftLifecycle(db);
-    return { ok: true, counts };
-  });
-
-  return { getAdminProgramDashboard: dashboard, adminProgramPerson: person, adminProgramTrackOverride: override, adminProgramApprove: approve, adminProgramDryRun: dryRun };
+  return { getAdminProgramDashboard: dashboard, adminProgramPerson: person, adminProgramTrackOverride: override };
 }

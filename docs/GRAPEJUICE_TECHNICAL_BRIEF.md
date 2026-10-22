@@ -309,7 +309,7 @@ Multi-step reflection flow:
 3. One word to describe the holiday.
 4. Repurchase intent (Yes / Maybe / No) + thank you.
 
-Responses save to `users/{uid}/reflection/hanukkah-2026`. Incentive: **$80 Passover 2027 credit** (Firestore ledger; full Stripe balance application incomplete).
+Responses save to `users/{uid}/reflection/hanukkah-2026`. Incentive, only for a debrief with every question answered (checked server-side in `awardDebriefCredit`): **$80 platform credit** through Dec 31; Jan 1–31 the user picks the $80 credit or a **$20 Amazon gift card** (queued in `giftCardRequests` for manual fulfillment, with a `programAlerts` entry); nothing after Jan 31. Pilot participants get no debrief reward.
 
 ### 6.8 Partner household invites
 

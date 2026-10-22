@@ -18,8 +18,8 @@ const COMPACT_HERO_HEIGHT = 160;
 /** Brand off-black / “deep indigo” — gold-safe dark from BRAND_RULES. */
 const HERO_SCRIM = colors.purple[500];
 const GOLD = colors.warm[200];
-const COMPACT_HERO_SHADOW_WEB = '0px 0px 12px rgba(216, 201, 144, 0.50)';
-const HERO_SHADOW_WEB = '0px 0px 16px rgba(216, 201, 144, 0.50)';
+const COMPACT_HERO_SHADOW_WEB = '0px 0px 12px rgba(184, 172, 127, 0.50)';
+const HERO_SHADOW_WEB = '0px 0px 16px rgba(184, 172, 127, 0.50)';
 const HOVER_MS = 400;
 const HOVER_ZOOM = 1.04;
 const FADE_SIZE_REST = '68% 100%';
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   },
   goldWash: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(216, 201, 144, 0.38)',
+    backgroundColor: 'rgba(184, 172, 127, 0.38)',
   },
   fadeBand: {
     position: 'absolute',

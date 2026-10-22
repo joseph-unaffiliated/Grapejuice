@@ -3,9 +3,13 @@
  * Design will be updated later from Figma mockups.
  */
 import { Platform, type TextStyle } from 'react-native';
+import { m } from '../components/mobile/mobileTheme';
 
 /** Google Fonts family — must match public/index.html link. */
 export const WEB_FONT_FAMILY = 'DM Sans';
+
+/** Brand near-black. Use anywhere black would be used. */
+export const INK = m.ink;
 
 export const BRAND_ACCENT_ON_DARK = '#E16FFF';
 export const BRAND_GRADIENT = { top: '#53006A', bottom: '#17001D' } as const;
@@ -17,13 +21,18 @@ export const colors = {
   /** White – primary background, important. */
   white: '#FFFFFF',
 
-  /** Warm palette (cream, beige, gold). */
+  /** Brand near-black and golds, shared with the phone layouts (mobileTheme `m`). */
+  ink: m.ink,
+  gold: m.gold,
+  goldDark: m.goldDark,
+
+  /** Warm palette, mapped onto the mobile tokens. */
   warm: {
-    50: '#F4EEE4',   // cream – card/surface tint
-    100: '#E4D7C1',  // light beige
-    200: '#D8C990',  // gold – important, primary accent
-    300: '#433C32',  // warm dark brown
-    400: '#2F2412',  // dark brown
+    50: m.beige,     // beige – card/surface tint
+    100: m.lineWarm, // warm line / light beige
+    200: m.gold,     // gold – primary accent
+    300: m.goldDark, // dark gold – accent text
+    400: m.ink,
   },
 
   /** Purple palette. */
@@ -33,21 +42,21 @@ export const colors = {
     200: '#9700C5',
     300: '#5C0075',
     400: '#430F6A',
-    500: '#090113',  // off-black – text, logo
+    500: m.ink,      // text, logo
   },
 
   /** Legacy scales kept for semantic usage (maps to warm/purple). */
   primary: {
-    50: '#F4EEE4',
-    100: '#E4D7C1',
-    200: '#D8C990',
-    300: '#433C32',
-    400: '#2F2412',
-    500: '#D8C990',
-    600: '#433C32',
-    700: '#2F2412',
-    800: '#2F2412',
-    900: '#090113',
+    50: m.beige,
+    100: m.lineWarm,
+    200: m.gold,
+    300: m.goldDark,
+    400: m.ink,
+    500: m.gold,
+    600: m.goldDark,
+    700: m.ink,
+    800: m.ink,
+    900: m.ink,
   },
   secondary: {
     50: '#E9E3EF',
@@ -57,9 +66,9 @@ export const colors = {
     400: '#5C0075',
     500: '#430F6A',
     600: '#430F6A',
-    700: '#090113',
-    800: '#090113',
-    900: '#090113',
+    700: m.ink,
+    800: m.ink,
+    900: m.ink,
   },
   accent: {
     50: '#E9E3EF',
@@ -71,11 +80,11 @@ export const colors = {
     600: '#9700C5',
     700: '#5C0075',
     800: '#430F6A',
-    900: '#090113',
+    900: m.ink,
   },
   neutral: {
     50: '#F9FAFB',
-    100: '#F4EEE4',
+    100: m.beige,
     200: '#E5E7EB',
     300: '#D1D5DB',
     400: '#9CA3AF',
@@ -83,7 +92,7 @@ export const colors = {
     600: '#4B5563',
     700: '#374151',
     800: '#1F2937',
-    900: '#111827',
+    900: m.ink,
   },
   success: { light: '#D1FAE5', main: '#10B981', dark: '#065F46' },
   warning: { light: '#FEF3C7', main: '#F59E0B', dark: '#92400E' },
@@ -93,31 +102,31 @@ export const colors = {
   background: {
     primary: '#FFFFFF',
     dark: '#F9FAFB',
-    elevated: '#F4EEE4',
+    elevated: m.beige,
   },
   accentFill: {
-    cream: '#F4EEE4',
+    cream: m.beige,
     lavender: '#E9E3EF',
   },
 
   text: {
-    primary: '#111827',
-    secondary: '#4B5563',
-    tertiary: '#6B7280',
-    inverse: '#FFFFFF',
+    primary: m.ink,
+    secondary: m.body,
+    tertiary: m.muted,
+    inverse: m.white,
   },
 
   border: {
-    light: '#E5E7EB',
+    light: m.line,
     main: '#D1D5DB',
     dark: '#9CA3AF',
   },
 
   overlay: 'rgba(0, 0, 0, 0.5)',
   /** Figma Untraditional: gold mute (secondary text, chips). */
-  goldMuted: '#B8AC7F',
+  goldMuted: m.gold,
   /** Figma: logo / dark accent. */
-  logoDark: '#141414',
+  logoDark: m.ink,
 };
 
 export const semanticColors = {
@@ -151,7 +160,10 @@ export const semanticColors = {
   /** Card outline – visible on off-black so card edges are clear. */
   borderCard: colors.border.main,
   overlay: colors.overlay,
-  dark: '#111827',
+  ink: colors.ink,
+  gold: colors.gold,
+  goldDark: colors.goldDark,
+  dark: colors.ink,
   tabBarInactiveTint: colors.neutral[500],
   goldMuted: colors.goldMuted,
   logoDark: colors.logoDark,
@@ -290,7 +302,7 @@ export const shadows = {
   lg: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
   card: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 3 },
   cardHover: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
-  goldGlow: { shadowColor: '#D8C990', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 16, elevation: 4 },
+  goldGlow: { shadowColor: m.gold, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 16, elevation: 4 },
 };
 
 /** Web-only: use with style.boxShadow. */
@@ -301,10 +313,10 @@ export const shadowsWeb = {
   card: '0px 1px 4px rgba(0,0,0,0.06)',
   cardHover: '0px 2px 8px rgba(0,0,0,0.1)',
   fab: '0px 2px 4px rgba(0,0,0,0.2)',
-  goldGlow: '0px 0px 16px rgba(216, 201, 144, 0.50)',
-  goldGlowSm: '0px 0px 8px rgba(216, 201, 144, 0.50)',
+  goldGlow: '0px 0px 16px rgba(184, 172, 127, 0.50)',
+  goldGlowSm: '0px 0px 8px rgba(184, 172, 127, 0.50)',
   /** Sticky header / desktop sidebar — downward gold bar shadow */
-  goldBar: '0px 4px 12px rgba(216, 201, 144, 0.50)',
+  goldBar: '0px 4px 12px rgba(184, 172, 127, 0.50)',
 };
 
 export const themeColors = {

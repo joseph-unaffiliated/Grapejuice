@@ -38,15 +38,31 @@ import { m, mType } from '../mobile/mobileTheme';
 import { navigateMainStack, navigateToLanding } from '../../navigation/mainStackNavigation';
 import { useMarketingLandings } from '../../hooks/useMarketingLandings';
 import { landingFromMergedById } from '../../services/landingCatalog';
-import {
-  borderRadius,
+import { borderRadius,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 const FAB_SIZE = 52;
+const HIDDEN_KEY = 'gj-admin-hidden';
+
+/** Web: hidden stays on this device until a URL carries `?admin`. */
+function readHidden(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  try {
+    if (new URLSearchParams(window.location.search).has('admin')) {
+      window.localStorage.removeItem(HIDDEN_KEY);
+      return false;
+    }
+    return window.localStorage.getItem(HIDDEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 const PANEL_WIDTH = 340;
 const PANEL_MAX_HEIGHT = '78%';
 
@@ -78,6 +94,7 @@ export function AdminControlPanel() {
   const entryLandingOptions = buildEntryLandingPreviewOptions(landings);
 
   const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(readHidden);
   const [userStateOpen, setUserStateOpen] = useState(false);
   const [previewDateOpen, setPreviewDateOpen] = useState(false);
   const [resettingBox, setResettingBox] = useState(false);
@@ -222,7 +239,19 @@ export function AdminControlPanel() {
   const activeUserLabel =
     USER_STATE_PREVIEW_OPTIONS.find((opt) => opt.id === preview)?.label ?? 'Live (you)';
 
-  if (!show) return null;
+  if (!show || hidden) return null;
+
+  const hideAdmin = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(HIDDEN_KEY, '1');
+      } catch {
+        /* private mode: hidden for this page only */
+      }
+    }
+    setOpen(false);
+    setHidden(true);
+  };
 
   // Banner owns exit while mock flow is on — keep admin chrome out of the visitor sim.
   if (mockFlowActive) return null;
@@ -283,6 +312,15 @@ export function AdminControlPanel() {
                       }`}
                 </Text>
               </View>
+              <TouchableOpacity
+                onPress={hideAdmin}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Hide admin until a link with ?admin"
+                style={styles.hideHit}
+              >
+                <Text style={styles.hideText}>Hide admin</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setOpen(false)}
                 hitSlop={12}
@@ -602,7 +640,7 @@ const styles = StyleSheet.create({
           cursor: 'pointer',
         } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.22,
           shadowRadius: 10,
@@ -636,7 +674,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '0 12px 40px rgba(17, 2, 34, 0.18)' } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.18,
           shadowRadius: 20,
@@ -665,6 +703,17 @@ const styles = StyleSheet.create({
     color: semanticColors.goldMuted,
     marginTop: 2,
     maxWidth: 240,
+  },
+  hideHit: {
+    paddingHorizontal: spacing.xs,
+    height: 36,
+    justifyContent: 'center',
+  },
+  hideText: {
+    ...typeface('medium'),
+    fontSize: typography.sm,
+    color: semanticColors.goldMuted,
+    textDecorationLine: 'underline',
   },
   closeHit: {
     width: 36,

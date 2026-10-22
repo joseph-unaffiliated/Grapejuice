@@ -8,13 +8,13 @@ import {
   Pressable,
 } from 'react-native';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
-import {
-  MOBILE_GUTTER,
+import { MOBILE_GUTTER,
   borderRadius,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 const LIFESTYLE_IMG = require('../../../assets/storefront/menorahs-lifestyle-trio.webp');
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
           transform: [{ scale: 1.2 }],
         } as object)
       : {
-          shadowColor: '#000',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 0.2,
           shadowRadius: 10,

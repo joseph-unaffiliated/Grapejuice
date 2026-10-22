@@ -47,7 +47,7 @@ import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
-import { semanticColors, spacing } from '../../constants/theme';
+import { semanticColors, spacing, INK } from '../../constants/theme';
 import { HOW_TO_PAGES_PUBLISHED } from '../../constants/pdpHowToLink';
 import {
   STOREFRONT_SCROLL_CLASS,
@@ -1254,7 +1254,7 @@ const styles = StyleSheet.create({
           boxShadow: '0 4px 16px rgba(17, 2, 34, 0.1)',
         } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.1,
           shadowRadius: 8,
@@ -1308,7 +1308,7 @@ const styles = StyleSheet.create({
   },
   /** Black secondary bar host — no light bottom stroke under category / practice links. */
   secondaryBar: {
-    backgroundColor: '#000000',
+    backgroundColor: INK,
     borderBottomWidth: 0,
     borderTopWidth: 0,
     // Cover RN-web subpixel gaps under the dark bar (parent light bg seams).

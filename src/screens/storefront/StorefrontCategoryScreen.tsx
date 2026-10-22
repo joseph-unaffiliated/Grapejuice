@@ -59,14 +59,14 @@ import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/
 import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
 import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem } from '../../types/pilot';
-import {
-  borderRadius,
+import { borderRadius,
   LAYOUT,
   MOBILE_GUTTER,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 type SortKey = 'relevant' | 'price-asc' | 'price-desc' | 'name';
@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
           boxShadow: '0 10px 28px rgba(17, 2, 34, 0.14)',
         } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.14,
           shadowRadius: 14,

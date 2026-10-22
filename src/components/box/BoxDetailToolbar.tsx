@@ -19,6 +19,8 @@ type Props = {
   title?: string;
   startsOn?: string | null;
   estimatedDeliveryBy?: string | null;
+  /** Household-specific freeze can remain true when the public lock is extended. */
+  locked?: boolean;
   showCalendar?: boolean;
   /** Desktop / home-style left alignment vs mobile centered toolbar. */
   align?: 'left' | 'center';
@@ -38,6 +40,7 @@ export function BoxDetailToolbar({
   title = 'Your Hanukkah Box',
   startsOn = null,
   estimatedDeliveryBy = null,
+  locked,
   showCalendar = true,
   align = 'center',
   hideBack = false,
@@ -68,7 +71,7 @@ export function BoxDetailToolbar({
       letterSpacing: -0.025 * fontSize,
     };
   }, [phoneTitle, windowWidth, showBack, title]);
-  const lockLabel = isBoxLocked(lockAt, now)
+  const lockLabel = (locked ?? isBoxLocked(lockAt, now))
     ? lockedBoxChipLabel(estimatedDeliveryBy, now)
     : boxLockChipLabel(now, lockAt);
 

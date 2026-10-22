@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   barWeb: {
-    boxShadow: '0px -4px 12px rgba(216, 201, 144, 0.50)',
+    boxShadow: '0px -4px 12px rgba(184, 172, 127, 0.50)',
   } as object,
   iconRow: {
     flexDirection: 'row',

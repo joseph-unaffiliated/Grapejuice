@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../stores/authStore';
 import { useSession } from '../../hooks/useSession';
 import { reflectionsService } from '../../services/firestore/reflections';
-import { awardDebriefCredit } from '../../services/promo/promotionsApi';
+import { awardDebriefCredit, type DebriefReward } from '../../services/promo/promotionsApi';
 import { usersService } from '../../services/firestore/users';
-import { DEBRIEF_PLATFORM_CREDIT_CENTS } from '../../services/box/pricing';
+import { DEBRIEF_GIFT_CARD_CENTS, DEBRIEF_PLATFORM_CREDIT_CENTS } from '../../services/box/pricing';
+
+const formatDollars = (cents: number) => `$${Math.round(cents / 100)}`;
 import { HOLIDAY_ID } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import { semanticColors, spacing, typography, borderRadius } from '../../constants/theme';
@@ -35,34 +37,72 @@ function ReflectionFlowBody() {
   const [oneWord, setOneWord] = useState('');
   const [nextYear, setNextYear] = useState<'yes' | 'maybe' | 'no' | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rewardsLoading, setRewardsLoading] = useState(true);
+  const [rewardsLoadFailed, setRewardsLoadFailed] = useState(false);
+  const [options, setOptions] = useState<DebriefReward[]>([]);
+  const [reward, setReward] = useState<DebriefReward | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void awardDebriefCredit({ dryRun: true })
+      .then((result) => {
+        if (cancelled) return;
+        setOptions(result.options);
+        if (result.options.length === 1) setReward(result.options[0]);
+        setRewardsLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRewardsLoading(false);
+          setRewardsLoadFailed(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const choosing = options.length > 1;
+  const stepReady =
+    step === 1 ||
+    (step === 2 && wins.trim().length > 0 && hardMoments.trim().length > 0) ||
+    (step === 3 && oneWord.trim().length > 0) ||
+    (step === 4 && nextYear !== null && !rewardsLoading && !rewardsLoadFailed && (!choosing || reward !== null));
 
   const toggleNight = (i: number) => {
     setNights((n) => n.map((v, idx) => (idx === i ? !v : v)));
   };
 
   const finish = async () => {
-    if (!user?.uid) return;
+    if (!user?.uid || !nextYear) return;
     setSaving(true);
+    setError(null);
     try {
       const existing = await reflectionsService.get(user.uid, HOLIDAY_ID);
-      const alreadyAwarded = (existing?.platformCreditAwardedCents ?? 0) > 0;
-      const now = new Date().toISOString();
-
-      await reflectionsService.save(user.uid, {
+      const answers = {
         holidayId: HOLIDAY_ID,
-        wins: `${wins}\nNights: ${nights.map((v, i) => (v ? i + 1 : null)).filter(Boolean).join(', ') || 'none'}`,
-        hardMoments,
-        nextYearShift: nextYear ?? 'maybe',
-        favoriteNight: oneWord,
-        updatedAt: now,
-        platformCreditAwardedCents: alreadyAwarded
-          ? existing!.platformCreditAwardedCents
-          : DEBRIEF_PLATFORM_CREDIT_CENTS,
+        wins: `${wins.trim()}\nNights: ${nights.map((v, i) => (v ? i + 1 : null)).filter(Boolean).join(', ') || 'none'}`,
+        hardMoments: hardMoments.trim(),
+        nextYearShift: nextYear,
+        favoriteNight: oneWord.trim(),
+      };
+      await reflectionsService.save(user.uid, {
+        ...answers,
+        updatedAt: new Date().toISOString(),
+        platformCreditAwardedCents: existing?.platformCreditAwardedCents ?? 0,
       });
 
-      if (!alreadyAwarded && household?.id) {
-        await awardDebriefCredit();
-        await refresh();
+      if (reward && household?.id) {
+        const result = await awardDebriefCredit({ reward });
+        if (result.reward === 'credit' && result.awardedCents > 0) {
+          await reflectionsService.save(user.uid, {
+            ...answers,
+            updatedAt: new Date().toISOString(),
+            platformCreditAwardedCents: result.awardedCents,
+          });
+          await refresh();
+        }
       }
 
       await usersService.upsert(user.uid, {
@@ -70,6 +110,8 @@ function ReflectionFlowBody() {
       } as Parameters<typeof usersService.upsert>[1]);
 
       navigation.goBack();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
     } finally {
       setSaving(false);
     }
@@ -119,17 +161,41 @@ function ReflectionFlowBody() {
               <Text style={styles.choiceText}>{v === 'yes' ? 'Yes' : v === 'maybe' ? 'Maybe' : 'No'}</Text>
             </TouchableOpacity>
           ))}
+          {choosing ? (
+            <>
+              <Text style={[styles.prompt, styles.rewardPrompt]}>Pick your thank-you</Text>
+              {options.map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.choice, reward === r && styles.choiceOn]}
+                  onPress={() => setReward(r)}
+                >
+                  <Text style={styles.choiceText}>
+                    {r === 'credit'
+                      ? `${formatDollars(DEBRIEF_PLATFORM_CREDIT_CENTS)} toward your next box`
+                      : `${formatDollars(DEBRIEF_GIFT_CARD_CENTS)} Amazon gift card`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </>
+          ) : null}
           <Text style={styles.thanks}>
             Thank you — this helps us plan Passover and next Hanukkah.
-            {!household?.platformCreditCents ? ' You will unlock $80 toward your next box.' : ''}
+            {reward === 'credit' ? ` ${formatDollars(DEBRIEF_PLATFORM_CREDIT_CENTS)} goes on your account when you finish.` : ''}
+            {reward === 'gift_card'
+              ? ` We'll email your ${formatDollars(DEBRIEF_GIFT_CARD_CENTS)} Amazon gift card within a few days.`
+              : ''}
           </Text>
+          {rewardsLoading ? <Text style={styles.thanks}>Checking your thank-you options…</Text> : null}
+          {rewardsLoadFailed ? <Text style={styles.error}>Could not load your thank-you options. Reopen this page and try again.</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </>
       ) : null}
 
       <TouchableOpacity
-        style={styles.cta}
+        style={[styles.cta, !stepReady && styles.ctaDisabled]}
         onPress={() => (step < 4 ? setStep((s) => (s + 1) as Step) : void finish())}
-        disabled={saving}
+        disabled={saving || !stepReady}
       >
         <Text style={styles.ctaText}>{step < 4 ? 'Continue' : saving ? 'Saving…' : 'Done'}</Text>
       </TouchableOpacity>
@@ -164,7 +230,10 @@ const styles = StyleSheet.create({
   choiceOn: { borderColor: semanticColors.brand, backgroundColor: semanticColors.brandLight },
   choiceText: { fontSize: typography.lg, fontWeight: '600', textAlign: 'center' },
   thanks: { fontSize: typography.md, color: semanticColors.textSecondary, marginTop: spacing.md, lineHeight: 20 },
+  rewardPrompt: { marginTop: spacing.lg },
+  error: { fontSize: typography.md, color: semanticColors.error, marginTop: spacing.sm },
   cta: { backgroundColor: semanticColors.brand, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.xl },
+  ctaDisabled: { opacity: 0.4 },
   ctaText: { color: semanticColors.textInverse, fontWeight: '700', fontSize: typography.lg },
   skip: { textAlign: 'center', marginTop: spacing.lg, color: semanticColors.textTertiary },
 });

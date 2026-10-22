@@ -151,8 +151,6 @@ const programDashboardApi = createAdminProgramDashboard(db);
 export const getAdminProgramDashboard = programDashboardApi.getAdminProgramDashboard;
 export const adminProgramPerson = programDashboardApi.adminProgramPerson;
 export const adminProgramTrackOverride = programDashboardApi.adminProgramTrackOverride;
-export const adminProgramApprove = programDashboardApi.adminProgramApprove;
-export const adminProgramDryRun = programDashboardApi.adminProgramDryRun;
 
 const HOLIDAY_ID = 'hanukkah-2026';
 const DEFAULT_BOX_PRICE_CENTS = 8000;

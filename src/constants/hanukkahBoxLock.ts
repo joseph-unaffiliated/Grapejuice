@@ -1,6 +1,48 @@
 /** Fallback lock when Firestore `config/hanukkah-2026.lockAt` is unavailable. */
 export const HANUKKAH_BOX_LOCK_DATE = new Date('2026-11-07T23:59:59-05:00');
 
+/**
+ * Keep these instants in sync with functions/src/program/lockWindow.ts.
+ * 11:59pm ET Nov 7. A committed box stays frozen after this even if the public lock moves.
+ */
+export const COMMITTED_FREEZE_AT = '2026-11-08T04:59:59.000Z';
+/** Noon ET Nov 9 through noon ET Nov 10. Checkout charges the card immediately. */
+const EXTENSION_START_MS = Date.parse('2026-11-09T17:00:00.000Z');
+const EXTENSION_END_MS = Date.parse('2026-11-10T17:00:00.000Z');
+
+const FROZEN_ORDER = new Set(['committed', 'pending', 'confirmed', 'shipped', 'delivered']);
+
+export function isImmediateChargeWindow(now: Date = new Date()): boolean {
+  const t = now.getTime();
+  return t >= EXTENSION_START_MS && t < EXTENSION_END_MS;
+}
+
+export function checkoutChargeLine(lockShort: string, now: Date = new Date()): string {
+  if (isImmediateChargeWindow(now)) {
+    return 'Your card is charged when you place this order. The box locks as soon as it goes through.';
+  }
+  return `$0 today. Charged after ${lockShort}. Cancel free before then.`;
+}
+
+export function checkoutChargeBar(lockShort: string, now: Date = new Date()): string {
+  if (isImmediateChargeWindow(now)) return 'Charged today · locks when you place it';
+  return `$0 today · charged after ${lockShort} · cancel free before then`;
+}
+
+/** A household that already locked a box does not see the extra day as a reopening. */
+export function isHouseholdBoxFrozen(
+  order: { status?: string | null; lockAt?: string | null } | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!order) return false;
+  if (!FROZEN_ORDER.has(order.status ?? '')) return false;
+  if (order.lockAt) {
+    const lock = Date.parse(order.lockAt);
+    if (!Number.isNaN(lock) && now.getTime() >= lock) return true;
+  }
+  return now.getTime() >= Date.parse(COMMITTED_FREEZE_AT);
+}
+
 /** Fallback estimated delivery day (display) when config is unavailable. */
 export const HANUKKAH_DELIVERY_FALLBACK_ISO = '2026-11-21';
 

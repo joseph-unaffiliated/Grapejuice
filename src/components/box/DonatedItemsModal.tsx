@@ -13,12 +13,12 @@ import {
 import { BoxItemImage } from './BoxItemImage';
 import { parseDonationDollarsToCents } from './boxLineDisplay';
 import { DONATION_TOOLTIP } from './BoxSummaryDonated';
-import {
-  borderRadius,
+import { borderRadius,
   semanticColors,
   spacing,
   typeface,
   typography,
+  INK,
 } from '../../constants/theme';
 
 export type DonatedItemRow = {
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({ boxShadow: '0 16px 40px rgba(17, 2, 34, 0.2)' } as object)
       : {
-          shadowColor: '#110222',
+          shadowColor: INK,
           shadowOffset: { width: 0, height: 12 },
           shadowOpacity: 0.2,
           shadowRadius: 24,
