@@ -58,7 +58,7 @@ import { householdsService } from '../../services/firestore/households';
 import { CHECKOUT_PATH, checkoutPath, readCheckoutPaymentStepFromWindow } from '../../navigation/checkoutLink';
 import { pushBrowserPath, replaceBrowserPath } from '../../navigation/webBrowserHistory';
 import type { ShippingAddressFieldErrors } from '../../utils/formValidation';
-import { useBoxEditingLocked } from '../../hooks/useUserStatePreview';
+import { useBoxEditingLocked, usePreviewNow } from '../../hooks/useUserStatePreview';
 
 const SHIPPING_CONFIRMED_KEY = 'gj.checkout.shippingConfirmed';
 
@@ -220,6 +220,7 @@ function SetupCardStep({
 
 function CheckoutScreenBody() {
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
+  const now = usePreviewNow();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { household, refresh: refreshSession } = useSession();
@@ -735,8 +736,8 @@ function CheckoutScreenBody() {
   const onPaymentStep = !!setupClientSecret && !cardReady;
 
   const lockShort = lockShortLabel(lockAt);
-  const chargeLine = checkoutChargeLine(lockShort);
-  const chargeBar = checkoutChargeBar(lockShort);
+  const chargeLine = checkoutChargeLine(lockShort, now);
+  const chargeBar = checkoutChargeBar(lockShort, now);
   if (showCongrats) {
     if (mobileLayout) {
       const startsLabel = startsOnForDone ? new Date(startsOnForDone).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : null;

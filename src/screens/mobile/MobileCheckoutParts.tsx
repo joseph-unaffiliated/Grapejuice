@@ -17,6 +17,7 @@ import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyB
 import { MobileFooterBleed, MobileFooterSpacer, MOBILE_FOOTER_TOP_GAP, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 import { m, mFont, mGutter, mRadius, mType, balanceProps } from '../../components/mobile/mobileTheme';
 import { checkoutChargeLine, isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
+import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { MobileCodeSignIn, CodeEntry } from '../../components/mobile/MobileCodeSignIn';
 export { CodeEntry };
 
@@ -94,8 +95,9 @@ type LayoutProps = {
 export function MobileCheckoutLayout(p: LayoutProps) {
   const [open, setOpen] = useState(false);
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
-  const chargeLine = checkoutChargeLine(p.lockShort);
-  const immediate = isImmediateChargeWindow();
+  const now = usePreviewNow();
+  const chargeLine = checkoutChargeLine(p.lockShort, now);
+  const immediate = isImmediateChargeWindow(now);
   return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Box', onPress: p.onBack }} title="Checkout" right={<Secure />} />
@@ -224,7 +226,8 @@ export function MobileCardAndPlaceOrder({
 /* ------------------------------------------------------------------ confirmation */
 
 export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }: { lockShort: string; startsLabel: string | null; onViewBox: () => void; onShop: () => void }) {
-  const immediate = isImmediateChargeWindow();
+  const now = usePreviewNow();
+  const immediate = isImmediateChargeWindow(now);
   const steps: [string, string][] = immediate
     ? [
         ['Today', 'Your card is charged and this box locks.'],
@@ -235,7 +238,7 @@ export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }
         ['Today', 'Order placed. Card saved, not charged.'],
         [`Until ${lockShort}`, 'Swap, add or remove anything in My Box.'],
         [`End of ${lockShort}`, 'Your box locks and we start packing.'],
-        ['When it ships', 'Your card is charged and we email you tracking.'],
+        [`After ${lockShort}`, 'Your card is charged. We email you again when it ships.'],
         [startsLabel ? `Before ${startsLabel}` : 'Before the first night', 'It arrives in time for the first candle.'],
       ];
   const ics = () => {
@@ -247,9 +250,11 @@ export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }
     <MobileDoneLayout title="Your box is set" lede={immediate ? 'Your card was charged and this box is locked.' : `You can change anything until ${lockShort}. $0 today. Cancel free before then.`} steps={steps}>
       <MobileButton label="View my box" onPress={onViewBox} />
       <MobileButton label="Shop extras" variant="secondary" onPress={onShop} style={{ marginTop: 10 }} />
-      <Pressable onPress={ics} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: 16 }}>
-        <Text style={styles.link}>Add {lockShort} to my calendar</Text>
-      </Pressable>
+      {!immediate ? (
+        <Pressable onPress={ics} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: 16 }}>
+          <Text style={styles.link}>Add {lockShort} to my calendar</Text>
+        </Pressable>
+      ) : null}
     </MobileDoneLayout>
   );
 }
