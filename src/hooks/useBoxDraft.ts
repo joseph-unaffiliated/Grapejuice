@@ -6,7 +6,9 @@ import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { boxDraftService } from '../services/firestore/boxDraft';
 import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
+import { usersService } from '../services/firestore/users';
 import { withAuthRetry } from '../services/firestore/token';
+import { adultsForBoxRepair } from '../services/box/repairAdults';
 import { Sentry } from '../services/monitoring/sentry';
 import { remapGuestChildIds } from '../services/guest/persistGuestToAccount';
 import {
@@ -113,11 +115,14 @@ async function fetchAuthBoxDraft({
   profileFamiliarity,
   adults,
 }: AuthBoxDraftLoadArgs): Promise<AuthBoxDraftSnapshot> {
-  const [draft, catalog, kids] = await Promise.all([
+  const [draft, catalog, kids, account] = await Promise.all([
     withAuthRetry(uid, () => boxDraftService.get(householdId)),
     catalogService.getAll(),
     childrenService.list(uid),
+    usersService.get(uid),
   ]);
+  // The screen can still be showing the previous family. The saved answers match the kids just loaded.
+  const repairAdults = adultsForBoxRepair(account?.lastBoxAnswers?.childDrafts, adults);
 
   let nextKids = kids;
   const retired = retireLegacyBoxLines(draft?.lineItems?.length ? draft.lineItems : []);
@@ -150,7 +155,7 @@ async function fetchAuthBoxDraft({
     }
   }
 
-  const repairedWood = repairWoodDreidelHouseholdQty(nextLines, nextKids, adults);
+  const repairedWood = repairWoodDreidelHouseholdQty(nextLines, nextKids, repairAdults);
   if (repairedWood.dirty) nextLines = repairedWood.lineItems;
 
   const repairedBooks = repairExtraPerKidPricing(nextLines, catalog);

@@ -138,14 +138,8 @@ export async function rebuildBoxFromFamily(opts: {
     console.warn('[account] curateBox failed during rebuild', err);
   }
 
-  await boxDraftService.save(householdId, uid, items, {
-    familiarityLevel,
-    childInterests: interests,
-    wrapSelectedItemIds: [],
-    sealedSectionIds: [],
-    slotVotes: {},
-    source: 'default-build',
-  });
+  // Store the family before the box write. My Box repairs as soon as the draft lands,
+  // and it has to read this family rather than the previous one still on screen.
   await saveLastBoxAnswers(
     uid,
     {
@@ -156,6 +150,14 @@ export async function rebuildBoxFromFamily(opts: {
     },
     { onlyOverrides: true }
   );
+  await boxDraftService.save(householdId, uid, items, {
+    familiarityLevel,
+    childInterests: interests,
+    wrapSelectedItemIds: [],
+    sealedSectionIds: [],
+    slotVotes: {},
+    source: 'default-build',
+  });
   clearBoxDraftCache();
   useGuestSessionStore.getState().setLineItems(items);
   useGuestSessionStore.getState().setWrapSelectedItemIds([]);

@@ -558,6 +558,13 @@ export function OnboardingStack({
       );
       // Both flags together. Writing boxRevealComplete false here is what bounced
       // a slow reveal back into the questionnaire.
+      await saveLastBoxAnswers(user.uid, {
+        childDrafts: kids as unknown as LastBoxAnswers['childDrafts'],
+        childInterests: interests,
+        familiarityScore: score,
+        familiarityLevel: level,
+        ravNotes: notes,
+      });
       const save = Promise.all([
         boxDraftService.save(householdId, user.uid, remappedItems, {
           familiarityLevel: level,
@@ -571,13 +578,6 @@ export function OnboardingStack({
           boxRevealComplete: true,
           lockReminderEligible: true,
           lockReminderAttempts: 0,
-        }),
-        saveLastBoxAnswers(user.uid, {
-          childDrafts: kids as unknown as LastBoxAnswers['childDrafts'],
-          childInterests: interests,
-          familiarityScore: score,
-          familiarityLevel: level,
-          ravNotes: notes,
         }),
       ]).then(() => undefined);
       saveRef.current = save;
