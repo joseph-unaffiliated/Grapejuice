@@ -32,6 +32,10 @@ const F = {
   holdInventory: 'fldFpeHc3sxneJ1TH',
   /** Number: copies physically ordered (Joseph's sourcing tracker; display-only). */
   procured: 'flduff7svNVQ4pkEw',
+  /** Number: copies kept back (personal, friends and family, promo). Subtracted from sellable stock. */
+  setAside: 'fldujfIMeuuN7RfYN',
+  /** Why those copies are kept. Display-only. */
+  setAsideFor: 'fldox7zzryePIFRn2',
   unitCost: 'fldJNKCjYA1aLC2KU',
   memberPrice: 'fldSKmIeWfuRoB2IC',
   nonMemberPrice: 'fld9ipf5vOEkaMGes',
@@ -131,6 +135,10 @@ export type SyncedCatalogItem = {
   holdInventory?: boolean | null;
   /** Full Catalog "Procured": copies physically ordered. Display-only, never gates. */
   procured?: number | null;
+  /** Full Catalog "Set aside": copies held back from sale. */
+  setAside?: number | null;
+  /** Full Catalog "Set aside for": the note beside that count. */
+  setAsideFor?: string | null;
   airtableRecordId: string;
   airtableTable: 'full-catalog' | 'books';
   brand: string | null;
@@ -228,6 +236,12 @@ function numberField(v: unknown): number | null {
   return null;
 }
 
+function countField(v: unknown): number | null {
+  const n = numberField(v);
+  if (n == null) return null;
+  return Math.max(0, Math.floor(n));
+}
+
 /** Merge Storefront rails multi-select + homepage single-selects into rail slugs. */
 function storefrontRailsFromListing(f: Record<string, unknown>): string[] {
   const rails = new Set(selectNames(f[F.storefrontRails]));
@@ -311,10 +325,10 @@ function mapListingPlacement(category: string | null, contexts: string[], name: 
   }
   if (cat === 'food') {
     if (lower.includes('latke')) {
-      return { slot: 'base' as const, slotId: 'latke-kit', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
+      return { slot: 'base' as const, slotId: 'latke-mix', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
     }
     if (lower.includes('sufgan')) {
-      return { slot: 'base' as const, slotId: 'sufganiyot-kit', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
+      return { slot: 'base' as const, slotId: 'sufganiyot-mix', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
     }
     if (lower.includes('applesauce')) {
       return { slot: 'base' as const, slotId: 'latke-recipe-printed', pricingTier: 'included' as const };
@@ -325,7 +339,7 @@ function mapListingPlacement(category: string | null, contexts: string[], name: 
     if (lower.includes('cookie')) {
       return { slot: 'addon' as const, slotId: 'decor', pricingTier: 'alaCarte' as const };
     }
-    return { slot: 'base' as const, slotId: 'latke-kit', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
+    return { slot: 'base' as const, slotId: 'food', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
   }
   if (lower.includes('wrapping')) {
     return { slot: 'base' as const, slotId: 'wrapping', pricingTier: (isAla ? 'alaCarte' : 'included') as 'alaCarte' | 'included' };
@@ -586,6 +600,8 @@ function listingToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatal
     inventory: typeof f[F.inventory] === 'number' ? (f[F.inventory] as number) : null,
     holdInventory: f[F.holdInventory] === true,
     procured: typeof f[F.procured] === 'number' ? (f[F.procured] as number) : null,
+    setAside: countField(f[F.setAside]),
+    setAsideFor: textField(f[F.setAsideFor]),
     airtableRecordId: rec.id,
     airtableTable: 'full-catalog',
     brand: null,
@@ -620,6 +636,7 @@ function bookTitle(fcRec: AirtableRecord, bookRec: AirtableRecord | null): strin
  * Books stay inventory-untracked (infinite, stock rules never swap them) unless
  * "Hold inventory" is checked — then Inventory is the sellable ceiling (blank = 0)
  * and Procured rides along display-only for the admin sourcing view.
+ * Set aside is held back from that ceiling.
  */
 export function bookToItem(
   fcRec: AirtableRecord,
@@ -671,6 +688,8 @@ export function bookToItem(
         : null,
     holdInventory: f[F.holdInventory] === true,
     procured: typeof f[F.procured] === 'number' ? (f[F.procured] as number) : null,
+    setAside: countField(f[F.setAside]),
+    setAsideFor: textField(f[F.setAsideFor]),
     airtableRecordId: fcRec.id,
     airtableTable: 'books',
     brand: author || null,

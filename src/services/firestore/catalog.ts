@@ -130,6 +130,8 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
     inventory: typeof data.inventory === 'number' ? data.inventory : null,
     holdInventory: typeof data.holdInventory === 'boolean' ? data.holdInventory : null,
     procured: typeof data.procured === 'number' ? data.procured : null,
+    setAside: typeof data.setAside === 'number' ? data.setAside : null,
+    setAsideFor: typeof data.setAsideFor === 'string' && data.setAsideFor.trim() ? data.setAsideFor.trim() : null,
     wrappable: typeof data.wrappable === 'boolean' ? data.wrappable : null,
     directSaleCapBeforeLock:
       data.directSaleCapBeforeLock != null && Number.isFinite(Number(data.directSaleCapBeforeLock))
@@ -236,9 +238,11 @@ function withBoxStockLeft(items: CatalogItem[], committed: CommittedById): Catal
       return { ...item, boxStockLeft: null, boxDraftHeld: null };
     }
     const counters = committed.get(item.id);
+    const setAside =
+      typeof item.setAside === 'number' && Number.isFinite(item.setAside) ? Math.max(0, Math.floor(item.setAside)) : 0;
     return {
       ...item,
-      boxStockLeft: Math.max(0, Math.floor(item.inventory) - (counters?.committed ?? 0)),
+      boxStockLeft: Math.max(0, Math.floor(item.inventory) - setAside - (counters?.committed ?? 0)),
       boxDraftHeld: counters?.draftHeld ?? 0,
     };
   });

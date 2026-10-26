@@ -185,10 +185,36 @@ const codes = (lines: BoxLineItem[], hh: { kidKeys: string[]; adults?: number } 
     'sufganiyot-mix'
   );
   assert.deepEqual(codes(healedCutters.lineItems), []);
+  // The kit's product id is not a third food position. A free line parked there is an add-on,
+  // and it moves into the open mix spot when one is empty.
+  const kitOnItsOwnName = [...twoKidBox(), L('sufganiyot-kit', 'sufganiyot-kit')];
+  assert.deepEqual(codes(kitOnItsOwnName), ['other:free-add-on']);
+  const misnamed = twoKidBox().map((l) => (l.slotId === 'sufganiyot-mix' ? { ...l, slotId: 'sufganiyot-kit' } : l));
+  assert.deepEqual(codes(misnamed), ['other:free-add-on', 'food:food-slot-missing']);
+  const healedName = healIncludedInCustomerFavor(misnamed, catalog, twoKids);
+  assert.equal(healedName.lineItems.find((l) => l.itemId === 'sufganiyot-kit')?.slotId, 'sufganiyot-mix');
+  assert.deepEqual(codes(healedName.lineItems), []);
   // Both food slots full: free cookie cutters on decor stay a free-add-on (not a third slot).
   const fullPlusCutters = [...twoKidBox(), L('decor', 'dreidel-cookie-cutters')];
   assert.deepEqual(codes(fullPlusCutters), ['other:free-add-on']);
   assert.deepEqual(healIncludedInCustomerFavor(fullPlusCutters, catalog, twoKids).lineItems, fullPlusCutters);
+}
+
+// A free stuffie on the catalog catch-all moves into the kid's empty present slot.
+{
+  const parked = [
+    ...twoKidBox().filter((l) => l.slotId !== 'gift-a'),
+    L('decor', 'crispy-the-latke-stuffie'),
+  ];
+  assert.deepEqual(codes(parked), ['other:free-add-on']);
+  const healed = healIncludedInCustomerFavor(parked, catalog, twoKids);
+  const line = healed.lineItems.find((l) => l.itemId === 'crispy-the-latke-stuffie' && l.slotId === 'gift-a');
+  assert.equal(line?.slotId, 'gift-a');
+  assert.equal(line?.childId, 'a');
+  assert.deepEqual(codes(healed.lineItems), []);
+  const extra = [...twoKidBox(), L('decor', 'crispy-the-latke-stuffie')];
+  assert.deepEqual(codes(extra), ['other:free-add-on']);
+  assert.deepEqual(healIncludedInCustomerFavor(extra, catalog, twoKids).lineItems, extra);
 }
 
 // Wrap: one included wrap; paper on top of pre-wrap is paid.

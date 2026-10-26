@@ -29,6 +29,7 @@ import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
 import {
   DASHBOARD_REFRESH_MS,
+  applyBoxProblemFix,
   decideBoxAuditProblem,
   useBoxesDashboard,
   type BoxAuditDecisionKind,
@@ -195,11 +196,13 @@ function Chip({
   active,
   onPress,
   styles,
+  wrap,
 }: {
   label: string;
   active?: boolean;
   onPress: () => void;
   styles: Styles;
+  wrap?: boolean;
 }) {
   const mobile = useMobileLayout();
   const inScroller = React.useContext(ChipScrollContext);
@@ -212,7 +215,7 @@ function Chip({
     >
       <Text
         style={[styles.chipLabel, mobile && active && { color: m.goldDark }]}
-        numberOfLines={mobile && !inScroller ? 3 : 1}
+        numberOfLines={wrap ? 3 : mobile && !inScroller ? 3 : 1}
       >
         {label}
       </Text>
@@ -1003,6 +1006,33 @@ function BoxProblemReview({
     }
   };
 
+  const applyFix = async (p: BoxProblemLine, fix: NonNullable<BoxProblemLine['fixes']>[number]) => {
+    const key = `${p.section}|${p.code}|${p.itemId ?? ''}|${p.childKey ?? ''}|fix:${fix.id}`;
+    setBusyKey(key);
+    setError(null);
+    try {
+      await applyBoxProblemFix({
+        path: box.path,
+        email: box.email,
+        section: p.section,
+        code: p.code,
+        itemId: p.itemId,
+        slotId: p.slotId,
+        childKey: p.childKey,
+        detail: p.detail,
+        fixId: fix.id,
+        people: box.people,
+        kids: box.kids,
+        note: fix.label,
+      });
+      onDecided();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not apply that fix.');
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   return (
     <View style={styles.detailInner}>
       {box.problems.map((p) => {
@@ -1014,6 +1044,30 @@ function BoxProblemReview({
               {p.childKey ? ` (${p.childKey})` : ''}
             </Text>
             <Text style={styles.factValue}>{`${p.detail} · ${problemStatus(p)}`}</Text>
+            {problemIsOpen(p) && p.fixes?.length ? (
+              <>
+                <Text style={[styles.caption, { marginTop: spacing.xs }]}>What I'd do</Text>
+                <ChipRow styles={styles} style={{ marginTop: spacing.xs, flexWrap: 'wrap' }}>
+                  {p.fixes.map((fix) => {
+                    const thisBusy = busyKey === `${rowKey}|fix:${fix.id}`;
+                    return (
+                      <Chip
+                        key={fix.id}
+                        label={thisBusy ? 'Saving…' : fix.recommended ? `Recommended: ${fix.label}` : fix.label}
+                        active={fix.recommended}
+                        wrap
+                        onPress={() => {
+                          if (busyKey) return;
+                          void applyFix(p, fix);
+                        }}
+                        styles={styles}
+                      />
+                    );
+                  })}
+                </ChipRow>
+                <Text style={styles.caption}>{p.fixes.find((fix) => fix.recommended)?.detail}</Text>
+              </>
+            ) : null}
             <ChipRow styles={styles} style={{ marginTop: spacing.xs, flexWrap: 'wrap' }}>
               {DECISION_BUTTONS.map((btn) => {
                 const active = p.decision === btn.kind;
@@ -1037,7 +1091,7 @@ function BoxProblemReview({
       })}
       {error ? <Text style={[styles.caption, { color: '#b42318' }]}>{error}</Text> : null}
       <Text style={styles.caption} selectable>
-        {`${box.path} · audited ${when(box.auditedAt)}. Approve as-is and Donation clear the open count; Needs a fix and Emailed them keep it listed so you can track follow-up. Tap an active chip again to clear.`}
+        {`${box.path} · audited ${when(box.auditedAt)}. The recommended button is the change I'd make. Approve as-is and Donation clear the open count; Needs a fix and Emailed them keep it listed. Tap an active decision again to clear it.`}
       </Text>
     </View>
   );
@@ -1100,8 +1154,28 @@ function BoxProblemsSection({
   ];
 
   const run = data.boxAuditRun;
+  const liveOpen = all.filter((b) => b.open > 0 && !(hideTests && b.test));
+  const liveCommitted = liveOpen.filter((b) => b.committed).length;
+  const fixLog = data.fixLog ?? [];
   return (
     <View style={styles.sectionBody}>
+      <Text style={styles.section}>Fix log</Text>
+      <Text style={styles.hint}>
+        Choosing a fix logs it here. Box history is attached when we have it. The cause, from GA4 and Clarity, is discussed in chat, and the structural fix is written back onto the row.
+      </Text>
+      {fixLog.length === 0 ? <Text style={styles.caption}>No fixes logged yet.</Text> : null}
+      {fixLog.map((entry) => (
+        <View key={entry.id} style={{ marginBottom: spacing.sm }}>
+          <Text style={styles.factValue}>{`${when(entry.at)} · ${entry.email ?? entry.path}`}</Text>
+          <Text style={styles.caption}>{`${entry.fixLabel} — ${entry.detail}`}</Text>
+          {entry.historyNote ? <Text style={styles.caption}>{entry.historyNote}</Text> : null}
+          {entry.cause ? <Text style={styles.caption}>{`Cause: ${entry.cause}`}</Text> : null}
+          {entry.proposal ? <Text style={styles.caption}>{`Structural fix: ${entry.proposal}`}</Text> : null}
+          {!entry.cause && !entry.proposal ? (
+            <Text style={styles.caption}>Open. Discuss the cause in chat so the loophole can be closed.</Text>
+          ) : null}
+        </View>
+      ))}
       <ChipRow styles={styles}>
         <ChipGroup value={show} onChange={setShow} styles={styles} options={[['open', 'Open problems'], ['all', 'Everything listed']]} />
         <ChipGroup<YesNoAny> value={committed} onChange={setCommitted} styles={styles} options={[['any', 'Committed: any'], ['yes', 'Committed'], ['no', 'Not committed']]} />
@@ -1125,7 +1199,7 @@ function BoxProblemsSection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${all.length} boxes with anything listed. Expand a row to record your decision (approve as-is, donation, needs a fix, or emailed). Every box is checked against what's included whenever it changes and every morning at 6am Eastern. Dot: red open on a committed box, amber open.${run ? ` Last full check ${when(run.at)}: ${run.real} real boxes, ${run.open} open (${run.openCommitted} committed).` : ''}`}
+        {`${rows.length} of ${all.length} boxes with anything listed. ${liveOpen.length} open now${liveCommitted ? ` (${liveCommitted} committed)` : ''}. Expand a row to apply a fix or record a decision. Every box is checked against what's included whenever it changes and every morning at 6am Eastern. Dot: red open on a committed box, amber open.${run ? ` Last full check ${when(run.at)} scanned ${run.real} real boxes.` : ''}`}
       </Text>
     </View>
   );
@@ -1508,7 +1582,7 @@ function InventorySection({
       if (view === 'shop' && !(i.directCap ?? 0) && i.directSold + i.directReserved === 0) return false;
       if (view === 'low' && (i.remainingAfterDrafts == null || i.remainingAfterDrafts > LOW_THRESHOLD)) return false;
       if (view === 'held' && i.counterAllocated + i.draftDemand + i.directSold + i.directReserved === 0) return false;
-      if (q && !i.name.toLowerCase().includes(q)) return false;
+      if (q && !i.name.toLowerCase().includes(q) && !(i.setAsideFor ?? '').toLowerCase().includes(q)) return false;
       return true;
     });
   }, [inventory, view, query, hideBooks, onlyBooks]);
@@ -1535,6 +1609,8 @@ function InventorySection({
     { label: 'Procured', width: 75, align: 'right', cell: (i) => (i.procured == null ? '—' : dash(i.procured)), sort: (i) => i.procured ?? null },
     { label: 'Sold direct', width: 85, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
     { label: 'Reserved (unpaid)', width: 125, align: 'right', cell: (i) => dash(i.directReserved), sort: (i) => i.directReserved },
+    { label: 'Set aside', width: 80, align: 'right', cell: (i) => (i.setAside == null ? '—' : dash(i.setAside)), sort: (i) => i.setAside ?? null },
+    { label: 'Set aside for', width: 220, cell: (i) => i.setAsideFor || '—', sort: (i) => (i.setAsideFor ?? '').toLowerCase() },
     { label: 'Available', width: 80, align: 'right', cell: (i) => (i.remaining == null ? '—' : String(i.remaining)), sort: (i) => i.remaining },
     { label: 'Shop cap', width: 75, align: 'right', cell: (i) => (i.directCap ? String(i.directCap) : '—'), sort: (i) => i.directCap ?? null },
     { label: 'Shop can sell', width: 100, align: 'right', cell: (i) => shopAvailabilityLabel(i), sort: (i) => i.shopRemaining ?? null },
@@ -1607,7 +1683,7 @@ function InventorySection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${inventory.length} items. Click an item name to copy it. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts. Procured = copies physically ordered (Airtable "Procured"; display-only — gap to close is Committed − Procured). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Available = on hand − in boxes − in gifts − sold direct − reserved. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
+        {`${rows.length} of ${inventory.length} items. Click an item name to copy it. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts. Procured = copies physically ordered (Airtable "Procured"; display-only — gap to close is Committed − Procured). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Set aside = copies kept back (personal, friends and family, promo), with the reason in Set aside for. Available = on hand − in boxes − in gifts − sold direct − reserved − set aside. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
       </Text>
     </View>
   );

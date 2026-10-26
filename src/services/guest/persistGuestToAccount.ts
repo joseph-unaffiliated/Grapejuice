@@ -12,7 +12,7 @@ import { saveLastBoxAnswers } from '../box/lastBoxAnswers';
 import { queuePendingMainNav } from '../../navigation/pendingMainNav';
 import { peekPendingAuthReturn, type AuthUser } from '../auth/auth';
 import type { BoxLineItem, ChildProfile } from '../../types/pilot';
-import type { ChildDraft } from '../../components/family/familyDraft';
+import { kidDraftsOnly } from './kidDrafts';
 import { getVisitorId } from './visitorId';
 import { readBoxBuildResume, writeBoxBuildResume } from '../box/boxBuildResume';
 import { markGuestSessionConvertedRemote } from './guestSessionSync';
@@ -30,10 +30,7 @@ function markGuestSessionConverted(): void {
   });
 }
 
-/** Kids only — adult drafts must never enter `users/{uid}/children` or guest-N remap. */
-export function kidDraftsOnly(drafts: ChildDraft[]): ChildDraft[] {
-  return drafts.filter((c) => c.role !== 'adult');
-}
+export { kidDraftsOnly };
 
 /** Remap guest-N child ids (and matching slot suffixes) to Firestore child ids. */
 export function remapGuestChildIds(lineItems: BoxLineItem[], saved: ChildProfile[]): BoxLineItem[] {
@@ -48,48 +45,6 @@ export function remapGuestChildIds(lineItems: BoxLineItem[], saved: ChildProfile
     const slotId = li.slotId.includes(fromId) ? li.slotId.split(fromId).join(next.id) : li.slotId;
     return { ...li, childId: next.id, slotId };
   });
-}
-
-/**
- * Guest persist used to save adult drafts as children[0], then remap guest-0 → adult.
- * Detect that pattern and shift ids so books/gifts land on real kids.
- */
-export function repairAdultLeakedAsFirstChild(
-  children: ChildProfile[],
-  lineItems: BoxLineItem[],
-  adultName: string | undefined | null
-): { children: ChildProfile[]; lineItems: BoxLineItem[]; dirty: boolean } {
-  const name = adultName?.trim().toLowerCase();
-  if (!name || children.length < 2) {
-    return { children, lineItems, dirty: false };
-  }
-  const first = children[0];
-  const firstName = first?.name?.trim().toLowerCase();
-  if (!first || !firstName || firstName !== name) {
-    return { children, lineItems, dirty: false };
-  }
-  const adultId = first.id;
-  const referenced = lineItems.some(
-    (li) => li.childId === adultId || (adultId.length > 0 && li.slotId.includes(adultId))
-  );
-  if (!referenced) {
-    return { children, lineItems, dirty: false };
-  }
-
-  const idMap = new Map<string, string>();
-  for (let i = 0; i < children.length - 1; i += 1) {
-    idMap.set(children[i]!.id, children[i + 1]!.id);
-  }
-
-  const nextLines = lineItems.map((li) => {
-    const fromId = li.childId;
-    if (!fromId || !idMap.has(fromId)) return li;
-    const nextId = idMap.get(fromId)!;
-    const slotId = li.slotId.includes(fromId) ? li.slotId.split(fromId).join(nextId) : li.slotId;
-    return { ...li, childId: nextId, slotId };
-  });
-
-  return { children: children.slice(1), lineItems: nextLines, dirty: true };
 }
 
 /** Mark parent past onboarding gates for gift resume — does NOT start a household box. */

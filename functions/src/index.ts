@@ -124,6 +124,7 @@ export { scheduledInventoryWatch } from './inventoryWatch';
 export { recordBoxDraftHistory, recordGuestBoxHistory } from './boxHistory';
 export { scheduledBoxAudit } from './boxAuditJob';
 export { decideBoxAuditProblem } from './boxAuditDecisions';
+export { applyBoxProblemFix } from './boxProblemFixes';
 export { scheduledInventoryEmails } from './inventoryEmails';
 export { scheduledBookSelloutFlips } from './bookSelloutFlips';
 export {

@@ -9,7 +9,7 @@ import { LANDING_AUDIENCES } from './landingAudiences';
 
 export const SITE_ORIGIN = 'https://grapejuice.co';
 export const SITE_NAME = 'Grapejuice';
-export const HOME_TITLE = 'Grapejuice | Hanukkah made easy';
+export const HOME_TITLE = 'Hanukkah boxes, delivered | Grapejuice';
 export const DEFAULT_SEO_DESCRIPTION =
   'Curated Hanukkah boxes for culturally Jewish families: candles, gelt, dreidels, latke and sufganiyot mixes, and a book and a present for each kid, delivered free. Boxes start at $80.';
 
@@ -46,6 +46,27 @@ export function seoTitle(page?: string | null): string {
   const p = page?.trim();
   if (!p || p === SITE_NAME) return HOME_TITLE;
   return `${SITE_NAME} | ${p}`;
+}
+
+/** Aisles and products: the thing someone searched for comes first. */
+export function shopSeoTitle(page?: string | null): string {
+  const p = page?.trim();
+  if (!p || p === SITE_NAME) return HOME_TITLE;
+  return `${p} | ${SITE_NAME}`;
+}
+
+/** Ad landings. Reachable, linked, and out of the index so they don't compete with the shop. */
+export const CAMPAIGN_LANDING_PATHS: readonly string[] = [
+  '/your-way',
+  '/interfaith',
+  '/convenience',
+  '/last-minute',
+  '/for-your-home',
+];
+
+export function isCampaignLandingPath(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, '').toLowerCase() || '/';
+  return CAMPAIGN_LANDING_PATHS.includes(path);
 }
 
 export function canonicalUrl(pathname: string): string {
@@ -88,7 +109,7 @@ export function staticSeoForPath(pathname: string): StaticSeo | null {
     const cat = STOREFRONT_CATEGORIES.find((c) => c.slug === store[1]);
     if (!cat) return null;
     return {
-      title: seoTitle(cat.title),
+      title: shopSeoTitle(cat.title),
       description: clampDescription(`${cat.description} Shop Hanukkah ${cat.label.toLowerCase()} at Grapejuice.`),
     };
   }

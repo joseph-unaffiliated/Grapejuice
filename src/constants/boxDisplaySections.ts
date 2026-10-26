@@ -204,10 +204,8 @@ export function inferDisplaySectionForCatalogItem(item: CatalogItem): BoxDisplay
 }
 
 /**
- * Gift SKUs: prefer the natural practice implied by the item's name/category
- * (a "…Latke Stuffie" → Eat & Drink, a "…Dreidel" → Play Dreidel) over a generic
- * catalog slot such as `decor`, so every per-kid gift lands on a real practice
- * card instead of vanishing into Presents (which shows no gift cards).
+ * Catalog identity of a gift SKU (a dreidel gift is still a dreidel). Line placement
+ * does not use this: a `gift` / `gift-{kid}` line always draws in Presents.
  */
 export function inferGiftDisplaySection(item: CatalogItem): BoxDisplaySectionId {
   if (foodDespiteDreidelName(item)) return 'food';
@@ -234,6 +232,10 @@ export function displaySectionForLineItem(
   li: BoxLineItem,
   item?: CatalogItem | null
 ): BoxDisplaySectionId {
+  const base = catalogSlotId(li.slotId);
+  // A kid's present stays in Presents even when the same SKU also fills a practice
+  // slot, and even when an older save stamped displaySectionId onto the gift line.
+  if (base === 'gift' || li.slotId.startsWith('gift-')) return 'presents';
   // A stored 'dreidel' stamp from the name regex must not keep Dreidel Cookie
   // Cutters out of Food.
   if (item && foodDespiteDreidelName(item)) return 'food';
@@ -244,14 +246,7 @@ export function displaySectionForLineItem(
     if (fromItem) return fromItem;
   }
 
-  const base = catalogSlotId(li.slotId);
   if (base.startsWith('story')) return 'story';
-
-  // Gift lines: place by catalog identity (name/category first), not by gift-* slot alone.
-  if (base === 'gift' || li.slotId.startsWith('gift-')) {
-    if (item) return inferGiftDisplaySection(item);
-    return GIFT_ITEM_SECTION[li.itemId] ?? 'presents';
-  }
 
   if (SLOT_TO_DISPLAY[base]) return SLOT_TO_DISPLAY[base];
   if (item) return inferDisplaySectionForCatalogItem(item);

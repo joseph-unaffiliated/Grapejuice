@@ -7,7 +7,7 @@ import { runAirtableCatalogReplaceSync } from './airtableCatalogSync';
 /**
  * Phase-2 sell-out flips for the non-Prime books (plan: book_sell-out_rollout).
  * Each flip, at its fixed ET slot: recompute committed copies (secured boxes +
- * paid gifts), set Airtable Inventory = committed (Hold inventory stays
+ * paid gifts), set Airtable Inventory = committed + set aside (Hold inventory stays
  * checked), resync the catalog, and verify the book reads sold out. Drafts are
  * then swapped by the 30-min inventory watch. Runs entirely server-side; state
  * in bookSelloutFlips/{itemId} so a flip never runs twice.
@@ -33,8 +33,14 @@ async function flipOneBook(db: Firestore, itemId: string): Promise<void> {
   const stateRef = db.doc(`${STATE_COLLECTION}/${itemId}`);
   const claimed = await db.runTransaction(async (tx) => {
     const snap = await tx.get(stateRef);
-    const status = snap.data()?.status;
-    if (status === 'done' || status === 'cancelled' || status === 'running') return false;
+    const data = snap.data();
+    const status = data?.status;
+    if (status === 'done' || status === 'cancelled') return false;
+    // A flip that died mid-run stays 'running'. Retry it once the attempt is stale.
+    if (status === 'running') {
+      const started = data?.startedAt?.toMillis?.() ?? 0;
+      if (Date.now() - started < 15 * 60 * 1000) return false;
+    }
     tx.set(stateRef, { status: 'running', startedAt: Timestamp.now() }, { merge: true });
     return true;
   });
@@ -54,11 +60,12 @@ async function flipOneBook(db: Firestore, itemId: string): Promise<void> {
     const recordId = typeof item.airtableRecordId === 'string' ? item.airtableRecordId : '';
     if (!recordId) throw new Error(`catalog item ${itemId} has no airtableRecordId`);
     const committed = Math.max(0, Math.floor(Number(invSnap.data()?.boxAllocatedQty) || 0));
+    const setAside = Math.max(0, Math.floor(Number(item.setAside) || 0));
 
     const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${FULL_CATALOG_TABLE}/${recordId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { [F.inventory]: committed, [F.hold]: true }, typecast: true }),
+      body: JSON.stringify({ fields: { [F.inventory]: committed + setAside, [F.hold]: true }, typecast: true }),
     });
     if (!res.ok) throw new Error(`Airtable update ${res.status}: ${await res.text()}`);
 
@@ -67,7 +74,8 @@ async function flipOneBook(db: Firestore, itemId: string): Promise<void> {
     const after = (await db.doc(`catalog/${CATALOG_HOLIDAY}/items/${itemId}`).get()).data() ?? {};
     const counters = (await db.doc(`catalog/${CATALOG_HOLIDAY}/inventory/${itemId}`).get()).data() ?? {};
     const held = Math.max(0, Math.floor(Number(counters.boxAllocatedQty) || 0));
-    const stockLeft = typeof after.inventory === 'number' ? after.inventory - held : null;
+    const kept = Math.max(0, Math.floor(Number(after.setAside) || 0));
+    const stockLeft = typeof after.inventory === 'number' ? after.inventory - kept - held : null;
     await stateRef.set(
       {
         status: 'done',
@@ -84,7 +92,7 @@ async function flipOneBook(db: Firestore, itemId: string): Promise<void> {
       { status: 'failed', error: String(err).slice(0, 300), failedAt: Timestamp.now() },
       { merge: true }
     );
-    logger.error('bookSelloutFlips: flip failed', { itemId, err: String(err).slice(0, 300) });
+    logger.error(`bookSelloutFlips: flip failed for ${itemId}: ${String(err).slice(0, 300)}`, { itemId });
   }
 }
 

@@ -5,6 +5,7 @@ import {
   canonicalUrl,
   clampDescription,
   DEFAULT_SEO_DESCRIPTION,
+  isCampaignLandingPath,
   isPrivatePath,
   staticSeoForPath,
 } from '../constants/seo';
@@ -57,7 +58,11 @@ export function applySeoMeta(): void {
   upsertMeta('name', 'description', description);
   upsertMeta('property', 'og:description', description);
   upsertMeta('property', 'og:url', url);
-  upsertMeta('name', 'robots', isPrivatePath(path) ? 'noindex, nofollow' : 'index, follow');
+  upsertMeta(
+    'name',
+    'robots',
+    isPrivatePath(path) ? 'noindex, nofollow' : isCampaignLandingPath(path) ? 'noindex, follow' : 'index, follow'
+  );
   upsertCanonical(url);
 }
 

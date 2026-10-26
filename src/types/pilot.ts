@@ -209,6 +209,10 @@ export type CatalogItem = {
   holdInventory?: boolean | null;
   /** Copies physically ordered (sourcing tracker). Display-only; never gates. */
   procured?: number | null;
+  /** Copies kept back from sale (Airtable "Set aside"). */
+  setAside?: number | null;
+  /** Why those copies are kept (Airtable "Set aside for"). */
+  setAsideFor?: string | null;
   wrappable?: boolean | null;
   /**
    * Airtable "Available for Sale Before Box Close" — max units sellable à la carte

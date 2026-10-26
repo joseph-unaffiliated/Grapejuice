@@ -8,7 +8,7 @@ import { catalogService } from '../services/firestore/catalog';
 import { childrenService } from '../services/firestore/children';
 import { withAuthRetry } from '../services/firestore/token';
 import { Sentry } from '../services/monitoring/sentry';
-import { repairAdultLeakedAsFirstChild, remapGuestChildIds } from '../services/guest/persistGuestToAccount';
+import { remapGuestChildIds } from '../services/guest/persistGuestToAccount';
 import {
   EXTRA_FLAT_CENTS,
   repairExtraPerKidPricing,
@@ -101,7 +101,6 @@ export function clearBoxDraftCache() {
 type AuthBoxDraftLoadArgs = {
   householdId: string;
   uid: string;
-  displayName: string | null | undefined;
   profileFamiliarity: FamiliarityLevel | undefined;
   /** Adults from the family questionnaire; undefined when none were entered. */
   adults: number | undefined;
@@ -111,7 +110,6 @@ type AuthBoxDraftLoadArgs = {
 async function fetchAuthBoxDraft({
   householdId,
   uid,
-  displayName,
   profileFamiliarity,
   adults,
 }: AuthBoxDraftLoadArgs): Promise<AuthBoxDraftSnapshot> {
@@ -149,36 +147,6 @@ async function fetchAuthBoxDraft({
       } catch (e) {
         console.warn('[box] failed to persist guest-id remap', e);
       }
-    }
-  }
-
-  const repaired = repairAdultLeakedAsFirstChild(nextKids, nextLines, displayName);
-  if (repaired.dirty) {
-    nextKids = repaired.children;
-    nextLines = repaired.lineItems;
-    try {
-      await childrenService.replaceAll(
-        uid,
-        nextKids.map((c) => ({
-          name: c.name,
-          ageGroup: c.ageGroup,
-          birthdate: c.birthdate,
-          hebrewName: c.hebrewName,
-          barMitzvahDate: c.barMitzvahDate,
-          beamStatus: c.beamStatus,
-          ravEnabled: c.ravEnabled,
-        }))
-      );
-      await boxDraftService.save(householdId, uid, nextLines, {
-        familiarityLevel: profileFamiliarity ?? draft?.familiarityLevel,
-        childInterests: draft?.childInterests,
-        slotVotes: draft?.slotVotes,
-        wrapSelectedItemIds: draft?.wrapSelectedItemIds,
-        sealedSectionIds: draft?.sealedSectionIds,
-        source: 'auto-repair',
-      });
-    } catch (e) {
-      console.warn('[box] failed to persist adult-as-child repair', e);
     }
   }
 
@@ -484,7 +452,6 @@ export function useBoxDraft() {
         {
           householdId: household.id,
           uid: user.uid,
-          displayName: user.displayName ?? profile?.displayName,
           profileFamiliarity: profile?.familiarityLevel,
           adults: accountAdults,
         },

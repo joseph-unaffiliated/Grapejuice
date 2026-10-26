@@ -49,6 +49,10 @@ const F = {
     holdInventory: 'fldFpeHc3sxneJ1TH',
     /** Number: copies physically ordered (Joseph's sourcing tracker; display-only). */
     procured: 'flduff7svNVQ4pkEw',
+    /** Number: copies kept back (personal, friends and family, promo). Subtracted from sellable stock. */
+    setAside: 'fldujfIMeuuN7RfYN',
+    /** Why those copies are kept. Display-only. */
+    setAsideFor: 'fldox7zzryePIFRn2',
     unitCost: 'fldJNKCjYA1aLC2KU',
     memberPrice: 'fldSKmIeWfuRoB2IC',
     nonMemberPrice: 'fld9ipf5vOEkaMGes',
@@ -171,6 +175,12 @@ function numberField(v) {
         return Number(v);
     return null;
 }
+function countField(v) {
+    const n = numberField(v);
+    if (n == null)
+        return null;
+    return Math.max(0, Math.floor(n));
+}
 /** Merge Storefront rails multi-select + homepage single-selects into rail slugs. */
 function storefrontRailsFromListing(f) {
     var _a, _b;
@@ -259,10 +269,10 @@ function mapListingPlacement(category, contexts, name) {
     }
     if (cat === 'food') {
         if (lower.includes('latke')) {
-            return { slot: 'base', slotId: 'latke-kit', pricingTier: (isAla ? 'alaCarte' : 'included') };
+            return { slot: 'base', slotId: 'latke-mix', pricingTier: (isAla ? 'alaCarte' : 'included') };
         }
         if (lower.includes('sufgan')) {
-            return { slot: 'base', slotId: 'sufganiyot-kit', pricingTier: (isAla ? 'alaCarte' : 'included') };
+            return { slot: 'base', slotId: 'sufganiyot-mix', pricingTier: (isAla ? 'alaCarte' : 'included') };
         }
         if (lower.includes('applesauce')) {
             return { slot: 'base', slotId: 'latke-recipe-printed', pricingTier: 'included' };
@@ -273,7 +283,7 @@ function mapListingPlacement(category, contexts, name) {
         if (lower.includes('cookie')) {
             return { slot: 'addon', slotId: 'decor', pricingTier: 'alaCarte' };
         }
-        return { slot: 'base', slotId: 'latke-kit', pricingTier: (isAla ? 'alaCarte' : 'included') };
+        return { slot: 'base', slotId: 'food', pricingTier: (isAla ? 'alaCarte' : 'included') };
     }
     if (lower.includes('wrapping')) {
         return { slot: 'base', slotId: 'wrapping', pricingTier: (isAla ? 'alaCarte' : 'included') };
@@ -506,6 +516,8 @@ function listingToItem(rec, images) {
         inventory: typeof f[F.inventory] === 'number' ? f[F.inventory] : null,
         holdInventory: f[F.holdInventory] === true,
         procured: typeof f[F.procured] === 'number' ? f[F.procured] : null,
+        setAside: countField(f[F.setAside]),
+        setAsideFor: textField(f[F.setAsideFor]),
         airtableRecordId: rec.id,
         airtableTable: 'full-catalog',
         brand: null,
@@ -539,6 +551,7 @@ function bookTitle(fcRec, bookRec) {
  * Books stay inventory-untracked (infinite, stock rules never swap them) unless
  * "Hold inventory" is checked — then Inventory is the sellable ceiling (blank = 0)
  * and Procured rides along display-only for the admin sourcing view.
+ * Set aside is held back from that ceiling.
  */
 function bookToItem(fcRec, bookRec, images) {
     var _a, _b, _c, _d;
@@ -585,6 +598,8 @@ function bookToItem(fcRec, bookRec, images) {
             : null,
         holdInventory: f[F.holdInventory] === true,
         procured: typeof f[F.procured] === 'number' ? f[F.procured] : null,
+        setAside: countField(f[F.setAside]),
+        setAsideFor: textField(f[F.setAsideFor]),
         airtableRecordId: fcRec.id,
         airtableTable: 'books',
         brand: author || null,

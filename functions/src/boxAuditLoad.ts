@@ -272,15 +272,31 @@ export function matchException(
   email: string | null,
   p: AuditProblem
 ): BoxAuditException | undefined {
-  const local = email?.toLowerCase().split('@')[0];
-  if (!local) return undefined;
-  return exceptions.find(
-    (e) =>
-      e.email.toLowerCase().split('@')[0] === local &&
-      (!e.section || e.section === p.section) &&
-      (!e.code || e.code === p.code) &&
-      (!e.itemId || e.itemId === p.itemId)
-  );
+  const local = email?.toLowerCase().split('@')[0] ?? '';
+  return exceptions.find((e) => {
+    // A blank email is a decision already scoped to this box (signed-out drafts have no address).
+    const exceptionLocal = e.email.toLowerCase().split('@')[0];
+    if (exceptionLocal && exceptionLocal !== local) return false;
+    return (!e.section || e.section === p.section) && (!e.code || e.code === p.code) && (!e.itemId || e.itemId === p.itemId);
+  });
+}
+
+/**
+ * Whether this box should add to the open-problem total. A committed household's
+ * draft repeats the order, and the review list shows the order only.
+ */
+export function countsTowardOpenList(
+  kind: string,
+  path: string,
+  open: number,
+  orderHouseholds: ReadonlySet<string>
+): boolean {
+  if (open <= 0) return false;
+  if (kind === 'account') {
+    const householdId = path.match(/^households\/([^/]+)\//)?.[1];
+    if (householdId && orderHouseholds.has(householdId)) return false;
+  }
+  return true;
 }
 
 export type BoxAuditProblem = AuditProblem & { approved?: string };

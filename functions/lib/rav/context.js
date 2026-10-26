@@ -169,7 +169,7 @@ async function loadCatalogRows(db = (0, firestore_1.getFirestore)()) {
         const row = docToRow(d.id, d.data());
         if (row.inventory == null)
             return row;
-        return Object.assign(Object.assign({}, row), { stockLeft: Math.max(0, Math.floor(row.inventory) - ((_a = committed.get(d.id)) !== null && _a !== void 0 ? _a : 0)), draftHeld: (_b = draftHeld.get(d.id)) !== null && _b !== void 0 ? _b : 0 });
+        return Object.assign(Object.assign({}, row), { stockLeft: Math.max(0, Math.floor(row.inventory) - n(d.get('setAside')) - ((_a = committed.get(d.id)) !== null && _a !== void 0 ? _a : 0)), draftHeld: (_b = draftHeld.get(d.id)) !== null && _b !== void 0 ? _b : 0 });
     });
 }
 function toBoxRulesRows(catalog) {

@@ -9,6 +9,7 @@ import { buildShopOrder, type DashShopOrder } from './shopOrders';
 import { INVENTORY_EMAIL_LOG, inventoryEmailStats, type InventoryEmailStats } from './inventoryEmails';
 import { stripe } from './stripe';
 import { loadBoxProblems, type DashBoxAuditRun, type DashBoxProblem } from './boxAuditJob';
+import type { BoxFixLogEntry } from './boxProblemFixes';
 import * as logger from './logger';
 import {
   checkoutSessionFromStripeMetadata,
@@ -165,6 +166,10 @@ export type DashInventoryRow = {
   favoritesReal: number;
   /** Copies physically ordered (Airtable "Procured"); display-only, null when unset. */
   procured: number | null;
+  /** Copies kept back from sale (Airtable "Set aside"). */
+  setAside: number | null;
+  /** Why those copies are kept (Airtable "Set aside for"). */
+  setAsideFor: string | null;
 };
 
 /** One person per row for the By ad tab: raw slider answers (scored client-side) and how far they got. */
@@ -278,6 +283,8 @@ export type BoxesDashboard = {
   boxProblems?: DashBoxProblem[];
   /** Totals from the latest daily box audit sweep. */
   boxAuditRun?: DashBoxAuditRun | null;
+  /** Fixes chosen on Box problems, waiting on a cause. */
+  fixLog?: BoxFixLogEntry[];
 };
 
 function iso(v: unknown): string | null {
@@ -713,6 +720,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       name: string;
       inventory: number | null;
       procured: number | null;
+      setAside: number | null;
+      setAsideFor: string | null;
       category: string | null;
       categories: string[] | undefined;
       directSaleCapBeforeLock: number | null;
@@ -725,6 +734,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       name: str(x.name) ?? d.id,
       inventory: num(x.inventory),
       procured: num(x.procured),
+      setAside: num(x.setAside),
+      setAsideFor: str(x.setAsideFor),
       category: str(x.category),
       categories: Array.isArray(x.categories) ? x.categories.filter((c: unknown): c is string => typeof c === 'string') : undefined,
       directSaleCapBeforeLock: num(x.directSaleCapBeforeLock),
@@ -1243,6 +1254,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const directSold = n0(c.directSoldQty);
     const directReserved = n0(c.directReservedQty);
     const stock = it?.inventory ?? null;
+    const setAside = n0(it?.setAside);
     if (heldByBoxes + heldByGifts !== counterAllocated) {
       mismatches.push({ id, name: it?.name ?? id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
     }
@@ -1262,7 +1274,9 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       counterAllocated,
       directSold,
       directReserved,
-      remaining: stock == null ? null : stock - counterAllocated - directSold - directReserved,
+      remaining: stock == null ? null : stock - setAside - counterAllocated - directSold - directReserved,
+      setAside: it.setAside,
+      setAsideFor: it.setAsideFor,
       directCap: it.directSaleCapBeforeLock,
       shopStatus: shop.status,
       shopRemaining: availabilityRemaining(shop),
@@ -1337,7 +1351,7 @@ export function createAdminBoxesDashboard(db: Firestore) {
       metaStatsByAd(),
       loadBoxProblems(db).catch((err) => {
         logger.warn('adminBoxesDashboard: box problems unavailable', { err: String(err) });
-        return { boxProblems: [], boxAuditRun: null };
+        return { boxProblems: [], boxAuditRun: null, fixLog: [] };
       }),
     ]);
     return { ...dash, metaByAd, ...audits };

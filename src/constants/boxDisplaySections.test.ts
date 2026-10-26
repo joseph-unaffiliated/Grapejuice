@@ -22,6 +22,7 @@ import {
   seedIncludedBaselines,
   takePromotedIncludedUndo,
   transferIncludedBaselineOnSwap,
+  uniqueSlotForFreeSectionAdd,
 } from '../components/box/boxLineDisplay';
 import type { BoxLineItem, CatalogItem } from '../types/pilot';
 
@@ -203,5 +204,85 @@ assert.equal(
 // Included-tier beeswax must not come back free once Roll Your Own holds the slot.
 assert.equal(includedClaimAlreadyTaken(beeswax, [before[0]!], promoted, catalog), true);
 assert.equal(includedClaimBlockedUnitCents(beeswax), 500);
+
+const airdry = dreidels.find((d) => d.id === 'airdry-clay-dreidel')!;
+const lego = item({ id: 'lego-menorah', name: '"Lego" Menorah', slotId: 'decor', category: 'Menorah' });
+assert.equal(
+  displaySectionForLineItem(line({ slotId: 'gift-kid', itemId: airdry.id, displaySectionId: 'dreidel' }), airdry),
+  'presents'
+);
+assert.equal(
+  displaySectionForLineItem(line({ slotId: 'gift-kid', itemId: lego.id, displaySectionId: 'candles' }), lego),
+  'presents'
+);
+assert.equal(
+  displaySectionForLineItem(line({ slotId: 'wood-dreidel', itemId: airdry.id, displaySectionId: 'dreidel' }), airdry),
+  'dreidel'
+);
+
+const gimmel = dreidels.find((d) => d.id === 'gimmel-the-dreidel-stuffie')!;
+const crispyItem = item({
+  id: 'crispy-the-latke-stuffie',
+  name: 'Crispy, the Latke Stuffie',
+  slotId: 'decor',
+  category: 'Stuffies',
+});
+const jellyItem = item({
+  id: 'jelly-the-sufganiyah-stuffie',
+  name: 'Jelly, the Sufganiyah Stuffie',
+  slotId: 'decor',
+  category: 'Stuffies',
+});
+const wood = dreidels.find((d) => d.id === 'classic-wooden-dreidel')!;
+const latke = item({ id: 'latke-kit', name: 'Latke Kit', slotId: 'latke-mix', category: 'Food', pricingTier: 'included' });
+const sufganiyot = item({ id: 'sufganiyot-kit', name: 'Sufganiyot Kit', slotId: 'sufganiyot-mix', category: 'Food', pricingTier: 'included' });
+
+function paidAfterDroppingIncluded(included: BoxLineItem, extra: BoxLineItem, section: 'dreidel' | 'food' | 'candles', rows: CatalogItem[]) {
+  const removed = removeCoalescedGroup([included, extra], {
+    key: included.itemId,
+    itemId: included.itemId,
+    primary: included,
+    lines: [included],
+    quantity: included.quantity ?? 1,
+    includedQuantity: included.quantity ?? 1,
+    childIds: [],
+    unitCents: 0,
+  });
+  const sibling = paidSiblingForIncludedPromotion(removed, section, rows, displaySectionForLineItem);
+  const next = promotePaidSiblingToIncludedPractice(removed, section, rows, displaySectionForLineItem);
+  return { siblingId: sibling?.itemId, line: next.find((li) => li.itemId === extra.itemId) };
+}
+
+const gimmelKept = paidAfterDroppingIncluded(
+  line({ slotId: 'wood-dreidel', itemId: wood.id, displaySectionId: 'dreidel' }),
+  line({ slotId: 'addon-gimmel-the-dreidel-stuffie', itemId: gimmel.id, unitCents: 1000, displaySectionId: 'dreidel' }),
+  'dreidel',
+  [wood, gimmel]
+);
+assert.equal(gimmelKept.siblingId, undefined);
+assert.equal(gimmelKept.line?.unitCents, 1000);
+
+const crispyKept = paidAfterDroppingIncluded(
+  line({ slotId: 'latke-mix', itemId: latke.id, displaySectionId: 'food' }),
+  line({ slotId: 'addon-crispy-the-latke-stuffie', itemId: crispyItem.id, unitCents: 1000, displaySectionId: 'food' }),
+  'food',
+  [latke, crispyItem]
+);
+assert.equal(crispyKept.siblingId, undefined);
+assert.equal(crispyKept.line?.unitCents, 1000);
+
+const jellyKept = paidAfterDroppingIncluded(
+  line({ slotId: 'sufganiyot-mix', itemId: sufganiyot.id, displaySectionId: 'food' }),
+  line({ slotId: 'addon-jelly-the-sufganiyah-stuffie', itemId: jellyItem.id, unitCents: 1000, displaySectionId: 'food' }),
+  'food',
+  [sufganiyot, jellyItem]
+);
+assert.equal(jellyKept.siblingId, undefined);
+assert.equal(jellyKept.line?.unitCents, 1000);
+
+assert.equal(
+  uniqueSlotForFreeSectionAdd('dreidel', gimmel, [line({ slotId: 'wood-dreidel', itemId: wood.id })]),
+  `addon-${gimmel.id}`
+);
 
 console.log('boxDisplaySections.test.ts ok');

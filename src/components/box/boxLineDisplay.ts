@@ -3,7 +3,7 @@ import { catalogSlotId } from '../../services/box/buildDefaultBox';
 import { isPilotLine } from '../../services/box/pilotLines';
 import { WRAP_POLICY } from '../../services/box/boxRules';
 import { boxAddOnUnitCents, EXTRA_FLAT_CENTS, resolveCatalogDisplayPrices } from '../../services/box/pricing';
-import { isBookishCatalogItem, resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
+import { isBookishCatalogItem, isStuffieCatalogItem, resolveIncludedGiftOptions } from '../../services/box/sectionUpsells';
 import {
   FOOD_SLOTS_INCLUDED,
   geltBagOf,
@@ -70,7 +70,7 @@ export function isWrappingPaperItem(
   return /wrapping.?paper/.test(hay);
 }
 
-/** Gift-per-kid lines — full cards belong in natural practice sections, not Presents. */
+/** Gift-per-kid lines. The card stays in Presents; the practice line of the same SKU does not. */
 export function isGiftSlotLine(li: BoxLineItem): boolean {
   return catalogSlotId(li.slotId) === 'gift' || li.slotId.startsWith('gift-');
 }
@@ -664,13 +664,16 @@ export function uniqueSlotForFreeSectionAdd(
     s !== 'gift' &&
     s !== 'story' &&
     !s.includes('::x');
+  // A stuffie's catalog slot is the catch-all `decor`. Parking a free add there
+  // wrote Crispy onto decor at $0 while the gift slot was already full.
+  if (isStuffieCatalogItem(item)) return `addon-${item.id}`;
   const candidates = [
     sectionPreferred[sectionId],
     item.defaultSlot?.trim(),
     catalogSlotId(item.slotId) || undefined,
     item.slotId?.trim(),
     item.id,
-  ].filter((s): s is string => Boolean(s && isUsableSlot(s)));
+  ].filter((s): s is string => Boolean(s && isUsableSlot(s) && s !== 'decor'));
   for (const c of candidates) {
     if (!used.has(c)) return c;
   }
@@ -684,8 +687,22 @@ export function uniqueSlotForFreeSectionAdd(
 const INCLUDED_PRACTICE_SLOT_IDS: Partial<Record<BoxDisplaySectionId, readonly string[]>> = {
   candles: ['candles'],
   dreidel: ['wood-dreidel', 'blank-dreidel', 'airdry-dreidel'],
-  food: ['latke-mix', 'sufganiyot-mix', 'latke-kit', 'sufganiyot-kit', 'latke-recipe-printed'],
+  food: ['latke-mix', 'sufganiyot-mix', 'latke-recipe-printed'],
 };
+
+/**
+ * Whether an empty-looking section can still take a free practice item.
+ * Books and presents are free only in an open kid slot, and a stuffie is never
+ * an included practice fill.
+ */
+export function practiceSlotOpenForFreeAdd(
+  sectionId: BoxDisplaySectionId,
+  sectionRowCount: number,
+  lineItems: BoxLineItem[]
+): boolean {
+  if (sectionId === 'presents' || sectionId === 'story') return false;
+  return sectionRowCount === 0 || includedPracticeSlotVacant(sectionId, lineItems);
+}
 
 /**
  * True when the section’s included practice line was donated/removed — restoring
@@ -1299,6 +1316,10 @@ export function syncWrappingPaperUnitCentsForWrapSelection(
   let dirty = false;
   const next = lineItems.map((li) => {
     if (!isWrappingPaperItem(li.itemId, catalog, li)) return li;
+    // A second sheet (`wrapping-paper::x`) is an extra the customer added. Its
+    // member price is the same $5 as the wrap-service fee, so clearing "anything
+    // at $5 when nothing is marked to be wrapped" was wiping that second sheet.
+    if (li.slotId.includes('::x')) return li;
     const current = li.unitCents ?? 0;
     // Paid paper on top of pre-wrap — never drop back to $0 via wrap-list clears.
     if (li.includedQty === 0) {
@@ -1353,6 +1374,8 @@ export function paidSiblingForIncludedPromotion(
     if (isGiftSlotLine(li)) return false;
     if ((li.unitCents ?? 0) <= 0) return false;
     const item = catalog.find((c) => c.id === li.itemId);
+    if (item && isStuffieCatalogItem(item)) return false;
+    if (!item && /stuffie|plush|softie/i.test(`${li.itemId} ${li.label ?? ''}`)) return false;
     return displaySectionFor(li, item) === sectionId;
   });
 }

@@ -17,6 +17,7 @@ const logger = require("./logger");
 const sentry_1 = require("./sentry");
 const boxHistoryDiff_1 = require("./boxHistoryDiff");
 const boxAuditLoad_1 = require("./boxAuditLoad");
+const boxProblemFixes_1 = require("./boxProblemFixes");
 exports.BOX_AUDITS = 'boxAudits';
 exports.BOX_AUDIT_RUNS = 'boxAuditRuns';
 const CATALOG_TTL_MS = 10 * 60 * 1000;
@@ -90,6 +91,13 @@ async function runBoxAuditSweep(db) {
     const existing = await db.collection(exports.BOX_AUDITS).get();
     const previous = new Map(existing.docs.map((d) => [d.id, d.data()]));
     const seen = new Set();
+    const orderHouseholds = new Set(boxes.flatMap((box) => {
+        var _a;
+        if (box.kind !== 'order')
+            return [];
+        const householdId = (_a = box.path.match(/^households\/([^/]+)\//)) === null || _a === void 0 ? void 0 : _a[1];
+        return householdId ? [householdId] : [];
+    }));
     const result = { boxes: boxes.length, real: 0, open: 0, openCommitted: 0, written: 0, deleted: 0, newlyOpen: [] };
     for (const box of boxes) {
         const id = (0, boxAuditLoad_1.boxAuditId)(box.path);
@@ -97,7 +105,7 @@ async function runBoxAuditSweep(db) {
         const record = (0, boxAuditLoad_1.auditBoxRef)(box, catalog, exceptionsWithDecisions(decisions, box.path, box.email));
         if (!box.test) {
             result.real += 1;
-            if (record.open > 0) {
+            if ((0, boxAuditLoad_1.countsTowardOpenList)(box.kind, box.path, record.open, orderHouseholds)) {
                 result.open += 1;
                 if (record.committed)
                     result.openCommitted += 1;
@@ -130,6 +138,7 @@ async function loadBoxProblems(db) {
     ]);
     const decisions = await loadBoxAuditDecisions(db);
     const text = (v) => (typeof v === 'string' && v ? v : null);
+    let fixCatalog = null;
     const boxProblems = [];
     for (const d of audits.docs) {
         const x = d.data();
@@ -138,20 +147,27 @@ async function loadBoxProblems(db) {
             continue;
         const path = String((_a = x.path) !== null && _a !== void 0 ? _a : '');
         const viewed = applyDecisionsToProblems(path, problems.map((p) => {
-            var _a, _b, _c;
+            var _a, _b, _c, _d;
             return ({
                 section: p.section,
                 code: p.code,
                 direction: p.direction,
                 detail: p.detail,
                 itemId: (_a = p.itemId) !== null && _a !== void 0 ? _a : null,
-                childKey: (_b = p.childKey) !== null && _b !== void 0 ? _b : null,
-                approved: (_c = p.approved) !== null && _c !== void 0 ? _c : null,
+                slotId: (_b = p.slotId) !== null && _b !== void 0 ? _b : null,
+                childKey: (_c = p.childKey) !== null && _c !== void 0 ? _c : null,
+                approved: (_d = p.approved) !== null && _d !== void 0 ? _d : null,
                 grandfathered: p.grandfathered === true,
                 likelyDonation: (0, boxAuditLoad_1.isLikelyDonation)(p),
             });
         }), decisions);
         const open = viewed.filter(isOpenAfterDecision).length;
+        let lines = null;
+        if (open > 0) {
+            if (!fixCatalog)
+                fixCatalog = await (0, boxProblemFixes_1.loadFixCatalog)(db);
+            lines = await (0, boxProblemFixes_1.loadFixBox)(db, path).catch(() => null);
+        }
         boxProblems.push({
             id: d.id,
             kind: x.kind,
@@ -165,7 +181,12 @@ async function loadBoxProblems(db) {
             open,
             openSince: text(x.openSince),
             auditedAt: text(x.auditedAt),
-            problems: viewed,
+            problems: viewed.map((p) => {
+                var _a, _b, _c;
+                return (Object.assign(Object.assign({}, p), { slotId: (_a = p.slotId) !== null && _a !== void 0 ? _a : null, fixes: lines && fixCatalog && isOpenAfterDecision(p)
+                        ? (0, boxProblemFixes_1.fixesForProblem)(p, lines.lines, fixCatalog, Number((_b = x.people) !== null && _b !== void 0 ? _b : 0), Number((_c = x.kids) !== null && _c !== void 0 ? _c : 0))
+                        : [] }));
+            }),
         });
     }
     // Committed households keep a draft that mirrors the order; list the order once.
@@ -185,7 +206,8 @@ async function loadBoxProblems(db) {
             at: String((_o = run.at) !== null && _o !== void 0 ? _o : ''),
         }
         : null;
-    return { boxProblems, boxAuditRun };
+    const fixLog = await (0, boxProblemFixes_1.loadBoxFixLog)(db).catch(() => []);
+    return { boxProblems, boxAuditRun, fixLog };
 }
 exports.scheduledBoxAudit = (0, sentry_1.onSchedule)({ schedule: 'every day 06:00', timeZone: 'America/New_York', memory: '1GiB', timeoutSeconds: 540 }, async () => {
     const result = await runBoxAuditSweep((0, firestore_1.getFirestore)());

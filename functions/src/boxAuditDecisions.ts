@@ -138,6 +138,7 @@ export function applyDecisionsToProblems(
     direction: string;
     detail: string;
     itemId: string | null;
+    slotId?: string | null;
     childKey: string | null;
     approved: string | null;
     grandfathered: boolean;
@@ -213,17 +214,16 @@ async function refreshStoredOpen(db: FirebaseFirestore.Firestore, path: string, 
   return openCount;
 }
 
-export const decideBoxAuditProblem = onCall(async (request): Promise<{ ok: true; decision: BoxAuditDecision | null }> => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in required.');
-  if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
-
-  const body = (request.data ?? {}) as DecideBoxAuditProblemRequest;
+export async function writeBoxAuditDecision(
+  db: FirebaseFirestore.Firestore,
+  decidedBy: string,
+  body: DecideBoxAuditProblemRequest
+): Promise<BoxAuditDecision | null> {
   const path = typeof body.path === 'string' ? body.path.trim() : '';
   const section = typeof body.section === 'string' ? body.section.trim() : '';
   const code = typeof body.code === 'string' ? body.code.trim() : '';
   if (!path || !section || !code) throw new HttpsError('invalid-argument', 'path, section and code are required.');
 
-  const db = getFirestore();
   const id = decisionDocId({
     path,
     section,
@@ -237,7 +237,7 @@ export const decideBoxAuditProblem = onCall(async (request): Promise<{ ok: true;
     await ref.delete().catch(() => undefined);
     const decisions = await loadBoxAuditDecisions(db);
     await refreshStoredOpen(db, path, decisions);
-    return { ok: true, decision: null };
+    return null;
   }
 
   if (!['approve', 'donation', 'follow-up', 'emailed'].includes(body.decision)) {
@@ -262,10 +262,17 @@ export const decideBoxAuditProblem = onCall(async (request): Promise<{ ok: true;
     decision: body.decision,
     note: (typeof body.note === 'string' && body.note.trim()) || noteDefault[body.decision],
     decidedAt: new Date().toISOString(),
-    decidedBy: request.auth.uid,
+    decidedBy,
   };
   await ref.set(decision);
   const decisions = await loadBoxAuditDecisions(db);
   await refreshStoredOpen(db, path, decisions);
+  return decision;
+}
+
+export const decideBoxAuditProblem = onCall(async (request): Promise<{ ok: true; decision: BoxAuditDecision | null }> => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in required.');
+  if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
+  const decision = await writeBoxAuditDecision(getFirestore(), request.auth.uid, (request.data ?? {}) as DecideBoxAuditProblemRequest);
   return { ok: true, decision };
 });

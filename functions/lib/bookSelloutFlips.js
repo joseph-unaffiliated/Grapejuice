@@ -9,7 +9,7 @@ const airtableCatalogSync_1 = require("./airtableCatalogSync");
 /**
  * Phase-2 sell-out flips for the non-Prime books (plan: book_sell-out_rollout).
  * Each flip, at its fixed ET slot: recompute committed copies (secured boxes +
- * paid gifts), set Airtable Inventory = committed (Hold inventory stays
+ * paid gifts), set Airtable Inventory = committed + set aside (Hold inventory stays
  * checked), resync the catalog, and verify the book reads sold out. Drafts are
  * then swapped by the 30-min inventory watch. Runs entirely server-side; state
  * in bookSelloutFlips/{itemId} so a flip never runs twice.
@@ -33,11 +33,18 @@ async function flipOneBook(db, itemId) {
     var _a, _b, _c, _d, _e;
     const stateRef = db.doc(`${STATE_COLLECTION}/${itemId}`);
     const claimed = await db.runTransaction(async (tx) => {
-        var _a;
+        var _a, _b, _c;
         const snap = await tx.get(stateRef);
-        const status = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.status;
-        if (status === 'done' || status === 'cancelled' || status === 'running')
+        const data = snap.data();
+        const status = data === null || data === void 0 ? void 0 : data.status;
+        if (status === 'done' || status === 'cancelled')
             return false;
+        // A flip that died mid-run stays 'running'. Retry it once the attempt is stale.
+        if (status === 'running') {
+            const started = (_c = (_b = (_a = data === null || data === void 0 ? void 0 : data.startedAt) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) !== null && _c !== void 0 ? _c : 0;
+            if (Date.now() - started < 15 * 60 * 1000)
+                return false;
+        }
         tx.set(stateRef, { status: 'running', startedAt: firestore_1.Timestamp.now() }, { merge: true });
         return true;
     });
@@ -59,10 +66,11 @@ async function flipOneBook(db, itemId) {
         if (!recordId)
             throw new Error(`catalog item ${itemId} has no airtableRecordId`);
         const committed = Math.max(0, Math.floor(Number((_c = invSnap.data()) === null || _c === void 0 ? void 0 : _c.boxAllocatedQty) || 0));
+        const setAside = Math.max(0, Math.floor(Number(item.setAside) || 0));
         const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${FULL_CATALOG_TABLE}/${recordId}`, {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fields: { [F.inventory]: committed, [F.hold]: true }, typecast: true }),
+            body: JSON.stringify({ fields: { [F.inventory]: committed + setAside, [F.hold]: true }, typecast: true }),
         });
         if (!res.ok)
             throw new Error(`Airtable update ${res.status}: ${await res.text()}`);
@@ -70,7 +78,8 @@ async function flipOneBook(db, itemId) {
         const after = (_d = (await db.doc(`catalog/${catalogInventory_1.CATALOG_HOLIDAY}/items/${itemId}`).get()).data()) !== null && _d !== void 0 ? _d : {};
         const counters = (_e = (await db.doc(`catalog/${catalogInventory_1.CATALOG_HOLIDAY}/inventory/${itemId}`).get()).data()) !== null && _e !== void 0 ? _e : {};
         const held = Math.max(0, Math.floor(Number(counters.boxAllocatedQty) || 0));
-        const stockLeft = typeof after.inventory === 'number' ? after.inventory - held : null;
+        const kept = Math.max(0, Math.floor(Number(after.setAside) || 0));
+        const stockLeft = typeof after.inventory === 'number' ? after.inventory - kept - held : null;
         await stateRef.set({
             status: 'done',
             committed,
@@ -82,7 +91,7 @@ async function flipOneBook(db, itemId) {
     }
     catch (err) {
         await stateRef.set({ status: 'failed', error: String(err).slice(0, 300), failedAt: firestore_1.Timestamp.now() }, { merge: true });
-        logger.error('bookSelloutFlips: flip failed', { itemId, err: String(err).slice(0, 300) });
+        logger.error(`bookSelloutFlips: flip failed for ${itemId}: ${String(err).slice(0, 300)}`, { itemId });
     }
 }
 exports.scheduledBookSelloutFlips = (0, sentry_1.onSchedule)({ schedule: 'every 5 minutes', timeZone: 'America/New_York', memory: '1GiB', timeoutSeconds: 540 }, async () => {

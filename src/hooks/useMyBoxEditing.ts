@@ -54,6 +54,7 @@ import {
   resolveSwapOptionsForItem,
   resolveFreeSlotAddOptions,
   resolveIncludedGiftOptions,
+  isStuffieCatalogItem,
   kidPlannerAges,
   filterBooksForKidAges,
 } from '../services/box/sectionUpsells';
@@ -928,6 +929,10 @@ export function useMyBoxEditing(deps: MyBoxEditingDeps) {
       await (kidSlot.kind === 'story' ? setKidBook : setKidGift)(kidSlot.kidId, item);
       return;
     }
+    // A full gift or book slot is not an empty practice slot. Falling through
+    // used to write the catalog catch-all (a stuffie on `decor`) at $0.
+    // A stuffie is included only as a kid's present, never as dreidel, food, or candles.
+    if (sectionId === 'presents' || sectionId === 'story' || isStuffieCatalogItem(item)) return;
     // Claiming the included practice again — drop Donated baselines for this section’s
     // free options (e.g. donated beeswax, then restore MYO should clear Donated).
     if (includedPracticeSlotVacant(sectionId, lineItems)) {

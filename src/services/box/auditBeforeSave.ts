@@ -29,6 +29,8 @@ export function auditBeforeSave(
     reportedAuditProblems.add(key);
     Sentry.captureMessage(`Box over allowance: ${problem.detail}`, {
       level: 'warning',
+      // Group by the rule, not by whichever click handler happened to save the box.
+      fingerprint: ['box-over-allowance', problem.code, problem.section],
       tags: { area: 'box-audit', code: problem.code, section: problem.section },
       extra: { problem, scope },
     });

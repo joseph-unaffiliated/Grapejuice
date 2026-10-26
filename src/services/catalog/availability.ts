@@ -44,8 +44,8 @@ function isLocked(lockAt: string | null | undefined, now: Date): boolean {
 /**
  * Resolve whether a catalog item can be bought à la carte right now.
  * Books are always box-only. Hold inventory is ignored — carve-out + FBA only.
- * When Airtable inventory is set, committed boxes also shrink pre-lock remaining
- * (hard ceiling: min(cap − direct, inventory − boxAllocated − direct)).
+ * When Airtable inventory is set, committed boxes and set-aside copies also shrink
+ * pre-lock remaining (hard ceiling: min(cap − direct, inventory − set aside − boxAllocated − direct)).
  */
 export function resolveAvailability(
   item: CatalogItem,
@@ -72,7 +72,7 @@ export function resolveAvailability(
       item.inventory != null &&
       Number.isFinite(item.inventory)
     ) {
-      const ceiling = Math.max(0, Math.floor(item.inventory) - boxAllocated - committed);
+      const ceiling = Math.max(0, Math.floor(item.inventory) - nonNeg(item.setAside) - boxAllocated - committed);
       remaining = Math.min(remaining, ceiling);
     }
     if (remaining <= 0) {
@@ -94,7 +94,7 @@ export function resolveAvailability(
   }
 
   const inventory = nonNeg(item.inventory);
-  const remaining = Math.max(0, inventory - boxAllocated - committed);
+  const remaining = Math.max(0, inventory - nonNeg(item.setAside) - boxAllocated - committed);
   if (remaining <= 0) {
     return { status: 'sold_out' };
   }

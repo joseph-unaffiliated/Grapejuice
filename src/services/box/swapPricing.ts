@@ -67,8 +67,8 @@ export function isIncludedSwap(
   if (isFoodSlotLine(line)) return isIncludedFoodSlotOption(target);
   const section = swapSectionForLine(line, sourceItem);
   if (section === 'story' || isBook(sourceItem)) return section === 'story' && isBook(target);
-  // Books and stuffies only fill story and present slots.
-  if (isBookishCatalogItem(target)) return false;
+  // Books only fill story slots. Stuffies only fill a kid's present slot (returned above).
+  if (isBookishCatalogItem(target) || isStuffieCatalogItem(target)) return false;
   const from = geltSizeOf(sourceItem);
   const to = geltSizeOf(target);
   if (from && to) return !isGeltSwapUp(from, to, ctx.geltCeiling);

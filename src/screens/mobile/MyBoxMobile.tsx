@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Constants from 'expo-constants';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { BoxItemImage } from '../../components/box/BoxItemImage';
@@ -9,7 +9,7 @@ import { DreidelIcon } from '../../components/ui/DreidelIcon';
 import { icons } from '../../constants/icons';
 import { BOX_DISPLAY_SECTIONS, displaySectionForCatalogItem, displaySectionForLineItem, type BoxDisplaySectionId } from '../../constants/boxDisplaySections';
 import { openIcs } from '../../components/holiday/AddToCalendarMenu';
-import { hanukkahCalendarEvents } from '../../utils/calendarLinks';
+import { googleCalendarUrl, hanukkahCalendarEvents } from '../../utils/calendarLinks';
 import {
   childNamesForLines,
   coalesceLinesByItemId,
@@ -19,7 +19,7 @@ import {
   isWrapControlSlot,
   isWrappingPaperItem,
   isGiftSlotLine,
-  includedPracticeSlotVacant,
+  practiceSlotOpenForFreeAdd,
   openKidSlotFor,
   wrappableLinesInBox,
   kidsNeedingBook,
@@ -327,10 +327,17 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   }, [e.lineItems, e.catalog, e.people, e.wrapSelectedIds, kids, e.boxPriceCents]);
   const sectionTitle = (id: BoxDisplaySectionId, fallback: string) =>
     id === 'food' ? 'Eat & Drink' : id === 'presents' ? 'Giving Gifts' : fallback;
-  const addToCalendar = () => {
+  const calendarLock = useMemo(() => {
     const events = hanukkahCalendarEvents({ startsOn: e.startsOn ?? null, lockAt: e.lockAt ?? null, estimatedDeliveryBy: e.estimatedDeliveryBy ?? null });
-    const lock = events.find((ev) => /customize|lock/i.test(ev.title)) ?? events[0];
-    if (lock) openIcs(lock);
+    return events.find((ev) => /customize|lock/i.test(ev.title)) ?? null;
+  }, [e.startsOn, e.lockAt, e.estimatedDeliveryBy]);
+  const addToCalendar = () => {
+    if (!calendarLock) return;
+    if (Platform.OS === 'web') {
+      void Linking.openURL(googleCalendarUrl(calendarLock));
+      return;
+    }
+    openIcs(calendarLock);
   };
 
   const thumbs: BoxThumb[] = useMemo(() => {
@@ -437,7 +444,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
    * presents, while some kid has none. Otherwise it swaps the one you have, or it costs the add-on price.
    */
   const offerFor = (item: CatalogItem, sectionId: BoxDisplaySectionId, sectionRows: CoalescedBoxLine[]) => {
-    const slotOpen = sectionRows.length === 0 || includedPracticeSlotVacant(sectionId, e.lineItems);
+    const slotOpen = practiceSlotOpenForFreeAdd(sectionId, sectionRows.length, e.lineItems);
     const kidSlotOpen = !!openKidSlotFor(item, sectionId, e.lineItems, kids.map((c) => c.id), e.catalog);
     const claimsSlot =
       kidSlotOpen ||
@@ -450,14 +457,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     return { free, claimsSlot, swap, label, cents };
   };
 
-  /** The aisle an item belongs in; only presents takes whatever section the button was in. */
-  const homeSection = (item: CatalogItem, sectionId: BoxDisplaySectionId) => {
-    const home = displaySectionForCatalogItem(item);
-    return home === 'presents' ? sectionId : home;
-  };
-
   const addItem = async (item: CatalogItem, from: BoxDisplaySectionId) => {
-    const sectionId = homeSection(item, from);
+    const sectionId = from;
     const standIn = donatedStandIn(item);
     if (standIn) {
       await e.restoreDonated(standIn.id, item);
@@ -489,7 +490,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
 
   /** Always a paid extra, even when the item could be swapped in. */
   const addExtra = async (it: CatalogItem, from: BoxDisplaySectionId) => {
-    const sectionId = homeSection(it, from);
+    const sectionId = from;
     e.setProductModalSection(sectionId);
     await e.modalAddToBox(it, { sectionId });
     setToast({ message: `Added ${it.name}`, action: { label: 'Undo', onPress: () => void live.current.modalRemoveFromBox(it) } });
@@ -497,7 +498,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
 
   /** Price-labelled add buttons never swap; an empty included slot is still filled for free. */
   const addOnTopOf = async (item: CatalogItem, from: BoxDisplaySectionId) => {
-    const sectionId = homeSection(item, from);
+    const sectionId = from;
     if (offerFor(item, sectionId, rowsFor(sectionId)).free) return addItem(item, sectionId);
     return addExtra(item, sectionId);
   };
@@ -869,7 +870,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
     );
   };
 
-  const priceToAdd = (it: CatalogItem, from: BoxDisplaySectionId) => e.addOnTopCents(it, homeSection(it, from));
+  const priceToAdd = (it: CatalogItem, from: BoxDisplaySectionId) => e.addOnTopCents(it, from);
   const swapQtyLabel = (g: CoalescedBoxLine, o: CatalogItem) => {
     const q = e.swapQuantityFor(g.lines.map((l) => l.slotId), o);
     return q ? ` ×${q}` : '';
@@ -1093,8 +1094,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             <Icon icon={icons.calendar} size={13} color={m.gold} />
             {gift ? <Text style={styles.lockText}>Send by {lockShort}</Text> : (
             <Text style={styles.lockText}>
-              {e.locked ? `Locked ${lockShort}` : `Change anything until ${lockShort}${daysLeft != null ? ` · ${daysLeft} days left` : ''} · `}
-              {e.locked ? null : (
+              {e.locked ? `Locked ${lockShort}` : `Change anything until ${lockShort}${daysLeft != null ? ` · ${daysLeft} days left` : ''}${calendarLock ? ' · ' : ''}`}
+              {e.locked || !calendarLock ? null : (
                 <Text style={styles.lockLink} onPress={addToCalendar} accessibilityRole="link">
                   Add to calendar
                 </Text>

@@ -21,7 +21,8 @@ exports.GELT_LITTLE_EQUIVALENT = { little: 1, big: 3, party: 12 };
 exports.FOOD_SLOTS_INCLUDED = 2;
 exports.FOOD_SLOT_MAX_LITTLE_BAGS = 3;
 const DEFAULT_ADULTS = 2;
-const FOOD_SLOT_IDS = new Set(['latke-mix', 'sufganiyot-mix', 'latke-kit', 'sufganiyot-kit', 'food', 'applesauce']);
+/** The two food positions, plus legacy catch-alls. Product ids (`latke-kit`, `sufganiyot-kit`) are not positions. */
+const FOOD_SLOT_IDS = new Set(['latke-mix', 'sufganiyot-mix', 'food', 'applesauce']);
 /** Claim order when adding into an empty included food slot (never catalog catch-alls like `decor`). */
 exports.FOOD_SLOT_CLAIM_IDS = ['latke-mix', 'sufganiyot-mix', 'food'];
 const DREIDEL_SLOT_IDS = new Set(['wood-dreidel', 'blank-dreidel', 'airdry-dreidel', 'keepsake-dreidel']);
@@ -39,9 +40,8 @@ function foodSlotQuantity(item) {
     return geltBagOf(item.id, (_a = item.name) !== null && _a !== void 0 ? _a : '') === 'little' ? exports.FOOD_SLOT_MAX_LITTLE_BAGS : 1;
 }
 /**
- * Next unused included food slot id, or null when two free food-slot lines already fill the
- * allowance (even if a preferred id like `sufganiyot-mix` is unused because a second kit sits
- * on `latke-kit`).
+ * Next unused included food position, or null when two free food lines already fill the
+ * allowance. Positions are `latke-mix`, then `sufganiyot-mix`, then `food`.
  */
 function nextVacantFoodSlotId(existing) {
     const filled = existing.filter((li) => { var _a, _b; return isFoodSlotLine(li) && ((_a = li.unitCents) !== null && _a !== void 0 ? _a : 0) === 0 && ((_b = li.quantity) !== null && _b !== void 0 ? _b : 0) > 0; }).length;
@@ -433,7 +433,8 @@ function overProblems(audit) {
  * Customer-favor fixes: a charged line that is a valid included item in its own empty slot
  * becomes free; wrapping paper charged as the only wrap becomes free; and a free food-slot
  * option parked outside the food slots (e.g. cookie cutters on catalog `decor`) is rehomed
- * into a vacant food slot. Each fix is kept only when the audit then drops that problem
+ * into a vacant food slot, and an included present parked on that same catch-all moves into
+ * a kid's empty present slot. Each fix is kept only when the audit then drops that problem
  * without any new over-allowance or not-included problem. Missing gelt or food slots are
  * never filled by inventing new items (the customer may have donated them).
  */
@@ -496,8 +497,47 @@ function healIncludedInCustomerFavor(lineItems, catalog, household, opts = {}) {
         const parked = lines.find((li) => li.slotId === freeAddOn.slotId && li.itemId === freeAddOn.itemId);
         if (!parked)
             break;
-        const candidate = lines.map((li) => (li === parked ? Object.assign(Object.assign({}, li), { slotId: vacant }) : li));
+        const candidate = lines.map((li) => li === parked ? Object.assign(Object.assign({}, li), { slotId: vacant, displaySectionId: 'food' }) : li);
         if (!accept(candidate, missing))
+            break;
+    }
+    // An included present (stuffie, play menorah) left on the catalog catch-all while a kid
+    // has no free present. Books and dreidels stay put — they have their own slots.
+    for (;;) {
+        const parkedProblem = audit.problems.find((p) => {
+            var _a;
+            if (p.code !== 'free-add-on' || p.grandfathered || !p.itemId || !p.slotId)
+                return false;
+            if (auditSlotBase(p.slotId) === 'gift')
+                return false;
+            const parked = lines.find((li) => li.slotId === p.slotId && li.itemId === p.itemId);
+            if (!parked || parked.quantity !== 1)
+                return false;
+            const h = hay(parked, rows.get(p.itemId));
+            if (((_a = rows.get(p.itemId)) === null || _a === void 0 ? void 0 : _a.category) === 'Book' || /^book-/.test(parked.itemId))
+                return false;
+            if (isIncludedDreidel(h))
+                return false;
+            return isIncludedPresent(h, rows.get(p.itemId));
+        });
+        if (!(parkedProblem === null || parkedProblem === void 0 ? void 0 : parkedProblem.slotId) || !parkedProblem.itemId)
+            break;
+        const parked = lines.find((li) => li.slotId === parkedProblem.slotId && li.itemId === parkedProblem.itemId);
+        if (!parked)
+            break;
+        const taken = new Set(lines
+            .filter((li) => isFreeLine(li) && auditSlotBase(li.slotId) === 'gift')
+            .map((li) => auditKidKey(li))
+            .filter((kid) => !!kid));
+        const kid = household.kidKeys.find((key) => {
+            if (taken.has(key))
+                return false;
+            return !lines.some((li) => li.slotId === `gift-${key}`);
+        });
+        if (!kid)
+            break;
+        const candidate = lines.map((li) => li === parked ? Object.assign(Object.assign({}, li), { slotId: `gift-${kid}`, childId: kid, displaySectionId: 'presents' }) : li);
+        if (!accept(candidate, parkedProblem))
             break;
     }
     return { lineItems: lines, healed, audit };

@@ -198,7 +198,7 @@ export async function loadCatalogRows(db: Firestore = getFirestore()): Promise<C
     if (row.inventory == null) return row;
     return {
       ...row,
-      stockLeft: Math.max(0, Math.floor(row.inventory) - (committed.get(d.id) ?? 0)),
+      stockLeft: Math.max(0, Math.floor(row.inventory) - n(d.get('setAside')) - (committed.get(d.id) ?? 0)),
       draftHeld: draftHeld.get(d.id) ?? 0,
     };
   });

@@ -317,12 +317,16 @@ function matchesKind(item: CatalogItem, kind: string): boolean {
   // Catch-all dreidel shelf: spinning tops only — not cookie cutters or gelt bags.
   if (key === 'more-dreidels') {
     const h = haystack(item);
-    if (/cookie.?cutter|gelt/.test(h)) return false;
+    if (/cookie.?cutter|gelt|stuffie|plush|softie/.test(h)) return false;
+    if (isStuffieCatalogItem(item)) return false;
     return /dreidel/.test(h);
   }
   if (DEFAULT_SLOTS.has(key)) {
     const hit = resolveByDefaultSlot([item], key as DefaultSlotId);
     return hit?.id === item.id;
+  }
+  if (key === 'menorah' || key === 'toy-menorahs' || key === 'toy-menorah') {
+    if (isStuffieCatalogItem(item)) return false;
   }
   if (GIFT_KINDS.has(key) || key === 'stuffie') {
     const giftKey = (
@@ -433,6 +437,15 @@ function excludeBooksUnlessStory(
 ): CatalogItem[] {
   if (sectionId === 'story') return items;
   return items.filter((item) => !isBookishCatalogItem(item));
+}
+
+/** Stuffies are presents. Practice shelves do not offer them. */
+function excludeStuffiesOutsidePresents(
+  sectionId: BoxDisplaySectionId,
+  items: CatalogItem[]
+): CatalogItem[] {
+  if (sectionId === 'presents') return items;
+  return items.filter((item) => !isStuffieCatalogItem(item));
 }
 
 /** Menorah / dreidel — second tier in Presents Add more (books live under Story). */
@@ -629,8 +642,8 @@ export function resolveSectionUpsellItems(
   }
 
   // Story: keep books in natural kind order, winding-down titles last.
-  if (sectionId === 'story') return demoteHeldBooks(out).slice(0, limit);
-  return excludeBooksUnlessStory(sectionId, out).slice(0, limit);
+  const placed = sectionId === 'story' ? demoteHeldBooks(out) : excludeBooksUnlessStory(sectionId, out);
+  return excludeStuffiesOutsidePresents(sectionId, placed).slice(0, limit);
 }
 
 /**
@@ -665,7 +678,8 @@ export function resolveSectionSwapItems(
     }
   }
 
-  return (sectionId === 'story' ? demoteHeldBooks(out) : excludeBooksUnlessStory(sectionId, out)).slice(0, limit);
+  const placed = sectionId === 'story' ? demoteHeldBooks(out) : excludeBooksUnlessStory(sectionId, out);
+  return excludeStuffiesOutsidePresents(sectionId, placed).slice(0, limit);
 }
 
 /**
@@ -691,7 +705,7 @@ export function resolveFreeSlotAddOptions(
   if (sectionId === 'dreidel') {
     items = items.filter((item) => !/gelt/i.test(`${item.id} ${item.name}`));
   }
-  return items;
+  return excludeStuffiesOutsidePresents(sectionId, items);
 }
 
 /**

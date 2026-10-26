@@ -364,7 +364,7 @@ export function StorefrontCategoryScreen() {
     navigation.setOptions({
       title: searchQuery
         ? `Search: ${searchQuery}`
-        : def?.label ?? def?.title ?? 'Store',
+        : def?.title ?? def?.label ?? 'Store',
     });
   }, [navigation, def?.label, def?.title, searchQuery]);
 

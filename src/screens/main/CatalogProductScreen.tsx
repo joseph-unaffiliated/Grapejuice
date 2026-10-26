@@ -36,6 +36,7 @@ import {
   resolveCatalogDisplayPrices,
   boxAddOnUnitCents,
 } from '../../services/box/pricing';
+import { foodAddPlacement } from '../../services/box/foodAdd';
 import {
   availabilityAllowsDirectPurchase,
   availabilityRemaining,
@@ -264,7 +265,8 @@ export function CatalogProductScreen() {
     ? resolveCatalogDisplayPrices(item)
     : { memberCents: 0, nonMemberCents: 0 };
   /** Box-path charge: member list for à la carte; existing tier rules otherwise. */
-  const boxUnitCents = item ? boxAddOnUnitCents(item) : 0;
+  const foodPlacement = item ? foodAddPlacement(item, lineItems) : null;
+  const boxUnitCents = foodPlacement ? foodPlacement.unitCents : item ? boxAddOnUnitCents(item) : 0;
   const bodyCopy = useMemo(() => (item ? pdpBodyCopyForItem(item) : undefined), [item]);
   const details = useMemo(() => (item ? detailRowsFromItem(item) : []), [item]);
   const howTo = useMemo(() => (item ? howToLinkForItem(item) : null), [item]);
@@ -350,14 +352,17 @@ export function CatalogProductScreen() {
   const addToBox = async () => {
     if (!item || locked || inBox || isCatalogItemSoldOut(item)) return;
     if (boxUnitCents > 0 && !guardMutation()) return;
+    const placed = foodAddPlacement(item, lineItems);
     await persist([
       ...lineItems,
       {
-        slotId: item.slotId,
+        slotId: placed?.slotId ?? item.slotId,
         itemId: item.id,
-        quantity: 1,
-        unitCents: boxUnitCents,
+        quantity: placed?.quantity ?? 1,
+        unitCents: placed?.unitCents ?? boxUnitCents,
+        ...(placed ? { includedQty: placed.includedQty } : {}),
         label: item.name,
+        ...(placed && placed.unitCents === 0 ? { displaySectionId: 'food' as const } : {}),
       },
     ]);
     trackMetaProduct('AddToCart', { id: item.id, name: item.name, priceCents: boxUnitCents });

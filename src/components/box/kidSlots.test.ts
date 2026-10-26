@@ -8,8 +8,11 @@ import {
   includedPracticeSlotVacant,
   kidsMissingIncluded,
   openKidSlotFor,
+  practiceSlotOpenForFreeAdd,
+  syncWrappingPaperUnitCentsForWrapSelection,
   uniqueSlotForFreeSectionAdd,
 } from './boxLineDisplay';
+import { EXTRA_FLAT_CENTS } from '../../services/box/pricing';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
 
 function book(id: string): CatalogItem {
@@ -62,7 +65,7 @@ assert.deepEqual(
 const kit = (slotId: string, itemId: string, unitCents = 0) => ({ slotId, itemId, quantity: 1, unitCents }) as BoxLineItem;
 assert.equal(includedPracticeSlotVacant('food', [kit('latke-mix', 'latke-kit'), kit('sufganiyot-mix', 'sufganiyot-kit')]), false);
 assert.equal(includedPracticeSlotVacant('food', [kit('latke-mix', 'latke-kit')]), true);
-assert.equal(includedPracticeSlotVacant('food', [kit('latke-mix', 'latke-kit'), kit('latke-kit', 'latke-kit')]), false);
+assert.equal(includedPracticeSlotVacant('food', [kit('latke-mix', 'latke-kit'), kit('latke-kit', 'latke-kit')]), true);
 assert.equal(includedPracticeSlotVacant('food', [kit('latke-mix', 'latke-kit'), kit('addon-sufganiyot-kit', 'sufganiyot-kit', 500)]), true);
 assert.equal(
   includedPracticeSlotVacant('food', [kit('latke-mix', 'latke-kit'), { ...kit('sufganiyot-mix', 'little-bag-of-gelt-2-big-5-little'), quantity: 3 }]),
@@ -89,5 +92,27 @@ assert.equal(
   ]),
   'addon-dreidel-cookie-cutters'
 );
+
+// A presents list can look empty while the kid's gift slot is full. That is not a free add.
+const gift = { slotId: 'gift-k1', itemId: 'airdry-clay-dreidel', quantity: 1, unitCents: 0, childId: 'k1' } as BoxLineItem;
+assert.equal(practiceSlotOpenForFreeAdd('presents', 0, [gift]), false);
+assert.equal(practiceSlotOpenForFreeAdd('story', 0, [line('story-k1', a, 0, 'k1')]), false);
+assert.equal(practiceSlotOpenForFreeAdd('candles', 0, []), true);
+assert.equal(practiceSlotOpenForFreeAdd('candles', 1, [kit('candles', 'beeswax-candles')]), false);
+
+// A second sheet at the member price ($5, same as the wrap fee) stays $5 when nothing is marked to be wrapped.
+const paper = { id: 'wrapping-paper', name: 'Wrapping Paper', slotId: 'wrapping-paper', memberPriceCents: 500 } as unknown as CatalogItem;
+const sheets = syncWrappingPaperUnitCentsForWrapSelection(
+  [
+    { slotId: 'wrapping-paper', itemId: 'wrapping-paper', quantity: 1, unitCents: 0, includedQty: 1, label: 'Wrapping Paper' },
+    { slotId: 'wrapping-paper::x', itemId: 'wrapping-paper', quantity: 1, unitCents: EXTRA_FLAT_CENTS, label: 'Wrapping Paper' },
+  ] as BoxLineItem[],
+  [paper],
+  0,
+  EXTRA_FLAT_CENTS
+);
+assert.equal(sheets[0]?.unitCents, 0);
+assert.equal(sheets[1]?.unitCents, EXTRA_FLAT_CENTS);
+assert.equal(sheets[1]?.includedQty, undefined);
 
 console.log('kidSlots.test: ok');

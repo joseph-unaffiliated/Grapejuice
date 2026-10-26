@@ -53,7 +53,7 @@ import { VisitorRegionEffect } from '../hooks/useVisitorRegion';
 import { hydratePasswordResetFromBoot } from './passwordResetLink';
 import { onWebNavigationStateChange } from './webBrowserHistory';
 import { onSeoNavigationStateChange } from './useSeoMeta';
-import { HOME_TITLE, seoTitle } from '../constants/seo';
+import { HOME_TITLE, seoTitle, shopSeoTitle } from '../constants/seo';
 import { consumePendingAuthReturn } from '../services/auth/auth';
 
 hydratePasswordResetFromBoot();
@@ -433,13 +433,14 @@ export function RootNavigator() {
           }}
           onReady={() => onSeoNavigationStateChange(navigationRef.getRootState())}
           documentTitle={{
-            formatter: (options, route) =>
-              route?.name === 'StorefrontHome'
-                ? HOME_TITLE
-                : seoTitle(
-                    (typeof options?.title === 'string' && options.title.trim()) ||
-                      (typeof route?.name === 'string' ? humanizeRoute(route.name) : '')
-                  ),
+            formatter: (options, route) => {
+              const page =
+                (typeof options?.title === 'string' && options.title.trim()) ||
+                (typeof route?.name === 'string' ? humanizeRoute(route.name) : '');
+              if (route?.name === 'StorefrontHome') return HOME_TITLE;
+              if (route?.name === 'StorefrontCategory' || route?.name === 'CatalogProduct') return shopSeoTitle(page);
+              return seoTitle(page);
+            },
           }}
         >
           <WebBrowserHistoryBridge />

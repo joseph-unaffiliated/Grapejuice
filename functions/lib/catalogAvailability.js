@@ -48,7 +48,7 @@ function resolveAvailability(item, counters, lockAt, now = new Date()) {
         }
         let remaining = Math.max(0, Math.floor(cap) - committed);
         if (item.inventory != null && Number.isFinite(item.inventory)) {
-            const ceiling = Math.max(0, Math.floor(item.inventory) - boxAllocated - committed);
+            const ceiling = Math.max(0, Math.floor(item.inventory) - nonNeg(item.setAside) - boxAllocated - committed);
             remaining = Math.min(remaining, ceiling);
         }
         if (remaining <= 0) {
@@ -67,7 +67,7 @@ function resolveAvailability(item, counters, lockAt, now = new Date()) {
         return { status: 'box_only', reason: 'post_lock_no_release' };
     }
     const inventory = nonNeg(item.inventory);
-    const remaining = Math.max(0, inventory - boxAllocated - committed);
+    const remaining = Math.max(0, inventory - nonNeg(item.setAside) - boxAllocated - committed);
     if (remaining <= 0) {
         return { status: 'sold_out' };
     }

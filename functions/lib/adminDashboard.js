@@ -456,6 +456,8 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             name: (_c = str(x.name)) !== null && _c !== void 0 ? _c : d.id,
             inventory: num(x.inventory),
             procured: num(x.procured),
+            setAside: num(x.setAside),
+            setAsideFor: str(x.setAsideFor),
             category: str(x.category),
             categories: Array.isArray(x.categories) ? x.categories.filter((c) => typeof c === 'string') : undefined,
             directSaleCapBeforeLock: num(x.directSaleCapBeforeLock),
@@ -900,6 +902,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
         const directSold = n0(c.directSoldQty);
         const directReserved = n0(c.directReservedQty);
         const stock = (_51 = it === null || it === void 0 ? void 0 : it.inventory) !== null && _51 !== void 0 ? _51 : null;
+        const setAside = n0(it === null || it === void 0 ? void 0 : it.setAside);
         if (heldByBoxes + heldByGifts !== counterAllocated) {
             mismatches.push({ id, name: (_52 = it === null || it === void 0 ? void 0 : it.name) !== null && _52 !== void 0 ? _52 : id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
         }
@@ -915,7 +918,9 @@ async function buildBoxesDashboard(db, nowMs = Date.now()) {
             counterAllocated,
             directSold,
             directReserved,
-            remaining: stock == null ? null : stock - counterAllocated - directSold - directReserved,
+            remaining: stock == null ? null : stock - setAside - counterAllocated - directSold - directReserved,
+            setAside: it.setAside,
+            setAsideFor: it.setAsideFor,
             directCap: it.directSaleCapBeforeLock,
             shopStatus: shop.status,
             shopRemaining: (0, catalogAvailability_1.availabilityRemaining)(shop),
@@ -993,7 +998,7 @@ function createAdminBoxesDashboard(db) {
             (0, metaAdsInsights_1.metaStatsByAd)(),
             (0, boxAuditJob_1.loadBoxProblems)(db).catch((err) => {
                 logger.warn('adminBoxesDashboard: box problems unavailable', { err: String(err) });
-                return { boxProblems: [], boxAuditRun: null };
+                return { boxProblems: [], boxAuditRun: null, fixLog: [] };
             }),
         ]);
         return Object.assign(Object.assign(Object.assign({}, dash), { metaByAd }), audits);

@@ -194,4 +194,22 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   assert.deepEqual(resolveAvailability(menorah, counters, postLock, now), { status: 'sold_out' });
 }
 
+// Set aside shrinks the inventory ceiling, before and after lock
+{
+  const menorah = item({
+    id: 'branches-menorah',
+    name: 'Branches Menorah',
+    directSaleCapBeforeLock: 20,
+    inventory: 12,
+    setAside: 4,
+  });
+  const counters = { ...emptyInventoryCounters(menorah.id), boxAllocatedQty: 6 };
+  const before = resolveAvailability(menorah, counters, preLock, now);
+  assert.equal(before.status, 'limited');
+  if (before.status === 'limited') assert.equal(before.remaining, 2); // min(20, 12-4-6)
+  const after = resolveAvailability({ ...menorah, sellAfterLock: 'yes' }, counters, postLock, now);
+  assert.equal(after.status, 'limited');
+  if (after.status === 'limited') assert.equal(after.remaining, 2);
+}
+
 console.log('availability.test.ts: all passed');

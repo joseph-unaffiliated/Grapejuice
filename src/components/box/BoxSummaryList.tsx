@@ -167,13 +167,6 @@ export function BoxSummaryList({
       : rows.length;
   const cols = balancedColumnCount(rows.length, maxCols);
   const rowChunks = chunkRows(rows, cols);
-  /** Jump grid: stretch tiles so the balanced rows span the full width. */
-  const tileSize =
-    isJump && gridWidth > 0
-      ? Math.max(tile, Math.floor((gridWidth - GRID_COL_GAP * (cols - 1)) / cols))
-      : tile;
-  const tileSizeStyle = tileSize === tile ? null : { width: tileSize };
-  const imageSizeStyle = tileSize === tile ? null : { width: tileSize, height: tileSize };
   /** Web: keep every row inside the grid even if `gridWidth` is stale. */
   const tileCapStyle =
     Platform.OS === 'web'
@@ -190,10 +183,10 @@ export function BoxSummaryList({
     const body = (
       <>
         <BoxItemImage
-          size={tileSize}
+          size={tile}
           imageUrl={row.imageUrl}
           itemId={row.itemId}
-          style={{ ...styles.image, ...imageSizeStyle, ...(tileCapStyle ? styles.fitParent : null) }}
+          style={{ ...styles.image, ...(tileCapStyle ? styles.fitParent : null) }}
         />
         {isJump ? null : <Text style={styles.price}>{price}</Text>}
         <Text style={styles.name} numberOfLines={2}>
@@ -210,7 +203,7 @@ export function BoxSummaryList({
       return (
         <TouchableOpacity
           key={row.key}
-          style={[styles.tile, tileSizeStyle, tileCapStyle]}
+          style={[styles.tile, tileCapStyle]}
           onPress={() => onPressItem(row.itemId, row.sectionId, row.key)}
           activeOpacity={0.85}
           accessibilityRole="button"
@@ -223,7 +216,7 @@ export function BoxSummaryList({
     return (
       <View
         key={row.key}
-        style={[styles.tile, tileSizeStyle, tileCapStyle]}
+        style={[styles.tile, tileCapStyle]}
         accessibilityRole="text"
         accessibilityLabel={a11y}
       >

@@ -403,26 +403,33 @@ function CheckoutScreenBody() {
     if (setupClientSecret) recordCheckoutStep('payment', household?.id);
   }, [setupClientSecret, household?.id]);
 
-  const startSetup = async (fromShippingForm = false) => {
+  const startSetup = async (fromShippingForm = false, opts?: { skipAddress?: boolean }) => {
     if (!household?.id) return;
     if (!stripeKey) {
       notifyCheckout('Not configured', 'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env');
       return;
     }
-    if (fromShippingForm ? !(await ensureAddressDeliverable()) : !ensureAddressValid()) return;
+    // Replacing a saved card opens the card form on its own. Shipping is checked on Continue.
+    if (opts?.skipAddress) {
+      setAddressFieldErrors({});
+      setAddressFormError(null);
+    } else if (fromShippingForm ? !(await ensureAddressDeliverable()) : !ensureAddressValid()) {
+      return;
+    }
     cardBeforeSetupRef.current = {
       at: household.cardOnFileAt,
       pm: household.stripeDefaultPaymentMethodId,
     };
     const keepShipping = shippingConfirmed;
-    setShippingConfirmed(true);
+    const confirmShipping = !opts?.skipAddress || validateAddress().ok;
+    if (confirmShipping) setShippingConfirmed(true);
     setPreparing(true);
     try {
       const result = await takeSetupIntent(household.id);
       if (!result.clientSecret) {
         recordCheckoutError('setup', 'No setup secret returned.', household.id);
         notifyCheckout('Error', 'No setup secret returned.');
-        if (!keepShipping) setShippingConfirmed(false);
+        if (confirmShipping && !keepShipping) setShippingConfirmed(false);
         return;
       }
       setupSecretRef.current = result.clientSecret;
@@ -430,7 +437,7 @@ function CheckoutScreenBody() {
       // Own history entry so Back returns to shipping, not My Box.
       pushBrowserPath(checkoutPath('payment'));
     } catch (e) {
-      if (!keepShipping) setShippingConfirmed(false);
+      if (confirmShipping && !keepShipping) setShippingConfirmed(false);
       recordCheckoutError('setup', e instanceof Error ? e.message : 'Could not continue to payment', household.id);
       notifyCheckout('Could not continue to payment', formatSetupIntentError(e));
     } finally {
@@ -438,18 +445,18 @@ function CheckoutScreenBody() {
     }
   };
 
-  /** Phone: the saved card's brand and last four, and whether the shopper is entering a new one. */
+  /** Saved card's brand and last four, and whether the shopper is entering a new one. */
   const [savedCard, setSavedCard] = useState<SavedCardSummary | null>(null);
   const [replacingCard, setReplacingCard] = useState(false);
   useEffect(() => {
-    if (!mobileLayout || !cardOnFile || !household?.id) return;
+    if (!cardOnFile || !household?.id) return;
     let alive = true;
     const pending = peekSavedCard(household.id) ?? getSavedCardSummary(household.id);
     void pending.then((card) => alive && setSavedCard(card)).catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, [mobileLayout, cardOnFile, household?.id, household?.stripeDefaultPaymentMethodId]);
+  }, [cardOnFile, household?.id, household?.stripeDefaultPaymentMethodId]);
 
   const startCardReplace = async () => {
     if (!household?.id || !stripeKey) return;
@@ -567,15 +574,38 @@ function CheckoutScreenBody() {
   };
 
   const onCardSaved = async () => {
-    // Persist before URL/history changes so a remount still sees commit-only.
-    setShippingConfirmed(true);
+    const addressReady = validateAddress().ok;
+    // A new card with no address yet goes back to shipping. Don't commit, and don't
+    // mark shipping confirmed — that would hide the address form.
+    if (addressReady) setShippingConfirmed(true);
     setAwaitingCardOnFile(true);
     if (household?.id) releaseSetupIntent(household.id);
     // Drop the payment history step without going "back" to shipping UX.
     replaceBrowserPath(CHECKOUT_PATH);
     setupSecretRef.current = null;
     setSetupClientSecret(null);
-    await waitForCardThenCommit();
+    if (addressReady) {
+      await waitForCardThenCommit();
+      return;
+    }
+    const householdId = household?.id;
+    if (householdId) {
+      for (let i = 0; i < 20; i += 1) {
+        await refreshSession({ silent: true });
+        const hh = await householdsService.get(householdId);
+        if (!savedCardReplaced(hh, cardBeforeSetupRef.current)) {
+          await new Promise((r) => setTimeout(r, 400));
+          continue;
+        }
+        try {
+          setSavedCard(await getSavedCardSummary(householdId));
+        } catch {
+          // The chip falls back to "Card on file" until the next load.
+        }
+        break;
+      }
+    }
+    setAwaitingCardOnFile(false);
   };
 
   // Stripe may redirect back to /checkout after 3DS — treat that as a successful save.
@@ -640,16 +670,11 @@ function CheckoutScreenBody() {
       ) : (
         <>
           <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
-          <Text style={checkoutUi.hint}>Card saved.</Text>
-          <TouchableOpacity
-            onPress={() => void startSetup()}
+          <MobileSavedCard
+            label={savedCard ? savedCardLabel(savedCard) : 'Card on file'}
+            onChange={() => void startSetup(false, { skipAddress: true })}
             disabled={preparing || locked}
-            accessibilityRole="button"
-            accessibilityLabel="Change card"
-            style={styles.changeCard}
-          >
-            <Text style={page.link}>Change card</Text>
-          </TouchableOpacity>
+          />
           {addressFormError ? <Text style={checkoutUi.fieldError}>{addressFormError}</Text> : null}
         </>
       )}
@@ -664,17 +689,21 @@ function CheckoutScreenBody() {
     </>
   ) : shippingThenCommit ? (
     <>
-      <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
-      <Text style={checkoutUi.hint}>Card on file. Add your shipping address to finish.</Text>
-      <TouchableOpacity
-        onPress={() => void startSetup()}
-        disabled={preparing || locked}
-        accessibilityRole="button"
-        accessibilityLabel="Change card"
-        style={styles.changeCard}
-      >
-        <Text style={page.link}>Change card</Text>
-      </TouchableOpacity>
+      {awaitingCardOnFile ? (
+        <View style={styles.savingCardRow}>
+          <BrandLoadingMark large={false} color={colors.brand} />
+          <Text style={styles.savingCardCopy}>Saving your card…</Text>
+        </View>
+      ) : (
+        <>
+          <Text style={checkoutUi.sectionHeading}>Payment Method</Text>
+          <MobileSavedCard
+            label={savedCard ? savedCardLabel(savedCard) : 'Card on file'}
+            onChange={() => void startSetup(false, { skipAddress: true })}
+            disabled={preparing || locked}
+          />
+        </>
+      )}
       <View style={checkoutUi.divider} />
       <CheckoutAddressFields
         address={address}
@@ -733,7 +762,7 @@ function CheckoutScreenBody() {
     </>
   );
 
-  const onPaymentStep = !!setupClientSecret && !cardReady;
+  const showingCardForm = !!setupClientSecret;
 
   const lockShort = lockShortLabel(lockAt);
   const chargeLine = checkoutChargeLine(lockShort, now);
@@ -893,7 +922,7 @@ function CheckoutScreenBody() {
   return (
     <SystemPage narrow onBack={onBack}>
       <Text style={checkoutUi.title}>
-        {onPaymentStep || commitOnly ? 'Payment' : 'Shipping'}
+        {showingCardForm || commitOnly ? 'Payment' : 'Shipping'}
       </Text>
       <Text style={checkoutUi.lead}>
         {chargeLine}

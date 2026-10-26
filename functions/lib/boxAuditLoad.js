@@ -9,6 +9,7 @@ exports.accountBoxRef = accountBoxRef;
 exports.loadAuditCatalog = loadAuditCatalog;
 exports.loadBoxes = loadBoxes;
 exports.matchException = matchException;
+exports.countsTowardOpenList = countsTowardOpenList;
 exports.isLikelyDonation = isLikelyDonation;
 exports.isOpenProblem = isOpenProblem;
 exports.auditBoxRef = auditBoxRef;
@@ -226,13 +227,30 @@ async function loadBoxes(db, opts = {}) {
     return { boxes, catalog };
 }
 function matchException(exceptions, email, p) {
-    const local = email === null || email === void 0 ? void 0 : email.toLowerCase().split('@')[0];
-    if (!local)
-        return undefined;
-    return exceptions.find((e) => e.email.toLowerCase().split('@')[0] === local &&
-        (!e.section || e.section === p.section) &&
-        (!e.code || e.code === p.code) &&
-        (!e.itemId || e.itemId === p.itemId));
+    var _a;
+    const local = (_a = email === null || email === void 0 ? void 0 : email.toLowerCase().split('@')[0]) !== null && _a !== void 0 ? _a : '';
+    return exceptions.find((e) => {
+        // A blank email is a decision already scoped to this box (signed-out drafts have no address).
+        const exceptionLocal = e.email.toLowerCase().split('@')[0];
+        if (exceptionLocal && exceptionLocal !== local)
+            return false;
+        return (!e.section || e.section === p.section) && (!e.code || e.code === p.code) && (!e.itemId || e.itemId === p.itemId);
+    });
+}
+/**
+ * Whether this box should add to the open-problem total. A committed household's
+ * draft repeats the order, and the review list shows the order only.
+ */
+function countsTowardOpenList(kind, path, open, orderHouseholds) {
+    var _a;
+    if (open <= 0)
+        return false;
+    if (kind === 'account') {
+        const householdId = (_a = path.match(/^households\/([^/]+)\//)) === null || _a === void 0 ? void 0 : _a[1];
+        if (householdId && orderHouseholds.has(householdId))
+            return false;
+    }
+    return true;
 }
 /** Less gelt or fewer food slots than included: usually the customer donated them. */
 function isLikelyDonation(p) {

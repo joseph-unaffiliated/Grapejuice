@@ -440,7 +440,11 @@ export function repairWoodDreidelHouseholdQty(
   const kidCount = kids.length;
   if (kidCount < 1 || kidCount >= 5) return { lineItems, dirty: false };
 
-  const woodLines = lineItems.filter((li) => catalogSlotId(li.slotId) === 'wood-dreidel');
+  const woodLines = lineItems.filter(
+    (li) =>
+      catalogSlotId(li.slotId) === 'wood-dreidel' &&
+      !/stuffie|plush|softie/i.test(`${li.itemId} ${li.label ?? ''}`)
+  );
   if (woodLines.length === 0) return { lineItems, dirty: false };
 
   const targetQty = householdPracticeQty(kids, adults, lineItems);
@@ -548,9 +552,7 @@ export function repairExtraPerKidPricing(
     'airdry-dreidel',
     'candles',
     'latke-mix',
-    'latke-kit',
     'sufganiyot-mix',
-    'sufganiyot-kit',
     'gelt',
     'gelt-small',
     'gelt-medium',

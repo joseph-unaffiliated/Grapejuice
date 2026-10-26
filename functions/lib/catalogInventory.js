@@ -52,6 +52,7 @@ function itemFromSnap(itemId, data) {
             ? data.categories.filter((c) => typeof c === 'string')
             : undefined,
         inventory: typeof data.inventory === 'number' ? data.inventory : null,
+        setAside: typeof data.setAside === 'number' ? data.setAside : null,
         directSaleCapBeforeLock: typeof data.directSaleCapBeforeLock === 'number' ? data.directSaleCapBeforeLock : null,
         sellAfterLock: data.sellAfterLock === 'yes' || data.sellAfterLock === 'flag' || data.sellAfterLock === 'no'
             ? data.sellAfterLock
@@ -268,7 +269,7 @@ function boxAllocationTracked(item) {
     return item.inventory != null && Number.isFinite(item.inventory);
 }
 function assertBoxItemWithinInventory(itemId, itemSnap, invSnap, want, credited) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     if (!itemSnap.exists) {
         throw new https_1.HttpsError('invalid-argument', `Unknown product: ${itemId}`);
     }
@@ -276,12 +277,13 @@ function assertBoxItemWithinInventory(itemId, itemSnap, invSnap, want, credited)
     if (!boxAllocationTracked(item))
         return false;
     const inventory = Math.max(0, Math.floor(item.inventory));
+    const setAside = Math.max(0, Math.floor((_b = item.setAside) !== null && _b !== void 0 ? _b : 0));
     const counters = parseCounters(invSnap.data());
-    const direct = ((_b = counters.directReservedQty) !== null && _b !== void 0 ? _b : 0) + ((_c = counters.directSoldQty) !== null && _c !== void 0 ? _c : 0);
-    const boxAllocated = (_d = counters.boxAllocatedQty) !== null && _d !== void 0 ? _d : 0;
-    const available = inventory - boxAllocated - direct + credited;
+    const direct = ((_c = counters.directReservedQty) !== null && _c !== void 0 ? _c : 0) + ((_d = counters.directSoldQty) !== null && _d !== void 0 ? _d : 0);
+    const boxAllocated = (_e = counters.boxAllocatedQty) !== null && _e !== void 0 ? _e : 0;
+    const available = inventory - setAside - boxAllocated - direct + credited;
     if (want > available) {
-        const name = (_e = item.name) !== null && _e !== void 0 ? _e : itemId;
+        const name = (_f = item.name) !== null && _f !== void 0 ? _f : itemId;
         const left = Math.max(0, available);
         throw new https_1.HttpsError('failed-precondition', left <= 0
             ? `${name} is out of stock for boxes.`

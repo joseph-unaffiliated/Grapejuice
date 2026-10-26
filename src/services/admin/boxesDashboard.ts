@@ -139,6 +139,10 @@ export type DashInventoryRow = {
   favoritesReal: number;
   /** Copies physically ordered (Airtable "Procured"); missing until the server function is redeployed. */
   procured?: number | null;
+  /** Copies kept back from sale (Airtable "Set aside"). */
+  setAside?: number | null;
+  /** Why those copies are kept (Airtable "Set aside for"). */
+  setAsideFor?: string | null;
 };
 
 export type DashShopLine = { itemId: string | null; name: string; qty: number; unitCents: number };
@@ -293,6 +297,8 @@ export type BoxesDashboard = {
   boxProblems?: DashBoxProblem[];
   /** Totals from the latest daily box audit sweep. */
   boxAuditRun?: DashBoxAuditRun | null;
+  /** Fixes chosen on Box problems. A row stays open until its cause is written. */
+  fixLog?: DashBoxFixLog[];
 };
 
 /** See functions/src/boxAuditJob.ts. */
@@ -316,6 +322,7 @@ export type DashBoxProblem = {
     direction: string;
     detail: string;
     itemId: string | null;
+    slotId?: string | null;
     childKey: string | null;
     approved: string | null;
     grandfathered: boolean;
@@ -323,12 +330,46 @@ export type DashBoxProblem = {
     decision?: 'approve' | 'donation' | 'follow-up' | 'emailed' | null;
     decisionNote?: string | null;
     decidedAt?: string | null;
+    fixes?: Array<{ id: string; label: string; detail: string; recommended: boolean }>;
   }>;
+};
+
+export type DashBoxFixLog = {
+  id: string;
+  at: string;
+  email: string | null;
+  path: string;
+  section: string;
+  code: string;
+  detail: string;
+  fixId: string;
+  fixLabel: string;
+  historyNote: string | null;
+  cause: string | null;
+  proposal: string | null;
 };
 
 export type BoxAuditDecisionKind = 'approve' | 'donation' | 'follow-up' | 'emailed';
 
 /** Record (or clear) an admin decision on one included-items audit problem. */
+export async function applyBoxProblemFix(input: {
+  path: string;
+  email?: string | null;
+  section: string;
+  code: string;
+  itemId?: string | null;
+  slotId?: string | null;
+  childKey?: string | null;
+  detail?: string;
+  fixId: string;
+  people?: number;
+  kids?: number;
+  note?: string;
+}): Promise<void> {
+  const fn = httpsCallable<typeof input, { ok: true }>(functions, 'applyBoxProblemFix');
+  await fn(input);
+}
+
 export async function decideBoxAuditProblem(input: {
   path: string;
   email?: string | null;

@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import type { CatalogItem } from '../../types/pilot';
-import { resolveSwapOptionsForItem } from './sectionUpsells';
+import { resolveIncludedGiftOptions, resolveSectionUpsellItems, resolveSwapOptionsForItem } from './sectionUpsells';
 
 const item = (over: Partial<CatalogItem> & { id: string; name: string }): CatalogItem =>
   ({
@@ -41,5 +41,27 @@ const ids = (items: CatalogItem[]) => items.map((c) => c.id);
   assert.ok(sufSwaps.includes('latke-kit'), `sufganiyot → latke: ${sufSwaps}`);
   assert.ok(!sufSwaps.includes('cocktail-napkins'), `no napkins: ${sufSwaps}`);
 }
+
+const shelves = [
+  ...catalog,
+  item({ id: 'classic-wooden-dreidel', name: 'Classic Wooden Dreidel', category: 'Dreidel', slotId: 'wood-dreidel' }),
+  item({ id: 'gimmel-the-dreidel-stuffie', name: 'Gimmel, the Dreidel Stuffie', category: 'Stuffies', slotId: 'decor' }),
+  item({ id: 'crispy-the-latke-stuffie', name: 'Crispy, the Latke Stuffie', category: 'Stuffies', slotId: 'decor' }),
+  item({ id: 'jelly-the-sufganiyah-stuffie', name: 'Jelly, the Sufganiyah Stuffie', category: 'Stuffies', slotId: 'decor' }),
+  item({ id: 'shamash-the-menorah-stuffie', name: 'Shamash, the Menorah Stuffie', category: 'Stuffies', slotId: 'decor' }),
+  item({ id: 'lego-menorah', name: '"Lego" Menorah', category: 'Menorah', slotId: 'decor' }),
+  item({ id: 'beeswax-candles', name: 'Beeswax Candles', category: 'Candles', slotId: 'candles' }),
+];
+const up = (section: 'dreidel' | 'food' | 'candles') =>
+  ids(resolveSectionUpsellItems(section, shelves, new Set(), 24));
+assert.ok(!up('dreidel').includes('gimmel-the-dreidel-stuffie'));
+assert.ok(!up('food').includes('crispy-the-latke-stuffie'));
+assert.ok(!up('food').includes('jelly-the-sufganiyah-stuffie'));
+assert.ok(!up('candles').includes('shamash-the-menorah-stuffie'));
+assert.ok(up('candles').includes('lego-menorah'), `candles keeps lego: ${up('candles')}`);
+const gifts = ids(resolveIncludedGiftOptions(shelves, undefined, 24));
+assert.ok(gifts.includes('gimmel-the-dreidel-stuffie'));
+assert.ok(gifts.includes('crispy-the-latke-stuffie'));
+assert.ok(gifts.includes('jelly-the-sufganiyah-stuffie'));
 
 console.log('sectionUpsells.food: ok');

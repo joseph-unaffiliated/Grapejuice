@@ -25,6 +25,7 @@ import { askRav } from '../../services/rav/askRav';
 import { navigateToAppPath } from '../../navigation/webBrowserHistory';
 import { buildRavCopilotClientContext } from '../../services/rav/buildRavCopilotContext';
 import { summarizeLineItemsForRav } from '../../services/rav/applyRavDraftActions';
+import { foodAddPlacement } from '../../services/box/foodAdd';
 import { getHanukkahConfig } from '../../services/firestore/config';
 import { catalogService } from '../../services/firestore/catalog';
 import { formatHanukkahWelcomeSubtext, formatRelativeTime, formatThreadListDate } from '../../services/hanukkah/dates';
@@ -427,15 +428,26 @@ export const PilotAIChatSheet = React.forwardRef<PilotAIChatSheetRef, Props>(fun
         showBlockFeedback(`${item.name} is sold out.`);
         return;
       }
+      const placed = foodAddPlacement(item, lineItems);
       await persist([
         ...lineItems,
-        {
-          slotId: item.slotId,
-          itemId: item.id,
-          quantity: 1,
-          unitCents: item.dollarCostCents > 0 ? item.dollarCostCents : 0,
-          label: item.name,
-        },
+        placed
+          ? {
+              slotId: placed.slotId,
+              itemId: item.id,
+              quantity: placed.quantity,
+              unitCents: placed.unitCents,
+              includedQty: placed.includedQty,
+              label: item.name,
+              displaySectionId: 'food' as const,
+            }
+          : {
+              slotId: item.slotId,
+              itemId: item.id,
+              quantity: 1,
+              unitCents: item.dollarCostCents > 0 ? item.dollarCostCents : 0,
+              label: item.name,
+            },
       ]);
       showBlockFeedback(`Added ${item.name} to your box.`);
     },

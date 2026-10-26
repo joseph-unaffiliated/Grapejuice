@@ -23,6 +23,8 @@ export type CatalogAvailabilityItem = {
   category?: string | null;
   categories?: string[];
   inventory?: number | null;
+  /** Copies kept back from sale. Subtracted wherever inventory is a ceiling. */
+  setAside?: number | null;
   directSaleCapBeforeLock?: number | null;
   sellAfterLock?: 'yes' | 'flag' | 'no' | null;
 };
@@ -71,7 +73,7 @@ export function resolveAvailability(
     }
     let remaining = Math.max(0, Math.floor(cap) - committed);
     if (item.inventory != null && Number.isFinite(item.inventory)) {
-      const ceiling = Math.max(0, Math.floor(item.inventory) - boxAllocated - committed);
+      const ceiling = Math.max(0, Math.floor(item.inventory) - nonNeg(item.setAside) - boxAllocated - committed);
       remaining = Math.min(remaining, ceiling);
     }
     if (remaining <= 0) {
@@ -92,7 +94,7 @@ export function resolveAvailability(
   }
 
   const inventory = nonNeg(item.inventory);
-  const remaining = Math.max(0, inventory - boxAllocated - committed);
+  const remaining = Math.max(0, inventory - nonNeg(item.setAside) - boxAllocated - committed);
   if (remaining <= 0) {
     return { status: 'sold_out' };
   }

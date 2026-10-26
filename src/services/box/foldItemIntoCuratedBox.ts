@@ -1,5 +1,6 @@
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
 import type { BoxLineItem, CatalogItem } from '../../types/pilot';
+import { foodAddPlacement } from './foodAdd';
 import { boxAddOnUnitCents, inferPricingTier } from './pricing';
 
 /**
@@ -36,6 +37,22 @@ export function foldItemIntoCuratedBox(
       };
       return next;
     }
+  }
+
+  const food = foodAddPlacement(item, items);
+  if (food) {
+    return [
+      ...items,
+      {
+        slotId: food.slotId,
+        itemId: item.id,
+        quantity: food.quantity,
+        unitCents: food.unitCents,
+        includedQty: food.includedQty,
+        label: item.name,
+        displaySectionId: 'food' as const,
+      },
+    ];
   }
 
   return [

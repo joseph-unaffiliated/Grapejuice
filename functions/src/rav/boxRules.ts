@@ -326,7 +326,7 @@ export const SECTION_RULES: SectionRules[] = [
         upsells: [
           { targetSlotOrKind: 'menorah', price: 'extra' },
           { targetSlotOrKind: 'extra-candles', price: 'extra' },
-          { targetSlotOrKind: 'toy-menorahs', price: 'extra', note: 'lego, wood, or stuffie menorahs' },
+          { targetSlotOrKind: 'toy-menorahs', price: 'extra', note: 'lego or wood menorahs' },
         ],
       },
     ],
@@ -351,7 +351,6 @@ export const SECTION_RULES: SectionRules[] = [
           { targetSlotOrKind: 'more-dreidels', price: 'extra' },
           { targetSlotOrKind: 'donate', price: 'donate' },
         ],
-        upsells: [{ targetSlotOrKind: 'dreidel-stuffie', price: 'extra' }],
       },
       {
         defaultKind: 'gelt (see gelt planner)',
@@ -389,7 +388,6 @@ export const SECTION_RULES: SectionRules[] = [
           { targetSlotOrKind: 'gelt-medium', price: 'included' },
           { targetSlotOrKind: 'gelt-small×3', price: 'included' },
           { targetSlotOrKind: 'gelt-party', price: 'extra' },
-          { targetSlotOrKind: 'latke-stuffie', price: 'extra' },
           { targetSlotOrKind: 'donate', price: 'donate' },
         ],
       },
@@ -402,7 +400,6 @@ export const SECTION_RULES: SectionRules[] = [
           { targetSlotOrKind: 'gelt-medium', price: 'included' },
           { targetSlotOrKind: 'gelt-small×3', price: 'included' },
           { targetSlotOrKind: 'gelt-party', price: 'extra' },
-          { targetSlotOrKind: 'sufganiyah-stuffie', price: 'extra' },
           { targetSlotOrKind: 'donate', price: 'donate' },
         ],
       },

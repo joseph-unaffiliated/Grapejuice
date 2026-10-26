@@ -34,6 +34,8 @@ const price = (li: BoxLineItem, to: string, geltCeiling: 'small' | 'medium' | 'p
 // coming from the toddler menorah (charged $10 before because candles rules priced it).
 assert.equal(price(line('gift-k1', 'toddler-play-menorah', 0, 'k1'), 'shamash-the-menorah-stuffie'), 0);
 assert.equal(price(line('gift-k1', 'crispy-the-latke-stuffie', 0, 'k1'), 'shamash-the-menorah-stuffie'), 0);
+assert.equal(price(line('wood-dreidel', 'classic-wooden-dreidel'), 'shamash-the-menorah-stuffie'), undefined);
+assert.equal(price(line('latke-mix', 'latke-kit'), 'crispy-the-latke-stuffie'), undefined);
 
 // Candles only swap to included candles; menorahs and candle books are add-ons, not $0 swaps.
 assert.equal(price(line('candles', 'beeswax-candles'), 'electric-candles'), 0);

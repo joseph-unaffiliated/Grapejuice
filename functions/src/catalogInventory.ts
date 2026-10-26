@@ -46,6 +46,7 @@ function itemFromSnap(
       ? data.categories.filter((c: unknown): c is string => typeof c === 'string')
       : undefined,
     inventory: typeof data.inventory === 'number' ? data.inventory : null,
+    setAside: typeof data.setAside === 'number' ? data.setAside : null,
     directSaleCapBeforeLock:
       typeof data.directSaleCapBeforeLock === 'number' ? data.directSaleCapBeforeLock : null,
     sellAfterLock:
@@ -355,11 +356,12 @@ function assertBoxItemWithinInventory(
   if (!boxAllocationTracked(item)) return false;
 
   const inventory = Math.max(0, Math.floor(item.inventory!));
+  const setAside = Math.max(0, Math.floor(item.setAside ?? 0));
   const counters = parseCounters(invSnap.data());
   const direct =
     (counters.directReservedQty ?? 0) + (counters.directSoldQty ?? 0);
   const boxAllocated = counters.boxAllocatedQty ?? 0;
-  const available = inventory - boxAllocated - direct + credited;
+  const available = inventory - setAside - boxAllocated - direct + credited;
   if (want > available) {
     const name = item.name ?? itemId;
     const left = Math.max(0, available);

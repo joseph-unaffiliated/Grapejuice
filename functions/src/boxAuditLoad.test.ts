@@ -2,7 +2,7 @@
  * Run: npx tsx functions/src/boxAuditLoad.test.ts
  */
 import assert from 'node:assert/strict';
-import { auditBoxRef, boxAuditId, guestBoxRefs, type BoxRef } from './boxAuditLoad';
+import { auditBoxRef, boxAuditId, countsTowardOpenList, guestBoxRefs, matchException, type BoxRef } from './boxAuditLoad';
 
 const catalog = [
   { id: 'beeswax-candles', category: 'Candles' },
@@ -84,5 +84,27 @@ const lines = [
 }
 
 assert.equal(boxAuditId('guestSessions/v1#gift'), 'guestSessions__v1__gift');
+
+// A decision on a signed-out draft has no email, and still clears that draft.
+{
+  const gift = guestBoxRefs('guestSessions/v9', {
+    snapshot: { gift: { status: 'incomplete', draft: { lineItems: [L('gelt-medium', 'big-bag-of-gelt')], childDrafts: [{ role: 'child' }] } } },
+  }).gift!;
+  assert.equal(gift.email, null);
+  const matched = matchException([{ email: '', section: 'gelt', code: 'over-allowance', note: 'Approved as-is' }], null, {
+    code: 'over-allowance',
+    section: 'gelt',
+    direction: 'over',
+    detail: 'extra gelt',
+  });
+  assert.equal(matched?.note, 'Approved as-is');
+  const record = auditBoxRef(gift, catalog, [{ email: '', section: 'gelt', code: 'over-allowance', note: 'Approved as-is' }]);
+  assert.equal(record.problems.find((p) => p.section === 'gelt')?.approved, 'Approved as-is');
+  assert.equal(record.open, 0);
+}
+
+assert.equal(countsTowardOpenList('account', 'households/h/boxDrafts/hanukkah-2026', 1, new Set(['h'])), false);
+assert.equal(countsTowardOpenList('order', 'households/h/orders/o', 1, new Set(['h'])), true);
+assert.equal(countsTowardOpenList('account', 'households/h/boxDrafts/hanukkah-2026', 1, new Set()), true);
 
 console.log('boxAuditLoad: ok');

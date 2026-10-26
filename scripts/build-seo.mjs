@@ -160,14 +160,14 @@ const categoryPath = (slug) => `/store/${slug}`;
 
 // ---------------------------------------------------------------- page shell
 
-function headTags({ title, description, path: canonical, ogType = 'website', image, noCanonical = false, ld = [] }) {
+function headTags({ title, description, path: canonical, ogType = 'website', image, noCanonical = false, robots = 'index, follow', ld = [] }) {
   const url = canonical ? abs(canonical) : `${ORIGIN}/`;
   const img = abs(image || HOME_OG_IMAGE);
   return [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(description)}" />`,
     noCanonical ? '' : `<link rel="canonical" href="${esc(url)}" />`,
-    `<meta name="robots" content="index, follow" />`,
+    `<meta name="robots" content="${esc(robots)}" />`,
     `<meta property="og:site_name" content="${esc(seo.SITE_NAME)}" />`,
     `<meta property="og:type" content="${ogType}" />`,
     `<meta property="og:title" content="${esc(title)}" />`,
@@ -345,7 +345,6 @@ async function main() {
     path: '/',
     title: seo.HOME_TITLE,
     description: seo.DEFAULT_SEO_DESCRIPTION,
-    noCanonical: true,
     lastmod: latest ?? gitDate('src/constants/seo.ts'),
     priority: '1.0',
     ld: [
@@ -445,7 +444,7 @@ ${featured.length ? `<section><h2>From the collection</h2>${productList(featured
           : '';
     page({
       path: productPath(item),
-      title: seo.seoTitle(item.name),
+      title: seo.shopSeoTitle(item.name),
       description: desc,
       ogType: 'product',
       image: images[0],
@@ -576,11 +575,14 @@ ${featured.length ? `<section><h2>From the collection</h2>${productList(featured
       .filter((s) => s?.type === 'story' && (s.heading || s.body))
       .map((s) => `<section><h2>${esc(plain(s.heading))}</h2><p>${esc(plain(s.body))}</p></section>`)
       .join('');
+    const campaign = seo.isCampaignLandingPath(l.path);
     page({
       path: l.path,
       title: seo.seoTitle(hero.headline || l.navLabel),
       description: seo.clampDescription(hero.body || seo.DEFAULT_SEO_DESCRIPTION),
       lastmod: dateOnly(l.updateTime) ?? (l.source ? gitDate(l.source) : null),
+      inSitemap: !campaign,
+      robots: campaign ? 'noindex, follow' : 'index, follow',
       priority: '0.6',
       ld: [
         {

@@ -2,6 +2,7 @@ import type { BoxLineItem, CatalogItem, RavDraftAction } from '../../types/pilot
 import { boxAddOnUnitCents, extraUnitCents } from '../box/pricing';
 import { geltAddFitsAllowance, swapQuantities, swapUnitCents } from '../box/swapPricing';
 import { geltSizeOf, type GeltSize } from '../box/boxRules';
+import { foodAddPlacement } from '../box/foodAdd';
 import { foodSlotQuantity } from '../box/includedAudit';
 import { isIncludedFoodSlotOption } from '../box/sectionUpsells';
 import { displaySectionForCatalogItem } from '../../constants/boxDisplaySections';
@@ -126,9 +127,10 @@ export function applyRavDraftActions(
     if (action.type === 'add') {
       // An empty food slot takes any food-slot option free, even a second of the same kit.
       if (isIncludedFoodSlotOption(item) && includedPracticeSlotVacant('food', next)) {
-        const quantity = foodSlotQuantity(item);
+        const placed = foodAddPlacement(item, next);
+        const quantity = placed?.quantity ?? foodSlotQuantity(item);
         next.push({
-          ...catalogLine(item, uniqueSlotForFreeSectionAdd('food', item, next), undefined, 0),
+          ...catalogLine(item, placed?.slotId ?? uniqueSlotForFreeSectionAdd('food', item, next), undefined, 0),
           quantity,
           includedQty: quantity,
         });
@@ -139,9 +141,6 @@ export function applyRavDraftActions(
         skipped.push(action);
         continue;
       }
-      const slotId = action.slotId ?? item.slotId ?? `extra-${item.id}`;
-      const childId = action.childId;
-      const newSlot = childId && !slotId.includes(childId) ? `${slotId}-${childId}` : slotId;
       const unit = geltSizeOf(item)
         ? geltAddFitsAllowance(item, {
             catalog,
@@ -152,6 +151,10 @@ export function applyRavDraftActions(
           ? 0
           : extraUnitCents(item)
         : addUnitCents(item, next);
+      const foodPaid = isIncludedFoodSlotOption(item) && unit > 0;
+      const slotId = foodPaid ? `addon-${item.id}` : action.slotId ?? item.slotId ?? `extra-${item.id}`;
+      const childId = action.childId;
+      const newSlot = !foodPaid && childId && !slotId.includes(childId) ? `${slotId}-${childId}` : slotId;
       next.push(catalogLine(item, newSlot, childId, unit));
       applied.push(action);
       continue;

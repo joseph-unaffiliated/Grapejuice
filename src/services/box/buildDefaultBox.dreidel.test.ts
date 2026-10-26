@@ -55,4 +55,19 @@ const donatedWithPaid = repairWoodDreidelHouseholdQty(
 );
 assert.equal(freeDreidels(donatedWithPaid.lineItems), 2, 'paid overflow still converts to free');
 
+const stuffieOnWood = repairWoodDreidelHouseholdQty(
+  [{
+    slotId: 'wood-dreidel',
+    itemId: 'gimmel-the-dreidel-stuffie',
+    quantity: 1,
+    includedQty: 1,
+    unitCents: 0,
+    label: 'Gimmel, the Dreidel Stuffie',
+  }],
+  oneKid,
+  1
+);
+assert.equal(stuffieOnWood.dirty, false, 'a stuffie on the dreidel slot is not a household dreidel');
+assert.equal(stuffieOnWood.lineItems[0]?.quantity, 1);
+
 console.log('buildDefaultBox.dreidel: ok');

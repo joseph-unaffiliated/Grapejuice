@@ -6,6 +6,7 @@ exports.loadBoxAuditDecisions = loadBoxAuditDecisions;
 exports.exceptionsWithDecisions = exceptionsWithDecisions;
 exports.applyDecisionsToProblems = applyDecisionsToProblems;
 exports.isOpenAfterDecision = isOpenAfterDecision;
+exports.writeBoxAuditDecision = writeBoxAuditDecision;
 /**
  * Admin decisions on included-items audit problems. Stored in Firestore so the Box
  * problems review sheet can approve, mark a donation, or flag follow-up without a deploy.
@@ -132,19 +133,12 @@ async function refreshStoredOpen(db, path, decisions) {
     await ref.set({ open: openCount, ok: openCount === 0 }, { merge: true });
     return openCount;
 }
-exports.decideBoxAuditProblem = (0, sentry_1.onCall)(async (request) => {
-    var _a;
-    if (!request.auth)
-        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
-    if (!(0, guestSessions_1.isAdminToken)(request.auth.token))
-        throw new sentry_1.HttpsError('permission-denied', 'Admin only.');
-    const body = ((_a = request.data) !== null && _a !== void 0 ? _a : {});
+async function writeBoxAuditDecision(db, decidedBy, body) {
     const path = typeof body.path === 'string' ? body.path.trim() : '';
     const section = typeof body.section === 'string' ? body.section.trim() : '';
     const code = typeof body.code === 'string' ? body.code.trim() : '';
     if (!path || !section || !code)
         throw new sentry_1.HttpsError('invalid-argument', 'path, section and code are required.');
-    const db = (0, firestore_1.getFirestore)();
     const id = decisionDocId({
         path,
         section,
@@ -157,7 +151,7 @@ exports.decideBoxAuditProblem = (0, sentry_1.onCall)(async (request) => {
         await ref.delete().catch(() => undefined);
         const decisions = await loadBoxAuditDecisions(db);
         await refreshStoredOpen(db, path, decisions);
-        return { ok: true, decision: null };
+        return null;
     }
     if (!['approve', 'donation', 'follow-up', 'emailed'].includes(body.decision)) {
         throw new sentry_1.HttpsError('invalid-argument', 'Unknown decision.');
@@ -180,11 +174,20 @@ exports.decideBoxAuditProblem = (0, sentry_1.onCall)(async (request) => {
         decision: body.decision,
         note: (typeof body.note === 'string' && body.note.trim()) || noteDefault[body.decision],
         decidedAt: new Date().toISOString(),
-        decidedBy: request.auth.uid,
+        decidedBy,
     };
     await ref.set(decision);
     const decisions = await loadBoxAuditDecisions(db);
     await refreshStoredOpen(db, path, decisions);
+    return decision;
+}
+exports.decideBoxAuditProblem = (0, sentry_1.onCall)(async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new sentry_1.HttpsError('unauthenticated', 'Sign in required.');
+    if (!(0, guestSessions_1.isAdminToken)(request.auth.token))
+        throw new sentry_1.HttpsError('permission-denied', 'Admin only.');
+    const decision = await writeBoxAuditDecision((0, firestore_1.getFirestore)(), request.auth.uid, ((_a = request.data) !== null && _a !== void 0 ? _a : {}));
     return { ok: true, decision };
 });
 //# sourceMappingURL=boxAuditDecisions.js.map

@@ -14,6 +14,7 @@ import {
   boxAuditId,
   guestBoxRefs,
   isLikelyDonation,
+  countsTowardOpenList,
   isOpenProblem,
   loadAuditCatalog,
   loadBoxes,
@@ -22,6 +23,7 @@ import {
   type BoxRef,
 } from './boxAuditLoad';
 import type { AuditCatalogRow } from './boxAudit';
+import { fixesForProblem, loadBoxFixLog, loadFixBox, loadFixCatalog, type BoxFix, type BoxFixLogEntry, type FixCatalogRow } from './boxProblemFixes';
 
 export const BOX_AUDITS = 'boxAudits';
 export const BOX_AUDIT_RUNS = 'boxAuditRuns';
@@ -127,6 +129,13 @@ export async function runBoxAuditSweep(db: Firestore): Promise<BoxAuditSweep> {
   const existing = await db.collection(BOX_AUDITS).get();
   const previous = new Map(existing.docs.map((d) => [d.id, d.data()]));
   const seen = new Set<string>();
+  const orderHouseholds = new Set(
+    boxes.flatMap((box) => {
+      if (box.kind !== 'order') return [];
+      const householdId = box.path.match(/^households\/([^/]+)\//)?.[1];
+      return householdId ? [householdId] : [];
+    })
+  );
   const result: BoxAuditSweep = { boxes: boxes.length, real: 0, open: 0, openCommitted: 0, written: 0, deleted: 0, newlyOpen: [] };
 
   for (const box of boxes) {
@@ -135,7 +144,7 @@ export async function runBoxAuditSweep(db: Firestore): Promise<BoxAuditSweep> {
     const record = auditBoxRef(box, catalog, exceptionsWithDecisions(decisions, box.path, box.email));
     if (!box.test) {
       result.real += 1;
-      if (record.open > 0) {
+      if (countsTowardOpenList(box.kind, box.path, record.open, orderHouseholds)) {
         result.open += 1;
         if (record.committed) result.openCommitted += 1;
         if (!(Number(previous.get(id)?.open ?? 0) > 0)) result.newlyOpen.push(box.path);
@@ -177,6 +186,7 @@ export type DashBoxProblem = {
     direction: string;
     detail: string;
     itemId: string | null;
+    slotId: string | null;
     childKey: string | null;
     approved: string | null;
     grandfathered: boolean;
@@ -184,13 +194,14 @@ export type DashBoxProblem = {
     decision: 'approve' | 'donation' | 'follow-up' | 'emailed' | null;
     decisionNote: string | null;
     decidedAt: string | null;
+    fixes: BoxFix[];
   }>;
 };
 
 export type DashBoxAuditRun = Omit<BoxAuditSweep, 'newlyOpen'> & { at: string };
 
 /** Every stored audit with at least one problem (open or not), plus the latest sweep's totals. */
-export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: DashBoxProblem[]; boxAuditRun: DashBoxAuditRun | null }> {
+export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: DashBoxProblem[]; boxAuditRun: DashBoxAuditRun | null; fixLog: BoxFixLogEntry[] }> {
   const [{ applyDecisionsToProblems, isOpenAfterDecision, loadBoxAuditDecisions }, audits, runs] = await Promise.all([
     import('./boxAuditDecisions'),
     db.collection(BOX_AUDITS).get(),
@@ -198,6 +209,7 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
   ]);
   const decisions = await loadBoxAuditDecisions(db);
   const text = (v: unknown) => (typeof v === 'string' && v ? v : null);
+  let fixCatalog: FixCatalogRow[] | null = null;
   const boxProblems: DashBoxProblem[] = [];
   for (const d of audits.docs) {
     const x = d.data();
@@ -212,6 +224,7 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
         direction: p.direction,
         detail: p.detail,
         itemId: p.itemId ?? null,
+        slotId: p.slotId ?? null,
         childKey: p.childKey ?? null,
         approved: p.approved ?? null,
         grandfathered: p.grandfathered === true,
@@ -220,6 +233,11 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
       decisions
     );
     const open = viewed.filter(isOpenAfterDecision).length;
+    let lines: Awaited<ReturnType<typeof loadFixBox>> = null;
+    if (open > 0) {
+      if (!fixCatalog) fixCatalog = await loadFixCatalog(db);
+      lines = await loadFixBox(db, path).catch(() => null);
+    }
     boxProblems.push({
       id: d.id,
       kind: x.kind,
@@ -233,7 +251,14 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
       open,
       openSince: text(x.openSince),
       auditedAt: text(x.auditedAt),
-      problems: viewed,
+      problems: viewed.map((p) => ({
+        ...p,
+        slotId: p.slotId ?? null,
+        fixes:
+          lines && fixCatalog && isOpenAfterDecision(p)
+            ? fixesForProblem(p, lines.lines, fixCatalog, Number(x.people ?? 0), Number(x.kids ?? 0))
+            : [],
+      })),
     });
   }
   // Committed households keep a draft that mirrors the order; list the order once.
@@ -258,7 +283,8 @@ export async function loadBoxProblems(db: Firestore): Promise<{ boxProblems: Das
         at: String(run.at ?? ''),
       }
     : null;
-  return { boxProblems, boxAuditRun };
+  const fixLog = await loadBoxFixLog(db).catch(() => []);
+  return { boxProblems, boxAuditRun, fixLog };
 }
 
 export const scheduledBoxAudit = onSchedule(

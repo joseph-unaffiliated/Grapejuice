@@ -127,7 +127,6 @@ export function StorefrontWebVideo({
               videoRef.current = node;
             },
             src,
-            autoPlay: true,
             muted: true,
             loop: true,
             playsInline: true,
