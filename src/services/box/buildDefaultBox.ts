@@ -211,7 +211,13 @@ export function buildCuratedBox(
   // adult-only households and 5+ kid boxes included. Craft kits replace that kid's wood share.
   const woodAssignments = outline.dreidels.filter((d) => d.kind === 'wood-dreidel');
   const craftAssignments = outline.dreidels.filter((d) => d.kind !== 'wood-dreidel');
-  const woodQty = woodAssignments.length + defaultAdults(outline.inputs.adults);
+  // One free dreidel per person. Craft lines replace that kid's wood share, so the
+  // household wood line cannot also count those kids.
+  const peopleCount = paired.length + defaultAdults(outline.inputs.adults);
+  const woodQty = Math.max(
+    0,
+    Math.min(woodAssignments.length + defaultAdults(outline.inputs.adults), peopleCount - craftAssignments.length)
+  );
 
   if (woodQty > 0) {
     const item = resolveDreidelKindItem(catalog, rows, 'wood-dreidel');
@@ -427,6 +433,17 @@ export function isHouseholdPracticeCatalogItem(item: {
   );
 }
 
+/** Free practice dreidels (wood, blank, clay). Stuffies and paid extras do not count. */
+function freePracticeDreidelUnits(lineItems: BoxLineItem[]): number {
+  return lineItems.reduce((n, li) => {
+    if ((li.unitCents ?? 0) > 0 || li.slotId.includes('::x') || (li.quantity ?? 0) <= 0) return n;
+    const base = catalogSlotId(li.slotId);
+    if (base !== 'wood-dreidel' && base !== 'blank-dreidel' && base !== 'airdry-dreidel') return n;
+    if (/stuffie|plush|softie|brass|slipcast|cookie|book/i.test(`${li.itemId} ${li.label ?? ''}`)) return n;
+    return n + Math.max(1, li.quantity || 1);
+  }, 0);
+}
+
 /**
  * Upgrade wood dreidel drafts to household qty (kids + adults).
  * Also converts paid overflow back into free units when free qty is short of the
@@ -461,9 +478,15 @@ export function repairWoodDreidelHouseholdQty(
     (s, li) => s + Math.max(0, li.includedQty ?? 0),
     0
   );
+  // Blank and clay dreidels already count toward one per person. Growing the wood
+  // line on top of them is how a box ends up with more free dreidels than people.
+  const otherFreeDreidels = Math.max(0, freePracticeDreidelUnits(lineItems) - freeQty);
 
   // Already at (or above) household size — never inflate further via defaultAdults=2.
-  if (freeQty >= targetQty && Math.max(freeQty, persistedIncluded) >= targetQty) {
+  if (
+    freeQty + otherFreeDreidels >= targetQty &&
+    Math.max(freeQty + otherFreeDreidels, persistedIncluded + otherFreeDreidels) >= targetQty
+  ) {
     return { lineItems, dirty: false };
   }
   // Free units below the persisted allotment were donated; only paid overflow is absorbed.
@@ -509,7 +532,7 @@ export function repairWoodDreidelHouseholdQty(
     .reduce((s, li) => s + Math.max(1, li.quantity || 1), 0);
   const cappedTarget =
     adults == null && geltCap >= kidCount ? Math.min(targetQty, geltCap) : targetQty;
-  const seededFreeQty = Math.max(cappedTarget, freeQty);
+  const seededFreeQty = Math.max(freeQty, Math.max(0, cappedTarget - otherFreeDreidels));
   const consumedFromPaid = Math.min(paidQty, Math.max(0, seededFreeQty - freeQty));
   const paidLeft = paidQty - consumedFromPaid;
 

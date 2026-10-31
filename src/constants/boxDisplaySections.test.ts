@@ -280,6 +280,15 @@ const jellyKept = paidAfterDroppingIncluded(
 assert.equal(jellyKept.siblingId, undefined);
 assert.equal(jellyKept.line?.unitCents, 1000);
 
+const legoKept = paidAfterDroppingIncluded(
+  line({ slotId: 'candles', itemId: beeswax.id, displaySectionId: 'candles' }),
+  line({ slotId: 'addon-lego-menorah', itemId: lego.id, unitCents: 1500, displaySectionId: 'candles' }),
+  'candles',
+  [beeswax, lego]
+);
+assert.equal(legoKept.siblingId, undefined, 'a Lego menorah is not a free candle');
+assert.equal(legoKept.line?.unitCents, 1500);
+
 assert.equal(
   uniqueSlotForFreeSectionAdd('dreidel', gimmel, [line({ slotId: 'wood-dreidel', itemId: wood.id })]),
   `addon-${gimmel.id}`

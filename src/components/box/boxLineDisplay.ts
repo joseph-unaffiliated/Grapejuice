@@ -1376,6 +1376,12 @@ export function paidSiblingForIncludedPromotion(
     const item = catalog.find((c) => c.id === li.itemId);
     if (item && isStuffieCatalogItem(item)) return false;
     if (!item && /stuffie|plush|softie/i.test(`${li.itemId} ${li.label ?? ''}`)) return false;
+    // A paid extra becomes the included fill only when that section actually includes it.
+    // A Lego menorah sits in Light the Candles, but the free candles slot only takes candles.
+    if (sectionId === 'candles') {
+      const hay = `${li.itemId} ${li.label ?? ''} ${item?.name ?? ''}`.toLowerCase();
+      if (!/candle/.test(hay)) return false;
+    }
     return displaySectionFor(li, item) === sectionId;
   });
 }

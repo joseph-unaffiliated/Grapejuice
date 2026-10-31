@@ -28,6 +28,9 @@ assert.equal(freeDreidels(buildDefaultLineItems(catalog, [kid('a', 3), kid('b', 
 const fiveYoung = ['a', 'b', 'c', 'd', 'e'].map((id) => kid(id, 3));
 assert.equal(freeDreidels(buildDefaultLineItems(catalog, fiveYoung, [], 2)), 7, 'five little kids, two adults');
 
+const sixOlder = ['a', 'b', 'c', 'd', 'e', 'f'].map((id, i) => kid(id, i < 3 ? 9 : 6));
+assert.equal(freeDreidels(buildDefaultLineItems(catalog, sixOlder, [], 2)), 8, 'craft dreidels replace wood, they do not add to it');
+
 const wood = buildDefaultLineItems(catalog, [], [], 2).find((l) => l.slotId === 'wood-dreidel');
 assert.equal(wood?.includedQty, 2, 'wood line includes every unit');
 
@@ -69,5 +72,17 @@ const stuffieOnWood = repairWoodDreidelHouseholdQty(
 );
 assert.equal(stuffieOnWood.dirty, false, 'a stuffie on the dreidel slot is not a household dreidel');
 assert.equal(stuffieOnWood.lineItems[0]?.quantity, 1);
+
+const blank = {
+  slotId: 'blank-dreidel-a',
+  itemId: 'draw-your-own-dreidel',
+  quantity: 1,
+  includedQty: 1,
+  unitCents: 0,
+  label: 'Draw Your Own Dreidel',
+};
+const alongsideCraft = repairWoodDreidelHouseholdQty([woodLine(1, 1), blank], oneKid, 1);
+assert.equal(alongsideCraft.dirty, false, 'a per-kid dreidel already fills that person');
+assert.equal(freeDreidels(alongsideCraft.lineItems), 2, 'wood does not grow on top of a craft dreidel');
 
 console.log('buildDefaultBox.dreidel: ok');

@@ -35,6 +35,7 @@ import {
   HANUKKAH_SHIP_WINDOW_LABEL,
   resolveCatalogDisplayPrices,
   boxAddOnUnitCents,
+  extraUnitCents,
 } from '../../services/box/pricing';
 import { foodAddPlacement } from '../../services/box/foodAdd';
 import {
@@ -56,6 +57,7 @@ import { MobileProductBody, type RoleOption } from '../mobile/MobileProductBody'
 import {
   assignKidGiftLines,
   isGiftSlotLine,
+  restoreIncludedUnit,
   transferLiveIncludedBaselineOnSwap,
 } from '../../components/box/boxLineDisplay';
 import { similarCatalogItems } from '../../constants/catalogCuration';
@@ -457,7 +459,19 @@ export function CatalogProductScreen() {
       return;
     }
     if (delta === -1) {
-      const multi = inBoxLines.find((li) => (li.quantity ?? 1) > 1);
+      // A paid extra comes off before an included unit.
+      const extra = inBoxLines.find((li) => li.slotId.endsWith('::x') && (li.quantity ?? 0) > 0);
+      if (extra) {
+        await persist(
+          extra.quantity > 1
+            ? lineItems.map((li) =>
+                li.slotId === extra.slotId ? { ...li, quantity: extra.quantity - 1 } : li
+              )
+            : lineItems.filter((li) => li.slotId !== extra.slotId)
+        );
+        return;
+      }
+      const multi = inBoxLines.find((li) => (li.quantity ?? 1) > 1 && !li.slotId.endsWith('::x'));
       if (multi) {
         await persist(
           lineItems.map((li) =>
@@ -474,12 +488,32 @@ export function CatalogProductScreen() {
     }
     const primary = inBoxPrimary;
     if (!primary) return;
+    // Put a donated included unit back before charging. Anything past the included
+    // line is a paid extra, not a higher quantity at $0.
+    const restored = restoreIncludedUnit(lineItems, item.id);
+    if (restored) {
+      await persist(restored);
+      return;
+    }
+    const price = extraUnitCents(item);
+    const extra = lineItems.find((li) => li.itemId === item.id && li.slotId.endsWith('::x'));
     await persist(
-      lineItems.map((li) =>
-        li.slotId === primary.slotId
-          ? { ...li, quantity: (li.quantity ?? 1) + 1 }
-          : li
-      )
+      extra
+        ? lineItems.map((li) =>
+            li.slotId === extra.slotId ? { ...li, quantity: (li.quantity ?? 1) + 1 } : li
+          )
+        : [
+            ...lineItems,
+            {
+              slotId: `${primary.slotId}::x`,
+              itemId: item.id,
+              quantity: 1,
+              unitCents: price,
+              label: item.name,
+              ...(primary.displaySectionId ? { displaySectionId: primary.displaySectionId } : {}),
+              ...(primary.childId ? { childId: primary.childId } : {}),
+            },
+          ]
     );
   };
 

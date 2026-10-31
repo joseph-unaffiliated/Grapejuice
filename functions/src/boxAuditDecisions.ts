@@ -224,19 +224,20 @@ export async function writeBoxAuditDecision(
   const code = typeof body.code === 'string' ? body.code.trim() : '';
   if (!path || !section || !code) throw new HttpsError('invalid-argument', 'path, section and code are required.');
 
-  const id = decisionDocId({
-    path,
-    section,
-    code,
-    itemId: body.itemId,
-    childKey: body.childKey,
-  });
-  const ref = db.collection(BOX_AUDIT_DECISIONS).doc(id);
+  const paths = await decisionPaths(db, path);
 
   if (body.decision === null) {
-    await ref.delete().catch(() => undefined);
+    for (const p of paths) {
+      await db.collection(BOX_AUDIT_DECISIONS).doc(decisionDocId({
+        path: p,
+        section,
+        code,
+        itemId: body.itemId,
+        childKey: body.childKey,
+      })).delete().catch(() => undefined);
+    }
     const decisions = await loadBoxAuditDecisions(db);
-    await refreshStoredOpen(db, path, decisions);
+    for (const p of paths) await refreshStoredOpen(db, p, decisions);
     return null;
   }
 
@@ -250,24 +251,49 @@ export async function writeBoxAuditDecision(
     'follow-up': 'Needs a fix',
     emailed: 'Customer emailed',
   };
-  const decision: BoxAuditDecision = {
-    id,
-    path,
-    email: typeof body.email === 'string' ? body.email : null,
-    section,
-    code,
-    itemId: typeof body.itemId === 'string' ? body.itemId : null,
-    childKey: typeof body.childKey === 'string' ? body.childKey : null,
-    detail: typeof body.detail === 'string' ? body.detail : '',
-    decision: body.decision,
-    note: (typeof body.note === 'string' && body.note.trim()) || noteDefault[body.decision],
-    decidedAt: new Date().toISOString(),
-    decidedBy,
-  };
-  await ref.set(decision);
+  const note = (typeof body.note === 'string' && body.note.trim()) || noteDefault[body.decision];
+  const decidedAt = new Date().toISOString();
+  const email = typeof body.email === 'string' ? body.email : null;
+  const itemId = typeof body.itemId === 'string' ? body.itemId : null;
+  const childKey = typeof body.childKey === 'string' ? body.childKey : null;
+  const detail = typeof body.detail === 'string' ? body.detail : '';
+  let primary: BoxAuditDecision | null = null;
+  for (const p of paths) {
+    const docId = decisionDocId({ path: p, section, code, itemId, childKey });
+    const decision: BoxAuditDecision = {
+      id: docId,
+      path: p,
+      email,
+      section,
+      code,
+      itemId,
+      childKey,
+      detail,
+      decision: body.decision,
+      note,
+      decidedAt,
+      decidedBy,
+    };
+    await db.collection(BOX_AUDIT_DECISIONS).doc(docId).set(decision);
+    if (p === path) primary = decision;
+  }
   const decisions = await loadBoxAuditDecisions(db);
-  await refreshStoredOpen(db, path, decisions);
-  return decision;
+  for (const p of paths) await refreshStoredOpen(db, p, decisions);
+  return primary;
+}
+
+/**
+ * An approval on a committed order covers the same problem on that household's
+ * draft. Otherwise the draft comes back as open after the order is cleared.
+ */
+async function decisionPaths(db: FirebaseFirestore.Firestore, path: string): Promise<string[]> {
+  const order = /^households\/([^/]+)\/orders\/([^/]+)$/.exec(path);
+  if (!order) return [path];
+  const snap = await db.doc(path).get();
+  const holidayId = snap.exists ? snap.get('holidayId') : null;
+  if (typeof holidayId !== 'string' || !holidayId) return [path];
+  const draft = `households/${order[1]}/boxDrafts/${holidayId}`;
+  return draft === path ? [path] : [path, draft];
 }
 
 export const decideBoxAuditProblem = onCall(async (request): Promise<{ ok: true; decision: BoxAuditDecision | null }> => {
