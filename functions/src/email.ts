@@ -22,6 +22,14 @@ const TEMPLATE_IDS: Record<string, number> = {
   /** Gift box nobody has confirmed an address for yet — transactional message 18 (draft until approved). */
   'gift-confirm-reminder':
     parseInt(process.env.CUSTOMERIO_TEMPLATE_GIFT_CONFIRM_REMINDER ?? '0', 10) || 0,
+  /** Unclaimed gift, to the recipient. Stays 0 until the render is approved. */
+  'gift-unclaimed-recipient':
+    parseInt(process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_RECIPIENT ?? '0', 10) || 0,
+  /** Unclaimed gift, to the giver a day later. Stays 0 until the render is approved. */
+  'gift-unclaimed-sender':
+    parseInt(process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_SENDER ?? '0', 10) || 0,
+  /** Kosher food note. Stays 0 until the render is approved. */
+  'kosher-notice': parseInt(process.env.CUSTOMERIO_TEMPLATE_KOSHER_NOTICE ?? '0', 10) || 0,
   'debrief-amazon': parseInt(process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON ?? '0', 10) || 0,
   'box-discount': parseInt(process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT ?? '0', 10) || 0,
   welcome: parseInt(process.env.CUSTOMERIO_TEMPLATE_WELCOME ?? '0', 10) || 12,

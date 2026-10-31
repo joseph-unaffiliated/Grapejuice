@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'crypto';
 import {
+  addAudienceMembers,
   combineFollowUpRows,
   dedupeAudienceRows,
   followUpSkipReason,
@@ -9,6 +10,7 @@ import {
   normalizeName,
   normalizePhone,
   replaceAudienceMembers,
+  selectGuestDraftRows,
   toStoredRow,
 } from './followUpAudience';
 
@@ -18,8 +20,8 @@ const base = { draftLineItems: box, orderStatuses: [], email: 'Sarah@Gmail.com '
 
 assert.equal(followUpSkipReason(base), null);
 assert.equal(followUpSkipReason({ ...base, draftLineItems: [] }), 'no_box');
-assert.equal(followUpSkipReason({ ...base, cardOnFileAt: '2026-10-01T00:00:00Z' }), 'card_on_file');
-assert.equal(followUpSkipReason({ ...base, stripeDefaultPaymentMethodId: 'pm_1' }), 'card_on_file');
+assert.equal(followUpSkipReason({ ...base, cardOnFileAt: '2026-10-01T00:00:00Z' }), null);
+assert.equal(followUpSkipReason({ ...base, stripeDefaultPaymentMethodId: 'pm_1' }), null);
 assert.equal(followUpSkipReason({ ...base, orderStatuses: ['pending'] }), null);
 assert.equal(followUpSkipReason({ ...base, orderStatuses: ['committed'] }), 'paid_order');
 assert.equal(followUpSkipReason({ ...base, email: null }), 'no_email');
@@ -73,7 +75,8 @@ function fakeMeta(audience: Record<string, unknown>) {
   const calls: Call[] = [];
   const fetchImpl = async (url: string, init?: { method?: string; body?: URLSearchParams }) => {
     calls.push({ url, ...init });
-    const body = url.includes('/usersreplace')
+    const adding = url.includes('/usersreplace') || url.endsWith('/users');
+    const body = adding
       ? { num_received: JSON.parse(init!.body!.get('payload')!).data.length, num_invalid_entries: 0 }
       : audience;
     return { json: async () => body };
@@ -99,6 +102,32 @@ function fakeMeta(audience: Record<string, unknown>) {
   await assert.rejects(replaceAudienceMembers('123', [], 'tok', none.fetchImpl), /empty list/);
   await assert.rejects(replaceAudienceMembers('120247150226310519', [builder], 'tok', none.fetchImpl), /protected/);
   assert.equal(none.calls.length, 0);
+
+  const added = fakeMeta({ subtype: 'CUSTOM', account_id: '1311852520406314' });
+  assert.deepEqual(await addAudienceMembers('123', [builder], 'tok', added.fetchImpl), { received: 1, invalid: 0 });
+  const addPost = added.calls.find((c) => c.method === 'POST')!;
+  assert.ok(addPost.url.endsWith('/123/users'));
+  assert.equal(addPost.url.includes('usersreplace'), false);
+  assert.equal(await addAudienceMembers('123', [], 'tok', added.fetchImpl).then((r) => r.received), 0);
+
+  const guestEmail = 'guest@gmail.com';
+  const guestHash = sha(guestEmail);
+  const guests = selectGuestDraftRows(
+    [
+      { lineItems: box, lastLeadEmailHash: guestHash },
+      { lineItems: box, gateEmailHash: sha('paid@example.com') },
+      { lineItems: [], lastLeadEmailHash: guestHash },
+      { lineItems: box, lastLeadEmailHash: sha('qa@unaffiliated.co') },
+    ],
+    new Map([
+      [guestHash, guestEmail],
+      [sha('paid@example.com'), 'paid@example.com'],
+      [sha('qa@unaffiliated.co'), 'qa@unaffiliated.co'],
+    ]),
+    new Set([sha('paid@example.com')])
+  );
+  assert.equal(guests.length, 1);
+  assert.equal(guests[0][0], sha(guestEmail));
 
   console.log('followUpAudience tests passed');
 })().catch((err) => {

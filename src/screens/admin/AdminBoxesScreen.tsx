@@ -558,6 +558,13 @@ function Who({ name, email, styles }: { name: string | null; email: string | nul
   );
 }
 
+function lineOriginLabel(origin: DashLine['origin']): string {
+  if (origin === 'default') return 'Default';
+  if (origin === 'changed') return 'Swapped';
+  if (origin === 'added') return 'Added';
+  return '—';
+}
+
 function LineItems({
   lines,
   inventoryById,
@@ -574,6 +581,7 @@ function LineItems({
     { label: 'For', width: 110, cell: (l) => l.child ?? 'household' },
     { label: 'Qty', width: 50, align: 'right', cell: (l) => String(l.qty) },
     { label: 'Type', width: 80, cell: (l) => (l.addOn ? 'Add-on' : 'Included') },
+    { label: 'Source', width: 80, cell: (l) => lineOriginLabel(l.origin) },
     { label: 'Unit price', width: 80, align: 'right', cell: (l) => (l.addOn ? money(l.unitCents) : '—') },
     {
       label: 'Remaining',
@@ -727,7 +735,21 @@ function BoxesSection({
     { label: 'Customer', width: 200, cell: (b) => <Who name={b.customer} email={b.email} styles={styles} />, sort: (b) => (b.customer ?? b.email ?? '').toLowerCase() },
     { label: 'State', width: 100, cell: (b) => placeLabel({ location: b.location, fromIp: b.locationFromIp }), sort: (b) => b.location ?? null },
     { label: 'Kids', width: 50, align: 'right', cell: (b) => String(b.kids), sort: (b) => b.kids },
+    {
+      label: 'Ages',
+      width: 90,
+      cell: (b) => (b.kidAges?.length ? b.kidAges.join(', ') : '—'),
+      sort: (b) => b.kidAges?.join(',') ?? null,
+    },
     ...answerColumns<DashBox>((b) => b.answers),
+    { label: 'Note', width: 50, cell: (b) => (b.note?.trim() ? 'Yes' : '—'), sort: (b) => (b.note?.trim() ? 1 : 0) },
+    {
+      label: 'Swaps',
+      width: 60,
+      align: 'right',
+      cell: (b) => String(b.swaps ?? 0),
+      sort: (b) => b.swaps ?? 0,
+    },
     { label: 'Kosher', width: 70, cell: (b) => (b.kosher ? 'Yes' : '—'), sort: (b) => (b.kosher ? 1 : 0) },
     { label: 'Status', width: 120, cell: (b) => statusLabel(b.status), sort: (b) => b.status },
     {
@@ -809,6 +831,8 @@ function BoxesSection({
               styles={styles}
               facts={[
                 ['Box price', `${money(b.boxPriceCents)} (${b.kids} kid${b.kids === 1 ? '' : 's'})`],
+                ['Ages', b.kidAges?.length ? b.kidAges.join(', ') : '—'],
+                ['Swaps', String(b.swaps ?? 0)],
                 ['Add-ons', money(b.addOnCents)],
                 ['Subtotal', b.source === 'draft' ? `${money(b.subtotalCents)} est.` : money(b.subtotalCents)],
                 ['Shipping', money(b.shippingCents)],
@@ -816,6 +840,7 @@ function BoxesSection({
                 ['Credit applied', b.creditCents ? `−${money(b.creditCents)}` : '—'],
                 ['Total', money(b.totalCents)],
                 ['Committed', when(b.committedAt)],
+                ['Onboarding note', b.note?.trim() ? b.note.trim() : '—'],
                 ['Kosher', b.kosher ? b.kosherNote ?? 'Yes' : '—'],
                 ...(b.cardOnFile
                   ? ([['Card added', b.cardSession ? cardSessionLong(b.cardSession) : 'Session not recorded']] as Array<[string, string]>)
@@ -833,8 +858,8 @@ function BoxesSection({
       {rows.length ? <Text style={styles.caption}>{stateSummary(rows.map((b) => ({ location: b.location, fromIp: b.locationFromIp })))}</Text> : null}
       <Text style={styles.caption}>
         {mobile
-          ? `${rows.length} of ${data.boxes.length} boxes. Tap one for items. Dot: green charged, amber no card, grey cancelled. Card: where the session that saved it started and its device; ? = estimated.`
-          : `${rows.length} of ${data.boxes.length} boxes. Tap a row for its items. Drafts appear only when the household has no live order; draft totals are box price plus add-ons before shipping and tax. Dot: green charged/shipped, amber no card on file, grey cancelled. Kosher is Yes when their note or a message to Rav says the household keeps kosher; open the row for the quote. The Kosher chip shows only those. Card added from: where the session that saved the card started (IG or FB app, email link, ad click, else organic) and its device; ? means estimated from a campaign click that day. ${ANSWERS_CAPTION}`}
+          ? `${rows.length} of ${data.boxes.length} boxes. Tap one for items + onboarding note. Ages and swaps on the card; Source on each item is Default / Swapped / Added. Dot: green charged, amber no card, grey cancelled.`
+          : `${rows.length} of ${data.boxes.length} boxes. Tap a row for its items and onboarding note. Ages = kid ages; Note = wrote something in onboarding; Swaps = times they (or Rav) swapped an included item after the default box. Item Source: Default (from the first box), Swapped (replaced a default line), Added (extra / add-on). Dot: green charged/shipped, amber no card on file, grey cancelled. ${ANSWERS_CAPTION}`}
       </Text>
     </View>
   );

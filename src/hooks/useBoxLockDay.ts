@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { familyOrderOpen } from '../constants/familyOrder';
 import { boxLockDayLabel, HANUKKAH_BOX_LOCK_DATE } from '../constants/hanukkahBoxLock';
 import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
 import { usePreviewNow } from './useUserStatePreview';
@@ -28,6 +29,7 @@ export function useBoxLockDay(): string {
 export function useBoxLockPassed(): boolean {
   const lockAt = useLockAt();
   const now = usePreviewNow();
+  if (familyOrderOpen()) return false;
   const lock = lockAt ? new Date(lockAt) : HANUKKAH_BOX_LOCK_DATE;
   return now.getTime() > (Number.isNaN(lock.getTime()) ? HANUKKAH_BOX_LOCK_DATE : lock).getTime();
 }

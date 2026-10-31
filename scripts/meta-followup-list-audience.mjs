@@ -9,6 +9,7 @@
  *   ... --csv <file> --seed-static     store the CSV rows (hashed, test accounts dropped) in
  *                                      adminConfig/metaFollowupStatic, replacing what's there
  *   ... --upload [--audience <id>]     replace the audience's members (default: the follow-up list)
+ *   ... --add [--audience <id>]        add rows and remove nobody (unpaid drafts, abandoners, static)
  *   ... --create [--name <name>]       create a new customer-list audience, then upload
  *
  * CSV columns are matched by "first", "last", "email", "phone". Uploads need META_ADS_ACCESS_TOKEN
@@ -25,13 +26,16 @@ const {
   FOLLOW_UP_HOLIDAY_ID,
   FOLLOW_UP_LIST_AUDIENCE_ID,
   STATIC_ROWS_DOC,
+  addAudienceMembers,
   combineFollowUpRows,
   createFollowUpListAudience,
   hashedAudienceRow,
   loadStaticRows,
   normalizeEmail,
   replaceAudienceMembers,
+  selectAbandonerRows,
   selectBuilderRows,
+  selectGuestDraftRows,
   toStoredRow,
 } = require('../functions/src/followUpAudience.ts');
 const { isTest } = require('../functions/src/testAccounts.ts');
@@ -42,6 +46,7 @@ const csvPaths = argValues('--csv');
 const seedStatic = args.includes('--seed-static');
 const create = args.includes('--create');
 const upload = args.includes('--upload') || create;
+const add = args.includes('--add');
 const projectId = process.env.FIREBASE_PROJECT_ID || 'grapejuice-pilot';
 
 if (seedStatic && !csvPaths.length) {
@@ -111,11 +116,40 @@ for (const path of csvPaths) {
 }
 
 const builders = await selectBuilderRows(db);
+const abandoners = await selectAbandonerRows(db, builders.paidEmailHashes);
+let guestRows = [];
+if (add) {
+  try {
+    const { execFileSync } = await import('node:child_process');
+    const { leadEmailsByHash } = require('../functions/src/cioPeople.ts');
+    const apiKey = execFileSync(
+      'npx',
+      ['firebase-tools', 'functions:secrets:access', 'CUSTOMERIO_APP_API_KEY', '--project', projectId],
+      { encoding: 'utf8' }
+    ).trim();
+    if (apiKey) {
+      const leads = await leadEmailsByHash(apiKey);
+      const guests = await db.collection('guestSessions').select('lineItems', 'gateEmailHash', 'lastLeadEmailHash').get();
+      guestRows = selectGuestDraftRows(
+        guests.docs.map((d) => d.data()),
+        leads,
+        builders.paidEmailHashes
+      );
+    }
+  } catch {
+    console.log('Guest drafts not added: lead lookup failed');
+  }
+}
 const storedRows = seedStatic ? null : await loadStaticRows(db);
 const staticRows = seedStatic ? csvRows : [...(storedRows ?? []), ...csvRows];
-const { rows, duplicates, staticPaid } = combineFollowUpRows(builders.rows, staticRows, builders.paidEmailHashes);
+const { rows, duplicates, staticPaid } = combineFollowUpRows(
+  [...builders.rows, ...abandoners, ...guestRows],
+  staticRows,
+  builders.paidEmailHashes
+);
 
-console.log(`Signed-in builders, no card (${FOLLOW_UP_HOLIDAY_ID} draft):  ${builders.rows.length}`);
+console.log(`Unpaid drafts (${FOLLOW_UP_HOLIDAY_ID}):  ${builders.rows.length}`);
+console.log(`Abandoners: ${abandoners.length}  guest drafts: ${guestRows.length}`);
 console.log(`  skipped: ${JSON.stringify(builders.skipped)}`);
 if (!seedStatic) console.log(`Stored static rows (${STATIC_ROWS_DOC}): ${storedRows ? storedRows.length : 'not seeded'}`);
 if (csvPaths.length) {
@@ -134,7 +168,7 @@ if (seedStatic) {
   console.log(`Stored ${csvRows.length} hashed rows in ${STATIC_ROWS_DOC}`);
 }
 
-if (!upload) process.exit(0);
+if (!upload && !add) process.exit(0);
 
 const token = process.env.META_ADS_ACCESS_TOKEN?.trim();
 if (!token) {
@@ -146,5 +180,7 @@ if (!audienceId) {
   audienceId = await createFollowUpListAudience(token, argValues('--name')[0] ?? 'Follow-up - builders no payment + form list');
   console.log(`Created audience ${audienceId}`);
 }
-const { received, invalid } = await replaceAudienceMembers(audienceId, rows, token);
-console.log(`Uploaded to ${audienceId}: received ${received}, invalid ${invalid}`);
+const { received, invalid } = add
+  ? await addAudienceMembers(audienceId, rows, token)
+  : await replaceAudienceMembers(audienceId, rows, token);
+console.log(`${add ? 'Added to' : 'Uploaded to'} ${audienceId}: received ${received}, invalid ${invalid}`);

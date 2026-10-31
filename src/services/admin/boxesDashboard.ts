@@ -10,6 +10,8 @@ export type DashAnswers = {
   jewish: number | null;
 };
 
+export type DashLineOrigin = 'default' | 'changed' | 'added';
+
 export type DashLine = {
   itemId: string | null;
   name: string;
@@ -18,6 +20,8 @@ export type DashLine = {
   addOn: boolean;
   child: string | null;
   forHousehold: boolean;
+  /** Versus the default-build box; null when we have no default snapshot. */
+  origin?: DashLineOrigin | null;
 };
 
 /** See functions/src/checkoutSession.ts. */
@@ -39,6 +43,8 @@ export type DashBox = {
   email: string | null;
   test: boolean;
   kids: number;
+  /** Kid ages (planner age when known, else age band). */
+  kidAges?: string[];
   status: string;
   playthrough: boolean;
   cardOnFile: boolean;
@@ -64,6 +70,10 @@ export type DashBox = {
   kosher?: boolean;
   /** The note or message that set `kosher`. */
   kosherNote?: string | null;
+  /** Full free-text onboarding note for Rav. */
+  note?: string | null;
+  /** Customer/Rav swaps after the default build. */
+  swaps?: number;
   lines: DashLine[];
 };
 
@@ -409,13 +419,16 @@ export function useBoxesDashboard(enabled: boolean) {
   const [refreshing, setRefreshing] = useState(false);
   const inFlight = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { force?: boolean }) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const fn = httpsCallable<void, BoxesDashboard>(functions, 'getAdminBoxesDashboard');
-      const res = await fn();
+      // Server rebuild can take minutes on a cold cache; match the function's 300s budget.
+      const fn = httpsCallable<{ refresh?: boolean }, BoxesDashboard>(functions, 'getAdminBoxesDashboard', {
+        timeout: 320_000,
+      });
+      const res = await fn(opts?.force ? { refresh: true } : {});
       setData(res.data);
       setError(null);
     } catch (err) {

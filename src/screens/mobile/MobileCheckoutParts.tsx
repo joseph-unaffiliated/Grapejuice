@@ -16,6 +16,7 @@ import { MobileButton } from '../../components/mobile/MobileButton';
 import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyBar';
 import { MobileFooterBleed, MobileFooterSpacer, MOBILE_FOOTER_TOP_GAP, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 import { m, mFont, mGutter, mRadius, mType, balanceProps } from '../../components/mobile/mobileTheme';
+import { familyOrderOpen } from '../../constants/familyOrder';
 import { checkoutChargeLine, isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { MobileCodeSignIn, CodeEntry } from '../../components/mobile/MobileCodeSignIn';
@@ -96,8 +97,8 @@ export function MobileCheckoutLayout(p: LayoutProps) {
   const [open, setOpen] = useState(false);
   const navigation = useNavigation<StackNavigationProp<MainStackParamList>>();
   const now = usePreviewNow();
-  const chargeLine = checkoutChargeLine(p.lockShort, now);
-  const immediate = isImmediateChargeWindow(now);
+  const chargeLine = checkoutChargeLine(p.lockShort, now, familyOrderOpen());
+  const immediate = isImmediateChargeWindow(now, familyOrderOpen());
   return (
     <View style={{ flex: 1, backgroundColor: m.white }}>
       <TaskHeader back={{ label: 'Box', onPress: p.onBack }} title="Checkout" right={<Secure />} />
@@ -227,7 +228,7 @@ export function MobileCardAndPlaceOrder({
 
 export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }: { lockShort: string; startsLabel: string | null; onViewBox: () => void; onShop: () => void }) {
   const now = usePreviewNow();
-  const immediate = isImmediateChargeWindow(now);
+  const immediate = isImmediateChargeWindow(now, familyOrderOpen());
   const steps: [string, string][] = immediate
     ? [
         ['Today', 'Your card is charged and this box locks.'],

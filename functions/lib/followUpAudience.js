@@ -12,15 +12,17 @@ exports.fromStoredRow = fromStoredRow;
 exports.combineFollowUpRows = combineFollowUpRows;
 exports.selectBuilderRows = selectBuilderRows;
 exports.selectAbandonerRows = selectAbandonerRows;
+exports.selectGuestDraftRows = selectGuestDraftRows;
 exports.loadStaticRows = loadStaticRows;
 exports.createFollowUpListAudience = createFollowUpListAudience;
+exports.addAudienceMembers = addAudienceMembers;
 exports.replaceAudienceMembers = replaceAudienceMembers;
 const crypto_1 = require("crypto");
 const testAccounts_1 = require("./testAccounts");
 /**
  * Customer-list side of the Meta follow-up audience. The website audience only holds browsers that
- * fired BoxFollowUp in the last 30 days; this list adds account holders who built a box but never
- * added a card, plus static lead lists stored as hashes in STATIC_ROWS_DOC.
+ * fired BoxFollowUp in the last 30 days; this list adds every unpaid draft (with or without a card),
+ * guest drafts that left an email, plus static lead lists stored as hashes in STATIC_ROWS_DOC.
  * Shared by scheduledFollowUpListAudience (followUpListAudience.ts) and
  * scripts/meta-followup-list-audience.mjs, which loads this file in plain Node: keep runtime
  * imports to crypto and pure local modules.
@@ -45,16 +47,13 @@ function boxItemCount(lineItems) {
         return sum + (typeof qty === 'number' && qty > 0 ? qty : 0);
     }, 0);
 }
-function hasPaid(h) {
-    return (Boolean(h.cardOnFileAt || h.stripeDefaultPaymentMethodId) ||
-        h.orderStatuses.some((s) => typeof s === 'string' && exports.PAID_ORDER_STATUSES.includes(s)));
+function hasCommittedOrder(statuses) {
+    return statuses.some((s) => typeof s === 'string' && exports.PAID_ORDER_STATUSES.includes(s));
 }
 function followUpSkipReason(h) {
     if (boxItemCount(h.draftLineItems) === 0)
         return 'no_box';
-    if (h.cardOnFileAt || h.stripeDefaultPaymentMethodId)
-        return 'card_on_file';
-    if (hasPaid(h))
+    if (hasCommittedOrder(h.orderStatuses))
         return 'paid_order';
     if (!normalizeEmail(h.email))
         return 'no_email';
@@ -122,7 +121,7 @@ function combineFollowUpRows(builderRows, staticRows, paidEmailHashes) {
     const { rows, duplicates } = dedupeAudienceRows([...builderRows, ...unpaidStatic]);
     return { rows, duplicates, staticPaid: staticRows.length - unpaidStatic.length };
 }
-/** Account holders with a box draft, no card and no paid order (test accounts skipped). Read-only. */
+/** Account holders with an unpaid box draft, card or not (test accounts skipped). Read-only. */
 async function selectBuilderRows(db) {
     var _a, _b, _c, _d, _e, _f;
     const [householdSnap, draftSnap, orderSnap, userSnap] = await Promise.all([
@@ -144,7 +143,7 @@ async function selectBuilderRows(db) {
     const paidEmailHashes = new Set();
     for (const [hid, h] of households) {
         const email = normalizeEmail((_b = ownerOf(h)) === null || _b === void 0 ? void 0 : _b.email);
-        if (email && hasPaid(Object.assign(Object.assign({}, h), { orderStatuses: (_c = statusesByHousehold.get(hid)) !== null && _c !== void 0 ? _c : [] })))
+        if (email && hasCommittedOrder((_c = statusesByHousehold.get(hid)) !== null && _c !== void 0 ? _c : []))
             paidEmailHashes.add((0, exports.sha256)(email));
     }
     const rows = [];
@@ -176,7 +175,7 @@ async function selectBuilderRows(db) {
 }
 /**
  * People who reached payment (Stripe customer or a checkoutFunnel payment step) and have not
- * bought. They already have a card, so selectBuilderRows leaves them out.
+ * bought. Kept on the list even when they are not one of the unpaid drafts.
  */
 async function selectAbandonerRows(db, paidEmailHashes) {
     var _a, _b;
@@ -224,6 +223,31 @@ async function selectAbandonerRows(db, paidEmailHashes) {
     }
     return rows;
 }
+/**
+ * Guest drafts that left an email and have not locked an order. The email is resolved from the
+ * hash map (Customer.io leads). Someone already on the list stays; this only adds rows.
+ */
+function selectGuestDraftRows(docs, emailsByHash, paidEmailHashes) {
+    const rows = [];
+    for (const doc of docs) {
+        if (boxItemCount(doc.lineItems) === 0)
+            continue;
+        const hash = typeof doc.gateEmailHash === 'string'
+            ? doc.gateEmailHash
+            : typeof doc.lastLeadEmailHash === 'string'
+                ? doc.lastLeadEmailHash
+                : '';
+        if (!hash)
+            continue;
+        const email = normalizeEmail(emailsByHash.get(hash));
+        if (!email || (0, testAccounts_1.isTest)(email) || paidEmailHashes.has((0, exports.sha256)(email)))
+            continue;
+        const row = hashedAudienceRow({ email });
+        if (row)
+            rows.push(row);
+    }
+    return rows;
+}
 /** Rows stored by `scripts/meta-followup-list-audience.mjs --seed-static`, or null when never seeded. */
 async function loadStaticRows(db) {
     var _a;
@@ -253,8 +277,34 @@ async function createFollowUpListAudience(token, name, fetchImpl = fetch) {
     return String(made.id);
 }
 /**
+ * Add rows. Does not remove anyone already on the list (form leads, abandoners, prior uploads).
+ * Refuses a protected audience and anything that is not a customer list in META_AD_ACCOUNT.
+ */
+async function addAudienceMembers(audienceId, rows, token, fetchImpl = fetch) {
+    var _a, _b;
+    if (PROTECTED_AUDIENCES.has(audienceId))
+        throw new Error(`Refusing to write to protected audience ${audienceId}`);
+    if (!rows.length)
+        return { received: 0, invalid: 0 };
+    const target = await graph(fetchImpl, token, 'GET', audienceId, { fields: 'subtype,account_id' });
+    if (target.subtype !== 'CUSTOM' || `act_${target.account_id}` !== exports.META_AD_ACCOUNT) {
+        throw new Error(`Audience ${audienceId} is not a customer list in ${exports.META_AD_ACCOUNT}`);
+    }
+    let received = 0;
+    let invalid = 0;
+    for (let i = 0; i < rows.length; i += BATCH) {
+        const r = await graph(fetchImpl, token, 'POST', `${audienceId}/users`, {
+            payload: { schema: exports.AUDIENCE_SCHEMA, data: rows.slice(i, i + BATCH) },
+        });
+        received += Number((_a = r.num_received) !== null && _a !== void 0 ? _a : 0);
+        invalid += Number((_b = r.num_invalid_entries) !== null && _b !== void 0 ? _b : 0);
+    }
+    return { received, invalid };
+}
+/**
  * Replace (not append) the audience's members so people who paid drop off. Refuses anything but a
  * customer-list audience in META_AD_ACCOUNT, and an empty list (which would wipe the audience).
+ * The daily job uses addAudienceMembers so a refresh cannot drop people who are not in the new payload.
  */
 async function replaceAudienceMembers(audienceId, rows, token, fetchImpl = fetch) {
     var _a, _b;

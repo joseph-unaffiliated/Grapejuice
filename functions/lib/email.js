@@ -10,7 +10,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11;
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerioAppApiKey = void 0;
 exports.getCustomerioAppApiKey = getCustomerioAppApiKey;
@@ -37,43 +37,49 @@ const TEMPLATE_IDS = {
     'gift-claim': parseInt((_g = process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM) !== null && _g !== void 0 ? _g : '0', 10) || 0,
     /** Gift box nobody has confirmed an address for yet — transactional message 18 (draft until approved). */
     'gift-confirm-reminder': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_GIFT_CONFIRM_REMINDER) !== null && _h !== void 0 ? _h : '0', 10) || 0,
-    'debrief-amazon': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _j !== void 0 ? _j : '0', 10) || 0,
-    'box-discount': parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _k !== void 0 ? _k : '0', 10) || 0,
-    welcome: parseInt((_l = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _l !== void 0 ? _l : '0', 10) || 12,
+    /** Unclaimed gift, to the recipient. Stays 0 until the render is approved. */
+    'gift-unclaimed-recipient': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_RECIPIENT) !== null && _j !== void 0 ? _j : '0', 10) || 0,
+    /** Unclaimed gift, to the giver a day later. Stays 0 until the render is approved. */
+    'gift-unclaimed-sender': parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_SENDER) !== null && _k !== void 0 ? _k : '0', 10) || 0,
+    /** Kosher food note. Stays 0 until the render is approved. */
+    'kosher-notice': parseInt((_l = process.env.CUSTOMERIO_TEMPLATE_KOSHER_NOTICE) !== null && _l !== void 0 ? _l : '0', 10) || 0,
+    'debrief-amazon': parseInt((_m = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _m !== void 0 ? _m : '0', 10) || 0,
+    'box-discount': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _o !== void 0 ? _o : '0', 10) || 0,
+    welcome: parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _p !== void 0 ? _p : '0', 10) || 12,
     /** Hanukkah box — transactional message 15. */
-    'box-shipped': parseInt((_m = process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED) !== null && _m !== void 0 ? _m : '0', 10) || 15,
+    'box-shipped': parseInt((_q = process.env.CUSTOMERIO_TEMPLATE_BOX_SHIPPED) !== null && _q !== void 0 ? _q : '0', 10) || 15,
     /** Marketplace / à la carte — transactional message 16. */
-    'order-shipped': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _o !== void 0 ? _o : '0', 10) || 16,
+    'order-shipped': parseInt((_r = process.env.CUSTOMERIO_TEMPLATE_ORDER_SHIPPED) !== null && _r !== void 0 ? _r : '0', 10) || 16,
     /** Hanukkah box off-session decline — transactional message 43 (shared HTML). */
-    'box-charge-failed': parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _p !== void 0 ? _p : '0', 10) || 43,
+    'box-charge-failed': parseInt((_s = process.env.CUSTOMERIO_TEMPLATE_BOX_CHARGE_FAILED) !== null && _s !== void 0 ? _s : '0', 10) || 43,
     /** Passwordless login / save-this-box link — transactional message 19 (sends fail until it's published). */
-    'login-link': parseInt((_q = process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK) !== null && _q !== void 0 ? _q : '0', 10) || 19,
+    'login-link': parseInt((_t = process.env.CUSTOMERIO_TEMPLATE_LOGIN_LINK) !== null && _t !== void 0 ? _t : '0', 10) || 19,
     /** Draft box holds an almost-sold-out item — transactional message 21 (docs/customerio-inventory-low.html). */
-    'inventory-low': parseInt((_r = process.env.CUSTOMERIO_TEMPLATE_INVENTORY_LOW) !== null && _r !== void 0 ? _r : '0', 10) || 21,
+    'inventory-low': parseInt((_u = process.env.CUSTOMERIO_TEMPLATE_INVENTORY_LOW) !== null && _u !== void 0 ? _u : '0', 10) || 21,
     /** Sold-out item swapped out of a draft box — transactional message 22 (docs/customerio-inventory-swapped.html). */
-    'inventory-swapped': parseInt((_s = process.env.CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED) !== null && _s !== void 0 ? _s : '0', 10) || 22,
+    'inventory-swapped': parseInt((_v = process.env.CUSTOMERIO_TEMPLATE_INVENTORY_SWAPPED) !== null && _v !== void 0 ? _v : '0', 10) || 22,
     /** Six-digit sign-in code — transactional message 23 (docs/customerio-login-code.html). */
-    'login-code': parseInt((_t = process.env.CUSTOMERIO_TEMPLATE_LOGIN_CODE) !== null && _t !== void 0 ? _t : '0', 10) || 23,
+    'login-code': parseInt((_w = process.env.CUSTOMERIO_TEMPLATE_LOGIN_CODE) !== null && _w !== void 0 ? _w : '0', 10) || 23,
     /** Pilot Participants "You're in" — skipped until a transactional message exists for it. */
-    'pilot-joined': parseInt((_u = process.env.CUSTOMERIO_TEMPLATE_PILOT_JOINED) !== null && _u !== void 0 ? _u : '0', 10) || 0,
+    'pilot-joined': parseInt((_x = process.env.CUSTOMERIO_TEMPLATE_PILOT_JOINED) !== null && _x !== void 0 ? _x : '0', 10) || 0,
     /** Conversion program. Values are Customer.io transactional message ids. */
-    'program-pilot-invite': parseInt((_v = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_INVITE) !== null && _v !== void 0 ? _v : '0', 10) || 25,
-    'program-pilot-d3': parseInt((_w = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D3) !== null && _w !== void 0 ? _w : '0', 10) || 26,
-    'program-pilot-d7': parseInt((_x = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D7) !== null && _x !== void 0 ? _x : '0', 10) || 27,
-    'program-d1': parseInt((_y = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D1) !== null && _y !== void 0 ? _y : '0', 10) || 28,
-    'program-s6': parseInt((_z = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_S6) !== null && _z !== void 0 ? _z : '0', 10) || 29,
-    'program-d4': parseInt((_0 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D4) !== null && _0 !== void 0 ? _0 : '0', 10) || 30,
-    'program-d8': parseInt((_1 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D8) !== null && _1 !== void 0 ? _1 : '0', 10) || 31,
-    'program-abandoner': parseInt((_2 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ABANDONER) !== null && _2 !== void 0 ? _2 : '0', 10) || 32,
-    'program-wave2': parseInt((_3 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_WAVE2) !== null && _3 !== void 0 ? _3 : '0', 10) || 33,
-    'program-lock-t1': parseInt((_4 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1) !== null && _4 !== void 0 ? _4 : '0', 10) || 34,
-    'program-survey': parseInt((_5 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_SURVEY) !== null && _5 !== void 0 ? _5 : '0', 10) || 35,
-    'program-lock-t1-committed': parseInt((_6 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1_COMMITTED) !== null && _6 !== void 0 ? _6 : '0', 10) || 37,
-    'program-lock-sorry': parseInt((_7 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_SORRY) !== null && _7 !== void 0 ? _7 : '0', 10) || 38,
-    'program-lock-charged': parseInt((_8 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_CHARGED) !== null && _8 !== void 0 ? _8 : '0', 10) || 39,
-    'program-extend-draft': parseInt((_9 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_DRAFT) !== null && _9 !== void 0 ? _9 : '0', 10) || 40,
-    'program-extend-new': parseInt((_10 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_NEW) !== null && _10 !== void 0 ? _10 : '0', 10) || 41,
-    'program-order-cancelled': parseInt((_11 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ORDER_CANCELLED) !== null && _11 !== void 0 ? _11 : '0', 10) || 42,
+    'program-pilot-invite': parseInt((_y = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_INVITE) !== null && _y !== void 0 ? _y : '0', 10) || 25,
+    'program-pilot-d3': parseInt((_z = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D3) !== null && _z !== void 0 ? _z : '0', 10) || 26,
+    'program-pilot-d7': parseInt((_0 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_PILOT_D7) !== null && _0 !== void 0 ? _0 : '0', 10) || 27,
+    'program-d1': parseInt((_1 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D1) !== null && _1 !== void 0 ? _1 : '0', 10) || 28,
+    'program-s6': parseInt((_2 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_S6) !== null && _2 !== void 0 ? _2 : '0', 10) || 29,
+    'program-d4': parseInt((_3 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D4) !== null && _3 !== void 0 ? _3 : '0', 10) || 30,
+    'program-d8': parseInt((_4 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_D8) !== null && _4 !== void 0 ? _4 : '0', 10) || 31,
+    'program-abandoner': parseInt((_5 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ABANDONER) !== null && _5 !== void 0 ? _5 : '0', 10) || 32,
+    'program-wave2': parseInt((_6 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_WAVE2) !== null && _6 !== void 0 ? _6 : '0', 10) || 33,
+    'program-lock-t1': parseInt((_7 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1) !== null && _7 !== void 0 ? _7 : '0', 10) || 34,
+    'program-survey': parseInt((_8 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_SURVEY) !== null && _8 !== void 0 ? _8 : '0', 10) || 35,
+    'program-lock-t1-committed': parseInt((_9 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_T1_COMMITTED) !== null && _9 !== void 0 ? _9 : '0', 10) || 37,
+    'program-lock-sorry': parseInt((_10 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_SORRY) !== null && _10 !== void 0 ? _10 : '0', 10) || 38,
+    'program-lock-charged': parseInt((_11 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_LOCK_CHARGED) !== null && _11 !== void 0 ? _11 : '0', 10) || 39,
+    'program-extend-draft': parseInt((_12 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_DRAFT) !== null && _12 !== void 0 ? _12 : '0', 10) || 40,
+    'program-extend-new': parseInt((_13 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_EXTEND_NEW) !== null && _13 !== void 0 ? _13 : '0', 10) || 41,
+    'program-order-cancelled': parseInt((_14 = process.env.CUSTOMERIO_TEMPLATE_PROGRAM_ORDER_CANCELLED) !== null && _14 !== void 0 ? _14 : '0', 10) || 42,
 };
 /** Env vars for Customer.io transactional templates:
  *  CUSTOMERIO_APP_API_KEY (Firebase secret — see getCustomerioAppApiKey)

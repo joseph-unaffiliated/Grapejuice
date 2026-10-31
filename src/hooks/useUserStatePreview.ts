@@ -9,6 +9,7 @@ import {
 } from '../stores/userStatePreviewStore';
 import { useSession } from './useSession';
 import { useBoxDraft } from './useBoxDraft';
+import { familyOrderOpen } from '../constants/familyOrder';
 import { isBoxLocked } from '../services/firestore/config';
 import { isHouseholdBoxFrozen } from '../constants/hanukkahBoxLock';
 
@@ -102,6 +103,7 @@ export function useEffectiveBoxLocked(lockAt: string | null): boolean {
   ) {
     return false;
   }
+  if (familyOrderOpen()) return false;
   return isBoxLocked(lockAt, now);
 }
 

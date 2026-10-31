@@ -48,6 +48,7 @@ import { getSavedCardSummary, type SavedCardSummary } from '../../services/check
 import { savedCardLabel } from '../storefront/MarketplacePaymentPanel.web';
 import { StickyBar } from '../../components/mobile/StickyBar';
 import { lockShortLabel } from '../../hooks/useBoxGlance';
+import { familyOrderOpen } from '../../constants/familyOrder';
 import { checkoutChargeBar, checkoutChargeLine } from '../../constants/hanukkahBoxLock';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
@@ -765,8 +766,8 @@ function CheckoutScreenBody() {
   const showingCardForm = !!setupClientSecret;
 
   const lockShort = lockShortLabel(lockAt);
-  const chargeLine = checkoutChargeLine(lockShort, now);
-  const chargeBar = checkoutChargeBar(lockShort, now);
+  const chargeLine = checkoutChargeLine(lockShort, now, familyOrderOpen());
+  const chargeBar = checkoutChargeBar(lockShort, now, familyOrderOpen());
   if (showCongrats) {
     if (mobileLayout) {
       const startsLabel = startsOnForDone ? new Date(startsOnForDone).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : null;

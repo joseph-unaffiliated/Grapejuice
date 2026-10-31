@@ -23,12 +23,15 @@ assert.equal(
   'Keep editing your box until Nov 7'
 );
 
-assert.equal(isImmediateChargeWindow(new Date('2026-11-09T16:59:59.999Z')), false);
-assert.equal(isImmediateChargeWindow(new Date('2026-11-09T17:00:00.000Z')), true);
-assert.equal(isImmediateChargeWindow(new Date('2026-11-10T16:59:59.999Z')), true);
-assert.equal(isImmediateChargeWindow(new Date('2026-11-10T17:00:00.000Z')), false);
+assert.equal(isImmediateChargeWindow(new Date('2026-11-08T13:59:59.999Z')), false);
+assert.equal(isImmediateChargeWindow(new Date('2026-11-08T14:00:00.000Z')), true);
+assert.equal(isImmediateChargeWindow(new Date('2026-11-09T16:59:59.999Z')), true);
+assert.equal(isImmediateChargeWindow(new Date('2026-11-09T17:00:00.000Z')), false);
+assert.equal(isImmediateChargeWindow(new Date('2026-11-07T16:00:00.000Z'), true), false);
+assert.equal(isImmediateChargeWindow(new Date('2026-11-08T05:00:00.000Z'), true), true);
+assert.equal(isImmediateChargeWindow(new Date('2026-11-10T15:00:00.000Z'), true), true);
 assert.match(
-  checkoutChargeLine('Nov 10', new Date('2026-11-09T17:00:00.000Z')),
+  checkoutChargeLine('Nov 9', new Date('2026-11-08T14:00:00.000Z')),
   /charged when you place this order/i
 );
 

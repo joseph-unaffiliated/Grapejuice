@@ -6,26 +6,28 @@ export const HANUKKAH_BOX_LOCK_DATE = new Date('2026-11-07T23:59:59-05:00');
  * 11:59pm ET Nov 7. A committed box stays frozen after this even if the public lock moves.
  */
 export const COMMITTED_FREEZE_AT = '2026-11-08T04:59:59.000Z';
-/** Noon ET Nov 9 through noon ET Nov 10. Checkout charges the card immediately. */
-const EXTENSION_START_MS = Date.parse('2026-11-09T17:00:00.000Z');
-const EXTENSION_END_MS = Date.parse('2026-11-10T17:00:00.000Z');
+/** 9am ET Sunday Nov 8 through noon ET Monday Nov 9. Checkout charges the card immediately. */
+const EXTENSION_START_MS = Date.parse('2026-11-08T14:00:00.000Z');
+const EXTENSION_END_MS = Date.parse('2026-11-09T17:00:00.000Z');
+const COMMITTED_FREEZE_MS = Date.parse(COMMITTED_FREEZE_AT);
 
 const FROZEN_ORDER = new Set(['committed', 'pending', 'confirmed', 'shipped', 'delivered']);
 
-export function isImmediateChargeWindow(now: Date = new Date()): boolean {
+export function isImmediateChargeWindow(now: Date = new Date(), familyOpen = false): boolean {
   const t = now.getTime();
+  if (familyOpen && t >= COMMITTED_FREEZE_MS) return true;
   return t >= EXTENSION_START_MS && t < EXTENSION_END_MS;
 }
 
-export function checkoutChargeLine(lockShort: string, now: Date = new Date()): string {
-  if (isImmediateChargeWindow(now)) {
+export function checkoutChargeLine(lockShort: string, now: Date = new Date(), familyOpen = false): string {
+  if (isImmediateChargeWindow(now, familyOpen)) {
     return 'Your card is charged when you place this order. The box locks as soon as it goes through.';
   }
   return `$0 today. Charged after ${lockShort}. Cancel free before then.`;
 }
 
-export function checkoutChargeBar(lockShort: string, now: Date = new Date()): string {
-  if (isImmediateChargeWindow(now)) return 'Charged today · locks when you place it';
+export function checkoutChargeBar(lockShort: string, now: Date = new Date(), familyOpen = false): string {
+  if (isImmediateChargeWindow(now, familyOpen)) return 'Charged today · locks when you place it';
   return `$0 today · charged after ${lockShort} · cancel free before then`;
 }
 

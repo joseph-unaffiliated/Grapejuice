@@ -104,7 +104,7 @@ The ’90s Parent first (I updated the email connected to the broadcast). When t
 
 ## Codes
 
-FIFTEENOFF is 15% off, one per account, the same shape as TENOFF, and it ends at 11:59pm ET on Nov 4. A code already on an order is kept for the Nov 7 charge. Nobody can apply FIFTEENOFF on Nov 5 or later, including the extra day. TENOFF stays at 10% with no end date, and it still works on Nov 9 and 10. S1TWENTY is 20% and inactive. The per-brand 15% codes and LOCKSHIP were deleted. They had never been used.
+FIFTEENOFF is 15% off, one per account, the same shape as TENOFF, and it ends at 11:59pm ET on Nov 4. A code already on an order is kept for the Nov 7 charge. Nobody can apply FIFTEENOFF on Nov 5 or later, including the extra day. TENOFF stays at 10% with no end date, and it still works from Sunday morning Nov 8 through Monday noon Nov 9. S1TWENTY is 20% and inactive. The per-brand 15% codes and LOCKSHIP were deleted. They had never been used.
 
 ### In-issue
 
@@ -163,23 +163,23 @@ Nothing here sends until you tick it. The template ids stay at 0 until then, so 
 
 - The decline and the Nov. 12th noon ET deadline are one paragraph, with that deadline in bold. Then thumbnails of their box. Published. The header logo is the wordmark on a white background.
 
-### Nov 9, noon — extra day, someone who already started a box
+### Sunday morning, Nov 8 — extra day, someone who already started a box
 
-- Subject: One extra day to confirm your box
-- Preview: From now through noon tomorrow. Your card is charged when you confirm.
-- Body: By popular demand, we're extending the lock date for one extra day. You can confirm your box from now through noon tomorrow (Nov 10). It ships as normal. Your card is charged when you confirm, and the box locks then. You can still change what is in it until you pay. Anything that has sold out is still taken out automatically. Then thumbnails of their box.
+- Subject: Your box is open again until Monday at noon
+- Preview: We reopened it this morning. Your card is charged when you confirm.
+- Body: We reopened the box until Monday at noon. You can confirm yours through then. It ships as normal. Your card is charged when you confirm, and the box locks then. You can still change what is in it until you pay. Anything that has sold out is still taken out automatically. Then thumbnails of their box. It does not say the lock date was delayed.
 - Who: The same Grapejuice list as the sorry note, and they have a draft.
 
-### Nov 9, noon — extra day, someone who never started a box
+### Sunday morning, Nov 8 — extra day, someone who never started a box
 
-- Subject: One extra day to build a box
-- Preview: You can still build one through noon tomorrow.
-- Body: By popular demand, we're extending the lock date for one extra day. You can still build a box through noon on the 10th. Your card is charged when you place it, and the box locks then. Then "Popular picks" thumbnails.
+- Subject: Boxes are open again until Monday at noon
+- Preview: You can still build one through Monday at noon.
+- Body: We reopened the box until Monday at noon. You can still build one through then. Your card is charged when you place it, and the box locks then. Then "Popular picks" thumbnails. It does not say the lock date was delayed.
 - Who: The same Grapejuice list, and they never started a box.
 
-### Nov 9, noon — Story, you post it
+### Sunday morning, Nov 8 — Story, you post it
 
-Grapejuice account, at noon. Same words as the extra-day email. Other brands do not post it. This line is the reminder. It is not posted from here.
+Grapejuice account, Sunday morning. Same words as the extra-day email: it was reopened until Monday at noon. Other brands do not post it. This line is the reminder. It is not posted from here.
 
 ### Nov 12, noon — card still declined
 
@@ -189,7 +189,15 @@ Grapejuice account, at noon. Same words as the extra-day email. Other brands do 
 - Body: Sorry we couldn't make it work for this year. Maybe next time!
 - Who: A committed box whose card was still declined. The cancellation happens then. This note waits until you tick it.
 
-From noon ET Nov 9 until noon ET Nov 10, the site is open only for people who have not locked a box. "$0 today" is off. A new order is charged when they submit shipping and payment, then it locks. People who locked before Nov 7 stay charged and frozen. The site does not look reopened for them. At noon on Nov 10 it locks again. There is no third email.
+### Kosher food note — preview only, do not send
+
+Two renders, same header and footer as the other Grapejuice notes. Open `docs/customerio-kosher-notice.html` and `docs/customerio-kosher-notice-cleared.html`. The first line is that the food is vegan and not OU-certified. The food version shows the latke kit, sufganiyot kit, and chocolate gelt, plus the included swaps. Cookie cutters and taking the line out leave the non-OU food behind. Gelt and the other kit are marked vegan and not OU. The cleared version says the food is already out and has no swap row. Nothing sends until this is approved and a template id is set.
+
+### Unclaimed gifts — preview only, do not send
+
+`docs/customerio-gift-unclaimed-recipient.html` goes to the recipient, with the giver's name, the claim link, and thumbnails. A day later, if they still have not accepted, `docs/customerio-gift-unclaimed-sender.html` asks the giver to follow up. That note says the box still ships when the address is complete and the only gap is tax. `docs/customerio-gift-unclaimed-sender-held.html` is the version that says it will not ship while add-ons are unpaid. Template ids stay at 0, so nothing sends.
+
+From 9am ET Sunday Nov 8 until noon ET Monday Nov 9, the site is open only for people who have not locked a box. "$0 today" is off. A new order is charged when they submit shipping and payment, then it locks. People who locked Saturday night stay charged and frozen. The site does not look reopened for them. At noon on Nov 9 it locks again. There is no third email. The sorry note waits until after that noon.
 
 ## What you do
 

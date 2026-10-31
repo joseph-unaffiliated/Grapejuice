@@ -1,4 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
+import { familyOrderToken } from '../../constants/familyOrder';
 import { functions } from '../../lib/firebase';
 import type { ShippingAddress } from '../../types/pilot';
 import {
@@ -58,6 +59,7 @@ async function commitPilotBoxOnce(
       contactPhone?: string;
       smsOptIn?: boolean;
       skipShipStation?: boolean;
+      familyOrderToken?: string;
       meta?: MetaServerContext;
       attribution?: AttributionSnapshot;
       promo?: PromoRequest;
@@ -67,6 +69,7 @@ async function commitPilotBoxOnce(
   >(functions, 'commitPilotBox');
   const promo = promoForServer();
   const session = readSessionEntry();
+  const familyToken = familyOrderToken();
   const { data } = await callable({
     householdId,
     shippingAddress,
@@ -74,6 +77,7 @@ async function commitPilotBoxOnce(
     contactPhone: options?.contactPhone,
     smsOptIn: options?.smsOptIn,
     skipShipStation: options?.skipShipStation,
+    ...(familyToken ? { familyOrderToken: familyToken } : {}),
     meta: metaServerContext(),
     attribution: attributionForServer(),
     ...(promo ? { promo } : {}),

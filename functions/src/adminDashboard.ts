@@ -1,6 +1,7 @@
-import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { HttpsError, onCall } from './sentry';
+import { getFirestore, type DocumentData, type Firestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
+import { HttpsError, onCall, onSchedule } from './sentry';
 import { isAdminToken } from './guestSessions';
 import { metaAdsAccessToken, metaStatsByAd, type MetaAdStats } from './metaAdsInsights';
 import { isTest } from './testAccounts';
@@ -17,6 +18,7 @@ import {
   type CheckoutSessionDoc,
   type CheckoutSessionView,
 } from './checkoutSession';
+import { diffBoxLines, historyLines, type HistoryLine } from './boxHistoryDiff';
 
 /**
  * Admin "Orders and Inventory" dashboard: one read-only snapshot of Hanukkah box orders,
@@ -42,6 +44,9 @@ export type DashAnswers = {
   jewish: number | null;
 };
 
+/** How a line relates to the box they were first handed (`history/default`). */
+export type DashLineOrigin = 'default' | 'changed' | 'added';
+
 export type DashLine = {
   itemId: string | null;
   name: string;
@@ -50,6 +55,8 @@ export type DashLine = {
   addOn: boolean;
   child: string | null;
   forHousehold: boolean;
+  /** Versus the default-build box; null when we have no default snapshot. */
+  origin: DashLineOrigin | null;
 };
 
 export type DashBox = {
@@ -61,6 +68,8 @@ export type DashBox = {
   email: string | null;
   test: boolean;
   kids: number;
+  /** Kid ages for the summary (planner age when known, else age band). */
+  kidAges: string[];
   status: string;
   playthrough: boolean;
   cardOnFile: boolean;
@@ -89,6 +98,10 @@ export type DashBox = {
   kosher: boolean;
   /** The note or message that set `kosher`. */
   kosherNote: string | null;
+  /** Full free-text onboarding note for Rav (`ravNotes`). */
+  note: string | null;
+  /** Customer (and Rav) swaps recorded in box history after the default build. */
+  swaps: number;
   lines: DashLine[];
 };
 
@@ -300,6 +313,7 @@ const ms = (v: unknown): number | null => {
 };
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 function addLines(totals: Map<string, number>, lines: unknown): void {
   if (!Array.isArray(lines)) return;
@@ -498,6 +512,7 @@ function buildGuestRows(
         addOn: unitCents > 0,
         child: childId ? kidLabels.get(childId) ?? 'child' : null,
         forHousehold: !childId,
+        origin: null,
       };
     });
     const answered = guestAnsweredSliders(guest);
@@ -634,6 +649,10 @@ export function buildGiftFunnelRows(
 }
 
 const CARD_SESSION_BACKFILL_PER_LOAD = 40;
+/** GCS object holding the precomputed Orders & Inventory payload (avoids on-demand timeouts). */
+const BOXES_DASH_CACHE_PATH = 'adminCache/boxesDashboard.json';
+/** Serve cache when fresher than this; otherwise rebuild (or wait for the schedule). */
+const BOXES_DASH_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 
 /**
  * Cards saved before sessions were recorded: rebuild the session once from the SetupIntent's
@@ -676,7 +695,11 @@ async function backfillCardSessions(db: Firestore, households: Map<string, Docum
 const sessionDoc = (v: unknown): CheckoutSessionDoc | null =>
   v && typeof v === 'object' && typeof (v as CheckoutSessionDoc).at === 'string' ? (v as CheckoutSessionDoc) : null;
 
-export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Promise<BoxesDashboard> {
+export async function buildBoxesDashboard(
+  db: Firestore,
+  nowMs = Date.now(),
+  opts: { backfillCards?: boolean } = {},
+): Promise<BoxesDashboard> {
   const [
     configSnap,
     hhSnap,
@@ -751,7 +774,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     households.set(d.id, h);
     if (str(h.ownerId)) userIds.add(h.ownerId);
   }
-  await backfillCardSessions(db, households);
+  // Stripe SetupIntent lookups are slow; only the scheduled rebuild opts in.
+  if (opts.backfillCards) await backfillCardSessions(db, households);
   for (const d of ordersSnap.docs) {
     const u = str(d.data().userId);
     if (u) userIds.add(u);
@@ -766,12 +790,23 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   }
 
   const childNamesByUser = new Map<string, Map<string, string | null>>();
+  const childAgesByUser = new Map<string, string[]>();
   for (const d of childrenSnap.docs) {
     const owner = d.ref.parent.parent;
     if (!owner || owner.parent.id !== 'users') continue;
+    const x = d.data();
     const m = childNamesByUser.get(owner.id) ?? new Map<string, string | null>();
-    m.set(d.id, str(d.data().name));
+    m.set(d.id, str(x.name));
     childNamesByUser.set(owner.id, m);
+    const age =
+      typeof x.plannerAge === 'number' && Number.isFinite(x.plannerAge)
+        ? String(Math.max(0, Math.floor(x.plannerAge)))
+        : str(x.ageGroup);
+    if (age) {
+      const ages = childAgesByUser.get(owner.id) ?? [];
+      ages.push(age);
+      childAgesByUser.set(owner.id, ages);
+    }
   }
   const userRefs = [...userIds].map((uid) => db.doc(`users/${uid}`));
   const userSnaps = userRefs.length ? await db.getAll(...userRefs) : [];
@@ -816,6 +851,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       ipLocation: string | null;
       ipOutsideUs: boolean;
       kosherNote: string | null;
+      note: string | null;
     }
   >();
   const kosherFromChat = new Map<string, string>();
@@ -841,6 +877,22 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const attr = x.attribution ?? {};
     userTouches.set(s.id, [attr.lastTouch, attr.firstTouch].filter(Boolean));
     const fromAuth = authByUid.get(s.id);
+    const note = str(last.ravNotes) ?? str(x.ravNotes) ?? null;
+    // Prefer ages on saved child profiles; fall back to onboarding drafts.
+    if (!childAgesByUser.has(s.id) && Array.isArray(last.childDrafts)) {
+      const ages: string[] = [];
+      for (const raw of last.childDrafts) {
+        if (!raw || typeof raw !== 'object') continue;
+        const draft = raw as Record<string, unknown>;
+        if (draft.role === 'adult') continue;
+        const age =
+          typeof draft.plannerAge === 'number' && Number.isFinite(draft.plannerAge)
+            ? String(Math.max(0, Math.floor(draft.plannerAge)))
+            : str(draft.ageGroup);
+        if (age) ages.push(age);
+      }
+      if (ages.length) childAgesByUser.set(s.id, ages);
+    }
     users.set(s.id, {
       email: str(x.email) ?? fromAuth?.email ?? null,
       name: firstNameOf(str(x.displayName) ?? fromAuth?.name ?? null),
@@ -862,7 +914,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       createdAt: iso(x.createdAt),
       ipLocation: ipLocationOf(x.ipGeo) ?? guestIpLocationByUid.get(s.id) ?? null,
       ipOutsideUs: ipLocationOf(x.ipGeo) ? ipOutsideUs(x.ipGeo) : guestIpOutsideUsByUid.get(s.id) ?? false,
-      kosherNote: kosherQuote(str(last.ravNotes) ?? str(x.ravNotes) ?? '') ?? kosherFromChat.get(s.id) ?? null,
+      kosherNote: kosherQuote(note ?? '') ?? kosherFromChat.get(s.id) ?? null,
+      note,
     });
   }
 
@@ -890,7 +943,9 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       answers: u?.answers ?? NO_ANSWERS,
       kosher: Boolean(u?.kosherNote),
       kosherNote: u?.kosherNote ?? null,
-      kids: Math.max(1, childNames.size),
+      note: u?.note ?? null,
+      kids: Math.max(1, childNames.size || (owner ? childAgesByUser.get(owner)?.length ?? 0 : 0)),
+      kidAges: owner ? childAgesByUser.get(owner) ?? [] : [],
       childNames,
       cardOnFile: Boolean(h.cardOnFileAt || h.stripeDefaultPaymentMethodId),
     };
@@ -910,7 +965,32 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     return classifyCheckoutSession(s, [oa.lastTouch, oa.firstTouch, ...((owner && userTouches.get(owner)) || [])]);
   };
 
-  const lineView = (li: DocumentData, childNames: Map<string, string | null>): DashLine => {
+  const lineOrigin = (li: DocumentData, defaults: HistoryLine[] | null): DashLineOrigin | null => {
+    if (!defaults?.length) return null;
+    const itemId = str(li.itemId);
+    if (!itemId) return null;
+    const unitCents = num(li.unitCents) ?? 0;
+    if (unitCents > 0) return 'added';
+    const slotId = str(li.slotId);
+    const childId = str(li.childId) ?? undefined;
+    const sameSlot = defaults.filter((d) => d.slotId === slotId && (d.childId ?? undefined) === childId);
+    if (sameSlot.some((d) => d.itemId === itemId)) return 'default';
+    if (sameSlot.length) return 'changed';
+    // Swaps can move a line to a new slot id; match by child when the slot renamed.
+    const sameChild = defaults.filter((d) => (d.childId ?? undefined) === childId && d.itemId === itemId);
+    if (sameChild.length) return 'default';
+    const childHadOther = defaults.some((d) => (d.childId ?? undefined) === childId && d.itemId !== itemId);
+    if (childId && childHadOther && !defaults.some((d) => d.itemId === itemId && (d.childId ?? undefined) === childId)) {
+      return 'changed';
+    }
+    if (defaults.some((d) => d.itemId === itemId)) return 'default';
+    return 'added';
+  };
+  const lineView = (
+    li: DocumentData,
+    childNames: Map<string, string | null>,
+    defaults: HistoryLine[] | null,
+  ): DashLine => {
     const itemId = str(li.itemId);
     const unitCents = num(li.unitCents) ?? 0;
     const childId = str(li.childId);
@@ -922,12 +1002,64 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       addOn: unitCents > 0,
       child: childId ? childNames.get(childId) ?? 'child' : null,
       forHousehold: !childId,
+      origin: lineOrigin(li, defaults),
     };
   };
-  const linesOf = (raw: unknown, childNames: Map<string, string | null>) =>
-    (Array.isArray(raw) ? raw : []).filter(Boolean).map((li) => lineView(li, childNames));
+  const linesOf = (raw: unknown, childNames: Map<string, string | null>, defaults: HistoryLine[] | null = null) =>
+    (Array.isArray(raw) ? raw : []).filter(Boolean).map((li) => lineView(li as DocumentData, childNames, defaults));
   const addOnTotal = (lines: DashLine[]) =>
     lines.filter((l) => l.addOn).reduce((s, l) => s + l.unitCents * Math.max(1, l.qty), 0);
+
+  /** Default-build snapshot + customer/Rav swap counts from box history. */
+  const defaultLinesByHousehold = new Map<string, HistoryLine[]>();
+  const swapsByHousehold = new Map<string, number>();
+  const historyHouseholdIds = new Set<string>([...drafts.keys()]);
+  for (const d of ordersSnap.docs) {
+    const o = d.data();
+    const hid = d.ref.parent.parent?.id;
+    if (!hid) continue;
+    const isBox = o.orderType === 'hanukkah_box' || (!o.orderType && o.holidayId === HOLIDAY_ID);
+    if (isBox) historyHouseholdIds.add(hid);
+  }
+  const historyIds = [...historyHouseholdIds];
+  for (let i = 0; i < historyIds.length; i += 40) {
+    const chunk = historyIds.slice(i, i + 40);
+    await Promise.all(
+      chunk.map(async (hid) => {
+        const hist = db.collection(`households/${hid}/boxDrafts/${HOLIDAY_ID}/history`);
+        const [defaultSnap, entriesSnap] = await Promise.all([
+          hist.doc('default').get(),
+          hist.where('list', '==', 'box').select('source', 'changes').get(),
+        ]);
+        const def = defaultSnap.data()?.box;
+        const lines = historyLines(isRecord(def) ? def.lineItems : null);
+        if (lines.length) defaultLinesByHousehold.set(hid, lines);
+        let swaps = 0;
+        for (const e of entriesSnap.docs) {
+          if (e.id === 'default') continue;
+          const source = str(e.data().source);
+          if (source !== 'customer' && source !== 'rav') continue;
+          const changes = e.data().changes;
+          if (!Array.isArray(changes)) continue;
+          for (const ch of changes) {
+            if (ch && typeof ch === 'object' && (ch as { type?: string }).type === 'swap') swaps += 1;
+          }
+        }
+        // If history never recorded swaps, still surface net swaps vs the default snapshot.
+        if (!swaps && lines.length) {
+          // Filled later per-box when we have current lines; store 0 for now.
+        }
+        swapsByHousehold.set(hid, swaps);
+      }),
+    );
+  }
+  const swapsFor = (hid: string, currentRaw: unknown): number => {
+    const recorded = swapsByHousehold.get(hid) ?? 0;
+    if (recorded > 0) return recorded;
+    const defaults = defaultLinesByHousehold.get(hid);
+    if (!defaults?.length) return 0;
+    return diffBoxLines(defaults, historyLines(currentRaw)).filter((c) => c.type === 'swap').length;
+  };
 
   const latestLocation = new Map<string, { createdMs: number; location: string }>();
   for (const d of ordersSnap.docs) {
@@ -1006,7 +1138,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       }
     }
     const c = customerFor(hid, str(o.userId));
-    const lines = linesOf(o.lineItems, c.childNames);
+    const defaults = defaultLinesByHousehold.get(hid) ?? null;
+    const lines = linesOf(o.lineItems, c.childNames, defaults);
     const addOnCents = addOnTotal(lines);
     const kids = num(o.kidCount) ?? c.kids;
     const subtotal = num(o.subtotalCents);
@@ -1019,6 +1152,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       email: c.email,
       test: c.test,
       kids,
+      kidAges: c.kidAges,
       status: str(o.status) ?? 'unknown',
       playthrough,
       cardOnFile: c.cardOnFile,
@@ -1038,6 +1172,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       answers: c.answers,
       kosher: c.kosher,
       kosherNote: c.kosherNote,
+      note: c.note,
+      swaps: swapsFor(hid, o.lineItems),
       lines,
     });
   }
@@ -1049,7 +1185,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
     const editor = str(dr.updatedBy);
     const editorUid = editor && users.has(editor) ? editor : null;
     const c = customerFor(hid, editorUid);
-    const lines = linesOf(dr.lineItems, c.childNames);
+    const defaults = defaultLinesByHousehold.get(hid) ?? null;
+    const lines = linesOf(dr.lineItems, c.childNames, defaults);
     const addOnCents = addOnTotal(lines);
     const boxPriceCents = priceForKids(c.kids);
     boxes.push({
@@ -1061,6 +1198,7 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       email: c.email,
       test: c.test,
       kids: c.kids,
+      kidAges: c.kidAges,
       status: 'draft',
       playthrough: dr.playthrough === true || households.get(hid)?.playthrough === true,
       cardOnFile: c.cardOnFile,
@@ -1079,6 +1217,8 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
       answers: c.answers,
       kosher: c.kosher,
       kosherNote: c.kosherNote,
+      note: c.note,
+      swaps: swapsFor(hid, dr.lineItems),
       lines,
     });
   }
@@ -1342,18 +1482,91 @@ export async function buildBoxesDashboard(db: Firestore, nowMs = Date.now()): Pr
   };
 }
 
+async function readBoxesDashboardCache(): Promise<BoxesDashboard | null> {
+  try {
+    const [buf] = await getStorage().bucket().file(BOXES_DASH_CACHE_PATH).download();
+    const parsed = JSON.parse(buf.toString('utf8')) as BoxesDashboard;
+    if (!parsed?.generatedAt || !Array.isArray(parsed.boxes)) return null;
+    return parsed;
+  } catch (err) {
+    const code = (err as { code?: number | string })?.code;
+    if (code !== 404 && code !== '404') {
+      logger.warn('adminBoxesDashboard: cache read failed', { err: String(err) });
+    }
+    return null;
+  }
+}
+
+async function writeBoxesDashboardCache(dash: BoxesDashboard): Promise<void> {
+  await getStorage().bucket().file(BOXES_DASH_CACHE_PATH).save(JSON.stringify(dash), {
+    contentType: 'application/json',
+    resumable: false,
+    metadata: { cacheControl: 'private, max-age=60' },
+  });
+}
+
+async function assembleBoxesDashboard(db: Firestore, opts: { backfillCards?: boolean } = {}): Promise<BoxesDashboard> {
+  const [dash, metaByAd, audits] = await Promise.all([
+    buildBoxesDashboard(db, Date.now(), { backfillCards: opts.backfillCards }),
+    metaStatsByAd(),
+    loadBoxProblems(db).catch((err) => {
+      logger.warn('adminBoxesDashboard: box problems unavailable', { err: String(err) });
+      return { boxProblems: [], boxAuditRun: null, fixLog: [] };
+    }),
+  ]);
+  return { ...dash, metaByAd, ...audits };
+}
+
+const BOXES_DASH_CALL_OPTS = {
+  secrets: [metaAdsAccessToken],
+  timeoutSeconds: 300,
+  memory: '2GiB' as const,
+};
+
+/** Rebuild every 2 minutes so the admin page can serve a warm snapshot instead of scanning live. */
+export const scheduledBoxesDashboard = onSchedule(
+  {
+    schedule: 'every 2 minutes',
+    timeZone: 'America/New_York',
+    secrets: [metaAdsAccessToken],
+    memory: '2GiB',
+    timeoutSeconds: 300,
+  },
+  async () => {
+    const db = getFirestore();
+    try {
+      const dash = await assembleBoxesDashboard(db, { backfillCards: true });
+      await writeBoxesDashboardCache(dash);
+      logger.info('adminBoxesDashboard: cache refreshed', {
+        generatedAt: dash.generatedAt,
+        boxes: dash.boxes.length,
+        guests: dash.guests.length,
+      });
+    } catch (err) {
+      logger.error('adminBoxesDashboard: scheduled rebuild failed', err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  },
+);
+
 export function createAdminBoxesDashboard(db: Firestore) {
-  return onCall({ secrets: [metaAdsAccessToken] }, async (request): Promise<BoxesDashboard> => {
+  return onCall(BOXES_DASH_CALL_OPTS, async (request): Promise<BoxesDashboard> => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in.');
     if (!isAdminToken(request.auth.token)) throw new HttpsError('permission-denied', 'Admin only.');
-    const [dash, metaByAd, audits] = await Promise.all([
-      buildBoxesDashboard(db),
-      metaStatsByAd(),
-      loadBoxProblems(db).catch((err) => {
-        logger.warn('adminBoxesDashboard: box problems unavailable', { err: String(err) });
-        return { boxProblems: [], boxAuditRun: null, fixLog: [] };
-      }),
-    ]);
-    return { ...dash, metaByAd, ...audits };
+    const force = Boolean((request.data as { refresh?: unknown } | null)?.refresh);
+
+    if (!force) {
+      const cached = await readBoxesDashboardCache();
+      const age = cached ? Date.now() - Date.parse(cached.generatedAt) : Infinity;
+      if (cached && Number.isFinite(age) && age >= 0 && age < BOXES_DASH_CACHE_MAX_AGE_MS) {
+        return cached;
+      }
+    }
+
+    const dash = await assembleBoxesDashboard(db, { backfillCards: false });
+    void writeBoxesDashboardCache(dash).catch((err) => {
+      logger.warn('adminBoxesDashboard: cache write failed', { err: String(err) });
+    });
+    return dash;
   });
 }

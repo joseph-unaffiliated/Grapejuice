@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import * as logger from './logger';
 import { isPlaythroughTestEmail } from './testAccounts';
 import { practiceAboveMetaCutoff } from './metaPracticeCutoff';
@@ -7,6 +8,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { createCardSetupIntent, stripe, stripePublishableKey, verifyWebhook } from './stripe';
 import { sendEmail, sendDebriefReminderEmail, sendGiftConfirmReminderEmail } from './email';
+import { AUTO_SHIP_TAX_CENTS, unclaimedGiftShipDecision } from './giftShip';
+import { runUnclaimedGiftNotes } from './giftUnclaimed';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
 import {
@@ -72,6 +75,7 @@ import {
 } from './metaCapi';
 import { randomBytes } from 'crypto';
 import { createAdminBoxesDashboard } from './adminDashboard';
+export { scheduledBoxesDashboard } from './adminDashboard';
 import {
   checkoutSessionFromCallable,
   checkoutSessionFromStripeMetadata,
@@ -264,6 +268,8 @@ interface CommitPilotBoxData {
   promo?: unknown;
   /** Where this browser tab's visit started (see checkoutSession.ts). */
   session?: unknown;
+  /** Friends-and-family link. Accepted only when it matches config. */
+  familyOrderToken?: string;
 }
 
 interface CreatePilotSetupIntentData {
@@ -500,8 +506,8 @@ async function fulfillMarketplaceOrder(
     await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
     return;
   }
-  // Gift boxes and à la carte orders ship with the Hanukkah boxes: runExportHeldOrders sends them once lock passes.
-  if (fresh.orderType === 'received_gift' || fresh.orderType === 'marketplace') {
+  // Gift boxes still wait for lock (ship with the Hanukkah wave). À la carte / shop exports as soon as paid.
+  if (fresh.orderType === 'received_gift') {
     const lockAt = (fresh.lockAt as string | null | undefined) ?? (await getLockAt());
     if (!lockHasPassed(lockAt)) return;
   }
@@ -695,7 +701,7 @@ async function createAutoShipGiftOrder(params: {
     lineItems: normalizeGiftLineItems(params.lineItems),
     subtotalCents: 0,
     shippingCents: 0,
-    taxCents: 0,
+    taxCents: AUTO_SHIP_TAX_CENTS,
     totalCents: 0,
     creditAppliedCents: 0,
     giftCreditAppliedCents: 0,
@@ -798,7 +804,19 @@ async function runSettleUnconfirmedGiftBoxes(): Promise<void> {
     if (resolveGiftInviteKind(invite) !== 'box') continue;
     const paid = invite.paymentStatus === 'paid' || Boolean(invite.claimEmailSentAt);
     if (!paid || invite.status === 'claimed' || invite.autoShipOrderId) continue;
-    if (!isCompleteShippingAddress(invite.shippingAddress)) continue;
+    const prepaidAddOnCents =
+      typeof (doc.data() as { prepaidAddOnCents?: unknown }).prepaidAddOnCents === 'number'
+        ? ((doc.data() as { prepaidAddOnCents: number }).prepaidAddOnCents)
+        : 0;
+    const upgradeCents = recipientGiftUpgradeCents(
+      (invite.lineItems as Array<{ unitCents?: number; quantity?: number }>) ?? [],
+      prepaidAddOnCents
+    );
+    const ship = unclaimedGiftShipDecision({
+      addressComplete: isCompleteShippingAddress(invite.shippingAddress),
+      upgradeCents,
+    });
+    if (!ship.ship) continue;
     try {
       const giverHouseholdId = (await db.doc(`users/${invite.giverUid}`).get()).data()?.householdId as
         | string
@@ -944,7 +962,7 @@ async function runGiftConfirmReminders(): Promise<{ sent: number; skipped: numbe
 }
 
 async function runExportHeldOrders(): Promise<void> {
-  if (!isLocked(await getLockAt())) return;
+  const locked = isLocked(await getLockAt());
   const snap = await db
     .collectionGroup('orders')
     .where('status', '==', 'confirmed')
@@ -952,7 +970,13 @@ async function runExportHeldOrders(): Promise<void> {
     .get();
   for (const doc of snap.docs) {
     const order = doc.data();
-    if (order.orderType !== 'received_gift' && order.orderType !== 'marketplace') continue;
+    if (order.orderType === 'marketplace') {
+      // Shop orders export as soon as confirmed; retry any that missed the first pass.
+    } else if (order.orderType === 'received_gift') {
+      if (!locked) continue;
+    } else {
+      continue;
+    }
     if (order.marketplaceFulfilledAt) continue;
     const householdId = doc.ref.parent.parent?.id;
     if (!householdId) continue;
@@ -1595,6 +1619,14 @@ export const createPilotSetupIntent = onCall(async (request) => {
   return { clientSecret: setupIntent.client_secret, customerId };
 });
 
+function familyOrderMatches(expected: unknown, given: unknown): boolean {
+  if (typeof expected !== 'string' || typeof given !== 'string') return false;
+  const a = expected.trim();
+  const b = given.trim();
+  if (a.length < 16 || a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 /**
  * Save card (SetupIntent, before this call) + commit address/shipping tier.
  * No PaymentIntent here — one off-session charge at lock/ship (see charge-once-at-ship).
@@ -1622,8 +1654,13 @@ export const commitPilotBox = onCall(async (request) => {
 
   const lockAt = await getLockAt(false);
   const extensionCheckout = isExtensionWindow(new Date());
-  const orderLockAt = extensionCheckout ? new Date(Date.now() - 1000).toISOString() : lockAt;
-  if (isLocked(lockAt)) {
+  const familyCheckout = familyOrderMatches(
+    (await db.doc('config/hanukkah-2026').get()).data()?.familyOrderToken,
+    data.familyOrderToken
+  );
+  const chargeNow = extensionCheckout || (familyCheckout && isLocked(lockAt));
+  const orderLockAt = chargeNow ? new Date(Date.now() - 1000).toISOString() : lockAt;
+  if (isLocked(lockAt) && !familyCheckout) {
     throw new HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
   }
 
@@ -1833,7 +1870,7 @@ export const commitPilotBox = onCall(async (request) => {
     await reportUnaffiliatedShippingGeo({ attribution, shippingAddress, email: commitEmail });
   }
 
-  if (extensionCheckout && !isPlaythrough && stripe) {
+  if (chargeNow && !isPlaythrough && stripe) {
     try {
       const charged = await chargePilotBoxOrderForUser(db, stripe, request.auth.uid, householdId, orderRef.id);
       if (charged.outcome === 'charged' || charged.outcome === 'confirmed_zero') {
@@ -3665,6 +3702,7 @@ export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () =>
   await runLockNotes(db);
   try {
     await runSettleUnconfirmedGiftBoxes();
+    await runUnclaimedGiftNotes(db);
     await runExportHeldOrders();
   } catch (giftErr) {
     logger.error('runExportHeldOrders failed', giftErr);

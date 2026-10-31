@@ -13,10 +13,10 @@ exports.FIFTEENOFF_ENDS_AT = '2026-11-05T04:59:59.000Z';
 exports.OFFER_LAST_DAY = '2026-11-04';
 /** 11:59pm ET Nov 7. A box committed before this stays frozen even if the public lock moves. */
 exports.COMMITTED_FREEZE_AT = '2026-11-08T04:59:59.000Z';
-/** Noon ET Nov 9. The site opens again for people who have not locked a box. */
-exports.EXTENSION_START = '2026-11-09T17:00:00.000Z';
-/** Noon ET Nov 10. The public lock moves here at noon on Nov 9, then passes. */
-exports.EXTENSION_END = '2026-11-10T17:00:00.000Z';
+/** 9am ET Sunday Nov 8. The site opens again for people who have not locked a box. */
+exports.EXTENSION_START = '2026-11-08T14:00:00.000Z';
+/** Noon ET Monday Nov 9. The public lock moves here when the window opens, then passes. */
+exports.EXTENSION_END = '2026-11-09T17:00:00.000Z';
 /** Noon ET Nov 12. A declined card can be fixed until this moment, then the order is cancelled. */
 exports.CARD_FIX_DEADLINE = '2026-11-12T17:00:00.000Z';
 const FROZEN = new Set(['committed', 'pending', 'confirmed', 'shipped', 'delivered']);

@@ -222,7 +222,7 @@ async function sendUnnotifiedReceipts(db: Firestore, now: Date): Promise<number>
   return sent;
 }
 
-/** Noon ET Nov 9 through noon ET Nov 10 the public lock is the end of the extra day. */
+/** 9am ET Sunday Nov 8 through noon ET Monday Nov 9 the public lock is the end of the extra day. */
 export async function maybeOpenExtension(db: Firestore, now = new Date()): Promise<boolean> {
   const t = now.getTime();
   if (t < Date.parse(EXTENSION_START) || t >= Date.parse(EXTENSION_END)) return false;
@@ -340,8 +340,8 @@ export async function runLockNotes(db: Firestore, now = new Date()): Promise<voi
 
   const enabled = await enabledStageSet(db);
   const wantCommitted = day === '2026-11-06' && enabled.has('lock_t1_committed');
-  const wantSorry = day === '2026-11-08' && enabled.has('lock_sorry');
-  const wantExtend = day === '2026-11-09' && (enabled.has('extend_draft') || enabled.has('extend_new'));
+  const wantSorry = day === '2026-11-09' && hour >= 12 && enabled.has('lock_sorry');
+  const wantExtend = day === '2026-11-08' && hour >= 9 && (enabled.has('extend_draft') || enabled.has('extend_new'));
   if (!wantCommitted && !wantSorry && !wantExtend) {
     await db.doc('programJobs/lockNotes').set({ at: now.toISOString(), ok: true, skipped: 'not_approved', day });
     return;

@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPilotJoinedEmail = exports.healPilotDraftLines = exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.applyBoxProblemFix = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = void 0;
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.getAdminBoxesDashboard = void 0;
+exports.healPilotDraftLines = exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.applyBoxProblemFix = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = exports.scheduledBoxesDashboard = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = void 0;
+const crypto_1 = require("crypto");
 const logger = require("./logger");
 const testAccounts_1 = require("./testAccounts");
 const metaPracticeCutoff_1 = require("./metaPracticeCutoff");
@@ -11,6 +12,8 @@ const auth_1 = require("firebase-admin/auth");
 const firestore_1 = require("firebase-admin/firestore");
 const stripe_1 = require("./stripe");
 const email_1 = require("./email");
+const giftShip_1 = require("./giftShip");
+const giftUnclaimed_1 = require("./giftUnclaimed");
 const rav_1 = require("./rav");
 Object.defineProperty(exports, "askPilotRav", { enumerable: true, get: function () { return rav_1.askPilotRav; } });
 Object.defineProperty(exports, "curatePilotBox", { enumerable: true, get: function () { return rav_1.curatePilotBox; } });
@@ -30,8 +33,10 @@ const lockWindow_1 = require("./program/lockWindow");
 const lockNotes_1 = require("./program/lockNotes");
 const catalogInventory_1 = require("./catalogInventory");
 const metaCapi_1 = require("./metaCapi");
-const crypto_1 = require("crypto");
+const crypto_2 = require("crypto");
 const adminDashboard_1 = require("./adminDashboard");
+var adminDashboard_2 = require("./adminDashboard");
+Object.defineProperty(exports, "scheduledBoxesDashboard", { enumerable: true, get: function () { return adminDashboard_2.scheduledBoxesDashboard; } });
 const checkoutSession_1 = require("./checkoutSession");
 const usAddress_1 = require("./usAddress");
 const promotions_1 = require("./promotions");
@@ -367,8 +372,8 @@ async function fulfillMarketplaceOrder(householdId, orderId, order, skipShipStat
         await orderRef.update({ marketplaceFulfilledAt: new Date().toISOString() });
         return;
     }
-    // Gift boxes and à la carte orders ship with the Hanukkah boxes: runExportHeldOrders sends them once lock passes.
-    if (fresh.orderType === 'received_gift' || fresh.orderType === 'marketplace') {
+    // Gift boxes still wait for lock (ship with the Hanukkah wave). À la carte / shop exports as soon as paid.
+    if (fresh.orderType === 'received_gift') {
         const lockAt = (_g = fresh.lockAt) !== null && _g !== void 0 ? _g : (await getLockAt());
         if (!lockHasPassed(lockAt))
             return;
@@ -529,7 +534,7 @@ async function createAutoShipGiftOrder(params) {
     var _a, _b;
     const orderRef = db.doc(`households/${params.householdId}/orders/autoship-${params.giftInviteId}`);
     const configData = (_a = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _a !== void 0 ? _a : {};
-    const payload = Object.assign(Object.assign({ status: 'confirmed', orderType: 'received_gift', giftInviteId: params.giftInviteId, lineItems: normalizeGiftLineItems(params.lineItems), subtotalCents: 0, shippingCents: 0, taxCents: 0, totalCents: 0, creditAppliedCents: 0, giftCreditAppliedCents: 0, platformCreditAppliedCents: 0, shippingAddress: params.shippingAddress, holidayId: HOLIDAY_ID, userId: params.userId, estimatedDelivery: (_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-24', lockAt: params.lockAt, giftSurprise: true, autoShipped: true }, (params.autoShipForGiver ? { autoShipForGiver: true } : {})), { createdAt: firestore_1.FieldValue.serverTimestamp(), confirmedAt: firestore_1.FieldValue.serverTimestamp() });
+    const payload = Object.assign(Object.assign({ status: 'confirmed', orderType: 'received_gift', giftInviteId: params.giftInviteId, lineItems: normalizeGiftLineItems(params.lineItems), subtotalCents: 0, shippingCents: 0, taxCents: giftShip_1.AUTO_SHIP_TAX_CENTS, totalCents: 0, creditAppliedCents: 0, giftCreditAppliedCents: 0, platformCreditAppliedCents: 0, shippingAddress: params.shippingAddress, holidayId: HOLIDAY_ID, userId: params.userId, estimatedDelivery: (_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-24', lockAt: params.lockAt, giftSurprise: true, autoShipped: true }, (params.autoShipForGiver ? { autoShipForGiver: true } : {})), { createdAt: firestore_1.FieldValue.serverTimestamp(), confirmedAt: firestore_1.FieldValue.serverTimestamp() });
     try {
         await orderRef.create(payload);
     }
@@ -546,7 +551,7 @@ async function createAutoShipGiftOrder(params) {
  * without an address become credit when claimed (see claimGiftInvite).
  */
 async function runSettleUnconfirmedGiftBoxes() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const lockAt = await getLockAt();
     if (!isLocked(lockAt))
         return;
@@ -620,10 +625,18 @@ async function runSettleUnconfirmedGiftBoxes() {
         const paid = invite.paymentStatus === 'paid' || Boolean(invite.claimEmailSentAt);
         if (!paid || invite.status === 'claimed' || invite.autoShipOrderId)
             continue;
-        if (!isCompleteShippingAddress(invite.shippingAddress))
+        const prepaidAddOnCents = typeof doc.data().prepaidAddOnCents === 'number'
+            ? (doc.data().prepaidAddOnCents)
+            : 0;
+        const upgradeCents = recipientGiftUpgradeCents((_j = invite.lineItems) !== null && _j !== void 0 ? _j : [], prepaidAddOnCents);
+        const ship = (0, giftShip_1.unclaimedGiftShipDecision)({
+            addressComplete: isCompleteShippingAddress(invite.shippingAddress),
+            upgradeCents,
+        });
+        if (!ship.ship)
             continue;
         try {
-            const giverHouseholdId = (_j = (await db.doc(`users/${invite.giverUid}`).get()).data()) === null || _j === void 0 ? void 0 : _j.householdId;
+            const giverHouseholdId = (_k = (await db.doc(`users/${invite.giverUid}`).get()).data()) === null || _k === void 0 ? void 0 : _k.householdId;
             if (!giverHouseholdId) {
                 logger.warn('Unclaimed gift box has no giver household; ship it manually', { giftInviteId: doc.id });
                 continue;
@@ -632,7 +645,7 @@ async function runSettleUnconfirmedGiftBoxes() {
                 householdId: giverHouseholdId,
                 giftInviteId: doc.id,
                 userId: invite.giverUid,
-                lineItems: (_k = invite.lineItems) !== null && _k !== void 0 ? _k : [],
+                lineItems: (_l = invite.lineItems) !== null && _l !== void 0 ? _l : [],
                 shippingAddress: invite.shippingAddress,
                 lockAt,
                 autoShipForGiver: true,
@@ -751,8 +764,7 @@ async function runGiftConfirmReminders() {
 }
 async function runExportHeldOrders() {
     var _a;
-    if (!isLocked(await getLockAt()))
-        return;
+    const locked = isLocked(await getLockAt());
     const snap = await db
         .collectionGroup('orders')
         .where('status', '==', 'confirmed')
@@ -760,8 +772,16 @@ async function runExportHeldOrders() {
         .get();
     for (const doc of snap.docs) {
         const order = doc.data();
-        if (order.orderType !== 'received_gift' && order.orderType !== 'marketplace')
+        if (order.orderType === 'marketplace') {
+            // Shop orders export as soon as confirmed; retry any that missed the first pass.
+        }
+        else if (order.orderType === 'received_gift') {
+            if (!locked)
+                continue;
+        }
+        else {
             continue;
+        }
         if (order.marketplaceFulfilledAt)
             continue;
         const householdId = (_a = doc.ref.parent.parent) === null || _a === void 0 ? void 0 : _a.id;
@@ -1280,12 +1300,21 @@ exports.createPilotSetupIntent = (0, sentry_1.onCall)(async (request) => {
     }
     return { clientSecret: setupIntent.client_secret, customerId };
 });
+function familyOrderMatches(expected, given) {
+    if (typeof expected !== 'string' || typeof given !== 'string')
+        return false;
+    const a = expected.trim();
+    const b = given.trim();
+    if (a.length < 16 || a.length !== b.length)
+        return false;
+    return (0, crypto_1.timingSafeEqual)(Buffer.from(a), Buffer.from(b));
+}
 /**
  * Save card (SetupIntent, before this call) + commit address/shipping tier.
  * No PaymentIntent here — one off-session charge at lock/ship (see charge-once-at-ship).
  */
 exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     if (!((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid)) {
         throw new sentry_1.HttpsError('unauthenticated', 'Must be signed in.');
     }
@@ -1305,8 +1334,10 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     const platformCreditCents = typeof hhData.platformCreditCents === 'number' ? hhData.platformCreditCents : 0;
     const lockAt = await getLockAt(false);
     const extensionCheckout = (0, lockWindow_1.isExtensionWindow)(new Date());
-    const orderLockAt = extensionCheckout ? new Date(Date.now() - 1000).toISOString() : lockAt;
-    if (isLocked(lockAt)) {
+    const familyCheckout = familyOrderMatches((_f = (await db.doc('config/hanukkah-2026').get()).data()) === null || _f === void 0 ? void 0 : _f.familyOrderToken, data.familyOrderToken);
+    const chargeNow = extensionCheckout || (familyCheckout && isLocked(lockAt));
+    const orderLockAt = chargeNow ? new Date(Date.now() - 1000).toISOString() : lockAt;
+    if (isLocked(lockAt) && !familyCheckout) {
         throw new sentry_1.HttpsError('failed-precondition', 'The box lock date has passed. Contact support to change your order.');
     }
     const draftSnap = await db.doc(`households/${householdId}/boxDrafts/${HOLIDAY_ID}`).get();
@@ -1314,17 +1345,17 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         throw new sentry_1.HttpsError('failed-precondition', 'No box draft found. Complete onboarding first.');
     }
     const draft = draftSnap.data();
-    const pilotMerge = await (0, pilotParticipants_1.withPilotLines)(db, householdId, (_f = draft.lineItems) !== null && _f !== void 0 ? _f : []);
+    const pilotMerge = await (0, pilotParticipants_1.withPilotLines)(db, householdId, (_g = draft.lineItems) !== null && _g !== void 0 ? _g : []);
     const lineItems = pilotMerge.lines;
     if (pilotMerge.changed) {
         await draftSnap.ref.update({ lineItems, lastChangeSource: 'pilot', updatedAt: new Date().toISOString() });
     }
     const configSnap = await db.doc('config/hanukkah-2026').get();
-    const configData = (_g = configSnap.data()) !== null && _g !== void 0 ? _g : {};
+    const configData = (_h = configSnap.data()) !== null && _h !== void 0 ? _h : {};
     const { boxPriceCents, kidCount } = await (0, chargePilotBox_1.boxPriceForUser)(db, request.auth.uid, configData);
     const subtotalCents = orderTotalCents(lineItems, boxPriceCents);
     const shippingCents = SHIPPING_FLAT_CENTS;
-    const buyerEmail = String((_k = (_j = (_h = (await db.doc(`users/${request.auth.uid}`).get()).data()) === null || _h === void 0 ? void 0 : _h.email) !== null && _j !== void 0 ? _j : request.auth.token.email) !== null && _k !== void 0 ? _k : '')
+    const buyerEmail = String((_l = (_k = (_j = (await db.doc(`users/${request.auth.uid}`).get()).data()) === null || _j === void 0 ? void 0 : _j.email) !== null && _k !== void 0 ? _k : request.auth.token.email) !== null && _l !== void 0 ? _l : '')
         .trim()
         .toLowerCase() || null;
     const resolvedPromo = await (0, promotions_1.resolveCheckoutPromo)(db, data.promo, buyerEmail);
@@ -1357,7 +1388,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     if (!isPlaythrough) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
-    const estimatedDelivery = (_l = configData.estimatedDeliveryBy) !== null && _l !== void 0 ? _l : '2026-11-24';
+    const estimatedDelivery = (_m = configData.estimatedDeliveryBy) !== null && _m !== void 0 ? _m : '2026-11-24';
     const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
     const orderRef = ordersRef.doc();
     const hhRef = db.doc(`households/${householdId}`);
@@ -1421,7 +1452,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         promo,
         householdId,
     });
-    await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_m = data.contactPhone) === null || _m === void 0 ? void 0 : _m.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
+    await db.doc(`users/${request.auth.uid}`).set(Object.assign(Object.assign(Object.assign({ debriefReminderEligible: true, debriefReminderAttempts: 0, lockReminderEligible: false }, (((_o = data.contactPhone) === null || _o === void 0 ? void 0 : _o.trim()) ? { phone: data.contactPhone.trim() } : {})), (data.smsOptIn === true ? { smsOptIn: true } : {})), { updatedAt: new Date().toISOString() }), { merge: true });
     // Exit signal for the account setup nudge (Untraditional workspace).
     const commitEmail = typeof request.auth.token.email === 'string' ? request.auth.token.email : '';
     if (commitEmail) {
@@ -1447,12 +1478,12 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
         order: orderPayload,
         context: (0, metaCapi_1.metaContextFromCallable)(request),
         email: await emailForMeta(request.auth.uid, request.auth.token.email),
-        phone: ((_o = data.contactPhone) === null || _o === void 0 ? void 0 : _o.trim()) || null,
+        phone: ((_p = data.contactPhone) === null || _p === void 0 ? void 0 : _p.trim()) || null,
     });
     if (!isPlaythrough) {
         await (0, unaffiliated_1.reportUnaffiliatedShippingGeo)({ attribution, shippingAddress, email: commitEmail });
     }
-    if (extensionCheckout && !isPlaythrough && stripe_1.stripe) {
+    if (chargeNow && !isPlaythrough && stripe_1.stripe) {
         try {
             const charged = await (0, chargePilotBox_1.chargePilotBoxOrderForUser)(db, stripe_1.stripe, request.auth.uid, householdId, orderRef.id);
             if (charged.outcome === 'charged' || charged.outcome === 'confirmed_zero') {
@@ -2216,7 +2247,7 @@ exports.purchasePilotGift = (0, sentry_1.onCall)(async (request) => {
     // Stripe's minimum charge; the recipient still receives the full gift.
     const discountCents = Math.min(applied.discountCents, Math.max(0, creditCents - 50));
     const amountDueCents = creditCents - discountCents;
-    const claimToken = (0, crypto_1.randomBytes)(24).toString('hex');
+    const claimToken = (0, crypto_2.randomBytes)(24).toString('hex');
     const inviteRef = db.collection('giftInvites').doc();
     const metaContext = (0, metaCapi_1.metaContextForDoc)((0, metaCapi_1.metaContextFromCallable)(request));
     const attribution = (0, metaCapi_1.sanitizeAttribution)((_0 = request.data) === null || _0 === void 0 ? void 0 : _0.attribution);
@@ -2335,12 +2366,12 @@ exports.trackMetaEvent = (0, sentry_1.onCall)(async (request) => {
                 (0, metaPracticeCutoff_1.practiceAboveMetaCutoff)(storedPractice, storedFamiliarity);
     }
     if (!suppressBoxBuilt) {
-        await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_m = context.eventId) !== null && _m !== void 0 ? _m : `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${(0, crypto_1.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
+        await (0, metaCapi_1.sendMetaEvent)(Object.assign({ eventName, eventId: (_m = context.eventId) !== null && _m !== void 0 ? _m : `${eventName === 'BoxBuilt' ? 'boxbuilt' : 'prereg'}_${(0, crypto_2.randomBytes)(8).toString('hex')}`, context, user: { email, externalId: uid } }, (contentName ? { customData: { content_name: contentName } } : {})));
     }
     if (eventName === 'BoxBuilt') {
         await (0, metaCapi_1.sendMetaEvent)({
             eventName: 'BoxFollowUp',
-            eventId: `followup_${(0, crypto_1.randomBytes)(8).toString('hex')}`,
+            eventId: `followup_${(0, crypto_2.randomBytes)(8).toString('hex')}`,
             context,
             user: { email, externalId: uid },
         });
@@ -3005,6 +3036,7 @@ exports.scheduledChargePilotBoxes = (0, sentry_1.onSchedule)('every 1 hours', as
     await (0, lockNotes_1.runLockNotes)(db);
     try {
         await runSettleUnconfirmedGiftBoxes();
+        await (0, giftUnclaimed_1.runUnclaimedGiftNotes)(db);
         await runExportHeldOrders();
     }
     catch (giftErr) {
@@ -3127,7 +3159,7 @@ exports.requestBoxDiscountCode = (0, sentry_1.onCall)(async (request) => {
     if (!allAffirmed || statements.length < 1) {
         throw new sentry_1.HttpsError('failed-precondition', 'Please confirm each eligibility statement.');
     }
-    const code = `GJ70-${(0, crypto_1.randomBytes)(3).toString('hex').toUpperCase()}`;
+    const code = `GJ70-${(0, crypto_2.randomBytes)(3).toString('hex').toUpperCase()}`;
     const uid = (_f = (_e = request.auth) === null || _e === void 0 ? void 0 : _e.uid) !== null && _f !== void 0 ? _f : null;
     let householdId = null;
     if (uid) {

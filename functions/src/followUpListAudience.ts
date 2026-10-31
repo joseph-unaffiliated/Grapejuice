@@ -1,15 +1,18 @@
 import { defineSecret } from 'firebase-functions/params';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getCustomerioAppApiKey } from './email';
+import { leadEmailsByHash } from './cioPeople';
 import * as logger from './logger';
 import { onSchedule } from './sentry';
 import {
   FOLLOW_UP_LIST_AUDIENCE_ID,
   STATIC_ROWS_DOC,
+  addAudienceMembers,
   combineFollowUpRows,
   loadStaticRows,
-  replaceAudienceMembers,
   selectAbandonerRows,
   selectBuilderRows,
+  selectGuestDraftRows,
 } from './followUpAudience';
 
 /**
@@ -19,8 +22,8 @@ import {
 const metaAdsManagementToken = defineSecret('META_ADS_ACCESS_TOKEN_ADSMANAGEMENT');
 
 /**
- * Daily rebuild of the follow-up customer list (builders without a card + seeded lead rows).
- * Replaces the members each run so people who paid drop off. Logs counts only.
+ * Daily add to the follow-up customer list. Adds unpaid drafts (signed-in and guest) on top of
+ * the form leads and abandoners. Does not replace the list, so people already on it stay.
  */
 export const scheduledFollowUpListAudience = onSchedule(
   { schedule: '0 6 * * *', timeZone: 'America/New_York', secrets: [metaAdsManagementToken] },
@@ -33,29 +36,41 @@ export const scheduledFollowUpListAudience = onSchedule(
     const db = getFirestore();
     const staticRows = await loadStaticRows(db);
     if (!staticRows) {
-      // Uploading without them would drop the lead rows from the audience.
-      logger.warn(`scheduledFollowUpListAudience skipped: ${STATIC_ROWS_DOC} has not been seeded`);
-      return;
+      logger.warn(`scheduledFollowUpListAudience: ${STATIC_ROWS_DOC} has not been seeded; adding drafts without re-sending the lead rows`);
     }
     const builders = await selectBuilderRows(db);
     const abandoners = await selectAbandonerRows(db, builders.paidEmailHashes);
+    let guestRows: ReturnType<typeof selectGuestDraftRows> = [];
+    const cioKey = getCustomerioAppApiKey();
+    if (cioKey) {
+      const leads = await leadEmailsByHash(cioKey);
+      const guests = await db.collection('guestSessions').select('lineItems', 'gateEmailHash', 'lastLeadEmailHash').get();
+      guestRows = selectGuestDraftRows(
+        guests.docs.map((d) => d.data()),
+        leads,
+        builders.paidEmailHashes
+      );
+    } else {
+      logger.warn('scheduledFollowUpListAudience: no Customer.io key, guest drafts were not added');
+    }
     const { rows, duplicates, staticPaid } = combineFollowUpRows(
-      [...builders.rows, ...abandoners],
-      staticRows,
+      [...builders.rows, ...abandoners, ...guestRows],
+      staticRows ?? [],
       builders.paidEmailHashes
     );
     const counts = {
       builders: builders.rows.length,
       abandoners: abandoners.length,
+      guests: guestRows.length,
       skipped: builders.skipped,
-      staticRows: staticRows.length,
+      staticRows: staticRows?.length ?? 0,
       staticPaid,
       duplicates,
       rows: rows.length,
     };
     try {
-      const result = await replaceAudienceMembers(FOLLOW_UP_LIST_AUDIENCE_ID, rows, token);
-      logger.info('scheduledFollowUpListAudience uploaded', { ...counts, ...result });
+      const result = await addAudienceMembers(FOLLOW_UP_LIST_AUDIENCE_ID, rows, token);
+      logger.info('scheduledFollowUpListAudience added', { ...counts, ...result });
     } catch (err) {
       logger.error('scheduledFollowUpListAudience failed', err instanceof Error ? err : new Error(String(err)), counts);
     }

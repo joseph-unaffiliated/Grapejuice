@@ -4,8 +4,8 @@ import { isTest } from './testAccounts';
 
 /**
  * Customer-list side of the Meta follow-up audience. The website audience only holds browsers that
- * fired BoxFollowUp in the last 30 days; this list adds account holders who built a box but never
- * added a card, plus static lead lists stored as hashes in STATIC_ROWS_DOC.
+ * fired BoxFollowUp in the last 30 days; this list adds every unpaid draft (with or without a card),
+ * guest drafts that left an email, plus static lead lists stored as hashes in STATIC_ROWS_DOC.
  * Shared by scheduledFollowUpListAudience (followUpListAudience.ts) and
  * scripts/meta-followup-list-audience.mjs, which loads this file in plain Node: keep runtime
  * imports to crypto and pure local modules.
@@ -38,7 +38,7 @@ export type FollowUpHousehold = {
   // the admin low-practice filter and pilot invites — see metaPracticeCutoff.ts).
 };
 
-export type FollowUpSkipReason = 'no_box' | 'card_on_file' | 'paid_order' | 'no_email' | 'test';
+export type FollowUpSkipReason = 'no_box' | 'paid_order' | 'no_email' | 'test';
 
 function boxItemCount(lineItems: unknown): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -48,17 +48,13 @@ function boxItemCount(lineItems: unknown): number {
   }, 0);
 }
 
-function hasPaid(h: Pick<FollowUpHousehold, 'cardOnFileAt' | 'stripeDefaultPaymentMethodId' | 'orderStatuses'>): boolean {
-  return (
-    Boolean(h.cardOnFileAt || h.stripeDefaultPaymentMethodId) ||
-    h.orderStatuses.some((s) => typeof s === 'string' && PAID_ORDER_STATUSES.includes(s))
-  );
+function hasCommittedOrder(statuses: unknown[]): boolean {
+  return statuses.some((s) => typeof s === 'string' && PAID_ORDER_STATUSES.includes(s));
 }
 
 export function followUpSkipReason(h: FollowUpHousehold): FollowUpSkipReason | null {
   if (boxItemCount(h.draftLineItems) === 0) return 'no_box';
-  if (h.cardOnFileAt || h.stripeDefaultPaymentMethodId) return 'card_on_file';
-  if (hasPaid(h)) return 'paid_order';
+  if (hasCommittedOrder(h.orderStatuses)) return 'paid_order';
   if (!normalizeEmail(h.email)) return 'no_email';
   if (isTest(h.email)) return 'test';
   return null;
@@ -141,7 +137,7 @@ export type BuilderSelection = {
   skipped: Partial<Record<FollowUpSkipReason, number>>;
 };
 
-/** Account holders with a box draft, no card and no paid order (test accounts skipped). Read-only. */
+/** Account holders with an unpaid box draft, card or not (test accounts skipped). Read-only. */
 export async function selectBuilderRows(db: Firestore): Promise<BuilderSelection> {
   const [householdSnap, draftSnap, orderSnap, userSnap] = await Promise.all([
     db.collection('households').select('ownerId', 'cardOnFileAt', 'stripeDefaultPaymentMethodId').get(),
@@ -163,7 +159,7 @@ export async function selectBuilderRows(db: Firestore): Promise<BuilderSelection
   const paidEmailHashes = new Set<string>();
   for (const [hid, h] of households) {
     const email = normalizeEmail(ownerOf(h)?.email);
-    if (email && hasPaid({ ...h, orderStatuses: statusesByHousehold.get(hid) ?? [] })) paidEmailHashes.add(sha256(email));
+    if (email && hasCommittedOrder(statusesByHousehold.get(hid) ?? [])) paidEmailHashes.add(sha256(email));
   }
 
   const rows: HashedRow[] = [];
@@ -194,7 +190,7 @@ export async function selectBuilderRows(db: Firestore): Promise<BuilderSelection
 
 /**
  * People who reached payment (Stripe customer or a checkoutFunnel payment step) and have not
- * bought. They already have a card, so selectBuilderRows leaves them out.
+ * bought. Kept on the list even when they are not one of the unpaid drafts.
  */
 export async function selectAbandonerRows(db: Firestore, paidEmailHashes: Set<string>): Promise<HashedRow[]> {
   const [householdSnap, userSnap, funnelSnap] = await Promise.all([
@@ -230,6 +226,33 @@ export async function selectAbandonerRows(db: Firestore, paidEmailHashes: Set<st
     if (!email || isTest(email) || paidEmailHashes.has(sha256(email))) continue;
     const [firstName, ...rest] = String(owner?.displayName ?? '').trim().split(/\s+/);
     const row = hashedAudienceRow({ email, phone: owner?.phone, firstName, lastName: rest[rest.length - 1] });
+    if (row) rows.push(row);
+  }
+  return rows;
+}
+
+/**
+ * Guest drafts that left an email and have not locked an order. The email is resolved from the
+ * hash map (Customer.io leads). Someone already on the list stays; this only adds rows.
+ */
+export function selectGuestDraftRows(
+  docs: Array<{ lineItems?: unknown; gateEmailHash?: unknown; lastLeadEmailHash?: unknown }>,
+  emailsByHash: Map<string, string>,
+  paidEmailHashes: Set<string>
+): HashedRow[] {
+  const rows: HashedRow[] = [];
+  for (const doc of docs) {
+    if (boxItemCount(doc.lineItems) === 0) continue;
+    const hash =
+      typeof doc.gateEmailHash === 'string'
+        ? doc.gateEmailHash
+        : typeof doc.lastLeadEmailHash === 'string'
+          ? doc.lastLeadEmailHash
+          : '';
+    if (!hash) continue;
+    const email = normalizeEmail(emailsByHash.get(hash));
+    if (!email || isTest(email) || paidEmailHashes.has(sha256(email))) continue;
+    const row = hashedAudienceRow({ email });
     if (row) rows.push(row);
   }
   return rows;
@@ -274,8 +297,37 @@ export async function createFollowUpListAudience(token: string, name: string, fe
 }
 
 /**
+ * Add rows. Does not remove anyone already on the list (form leads, abandoners, prior uploads).
+ * Refuses a protected audience and anything that is not a customer list in META_AD_ACCOUNT.
+ */
+export async function addAudienceMembers(
+  audienceId: string,
+  rows: HashedRow[],
+  token: string,
+  fetchImpl: GraphFetch = fetch
+): Promise<{ received: number; invalid: number }> {
+  if (PROTECTED_AUDIENCES.has(audienceId)) throw new Error(`Refusing to write to protected audience ${audienceId}`);
+  if (!rows.length) return { received: 0, invalid: 0 };
+  const target = await graph(fetchImpl, token, 'GET', audienceId, { fields: 'subtype,account_id' });
+  if (target.subtype !== 'CUSTOM' || `act_${target.account_id}` !== META_AD_ACCOUNT) {
+    throw new Error(`Audience ${audienceId} is not a customer list in ${META_AD_ACCOUNT}`);
+  }
+  let received = 0;
+  let invalid = 0;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const r = await graph(fetchImpl, token, 'POST', `${audienceId}/users`, {
+      payload: { schema: AUDIENCE_SCHEMA, data: rows.slice(i, i + BATCH) },
+    });
+    received += Number(r.num_received ?? 0);
+    invalid += Number(r.num_invalid_entries ?? 0);
+  }
+  return { received, invalid };
+}
+
+/**
  * Replace (not append) the audience's members so people who paid drop off. Refuses anything but a
  * customer-list audience in META_AD_ACCOUNT, and an empty list (which would wipe the audience).
+ * The daily job uses addAudienceMembers so a refresh cannot drop people who are not in the new payload.
  */
 export async function replaceAudienceMembers(
   audienceId: string,
