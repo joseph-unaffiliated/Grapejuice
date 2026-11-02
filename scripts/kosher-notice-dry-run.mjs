@@ -47,7 +47,7 @@ for (const doc of drafts.docs) {
 }
 
 const lines = [];
-const counts = { with_food: 0, already_out: 0 };
+const counts = { with_food: 0 };
 for (const user of users.docs) {
   const data = user.data();
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';

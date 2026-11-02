@@ -37,12 +37,14 @@ const TEMPLATE_IDS = {
     'gift-claim': parseInt((_g = process.env.CUSTOMERIO_TEMPLATE_GIFT_CLAIM) !== null && _g !== void 0 ? _g : '0', 10) || 0,
     /** Gift box nobody has confirmed an address for yet — transactional message 18 (draft until approved). */
     'gift-confirm-reminder': parseInt((_h = process.env.CUSTOMERIO_TEMPLATE_GIFT_CONFIRM_REMINDER) !== null && _h !== void 0 ? _h : '0', 10) || 0,
-    /** Unclaimed gift, to the recipient. Stays 0 until the render is approved. */
-    'gift-unclaimed-recipient': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_RECIPIENT) !== null && _j !== void 0 ? _j : '0', 10) || 0,
-    /** Unclaimed gift, to the giver a day later. Stays 0 until the render is approved. */
-    'gift-unclaimed-sender': parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_SENDER) !== null && _k !== void 0 ? _k : '0', 10) || 0,
-    /** Kosher food note. Stays 0 until the render is approved. */
-    'kosher-notice': parseInt((_l = process.env.CUSTOMERIO_TEMPLATE_KOSHER_NOTICE) !== null && _l !== void 0 ? _l : '0', 10) || 0,
+    /** Unclaimed gift, to the recipient. A string id is created on the first send. */
+    'gift-unclaimed-recipient': parseInt((_j = process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_RECIPIENT) !== null && _j !== void 0 ? _j : '0', 10) ||
+        'grapejuice-gift-unclaimed-recipient',
+    /** Unclaimed gift, to the giver a day later. A string id is created on the first send. */
+    'gift-unclaimed-sender': parseInt((_k = process.env.CUSTOMERIO_TEMPLATE_GIFT_UNCLAIMED_SENDER) !== null && _k !== void 0 ? _k : '0', 10) ||
+        'grapejuice-gift-unclaimed-sender',
+    /** Kosher food note. A string id is created on the first send. */
+    'kosher-notice': parseInt((_l = process.env.CUSTOMERIO_TEMPLATE_KOSHER_NOTICE) !== null && _l !== void 0 ? _l : '0', 10) || 'grapejuice-kosher-notice',
     'debrief-amazon': parseInt((_m = process.env.CUSTOMERIO_TEMPLATE_DEBRIEF_AMAZON) !== null && _m !== void 0 ? _m : '0', 10) || 0,
     'box-discount': parseInt((_o = process.env.CUSTOMERIO_TEMPLATE_BOX_DISCOUNT) !== null && _o !== void 0 ? _o : '0', 10) || 0,
     welcome: parseInt((_p = process.env.CUSTOMERIO_TEMPLATE_WELCOME) !== null && _p !== void 0 ? _p : '0', 10) || 12,
@@ -125,19 +127,15 @@ async function sendEmail({ to, template, data, }) {
         console.warn('sendEmail: CUSTOMERIO_APP_API_KEY not set, skipping', { to, template });
         return 'skipped';
     }
+    const subject = typeof data.subject === 'string' ? data.subject : undefined;
+    const html = typeof data.html === 'string' ? data.html : undefined;
     const res = await fetch(`${BASE_URL}/send/email`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-            to,
-            transactional_message_id: transactionalMessageId,
-            message_data: data,
-            identifiers: { email: to },
-            from: FROM_EMAIL,
-        }),
+        body: JSON.stringify(Object.assign(Object.assign(Object.assign({ to, transactional_message_id: transactionalMessageId, message_data: data, identifiers: { email: to }, from: FROM_EMAIL }, (subject ? { subject } : {})), (html ? { body: html } : {})), (typeof transactionalMessageId === 'string' ? { auto_create: true } : {}))),
     });
     if (!res.ok) {
         const text = await res.text();

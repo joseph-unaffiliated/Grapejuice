@@ -51,37 +51,32 @@ assert.equal(
   kosherNoticeVersion({ practiceScore: 50, practiceTouched: false, edibleNames: ['Latke kit'] }),
   null
 );
-assert.equal(
-  kosherNoticeVersion({ householdNote: 'we keep kosher', edibleNames: [] }),
-  'already_out'
-);
+assert.equal(kosherNoticeVersion({ householdNote: 'we keep kosher', edibleNames: [] }), null);
 
 const withFood = renderKosherNotice({
-  version: 'with_food',
   foods,
   boxUrl: 'https://grapejuice.co/box',
-  swaps: [
-    { name: 'Cookie cutters', imageUrl: LATKE, note: 'This leaves the non-OU food behind. The box price does not change.' },
-    { name: 'A big bag of gelt', imageUrl: LATKE, note: 'Vegan, and not OU-certified. This does not leave the non-OU food behind.' },
-  ],
 });
-assert.match(withFood.html, /vegan, and it is not OU-certified kosher/i);
+assert.equal(withFood.subject, 'A note about the food items in your box');
+assert.match(withFood.html, /Review the food items in your box/);
+assert.match(withFood.html, /Food items in your box/);
+assert.equal(withFood.html.includes('Please review the food items'), false);
+assert.match(withFood.html, /none of the food items in this box are certified kosher/);
+assert.match(withFood.html, /have flour and call for egg/);
+assert.match(withFood.html, /dairy-free \(pareve\)/);
+assert.match(withFood.html, /egg-substitute \(not provided\)/);
+assert.match(withFood.html, /between now and Nov\. 7/);
+assert.match(withFood.html, /Review my box/);
 assert.match(withFood.html, /Latke kit/);
 assert.match(withFood.html, /Sufganiyot kit/);
 assert.match(withFood.html, /Chocolate gelt/);
-assert.match(withFood.html, /Cookie cutters/);
-assert.match(withFood.html, /not OU-certified/);
+assert.equal(withFood.html.includes('Cookie cutters'), false);
+assert.equal(/score|we think you are kosher|OU-certified/i.test(withFood.html), false);
 assert.match(withFood.html, new RegExp(LATKE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-assert.equal(/score|we think you are kosher/i.test(withFood.html), false);
 assert.match(withFood.html, /grapejuice-wordmark-on-white/);
-
-const cleared = renderKosherNotice({ version: 'already_out', foods: [], boxUrl: 'https://grapejuice.co/box' });
-assert.match(cleared.html, /already out of the box/i);
-assert.equal(cleared.html.includes('Cookie cutters'), false);
-assert.match(cleared.html, /grapejuice-wordmark-gold/);
+assert.match(withFood.html, /grapejuice-wordmark-gold/);
 
 const docs = join(__dirname, '../../docs');
 writeFileSync(join(docs, 'customerio-kosher-notice.html'), withFood.html);
-writeFileSync(join(docs, 'customerio-kosher-notice-cleared.html'), cleared.html);
 
 console.log('kosherNotice tests passed');

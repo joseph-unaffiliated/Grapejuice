@@ -8,33 +8,91 @@ import { AUTO_SHIP_TAX_CENTS, unclaimedGiftShipDecision } from './giftShip';
 import {
   renderGiftRecipientEmail,
   renderGiftSenderEmail,
-  senderFollowUpCopy,
+  shouldEmailGiftSender,
   unclaimedGiftNoteDue,
 } from './giftUnclaimed';
 
 const now = Date.parse('2026-11-06T15:00:00.000Z');
 const dayAgo = new Date(now - 86_400_000).toISOString();
 const hourAgo = new Date(now - 3_600_000).toISOString();
+const twoDaysAgo = new Date(now - 2 * 86_400_000).toISOString();
 const LATKE = 'https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/catalog/hanukkah/items/latke-kit/primary-0-fad2029b3c90.webp';
 
 assert.equal(
-  unclaimedGiftNoteDue({ paid: true, status: 'pending', recipientSentAt: null, senderSentAt: null, now }),
+  unclaimedGiftNoteDue({
+    paid: true,
+    status: 'pending',
+    firstNotifiedAt: twoDaysAgo,
+    recipientSentAt: null,
+    senderSentAt: null,
+    now,
+  }),
   'recipient'
 );
 assert.equal(
-  unclaimedGiftNoteDue({ paid: true, status: 'pending', recipientSentAt: hourAgo, senderSentAt: null, now }),
+  unclaimedGiftNoteDue({
+    paid: true,
+    status: 'pending',
+    firstNotifiedAt: hourAgo,
+    recipientSentAt: null,
+    senderSentAt: null,
+    now,
+  }),
   null
 );
 assert.equal(
-  unclaimedGiftNoteDue({ paid: true, status: 'pending', recipientSentAt: dayAgo, senderSentAt: null, now }),
+  unclaimedGiftNoteDue({
+    paid: true,
+    status: 'pending',
+    firstNotifiedAt: null,
+    recipientSentAt: null,
+    senderSentAt: null,
+    now,
+  }),
+  null
+);
+assert.equal(
+  unclaimedGiftNoteDue({
+    paid: true,
+    status: 'pending',
+    firstNotifiedAt: twoDaysAgo,
+    recipientSentAt: hourAgo,
+    senderSentAt: null,
+    now,
+  }),
+  null
+);
+assert.equal(
+  unclaimedGiftNoteDue({
+    paid: true,
+    status: 'pending',
+    firstNotifiedAt: twoDaysAgo,
+    recipientSentAt: dayAgo,
+    senderSentAt: null,
+    now,
+  }),
   'sender'
 );
 assert.equal(
-  unclaimedGiftNoteDue({ paid: true, status: 'claimed', recipientSentAt: dayAgo, senderSentAt: null, now }),
+  unclaimedGiftNoteDue({
+    paid: true,
+    status: 'claimed',
+    firstNotifiedAt: twoDaysAgo,
+    recipientSentAt: dayAgo,
+    senderSentAt: null,
+    now,
+  }),
   null
 );
 assert.equal(
-  unclaimedGiftNoteDue({ paid: false, status: 'pending', recipientSentAt: null, senderSentAt: null, now }),
+  unclaimedGiftNoteDue({
+    paid: false,
+    status: 'pending',
+    firstNotifiedAt: twoDaysAgo,
+    recipientSentAt: null,
+    senderSentAt: null,
+    now,
+  }),
   null
 );
 
@@ -54,34 +112,29 @@ const recipient = renderGiftRecipientEmail({
   claimUrl: 'https://grapejuice.co/gift/claim?token=abc',
   items: [{ name: 'Latke kit', imageUrl: LATKE }],
 });
-assert.match(recipient.html, /Naomi/);
+assert.equal(recipient.subject, 'Where should we send your gift from Naomi?');
+assert.match(recipient.html, /We just need one more thing/);
+assert.match(recipient.html, /where we should send it/);
+assert.match(recipient.html, /Add shipping info/);
+assert.match(recipient.html, /margin:36px auto 20px/);
 assert.match(recipient.html, /gift\/claim\?token=abc/);
 assert.match(recipient.html, /Latke kit/);
-assert.match(recipient.html, /Finish receiving it/);
 assert.match(recipient.html, /grapejuice-wordmark-on-white/);
 
-const ships = renderGiftSenderEmail({
-  recipientName: 'Sam',
-  reason: 'ships',
-  boxUrl: 'https://grapejuice.co/gift/give',
-});
-assert.match(ships.html, /Follow up with them directly/);
-assert.match(ships.html, /still ships/);
-assert.match(ships.html, /tax is waived/i);
-assert.match(senderFollowUpCopy('no_address'), /will not ship/);
-assert.match(senderFollowUpCopy('owes_addons'), /will not ship/);
-assert.match(senderFollowUpCopy('owes_addons'), /add-ons/);
-const held = renderGiftSenderEmail({
-  recipientName: 'Sam',
-  reason: 'owes_addons',
-  boxUrl: 'https://grapejuice.co/gift/give',
-});
-assert.match(held.html, /will not ship/);
-assert.match(held.html, /add-ons/);
+assert.equal(shouldEmailGiftSender('ships'), false);
+assert.equal(shouldEmailGiftSender('no_address'), true);
+assert.equal(shouldEmailGiftSender('owes_addons'), true);
+const sender = renderGiftSenderEmail({ boxUrl: 'https://grapejuice.co/my-gifts/box/invite-1' });
+assert.equal(sender.subject, "The box you gifted hasn't been accepted yet");
+assert.match(sender.html, /We tried reaching them, but didn't hear back/);
+assert.match(sender.html, /give them a nudge/);
+assert.match(sender.html, /We still need a few things from them/);
+assert.match(sender.html, /Review my gift/);
+assert.match(sender.html, /my-gifts\/box\/invite-1/);
+assert.equal(/still ships|will not ship|add-ons/i.test(sender.html), false);
 
 const docs = join(__dirname, '../../docs');
 writeFileSync(join(docs, 'customerio-gift-unclaimed-recipient.html'), recipient.html);
-writeFileSync(join(docs, 'customerio-gift-unclaimed-sender.html'), ships.html);
-writeFileSync(join(docs, 'customerio-gift-unclaimed-sender-held.html'), held.html);
+writeFileSync(join(docs, 'customerio-gift-unclaimed-sender.html'), sender.html);
 
 console.log('giftUnclaimed tests passed');

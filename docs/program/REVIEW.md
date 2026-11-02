@@ -165,21 +165,25 @@ Nothing here sends until you tick it. The template ids stay at 0 until then, so 
 
 ### Sunday morning, Nov 8 — extra day, someone who already started a box
 
-- Subject: Your box is open again until Monday at noon
-- Preview: We reopened it this morning. Your card is charged when you confirm.
-- Body: We reopened the box until Monday at noon. You can confirm yours through then. It ships as normal. Your card is charged when you confirm, and the box locks then. You can still change what is in it until you pay. Anything that has sold out is still taken out automatically. Then thumbnails of their box. It does not say the lock date was delayed.
+- Subject: Ok, ok, one extra day to build your box.
+- Preview: You now have until tomorrow (Monday) at noon.
+- Title: One extra day to lock in your box
+- Body: You now have until tomorrow (Monday) at noon. You can finish your box through then. Add shipping and payment info and your box will ship out in time for Hanukkah. Then thumbnails of their box.
+- CTA: Place my order
 - Who: The same Grapejuice list as the sorry note, and they have a draft.
 
 ### Sunday morning, Nov 8 — extra day, someone who never started a box
 
-- Subject: Boxes are open again until Monday at noon
-- Preview: You can still build one through Monday at noon.
-- Body: We reopened the box until Monday at noon. You can still build one through then. Your card is charged when you place it, and the box locks then. Then "Popular picks" thumbnails. It does not say the lock date was delayed.
+- Subject: Ok, ok, one extra day to build your box.
+- Preview: You now have until tomorrow (Monday) at noon.
+- Title: One extra day to lock in your box
+- Body: You now have until tomorrow (Monday) at noon. You can finish your box through then. Add shipping and payment info and your box will ship out in time for Hanukkah. Then "Popular picks" thumbnails.
+- CTA: Place my order
 - Who: The same Grapejuice list, and they never started a box.
 
 ### Sunday morning, Nov 8 — Story, you post it
 
-Grapejuice account, Sunday morning. Same words as the extra-day email: it was reopened until Monday at noon. Other brands do not post it. This line is the reminder. It is not posted from here.
+Grapejuice account, Sunday morning. Same words as the extra-day email: the deadline is extended by one day, through Monday at noon. Other brands do not post it. This line is the reminder. It is not posted from here.
 
 ### Nov 12, noon — card still declined
 
@@ -189,13 +193,13 @@ Grapejuice account, Sunday morning. Same words as the extra-day email: it was re
 - Body: Sorry we couldn't make it work for this year. Maybe next time!
 - Who: A committed box whose card was still declined. The cancellation happens then. This note waits until you tick it.
 
-### Kosher food note — preview only, do not send
+### Kosher food note
 
-Two renders, same header and footer as the other Grapejuice notes. Open `docs/customerio-kosher-notice.html` and `docs/customerio-kosher-notice-cleared.html`. The first line is that the food is vegan and not OU-certified. The food version shows the latke kit, sufganiyot kit, and chocolate gelt, plus the included swaps. Cookie cutters and taking the line out leave the non-OU food behind. Gelt and the other kit are marked vegan and not OU. The cleared version says the food is already out and has no swap row. Nothing sends until this is approved and a template id is set.
+One note, only when latke mix, sufganiyot mix, or gelt is still in the box. Open `docs/customerio-kosher-notice.html`. Subject: A note about the food items in your box. Title: Review the food items in your box. It says the food is not certified kosher, the mixes have flour and call for egg, everything is dairy-free (pareve), and the mixes can be made vegan with an egg substitute. Pictures are only the food lines still in that box, under the heading “Food items in your box.” There is no second email for a box that already had the food removed.
 
-### Unclaimed gifts — preview only, do not send
+### Unclaimed gifts
 
-`docs/customerio-gift-unclaimed-recipient.html` goes to the recipient, with the giver's name, the claim link, and thumbnails. A day later, if they still have not accepted, `docs/customerio-gift-unclaimed-sender.html` asks the giver to follow up. That note says the box still ships when the address is complete and the only gap is tax. `docs/customerio-gift-unclaimed-sender-held.html` is the version that says it will not ship while add-ons are unpaid. Template ids stay at 0, so nothing sends.
+`docs/customerio-gift-unclaimed-recipient.html` goes to the recipient and asks where to send the gift. It waits until the original gift email is at least 48 hours old. A day after that follow-up, if they still have not accepted and a shipping address or a payment is still missing, `docs/customerio-gift-unclaimed-sender.html` asks the giver to nudge them. If the address is complete and nothing is owed beyond tax, the giver is not emailed.
 
 From 9am ET Sunday Nov 8 until noon ET Monday Nov 9, the site is open only for people who have not locked a box. "$0 today" is off. A new order is charged when they submit shipping and payment, then it locks. People who locked Saturday night stay charged and frozen. The site does not look reopened for them. At noon on Nov 9 it locks again. There is no third email. The sorry note waits until after that noon.
 

@@ -13,6 +13,10 @@ export function grapejuiceEmailHtml(input: {
   title: string;
   paragraphs: string[];
   thumbs?: EmailThumb[];
+  /** Heading between the body and the pictures. */
+  thumbsTitle?: string;
+  /** Extra space above the thumbnail row, in pixels. Ignored when thumbsTitle is set. */
+  thumbsMarginTop?: number;
   ctaLabel: string;
   ctaUrl: string;
 }): string {
@@ -27,8 +31,12 @@ export function grapejuiceEmailHtml(input: {
       </td>`
     )
     .join('');
+  const thumbTitle = input.thumbsTitle
+    ? `<p style="letter-spacing:-0.02em;color:#2F2412;font-size:16px;font-weight:700;text-align:center;margin:32px 0 16px;">${escapeText(input.thumbsTitle)}</p>`
+    : '';
+  const thumbTop = input.thumbsTitle ? 0 : (input.thumbsMarginTop ?? 28);
   const thumbRow = thumbs
-    ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:8px auto 20px;"><tr>${thumbs}</tr></table>`
+    ? `${thumbTitle}<table role="presentation" cellspacing="0" cellpadding="0" style="margin:${thumbTop}px auto 20px;"><tr>${thumbs}</tr></table>`
     : '';
   const body = input.paragraphs
     .map(

@@ -1,39 +1,17 @@
 "use strict";
 /**
- * Kosher food note. Nothing sends until the piece is approved and a Customer.io template id is set.
- * This module only decides who would get which version and renders the preview.
+ * Kosher food note. Sends once, from the hourly job, while food is still in the box.
+ * sendEmail skips it while the Customer.io template id is 0, and nothing is marked sent.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.KOSHER_FOOD_SWAPS = void 0;
 exports.mentionsKeepingKosher = mentionsKeepingKosher;
 exports.edibleFoodLines = edibleFoodLines;
 exports.kosherNoticeVersion = kosherNoticeVersion;
 exports.renderKosherNotice = renderKosherNotice;
+exports.runKosherNotices = runKosherNotices;
 const emailLayout_1 = require("./emailLayout");
-const FOOD_FACT = 'The food in this box is vegan, and it is not OU-certified kosher.';
-/** Included food-slot swaps. Gelt and the other kit are not a fix. Cookie cutters and removing the line are. */
-exports.KOSHER_FOOD_SWAPS = [
-    {
-        name: 'The other kit',
-        imageUrl: '',
-        note: 'Vegan, and not OU-certified. This does not leave the non-OU food behind.',
-    },
-    {
-        name: 'Cookie cutters',
-        imageUrl: '',
-        note: 'This leaves the non-OU food behind. The box price does not change.',
-    },
-    {
-        name: 'A big bag of gelt',
-        imageUrl: '',
-        note: 'Vegan, and not OU-certified. This does not leave the non-OU food behind.',
-    },
-    {
-        name: 'Three little bags of gelt',
-        imageUrl: '',
-        note: 'Vegan, and not OU-certified. This does not leave the non-OU food behind.',
-    },
-];
+const email_1 = require("./email");
+const testAccounts_1 = require("./testAccounts");
 function withoutNegatedKosher(text) {
     return text
         .replace(/\bkosher-style\b/gi, '')
@@ -57,8 +35,7 @@ function edibleFoodLines(lines) {
         const food = /sufgan/.test(hay) ||
             slot === 'latke-mix' ||
             slot === 'latke-kit' ||
-            slot === 'applesauce' ||
-            /latke|applesauce/.test(hay) ||
+            /\blatke\b/.test(hay) ||
             slot === 'gelt' ||
             slot.startsWith('gelt-') ||
             /\bgelt\b/.test(hay);
@@ -70,61 +47,130 @@ function edibleFoodLines(lines) {
     return out;
 }
 /**
- * Who gets the note.
- * A kosher household note or a Rav message qualifies even when the food is already out.
- * A practice score of 80 or higher qualifies only while an edible line is still in the box.
+ * Who gets the note. Only while latke mix, sufganiyot mix, or gelt is still in the box.
+ * A kosher household note, a Rav message, or a touched practice score of 80 or higher qualifies.
  * An untouched 50 does not. A high Hanukkah score by itself does not.
  */
 function kosherNoticeVersion(input) {
+    if (!input.edibleNames.length)
+        return null;
     const saidKosher = mentionsKeepingKosher(input.householdNote) || mentionsKeepingKosher(input.ravText);
     const highPractice = input.practiceTouched === true &&
         typeof input.practiceScore === 'number' &&
         input.practiceScore >= 80;
-    if (saidKosher)
-        return input.edibleNames.length ? 'with_food' : 'already_out';
-    if (highPractice && input.edibleNames.length)
+    if (saidKosher || highPractice)
         return 'with_food';
     return null;
 }
 function renderKosherNotice(input) {
-    var _a;
-    const subject = 'A note about the food in your box';
-    if (input.version === 'already_out') {
-        return {
-            subject,
-            html: (0, emailLayout_1.grapejuiceEmailHtml)({
-                campaign: 'kosher_notice',
-                preheader: FOOD_FACT,
-                title: 'About the food',
-                paragraphs: [
-                    FOOD_FACT,
-                    'Yours is already out of the box.',
-                ],
-                ctaLabel: 'Open my box',
-                ctaUrl: input.boxUrl,
-            }),
-        };
-    }
-    const foods = input.foods.map((food) => ({
-        name: food.name,
-        imageUrl: food.imageUrl,
-        note: 'Vegan, and not OU-certified.',
-    }));
-    const swaps = ((_a = input.swaps) !== null && _a !== void 0 ? _a : exports.KOSHER_FOOD_SWAPS).filter((swap) => swap.imageUrl || swap.name);
     return {
-        subject,
+        subject: 'A note about the food items in your box',
         html: (0, emailLayout_1.grapejuiceEmailHtml)({
             campaign: 'kosher_notice',
-            preheader: FOOD_FACT,
-            title: 'About the food',
+            preheader: "You can ignore this if you don't have dietary restrictions",
+            title: 'Review the food items in your box',
             paragraphs: [
-                FOOD_FACT,
-                'These are the edible lines in your box. Next to them, the swaps included in the food slot. Cookie cutters, or taking the line out, leave the non-OU food behind. The box price does not change.',
+                "You can ignore this if it's not relevant to you, but we just wanted to ensure you were aware that (a) none of the food items in this box are certified kosher and (b) the latke and sufganiyot mixes have flour and call for egg.",
+                'All items are dairy-free (pareve), including the gelt, and the mixes can be made vegan with an egg-substitute (not provided).',
+                'Make any swaps or changes between now and Nov. 7.',
             ],
-            thumbs: [...foods, ...swaps],
-            ctaLabel: 'Open my box',
+            thumbsTitle: 'Food items in your box',
+            thumbs: input.foods.map((food) => ({ name: food.name, imageUrl: food.imageUrl })),
+            ctaLabel: 'Review my box',
             ctaUrl: input.boxUrl,
         }),
     };
+}
+/** One note per person. Already-sent accounts are skipped. A failed send is retried next hour. */
+async function runKosherNotices(db, now = new Date()) {
+    var _a, _b, _c, _d, _e;
+    const [users, drafts, chats] = await Promise.all([
+        db.collection('users').select('email', 'ravNotes', 'lastBoxAnswers', 'householdId', 'kosherNoticeSentAt').get(),
+        db.collectionGroup('boxDrafts').get(),
+        db.collectionGroup('aiChats').select('messages').get(),
+    ]);
+    const ravByUid = new Map();
+    for (const doc of chats.docs) {
+        const uid = (_a = doc.ref.parent.parent) === null || _a === void 0 ? void 0 : _a.id;
+        if (!uid || doc.ref.parent.id !== 'aiChats' || ravByUid.has(uid))
+            continue;
+        const msgs = doc.data().messages;
+        if (!Array.isArray(msgs))
+            continue;
+        const text = msgs
+            .filter((m) => m && m.role !== 'assistant')
+            .map((m) => { var _a; return String((_a = m.content) !== null && _a !== void 0 ? _a : ''); })
+            .join('\n');
+        if (mentionsKeepingKosher(text))
+            ravByUid.set(uid, text);
+    }
+    const draftByHousehold = new Map();
+    for (const doc of drafts.docs) {
+        const hh = doc.ref.parent.parent;
+        if (doc.id !== 'hanukkah-2026' || (hh === null || hh === void 0 ? void 0 : hh.parent.id) !== 'households')
+            continue;
+        const lines = doc.data().lineItems;
+        draftByHousehold.set(hh.id, Array.isArray(lines) ? lines : []);
+    }
+    const pending = [];
+    const itemIds = new Set();
+    for (const user of users.docs) {
+        const data = user.data();
+        if (typeof data.kosherNoticeSentAt === 'string')
+            continue;
+        const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
+        if (!email || (0, testAccounts_1.isTest)(email))
+            continue;
+        const answers = ((_b = data.lastBoxAnswers) !== null && _b !== void 0 ? _b : {});
+        const practice = typeof answers.practiceFrequencyScore === 'number' ? answers.practiceFrequencyScore : null;
+        const hid = typeof data.householdId === 'string' ? data.householdId : '';
+        const lines = (_c = draftByHousehold.get(hid)) !== null && _c !== void 0 ? _c : [];
+        const foods = edibleFoodLines(lines);
+        const version = kosherNoticeVersion({
+            householdNote: typeof data.ravNotes === 'string' ? data.ravNotes : '',
+            ravText: (_d = ravByUid.get(user.id)) !== null && _d !== void 0 ? _d : '',
+            practiceScore: practice,
+            practiceTouched: practice != null && practice !== 50,
+            edibleNames: foods.map((food) => food.name),
+        });
+        if (!version)
+            continue;
+        for (const line of lines) {
+            if ((line === null || line === void 0 ? void 0 : line.itemId) && edibleFoodLines([line]).length)
+                itemIds.add(line.itemId);
+        }
+        pending.push({ ref: user.ref, email, lines });
+    }
+    const imageById = new Map();
+    if (itemIds.size) {
+        const snaps = await db.getAll(...[...itemIds].map((id) => db.doc(`catalog/hanukkah/items/${id}`)));
+        for (const snap of snaps) {
+            const image = (_e = snap.data()) === null || _e === void 0 ? void 0 : _e.imageUrl;
+            if (typeof image === 'string' && image)
+                imageById.set(snap.id, image);
+        }
+    }
+    let sent = 0;
+    for (const person of pending) {
+        const foods = person.lines.flatMap((line) => {
+            var _a;
+            const [food] = edibleFoodLines([line]);
+            if (!food)
+                return [];
+            const fromCatalog = line.itemId ? (_a = imageById.get(line.itemId)) !== null && _a !== void 0 ? _a : '' : '';
+            return [{ name: food.name, imageUrl: line.imageUrl || fromCatalog }];
+        });
+        const rendered = renderKosherNotice({ foods, boxUrl: 'https://grapejuice.co/box' });
+        const result = await (0, email_1.sendEmail)({
+            to: person.email,
+            template: 'kosher-notice',
+            data: { subject: rendered.subject, html: rendered.html },
+        });
+        if (result !== 'sent')
+            continue;
+        await person.ref.set({ kosherNoticeSentAt: now.toISOString() }, { merge: true });
+        sent += 1;
+    }
+    return { sent };
 }
 //# sourceMappingURL=kosherNotice.js.map

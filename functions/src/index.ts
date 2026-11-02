@@ -10,6 +10,7 @@ import { createCardSetupIntent, stripe, stripePublishableKey, verifyWebhook } fr
 import { sendEmail, sendDebriefReminderEmail, sendGiftConfirmReminderEmail } from './email';
 import { AUTO_SHIP_TAX_CENTS, unclaimedGiftShipDecision } from './giftShip';
 import { runUnclaimedGiftNotes } from './giftUnclaimed';
+import { runKosherNotices } from './kosherNotice';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
 import {
@@ -3688,6 +3689,15 @@ export const scheduledPilotAutoInvites = onSchedule('every 1 hours', async () =>
   }
   await runPilotAutoInvites(db);
 });
+
+/** Food note for boxes that still have latke mix, sufganiyot mix, or gelt. */
+export const scheduledKosherNotices = onSchedule(
+  { schedule: 'every 1 hours', timeoutSeconds: 300, memory: '512MiB' },
+  async () => {
+    const result = await runKosherNotices(db);
+    logger.info('scheduledKosherNotices', result);
+  }
+);
 
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */
 export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () => {

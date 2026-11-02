@@ -5,7 +5,7 @@ exports.grapejuiceEmailHtml = grapejuiceEmailHtml;
 const WORDMARK = 'https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/email/brand/grapejuice-wordmark-on-white-v1.jpg';
 const WORDMARK_GOLD = 'https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/email/brand/grapejuice-wordmark-gold-v1.png';
 function grapejuiceEmailHtml(input) {
-    var _a;
+    var _a, _b;
     const utm = `utm_source=transactional&amp;utm_medium=email&amp;utm_campaign=${input.campaign}`;
     const home = `https://grapejuice.co/?${utm}`;
     const thumbs = ((_a = input.thumbs) !== null && _a !== void 0 ? _a : [])
@@ -15,8 +15,12 @@ function grapejuiceEmailHtml(input) {
         ${item.note ? `<p style="letter-spacing:-0.02em;color:#7A6F5E;font-size:13px;line-height:1.4;margin:4px 0 0;">${escapeText(item.note)}</p>` : ''}
       </td>`)
         .join('');
+    const thumbTitle = input.thumbsTitle
+        ? `<p style="letter-spacing:-0.02em;color:#2F2412;font-size:16px;font-weight:700;text-align:center;margin:32px 0 16px;">${escapeText(input.thumbsTitle)}</p>`
+        : '';
+    const thumbTop = input.thumbsTitle ? 0 : ((_b = input.thumbsMarginTop) !== null && _b !== void 0 ? _b : 28);
     const thumbRow = thumbs
-        ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:8px auto 20px;"><tr>${thumbs}</tr></table>`
+        ? `${thumbTitle}<table role="presentation" cellspacing="0" cellpadding="0" style="margin:${thumbTop}px auto 20px;"><tr>${thumbs}</tr></table>`
         : '';
     const body = input.paragraphs
         .map((p) => `<p style="letter-spacing:-0.02em;color:#433C32;text-align:center;margin:0 0 14px;">${escapeText(p)}</p>`)
