@@ -314,16 +314,20 @@ export function MobileHomeBody({
         </View>
       </View>
 
-      <View ref={endRef} collapsable={false} style={[styles.band, { paddingTop: 12 }]}>
-        <View style={styles.giftBand}>
-          <Image source={DOORSTEP} style={styles.giftPhoto} resizeMode="cover" />
-          <View style={styles.giftPad}>
-            <Text style={styles.bandH2} {...balanceProps}>Send a box to another family</Text>
-            <Text style={[styles.sub, { fontSize: 14.5 }]} {...balanceProps}>Pick what goes in, or send credit and let them choose.</Text>
-            <MobileButton label="Send a gift" onPress={goGift} height={48} style={{ marginTop: 8 }} />
+      {!shopMode ? (
+        <View ref={endRef} collapsable={false} style={[styles.band, { paddingTop: 12 }]}>
+          <View style={styles.giftBand}>
+            <Image source={DOORSTEP} style={styles.giftPhoto} resizeMode="cover" />
+            <View style={styles.giftPad}>
+              <Text style={styles.bandH2} {...balanceProps}>Send a box to another family</Text>
+              <Text style={[styles.sub, { fontSize: 14.5 }]} {...balanceProps}>Pick what goes in, or send credit and let them choose.</Text>
+              <MobileButton label="Send a gift" onPress={goGift} height={48} style={{ marginTop: 8 }} />
+            </View>
           </View>
         </View>
-      </View>
+      ) : (
+        <View ref={endRef} collapsable={false} />
+      )}
 
       <View style={[styles.band, { paddingTop: 8 }]}>
         <View style={styles.story}>

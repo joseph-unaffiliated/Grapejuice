@@ -11,7 +11,8 @@ export const OUR_STORY_STRIP_SECONDARY_LABEL = 'Give the gift of Hanukkah';
 
 type Props = {
   onLearnMore: () => void;
-  onGiveGift: () => void;
+  /** Omit in post-lock shop (gift flow hidden). */
+  onGiveGift?: () => void;
   headline?: string;
   body?: string;
   primaryLabel?: string;
@@ -40,7 +41,11 @@ export function StorefrontOurStoryStrip({
       headline={displayHeadline}
       body={body}
       primaryCta={{ label: primaryLabel, onPress: onLearnMore }}
-      secondaryCta={{ label: secondaryLabel, onPress: onGiveGift }}
+      secondaryCta={
+        onGiveGift
+          ? { label: secondaryLabel, onPress: onGiveGift }
+          : undefined
+      }
     />
   );
 }

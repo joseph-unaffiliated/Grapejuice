@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { isStorefrontRavOpenable, openStorefrontRav } from '../storefront/storefrontRavContext';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import type { MainStackParamList } from '../../navigation/types';
 import { m, mFont, mGutter } from './mobileTheme';
 
@@ -42,6 +44,22 @@ export const MOBILE_FOOTER_TOP_GAP = 32;
 export function MobileFooter() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const category = (slug: string) => () => navigation.navigate('StorefrontCategory', { category: slug });
   const columns: { heading: string; links: Link[] }[] = [
     {
@@ -58,7 +76,9 @@ export function MobileFooter() {
       heading: 'Company',
       links: [
         { label: 'Our story', onPress: () => navigation.navigate('StorefrontOurStory') },
-        { label: 'Send a gift', onPress: () => navigation.navigate('GiftLanding') },
+        ...(shopMode
+          ? []
+          : [{ label: 'Send a gift', onPress: () => navigation.navigate('GiftLanding') }]),
         { label: 'Account', onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }) },
         { label: 'Terms', onPress: () => navigation.navigate('StorefrontTerms') },
         { label: 'Privacy', onPress: () => navigation.navigate('StorefrontPrivacy') },

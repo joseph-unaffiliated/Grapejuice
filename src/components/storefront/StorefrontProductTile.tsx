@@ -290,9 +290,11 @@ export function StorefrontProductTile({
         ? formatCatalogDollars(memberCents)
         : formatCatalogDollars(item.dollarCostCents);
   const memberPrice = memberCents > 0 ? formatCatalogDollars(memberCents) : defaultPrice;
-  const showWelcomeBadge = isWelcomeMenorah(item);
-  const isBoxOnly = availability?.status === 'box_only';
+  const showWelcomeBadge = !shopCart && isWelcomeMenorah(item);
+  const isBoxOnly = !shopCart && availability?.status === 'box_only';
   const isSoldOut = availability?.status === 'sold_out';
+  /** Shop mode: retail only — no “$X with a box” secondary. */
+  const showBoxOffer = showMember && !shopCart;
   /** Box stock exhausted (box-only items like books never report sold_out via availability). */
   const boxSoldOut = isCatalogItemSoldOut(item);
   const description = item.description?.trim() ?? '';
@@ -431,14 +433,14 @@ export function StorefrontProductTile({
           </View>
         ) : isSoldOut ? (
           <Text style={[styles.price, styles.soldOutPrice]}>Sold out</Text>
-        ) : showMember && hasStartedBox ? (
+        ) : showBoxOffer && hasStartedBox ? (
           <View style={styles.priceRow}>
             <Text style={styles.price}>{memberPrice}</Text>
             <Text style={styles.memberPrice}>
               {formatWithoutBoxOfferLine(formatCatalogDollars(nonMemberCents))}
             </Text>
           </View>
-        ) : showMember ? (
+        ) : showBoxOffer ? (
           <View style={styles.priceRow}>
             <Text style={styles.price}>{defaultPrice}</Text>
             <Text style={styles.memberPrice}>

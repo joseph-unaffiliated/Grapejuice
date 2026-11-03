@@ -219,20 +219,29 @@ function FilterDropdown({
 function sortItems(
   items: CatalogItem[],
   sort: SortKey,
-  booksLast = false
+  booksLast = false,
+  /** Post-lock shop: sold-out SKUs sink under every sort key. */
+  soldOutLast: (item: CatalogItem) => boolean = () => false
 ): CatalogItem[] {
   const next = [...items];
+  const bySoldOut = (a: CatalogItem, b: CatalogItem) => {
+    const aOut = soldOutLast(a);
+    const bOut = soldOutLast(b);
+    if (aOut !== bOut) return aOut ? 1 : -1;
+    return 0;
+  };
   switch (sort) {
     case 'price-asc':
-      next.sort((a, b) => a.dollarCostCents - b.dollarCostCents);
+      next.sort((a, b) => bySoldOut(a, b) || a.dollarCostCents - b.dollarCostCents);
       break;
     case 'price-desc':
-      next.sort((a, b) => b.dollarCostCents - a.dollarCostCents);
+      next.sort((a, b) => bySoldOut(a, b) || b.dollarCostCents - a.dollarCostCents);
       break;
     case 'name':
-      next.sort((a, b) => a.name.localeCompare(b.name));
+      next.sort((a, b) => bySoldOut(a, b) || a.name.localeCompare(b.name));
       break;
     default:
+      next.sort(bySoldOut);
       break;
   }
   if (!booksLast) return next;
@@ -372,7 +381,14 @@ export function StorefrontCategoryScreen() {
   useEffect(() => {
     const next: Record<string, string> = {};
     if (availParam && availParam !== 'all') {
-      next.availability = availParam;
+      // Shop mode: map legacy buy-now → in-stock; drop box-only.
+      if (mode === 'shop') {
+        if (availParam === 'buy-now' || availParam === 'in-stock') {
+          next.availability = 'in-stock';
+        }
+      } else {
+        next.availability = availParam;
+      }
     }
     if (styleParam && styleParam !== 'all') {
       next.style = styleParam;
@@ -380,7 +396,7 @@ export function StorefrontCategoryScreen() {
     setFacetFilters(next);
     setSort('relevant');
     setOpenFilterId(null);
-  }, [slug, searchQuery, availParam, styleParam]);
+  }, [slug, searchQuery, availParam, styleParam, mode]);
 
   const categoryItems = useMemo(() => {
     const base = filterByStorefrontCategory(items, slug);
@@ -388,9 +404,10 @@ export function StorefrontCategoryScreen() {
     return base.filter((item) => matchesStorefrontSearchQuery(item, searchQuery));
   }, [items, slug, searchQuery]);
 
+  const shopMode = mode === 'shop';
   const contextualGroups = useMemo(
-    () => contextualFiltersForCategory(slug, categoryItems, availabilityById),
-    [slug, categoryItems, availabilityById]
+    () => contextualFiltersForCategory(slug, categoryItems, availabilityById, shopMode),
+    [slug, categoryItems, availabilityById, shopMode]
   );
 
   const filtered = useMemo(() => {
@@ -401,7 +418,13 @@ export function StorefrontCategoryScreen() {
       availabilityById
     );
     const booksLast = facetFilters.availability === 'box-only';
-    const sorted = sortItems(faceted, sort, booksLast);
+    const soldOutLast = shopMode
+      ? (item: CatalogItem) => {
+          const a = availabilityById[item.id];
+          return a?.status === 'sold_out' || a?.status === 'box_only';
+        }
+      : () => false;
+    const sorted = sortItems(faceted, sort, booksLast, soldOutLast);
     if (slug === 'candles' && sort === 'relevant') {
       return orderCandlesRollYourOwnBeforeElectric(sorted);
     }
@@ -412,10 +435,17 @@ export function StorefrontCategoryScreen() {
       for (const item of sorted) {
         popularity[item.id] = inventoryCounters[item.id]?.boxAllocatedQty ?? 0;
       }
-      return sortBooksFeatured(sorted, popularity);
+      const featured = sortBooksFeatured(sorted, popularity);
+      if (!shopMode) return featured;
+      return [...featured].sort((a, b) => {
+        const aOut = soldOutLast(a);
+        const bOut = soldOutLast(b);
+        if (aOut !== bOut) return aOut ? 1 : -1;
+        return 0;
+      });
     }
     return sorted;
-  }, [categoryItems, slug, facetFilters, sort, availabilityById, inventoryCounters]);
+  }, [categoryItems, slug, facetFilters, sort, availabilityById, inventoryCounters, shopMode]);
 
   const title = searchQuery ? `Results for “${searchQuery}”` : def?.title ?? 'Shop';
   const shopEverything = slug === 'collection' && !searchQuery;
@@ -434,7 +464,8 @@ export function StorefrontCategoryScreen() {
     setFacetFilters((prev) => ({ ...prev, [groupId]: key }));
     if (groupId === 'availability') {
       navigation.setParams({
-        avail: key === 'all' ? undefined : (key as 'buy-now' | 'box-only'),
+        avail:
+          key === 'all' ? undefined : (key as 'buy-now' | 'box-only' | 'in-stock'),
       });
     }
     if (groupId === 'style') {
@@ -538,7 +569,10 @@ export function StorefrontCategoryScreen() {
                   ...(facetFilters.availability &&
                   facetFilters.availability !== 'all'
                     ? {
-                        avail: facetFilters.availability as 'buy-now' | 'box-only',
+                        avail: facetFilters.availability as
+                          | 'buy-now'
+                          | 'box-only'
+                          | 'in-stock',
                       }
                     : null),
                 })

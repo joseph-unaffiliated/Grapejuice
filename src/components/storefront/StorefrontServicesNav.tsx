@@ -112,14 +112,16 @@ export function StorefrontServicesNav({ onPress }: Props) {
           </TouchableOpacity>
         ) : null}
 
-        <TouchableOpacity
-          style={styles.linkHit}
-          onPress={() => onPress('gift')}
-          accessibilityRole="button"
-          accessibilityLabel="Send a Gift"
-        >
-          <Text style={styles.link}>Send a Gift</Text>
-        </TouchableOpacity>
+        {mode !== 'shop' && mode !== 'locked' ? (
+          <TouchableOpacity
+            style={styles.linkHit}
+            onPress={() => onPress('gift')}
+            accessibilityRole="button"
+            accessibilityLabel="Send a Gift"
+          >
+            <Text style={styles.link}>Send a Gift</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity
           style={styles.linkHit}

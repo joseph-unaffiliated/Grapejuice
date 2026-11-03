@@ -1231,7 +1231,7 @@ export function useStorefrontActions() {
       slug: string,
       opts?: {
         q?: string;
-        avail?: 'buy-now' | 'box-only' | 'all';
+        avail?: 'buy-now' | 'box-only' | 'in-stock' | 'all';
         style?: 'collection' | 'kids' | 'all';
       }
     ) => {

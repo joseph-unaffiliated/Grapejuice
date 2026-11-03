@@ -18,7 +18,7 @@ export function storePathFavorites(): string {
 
 export type StorefrontCategoryPathOpts = {
   q?: string;
-  avail?: 'buy-now' | 'box-only' | 'all';
+  avail?: 'buy-now' | 'box-only' | 'in-stock' | 'all';
   style?: 'collection' | 'kids' | 'all';
 };
 
@@ -50,7 +50,7 @@ export function storefrontCategorySearchParams(
 export type StorefrontCategoryRouteParams = {
   category: string;
   q?: string;
-  avail?: 'buy-now' | 'box-only' | 'all';
+  avail?: 'buy-now' | 'box-only' | 'in-stock' | 'all';
   style?: 'collection' | 'kids' | 'all';
 };
 
@@ -64,7 +64,7 @@ export function storefrontCategoryParamsFromSearch(
   const q = params.get('q')?.trim();
   if (q) out.q = q;
   const avail = params.get('avail');
-  if (avail === 'buy-now' || avail === 'box-only') out.avail = avail;
+  if (avail === 'buy-now' || avail === 'box-only' || avail === 'in-stock') out.avail = avail;
   const style = params.get('style');
   if (style === 'collection' || style === 'kids') out.style = style;
   return out;

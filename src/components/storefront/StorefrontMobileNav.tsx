@@ -193,17 +193,21 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
       {
         heading: 'Company',
         links: [
-          {
-            label: 'Send a Gift',
-            onPress: () =>
-              go(() => {
-                if (leave) {
-                  leave({ type: 'service', id: 'gift' });
-                  return;
-                }
-                navigation.navigate('GiftLanding');
-              }),
-          },
+          ...(shopMode
+            ? []
+            : [
+                {
+                  label: 'Send a Gift',
+                  onPress: () =>
+                    go(() => {
+                      if (leave) {
+                        leave({ type: 'service', id: 'gift' });
+                        return;
+                      }
+                      navigation.navigate('GiftLanding');
+                    }),
+                },
+              ]),
           {
             label: 'Our Story',
             onPress: () =>

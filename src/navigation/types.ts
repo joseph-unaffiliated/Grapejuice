@@ -54,7 +54,7 @@ export type MainStackParamList = {
   StorefrontCategory: {
     category: string;
     q?: string;
-    avail?: 'buy-now' | 'box-only' | 'all';
+    avail?: 'buy-now' | 'box-only' | 'in-stock' | 'all';
     /** Style chip for menorahs/dreidels: Keepsake (`collection`) or For kids (`kids`). */
     style?: 'collection' | 'kids' | 'all';
   };

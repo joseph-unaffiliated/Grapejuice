@@ -29,15 +29,39 @@ export const AVAILABILITY_FILTER_OPTIONS: FilterChip[] = [
   { key: 'box-only', label: 'Only with a box' },
 ];
 
+/** Post-lock shop: no box-only path — All / In stock. */
+export const SHOP_AVAILABILITY_FILTER_OPTIONS: FilterChip[] = [
+  { key: 'all', label: 'All' },
+  { key: 'in-stock', label: 'In stock' },
+];
+
 /**
  * Availability chips when the aisle has both buy-now and box-only items.
  * Books aisle is all box-only — hide the filter.
+ * Post-lock shop: All / In stock when any sold-out SKUs are present.
  */
 export function availabilityFilterGroup(
   items: CatalogItem[],
-  availabilityById: Record<string, CatalogAvailability>
+  availabilityById: Record<string, CatalogAvailability>,
+  shopMode = false
 ): ContextualFilterGroup | null {
   if (items.length < 2) return null;
+  if (shopMode) {
+    let hasInStock = false;
+    let hasSoldOut = false;
+    for (const item of items) {
+      const a = availabilityById[item.id];
+      if (isBuyNowAvailability(a)) hasInStock = true;
+      else hasSoldOut = true;
+      if (hasInStock && hasSoldOut) break;
+    }
+    if (!hasInStock || !hasSoldOut) return null;
+    return {
+      id: 'availability',
+      label: 'Availability',
+      options: SHOP_AVAILABILITY_FILTER_OPTIONS,
+    };
+  }
   let hasBuy = false;
   let hasBox = false;
   for (const item of items) {
@@ -194,12 +218,13 @@ function foodTypeOptions(items: CatalogItem[]): FilterChip[] {
 export function contextualFiltersForCategory(
   slug: string,
   items: CatalogItem[],
-  availabilityById?: Record<string, CatalogAvailability>
+  availabilityById?: Record<string, CatalogAvailability>,
+  shopMode = false
 ): ContextualFilterGroup[] {
   const groups: ContextualFilterGroup[] = [];
 
   if (availabilityById) {
-    const avail = availabilityFilterGroup(items, availabilityById);
+    const avail = availabilityFilterGroup(items, availabilityById, shopMode);
     if (avail) groups.push(avail);
   }
 
@@ -261,7 +286,9 @@ export function applyContextualFilters(
   if (availability && availability !== 'all' && availabilityById) {
     list = list.filter((item) => {
       const a = availabilityById[item.id];
-      if (availability === 'buy-now') return isBuyNowAvailability(a);
+      if (availability === 'buy-now' || availability === 'in-stock') {
+        return isBuyNowAvailability(a);
+      }
       if (availability === 'box-only') {
         return isBoxOnlyAvailability(a) || a?.status === 'sold_out';
       }

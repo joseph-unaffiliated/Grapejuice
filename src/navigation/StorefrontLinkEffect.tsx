@@ -24,7 +24,7 @@ function navigateToStore(target: {
   kind: 'category';
   category: string;
   q?: string;
-  avail?: 'buy-now' | 'box-only' | 'all';
+  avail?: 'buy-now' | 'box-only' | 'in-stock' | 'all';
   style?: 'collection' | 'kids' | 'all';
 }): void {
   if (!navigationRef.isReady()) return;

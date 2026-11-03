@@ -29,6 +29,8 @@ type Props = {
   wishlisted?: boolean;
   onToggleWishlist?: () => void;
   wishlistDisabled?: boolean;
+  /** Post-lock shop: hide the “$18 with a box” overlay. */
+  hideWelcomeBadge?: boolean;
 };
 
 function collectUrls(imageUrl?: string | null, imageUrls?: string[] | null): string[] {
@@ -56,6 +58,7 @@ export function ProductImageGallery({
   wishlisted = false,
   onToggleWishlist,
   wishlistDisabled = false,
+  hideWelcomeBadge = false,
 }: Props) {
   const { colors } = useThemeMode();
   const { width } = useWindowDimensions();
@@ -128,7 +131,7 @@ export function ProductImageGallery({
             />
           )}
         </View>
-        {isWelcomeMenorah({ id: itemId }) ? (
+        {!hideWelcomeBadge && isWelcomeMenorah({ id: itemId }) ? (
           <View style={styles.welcomeBadge} pointerEvents="none">
             <WelcomeSubscriberBadge />
           </View>

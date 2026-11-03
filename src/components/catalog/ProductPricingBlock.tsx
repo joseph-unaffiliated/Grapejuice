@@ -26,6 +26,8 @@ type Props = {
   boxLocked?: boolean;
   /** Human lock date for cap-exhausted copy, e.g. "Nov 4". */
   lockLabel?: string | null;
+  /** Post-lock shop: retail only — no box discount / “with a box” copy. */
+  shopMode?: boolean;
 };
 
 export function ProductPricingBlock({
@@ -35,6 +37,7 @@ export function ProductPricingBlock({
   availability,
   boxLocked,
   lockLabel,
+  shopMode = false,
 }: Props) {
   const { colors } = useThemeMode();
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
@@ -46,7 +49,7 @@ export function ProductPricingBlock({
     [nonMemberCents, memberCents]
   );
 
-  if (hasBox) {
+  if (hasBox && !shopMode) {
     const hero = formatCatalogDollars(memberCents);
     return (
       <View style={styles.root}>
@@ -60,7 +63,7 @@ export function ProductPricingBlock({
     );
   }
 
-  if (availability?.status === 'box_only') {
+  if (availability?.status === 'box_only' && !shopMode) {
     const sub = boxOnlyPdpSubcopy(availability.reason, lockLabel);
     return (
       <View style={styles.root}>
@@ -82,7 +85,7 @@ export function ProductPricingBlock({
     );
   }
 
-  if (availability?.status === 'sold_out') {
+  if (availability?.status === 'sold_out' || (shopMode && availability?.status === 'box_only')) {
     return (
       <View style={styles.root}>
         <Text style={[styles.heroPrice, { color: colors.textSecondary }]}>Sold out</Text>
@@ -99,14 +102,16 @@ export function ProductPricingBlock({
       : formatCatalogDollars(memberCents);
 
   let offerLine: string | null = null;
-  if (includedOrMemberZero && nonMemberCents > 0) {
-    offerLine = off ? `Free (${off}% off) with a box` : 'Free with a box';
-  } else if (memberCents > 0 && nonMemberCents > memberCents) {
-    offerLine = formatSubscriberOfferLine(
-      formatCatalogDollars(memberCents),
-      nonMemberCents,
-      memberCents
-    );
+  if (!shopMode) {
+    if (includedOrMemberZero && nonMemberCents > 0) {
+      offerLine = off ? `Free (${off}% off) with a box` : 'Free with a box';
+    } else if (memberCents > 0 && nonMemberCents > memberCents) {
+      offerLine = formatSubscriberOfferLine(
+        formatCatalogDollars(memberCents),
+        nonMemberCents,
+        memberCents
+      );
+    }
   }
 
   const remaining =
@@ -117,19 +122,20 @@ export function ProductPricingBlock({
         : null;
   const showLimited =
     availability?.status === 'limited' && remaining != null && remaining > 0;
+  const showBoxLink = Boolean(onWhatsInTheBox) && !shopMode;
 
   return (
     <View style={styles.root}>
       <Text style={[styles.heroPrice, { color: colors.textPrimary }]}>{heroRetail}</Text>
-      {offerLine || onWhatsInTheBox ? (
+      {offerLine || showBoxLink ? (
         <View style={styles.offerRow}>
           {offerLine ? (
             <Text style={[styles.offer, { color: colors.textPrimary }]}>{offerLine}</Text>
           ) : null}
-          {offerLine && onWhatsInTheBox ? (
+          {offerLine && showBoxLink ? (
             <Text style={[styles.offerSep, { color: colors.textSecondary }]}>·</Text>
           ) : null}
-          {onWhatsInTheBox ? (
+          {showBoxLink ? (
             <TouchableOpacity onPress={onWhatsInTheBox} accessibilityRole="link">
               <Text style={[styles.secondaryLink, { color: colors.textPrimary }]}>
                 See what’s in the box
@@ -140,7 +146,7 @@ export function ProductPricingBlock({
       ) : null}
       {showLimited ? (
         <Text style={[styles.limited, { color: colors.textPrimary }]}>
-          {limitedRemainingLabel(remaining!, Boolean(boxLocked))}
+          {limitedRemainingLabel(remaining!, Boolean(boxLocked) || shopMode)}
         </Text>
       ) : null}
     </View>

@@ -513,7 +513,7 @@ export function StorefrontHomeScreen() {
         <LazyMount minHeight={320}>
           <StorefrontOurStoryStrip
             onLearnMore={goOurStory}
-            onGiveGift={goGiftGive}
+            onGiveGift={mode === 'shop' ? undefined : goGiftGive}
           />
         </LazyMount>
 

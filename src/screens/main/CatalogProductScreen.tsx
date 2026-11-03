@@ -557,9 +557,11 @@ export function CatalogProductScreen() {
           ? boxUnitCents > 0
             ? `Add to box (+${formatCatalogDollars(boxUnitCents)})`
             : 'Add to box'
-          : nonMemberCents > 0
-            ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
-            : 'Add to cart';
+          : shopCheckout
+            ? 'Add to cart'
+            : nonMemberCents > 0
+              ? `Add to cart (${formatCatalogDollars(nonMemberCents)})`
+              : 'Add to cart';
 
   const secondaryLabel = hasStartedBox
     ? inBox
@@ -753,6 +755,7 @@ export function CatalogProductScreen() {
               wishlisted={wishlisted}
               onToggleWishlist={() => toggleWishlist(item.id)}
               wishlistDisabled={wishlistSaving}
+              hideWelcomeBadge={shopCheckout}
             />
           </View>
 
@@ -804,8 +807,9 @@ export function CatalogProductScreen() {
                 availability={availability}
                 boxLocked={locked}
                 lockLabel={lockLabel}
+                shopMode={shopCheckout}
                 onWhatsInTheBox={
-                  hasStartedBox ? undefined : () => startBox()
+                  hasStartedBox || shopCheckout ? undefined : () => startBox()
                 }
               />
             </View>

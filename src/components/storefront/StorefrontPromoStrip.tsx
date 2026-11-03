@@ -22,21 +22,28 @@ import {
 } from '../../constants/theme';
 import { Crossfade } from '../ui/Crossfade';
 
-/** The promo strip is pre-lock copy only; it disappears once Hanukkah boxes lock. */
+/** The promo strip is pre-lock copy only; hidden in shop / Passover (and after lock). */
 export function usePromoStripVisible(): boolean {
   const now = usePreviewNow();
   const [lockAt, setLockAt] = useState<string | null>(peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const mode = useStorefrontHomeMode(lockAt, startsOn);
 
   useEffect(() => {
     let cancelled = false;
     getHanukkahConfig().then((config) => {
-      if (!cancelled) setLockAt(config.lockAt);
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  if (mode === 'shop' || mode === 'locked' || mode === 'passover') return false;
   return !isBoxLocked(lockAt ?? HANUKKAH_BOX_LOCK_DATE.toISOString(), now);
 }
 
