@@ -6,6 +6,14 @@ import { excludeBooks, itemsForStorefrontRail } from '../../constants/storefront
 import { filterCatalogByTag } from '../../constants/catalogCuration';
 import { MOBILE_GUTTER, semanticColors, spacing, typeface, typography } from '../../constants/theme';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
+import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import { useWishlist } from '../../hooks/useWishlist';
+import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
+import { familyOrderOpen } from '../../constants/familyOrder';
+import {
+  filterShopRailInStock,
+  sortShopRailItems,
+} from '../../services/catalog/shopMerch';
 import type { CatalogItem } from '../../types/pilot';
 import { StorefrontCategoryRail } from './StorefrontCategoryRail';
 import { StorefrontProductGrid } from './StorefrontProductGrid';
@@ -32,6 +40,10 @@ export function StorefrontTopPicksAisles({
   variant = 'home',
 }: Props) {
   const { isCompact: compact } = useLayoutBreakpoint();
+  const { byId: availability } = useCatalogAvailabilityMap();
+  const { ids: favoriteIds } = useWishlist();
+  const lockPassed = useBoxLockPassed();
+  const shopMode = lockPassed && !familyOrderOpen();
   const railLimit = compact ? 24 : 6;
   const gridLimit = compact ? 24 : 3;
   const gridLayout = compact ? 'rail' : 'grid';
@@ -40,8 +52,11 @@ export function StorefrontTopPicksAisles({
     const nonBooks = excludeBooks(items);
     const tagged = filterCatalogByTag(nonBooks, 'collection');
     const fallback = tagged.length ? tagged : nonBooks;
-    return itemsForStorefrontRail(items, 'most-loved', fallback, railLimit);
-  }, [items, railLimit]);
+    const rail = itemsForStorefrontRail(items, 'most-loved', fallback, railLimit * 2);
+    const sorted = sortShopRailItems(rail, availability, favoriteIds);
+    const filtered = filterShopRailInStock(sorted, availability, shopMode);
+    return filtered.slice(0, railLimit);
+  }, [items, railLimit, availability, favoriteIds, shopMode]);
 
   if (variant === 'aisles') {
     return (

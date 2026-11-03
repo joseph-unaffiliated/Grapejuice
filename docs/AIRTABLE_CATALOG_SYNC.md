@@ -23,13 +23,24 @@
 
 - **Available for Sale Before Box Close** → `directSaleCapBeforeLock` (null/0 = box-only until lock)
 - **Inventory** → `inventory` (true warehouse total). When set, this is a hard ceiling: remaining à la carte = `min(cap − direct, inventory − boxAllocated − direct)`.
-- **Sell After Lock via FBA** (`Yes` / `Flag` / `No`) → `sellAfterLock` (`yes` | `flag` | `no`) — leftover release after lock when `yes`
+- **Sell After Lock via FBA** (`Yes` / `Flag` / `No`) → `sellAfterLock` (`yes` | `flag` | `no`) — leftover release after lock when `yes`. After lock, `Flag`/`No`/books show as **sold out** in the shop (not “box only”).
+- **FBA fee** (currency, `fld0XlEkxGyELuWaX`) → `fbaFeeCents` — per-unit fee added into post-lock marketplace **Shipping & fulfillment** (never labeled FBA/Amazon in customer copy). Pack SKUs get their own fee.
+- **Weight** → used for post-lock UPS Ground weight tiers (missing weight → 1 lb default per line).
 - **Box roles** → `boxRoles`
 - **Hold inventory** is ignored by the app for availability
-- **Books** are always box-only (never sold à la carte), regardless of caps/prices
+- **Books** are box-only before lock; after lock they show sold out for retail
 - Live sale counters live separately at `catalog/hanukkah/inventory/{itemId}` (not overwritten by sync):
   - `directReservedQty` / `directSoldQty` — à la carte checkout
   - `boxAllocatedQty` — units in pending/committed/confirmed/shipped/delivered Hanukkah boxes (recomputed on commit, post-commit update, cancel, and hourly). Cancelled and visitor-playthrough orders are excluded so stock restores on cancel.
+
+### Post-lock pack SKUs (ads / shop)
+
+Create **new Full Catalog rows** for retail packs (e.g. Dreidels 10-pack) — do not use same-SKU multipliers:
+
+1. Unique **ID**, **Primary Image**, **Member/Non-Member Price**, **Inventory**
+2. **Weight**, **FBA fee**, **Sell After Lock via FBA = Yes**
+3. **In production? = Yes**; optional **Storefront rails** / rank
+4. Run catalog sync — packs appear in aisles/PDP for shop mode
 
 ## Pipeline
 

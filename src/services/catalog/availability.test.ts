@@ -162,12 +162,11 @@ const now = new Date('2026-10-01T12:00:00.000Z');
     sellAfterLock: 'no',
   });
   assert.deepEqual(resolveAvailability(kit, null, postLock, now), {
-    status: 'box_only',
-    reason: 'post_lock_no_release',
+    status: 'sold_out',
   });
 }
 
-// Post-lock FBA flag
+// Post-lock FBA flag → sold out for retail
 {
   const stuffie = item({
     id: 'gimmel-stuffie',
@@ -177,8 +176,7 @@ const now = new Date('2026-10-01T12:00:00.000Z');
     sellAfterLock: 'flag',
   });
   assert.deepEqual(resolveAvailability(stuffie, null, postLock, now), {
-    status: 'box_only',
-    reason: 'post_lock_flag',
+    status: 'sold_out',
   });
 }
 

@@ -129,12 +129,17 @@ type Props = {
   signedIn?: boolean;
   /** Replaces the after-Hanukkah guest pre-register label (e.g. once pre-registered). */
   preRegisterLabel?: string;
+  /** Post-lock shop: household has a frozen Hanukkah box order. */
+  shopHasBoxOrder?: boolean;
+  /** Post-lock shop box holder secondary CTA — View order / Track package. */
+  shopOrderCtaLabel?: string | null;
 };
 
 function showJourney(mode: StorefrontHomeMode): boolean {
   return (
     mode !== 'acquisition' &&
     mode !== 'passover' &&
+    mode !== 'shop' &&
     mode !== 'gift_credit_incomplete' &&
     mode !== 'gift_customize_incomplete' &&
     mode !== 'gift_sent'
@@ -152,6 +157,8 @@ export function StorefrontHero({
   onSecondary,
   signedIn = false,
   preRegisterLabel,
+  shopHasBoxOrder = false,
+  shopOrderCtaLabel = null,
 }: Props) {
   const { height, isCompact: compact } = useLayoutBreakpoint();
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -210,8 +217,23 @@ export function StorefrontHero({
   let bodySecondary: string | null | undefined = hero.bodySecondary;
   let primaryLabel = hero.ctaLabel ?? 'Browse the Collection';
   let secondaryLabel: string | null = 'Build your Box (starting at $80)';
+  /** Cold shop uses acquisition-style CTA row (Browse only). */
+  let shopColdCtas = false;
 
-  if (mode === 'passover' && signedIn) {
+  if (mode === 'shop') {
+    const countdown = journey ? boxJourneyCopy(journey, now).headline : null;
+    headline = countdown ?? hero.headline;
+    bodySecondary = null;
+    primaryLabel = hero.ctaLabel ?? 'Browse the Collection';
+    if (shopHasBoxOrder) {
+      body = journey ? boxJourneyStatusLine(journey, 'locked', now) : 'Your box is locked — shipping soon.';
+      secondaryLabel = shopOrderCtaLabel ?? 'View order';
+    } else {
+      body = hero.body;
+      secondaryLabel = null;
+      shopColdCtas = true;
+    }
+  } else if (mode === 'passover' && signedIn) {
     headline = 'Thanks for celebrating with us!';
     body = 'Let us know how it was for you';
     bodySecondary = null;
@@ -263,9 +285,9 @@ export function StorefrontHero({
   }
 
   const hasBody = Boolean(body || bodySecondary);
-  const acquisitionHeadline = mode === 'acquisition';
+  const acquisitionHeadline = mode === 'acquisition' || (mode === 'shop' && !shopHasBoxOrder);
   /** Journey countdown + acquisition share identical two-line hero type. */
-  const stackedHeadline = acquisitionHeadline || journeyMode;
+  const stackedHeadline = acquisitionHeadline || journeyMode || (mode === 'shop' && shopHasBoxOrder);
   const headlineGap = stackedHeadline
     ? compact
       ? 14
@@ -333,7 +355,16 @@ export function StorefrontHero({
 
           {withCtas ? (
             <View style={[styles.ctas, compact && styles.ctasCompact]}>
-              {acquisitionCtas ? (
+              {shopColdCtas ? (
+                <TouchableOpacity
+                  style={[styles.cta, styles.ctaPrimary, compact && styles.ctaCompact]}
+                  onPress={onPrimary}
+                  accessibilityRole="button"
+                  accessibilityLabel={primaryLabel}
+                >
+                  <Text style={styles.ctaPrimaryText}>{primaryLabel}</Text>
+                </TouchableOpacity>
+              ) : acquisitionCtas ? (
                 <>
                   <TouchableOpacity
                     style={[styles.cta, styles.ctaGhost, compact && styles.ctaCompact]}

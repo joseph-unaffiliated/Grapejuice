@@ -141,6 +141,10 @@ function toItem(id: string, data: Record<string, unknown>): CatalogItem {
       data.sellAfterLock === 'yes' || data.sellAfterLock === 'flag' || data.sellAfterLock === 'no'
         ? data.sellAfterLock
         : null,
+    fbaFeeCents:
+      typeof data.fbaFeeCents === 'number' && Number.isFinite(data.fbaFeeCents)
+        ? Math.max(0, Math.round(data.fbaFeeCents))
+        : null,
     boxRoles: Array.isArray(data.boxRoles)
       ? (data.boxRoles as unknown[]).filter((r): r is string => typeof r === 'string')
       : undefined,

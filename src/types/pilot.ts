@@ -225,6 +225,11 @@ export type CatalogItem = {
    * flag/no → stay box-only.
    */
   sellAfterLock?: 'yes' | 'flag' | 'no' | null;
+  /**
+   * Per-unit post-lock fulfillment fee (cents) from Airtable "FBA fee".
+   * Added into marketplace "Shipping & fulfillment" — never labeled FBA/Amazon in UI.
+   */
+  fbaFeeCents?: number | null;
   /** Airtable "Box roles" multi-select (base, swap, upsell, gift-eligible, store-only, …). */
   boxRoles?: string[];
 };

@@ -236,7 +236,13 @@ export function MobileProductBody(p: Props) {
       ) : null}
 
       <View style={styles.details}>
-        {[...p.details, { label: 'Shipping', value: p.hasBox ? 'Ships with your box, free' : 'Free shipping in the U.S.' }].map((d) => (
+        {[
+          ...p.details,
+          {
+            label: 'Shipping',
+            value: p.hasBox ? 'Ships with your box' : 'Shipping calculated at checkout',
+          },
+        ].map((d) => (
           <View key={d.label} style={styles.listRow}>
             <Text style={styles.listT}>{d.label}</Text>
             <Text style={styles.listS}>{d.value}</Text>

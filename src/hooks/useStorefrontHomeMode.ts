@@ -21,7 +21,10 @@ export type StorefrontHomeMode =
   | 'guest_box'
   | 'customize'
   | 'needs_payment'
+  /** @deprecated Prefer `shop` after lock; kept for rare mid-migrate callers. */
   | 'locked'
+  /** After box lock until Hanukkah ends — pure shop chrome. */
+  | 'shop'
   | 'passover'
   /** Mid gift-credit flow — signed up / abandoned before pay. */
   | 'gift_credit_incomplete'
@@ -63,7 +66,8 @@ export function resolveStorefrontHomeMode(args: {
   if (preview === 'signed_out_box') return 'guest_box';
   if (preview === 'signed_in_box') return 'customize';
   if (preview === 'signed_in_needs_payment') return 'needs_payment';
-  if (preview === 'signed_in_locked') return 'locked';
+  // Locked preview = post-lock shop (box-holder journey when openOrder exists live).
+  if (preview === 'signed_in_locked') return 'shop';
 
   // Gift intent wins over false “started box” from mid-gift signup (boxRevealComplete).
   if (giftStatus === 'incomplete' && giftKind === 'credit_only') {
@@ -77,13 +81,14 @@ export function resolveStorefrontHomeMode(args: {
   }
 
   // Hollow account: reveal flagged for gift signup but no real box draft yet.
-  if (!hasBoxLineItems) return 'acquisition';
+  // After seasonal lock (family link keeps locked=false), cold shop — not a hollow customize.
+  if (!hasBoxLineItems) return locked ? 'shop' : 'acquisition';
 
   if (openOrder) {
-    return locked ? 'locked' : 'customize';
+    return locked ? 'shop' : 'customize';
   }
 
-  if (locked) return 'locked';
+  if (locked) return 'shop';
   if (!isAuthenticated) return 'guest_box';
   if (!canMutateBox) return 'needs_payment';
   return 'customize';
@@ -95,6 +100,9 @@ export function resolveStorefrontHomeMode(args: {
  *
  * While auth / session / box draft / orders are still settling, holds the last
  * resolved mode so chrome doesn’t flash acquisition → member (or the reverse).
+ *
+ * Family-order link browsers keep `locked === false` via useEffectiveBoxLocked,
+ * so they never enter `shop` and retain pre-lock box build/checkout.
  */
 export function useStorefrontHomeMode(
   lockAt: string | null,

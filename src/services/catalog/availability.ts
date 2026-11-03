@@ -53,16 +53,21 @@ export function resolveAvailability(
   lockAt: string | null | undefined,
   now: Date = new Date()
 ): CatalogAvailability {
-  if (isCatalogBookItem(item)) {
-    return { status: 'box_only', reason: 'book' };
-  }
-
   const reserved = nonNeg(counters?.directReservedQty);
   const sold = nonNeg(counters?.directSoldQty);
   const committed = reserved + sold;
   const boxAllocated = nonNeg(counters?.boxAllocatedQty);
+  const locked = isLocked(lockAt, now);
 
-  if (!isLocked(lockAt, now)) {
+  // After lock, former box-only SKUs read as sold out for retail shoppers.
+  if (locked && isCatalogBookItem(item)) {
+    return { status: 'sold_out' };
+  }
+  if (!locked && isCatalogBookItem(item)) {
+    return { status: 'box_only', reason: 'book' };
+  }
+
+  if (!locked) {
     const cap = item.directSaleCapBeforeLock;
     if (cap == null || !Number.isFinite(cap) || cap <= 0) {
       return { status: 'box_only', reason: 'no_cap' };
@@ -86,11 +91,8 @@ export function resolveAvailability(
   }
 
   const fba = item.sellAfterLock;
-  if (fba === 'flag') {
-    return { status: 'box_only', reason: 'post_lock_flag' };
-  }
-  if (fba !== 'yes') {
-    return { status: 'box_only', reason: 'post_lock_no_release' };
+  if (fba === 'flag' || fba !== 'yes') {
+    return { status: 'sold_out' };
   }
 
   const inventory = nonNeg(item.inventory);

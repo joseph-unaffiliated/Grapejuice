@@ -17,11 +17,14 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../ui/Icon';
 import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { icons } from '../../constants/icons';
-import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
+import { useStorefrontNavCategories } from '../../hooks/useStorefrontNavCategories';
+import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
+import { familyOrderOpen } from '../../constants/familyOrder';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { semanticColors,
   spacing,
   typeface,
@@ -54,6 +57,10 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
+  const { openOrder } = usePaymentGate();
+  const navCategories = useStorefrontNavCategories();
+  const lockPassed = useBoxLockPassed();
+  const shopMode = lockPassed && !familyOrderOpen();
   const { width } = useWindowDimensions();
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
@@ -100,20 +107,23 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         refreshSession: refresh,
       });
 
-    return [
-      {
-        heading: 'Marketplace',
-        links: [
-          { label: 'Shop all', onPress: () => goCategory('collection') },
-          ...STOREFRONT_CATEGORIES.filter((c) => c.slug !== 'collection').map((c) => ({
-            label: c.label,
-            onPress: () => goCategory(c.slug),
-          })),
-        ],
-      },
-      {
-        heading: 'Seasonal boxes',
-        links: [
+    const seasonalLinks: NavLink[] = shopMode
+      ? openOrder
+        ? [
+            {
+              label: openOrder.trackingNumber ? 'Track package' : 'View order',
+              onPress: () =>
+                go(() => {
+                  if (leave) {
+                    leave({ type: 'screen', nav: { screen: 'Orders' } });
+                    return;
+                  }
+                  navigation.navigate('Orders');
+                }),
+            },
+          ]
+        : []
+      : [
           { label: '2026 Hanukkah Box', onPress: () => go(startBox) },
           ...(hasOwnBox
             ? [
@@ -130,8 +140,30 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
                 },
               ]
             : []),
+        ];
+
+    const sections: NavSection[] = [
+      {
+        heading: 'Marketplace',
+        links: [
+          { label: 'Shop all', onPress: () => goCategory('collection') },
+          ...navCategories
+            .filter((c) => c.slug !== 'collection')
+            .map((c) => ({
+              label: c.label,
+              onPress: () => goCategory(c.slug),
+            })),
         ],
       },
+    ];
+    if (seasonalLinks.length) {
+      sections.push({
+        heading: shopMode ? 'Your order' : 'Seasonal boxes',
+        links: seasonalLinks,
+      });
+    }
+    return [
+      ...sections,
       {
         heading: 'Company',
         links: [
@@ -205,7 +237,18 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
         ],
       },
     ];
-  }, [hasOwnBox, isAuthenticated, leave, navigation, onClose, openRav, refresh]);
+  }, [
+    hasOwnBox,
+    isAuthenticated,
+    leave,
+    navigation,
+    onClose,
+    openRav,
+    refresh,
+    navCategories,
+    shopMode,
+    openOrder,
+  ]);
 
   if (!mounted) return null;
 

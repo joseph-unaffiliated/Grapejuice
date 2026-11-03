@@ -63,8 +63,18 @@ import { MobileBoundary } from '../../components/mobile/MobileBoundary';
 import { MobileClosedHome } from '../mobile/MobileClosedHome';
 import { MobileHomeBody } from '../mobile/MobileHomeBody';
 import { useSession } from '../../hooks/useSession';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { useMergeAbandonedBoxFavorites } from '../../hooks/useMergeAbandonedBoxFavorites';
+import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import { useWishlist } from '../../hooks/useWishlist';
 import { prefetchPartnerInvites } from '../../services/account/accountPrefetch';
 import { usePreviewedIsAuthenticated, usePreviewNow } from '../../hooks/useUserStatePreview';
+import { openOrderTracking } from '../../components/orders/OrderHistoryList';
+import { familyOrderOpen } from '../../constants/familyOrder';
+import {
+  filterShopRailInStock,
+  sortShopRailItems,
+} from '../../services/catalog/shopMerch';
 import type { MainStackParamList } from '../../navigation/types';
 import { MOBILE_GUTTER,
   semanticColors,
@@ -111,6 +121,18 @@ export function StorefrontHomeScreen() {
   const giftDraft = useGiftIntentStore((s) => s.draft);
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);
   const { household, loading: sessionLoading } = useSession();
+  const { openOrder } = usePaymentGate();
+  const shopHasBoxOrder = mode === 'shop' && !!openOrder;
+  const shopOrderCtaLabel = openOrder?.trackingNumber ? 'Track package' : 'View order';
+  useMergeAbandonedBoxFavorites(mode);
+  const { byId: availabilityById } = useCatalogAvailabilityMap();
+  const { ids: favoriteIds } = useWishlist();
+  const shopRails = mode === 'shop';
+
+  const merchRail = (railItems: typeof items) => {
+    const sorted = sortShopRailItems(railItems, availabilityById, favoriteIds);
+    return filterShopRailInStock(sorted, availabilityById, shopRails);
+  };
 
   useEffect(() => {
     if (sessionLoading || !household?.id) return;
@@ -131,6 +153,8 @@ export function StorefrontHomeScreen() {
     };
   }, []);
 
+  const journeyDates = { startsOn, lockAt, estimatedDeliveryBy };
+  /** Cold shop still gets countdown dates for the hero; banner is box holders only. */
   const journey =
     mode === 'acquisition' ||
     mode === 'passover' ||
@@ -138,18 +162,20 @@ export function StorefrontHomeScreen() {
     mode === 'gift_customize_incomplete' ||
     mode === 'gift_sent'
       ? null
-      : { startsOn, lockAt, estimatedDeliveryBy };
+      : journeyDates;
 
   const showJourneyBanner =
     journey != null &&
     hanukkahConfigReady &&
-    getHanukkahStatus(journey.startsOn, now).phase !== 'during';
+    getHanukkahStatus(journey.startsOn, now).phase !== 'during' &&
+    (mode !== 'shop' || shopHasBoxOrder);
 
   /** Hold banner height while config loads so member home doesn’t pop the page. */
   const reserveJourneyBanner =
     !hanukkahConfigReady &&
     mode !== 'acquisition' &&
     mode !== 'passover' &&
+    mode !== 'shop' &&
     mode !== 'gift_credit_incomplete' &&
     mode !== 'gift_customize_incomplete' &&
     mode !== 'gift_sent';
@@ -157,7 +183,15 @@ export function StorefrontHomeScreen() {
   const goCreateAccount = () => startAuthFromGuest('MyBox', 'signup', 'SignUp');
   const goCheckout = () => navigation.navigate('Checkout');
   const goMyBox = () => navigation.navigate('MyBox');
+  const goOrders = () => navigation.navigate('Orders');
   const goGiftGive = () => navigation.navigate('GiftLanding');
+  const goShopOrderCta = () => {
+    if (openOrder?.trackingNumber) {
+      openOrderTracking(openOrder);
+      return;
+    }
+    goOrders();
+  };
 
   const resumeIncompleteGift = () => {
     if (!giftDraft) {
@@ -202,6 +236,7 @@ export function StorefrontHomeScreen() {
         if (signedIn) navigation.navigate('HanukkahFeedback');
         else goOurStory();
         return;
+      case 'shop':
       case 'customize':
         goCategory('collection');
         return;
@@ -227,6 +262,9 @@ export function StorefrontHomeScreen() {
         return;
       case 'needs_payment':
         goMyBox();
+        return;
+      case 'shop':
+        goShopOrderCta();
         return;
       case 'passover':
         passoverInterest.toggle();
@@ -254,6 +292,7 @@ export function StorefrontHomeScreen() {
       case 'needs_payment':
         goCheckout();
         return;
+      case 'shop':
       case 'locked':
       case 'passover':
         passoverInterest.toggle();
@@ -277,6 +316,8 @@ export function StorefrontHomeScreen() {
    * Mid-gift shoppers get the card for their own box state underneath the gift.
    */
   const boxCta: { variant: StorefrontBoxCtaVariant; onPress: () => void } | null = (() => {
+    // Post-lock shop: no Start-my-box card (family-link browsers never enter shop mode).
+    if (mode === 'shop' || (boxMode === 'shop' && !familyOrderOpen())) return null;
     const giftIncomplete =
       mode === 'gift_credit_incomplete' || mode === 'gift_customize_incomplete';
     switch (giftIncomplete ? boxMode : mode) {
@@ -296,57 +337,74 @@ export function StorefrontHomeScreen() {
 
   const menorahsCollection = useMemo(
     () =>
-      itemsForStorefrontRail(
-        items,
-        'menorahs-collection',
-        collectionMenorahs(items),
-        railLimit,
-        ['menorahs']
-      ),
-    [items, railLimit]
+      merchRail(
+        itemsForStorefrontRail(
+          items,
+          'menorahs-collection',
+          collectionMenorahs(items),
+          railLimit * 2,
+          ['menorahs']
+        )
+      ).slice(0, railLimit),
+    // merchRail closes over shop mode + favorites
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, railLimit, availabilityById, favoriteIds, shopRails]
   );
   const menorahsKids = useMemo(
-    () => itemsForStorefrontRail(items, 'menorahs-kids', kidsMenorahs(items), railLimit),
-    [items, railLimit]
+    () =>
+      merchRail(
+        itemsForStorefrontRail(items, 'menorahs-kids', kidsMenorahs(items), railLimit * 2)
+      ).slice(0, railLimit),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, railLimit, availabilityById, favoriteIds, shopRails]
   );
   const dreidelsCollection = useMemo(
     () =>
-      itemsForStorefrontRail(
-        items,
-        'dreidels-collection',
-        collectionDreidels(items),
-        railLimit
-      ),
-    [items, railLimit]
+      merchRail(
+        itemsForStorefrontRail(
+          items,
+          'dreidels-collection',
+          collectionDreidels(items),
+          railLimit * 2
+        )
+      ).slice(0, railLimit),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, railLimit, availabilityById, favoriteIds, shopRails]
   );
   const dreidelsKids = useMemo(
-    () => itemsForDreidelsKidsRail(items, railLimit),
-    [items, railLimit]
+    () => merchRail(itemsForDreidelsKidsRail(items, railLimit * 2)).slice(0, railLimit),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, railLimit, availabilityById, favoriteIds, shopRails]
   );
   const dreidelsSnuggle = useMemo(
-    () => snuggleStuffies(items).slice(0, railLimit),
-    [items, railLimit]
+    () => merchRail(snuggleStuffies(items)).slice(0, railLimit),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, railLimit, availabilityById, favoriteIds, shopRails]
   );
   const books = useMemo(() => {
     const rail = itemsForStorefrontRail(
       items,
       'books',
       filterByStorefrontCategory(items, 'books'),
-      railLimit
+      railLimit * 2
     );
-    return sortBooksByYoungerDefaultAges(rail);
-  }, [items, railLimit]);
+    return merchRail(sortBooksByYoungerDefaultAges(rail)).slice(0, railLimit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, railLimit, availabilityById, favoriteIds, shopRails]);
   const candles = useMemo(
     () =>
-      orderCandlesRollYourOwnBeforeElectric(
-        itemsForStorefrontRail(
-          items,
-          'candles',
-          filterByStorefrontCategory(items, 'candles'),
-          railLimit
+      merchRail(
+        orderCandlesRollYourOwnBeforeElectric(
+          itemsForStorefrontRail(
+            items,
+            'candles',
+            filterByStorefrontCategory(items, 'candles'),
+            railLimit * 2
+          )
         )
-      ),
-    [items, railLimit]
+      ).slice(0, railLimit),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, railLimit, availabilityById, favoriteIds, shopRails]
   );
   const scrollToLook = () => {
     scrollRef.current?.scrollTo({ y: Math.max(0, lookY.current - 24), animated: true });
@@ -365,6 +423,8 @@ export function StorefrontHomeScreen() {
               onSecondary={onHeroSecondary}
               signedIn={signedIn}
               preRegisterLabel={passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined}
+              shopHasBoxOrder={shopHasBoxOrder}
+              shopOrderCtaLabel={shopOrderCtaLabel}
             />
           }
         >
@@ -382,9 +442,15 @@ export function StorefrontHomeScreen() {
             startBox={startOwnBox}
             goCategory={(slug) => goCategory(slug)}
             goCheckout={goCheckout}
-            goMyBox={goMyBox}
+            goMyBox={shopHasBoxOrder ? goOrders : goMyBox}
             goGift={goGiftGive}
             startsOn={startsOn}
+            shopMode={mode === 'shop'}
+            shopHasBoxOrder={shopHasBoxOrder}
+            shopOrderCtaLabel={shopOrderCtaLabel}
+            onShopOrderCta={goShopOrderCta}
+            onPassoverRegister={passoverInterest.toggle}
+            passoverRegistered={passoverInterest.marked}
           />
           )}
         </MobileBoundary>
@@ -405,6 +471,8 @@ export function StorefrontHomeScreen() {
         onSecondary={onHeroSecondary}
         signedIn={signedIn}
         preRegisterLabel={passoverInterest.marked ? PRE_REGISTERED_CTA_LABEL : undefined}
+        shopHasBoxOrder={shopHasBoxOrder}
+        shopOrderCtaLabel={shopOrderCtaLabel}
       />
       <Crossfade
         contentKey={

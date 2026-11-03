@@ -300,6 +300,7 @@ export function StorefrontCategoryScreen() {
       case 'needs_payment':
         navigation.navigate('Checkout');
         return;
+      case 'shop':
       case 'locked':
       case 'passover':
         passoverInterest.toggle();

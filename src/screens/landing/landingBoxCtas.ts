@@ -16,7 +16,7 @@ export function ownBoxCtaLabel(step: OwnBoxStep): string | null {
     case 'customize':
       return 'Customize your box';
     case 'locked':
-      return 'View your box';
+      return 'View order';
     default:
       return null;
   }

@@ -31,6 +31,13 @@ type Props = {
   goMyBox: () => void;
   goGift: () => void;
   startsOn: string | null;
+  /** Post-lock pure shop — no build-box CTAs / free-shipping trust. */
+  shopMode?: boolean;
+  shopHasBoxOrder?: boolean;
+  shopOrderCtaLabel?: string | null;
+  onShopOrderCta?: () => void;
+  onPassoverRegister?: () => void;
+  passoverRegistered?: boolean;
 };
 
 const DOORSTEP = require('../../../assets/storefront/box-doorstep.jpg');
@@ -50,7 +57,21 @@ const PRACTICES: Record<string, { title: string; line: string; category: string 
  * Returning visitors see their box card instead and skip straight to shopping.
  * Rendered inside StorefrontChrome (site header and footer).
  */
-export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBox, goGift, startsOn }: Props) {
+export function MobileHomeBody({
+  items,
+  startBox,
+  goCategory,
+  goCheckout,
+  goMyBox,
+  goGift,
+  startsOn,
+  shopMode = false,
+  shopHasBoxOrder = false,
+  shopOrderCtaLabel = null,
+  onShopOrderCta,
+  onPassoverRegister,
+  passoverRegistered = false,
+}: Props) {
   const navigation = useNavigation<Nav>();
   const { width } = useWindowDimensions();
   const glance = useBoxGlance();
@@ -63,8 +84,9 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
   const [atEnd, setAtEnd] = useState(false);
   const inner = width - mGutter * 2;
   const settled = !glance.loading;
-  const hasBox = settled && glance.state !== 'none';
-  const isNew = settled && glance.state === 'none';
+  /** After lock, unfinished drafts are not a “has box” customize path — pure shop. */
+  const hasBox = settled && glance.state !== 'none' && (!shopMode || shopHasBoxOrder);
+  const isNew = settled && (!hasBox || (shopMode && !shopHasBoxOrder));
   const cardOpacity = useRef(new Animated.Value(0)).current;
   const sawBox = useRef(false);
   useEffect(() => {
@@ -96,7 +118,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
     if (end) io.observe(end);
     return () => io.disconnect();
   }, [isNew]);
-  const showBar = isNew && heroGone && !atEnd;
+  const showBar = isNew && heroGone && !atEnd && !shopMode;
 
   const firstNight = useMemo(() => {
     if (!startsOn) return null;
@@ -137,7 +159,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
           </View>
         </View>
       </View>
-      {isNew ? (
+      {isNew && !shopMode ? (
       <View style={styles.hero}>
         <Text style={styles.heroH1} {...balanceProps}>
           Hanukkah, delivered to your door. <Text style={styles.h1Gold}>One box, $80.</Text>
@@ -147,13 +169,31 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         </Text>
         <MobileButton label="Build my box" onPress={startBox} height={54} />
         <View style={styles.trust}>
-          <Trust icon={icons.truck} text="Free shipping" />
           <Trust icon={icons.pen} text={`Change anything until ${glance.lockShort}`} />
           <Trust icon={icons.card} text={`Nothing charged until ${glance.lockShort}`} />
         </View>
       </View>
       ) : null}
-      {hasBox ? (
+      {isNew && shopMode ? (
+      <View style={styles.hero}>
+        <Text style={styles.heroH1} {...balanceProps}>
+          Hanukkah, delivered to your door.
+        </Text>
+        <Text style={styles.lede} {...balanceProps}>
+          Shop candles, dreidels, and more — ready to ship for the holiday{beforeHanukkah && firstNight ? ` (first night ${firstNight})` : ''}.
+        </Text>
+        <MobileButton label="Browse the collection" onPress={() => goCategory('collection')} height={54} />
+        {shopHasBoxOrder && onShopOrderCta ? (
+          <MobileButton
+            label={shopOrderCtaLabel ?? 'View order'}
+            onPress={onShopOrderCta}
+            variant="secondary"
+            height={54}
+          />
+        ) : null}
+      </View>
+      ) : null}
+      {hasBox && !shopMode ? (
       <Animated.View style={{ opacity: cardOpacity }}>
       <View style={styles.welcome}>
         <Text style={[mType.eyebrow, { marginBottom: 6 }]}>Welcome back</Text>
@@ -179,6 +219,16 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
       <View style={{ height: 4 }} />
       </Animated.View>
       ) : null}
+      {shopMode && shopHasBoxOrder ? (
+      <View style={styles.welcome}>
+        <Text style={[mType.eyebrow, { marginBottom: 6 }]}>Your order</Text>
+        <Text style={mType.h1}>Your Hanukkah box is locked</Text>
+        <View style={{ paddingHorizontal: mGutter, marginTop: 12, gap: 10 }}>
+          <MobileButton label={shopOrderCtaLabel ?? 'View order'} onPress={onShopOrderCta ?? goMyBox} height={54} />
+          <MobileButton label="Browse the collection" onPress={() => goCategory('collection')} variant="secondary" height={54} />
+        </View>
+      </View>
+      ) : null}
     </View>
   );
 
@@ -186,7 +236,7 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
     <View>
       {hero}
 
-      {isNew ? (
+      {isNew && !shopMode ? (
         <>
           <View style={styles.band}>
             <View style={styles.pad}>
@@ -297,12 +347,36 @@ export function MobileHomeBody({ items, startBox, goCategory, goCheckout, goMyBo
         </Pressable>
       </View>
 
+      {shopMode && onPassoverRegister ? (
+        <View style={[styles.band, styles.cream]}>
+          <View style={styles.pad}>
+            <Text style={styles.bandH2}>Passover 2027 is coming</Text>
+            <Text style={[styles.lede, { fontSize: 14.5, marginTop: 8, marginBottom: 18 }]} {...balanceProps}>
+              Pre-register for early access and discounts when the boxes are released.
+            </Text>
+            <MobileButton
+              label={passoverRegistered ? 'You’re on the list' : 'Pre-register for Passover'}
+              onPress={onPassoverRegister}
+              height={54}
+            />
+          </View>
+        </View>
+      ) : null}
+
       <View style={[styles.pad, { paddingBottom: 36 }]}>
-        <MobileButton
-          label={hasBox ? 'View my box' : 'Build my box'}
-          onPress={hasBox ? goMyBox : startBox}
-          height={54}
-        />
+        {shopMode ? (
+          <MobileButton
+            label={shopHasBoxOrder ? shopOrderCtaLabel ?? 'View order' : 'Browse the collection'}
+            onPress={shopHasBoxOrder ? onShopOrderCta ?? goMyBox : () => goCategory('collection')}
+            height={54}
+          />
+        ) : (
+          <MobileButton
+            label={hasBox ? 'View my box' : 'Build my box'}
+            onPress={hasBox ? goMyBox : startBox}
+            height={54}
+          />
+        )}
       </View>
 
       {showBar ? (

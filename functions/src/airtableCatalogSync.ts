@@ -65,6 +65,8 @@ const F = {
   availableBeforeLock: 'fld5lpY35uPMK9dWl',
   /** singleSelect: Yes | Flag | No — leftover release after lock. */
   sellAfterLock: 'fldBsSszQ2lmutIX1',
+  /** Currency — per-unit post-lock fulfillment fee (synced as fbaFeeCents). */
+  fbaFee: 'fld0XlEkxGyELuWaX',
   /** Multi-select box roles (base, swap, upsell, gift-eligible, store-only, …). */
   boxRoles: 'fldxFZn1AVEGMCjjD',
   /** Warehouse / ShipStation SKU (e.g. CDL-STR-001). Empty → fall back to slugified ID. */
@@ -162,6 +164,8 @@ export type SyncedCatalogItem = {
   directSaleCapBeforeLock: number | null;
   /** Airtable "Sell After Lock via FBA" → yes | flag | no. */
   sellAfterLock: 'yes' | 'flag' | 'no' | null;
+  /** Airtable "FBA fee" currency → cents per unit for post-lock shipping. */
+  fbaFeeCents: number | null;
   /** Airtable "Box roles" multi-select. */
   boxRoles: string[];
   /**
@@ -620,6 +624,11 @@ function listingToItem(rec: AirtableRecord, images: ResolvedImages): SyncedCatal
     careNotes: textField(f[F.careNotes]),
     directSaleCapBeforeLock: numberField(f[F.availableBeforeLock]),
     sellAfterLock: sellAfterLockFromAirtable(f[F.sellAfterLock]),
+    fbaFeeCents: (() => {
+      const n = numberField(f[F.fbaFee]);
+      if (n == null) return null;
+      return Math.max(0, Math.round(n * 100));
+    })(),
     boxRoles: selectNames(f[F.boxRoles]),
     sku: skuRaw || null,
   };
@@ -709,6 +718,7 @@ export function bookToItem(
     // Books are never sold à la carte — caps/FBA unused by the resolver.
     directSaleCapBeforeLock: null,
     sellAfterLock: null,
+    fbaFeeCents: null,
     boxRoles: [],
     sku: null,
   };

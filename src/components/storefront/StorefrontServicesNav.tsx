@@ -59,7 +59,7 @@ export function StorefrontServicesNav({ onPress }: Props) {
   }, []);
 
   const { yearLabel, chipLabel } = useMemo(() => {
-    if (mode === 'locked') {
+    if (mode === 'shop' || mode === 'locked') {
       return {
         yearLabel: MY_HANUKKAH_BOX_LABEL,
         chipLabel: lockedBoxChipLabel(estimatedDeliveryBy, now),

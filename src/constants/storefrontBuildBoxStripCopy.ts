@@ -52,10 +52,11 @@ export function storefrontBuildBoxStripCopy(
         body: 'Or build a Hanukkah box for your own household whenever you’re ready.',
         ctaLabel: 'Send another gift',
       };
+    case 'shop':
     case 'locked':
       return {
         headline: 'Passover 2027 is coming',
-        body: 'Your Hanukkah box is locked. Pre-register for Passover 2027 to get early access and discounts when the boxes are released.',
+        body: 'Pre-register for Passover 2027 to get early access and discounts when the boxes are released.',
         ctaLabel: passoverPreRegistered ? PRE_REGISTERED_CTA_LABEL : PRE_REGISTER_PASSOVER_CTA_LABEL,
         backgroundSource: PASSOVER_STRIP_BG,
       };

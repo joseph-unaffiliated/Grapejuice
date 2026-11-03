@@ -87,7 +87,7 @@ export function CheckoutOrderSummary({
       {shippingCents ? (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryName}>
-            Shipping (US)
+            Shipping & fulfillment
           </Text>
           <Text style={styles.summaryPrice}>{formatDollars(shippingCents)}</Text>
         </View>

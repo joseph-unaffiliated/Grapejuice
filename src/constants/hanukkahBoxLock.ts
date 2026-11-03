@@ -205,6 +205,7 @@ export function boxesArriveByPromoLabel(estimatedDeliveryBy?: string | null): st
 /**
  * Acquisition promo (fits one line on mobile):
  * `Hanukkah starts Dec 5 • Boxes arrive by Nov 21 • Free shipping`
+ * Pre-lock only — after lock use `shopPromoLine`.
  */
 export function freeShippingPromoLine(
   estimatedDeliveryBy?: string | null,
@@ -213,6 +214,11 @@ export function freeShippingPromoLine(
   const starts = hanukkahStartsPromoLabel(startsOn);
   const arrives = boxesArriveByPromoLabel(estimatedDeliveryBy);
   return `${starts} • ${arrives} • Free shipping`;
+}
+
+/** Post-lock shop promo — no free shipping, no arrives-by date. */
+export function shopPromoLine(startsOn?: string | null): string {
+  return hanukkahStartsPromoLabel(startsOn);
 }
 
 /**

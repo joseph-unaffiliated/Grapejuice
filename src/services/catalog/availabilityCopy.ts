@@ -59,7 +59,7 @@ export function boxOnlyPdpSubcopy(
     return `More may open for direct sale${when}.`;
   }
   if (reason === 'post_lock_flag' || reason === 'post_lock_no_release') {
-    return 'This item is reserved for Hanukkah boxes.';
+    return 'This item is sold out.';
   }
   return 'Add it through a Hanukkah box — it isn’t sold on its own.';
 }

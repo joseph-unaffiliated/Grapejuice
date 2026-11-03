@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../hooks/useSession';
 import { catalogService } from '../../services/firestore/catalog';
-import { SHIPPING_FLAT_CENTS } from '../../services/box/buildDefaultBox';
 import { checkoutTotalsAfterCredit } from '../../services/box/pricing';
+import { postLockShippingCents } from '../../services/box/postLockShipping';
 import { usePromo } from '../../services/promo/usePromo';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import type { BoxLineItem, CatalogItem, ShippingAddress } from '../../types/pilot';
@@ -40,7 +40,17 @@ export function useMarketplaceCheckout() {
     (sum, li) => sum + li.unitCents * Math.max(1, li.quantity || 1),
     0
   );
-  const shippingCents = SHIPPING_FLAT_CENTS;
+  const catalogById = new Map(catalog.map((c) => [c.id, c]));
+  const shippingCents = postLockShippingCents(
+    cartItems.map((li) => {
+      const cat = catalogById.get(li.itemId);
+      return {
+        qty: Math.max(1, li.quantity || 1),
+        weight: cat?.weight,
+        fbaFeeCents: cat?.fbaFeeCents,
+      };
+    })
+  ).shippingCents;
   const promo = usePromo(subtotal);
   const priced = checkoutTotalsAfterCredit({
     merchandiseCents: subtotal + shippingCents,

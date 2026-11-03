@@ -62,7 +62,7 @@ export function BoxPitch({ items, title, cta = 'Start a box with it', onPress }:
           </View>
         </View>
         <MobileButton label={cta} onPress={onPress} height={50} />
-        <Text style={styles.note} {...balanceProps}>Free shipping · changes allowed until {lockShort} · nothing charged until then</Text>
+        <Text style={styles.note} {...balanceProps}>Changes allowed until {lockShort} · nothing charged until then</Text>
       </BoxSummary>
     </View>
   );

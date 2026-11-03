@@ -36,6 +36,7 @@ import {
   CATALOG_HOLIDAY,
   runAirtableCatalogReplaceSync,
 } from './airtableCatalogSync';
+import { postLockShippingCents } from './postLockShipping';
 import { backfillCatalogThumbs } from './catalogThumbs';
 import {
   boxPriceCentsForKids,
@@ -412,13 +413,18 @@ function catalogCents(value: unknown): number {
   return 0;
 }
 
+type MarketplaceResolvedLine = MarketplaceLineItem & {
+  weight?: string | null;
+  fbaFeeCents?: number | null;
+};
+
 async function resolveMarketplaceLineItems(
   raw: Array<{ itemId: string; quantity?: number }>
-): Promise<MarketplaceLineItem[]> {
+): Promise<MarketplaceResolvedLine[]> {
   if (!raw.length) {
     throw new HttpsError('invalid-argument', 'Cart is empty.');
   }
-  const normalized: MarketplaceLineItem[] = [];
+  const normalized: MarketplaceResolvedLine[] = [];
   for (const li of raw) {
     const itemId = String(li.itemId ?? '').trim();
     if (!itemId) {
@@ -436,12 +442,16 @@ async function resolveMarketplaceLineItems(
     if (unitCents <= 0) {
       throw new HttpsError('invalid-argument', `Product is not available à la carte: ${itemId}`);
     }
+    const fbaRaw = cat.fbaFeeCents;
     normalized.push({
       slotId: String(cat.slotId ?? 'addon'),
       itemId,
       quantity: Math.max(1, Math.floor(Number(li.quantity) || 1)),
       unitCents,
       label: String(cat.name ?? itemId),
+      weight: typeof cat.weight === 'string' ? cat.weight : null,
+      fbaFeeCents:
+        typeof fbaRaw === 'number' && Number.isFinite(fbaRaw) ? Math.max(0, Math.round(fbaRaw)) : null,
     });
   }
   return normalized;
@@ -1149,7 +1159,13 @@ export const createMarketplaceCheckout = onCall(async (request) => {
       throw new HttpsError('invalid-argument', 'Cart total is too small.');
     }
 
-    const shippingCents = SHIPPING_FLAT_CENTS;
+    const shippingCents = postLockShippingCents(
+      lineItems.map((li) => ({
+        qty: li.quantity,
+        weight: li.weight,
+        fbaFeeCents: li.fbaFeeCents,
+      }))
+    ).shippingCents;
     const buyerEmail =
       guestEmail ||
       String(

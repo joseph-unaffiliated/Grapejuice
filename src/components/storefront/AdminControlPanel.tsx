@@ -126,13 +126,19 @@ export function AdminControlPanel() {
         push('Before lock', formatPreviewNowIso(before));
         push('Lock day', lock);
         const afterLock = new Date(y, m - 1, d + 3, 12);
+        push('Shop (post-lock)', formatPreviewNowIso(afterLock));
         push('After lock', formatPreviewNowIso(afterLock));
       }
       push('Ships', ship);
       push('Hanukkah', hanukkah);
+      // Mid-Hanukkah shop window (during the nights).
+      const midHanukkah = new Date(`${hanukkah}T12:00:00`);
+      midHanukkah.setDate(midHanukkah.getDate() + 3);
+      push('During Hanukkah shop', formatPreviewNowIso(midHanukkah));
       const { endDate } = getHanukkahWindow(config.startsOn);
       const after = new Date(endDate);
       after.setDate(after.getDate() + 1);
+      push('Passover', formatPreviewNowIso(after));
       push('After Hanukkah', formatPreviewNowIso(after));
       setDatePresets(presets);
       setMarkerIsos(

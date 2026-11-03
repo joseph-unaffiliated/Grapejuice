@@ -139,15 +139,16 @@ function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
         showPrice: false,
         media: BOX_MEDIA,
       };
+    case 'shop':
     case 'locked':
     case 'passover':
       return {
         eyebrow: 'Next season',
         headline: 'Passover 2027 is on the way.',
         body:
-          mode === 'locked'
-            ? 'Your Hanukkah box is locked and on its way. While you wait, explore early interest for Passover 2027 — dates and offers coming soon.'
-            : 'Hanukkah 2026 is complete. Explore early interest for Passover 2027 — dates, kits, and offers coming soon.',
+          mode === 'passover'
+            ? 'Hanukkah 2026 is complete. Explore early interest for Passover 2027 — dates, kits, and offers coming soon.'
+            : 'Explore early interest for Passover 2027 — dates and offers coming soon.',
         checklistLabel: 'What’s coming',
         checklist: PASSOVER_POINTS,
         primaryLabel: 'Explore Passover 2027',

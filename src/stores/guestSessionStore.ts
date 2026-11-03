@@ -92,6 +92,8 @@ type GuestSessionState = {
   setWrapSelectedItemIds: (ids: string[]) => void;
   setInventorySwapNotices: (notices: InventorySwapNotice[]) => void;
   toggleWishlistItem: (itemId: string) => void;
+  /** Union item ids into favorites without removing existing ones. */
+  addWishlistItems: (itemIds: string[]) => void;
   setOnboardingStep: (step: GuestOnboardingStep | null) => void;
   markStepReached: (step: keyof GuestStepsReached) => void;
   completeOnboarding: () => void;
@@ -176,6 +178,12 @@ export const useGuestSessionStore = create<GuestSessionState>()(
             ? current.filter((id) => id !== itemId)
             : [...current, itemId],
         });
+      },
+      addWishlistItems: (itemIds) => {
+        const current = get().wishlistItemIds;
+        const next = [...new Set([...current, ...itemIds.filter(Boolean)])];
+        if (next.length === current.length) return;
+        set({ wishlistItemIds: next });
       },
       setOnboardingStep: (onboardingStep) => set({ onboardingStep }),
       markStepReached: (step) => {
