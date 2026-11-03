@@ -40,6 +40,8 @@ import {
 import { isBookItem } from '../../constants/storefrontCategories';
 
 export type StorefrontTileBoxRelation = 'in_box' | 'swap' | 'add';
+/** Post-lock shop tiles: cart chips instead of box add/swap. */
+export type StorefrontTileCartRelation = 'in_cart' | 'add';
 
 /** Touch screens never hover — skip downloading the hover-only secondary photo. */
 const WEB_CAN_HOVER =
@@ -223,12 +225,16 @@ type Props = {
   availability?: CatalogAvailability;
   /** When a box is started: In box / Swap / Add action under price. */
   boxRelation?: StorefrontTileBoxRelation | null;
-  /** Quantity when `boxRelation === 'in_box'`. */
+  /** Post-lock shop: cart chips (hides box swap/add). */
+  cartRelation?: StorefrontTileCartRelation | null;
+  /** Quantity when `boxRelation === 'in_box'` or `cartRelation === 'in_cart'`. */
   boxQuantity?: number;
   /** Delta (+1 / −1); at qty 1, −1 removes. */
   onBoxQtyChange?: (delta: 1 | -1) => void;
   /** Opens swap-into-box picker; falls back to `onPress` when omitted. */
   onSwapPress?: () => void;
+  /** Cart add when `cartRelation === 'add'`. */
+  onAddToCart?: () => void;
   /** Horizontal rails: omit bottom margin (grid uses it for row gap). */
   flushBottom?: boolean;
   /**
@@ -257,9 +263,11 @@ export function StorefrontProductTile({
   onToggleWishlist,
   availability,
   boxRelation = null,
+  cartRelation = null,
   boxQuantity = 1,
   onBoxQtyChange,
   onSwapPress,
+  onAddToCart,
   flushBottom = false,
   maxWidth,
   deferImage = false,
@@ -273,7 +281,8 @@ export function StorefrontProductTile({
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
   const showMember =
     memberCents > 0 && nonMemberCents > 0 && memberCents < nonMemberCents;
-  const hasStartedBox = boxRelation != null;
+  const shopCart = cartRelation != null;
+  const hasStartedBox = !shopCart && boxRelation != null;
   const defaultPrice =
     nonMemberCents > 0
       ? formatCatalogDollars(nonMemberCents)
@@ -444,7 +453,36 @@ export function StorefrontProductTile({
           <Text style={styles.price}>{defaultPrice}</Text>
         )}
       </TouchableOpacity>
-      {boxRelation === 'in_box' && onBoxQtyChange ? (
+      {shopCart && cartRelation === 'in_cart' && onBoxQtyChange ? (
+        <View style={styles.chipRow}>
+          <CartQtyStepper
+            quantity={boxQuantity}
+            onChange={onBoxQtyChange}
+            label={item.name}
+          />
+        </View>
+      ) : shopCart && (isSoldOut || boxSoldOut) ? (
+        <View style={styles.chipRow}>
+          <TouchableOpacity
+            style={[styles.chip, styles.chipDisabled]}
+            disabled
+            accessibilityRole="button"
+            accessibilityState={{ disabled: true }}
+            accessibilityLabel={`Sold out ${item.name}`}
+          >
+            <Text style={[styles.chipText, styles.chipTextDisabled]}>sold out</Text>
+          </TouchableOpacity>
+        </View>
+      ) : shopCart && cartRelation === 'add' ? (
+        <TouchableOpacity
+          style={[styles.chip, styles.chipPrimary, styles.chipSpaced]}
+          onPress={onAddToCart ?? onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`Add to cart ${item.name}`}
+        >
+          <Text style={[styles.chipText, styles.chipTextPrimary]}>add to cart</Text>
+        </TouchableOpacity>
+      ) : boxRelation === 'in_box' && onBoxQtyChange ? (
         <View style={styles.chipRow}>
           <CartQtyStepper
             quantity={boxQuantity}

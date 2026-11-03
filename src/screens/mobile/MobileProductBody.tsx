@@ -59,6 +59,8 @@ type Props = {
   onQuantity: (delta: 1 | -1) => void;
   onBuyJustThis?: () => void;
   onStartBoxWithIt: () => void;
+  /** Post-lock shop: hide Start-a-box pitch. */
+  hideBoxPitch?: boolean;
   onNotifyBack?: () => void;
   /** Opens the product's category ("See all" beside the similar rail). */
   onSeeAll?: () => void;
@@ -229,7 +231,7 @@ export function MobileProductBody(p: Props) {
           </View>
         ) : null}
 
-      {!p.hasBox && !p.soldOut ? (
+      {!p.hideBoxPitch && !p.hasBox && !p.soldOut ? (
         <View style={{ marginTop: 20 }}>
           <BoxPitch items={[p.item]} cta="Start a box with it" onPress={p.onStartBoxWithIt} />
         </View>

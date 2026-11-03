@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -23,12 +23,17 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import {
   findSwapSourceLine,
   findSwapSourceLines,
 } from '../../services/box/findSwapSourceLine';
 import { swapQuantities, swapUnitCents } from '../../services/box/swapPricing';
 import { geltCeilingForPeople, type GeltSize } from '../../services/box/boxRules';
+import { resolveCatalogDisplayPrices } from '../../services/box/pricing';
+import { availabilityAllowsDirectPurchase } from '../../services/catalog/availability';
+import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import type { BoxLineItem, CatalogAvailability, CatalogItem } from '../../types/pilot';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -110,10 +115,30 @@ export function StorefrontProductGrid({
   const geltCeiling = geltCeilingForPeople(people);
   const { guardMutation } = usePaymentGate();
   const hasStartedBox = usePreviewedHasStartedBox();
+  const cached = peekHanukkahConfig();
+  const [lockAt, setLockAt] = useState<string | null>(cached?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(cached?.startsOn ?? null);
+  const homeMode = useStorefrontHomeMode(lockAt, startsOn);
+  const shopCheckout = homeMode === 'shop';
+  const cartItems = useMarketplaceCartStore((s) => s.items);
+  const addCartItem = useMarketplaceCartStore((s) => s.addItem);
+  const changeCartQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
   const [containerWidth, setContainerWidth] = useState(0);
   const [swapIncoming, setSwapIncoming] = useState<CatalogItem | null>(null);
   const isRail = layout === 'rail';
   const showBrowseMore = isRail && Boolean(browseMoreLabel && onBrowseMore);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
@@ -215,6 +240,43 @@ export function StorefrontProductGrid({
   const tiles = (
     <>
       {visible.map((item) => {
+        const avail = availabilityById[item.id];
+        const buyable = availabilityAllowsDirectPurchase(avail ?? { status: 'sold_out' });
+        if (shopCheckout) {
+          const cartLine = cartItems.find((li) => li.itemId === item.id);
+          const inCart = Boolean(cartLine);
+          const qty = Math.max(1, cartLine?.quantity ?? 1);
+          return (
+            <StorefrontProductTile
+              key={item.id}
+              item={item}
+              width={tileWidth}
+              wishlisted={isWishlisted(item.id)}
+              availability={avail}
+              cartRelation={buyable || inCart ? (inCart ? 'in_cart' : 'add') : 'add'}
+              boxQuantity={qty}
+              onBoxQtyChange={
+                inCart ? (delta) => changeCartQuantity(item.id, delta) : undefined
+              }
+              onAddToCart={() => {
+                if (!buyable) return;
+                const { nonMemberCents } = resolveCatalogDisplayPrices(item);
+                addCartItem({
+                  slotId: `mkt:${item.id}`,
+                  itemId: item.id,
+                  quantity: 1,
+                  unitCents: nonMemberCents,
+                  label: item.name,
+                });
+              }}
+              onPress={() => navigation.navigate('CatalogProduct', { slug: item.id })}
+              onToggleWishlist={() => void toggleWishlist(item.id)}
+              flushBottom={isRail}
+              maxWidth={tileMaxWidth}
+              deferImage={!isRail}
+            />
+          );
+        }
         const relation = boxRelationForItem(
           item,
           lineItems,
@@ -235,7 +297,7 @@ export function StorefrontProductGrid({
             item={item}
             width={tileWidth}
             wishlisted={isWishlisted(item.id)}
-            availability={availabilityById[item.id]}
+            availability={avail}
             boxRelation={relation}
             boxQuantity={qty}
             onBoxQtyChange={

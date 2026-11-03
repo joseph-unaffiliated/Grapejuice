@@ -19,11 +19,15 @@ import { GrapejuiceBrandMark } from '../brand/GrapejuiceBrandMark';
 import { icons } from '../../constants/icons';
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
-import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import {
+  usePreviewedHasStartedBox,
+  usePreviewedIsAuthenticated,
+  useUserStatePreview,
+} from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { useStorefrontNavCategories } from '../../hooks/useStorefrontNavCategories';
-import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
-import { familyOrderOpen } from '../../constants/familyOrder';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { semanticColors,
   spacing,
@@ -58,12 +62,31 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
   const { openOrder } = usePaymentGate();
+  const userStatePreview = useUserStatePreview();
   const navCategories = useStorefrontNavCategories();
-  const lockPassed = useBoxLockPassed();
-  const shopMode = lockPassed && !familyOrderOpen();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const homeMode = useStorefrontHomeMode(lockAt, startsOn);
+  const shopMode = homeMode === 'shop';
+  const shopHasBoxOrder =
+    shopMode && (!!openOrder || userStatePreview === 'signed_in_locked');
   const { width } = useWindowDimensions();
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -108,10 +131,13 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
       });
 
     const seasonalLinks: NavLink[] = shopMode
-      ? openOrder
+      ? shopHasBoxOrder
         ? [
             {
-              label: openOrder.trackingNumber ? 'Track package' : 'View order',
+              label:
+                openOrder?.trackingNumber && userStatePreview !== 'signed_in_locked'
+                  ? 'Track package'
+                  : 'View order',
               onPress: () =>
                 go(() => {
                   if (leave) {
@@ -247,7 +273,9 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
     refresh,
     navCategories,
     shopMode,
+    shopHasBoxOrder,
     openOrder,
+    userStatePreview,
   ]);
 
   if (!mounted) return null;

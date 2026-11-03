@@ -44,7 +44,7 @@ export const USER_STATE_PREVIEW_OPTIONS: UserStatePreviewOption[] = [
   {
     id: 'signed_in_locked',
     label: 'Signed in · locked',
-    description: 'Box exists; customization closed',
+    description: 'Post-lock shop + locked box (Orders path)',
   },
 ];
 

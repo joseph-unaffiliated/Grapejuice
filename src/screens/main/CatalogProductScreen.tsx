@@ -27,6 +27,7 @@ import {
   usePreviewedHasStartedBox,
   useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLiveBoxLocked } from '../../hooks/useLiveBoxLocked';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { formatCatalogDollars, buildDefaultLineItems } from '../../services/box/buildDefaultBox';
@@ -125,7 +126,7 @@ export function CatalogProductScreen() {
   const addCartItem = useMarketplaceCartStore((s) => s.addItem);
   const removeCartItem = useMarketplaceCartStore((s) => s.removeItem);
   const changeCartQuantity = useMarketplaceCartStore((s) => s.changeQuantity);
-  const hasStartedBox = usePreviewedHasStartedBox();
+  const hasStartedBoxRaw = usePreviewedHasStartedBox();
   const { guardMutation } = usePaymentGate();
   const mobileLayout = useMobileLayout();
   const { isWishlisted, toggleWishlist, saving: wishlistSaving } = useWishlist();
@@ -167,7 +168,13 @@ export function CatalogProductScreen() {
   const [loadingConfig, setLoadingConfig] = useState(() => peekHanukkahConfig() == null);
   const [saving, setSaving] = useState(false);
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
   const locked = useLiveBoxLocked(lockAt);
+  /** Post-lock shop: buy à la carte even if a Hanukkah box exists (no add/swap into box). */
+  const shopCheckout = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
+  const hasStartedBox = hasStartedBoxRaw && !shopCheckout;
   const [shipWindow, setShipWindow] = useState(() => {
     const cached = peekHanukkahConfig();
     return cached ? shipWindowLabel(cached.estimatedDeliveryBy) : HANUKKAH_SHIP_WINDOW_LABEL;
@@ -232,6 +239,7 @@ export function CatalogProductScreen() {
     getHanukkahConfig().then((config) => {
       if (cancelled) return;
       setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
       setShipWindow(shipWindowLabel(config.estimatedDeliveryBy));
       setLoadingConfig(false);
     });
@@ -563,7 +571,7 @@ export function CatalogProductScreen() {
 
   const showMarketplaceQty = !hasStartedBox && inMarketplaceCart && directOk;
   const showInBoxControls = hasStartedBox && inBox;
-  const showSecondary = marketplaceBlocked || marketplaceBoxOnlyPath || boxBlocked
+  const showSecondary = shopCheckout || marketplaceBlocked || marketplaceBoxOnlyPath || boxBlocked
     ? false
     : showInBoxControls
       ? inBoxSwapOptions.length > 0
@@ -694,6 +702,7 @@ export function CatalogProductScreen() {
             onQuantity={(d) => void changeInBoxQuantity(d)}
             onBuyJustThis={directOk && !marketplaceBlocked ? async () => { await addToCart(); navigation.navigate('StorefrontCart'); } : undefined}
             onStartBoxWithIt={() => void buyWithBox()}
+            hideBoxPitch={shopCheckout}
             onSeeAll={aisle ? () => goCategory(aisle.slug) : undefined}
             onSeeAllAlso={() => goCategory('collection')}
             availabilityById={similarAvailability}

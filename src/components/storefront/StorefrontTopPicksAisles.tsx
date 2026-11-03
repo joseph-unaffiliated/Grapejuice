@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { BrandLoadingMark } from '../brand/BrandLoadingMark';
 import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
@@ -8,11 +8,12 @@ import { MOBILE_GUTTER, semanticColors, spacing, typeface, typography } from '..
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { useWishlist } from '../../hooks/useWishlist';
-import { useBoxLockPassed } from '../../hooks/useBoxLockDay';
-import { familyOrderOpen } from '../../constants/familyOrder';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import {
-  filterShopRailInStock,
-  sortShopRailItems,
+  allShopBuyableItems,
+  buildShopRail,
+  MIN_SHOP_RAIL_ITEMS,
 } from '../../services/catalog/shopMerch';
 import type { CatalogItem } from '../../types/pilot';
 import { StorefrontCategoryRail } from './StorefrontCategoryRail';
@@ -42,20 +43,39 @@ export function StorefrontTopPicksAisles({
   const { isCompact: compact } = useLayoutBreakpoint();
   const { byId: availability } = useCatalogAvailabilityMap();
   const { ids: favoriteIds } = useWishlist();
-  const lockPassed = useBoxLockPassed();
-  const shopMode = lockPassed && !familyOrderOpen();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
   const railLimit = compact ? 24 : 6;
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const gridLimit = compact ? 24 : 3;
   const gridLayout = compact ? 'rail' : 'grid';
 
   const loved = useMemo(() => {
+    if (shopMode) {
+      // Post-lock: rank all buyable leftovers (not the pre-lock “collection” curations).
+      const buyable = allShopBuyableItems(items, availability, favoriteIds);
+      if (buyable.length < MIN_SHOP_RAIL_ITEMS) return [];
+      return buyable.slice(0, railLimit);
+    }
     const nonBooks = excludeBooks(items);
     const tagged = filterCatalogByTag(nonBooks, 'collection');
     const fallback = tagged.length ? tagged : nonBooks;
     const rail = itemsForStorefrontRail(items, 'most-loved', fallback, railLimit * 2);
-    const sorted = sortShopRailItems(rail, availability, favoriteIds);
-    const filtered = filterShopRailInStock(sorted, availability, shopMode);
-    return filtered.slice(0, railLimit);
+    return buildShopRail(rail, availability, favoriteIds, false, railLimit);
   }, [items, railLimit, availability, favoriteIds, shopMode]);
 
   if (variant === 'aisles') {
@@ -78,28 +98,36 @@ export function StorefrontTopPicksAisles({
 
   return (
     <View style={styles.root}>
-      <SectionHeader
-        title="Top Picks"
-        subtitle="The most favorited products from our collection"
-        onPress={() => onCategory('collection')}
-        flushTop={flushTop}
-      />
-      <View style={styles.topPicksBody}>
-        {loading ? (
-          <View style={styles.loader}>
-            <BrandLoadingMark />
-          </View>
-        ) : (
-          <StorefrontProductGrid
-            items={loved}
-            limit={gridLimit}
-            layout={gridLayout}
-            flushBottom
-            browseMoreLabel="top picks"
-            onBrowseMore={() => onCategory('collection')}
+      {loved.length || loading ? (
+        <>
+          <SectionHeader
+            title={shopMode ? 'Available now' : 'Top Picks'}
+            subtitle={
+              shopMode
+                ? 'In-stock pieces shipping after the boxes go out'
+                : 'The most favorited products from our collection'
+            }
+            onPress={() => onCategory('collection')}
+            flushTop={flushTop}
           />
-        )}
-      </View>
+          <View style={styles.topPicksBody}>
+            {loading ? (
+              <View style={styles.loader}>
+                <BrandLoadingMark />
+              </View>
+            ) : (
+              <StorefrontProductGrid
+                items={loved}
+                limit={gridLimit}
+                layout={gridLayout}
+                flushBottom
+                browseMoreLabel={shopMode ? 'in stock' : 'top picks'}
+                onBrowseMore={() => onCategory('collection')}
+              />
+            )}
+          </View>
+        </>
+      ) : null}
 
       {!compact ? (
         <SectionHeader

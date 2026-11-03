@@ -13,7 +13,9 @@ After box lock until the last night of Hanukkah, the storefront runs in **`shop`
 
 ## QA
 
-Admin control panel → preview day **Shop (post-lock)** / **During Hanukkah shop** / **Passover**. User state **Signed in · locked** resolves to shop.
+Admin control panel → preview day **Shop (post-lock)** / **During Hanukkah shop** / **Passover**. User state **Signed in · locked** resolves to shop with box-holder chrome (Orders / My Hanukkah box nav).
+
+User-state previews override the calendar for *persona* (e.g. **Signed in · box** stays customize chrome even on a post-lock pin). That’s intentional for isolated QA — use **Live (you)** + a shop date pin for the realistic combo.
 
 ## Packs
 

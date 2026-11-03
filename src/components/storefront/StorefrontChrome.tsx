@@ -44,8 +44,15 @@ import {
 } from './storefrontLeaveContext';
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
-import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import {
+  usePreviewedHasStartedBox,
+  usePreviewedIsAuthenticated,
+  useUserStatePreview,
+} from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { semanticColors, spacing, INK } from '../../constants/theme';
 import { HOW_TO_PAGES_PUBLISHED } from '../../constants/pdpHowToLink';
@@ -275,9 +282,30 @@ function StorefrontChromeInner({
   const route = useRoute();
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
+  const userStatePreview = useUserStatePreview();
+  const { openOrder } = usePaymentGate();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const homeMode = useStorefrontHomeMode(lockAt, startsOn);
+  const shopHasBoxOrder =
+    homeMode === 'shop' && (!!openOrder || userStatePreview === 'signed_in_locked');
   const { refresh } = useSession();
   const { width: windowWidth, isCompact: compact, isDesktop } = useLayoutBreakpoint();
   const fillBody = bodyMode === 'fill';
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const hostRef = useRef<View>(null);
   // Inside a native tab layout the tab bar owns the bottom; keep the flex height there.
   // Web renders no tab bar, so storefront pages pin to the viewport everywhere.
@@ -421,6 +449,10 @@ function StorefrontChromeInner({
         goCategory('collection');
         break;
       case 'box':
+        if (shopHasBoxOrder) {
+          navigation.navigate('Orders');
+          break;
+        }
         startBox();
         break;
       case 'gift':

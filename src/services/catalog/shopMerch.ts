@@ -1,6 +1,9 @@
 import type { CatalogAvailability, CatalogItem } from '../../types/pilot';
 import { availabilityAllowsDirectPurchase } from './availability';
 
+/** Shop home / rails hide thin leftover sets after lock. */
+export const MIN_SHOP_RAIL_ITEMS = 3;
+
 /** Prefer in-stock post-lock (or any buyable) items; boost favorites. */
 export function sortShopRailItems(
   items: CatalogItem[],
@@ -32,6 +35,36 @@ export function filterShopRailInStock(
   if (!shopMode) return items;
   return items.filter((it) =>
     availabilityAllowsDirectPurchase(availabilityById[it.id] ?? { status: 'sold_out' })
+  );
+}
+
+/**
+ * Sort + in-stock filter for shop rails. Returns [] when shop mode and fewer
+ * than {@link MIN_SHOP_RAIL_ITEMS} buyable SKUs (hide the thin carousel).
+ */
+export function buildShopRail(
+  items: CatalogItem[],
+  availabilityById: Record<string, CatalogAvailability | undefined>,
+  favoriteIds: ReadonlySet<string> | readonly string[] = [],
+  shopMode: boolean,
+  limit: number
+): CatalogItem[] {
+  const sorted = sortShopRailItems(items, availabilityById, favoriteIds);
+  const filtered = filterShopRailInStock(sorted, availabilityById, shopMode);
+  if (shopMode && filtered.length < MIN_SHOP_RAIL_ITEMS) return [];
+  return filtered.slice(0, limit);
+}
+
+/** All currently buyable catalog SKUs (post-lock FBA leftovers), ranked. */
+export function allShopBuyableItems(
+  items: CatalogItem[],
+  availabilityById: Record<string, CatalogAvailability | undefined>,
+  favoriteIds: ReadonlySet<string> | readonly string[] = []
+): CatalogItem[] {
+  return sortShopRailItems(
+    filterShopRailInStock(items, availabilityById, true),
+    availabilityById,
+    favoriteIds
   );
 }
 
