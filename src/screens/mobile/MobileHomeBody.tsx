@@ -41,6 +41,7 @@ type Props = {
 };
 
 const DOORSTEP = require('../../../assets/storefront/box-doorstep.jpg');
+const PASSOVER_PLATE = require('../../../assets/storefront/passover-seder-plate.jpg');
 
 const PRACTICES: Record<string, { title: string; line: string; category: string }> = {
   candles: { title: 'Light the Candles', line: 'One more candle each night, plus the shamash.', category: 'candles' },
@@ -174,7 +175,7 @@ export function MobileHomeBody({
         </View>
       </View>
       ) : null}
-      {isNew && shopMode ? (
+      {isNew && shopMode && !shopHasBoxOrder ? (
       <View style={styles.hero}>
         <Text style={styles.heroH1} {...balanceProps}>
           Hanukkah, delivered to your door.
@@ -183,14 +184,6 @@ export function MobileHomeBody({
           Shop candles, dreidels, and more — ready to ship for the holiday{beforeHanukkah && firstNight ? ` (first night ${firstNight})` : ''}.
         </Text>
         <MobileButton label="Browse the collection" onPress={() => goCategory('collection')} height={54} />
-        {shopHasBoxOrder && onShopOrderCta ? (
-          <MobileButton
-            label={shopOrderCtaLabel ?? 'View order'}
-            onPress={onShopOrderCta}
-            variant="secondary"
-            height={54}
-          />
-        ) : null}
       </View>
       ) : null}
       {hasBox && !shopMode ? (
@@ -220,13 +213,14 @@ export function MobileHomeBody({
       </Animated.View>
       ) : null}
       {shopMode && shopHasBoxOrder ? (
-      <View style={styles.welcome}>
-        <Text style={[mType.eyebrow, { marginBottom: 6 }]}>Your order</Text>
-        <Text style={mType.h1}>Your Hanukkah box is locked</Text>
-        <View style={{ paddingHorizontal: mGutter, marginTop: 12, gap: 10 }}>
-          <MobileButton label={shopOrderCtaLabel ?? 'View order'} onPress={onShopOrderCta ?? goMyBox} height={54} />
-          <MobileButton label="Browse the collection" onPress={() => goCategory('collection')} variant="secondary" height={54} />
-        </View>
+      <View style={styles.hero}>
+        <Text style={[mType.eyebrow, { marginBottom: 2 }]}>Your order</Text>
+        <Text style={styles.heroH1} {...balanceProps}>Your Hanukkah box is locked</Text>
+        <Text style={styles.lede} {...balanceProps}>
+          Browse what’s still in stock, or check on your box.
+        </Text>
+        <MobileButton label={shopOrderCtaLabel ?? 'View order'} onPress={onShopOrderCta ?? goMyBox} height={54} />
+        <MobileButton label="Browse the collection" onPress={() => goCategory('collection')} variant="secondary" height={54} />
       </View>
       ) : null}
     </View>
@@ -329,7 +323,7 @@ export function MobileHomeBody({
         <View ref={endRef} collapsable={false} />
       )}
 
-      <View style={[styles.band, { paddingTop: 8 }]}>
+      <View style={[styles.band, { paddingTop: 8, paddingBottom: 28 }]}>
         <View style={styles.story}>
           <Text style={mType.eyebrow}>Our story</Text>
           <Text style={styles.quote} {...balanceProps}>Making it your own doesn't mean doing it alone.</Text>
@@ -338,50 +332,52 @@ export function MobileHomeBody({
         </View>
       </View>
 
-      <View style={{ paddingBottom: 8 }}>
+      <View style={{ paddingBottom: shopMode ? 28 : 8 }}>
         <Pressable onPress={askRav} accessibilityRole="button" style={styles.ask}>
           <View style={styles.askIcon}>
             <Icon icon={icons.childReaching} size={17} color={m.ink} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.askTitle}>Questions? Ask Rav</Text>
-            <Text style={styles.askSub}>What candles do we need? Can I swap the book?</Text>
+            <Text style={styles.askSub}>
+              {shopMode
+                ? 'Which menorah ships soon? Do you still have candles?'
+                : 'What candles do we need? Can I swap the book?'}
+            </Text>
           </View>
           <Text style={styles.chev}>›</Text>
         </Pressable>
       </View>
 
       {shopMode && onPassoverRegister ? (
-        <View style={[styles.band, styles.cream]}>
-          <View style={styles.pad}>
-            <Text style={styles.bandH2}>Passover 2027 is coming</Text>
-            <Text style={[styles.lede, { fontSize: 14.5, marginTop: 8, marginBottom: 18 }]} {...balanceProps}>
-              Pre-register for early access and discounts when the boxes are released.
-            </Text>
-            <MobileButton
-              label={passoverRegistered ? 'You’re on the list' : 'Pre-register for Passover'}
-              onPress={onPassoverRegister}
-              height={54}
-            />
+        <View style={[styles.band, { paddingTop: 8, paddingBottom: 40 }]}>
+          <View style={styles.giftBand}>
+            <Image source={PASSOVER_PLATE} style={styles.passoverPhoto} resizeMode="cover" />
+            <View style={styles.giftPad}>
+              <Text style={styles.bandH2} {...balanceProps}>Passover 2027 is coming</Text>
+              <Text style={[styles.sub, { fontSize: 14.5 }]} {...balanceProps}>
+                Pre-register for early access and discounts when the boxes are released.
+              </Text>
+              <MobileButton
+                label={passoverRegistered ? 'You’re on the list' : 'Pre-register for Passover'}
+                onPress={onPassoverRegister}
+                height={48}
+                style={{ marginTop: 8 }}
+              />
+            </View>
           </View>
         </View>
       ) : null}
 
-      <View style={[styles.pad, { paddingBottom: 36 }]}>
-        {shopMode ? (
-          <MobileButton
-            label={shopHasBoxOrder ? shopOrderCtaLabel ?? 'View order' : 'Browse the collection'}
-            onPress={shopHasBoxOrder ? onShopOrderCta ?? goMyBox : () => goCategory('collection')}
-            height={54}
-          />
-        ) : (
+      {!shopMode ? (
+        <View style={[styles.pad, { paddingBottom: 36 }]}>
           <MobileButton
             label={hasBox ? 'View my box' : 'Build my box'}
             onPress={hasBox ? goMyBox : startBox}
             height={54}
           />
-        )}
-      </View>
+        </View>
+      ) : null}
 
       {showBar ? (
         <StickyBar label="Hanukkah delivered to your door" total="From $80" cta={{ label: 'Build my box', onPress: startBox }} testID="mobile-home-bar" />
@@ -504,6 +500,8 @@ const styles = StyleSheet.create({
   rail: { paddingHorizontal: mGutter, gap: 12, paddingBottom: 4 },
   giftBand: { marginHorizontal: mGutter, borderRadius: 16, overflow: 'hidden', backgroundColor: m.beige },
   giftPhoto: { width: '100%', height: 260 },
+  /** Landscape seder plate — shorter than the gift doorstep still. */
+  passoverPhoto: { width: '100%', height: 180 },
   giftPad: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 20, gap: 8 },
   story: { paddingHorizontal: mGutter, gap: 10 },
   quote: { fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: m.ink, ...mFont(400) },
