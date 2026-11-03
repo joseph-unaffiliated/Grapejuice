@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -16,11 +16,15 @@ import {
   BMITZVAH_STRIP_HEADLINE,
   BMITZVAH_STRIP_PRIMARY_LABEL,
 } from '../../constants/storefrontBMitzvahCopy';
+import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
+import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
 import { OUR_STORY_COPY } from '../../constants/storefrontOurStoryCopy';
 import { spacing } from '../../constants/theme';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
-import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import type { MainStackParamList } from '../../navigation/types';
 
 export function StorefrontOurStoryScreen() {
@@ -28,10 +32,31 @@ export function StorefrontOurStoryScreen() {
   const { startBox, goHome } = useStorefrontActions();
   usePublishRavSurface({ type: 'content', id: 'our-story', label: 'Our Story' });
   const c = OUR_STORY_COPY;
-  const roadmapBlocks = useHolidayRoadmapBlocks();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
+  const roadmapBlocks = useHolidayRoadmapBlocks({ shopMode });
   const bmitzvah = useStorefrontInterest(BMITZVAH_PILOT_INTEREST);
+  const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
   const bmitzvahLabel = bmitzvah.marked ? "You're interested!" : BMITZVAH_STRIP_PRIMARY_LABEL;
   const mobileLayout = useMobileLayout();
+  const shopStrip = shopMode
+    ? storefrontBuildBoxStripCopy('shop', passoverInterest.marked)
+    : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const goDonate = () => {
     void Linking.openURL('mailto:hello@grapejuice.co?subject=Make%20a%20donation');
@@ -45,7 +70,11 @@ export function StorefrontOurStoryScreen() {
       eyebrow={c.eyebrow}
       title={c.title}
       lead={c.lead}
-      buildBoxHeadline="build your hanukkah box"
+      buildBoxHeadline={shopStrip?.headline ?? 'build your hanukkah box'}
+      buildBoxBody={shopStrip?.body}
+      buildBoxCtaLabel={shopStrip?.ctaLabel}
+      buildBoxBackgroundSource={shopStrip?.backgroundSource}
+      buildBoxOnPress={shopMode ? passoverInterest.toggle : undefined}
       mobileKit
       blocks={[
         {
@@ -69,7 +98,9 @@ export function StorefrontOurStoryScreen() {
           headingMobile: c.give.headingMobile,
           body: c.give.body,
           cta: { label: c.give.primaryCta, onPress: goDonate },
-          secondaryCta: { label: c.give.secondaryCta, onPress: goGiftHanukkahBox },
+          secondaryCta: shopMode
+            ? undefined
+            : { label: c.give.secondaryCta, onPress: goGiftHanukkahBox },
           paper: true,
         },
         ...roadmapBlocks,
@@ -101,7 +132,17 @@ export function StorefrontOurStoryScreen() {
           heading: c.involve.heading,
           items: [
             { label: c.involve.items[0].label, detail: c.involve.items[0].detail, onPress: goHome },
-            { label: c.involve.items[1].label, detail: c.involve.items[1].detail, onPress: startBox },
+            shopMode
+              ? {
+                  label: c.involve.shopGiveItem.label,
+                  detail: c.involve.shopGiveItem.detail,
+                  onPress: passoverInterest.toggle,
+                }
+              : {
+                  label: c.involve.items[1].label,
+                  detail: c.involve.items[1].detail,
+                  onPress: startBox,
+                },
             {
               label: c.involve.items[2].label,
               detail: c.involve.items[2].detail,

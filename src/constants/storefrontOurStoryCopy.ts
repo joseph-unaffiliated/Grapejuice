@@ -110,5 +110,10 @@ export const OUR_STORY_COPY = {
       { label: 'Press', detail: 'Media inquiries' },
       { label: 'Newsletter', detail: 'Hear when new things ship' },
     ],
+    /** Post-lock swap for “Give a box”. */
+    shopGiveItem: {
+      label: 'Pre-register for Passover',
+      detail: 'Early access when 2027 boxes open',
+    },
   },
 } as const;

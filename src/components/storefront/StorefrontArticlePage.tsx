@@ -240,6 +240,14 @@ type Props = {
   showFooterStrips?: boolean;
   /** Override Build Box strip headline (defaults to acquisition copy). */
   buildBoxHeadline?: string;
+  /** Override Build Box strip body. */
+  buildBoxBody?: string;
+  /** Override Build Box strip CTA label. */
+  buildBoxCtaLabel?: string;
+  /** Override Build Box strip press (defaults to start box). */
+  buildBoxOnPress?: () => void;
+  /** Optional still background for the strip (e.g. Passover art post-lock). */
+  buildBoxBackgroundSource?: number;
   /**
    * Optional mid-band rendered after page blocks and immediately before
    * Build Box / Ask Rav / aisle (e.g. B'Mitzvah on Passover).
@@ -1546,6 +1554,10 @@ export function StorefrontArticlePage({
   showHeroDivider = false,
   showFooterStrips = true,
   buildBoxHeadline,
+  buildBoxBody,
+  buildBoxCtaLabel,
+  buildBoxOnPress,
+  buildBoxBackgroundSource,
   beforeFooterStrips,
   mobileKit = false,
 }: Props) {
@@ -1669,8 +1681,11 @@ export function StorefrontArticlePage({
         {showFooterStrips ? (
           <View style={styles.footerStrips}>
             <StorefrontBuildBoxStrip
-              onPress={startBox}
+              onPress={buildBoxOnPress ?? startBox}
               headline={buildBoxHeadline}
+              body={buildBoxBody}
+              ctaLabel={buildBoxCtaLabel}
+              backgroundSource={buildBoxBackgroundSource}
               variant="content"
             />
             <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} mobileKit={kit} />
