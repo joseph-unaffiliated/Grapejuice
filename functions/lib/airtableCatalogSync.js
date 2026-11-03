@@ -82,6 +82,8 @@ const F = {
     availableBeforeLock: 'fld5lpY35uPMK9dWl',
     /** singleSelect: Yes | Flag | No — leftover release after lock. */
     sellAfterLock: 'fldBsSszQ2lmutIX1',
+    /** Currency — per-unit post-lock fulfillment fee (synced as fbaFeeCents). */
+    fbaFee: 'fld0XlEkxGyELuWaX',
     /** Multi-select box roles (base, swap, upsell, gift-eligible, store-only, …). */
     boxRoles: 'fldxFZn1AVEGMCjjD',
     /** Warehouse / ShipStation SKU (e.g. CDL-STR-001). Empty → fall back to slugified ID. */
@@ -134,6 +136,7 @@ function slugifyCatalogId(name) {
 const PINNED_LISTING_IDS = {
     recxIaQkZ55qi5hv7: 'big-bag-of-gelt',
     recF3yMAHEv61pJJR: 'party-bag-of-gelt',
+    recwucHqslOQJMUye: 'classic-wooden-dreidel',
 };
 /** Catalog id for a Full Catalog row: its pinned id, else the slug of its name. */
 function listingCatalogId(recordId, name) {
@@ -536,6 +539,12 @@ function listingToItem(rec, images) {
         careNotes: textField(f[F.careNotes]),
         directSaleCapBeforeLock: numberField(f[F.availableBeforeLock]),
         sellAfterLock: sellAfterLockFromAirtable(f[F.sellAfterLock]),
+        fbaFeeCents: (() => {
+            const n = numberField(f[F.fbaFee]);
+            if (n == null)
+                return null;
+            return Math.max(0, Math.round(n * 100));
+        })(),
         boxRoles: selectNames(f[F.boxRoles]),
         sku: skuRaw || null,
     };
@@ -619,6 +628,7 @@ function bookToItem(fcRec, bookRec, images) {
         // Books are never sold à la carte — caps/FBA unused by the resolver.
         directSaleCapBeforeLock: null,
         sellAfterLock: null,
+        fbaFeeCents: null,
         boxRoles: [],
         sku: null,
     };

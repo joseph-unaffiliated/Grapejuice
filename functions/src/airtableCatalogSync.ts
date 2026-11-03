@@ -202,6 +202,7 @@ export function slugifyCatalogId(name: string): string {
 const PINNED_LISTING_IDS: Record<string, string> = {
   recxIaQkZ55qi5hv7: 'big-bag-of-gelt',
   recF3yMAHEv61pJJR: 'party-bag-of-gelt',
+  recwucHqslOQJMUye: 'classic-wooden-dreidel',
 };
 
 /** Catalog id for a Full Catalog row: its pinned id, else the slug of its name. */
