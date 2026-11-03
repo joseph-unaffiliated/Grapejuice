@@ -10,7 +10,6 @@ import {
 import {
   boxLockChipLabel,
   HANUKKAH_BOX_LOCK_YEAR_LABEL,
-  lockedBoxChipLabel,
   MY_HANUKKAH_BOX_LABEL,
 } from '../../constants/hanukkahBoxLock';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
@@ -40,9 +39,6 @@ export function StorefrontServicesNav({ onPress }: Props) {
   const cached = peekHanukkahConfig();
   const [lockAt, setLockAt] = useState<string | null>(cached?.lockAt ?? null);
   const [startsOn, setStartsOn] = useState<string | null>(cached?.startsOn ?? null);
-  const [estimatedDeliveryBy, setEstimatedDeliveryBy] = useState<string | null>(
-    cached?.estimatedDeliveryBy ?? null
-  );
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const now = usePreviewNow();
   const preview = useUserStatePreview();
@@ -58,7 +54,6 @@ export function StorefrontServicesNav({ onPress }: Props) {
       if (cancelled) return;
       setLockAt(config.lockAt);
       setStartsOn(config.startsOn);
-      setEstimatedDeliveryBy(config.estimatedDeliveryBy);
     });
     return () => {
       cancelled = true;
@@ -69,14 +64,15 @@ export function StorefrontServicesNav({ onPress }: Props) {
     if (mode === 'shop' || mode === 'locked') {
       return {
         yearLabel: MY_HANUKKAH_BOX_LABEL,
-        chipLabel: lockedBoxChipLabel(estimatedDeliveryBy, now),
+        // Shop: no “Nd to ship” / Nov 21 arrival estimate — box is locked.
+        chipLabel: 'Locked',
       };
     }
     return {
       yearLabel: HANUKKAH_BOX_LOCK_YEAR_LABEL,
       chipLabel: boxLockChipLabel(now, lockAt),
     };
-  }, [mode, estimatedDeliveryBy, lockAt, now]);
+  }, [mode, lockAt, now]);
 
   if (compact) return null;
 

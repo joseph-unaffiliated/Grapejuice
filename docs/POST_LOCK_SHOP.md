@@ -9,6 +9,7 @@ After box lock until the last night of Hanukkah, the storefront runs in **`shop`
 - Family link `/d/order/<token>`: unchanged pre-lock box build (never forced into shop)
 - Abandoned drafts: first shop visit merges line items into favorites (draft + history kept)
 - Marketplace shipping: UPS Ground weight tiers + Airtable FBA fee → “Shipping & fulfillment”
+- No “Arrives by Nov 21” / arrives-in-time-for-Hanukkah copy on PDP, cart, or checkout
 - Passover chrome only after Hanukkah ends
 
 ## QA

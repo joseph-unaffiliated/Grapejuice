@@ -226,7 +226,8 @@ export function StorefrontHero({
     bodySecondary = null;
     primaryLabel = hero.ctaLabel ?? 'Browse the Collection';
     if (shopHasBoxOrder) {
-      body = journey ? boxJourneyStatusLine(journey, 'locked', now) : 'Your box is locked — shipping soon.';
+      // No arrives-by / “ships in Nd” (that was the Nov 21 box estimate).
+      body = 'Your box is locked — shipping soon.';
       secondaryLabel = shopOrderCtaLabel ?? 'View order';
     } else {
       body = hero.body;

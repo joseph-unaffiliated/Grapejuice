@@ -8,6 +8,8 @@ import { Elements } from '@stripe/react-stripe-js';
 import { useSession } from '../../hooks/useSession';
 import { usePilotOrders } from '../../hooks/usePilotOrders';
 import { useArrivesByWithWait } from '../../hooks/useArrivesByWithWait';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { useAuthStore } from '../../stores/authStore';
 import { useMarketplaceCartStore } from '../../stores/marketplaceCartStore';
 import { useMockFlowStore } from '../../stores/mockFlowStore';
@@ -73,6 +75,23 @@ function MarketplaceCheckoutBody() {
   const clearCart = useMarketplaceCartStore((s) => s.clear);
   const skipShipStation = useMockFlowStore((s) => s.active);
   const arrival = useArrivesByWithWait();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const {
     lineItems,
@@ -307,7 +326,9 @@ function MarketplaceCheckoutBody() {
         <Text style={checkoutUi.title}>Payment</Text>
         <Text style={checkoutUi.lead}>
           {chargeNow
-            ? `You'll be charged ${formatDollars(pending.totalCents)} today. ${arrival}`
+            ? shopMode
+              ? `You'll be charged ${formatDollars(pending.totalCents)} today.`
+              : `You'll be charged ${formatDollars(pending.totalCents)} today. ${arrival}`
             : `We'll save your card and charge ${formatDollars(pending.totalCents)} when Hanukkah boxes lock. These items ship with your box.`}
         </Text>
         <View style={checkoutUi.divider} />
@@ -344,7 +365,9 @@ function MarketplaceCheckoutBody() {
     ? total > 0
       ? "We'll save your card and charge it when Hanukkah boxes lock. These items ship with your box."
       : "Your credits cover this order. We'll ship it with your box."
-    : `${arrival} These items ship with our Hanukkah boxes.`;
+    : shopMode
+      ? 'You’ll be charged today. Shipping is calculated below.'
+      : `${arrival} These items ship with our Hanukkah boxes.`;
 
   return (
     <SystemPage narrow onBack={onBack}>

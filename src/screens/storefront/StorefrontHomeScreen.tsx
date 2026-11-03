@@ -158,7 +158,12 @@ export function StorefrontHomeScreen() {
     };
   }, []);
 
-  const journeyDates = { startsOn, lockAt, estimatedDeliveryBy };
+  /** Shop: omit box arrives-by (Nov 21) from journey chrome — not a shop promise. */
+  const journeyDates = {
+    startsOn,
+    lockAt,
+    estimatedDeliveryBy: mode === 'shop' ? null : estimatedDeliveryBy,
+  };
   /** Cold shop still gets countdown dates for the hero; banner is box holders only. */
   const journey =
     mode === 'acquisition' ||

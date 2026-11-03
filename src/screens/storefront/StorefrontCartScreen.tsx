@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
 import { MobileBoundary } from '../../components/mobile/MobileBoundary';
@@ -23,6 +23,8 @@ import { icons } from '../../constants/icons';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
 import { useArrivesByWithWait } from '../../hooks/useArrivesByWithWait';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import {
   marketplaceCartCount,
   useMarketplaceCartStore,
@@ -62,11 +64,28 @@ export function StorefrontCartScreen() {
   const setQuantity = useMarketplaceCartStore((s) => s.setQuantity);
   const removeItem = useMarketplaceCartStore((s) => s.removeItem);
   const arrival = useArrivesByWithWait();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
   const {
     items: catalog,
     byId: availabilityById,
     loading: catalogLoading,
   } = useCatalogAvailabilityMap();
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const catalogById = useMemo(() => {
     const map = new Map(catalog.map((c) => [c.id, c]));
@@ -284,7 +303,9 @@ export function StorefrontCartScreen() {
               </Text>
             </View>
             <Text style={styles.arrivalNote}>
-              {arrival} Items ship with our Hanukkah boxes.
+              {shopMode
+                ? 'Shipping is calculated at checkout.'
+                : `${arrival} Items ship with our Hanukkah boxes.`}
             </Text>
 
             {hasCartIssues ? (

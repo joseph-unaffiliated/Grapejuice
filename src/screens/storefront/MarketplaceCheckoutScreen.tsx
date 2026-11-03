@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,8 @@ import { CheckoutOrderSummary } from '../main/checkout/CheckoutOrderSummary';
 import { CheckoutAddressFields } from '../main/checkout/CheckoutAddressFields';
 import { useAddressDeliverability } from '../main/checkout/useAddressDeliverability';
 import { useArrivesByWithWait } from '../../hooks/useArrivesByWithWait';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { useMarketplaceCheckout } from './useMarketplaceCheckout';
 import { isValidEmail, type ShippingAddressFieldErrors } from '../../utils/formValidation';
@@ -58,6 +60,11 @@ function MarketplaceCheckoutBody() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const skipShipStation = useMockFlowStore((s) => s.active);
   const arrival = useArrivesByWithWait();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
 
   const {
     lineItems,
@@ -74,6 +81,18 @@ function MarketplaceCheckoutBody() {
     giftCreditApplied,
     platformCreditApplied,
   } = useMarketplaceCheckout();
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -228,7 +247,9 @@ function MarketplaceCheckoutBody() {
 
       <Text style={styles.title}>Checkout</Text>
       <Text style={styles.chargeBanner}>
-        {`${arrival} These items ship with our Hanukkah boxes.`}
+        {shopMode
+          ? 'You’ll be charged today. Shipping is calculated below.'
+          : `${arrival} These items ship with our Hanukkah boxes.`}
       </Text>
 
       <CheckoutOrderSummary
