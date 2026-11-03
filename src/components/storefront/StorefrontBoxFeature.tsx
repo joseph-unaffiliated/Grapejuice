@@ -28,13 +28,13 @@ const BOX_MEDIA: StorefrontMediaSlot = {
   src: require('../../../assets/storefront/box-feature-gift-stack-v2.webp'),
 };
 
-/** Passover visual (pyramids / Exodus mood — not Hanukkah table). */
+/** Passover visual — organic seder plate (not Hanukkah table). */
 const PASSOVER_MEDIA: StorefrontMediaSlot = {
   id: 'box-feature-passover',
   kind: 'image',
-  aspect: '4/5',
+  aspect: '2/1',
   label: 'Passover 2027',
-  src: require('../../../assets/storefront/passover-thumb-pyramids-sunset.png'),
+  src: require('../../../assets/storefront/passover-seder-plate.jpg'),
 };
 
 const INCLUSIONS: { title: string; note: string }[] = [

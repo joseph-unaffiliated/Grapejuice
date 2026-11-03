@@ -1,8 +1,8 @@
 import type { StorefrontHomeMode } from '../hooks/useStorefrontHomeMode';
 import { PRE_REGISTERED_CTA_LABEL, PRE_REGISTER_PASSOVER_CTA_LABEL } from './pilotHolidays';
 
-/** Passover strip — not Hanukkah table/latkes. */
-const PASSOVER_STRIP_BG = require('../../assets/storefront/passover-thumb-pyramids-sunset.png');
+/** Passover strip — organic seder plate (not Hanukkah table). */
+const PASSOVER_STRIP_BG = require('../../assets/storefront/passover-seder-plate.jpg');
 
 export type StorefrontBuildBoxStripCopy = {
   headline: string;
