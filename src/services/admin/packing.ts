@@ -54,6 +54,8 @@ export type PackingPackage = {
   mayNeedLargeBox: boolean;
   size: PackingSize;
   sizeSet: boolean;
+  /** Committed box whose card has not been charged yet. Hidden unless Simulate Post-Lock is on. */
+  awaitingPayment: boolean;
   lines: PackingLine[];
 };
 

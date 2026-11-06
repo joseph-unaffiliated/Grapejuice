@@ -74,6 +74,7 @@ export function AdminPackingScreen() {
   const [groupBy, setGroupBy] = useState<GroupBy>('size');
   const [sortBy, setSortBy] = useState<SortBy>('size');
   const [hideDone, setHideDone] = useState(false);
+  const [simulatePostLock, setSimulatePostLock] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const panelProps = {
@@ -84,8 +85,14 @@ export function AdminPackingScreen() {
   } as const;
 
   const visible = useMemo(
-    () => (data?.packages ?? []).filter((p) => (showTests || !p.test) && (kind === 'all' || p.kind === kind)),
-    [data, kind, showTests],
+    () =>
+      (data?.packages ?? []).filter(
+        (p) =>
+          (showTests || !p.test) &&
+          (kind === 'all' || p.kind === kind) &&
+          (simulatePostLock || !p.awaitingPayment),
+      ),
+    [data, kind, showTests, simulatePostLock],
   );
 
   const totals = useMemo(() => {
@@ -202,6 +209,9 @@ export function AdminPackingScreen() {
           <Text style={styles.caption}>
             Paid boxes (charged at lock), paid shop orders and paid gift boxes with a ship-to address. Checkmarks are shared
             with everyone who opens this page. Updated {when(data.generatedAt)}.
+            {simulatePostLock
+              ? ' Simulate Post-Lock adds committed boxes whose cards have not been charged yet. They are a preview, not paid orders.'
+              : ''}
           </Text>
 
           <View style={styles.statRow}>
@@ -225,6 +235,7 @@ export function AdminPackingScreen() {
                 onPress={() => setKind(k)}
               />
             ))}
+            <Chip styles={styles} label="Simulate Post-Lock" active={simulatePostLock} onPress={() => setSimulatePostLock((v) => !v)} />
             <Chip styles={styles} label={showTests ? 'Test orders: on' : 'Test orders: off'} active={showTests} onPress={() => setShowTests((v) => !v)} />
             <Chip styles={styles} label={hideDone ? 'Hiding packed' : 'Hide packed'} active={hideDone} onPress={() => setHideDone((v) => !v)} />
           </ChipRow>
@@ -414,6 +425,7 @@ function PackageCard({
             {KIND_LABEL[pkg.kind]}
           </Text>
           {pkg.test ? <Text style={styles.badgeTest}>Test</Text> : null}
+          {pkg.awaitingPayment ? <Text style={styles.badgeLarge}>Not charged yet</Text> : null}
           {pkg.mayNeedLargeBox ? <Text style={styles.badgeLarge}>May need a large box</Text> : null}
           <Text style={styles.reference}>{pkg.reference}</Text>
         </View>
@@ -423,7 +435,7 @@ function PackageCard({
       </View>
       <Text style={styles.recipient}>{pkg.recipient ?? pkg.email ?? 'No name on file'}</Text>
       <Text style={styles.meta}>
-        Paid {when(pkg.paidAt)} · {pkg.status}
+        {pkg.awaitingPayment ? `Committed ${when(pkg.paidAt)} · not charged` : `Paid ${when(pkg.paidAt)} · ${pkg.status}`}
       </Text>
 
       <View style={styles.infoGrid}>
@@ -580,6 +592,7 @@ function ProductView({ styles, packages, hideDone, onToggle }: ProductViewProps)
                     <View style={styles.tagRow}>
                       <Text style={styles.tag}>{pkg.reference}</Text>
                       <Text style={styles.tag}>{KIND_LABEL[pkg.kind]}</Text>
+                      {pkg.awaitingPayment ? <Text style={styles.tagWrap}>Not charged</Text> : null}
                       <Text style={styles.tag}>{PACKING_SIZE_LABEL[pkg.size]}</Text>
                       {line.wrap ? <Text style={styles.tagWrap}>Pre-wrap</Text> : null}
                       {line.origin ? <Text style={styles.tag}>{ORIGIN_LABEL[line.origin]}</Text> : null}

@@ -12,10 +12,21 @@ import { shopOrderState } from './shopOrders';
  * "packed" checkbox. Size and packed state live in `packingPackages/{packageId}` (admin SDK only).
  *
  * Box orders are only "paid" once charged at lock (status confirmed or later), so they appear after lock.
+ * Committed boxes (checkout done, card not charged) are included with `awaitingPayment` so the
+ * packing page can preview them behind the "Simulate Post-Lock" toggle. They stay out of the
+ * default list.
  */
 
 const HOLIDAY_ID = 'hanukkah-2026';
-const PAID_BOX_STATUSES = ['confirmed', 'shipped', 'delivered'];
+const CHARGED_BOX_STATUSES = ['confirmed', 'shipped', 'delivered'];
+
+/** Charged box orders always pack. Committed orders are the post-lock preview. Everything else stays off the list. */
+export function packingBoxCharge(status: unknown): 'charged' | 'awaiting' | 'hidden' {
+  const s = String(status ?? '');
+  if (CHARGED_BOX_STATUSES.includes(s)) return 'charged';
+  if (s === 'committed') return 'awaiting';
+  return 'hidden';
+}
 const PACKING_COLLECTION = 'packingPackages';
 const PACKAGE_ID = /^(box|shop|gift)_[A-Za-z0-9_-]{1,200}$/;
 
@@ -80,6 +91,8 @@ export type PackingPackage = {
   size: PackingSize;
   /** A packer has picked a size (otherwise `size` is the recommendation). */
   sizeSet: boolean;
+  /** Committed box whose card has not been charged yet. Hidden unless Simulate Post-Lock is on. */
+  awaitingPayment: boolean;
   lines: PackingLine[];
 };
 
@@ -235,7 +248,7 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     if (hh && hh.parent.id === 'households') receivedByKey.set(`${hh.id}/${d.id}`, d.data());
   }
 
-  type OrderRow = { hid: string; id: string; o: DocumentData };
+  type OrderRow = { hid: string; id: string; o: DocumentData; awaitingPayment?: boolean };
   const boxRows: OrderRow[] = [];
   const shopRows: OrderRow[] = [];
   const liveGiftOrderByInvite = new Map<string, DocumentData>();
@@ -245,7 +258,7 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
     if (!hid || o.playthrough === true) continue;
     if (o.orderType === 'received_gift') {
       const inviteId = str(o.giftInviteId);
-      if (inviteId && o.holidayId === HOLIDAY_ID && PAID_BOX_STATUSES.includes(String(o.status))) {
+      if (inviteId && o.holidayId === HOLIDAY_ID && packingBoxCharge(o.status) === 'charged') {
         liveGiftOrderByInvite.set(inviteId, o);
       }
       continue;
@@ -257,8 +270,9 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
       continue;
     }
     const isBox = o.orderType === 'hanukkah_box' || (!o.orderType && o.holidayId === HOLIDAY_ID);
-    if (isBox && o.holidayId === HOLIDAY_ID && PAID_BOX_STATUSES.includes(String(o.status))) {
-      boxRows.push({ hid, id: d.id, o });
+    const charge = packingBoxCharge(o.status);
+    if (isBox && o.holidayId === HOLIDAY_ID && charge !== 'hidden') {
+      boxRows.push({ hid, id: d.id, o, awaitingPayment: charge === 'awaiting' });
     }
   }
 
@@ -334,6 +348,7 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
       },
       note: str(last.ravNotes) ?? null,
       recommendedSize: '14x14x6',
+      awaitingPayment: r.awaitingPayment === true,
       lines,
     });
   }
@@ -377,6 +392,7 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
       sliders: emptySliders,
       note: str(g.message),
       recommendedSize: '14x14x6',
+      awaitingPayment: false,
       lines,
     });
   }
@@ -406,6 +422,7 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
       sliders: emptySliders,
       note: null,
       recommendedSize: recommendedSizeFor('shop'),
+      awaitingPayment: false,
       lines,
     });
   }

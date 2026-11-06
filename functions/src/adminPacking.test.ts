@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { LARGE_BOX_UNITS, maxDimensionInches, mayNeedLargeBox, recommendedSizeFor } from './adminPacking';
+import { LARGE_BOX_UNITS, maxDimensionInches, mayNeedLargeBox, packingBoxCharge, recommendedSizeFor } from './adminPacking';
 
 // Largest of the first three numbers, ignoring anything in parentheses.
 assert.equal(maxDimensionInches('6.3" height × 5.1" width × 1.4" depth'), 6.3);
@@ -38,5 +38,13 @@ assert.equal(mayNeedLargeBox([line(4), line(12.6)]), true);
 assert.equal(mayNeedLargeBox([many(LARGE_BOX_UNITS)]), false, 'the threshold itself is fine');
 assert.equal(mayNeedLargeBox([many(LARGE_BOX_UNITS + 1)]), true, 'a lot of units is flagged');
 assert.equal(mayNeedLargeBox([many(10), many(9)]), true, 'units add up across lines');
+
+// Charged boxes always pack. Committed boxes are the post-lock preview. Other statuses stay off the list.
+assert.equal(packingBoxCharge('confirmed'), 'charged');
+assert.equal(packingBoxCharge('shipped'), 'charged');
+assert.equal(packingBoxCharge('delivered'), 'charged');
+assert.equal(packingBoxCharge('committed'), 'awaiting');
+assert.equal(packingBoxCharge('pending'), 'hidden');
+assert.equal(packingBoxCharge('cancelled'), 'hidden');
 
 console.log('adminPacking tests passed');
