@@ -21,7 +21,7 @@
 
 **Marketplace availability (Full Catalog):**
 
-- **Available for Sale Before Box Close** → `directSaleCapBeforeLock` (null/0 = box-only until lock)
+- **Available for Sale Before Box Close** → `directSaleCapBeforeLock` (null/0 = box-only until lock; a positive number means the shop sells it before lock, up to leftover stock — the number is not a quantity cap)
 - **Inventory** → `inventory` (true warehouse total). When set, this is a hard ceiling: remaining à la carte = `min(cap − direct, inventory − boxAllocated − direct)`.
 - **Sell After Lock via FBA** (`Yes` / `Flag` / `No`) → `sellAfterLock` (`yes` | `flag` | `no`) — leftover release after lock when `yes`. After lock, `Flag`/`No`/books show as **sold out** in the shop (not “box only”).
 - **FBA fee** (currency, `fld0XlEkxGyELuWaX`) → `fbaFeeCents` — per-unit fee added into post-lock marketplace **Shipping & fulfillment** (never labeled FBA/Amazon in customer copy). Pack SKUs get their own fee.

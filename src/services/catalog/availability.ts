@@ -44,8 +44,9 @@ function isLocked(lockAt: string | null | undefined, now: Date): boolean {
 /**
  * Resolve whether a catalog item can be bought à la carte right now.
  * Books are always box-only. Hold inventory is ignored — carve-out + FBA only.
- * When Airtable inventory is set, committed boxes and set-aside copies also shrink
- * pre-lock remaining (hard ceiling: min(cap − direct, inventory − set aside − boxAllocated − direct)).
+ * A positive directSaleCapBeforeLock means the shop sells the item before lock.
+ * That number is not a quantity cap: pre-lock remaining is leftover stock
+ * (inventory − set aside − box allocations − direct sales).
  */
 export function resolveAvailability(
   item: CatalogItem,
@@ -72,14 +73,13 @@ export function resolveAvailability(
     if (cap == null || !Number.isFinite(cap) || cap <= 0) {
       return { status: 'box_only', reason: 'no_cap' };
     }
-    let remaining = Math.max(0, Math.floor(cap) - committed);
-    if (
-      item.inventory != null &&
-      Number.isFinite(item.inventory)
-    ) {
-      const ceiling = Math.max(0, Math.floor(item.inventory) - nonNeg(item.setAside) - boxAllocated - committed);
-      remaining = Math.min(remaining, ceiling);
+    if (item.inventory == null || !Number.isFinite(item.inventory)) {
+      return { status: 'direct', remaining: null };
     }
+    const remaining = Math.max(
+      0,
+      Math.floor(item.inventory) - nonNeg(item.setAside) - boxAllocated - committed
+    );
     if (remaining <= 0) {
       return { status: 'box_only', reason: 'cap_exhausted' };
     }

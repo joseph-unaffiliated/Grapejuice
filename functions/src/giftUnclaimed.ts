@@ -11,6 +11,8 @@ import { unclaimedGiftShipDecision, type UnclaimedGiftShipReason } from './giftS
 const DAY_MS = 86_400_000;
 /** The follow-up waits until the original gift email is at least two days old. */
 const RECIPIENT_FOLLOW_UP_MS = 2 * DAY_MS;
+/** Off: no nudge email to the giver asking them to follow up with the recipient. The recipient follow-up is unaffected. */
+export const GIVER_NUDGE_EMAIL_ENABLED = false;
 
 export function unclaimedGiftNoteDue(input: {
   paid: boolean;
@@ -129,6 +131,7 @@ export async function runUnclaimedGiftNotes(db: Firestore, now = new Date()): Pr
       now: now.getTime(),
     });
     if (!due) continue;
+    if (due === 'sender' && !GIVER_NUDGE_EMAIL_ENABLED) continue;
     considered += 1;
     if (due === 'recipient') {
       const giver = typeof data.giverName === 'string' ? data.giverName : 'Someone';

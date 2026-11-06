@@ -98,6 +98,9 @@
             } catch (e) {}
           }
           if (!id) {
+            // Flag a brand-new id so the app can prefer the visitor id its saved guest box
+            // still carries (src/services/guest/visitorId.ts reconcileMintedVisitorId).
+            window.__gjVisitorMinted = true;
             if (window.crypto && typeof crypto.randomUUID === 'function') {
               id = crypto.randomUUID().replace(/-/g, '');
             } else {

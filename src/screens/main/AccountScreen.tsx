@@ -547,6 +547,7 @@ function AccountScreenBody() {
               ? [
                   { label: 'Catalog', sub: 'Hanukkah SKUs', onPress: () => navigation.navigate('AdminCatalog') },
                   { label: 'Boxes and Orders', sub: 'Live boxes, shop orders, gifts and inventory', onPress: () => navigation.navigate('AdminBoxes') },
+                  { label: 'Packing', sub: 'Paid boxes, shop orders and gifts to pack, with box sizes', onPress: () => navigation.navigate('AdminPacking') },
                   { label: 'Promotions', sub: 'Discount codes, credit and influencer links', onPress: () => navigation.navigate('AdminPromotions') },
                   { label: 'Pilot Participants', sub: 'Invite links and who joined', onPress: () => navigation.navigate('AdminPilot') },
                 ]
@@ -826,6 +827,13 @@ function AccountScreenBody() {
               label="Orders and Inventory"
               variant="filled"
               onPress={() => navigation.navigate('AdminBoxes')}
+              style={styles.actionBtn}
+              textStyle={styles.primaryBtnText}
+            />
+            <GrapejuiceButton
+              label="Packing"
+              variant="filled"
+              onPress={() => navigation.navigate('AdminPacking')}
               style={styles.actionBtn}
               textStyle={styles.primaryBtnText}
             />

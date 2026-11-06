@@ -215,8 +215,9 @@ export type CatalogItem = {
   setAsideFor?: string | null;
   wrappable?: boolean | null;
   /**
-   * Airtable "Available for Sale Before Box Close" — max units sellable à la carte
-   * before lock. null/0 → box-only until (and unless) post-lock release.
+   * Airtable "Available for Sale Before Box Close". A positive number means the shop
+   * sells it before lock, up to leftover stock — the number itself is not a quantity cap.
+   * null/0 → box-only until (and unless) post-lock release.
    */
   directSaleCapBeforeLock?: number | null;
   /**

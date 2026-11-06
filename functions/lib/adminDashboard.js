@@ -1,8 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.scheduledBoxesDashboard = exports.GIFT_FUNNEL_KEYS = void 0;
+exports.mergeTwinFunnelPeople = mergeTwinFunnelPeople;
 exports.guestAnsweredSliders = guestAnsweredSliders;
 exports.buildGiftFunnelRows = buildGiftFunnelRows;
+exports.lineOriginVsDefault = lineOriginVsDefault;
 exports.buildBoxesDashboard = buildBoxesDashboard;
 exports.createAdminBoxesDashboard = createAdminBoxesDashboard;
 const auth_1 = require("firebase-admin/auth");
@@ -34,6 +36,51 @@ const PER_EXTRA_KID_CENTS = 1000;
 const GUEST_ROW_LIMIT = 500;
 /** Onboarding steps after the two sliders — reaching one means the scores are real answers, not defaults. */
 const STEPS_AFTER_SLIDERS = ['rav-question', 'building', 'reveal'];
+/**
+ * One person can have two guest records: their visitor id changed mid-box, and the new record
+ * kept the same `stepsReached` timestamps while the email gate was written to the old id. Records
+ * sharing any exact step timestamp are one person. Flags are OR'd across the group, the record that
+ * passed the gate (else the earliest) is the representative, and `firstSeen` is the earliest.
+ */
+function mergeTwinFunnelPeople(rows) {
+    var _a;
+    const parent = rows.map((_, i) => i);
+    const find = (i) => {
+        let x = i;
+        while (parent[x] !== x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const firstRowWithMs = new Map();
+    rows.forEach((row, i) => {
+        for (const ms of row.stepMs) {
+            const prev = firstRowWithMs.get(ms);
+            if (prev === undefined)
+                firstRowWithMs.set(ms, i);
+            else
+                parent[find(i)] = find(prev);
+        }
+    });
+    const groups = new Map();
+    rows.forEach((row, i) => {
+        const root = find(i);
+        const list = groups.get(root);
+        if (list)
+            list.push(row.person);
+        else
+            groups.set(root, [row.person]);
+    });
+    const out = [];
+    for (const people of groups.values()) {
+        const ranked = [...people].sort((a, b) => { var _a, _b; return Number(b.gateEmail) - Number(a.gateEmail) || ((_a = a.firstSeen) !== null && _a !== void 0 ? _a : '').localeCompare((_b = b.firstSeen) !== null && _b !== void 0 ? _b : ''); });
+        const rep = ranked[0];
+        const firstSeen = (_a = people.map((p) => p.firstSeen).filter((s) => Boolean(s)).sort()[0]) !== null && _a !== void 0 ? _a : null;
+        out.push(Object.assign(Object.assign({}, rep), { firstSeen, test: people.some((p) => p.test), outsideUs: people.some((p) => p.outsideUs), family: people.some((p) => p.family), sliders: people.some((p) => p.sliders), gateEmail: people.some((p) => p.gateEmail), sawBox: people.some((p) => p.sawBox), account: people.some((p) => p.account), anyEmail: people.some((p) => p.anyEmail), card: people.some((p) => p.card), purchase: people.some((p) => p.purchase) }));
+    }
+    return out;
+}
 /** Gift funnel steps in order; `email` and `box` only exist on the curated path. */
 exports.GIFT_FUNNEL_KEYS = [
     'start',
@@ -433,6 +480,36 @@ async function backfillCardSessions(db, households) {
         }));
     }
 }
+/** How a box line relates to the household's default build (`history/default`). Null when no default is known. */
+function lineOriginVsDefault(li, defaults) {
+    var _a, _b;
+    if (!(defaults === null || defaults === void 0 ? void 0 : defaults.length))
+        return null;
+    const itemId = str(li.itemId);
+    if (!itemId)
+        return null;
+    const unitCents = (_a = num(li.unitCents)) !== null && _a !== void 0 ? _a : 0;
+    if (unitCents > 0)
+        return 'added';
+    const slotId = str(li.slotId);
+    const childId = (_b = str(li.childId)) !== null && _b !== void 0 ? _b : undefined;
+    const sameSlot = defaults.filter((d) => { var _a; return d.slotId === slotId && ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId; });
+    if (sameSlot.some((d) => d.itemId === itemId))
+        return 'default';
+    if (sameSlot.length)
+        return 'changed';
+    // Swaps can move a line to a new slot id; match by child when the slot renamed.
+    const sameChild = defaults.filter((d) => { var _a; return ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId && d.itemId === itemId; });
+    if (sameChild.length)
+        return 'default';
+    const childHadOther = defaults.some((d) => { var _a; return ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId && d.itemId !== itemId; });
+    if (childId && childHadOther && !defaults.some((d) => { var _a; return d.itemId === itemId && ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId; })) {
+        return 'changed';
+    }
+    if (defaults.some((d) => d.itemId === itemId))
+        return 'default';
+    return 'added';
+}
 const sessionDoc = (v) => v && typeof v === 'object' && typeof v.at === 'string' ? v : null;
 async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60;
@@ -662,35 +739,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         const oa = ((order === null || order === void 0 ? void 0 : order.attribution) && typeof order.attribution === 'object' ? order.attribution : {});
         return (0, checkoutSession_1.classifyCheckoutSession)(s, [oa.lastTouch, oa.firstTouch, ...((owner && userTouches.get(owner)) || [])]);
     };
-    const lineOrigin = (li, defaults) => {
-        var _a, _b;
-        if (!(defaults === null || defaults === void 0 ? void 0 : defaults.length))
-            return null;
-        const itemId = str(li.itemId);
-        if (!itemId)
-            return null;
-        const unitCents = (_a = num(li.unitCents)) !== null && _a !== void 0 ? _a : 0;
-        if (unitCents > 0)
-            return 'added';
-        const slotId = str(li.slotId);
-        const childId = (_b = str(li.childId)) !== null && _b !== void 0 ? _b : undefined;
-        const sameSlot = defaults.filter((d) => { var _a; return d.slotId === slotId && ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId; });
-        if (sameSlot.some((d) => d.itemId === itemId))
-            return 'default';
-        if (sameSlot.length)
-            return 'changed';
-        // Swaps can move a line to a new slot id; match by child when the slot renamed.
-        const sameChild = defaults.filter((d) => { var _a; return ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId && d.itemId === itemId; });
-        if (sameChild.length)
-            return 'default';
-        const childHadOther = defaults.some((d) => { var _a; return ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId && d.itemId !== itemId; });
-        if (childId && childHadOther && !defaults.some((d) => { var _a; return d.itemId === itemId && ((_a = d.childId) !== null && _a !== void 0 ? _a : undefined) === childId; })) {
-            return 'changed';
-        }
-        if (defaults.some((d) => d.itemId === itemId))
-            return 'default';
-        return 'added';
-    };
+    const lineOrigin = lineOriginVsDefault;
     const lineView = (li, childNames, defaults, preWrap = new Set()) => {
         var _a, _b, _c;
         const itemId = str(li.itemId);
@@ -921,7 +970,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
             outsideUs: ipOutsideUs(x.ipGeo),
         });
     }
-    const funnel = [];
+    const funnelRows = [];
     for (const d of guestDocs) {
         const x = d.data();
         const guest = (_39 = (_38 = x.snapshot) === null || _38 === void 0 ? void 0 : _38.guest) !== null && _39 !== void 0 ? _39 : {};
@@ -938,22 +987,26 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         const u = uid ? users.get(uid) : undefined;
         const hid = (_40 = u === null || u === void 0 ? void 0 : u.householdId) !== null && _40 !== void 0 ? _40 : null;
         const h = hid ? households.get(hid) : undefined;
-        funnel.push({
-            id: d.id,
-            firstSeen: iso(x.createdAt),
-            ad: (_41 = adNameOf(x.entry)) !== null && _41 !== void 0 ? _41 : guestNonAdLabel(x.entry),
-            test: u ? (0, testAccounts_1.isTest)(u.email) : false,
-            outsideUs: ipOutsideUs(x.ipGeo),
-            family: kids || Boolean(steps.details) || sliders,
-            sliders,
-            gateEmail,
-            sawBox: guest.boxRevealComplete === true || Boolean(steps.reveal) || Boolean(uid),
-            account: Boolean(uid),
-            anyEmail: Boolean(uid) || gateEmail || Boolean(x.lastLeadAt),
-            card: Boolean(h && (h.cardOnFileAt || h.stripeDefaultPaymentMethodId)),
-            purchase: Boolean(hid && committedBoxHouseholds.has(hid)),
+        funnelRows.push({
+            person: {
+                id: d.id,
+                firstSeen: iso(x.createdAt),
+                ad: (_41 = adNameOf(x.entry)) !== null && _41 !== void 0 ? _41 : guestNonAdLabel(x.entry),
+                test: u ? (0, testAccounts_1.isTest)(u.email) : false,
+                outsideUs: ipOutsideUs(x.ipGeo),
+                family: kids || Boolean(steps.details) || sliders,
+                sliders,
+                gateEmail,
+                sawBox: guest.boxRevealComplete === true || Boolean(steps.reveal) || Boolean(uid),
+                account: Boolean(uid),
+                anyEmail: Boolean(uid) || gateEmail || Boolean(x.lastLeadAt),
+                card: Boolean(h && (h.cardOnFileAt || h.stripeDefaultPaymentMethodId)),
+                purchase: Boolean(hid && committedBoxHouseholds.has(hid)),
+            },
+            stepMs: Object.values(steps).filter((v) => typeof v === 'number'),
         });
     }
+    const funnel = mergeTwinFunnelPeople(funnelRows);
     const giftHeld = new Map();
     for (const { lines } of giftOrders.values())
         addLines(giftHeld, lines);

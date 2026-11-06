@@ -49,7 +49,7 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   });
 }
 
-// Cap with remaining → limited or direct
+// Cap with leftover stock → the shop can sell the stock, not the cap
 {
   const menorah = item({
     id: 'branches-menorah',
@@ -60,7 +60,7 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   });
   const a = resolveAvailability(menorah, emptyInventoryCounters(menorah.id), preLock, now);
   assert.equal(a.status, 'direct');
-  if (a.status === 'direct') assert.equal(a.remaining, 6);
+  if (a.status === 'direct') assert.equal(a.remaining, 12);
 }
 
 {
@@ -72,16 +72,16 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   });
   const a = resolveAvailability(dreidel, null, preLock, now);
   assert.equal(a.status, 'direct');
-  if (a.status === 'direct') assert.equal(a.remaining, 500);
+  if (a.status === 'direct') assert.equal(a.remaining, 600);
 }
 
-// Cap exhausted
+// Stock used up → not sold in the shop
 {
   const menorah = item({
     id: 'branches-menorah',
     name: 'Branches Menorah',
     directSaleCapBeforeLock: 6,
-    inventory: 12,
+    inventory: 6,
   });
   const counters = { ...emptyInventoryCounters(menorah.id), directSoldQty: 4, directReservedQty: 2 };
   assert.deepEqual(resolveAvailability(menorah, counters, preLock, now), {
@@ -119,7 +119,7 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   });
 }
 
-// Pre-lock: null inventory → ignore boxAllocated for ceiling (cap only)
+// Pre-lock: null inventory → no quantity ceiling
 {
   const menorah = item({
     id: 'branches-menorah',
@@ -130,7 +130,7 @@ const now = new Date('2026-10-01T12:00:00.000Z');
   const counters = { ...emptyInventoryCounters(menorah.id), boxAllocatedQty: 100 };
   const a = resolveAvailability(menorah, counters, preLock, now);
   assert.equal(a.status, 'direct');
-  if (a.status === 'direct') assert.equal(a.remaining, 6);
+  if (a.status === 'direct') assert.equal(a.remaining, null);
 }
 
 // Post-lock FBA yes → leftover

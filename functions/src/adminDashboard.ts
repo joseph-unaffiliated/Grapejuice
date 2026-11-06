@@ -227,6 +227,62 @@ export type DashFunnelPerson = {
   purchase: boolean;
 };
 
+/**
+ * One person can have two guest records: their visitor id changed mid-box, and the new record
+ * kept the same `stepsReached` timestamps while the email gate was written to the old id. Records
+ * sharing any exact step timestamp are one person. Flags are OR'd across the group, the record that
+ * passed the gate (else the earliest) is the representative, and `firstSeen` is the earliest.
+ */
+export function mergeTwinFunnelPeople(rows: { person: DashFunnelPerson; stepMs: number[] }[]): DashFunnelPerson[] {
+  const parent = rows.map((_, i) => i);
+  const find = (i: number): number => {
+    let x = i;
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  };
+  const firstRowWithMs = new Map<number, number>();
+  rows.forEach((row, i) => {
+    for (const ms of row.stepMs) {
+      const prev = firstRowWithMs.get(ms);
+      if (prev === undefined) firstRowWithMs.set(ms, i);
+      else parent[find(i)] = find(prev);
+    }
+  });
+  const groups = new Map<number, DashFunnelPerson[]>();
+  rows.forEach((row, i) => {
+    const root = find(i);
+    const list = groups.get(root);
+    if (list) list.push(row.person);
+    else groups.set(root, [row.person]);
+  });
+  const out: DashFunnelPerson[] = [];
+  for (const people of groups.values()) {
+    const ranked = [...people].sort(
+      (a, b) => Number(b.gateEmail) - Number(a.gateEmail) || (a.firstSeen ?? '').localeCompare(b.firstSeen ?? '')
+    );
+    const rep = ranked[0];
+    const firstSeen = people.map((p) => p.firstSeen).filter((s): s is string => Boolean(s)).sort()[0] ?? null;
+    out.push({
+      ...rep,
+      firstSeen,
+      test: people.some((p) => p.test),
+      outsideUs: people.some((p) => p.outsideUs),
+      family: people.some((p) => p.family),
+      sliders: people.some((p) => p.sliders),
+      gateEmail: people.some((p) => p.gateEmail),
+      sawBox: people.some((p) => p.sawBox),
+      account: people.some((p) => p.account),
+      anyEmail: people.some((p) => p.anyEmail),
+      card: people.some((p) => p.card),
+      purchase: people.some((p) => p.purchase),
+    });
+  }
+  return out;
+}
+
 /** Gift funnel steps in order; `email` and `box` only exist on the curated path. */
 export const GIFT_FUNNEL_KEYS = [
   'start',
@@ -692,6 +748,29 @@ async function backfillCardSessions(db: Firestore, households: Map<string, Docum
   }
 }
 
+/** How a box line relates to the household's default build (`history/default`). Null when no default is known. */
+export function lineOriginVsDefault(li: DocumentData, defaults: HistoryLine[] | null): DashLineOrigin | null {
+  if (!defaults?.length) return null;
+  const itemId = str(li.itemId);
+  if (!itemId) return null;
+  const unitCents = num(li.unitCents) ?? 0;
+  if (unitCents > 0) return 'added';
+  const slotId = str(li.slotId);
+  const childId = str(li.childId) ?? undefined;
+  const sameSlot = defaults.filter((d) => d.slotId === slotId && (d.childId ?? undefined) === childId);
+  if (sameSlot.some((d) => d.itemId === itemId)) return 'default';
+  if (sameSlot.length) return 'changed';
+  // Swaps can move a line to a new slot id; match by child when the slot renamed.
+  const sameChild = defaults.filter((d) => (d.childId ?? undefined) === childId && d.itemId === itemId);
+  if (sameChild.length) return 'default';
+  const childHadOther = defaults.some((d) => (d.childId ?? undefined) === childId && d.itemId !== itemId);
+  if (childId && childHadOther && !defaults.some((d) => d.itemId === itemId && (d.childId ?? undefined) === childId)) {
+    return 'changed';
+  }
+  if (defaults.some((d) => d.itemId === itemId)) return 'default';
+  return 'added';
+}
+
 const sessionDoc = (v: unknown): CheckoutSessionDoc | null =>
   v && typeof v === 'object' && typeof (v as CheckoutSessionDoc).at === 'string' ? (v as CheckoutSessionDoc) : null;
 
@@ -965,27 +1044,7 @@ export async function buildBoxesDashboard(
     return classifyCheckoutSession(s, [oa.lastTouch, oa.firstTouch, ...((owner && userTouches.get(owner)) || [])]);
   };
 
-  const lineOrigin = (li: DocumentData, defaults: HistoryLine[] | null): DashLineOrigin | null => {
-    if (!defaults?.length) return null;
-    const itemId = str(li.itemId);
-    if (!itemId) return null;
-    const unitCents = num(li.unitCents) ?? 0;
-    if (unitCents > 0) return 'added';
-    const slotId = str(li.slotId);
-    const childId = str(li.childId) ?? undefined;
-    const sameSlot = defaults.filter((d) => d.slotId === slotId && (d.childId ?? undefined) === childId);
-    if (sameSlot.some((d) => d.itemId === itemId)) return 'default';
-    if (sameSlot.length) return 'changed';
-    // Swaps can move a line to a new slot id; match by child when the slot renamed.
-    const sameChild = defaults.filter((d) => (d.childId ?? undefined) === childId && d.itemId === itemId);
-    if (sameChild.length) return 'default';
-    const childHadOther = defaults.some((d) => (d.childId ?? undefined) === childId && d.itemId !== itemId);
-    if (childId && childHadOther && !defaults.some((d) => d.itemId === itemId && (d.childId ?? undefined) === childId)) {
-      return 'changed';
-    }
-    if (defaults.some((d) => d.itemId === itemId)) return 'default';
-    return 'added';
-  };
+  const lineOrigin = lineOriginVsDefault;
   const lineView = (
     li: DocumentData,
     childNames: Map<string, string | null>,
@@ -1279,7 +1338,7 @@ export async function buildBoxesDashboard(
     });
   }
 
-  const funnel: DashFunnelPerson[] = [];
+  const funnelRows: { person: DashFunnelPerson; stepMs: number[] }[] = [];
   for (const d of guestDocs) {
     const x = d.data();
     const guest: DocumentData = x.snapshot?.guest ?? {};
@@ -1297,22 +1356,26 @@ export async function buildBoxesDashboard(
     const u = uid ? users.get(uid) : undefined;
     const hid = u?.householdId ?? null;
     const h = hid ? households.get(hid) : undefined;
-    funnel.push({
-      id: d.id,
-      firstSeen: iso(x.createdAt),
-      ad: adNameOf(x.entry) ?? guestNonAdLabel(x.entry),
-      test: u ? isTest(u.email) : false,
-      outsideUs: ipOutsideUs(x.ipGeo),
-      family: kids || Boolean(steps.details) || sliders,
-      sliders,
-      gateEmail,
-      sawBox: guest.boxRevealComplete === true || Boolean(steps.reveal) || Boolean(uid),
-      account: Boolean(uid),
-      anyEmail: Boolean(uid) || gateEmail || Boolean(x.lastLeadAt),
-      card: Boolean(h && (h.cardOnFileAt || h.stripeDefaultPaymentMethodId)),
-      purchase: Boolean(hid && committedBoxHouseholds.has(hid)),
+    funnelRows.push({
+      person: {
+        id: d.id,
+        firstSeen: iso(x.createdAt),
+        ad: adNameOf(x.entry) ?? guestNonAdLabel(x.entry),
+        test: u ? isTest(u.email) : false,
+        outsideUs: ipOutsideUs(x.ipGeo),
+        family: kids || Boolean(steps.details) || sliders,
+        sliders,
+        gateEmail,
+        sawBox: guest.boxRevealComplete === true || Boolean(steps.reveal) || Boolean(uid),
+        account: Boolean(uid),
+        anyEmail: Boolean(uid) || gateEmail || Boolean(x.lastLeadAt),
+        card: Boolean(h && (h.cardOnFileAt || h.stripeDefaultPaymentMethodId)),
+        purchase: Boolean(hid && committedBoxHouseholds.has(hid)),
+      },
+      stepMs: Object.values(steps).filter((v): v is number => typeof v === 'number'),
     });
   }
+  const funnel = mergeTwinFunnelPeople(funnelRows);
 
   const giftHeld = new Map<string, number>();
   for (const { lines } of giftOrders.values()) addLines(giftHeld, lines);

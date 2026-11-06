@@ -77,6 +77,7 @@ import {
 } from './metaCapi';
 import { randomBytes } from 'crypto';
 import { createAdminBoxesDashboard } from './adminDashboard';
+import { createAdminPacking } from './adminPacking';
 export { scheduledBoxesDashboard } from './adminDashboard';
 import {
   checkoutSessionFromCallable,
@@ -155,6 +156,9 @@ initializeApp();
 const db = getFirestore();
 
 export const getAdminBoxesDashboard = createAdminBoxesDashboard(db);
+const packingApi = createAdminPacking(db);
+export const getAdminPacking = packingApi.getAdminPacking;
+export const setAdminPackingState = packingApi.setAdminPackingState;
 const programDashboardApi = createAdminProgramDashboard(db);
 export const getAdminProgramDashboard = programDashboardApi.getAdminProgramDashboard;
 export const adminProgramPerson = programDashboardApi.adminProgramPerson;

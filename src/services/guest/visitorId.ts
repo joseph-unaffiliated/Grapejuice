@@ -15,6 +15,8 @@ export { VISITOR_ID_RE };
 declare global {
   interface Window {
     __gjVisitorId?: string | null;
+    /** Set by public/index.html when this load minted a brand-new id (no cookie or localStorage id). */
+    __gjVisitorMinted?: boolean;
   }
 }
 
@@ -66,4 +68,19 @@ export function adoptVisitorId(id: string): void {
     /* ignore */
   }
   setStickyVisitorId(id);
+}
+
+/**
+ * A brand-new id was minted on this load (the cookie and localStorage id were both gone), but the
+ * saved guest box still names the visitor it was saved under. Keep that id so one browser keeps one
+ * `guestSessions` record. Otherwise the gate and later saves split across two ids, and the copy has
+ * the box steps with no email gate on it.
+ */
+export function reconcileMintedVisitorId(storedId: string | null | undefined): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  if (!window.__gjVisitorMinted) return;
+  window.__gjVisitorMinted = false;
+  if (typeof storedId !== 'string' || !VISITOR_ID_RE.test(storedId)) return;
+  if (storedId === getVisitorId()) return;
+  adoptVisitorId(storedId);
 }

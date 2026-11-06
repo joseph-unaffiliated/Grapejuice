@@ -40,13 +40,21 @@ export function useGuestSessionSync(): void {
     let lastSavedJson = '';
     let pendingJson = '';
 
+    // Read at save time: rehydrating the saved box can adopt its original visitor id after mount.
+    const currentId = () => getVisitorId() ?? visitorId;
+    const rememberId = (id: string) => {
+      if (useGuestSessionStore.getState().visitorId !== id) useGuestSessionStore.setState({ visitorId: id });
+    };
+
     const flush = async () => {
       timer = null;
       if (!enabled || disposed || !pendingJson) return;
       const json = pendingJson;
       pendingJson = '';
+      const id = currentId();
+      rememberId(id);
       try {
-        await saveGuestSessionRemote(visitorId, JSON.parse(json));
+        await saveGuestSessionRemote(id, JSON.parse(json));
         lastSavedJson = json;
       } catch {
         // Next change re-queues; recovery is best effort.
@@ -66,7 +74,9 @@ export function useGuestSessionSync(): void {
 
     const onPageHide = () => {
       if (!enabled || !pendingJson) return;
-      if (beaconGuestSession(visitorId, pendingJson)) {
+      const id = currentId();
+      rememberId(id);
+      if (beaconGuestSession(id, pendingJson)) {
         lastSavedJson = pendingJson;
         pendingJson = '';
       }

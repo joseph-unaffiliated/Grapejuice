@@ -3,6 +3,7 @@
  * Unclaimed paid gift notes. Templates stay at id 0 until the renders are approved, so sendEmail skips them.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.GIVER_NUDGE_EMAIL_ENABLED = void 0;
 exports.unclaimedGiftNoteDue = unclaimedGiftNoteDue;
 exports.renderGiftRecipientEmail = renderGiftRecipientEmail;
 exports.shouldEmailGiftSender = shouldEmailGiftSender;
@@ -15,6 +16,8 @@ const giftShip_1 = require("./giftShip");
 const DAY_MS = 86400000;
 /** The follow-up waits until the original gift email is at least two days old. */
 const RECIPIENT_FOLLOW_UP_MS = 2 * DAY_MS;
+/** Off: no nudge email to the giver asking them to follow up with the recipient. The recipient follow-up is unaffected. */
+exports.GIVER_NUDGE_EMAIL_ENABLED = false;
 function unclaimedGiftNoteDue(input) {
     var _a;
     if (!input.paid)
@@ -118,6 +121,8 @@ async function runUnclaimedGiftNotes(db, now = new Date()) {
             now: now.getTime(),
         });
         if (!due)
+            continue;
+        if (due === 'sender' && !exports.GIVER_NUDGE_EMAIL_ENABLED)
             continue;
         considered += 1;
         if (due === 'recipient') {

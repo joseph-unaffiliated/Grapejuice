@@ -54,7 +54,7 @@ import { copyText } from '../../services/promo/copyText';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 type Styles = ReturnType<typeof createStyles>;
-type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | undefined;
+type Tone = 'success' | 'warning' | 'danger' | 'info' | 'gold' | 'neutral' | undefined;
 
 const LIVE = ['pending', 'committed', 'confirmed', 'shipped', 'delivered'];
 const LOW_THRESHOLD = 2;
@@ -128,8 +128,8 @@ function answerColumns<T>(get: (row: T) => DashAnswers): Column<T>[] {
 const GUEST_STAGE_LABEL: Record<DashGuest['stage'], string> = {
   started: 'Started onboarding',
   answered: 'Answered questions',
-  built: 'Built a box',
-  revealed: 'Saw their box',
+  built: 'Built, not revealed',
+  revealed: 'Box revealed',
   gift: 'Gift draft only',
 };
 
@@ -181,6 +181,8 @@ function toneColor(colors: SemanticColors, tone: Tone): string {
       return colors.error;
     case 'info':
       return colors.info;
+    case 'gold':
+      return colors.goldDark;
     case 'neutral':
       return colors.textTertiary;
     default:
@@ -1612,6 +1614,7 @@ function InventorySection({
     });
   }, [inventory, view, query, hideBooks, onlyBooks]);
   const dash = (n: number) => (n ? String(n) : '—');
+  const committed = (i: InventoryView) => i.heldByBoxes + i.heldByGifts + i.directSold;
   // Wide enough for the longest non-book name; long book titles truncate.
   const itemMaxWidth = useMemo(() => {
     const longest = Math.max(0, ...inventory.filter((i) => !i.id.startsWith('book-')).map((i) => i.name.length));
@@ -1630,8 +1633,15 @@ function InventorySection({
     { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'N/A' : String(i.stock)), sort: (i) => i.stock },
     { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
     { label: 'In gifts', width: 65, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
-    { label: 'Committed', width: 85, align: 'right', cell: (i) => dash(i.heldByBoxes + i.heldByGifts), sort: (i) => i.heldByBoxes + i.heldByGifts },
+    { label: 'Committed', width: 85, align: 'right', cell: (i) => dash(committed(i)), sort: (i) => committed(i) },
     { label: 'Procured', width: 75, align: 'right', cell: (i) => (i.procured == null ? '—' : dash(i.procured)), sort: (i) => i.procured ?? null },
+    {
+      label: 'To buy',
+      width: 70,
+      align: 'right',
+      cell: (i) => (i.procured == null ? '—' : String(committed(i) - i.procured)),
+      sort: (i) => (i.procured == null ? null : committed(i) - i.procured),
+    },
     { label: 'Sold direct', width: 85, align: 'right', cell: (i) => dash(i.directSold), sort: (i) => i.directSold },
     { label: 'Reserved (unpaid)', width: 125, align: 'right', cell: (i) => dash(i.directReserved), sort: (i) => i.directReserved },
     { label: 'Set aside', width: 80, align: 'right', cell: (i) => (i.setAside == null ? '—' : dash(i.setAside)), sort: (i) => i.setAside ?? null },
@@ -1708,7 +1718,7 @@ function InventorySection({
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${inventory.length} items. Click an item name to copy it. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts. Procured = copies physically ordered (Airtable "Procured"; display-only — gap to close is Committed − Procured). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Set aside = copies kept back (personal, friends and family, promo), with the reason in Set aside for. Available = on hand − in boxes − in gifts − sold direct − reserved − set aside. Shop cap = how many the shop may sell before boxes lock; Shop can sell = what shoppers can buy right now (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
+        {`${rows.length} of ${inventory.length} items. Click an item name to copy it. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts + sold direct. Procured = copies physically ordered (Airtable "Procured"). To buy = Committed − Procured, the copies still to order (a negative number is already ordered past what's committed; blank when Procured isn't set). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Set aside = copies kept back (personal, friends and family, promo), with the reason in Set aside for. Available = on hand − in boxes − in gifts − sold direct − reserved − set aside. Shop cap marks items the shop sells before lock (any positive Airtable number). Shop can sell = leftover stock shoppers can buy right now, on hand minus set aside, boxes, sold direct, and reserved (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
       </Text>
     </View>
   );
@@ -1921,7 +1931,7 @@ const FUNNEL_STEPS: ReadonlyArray<{ key: FunnelKey; label: string; short: string
   { key: 'family', label: 'Finished “Your family”', short: 'Family' },
   { key: 'sliders', label: 'Finished the sliders (box built)', short: 'Box built' },
   { key: 'gateEmail', label: 'Entered email at the gate', short: 'Gate email' },
-  { key: 'sawBox', label: 'Saw their box', short: 'Saw box' },
+  { key: 'sawBox', label: 'Box revealed', short: 'Revealed' },
   { key: 'account', label: 'Has an account', short: 'Accounts' },
   { key: 'card', label: 'Added a card', short: 'Cards' },
   { key: 'purchase', label: 'Ordered', short: 'Orders' },
@@ -1950,7 +1960,7 @@ const etDay = (ms: number) => new Date(ms).toLocaleDateString('en-CA', { timeZon
 
 const COMPARE_STEPS: ReadonlyArray<{ key: FunnelKey | 'anyEmail'; label: string }> = [
   { key: 'sliders', label: 'Finished the sliders (box built)' },
-  { key: 'sawBox', label: 'Saw their box' },
+  { key: 'sawBox', label: 'Box revealed' },
   { key: 'anyEmail', label: 'Gave an email (gate, account or Retention)' },
   { key: 'account', label: 'Has an account' },
   { key: 'card', label: 'Added a card' },
@@ -2488,11 +2498,24 @@ export function AdminBoxesScreen() {
   const view = shown ?? data;
   const real = view.boxes.filter((b) => !b.playthrough && !(hideTests && b.test));
   const liveOrders = real.filter((b) => b.source === 'order' && LIVE.includes(b.status));
-  const openDrafts = real.filter((b) => b.status === 'draft');
-  const noCard = [...liveOrders, ...openDrafts].filter((b) => !b.cardOnFile);
+  const committedEmails = new Set(
+    data.boxes
+      .filter(
+        (b) =>
+          !b.playthrough &&
+          !(hideTests && b.test) &&
+          b.source === 'order' &&
+          ['committed', 'confirmed', 'shipped', 'delivered'].includes(b.status)
+      )
+      .map((b) => (b.email ?? '').trim().toLowerCase())
+      .filter((email) => email.length > 0)
+  );
+  const openDrafts = real.filter((b) => {
+    if (b.status !== 'draft') return false;
+    const email = (b.email ?? '').trim().toLowerCase();
+    return email.length === 0 || !committedEmails.has(email);
+  });
   const realGifts = view.gifts.filter((g) => !g.playthrough && !(hideTests && g.test));
-  const atZero = inventory.filter((i) => i.remaining != null && i.remaining <= 0);
-  const negAfterDrafts = inventory.filter((i) => i.remainingAfterDrafts != null && i.remainingAfterDrafts < 0);
   const testBoxes = view.boxes.filter((b) => b.test && !b.playthrough).length;
   const testGifts = view.gifts.filter((g) => g.test && !g.playthrough).length;
   const outsideBoxes = data.boxes.filter((b) => b.outsideUs && !b.playthrough && !(hideTests && b.test)).length;
@@ -2511,8 +2534,6 @@ export function AdminBoxesScreen() {
       notLowPractice(g.recipientAnswers?.jewish, g.recipientAnswers?.hanukkah)
   ).length;
   const openGuests = view.guests.filter((g) => !g.converted);
-  const guestBoxes = openGuests.filter((g) => g.stage === 'built' || g.stage === 'revealed');
-  const guestLeads = openGuests.filter((g) => g.leadAt);
   const giftStarters = (view.giftFunnel ?? []).filter((p) => !(hideTests && p.test) && p.reached.includes('start')).length;
   const liveRevenue = liveOrders.reduce((s, b) => s + (b.totalCents ?? 0), 0);
   const draftValue = openDrafts.reduce((s, b) => s + (b.subtotalCents ?? 0), 0);
@@ -2520,7 +2541,11 @@ export function AdminBoxesScreen() {
   const realShop = shopOrders.filter((o) => !(hideTests && (o.test || o.playthrough)));
   const shopPaid = realShop.filter((o) => o.paid && o.status !== 'refunded');
   const testShop = shopOrders.filter((o) => o.test || o.playthrough).length;
-  const invEmails = data.inventoryEmails;
+  const paidGifts = realGifts.filter((g) => g.paid);
+  const shopRevenue = shopPaid.reduce((s, o) => s + shopNetCents(o), 0);
+  const giftRevenue = paidGifts.reduce((s, g) => s + (g.amountCents ?? 0), 0);
+  const orderCount = liveOrders.length + paidGifts.length + shopPaid.length;
+  const orderValue = liveRevenue + giftRevenue + shopRevenue;
 
   return (
     <View ref={hostRef} style={hostStyle}>
@@ -2608,6 +2633,13 @@ export function AdminBoxesScreen() {
           <View style={styles.sectionDivider} />
           <View style={styles.stats}>
             <Stat
+              value={String(orderCount)}
+              label={`Total orders · ${money(orderValue)}`}
+              short={`Total orders · ${money(orderValue)}`}
+              styles={styles}
+              colors={colors}
+            />
+            <Stat
               value={String(liveOrders.length)}
               label={`Live box orders · ${money(liveRevenue)}`}
               short={`Live boxes · ${money(liveRevenue)}`}
@@ -2617,64 +2649,28 @@ export function AdminBoxesScreen() {
             />
             <Stat
               value={String(shopPaid.length)}
-              label={`Paid shop orders · ${money(shopPaid.reduce((s, o) => s + shopNetCents(o), 0))} · ${shopPaid.reduce((s, o) => s + o.units, 0)} units`}
-              short={`Shop orders · ${money(shopPaid.reduce((s, o) => s + shopNetCents(o), 0))}`}
+              label={`Paid shop orders · ${money(shopRevenue)} · ${shopPaid.reduce((s, o) => s + o.units, 0)} units`}
+              short={`Shop orders · ${money(shopRevenue)}`}
               tone="info"
               styles={styles}
               colors={colors}
             />
             <Stat
-              value={String(noCard.length)}
-              label="Live orders and drafts with no card"
-              short="No card yet"
-              tone={noCard.length ? 'warning' : undefined}
+              value={`${paidGifts.length} / ${realGifts.filter((g) => g.claimed).length}`}
+              label={`Gifts paid / claimed · ${giftStarters} started the gift flow`}
+              short={`Gifts paid / claimed · ${giftStarters} started`}
+              tone="info"
               styles={styles}
               colors={colors}
             />
             <Stat
               value={String(openDrafts.length)}
-              label={`Open drafts · ~${money(draftValue)} before ship/tax`}
+              label={`Drafts with no committed order · ~${money(draftValue)} before ship/tax`}
               short={`Drafts · ~${money(draftValue)}`}
+              tone="gold"
               styles={styles}
               colors={colors}
             />
-            <Stat
-              value={String(guestBoxes.length)}
-              label={`Anonymous boxes (not signed up) · ${openGuests.length - guestBoxes.length} more started, ${guestLeads.length} identified by Retention.com`}
-              short={`Anonymous boxes · ${guestLeads.length} identified`}
-              styles={styles}
-              colors={colors}
-            />
-            <Stat
-              value={`${realGifts.filter((g) => g.paid).length} / ${realGifts.filter((g) => g.claimed).length}`}
-              label={`Gifts paid / claimed · ${giftStarters} started the gift flow`}
-              short={`Gifts paid / claimed · ${giftStarters} started`}
-              styles={styles}
-              colors={colors}
-            />
-            <Stat
-              value={String(atZero.length)}
-              label={`Items at or below zero · ${negAfterDrafts.length} negative if drafts commit`}
-              short={`Items at zero · ${negAfterDrafts.length} short if drafts commit`}
-              tone={atZero.length || negAfterDrafts.length ? 'danger' : 'success'}
-              styles={styles}
-              colors={colors}
-            />
-            {invEmails && invEmails.sends > 0 ? (
-              <Stat
-                value={String(invEmails.securedPeople)}
-                label={
-                  `Boxes secured within ${invEmails.windowDays} days of an inventory email · ` +
-                  `${invEmails.people} emailed, ${invEmails.clickedPeople} clicked, ${invEmails.securedAfterClickPeople} secured after clicking · ` +
-                  `low-stock ${invEmails.byKind.low.secured}/${invEmails.byKind.low.sends}, ` +
-                  `sold-out swap ${invEmails.byKind.swapped.secured}/${invEmails.byKind.swapped.sends}`
-                }
-                short={`Secured after stock emails · ${invEmails.people} emailed, ${invEmails.clickedPeople} clicked`}
-                tone={invEmails.securedPeople ? 'success' : undefined}
-                styles={styles}
-                colors={colors}
-              />
-            ) : null}
           </View>
 
           <View style={styles.sectionDivider} />

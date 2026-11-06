@@ -145,7 +145,7 @@ async function paidInventoryTests() {
 async function reserveTests() {
   const docs: Record<string, Record<string, unknown>> = {
     'catalog/hanukkah/items/a': { name: 'A', directSaleCapBeforeLock: 5, inventory: 20 },
-    'catalog/hanukkah/items/b': { name: 'B', directSaleCapBeforeLock: 5, inventory: 20 },
+    'catalog/hanukkah/items/b': { name: 'B', directSaleCapBeforeLock: 5, inventory: 5 },
     'catalog/hanukkah/inventory/b': { directReservedQty: 4 },
   };
   const fakeDb = { doc: (path: string) => ({ path }) } as unknown as Firestore;
@@ -189,7 +189,7 @@ async function reserveTests() {
     ['catalog/hanukkah/inventory/a', 'catalog/hanukkah/inventory/b']
   );
 
-  // Duplicate lines count together against what's left (B has 1 left).
+  // Duplicate lines count together against leftover stock (B has 4 reserved of 5 on hand).
   const over = makeTx();
   await assert.rejects(
     reserveMarketplaceInventoryInTx(
@@ -209,7 +209,7 @@ async function reserveTests() {
   // Box restore: validate every line first, queue boxAllocatedQty only when asked.
   docs['catalog/hanukkah/items/c'] = { name: 'C', inventory: 3 };
   docs['catalog/hanukkah/inventory/c'] = { boxAllocatedQty: 2 };
-  docs['catalog/hanukkah/items/book-x'] = { name: 'Book X', inventory: 0 };
+  docs['catalog/hanukkah/items/book-x'] = { name: 'Book X' };
   docs['catalog/hanukkah/items/d'] = { name: 'D' };
   const box = makeTx();
   const queue = await reserveBoxLinesInTx(fakeDb, box.tx, [

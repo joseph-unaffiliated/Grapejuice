@@ -52,11 +52,11 @@ function resolveAvailability(item, counters, lockAt, now = new Date()) {
         if (cap == null || !Number.isFinite(cap) || cap <= 0) {
             return { status: 'box_only', reason: 'no_cap' };
         }
-        let remaining = Math.max(0, Math.floor(cap) - committed);
-        if (item.inventory != null && Number.isFinite(item.inventory)) {
-            const ceiling = Math.max(0, Math.floor(item.inventory) - nonNeg(item.setAside) - boxAllocated - committed);
-            remaining = Math.min(remaining, ceiling);
+        // The Airtable number only marks the item as sold in the shop. Quantity is leftover stock.
+        if (item.inventory == null || !Number.isFinite(item.inventory)) {
+            return { status: 'direct', remaining: null };
         }
+        const remaining = Math.max(0, Math.floor(item.inventory) - nonNeg(item.setAside) - boxAllocated - committed);
         if (remaining <= 0) {
             return { status: 'box_only', reason: 'cap_exhausted' };
         }

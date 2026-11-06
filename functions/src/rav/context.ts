@@ -130,7 +130,7 @@ function formatCatalogRow(row: CatalogRow, detail: boolean): string {
   const avail = isBook
     ? ' avail=box_only(book)'
     : row.directSaleCapBeforeLock != null && row.directSaleCapBeforeLock > 0
-      ? ` avail=direct_cap=${row.directSaleCapBeforeLock}`
+      ? ' avail=shop'
       : ' avail=box_only';
   // Untracked books have no stock story; a tracked book (Hold inventory) reports
   // real units left so it's never offered once sold out or defaulted once low.

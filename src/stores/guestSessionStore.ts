@@ -5,6 +5,7 @@ import type { BoxLineItem, FamiliarityLevel, InventorySwapNotice } from '../type
 import type { ChildDraft } from '../components/family/familyDraft';
 import { remapLegacyCatalogIds, retireLegacyBoxLines } from '../services/box/legacyCatalogIds';
 import { readBoxBuildResume } from '../services/box/boxBuildResume';
+import { reconcileMintedVisitorId } from '../services/guest/visitorId';
 
 export function familiarityScoreToLevel(score: number): FamiliarityLevel {
   if (score <= 33) return 'minimal';
@@ -78,6 +79,8 @@ type GuestSessionState = {
   /** Open this item's sheet the next time My Box mounts. */
   myBoxFocusItemId: string | null;
   guestRavPromptCount: number;
+  /** Visitor id the saved box is stored under (guestSessions/{id}); see reconcileMintedVisitorId. */
+  visitorId: string | null;
   startExplore: () => void;
   startBuildBox: () => void;
   /** Leave onboarding and browse the app without finishing box setup. */
@@ -138,6 +141,7 @@ const initialState = {
   pendingBoxItemId: null as string | null,
   myBoxFocusItemId: null as string | null,
   guestRavPromptCount: 0,
+  visitorId: null as string | null,
 };
 
 export const useGuestSessionStore = create<GuestSessionState>()(
@@ -238,7 +242,7 @@ export const useGuestSessionStore = create<GuestSessionState>()(
           pendingBoxItemId: null,
           myBoxFocusItemId: null,
         }),
-      reset: () => set({ ...initialState, _hasHydrated: true }),
+      reset: () => set({ ...initialState, visitorId: get().visitorId, _hasHydrated: true }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
     {
@@ -270,8 +274,11 @@ export const useGuestSessionStore = create<GuestSessionState>()(
         pendingBoxItemId: state.pendingBoxItemId,
         myBoxFocusItemId: state.myBoxFocusItemId,
         guestRavPromptCount: state.guestRavPromptCount,
+        visitorId: state.visitorId,
       }),
       onRehydrateStorage: () => (state) => {
+        // Before anything reads the id: a fresh id on this load must not split a saved box.
+        reconcileMintedVisitorId(state?.visitorId);
         // Storefront is the default surface — never re-open the Welcome gateway.
         if (state && !state.exploreStarted) {
           state.exploreStarted = true;
