@@ -990,13 +990,15 @@ export async function buildBoxesDashboard(
     li: DocumentData,
     childNames: Map<string, string | null>,
     defaults: HistoryLine[] | null,
+    preWrap: ReadonlySet<string> = new Set(),
   ): DashLine => {
     const itemId = str(li.itemId);
     const unitCents = num(li.unitCents) ?? 0;
     const childId = str(li.childId);
+    const baseName = (itemId && items.get(itemId)?.name) || str(li.label) || itemId || '?';
     return {
       itemId,
-      name: (itemId && items.get(itemId)?.name) || str(li.label) || itemId || '?',
+      name: itemId && preWrap.has(itemId) ? `${baseName} (pre-wrapped)` : baseName,
       qty: Math.max(0, Math.floor(Number(li.quantity) || 0)),
       unitCents,
       addOn: unitCents > 0,
@@ -1005,8 +1007,17 @@ export async function buildBoxesDashboard(
       origin: lineOrigin(li, defaults),
     };
   };
-  const linesOf = (raw: unknown, childNames: Map<string, string | null>, defaults: HistoryLine[] | null = null) =>
-    (Array.isArray(raw) ? raw : []).filter(Boolean).map((li) => lineView(li as DocumentData, childNames, defaults));
+  const preWrapIds = (raw: unknown): Set<string> =>
+    new Set(Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id.length > 0) : []);
+  const linesOf = (
+    raw: unknown,
+    childNames: Map<string, string | null>,
+    defaults: HistoryLine[] | null = null,
+    preWrap: ReadonlySet<string> = new Set(),
+  ) =>
+    (Array.isArray(raw) ? raw : [])
+      .filter(Boolean)
+      .map((li) => lineView(li as DocumentData, childNames, defaults, preWrap));
   const addOnTotal = (lines: DashLine[]) =>
     lines.filter((l) => l.addOn).reduce((s, l) => s + l.unitCents * Math.max(1, l.qty), 0);
 
@@ -1139,7 +1150,7 @@ export async function buildBoxesDashboard(
     }
     const c = customerFor(hid, str(o.userId));
     const defaults = defaultLinesByHousehold.get(hid) ?? null;
-    const lines = linesOf(o.lineItems, c.childNames, defaults);
+    const lines = linesOf(o.lineItems, c.childNames, defaults, preWrapIds(drafts.get(hid)?.wrapSelectedItemIds));
     const addOnCents = addOnTotal(lines);
     const kids = num(o.kidCount) ?? c.kids;
     const subtotal = num(o.subtotalCents);
@@ -1186,7 +1197,7 @@ export async function buildBoxesDashboard(
     const editorUid = editor && users.has(editor) ? editor : null;
     const c = customerFor(hid, editorUid);
     const defaults = defaultLinesByHousehold.get(hid) ?? null;
-    const lines = linesOf(dr.lineItems, c.childNames, defaults);
+    const lines = linesOf(dr.lineItems, c.childNames, defaults, preWrapIds(dr.wrapSelectedItemIds));
     const addOnCents = addOnTotal(lines);
     const boxPriceCents = priceForKids(c.kids);
     boxes.push({
@@ -1355,7 +1366,7 @@ export async function buildBoxesDashboard(
       location: shipTo,
       giverLocation,
       outsideUs: giverLocation ? userIpOutsideUs(giverUid) : addressOutsideUs(shipTo),
-      lines: linesOf(lineSource, recipient?.childNames ?? new Map()),
+      lines: linesOf(lineSource, recipient?.childNames ?? new Map(), null, preWrapIds(g.wrapSelectedItemIds)),
     });
   }
 
