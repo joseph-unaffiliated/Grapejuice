@@ -66,6 +66,12 @@ export type PackingLine = {
   dimensions: string | null;
   /** Largest of the first three numbers in `dimensions` (inches), or null when unknown. */
   maxInches: number | null;
+  /** Catalog category, or Book / Other when the item has none. */
+  category: string;
+  /** Per unit, in ounces. Catalog weight, or an estimate when Airtable has none. */
+  weightOz: number;
+  /** True when `weightOz` is an estimate rather than the catalog weight. */
+  weightEstimated: boolean;
   packed: boolean;
 };
 
@@ -101,7 +107,65 @@ export type AdminPackingList = {
   packages: PackingPackage[];
 };
 
-type ItemMeta = { name: string; dimensions: string | null; maxInches: number | null };
+type ItemMeta = {
+  name: string;
+  dimensions: string | null;
+  maxInches: number | null;
+  category: string | null;
+  weight: string | null;
+};
+
+/** '3 lb' → 48, '6 oz' → 6. Null when the catalog weight is blank or not a number. */
+export function parseWeightOunces(raw: string | null): number | null {
+  if (!raw) return null;
+  const match = raw.trim().toLowerCase().match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds|oz|ounce|ounces)?/);
+  if (!match) return null;
+  const n = Number(match[1]);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const unit = match[2] ?? '';
+  if (unit.startsWith('lb') || unit.startsWith('pound')) return n * 16;
+  return n;
+}
+
+/**
+ * Ounces for an item Airtable did not weigh. Books are the usual gap: a children's hardcover
+ * is about 12 oz. Other gaps use a category guess so a box total still includes them.
+ */
+export function estimateWeightOunces(item: { category: string | null; name: string; itemId: string | null }): number {
+  const cat = (item.category ?? '').toLowerCase();
+  const name = item.name.toLowerCase();
+  const id = (item.itemId ?? '').toLowerCase();
+  if (cat === 'book' || id.startsWith('book-')) return 12;
+  if (cat === 'dreidel') return name.includes('brass') ? 8 : 2;
+  if (cat === 'menorah') return 24;
+  if (cat === 'candles') return 8;
+  if (cat === 'gelt') {
+    if (name.includes('party')) return 32;
+    if (name.includes('big bag')) return 12;
+    return 4;
+  }
+  if (cat === 'food') return 16;
+  if (cat === 'stuffies') return 6;
+  if (cat === 'toys') return 12;
+  return 8;
+}
+
+export function weightForLine(item: {
+  weight: string | null;
+  category: string | null;
+  name: string;
+  itemId: string | null;
+}): { weightOz: number; weightEstimated: boolean } {
+  const parsed = parseWeightOunces(item.weight);
+  if (parsed != null) return { weightOz: parsed, weightEstimated: false };
+  return { weightOz: estimateWeightOunces(item), weightEstimated: true };
+}
+
+function categoryOf(itemId: string | null, meta: ItemMeta | undefined): string {
+  if (meta?.category) return meta.category;
+  if (itemId?.startsWith('book-')) return 'Book';
+  return 'Other';
+}
 type ChildInfo = { name: string | null; age: string | null };
 type UserInfo = { email: string | null; name: string | null; last: Record<string, unknown> };
 
@@ -182,13 +246,15 @@ function buildLines(args: {
     const itemId = str(li.itemId);
     const childId = str(li.childId);
     const meta = itemId ? args.items.get(itemId) : undefined;
+    const name = meta?.name ?? str(li.label) ?? itemId ?? '?';
+    const weight = weightForLine({ weight: meta?.weight ?? null, category: meta?.category ?? null, name, itemId });
     const base = `${itemId ?? str(li.label) ?? '?'}|${childId ?? 'household'}`;
     const n = seen.get(base) ?? 0;
     seen.set(base, n + 1);
     out.push({
       key: `${base}|${n}`,
       itemId,
-      name: meta?.name ?? str(li.label) ?? itemId ?? '?',
+      name,
       qty,
       child: childId ? args.childName(childId) ?? 'Child' : null,
       forHousehold: !childId,
@@ -196,6 +262,9 @@ function buildLines(args: {
       wrap: Boolean(itemId && args.wrap.has(itemId)),
       dimensions: meta?.dimensions ?? null,
       maxInches: meta?.maxInches ?? null,
+      category: categoryOf(itemId, meta),
+      weightOz: weight.weightOz,
+      weightEstimated: weight.weightEstimated,
       packed: false,
     });
   }
@@ -221,7 +290,13 @@ export async function buildAdminPackingList(db: Firestore, nowMs = Date.now()): 
   for (const d of itemsSnap.docs) {
     const x = d.data();
     const dimensions = str(x.dimensions);
-    items.set(d.id, { name: str(x.name) ?? d.id, dimensions, maxInches: maxDimensionInches(dimensions) });
+    items.set(d.id, {
+      name: str(x.name) ?? d.id,
+      dimensions,
+      maxInches: maxDimensionInches(dimensions),
+      category: str(x.category),
+      weight: str(x.weight),
+    });
   }
 
   const childInfoById = new Map<string, ChildInfo>();

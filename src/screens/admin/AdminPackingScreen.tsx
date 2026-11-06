@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -28,10 +28,13 @@ type Styles = ReturnType<typeof createStyles>;
 type KindFilter = 'all' | PackingKind;
 type ViewMode = 'box' | 'product';
 type GroupBy = 'size' | 'none';
-type SortBy = 'size' | 'recipient' | 'left';
+type SortBy = 'size' | 'recipient' | 'left' | 'weight';
+type SortDir = 'asc' | 'desc';
 
 const SIZE_ORDER: PackingSize[] = ['14x14x6', '14x14x12', '10x8x6'];
 const SIZE_OPTIONS: PackingSize[] = ['14x14x6', '14x14x12', '10x8x6'];
+const SORT_DEFAULT_DIR: Record<SortBy, SortDir> = { size: 'asc', recipient: 'asc', left: 'desc', weight: 'desc' };
+const CATEGORY_ORDER = ['Book', 'Menorah', 'Dreidel', 'Candles', 'Gelt', 'Food', 'Stuffies', 'Toys', 'Other'];
 const KIND_LABEL: Record<PackingKind, string> = { box: 'Box', shop: 'Shop', gift: 'Gift' };
 const ORIGIN_LABEL: Record<NonNullable<PackingLine['origin']>, string> = {
   default: 'Default',
@@ -55,6 +58,22 @@ function when(isoStr: string | null | undefined): string {
 const unpackedLines = (p: PackingPackage) => p.lines.filter((l) => !l.packed).length;
 const isDone = (p: PackingPackage) => p.lines.length > 0 && unpackedLines(p) === 0;
 
+function packageWeight(p: PackingPackage): { oz: number; estimated: boolean } {
+  let oz = 0;
+  let estimated = false;
+  for (const line of p.lines) {
+    oz += line.qty * (line.weightOz ?? 0);
+    if (line.weightEstimated) estimated = true;
+  }
+  return { oz, estimated };
+}
+
+function formatOz(oz: number): string {
+  if (oz < 16) return `${Math.round(oz)} oz`;
+  const lb = Math.round((oz / 16) * 10) / 10;
+  return `${lb} lb`;
+}
+
 /** Ops packing list: paid boxes, shop orders and gifts, with box sizes and a shared packed checkbox per item. */
 export function AdminPackingScreen() {
   const navigation = useNavigation<Nav>();
@@ -73,7 +92,10 @@ export function AdminPackingScreen() {
   const [view, setView] = useState<ViewMode>('box');
   const [groupBy, setGroupBy] = useState<GroupBy>('size');
   const [sortBy, setSortBy] = useState<SortBy>('size');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [categories, setCategories] = useState<string[]>([]);
   const [hideDone, setHideDone] = useState(false);
+  const [focusPackageId, setFocusPackageId] = useState<string | null>(null);
   const [simulatePostLock, setSimulatePostLock] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -133,6 +155,34 @@ export function AdminPackingScreen() {
       setSaveError(err instanceof Error ? err.message : 'Could not save the packed check.');
     });
   };
+
+  const pressSort = (next: SortBy) => {
+    if (sortBy === next) {
+      setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortBy(next);
+    setSortDir(SORT_DEFAULT_DIR[next]);
+  };
+
+  const sortChip = (label: string, key: SortBy) => (sortBy === key ? `${label} ${sortDir === 'asc' ? '↑' : '↓'}` : label);
+
+  const openPackage = (id: string) => {
+    setView('box');
+    setFocusPackageId(id);
+  };
+
+  useEffect(() => {
+    if (view !== 'box' || !focusPackageId) return;
+    const id = focusPackageId;
+    const frame = requestAnimationFrame(() => {
+      if (typeof document !== 'undefined') {
+        document.getElementById(`packing-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+      setFocusPackageId(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [view, focusPackageId]);
 
   const chooseSize = (pkg: PackingPackage, size: PackingSize) => {
     if (size === pkg.size && pkg.sizeSet) return;
@@ -252,13 +302,16 @@ export function AdminPackingScreen() {
               <ChipRow styles={styles}>
                 <Chip styles={styles} label="Group: box size" active={groupBy === 'size'} onPress={() => setGroupBy('size')} />
                 <Chip styles={styles} label="No groups" active={groupBy === 'none'} onPress={() => setGroupBy('none')} />
-                <Chip styles={styles} label="Sort: box size" active={sortBy === 'size'} onPress={() => setSortBy('size')} />
-                <Chip styles={styles} label="Sort: name" active={sortBy === 'recipient'} onPress={() => setSortBy('recipient')} />
-                <Chip styles={styles} label="Sort: most left" active={sortBy === 'left'} onPress={() => setSortBy('left')} />
+                <Chip styles={styles} label={sortChip('Sort: box size', 'size')} active={sortBy === 'size'} onPress={() => pressSort('size')} />
+                <Chip styles={styles} label={sortChip('Sort: name', 'recipient')} active={sortBy === 'recipient'} onPress={() => pressSort('recipient')} />
+                <Chip styles={styles} label={sortChip('Sort: most left', 'left')} active={sortBy === 'left'} onPress={() => pressSort('left')} />
+                <Chip styles={styles} label={sortChip('Sort: weight', 'weight')} active={sortBy === 'weight'} onPress={() => pressSort('weight')} />
               </ChipRow>
               <Text style={styles.caption}>
                 Box size: 14 × 14 × 6 is the default for boxes and gifts; 10 × 8 × 6 is for shop orders. Packages marked
-                “May need a large box” have an item over 12 in or a lot of units. Pick a bigger box if they won’t fit.
+                “May need a large box” have an item over 12 in or a lot of units. Pick a bigger box if they won’t fit. Weight uses
+                catalog weights. A ~ means part of the total is estimated; a book without a weight counts as 12 oz. Click the
+                active sort again to reverse it.
               </Text>
               {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
               <BoxView
@@ -267,6 +320,7 @@ export function AdminPackingScreen() {
                 packages={listed}
                 groupBy={groupBy}
                 sortBy={sortBy}
+                sortDir={sortDir}
                 onToggle={toggleLine}
                 onSize={chooseSize}
               />
@@ -277,7 +331,10 @@ export function AdminPackingScreen() {
               <ProductView
                 styles={styles}
                 packages={listed}
+                categories={categories}
+                onCategories={setCategories}
                 onToggle={toggleLine}
+                onOpenPackage={openPackage}
                 hideDone={hideDone}
               />
             </>
@@ -339,24 +396,27 @@ type BoxViewProps = {
   packages: PackingPackage[];
   groupBy: GroupBy;
   sortBy: SortBy;
+  sortDir: SortDir;
   onToggle: (pkg: PackingPackage, line: PackingLine) => void;
   onSize: (pkg: PackingPackage, size: PackingSize) => void;
 };
 
-function sortPackages(list: PackingPackage[], sortBy: SortBy): PackingPackage[] {
+function sortPackages(list: PackingPackage[], sortBy: SortBy, sortDir: SortDir): PackingPackage[] {
+  const sign = sortDir === 'asc' ? 1 : -1;
   const byName = (a: PackingPackage, b: PackingPackage) => (a.recipient ?? '').localeCompare(b.recipient ?? '');
   const copy = [...list];
-  if (sortBy === 'size') {
-    copy.sort((a, b) => SIZE_ORDER.indexOf(a.size) - SIZE_ORDER.indexOf(b.size) || byName(a, b));
-  } else if (sortBy === 'recipient') {
-    copy.sort(byName);
-  } else {
-    copy.sort((a, b) => unpackedLines(b) - unpackedLines(a) || byName(a, b));
-  }
+  copy.sort((a, b) => {
+    let diff = 0;
+    if (sortBy === 'size') diff = SIZE_ORDER.indexOf(a.size) - SIZE_ORDER.indexOf(b.size);
+    else if (sortBy === 'recipient') diff = byName(a, b);
+    else if (sortBy === 'weight') diff = packageWeight(a).oz - packageWeight(b).oz;
+    else diff = unpackedLines(a) - unpackedLines(b);
+    return diff === 0 ? byName(a, b) : diff * sign;
+  });
   return copy;
 }
 
-function BoxView({ styles, colors, packages, groupBy, sortBy, onToggle, onSize }: BoxViewProps) {
+function BoxView({ styles, colors, packages, groupBy, sortBy, sortDir, onToggle, onSize }: BoxViewProps) {
   if (packages.length === 0) {
     return (
       <Text style={styles.caption}>
@@ -365,7 +425,8 @@ function BoxView({ styles, colors, packages, groupBy, sortBy, onToggle, onSize }
       </Text>
     );
   }
-  const sorted = sortPackages(packages, sortBy);
+  const sorted = sortPackages(packages, sortBy, sortDir);
+  const sizeGroups = sortBy === 'size' && sortDir === 'desc' ? [...SIZE_ORDER].reverse() : SIZE_ORDER;
   if (groupBy === 'none') {
     return (
       <>
@@ -377,7 +438,7 @@ function BoxView({ styles, colors, packages, groupBy, sortBy, onToggle, onSize }
   }
   return (
     <>
-      {SIZE_ORDER.map((size) => {
+      {sizeGroups.map((size) => {
         const group = sorted.filter((p) => p.size === size);
         if (group.length === 0) return null;
         return (
@@ -417,8 +478,9 @@ function PackageCard({
   const sizeWarnings: string[] = [];
   if (pkg.kind !== 'shop' && pkg.size === '10x8x6') sizeWarnings.push('10 × 8 × 6 is for shop orders.');
 
+  const weight = packageWeight(pkg);
   return (
-    <View style={[styles.card, isDone(pkg) && styles.cardDone]}>
+    <View nativeID={`packing-${pkg.id}`} style={[styles.card, isDone(pkg) && styles.cardDone]}>
       <View style={styles.cardHead}>
         <View style={styles.badgeRow}>
           <Text style={[styles.badge, pkg.kind === 'gift' && styles.badgeGift, pkg.kind === 'shop' && styles.badgeShop]}>
@@ -436,6 +498,7 @@ function PackageCard({
       <Text style={styles.recipient}>{pkg.recipient ?? pkg.email ?? 'No name on file'}</Text>
       <Text style={styles.meta}>
         {pkg.awaitingPayment ? `Committed ${when(pkg.paidAt)} · not charged` : `Paid ${when(pkg.paidAt)} · ${pkg.status}`}
+        {weight.oz > 0 ? ` · ${weight.estimated ? '~' : ''}${formatOz(weight.oz)}` : ''}
       </Text>
 
       <View style={styles.infoGrid}>
@@ -533,20 +596,29 @@ function LineRow({ styles, line, onPress }: { styles: Styles; line: PackingLine;
 type ProductViewProps = {
   styles: Styles;
   packages: PackingPackage[];
+  categories: string[];
+  onCategories: (next: string[]) => void;
   hideDone: boolean;
   onToggle: (pkg: PackingPackage, line: PackingLine) => void;
+  onOpenPackage: (packageId: string) => void;
 };
 
-function ProductView({ styles, packages, hideDone, onToggle }: ProductViewProps) {
+function categoryRank(name: string): number {
+  const i = CATEGORY_ORDER.indexOf(name);
+  return i === -1 ? CATEGORY_ORDER.length : i;
+}
+
+function ProductView({ styles, packages, categories, onCategories, hideDone, onToggle, onOpenPackage }: ProductViewProps) {
   const rows = useMemo(() => {
     const byItem = new Map<
       string,
-      { key: string; name: string; total: number; entries: Array<{ pkg: PackingPackage; line: PackingLine }> }
+      { key: string; name: string; category: string; total: number; entries: Array<{ pkg: PackingPackage; line: PackingLine }> }
     >();
     for (const pkg of packages) {
       for (const line of pkg.lines) {
+        if (categories.length > 0 && !categories.includes(line.category ?? 'Other')) continue;
         const key = line.itemId ?? line.name;
-        const row = byItem.get(key) ?? { key, name: line.name, total: 0, entries: [] };
+        const row = byItem.get(key) ?? { key, name: line.name, category: line.category ?? 'Other', total: 0, entries: [] };
         row.total += line.qty;
         row.entries.push({ pkg, line });
         byItem.set(key, row);
@@ -561,22 +633,48 @@ function ProductView({ styles, packages, hideDone, onToggle }: ProductViewProps)
       }))
       .filter((r) => r.entries.length > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [packages, hideDone]);
+  }, [packages, hideDone, categories]);
 
-  if (rows.length === 0) {
-    return <Text style={styles.caption}>No items to pack here yet.</Text>;
-  }
+  const available = useMemo(() => {
+    const names = new Set<string>();
+    for (const pkg of packages) for (const line of pkg.lines) names.add(line.category ?? 'Other');
+    return [...names].sort((a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b));
+  }, [packages]);
+
+  const toggleCategory = (name: string) => {
+    onCategories(categories.includes(name) ? categories.filter((c) => c !== name) : [...categories, name]);
+  };
 
   return (
     <>
-      <Text style={styles.caption}>Grouped by product. Each row is one line in one package; tick it when it’s in the box.</Text>
+      <Text style={styles.section}>Category</Text>
+      <ChipRow styles={styles}>
+        <Chip styles={styles} label="All" active={categories.length === 0} onPress={() => onCategories([])} />
+        {available.map((name) => (
+          <Chip
+            key={name}
+            styles={styles}
+            label={name}
+            active={categories.includes(name)}
+            onPress={() => toggleCategory(name)}
+          />
+        ))}
+      </ChipRow>
+      <Text style={styles.caption}>
+        Grouped by product. Pick a category to narrow the list; pick more than one to combine them. Each row is one line in
+        one package. The order number opens that box.
+      </Text>
+      {rows.length === 0 ? <Text style={styles.caption}>No items to pack here yet.</Text> : null}
       {rows.map((row) => {
         const packed = row.entries.filter((e) => e.line.packed).length;
         const units = row.entries.reduce((s, e) => s + e.line.qty, 0);
         return (
           <View key={row.key} style={styles.card}>
             <View style={styles.cardHead}>
-              <Text style={styles.recipient}>{row.name}</Text>
+              <View style={styles.badgeRow}>
+                <Text style={styles.recipient}>{row.name}</Text>
+                <Text style={styles.tag}>{row.category}</Text>
+              </View>
               <Text style={styles.progress}>
                 {units} units · {packed} / {row.entries.length} packed
               </Text>
@@ -590,7 +688,13 @@ function ProductView({ styles, packages, hideDone, onToggle }: ProductViewProps)
                       {line.qty} → {pkg.recipient ?? pkg.email ?? pkg.reference}
                     </Text>
                     <View style={styles.tagRow}>
-                      <Text style={styles.tag}>{pkg.reference}</Text>
+                      <TouchableOpacity
+                        onPress={() => onOpenPackage(pkg.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${pkg.reference}`}
+                      >
+                        <Text style={styles.tag}>{pkg.reference}</Text>
+                      </TouchableOpacity>
                       <Text style={styles.tag}>{KIND_LABEL[pkg.kind]}</Text>
                       {pkg.awaitingPayment ? <Text style={styles.tagWrap}>Not charged</Text> : null}
                       <Text style={styles.tag}>{PACKING_SIZE_LABEL[pkg.size]}</Text>

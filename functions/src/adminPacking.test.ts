@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict';
-import { LARGE_BOX_UNITS, maxDimensionInches, mayNeedLargeBox, packingBoxCharge, recommendedSizeFor } from './adminPacking';
+import {
+  LARGE_BOX_UNITS,
+  estimateWeightOunces,
+  maxDimensionInches,
+  mayNeedLargeBox,
+  packingBoxCharge,
+  parseWeightOunces,
+  recommendedSizeFor,
+  weightForLine,
+} from './adminPacking';
 
 // Largest of the first three numbers, ignoring anything in parentheses.
 assert.equal(maxDimensionInches('6.3" height × 5.1" width × 1.4" depth'), 6.3);
@@ -46,5 +55,28 @@ assert.equal(packingBoxCharge('delivered'), 'charged');
 assert.equal(packingBoxCharge('committed'), 'awaiting');
 assert.equal(packingBoxCharge('pending'), 'hidden');
 assert.equal(packingBoxCharge('cancelled'), 'hidden');
+
+assert.equal(parseWeightOunces('3 lb'), 48);
+assert.equal(parseWeightOunces('4 lb'), 64);
+assert.equal(parseWeightOunces('6 oz'), 6);
+assert.equal(parseWeightOunces('2 oz'), 2);
+assert.equal(parseWeightOunces('1.5 pounds'), 24);
+assert.equal(parseWeightOunces(null), null);
+assert.equal(parseWeightOunces('not weighed'), null);
+
+assert.equal(estimateWeightOunces({ category: 'Book', name: 'Hanukkah Bear', itemId: 'book-hanukkah-bear' }), 12);
+assert.equal(estimateWeightOunces({ category: null, name: 'Some Book', itemId: 'book-some-book' }), 12);
+assert.equal(estimateWeightOunces({ category: 'Dreidel', name: 'Solid Brass Dreidel', itemId: 'solid-brass-dreidel' }), 8);
+assert.equal(estimateWeightOunces({ category: 'Dreidel', name: 'Classic Wooden Dreidel', itemId: 'classic-wooden-dreidel' }), 2);
+assert.equal(estimateWeightOunces({ category: 'Gelt', name: 'Party Bag of Gelt', itemId: 'party' }), 32);
+assert.equal(estimateWeightOunces({ category: 'Gelt', name: 'Little Bag of Gelt', itemId: 'little' }), 4);
+assert.deepEqual(weightForLine({ weight: '6 oz', category: 'Stuffies', name: 'Crispy', itemId: 'crispy' }), {
+  weightOz: 6,
+  weightEstimated: false,
+});
+assert.deepEqual(weightForLine({ weight: null, category: 'Book', name: 'Hanukkah Bear', itemId: 'book-hanukkah-bear' }), {
+  weightOz: 12,
+  weightEstimated: true,
+});
 
 console.log('adminPacking tests passed');

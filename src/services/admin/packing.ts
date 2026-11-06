@@ -33,6 +33,10 @@ export type PackingLine = {
   wrap: boolean;
   dimensions: string | null;
   maxInches: number | null;
+  category: string;
+  /** Per unit, in ounces. Catalog weight, or an estimate when Airtable has none. */
+  weightOz: number;
+  weightEstimated: boolean;
   packed: boolean;
 };
 
