@@ -159,6 +159,46 @@ export async function lineItemsEmailItems(
   return { items, more: Math.max(0, ranked.length - items.length) };
 }
 
+/**
+ * Box lines that remain buyable after lock (`sellAfterLock === 'yes'`).
+ * Each card links to that product’s shop PDP (not the box editor).
+ */
+export async function fbaAvailableFromBoxEmailItems(
+  db: FirebaseFirestore.Firestore,
+  lineItems: unknown,
+  utm = 'utm_source=lifecycle&utm_medium=email&utm_campaign=lock_sorry'
+): Promise<{ items: EmailItem[]; more: number }> {
+  const lines = Array.isArray(lineItems) ? lineItems : [];
+  const quantities = new Map<string, number>();
+  for (const line of lines) {
+    if (!isRecord(line) || typeof line.itemId !== 'string') continue;
+    const qty = typeof line.quantity === 'number' ? line.quantity : 0;
+    if (qty <= 0) continue;
+    quantities.set(line.itemId, (quantities.get(line.itemId) ?? 0) + qty);
+  }
+  const ids = [...quantities.keys()];
+  if (!ids.length) return { items: [], more: 0 };
+  const snaps = await db.getAll(...ids.map((id) => db.doc(`${CATALOG_ITEMS}/${id}`)));
+  const ranked = snaps
+    .map((snap, index) => ({ snap, index }))
+    .filter((row) => row.snap.exists && row.snap.data()?.sellAfterLock === 'yes')
+    .sort(
+      (a, b) =>
+        boxThumbTier(a.snap.id, a.snap.data() ?? {}) - boxThumbTier(b.snap.id, b.snap.data() ?? {}) || a.index - b.index
+    );
+  const items: EmailItem[] = [];
+  for (const { snap } of ranked) {
+    if (items.length >= MAX_BOX_ITEMS) break;
+    const item = await toEmailItem(snap.id, snap.data() ?? {}, {
+      quantity: quantities.get(snap.id) ?? 1,
+      url: `https://grapejuice.co/product/${snap.id}?${utm}`,
+      withPrice: true,
+    });
+    if (item) items.push(item);
+  }
+  return { items, more: Math.max(0, ranked.length - items.length) };
+}
+
 /** `items_partial` is true when the box has more items than the six cards. */
 export function boxThumbFields(picked: { items: EmailItem[]; more: number }): { items: EmailItem[]; items_partial: boolean } {
   return { items: picked.items, items_partial: picked.more > 0 };

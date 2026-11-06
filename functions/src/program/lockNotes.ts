@@ -17,7 +17,13 @@ import { enabledStageSet } from './config';
 import { etDate, etHour } from './time';
 import { recomputeBoxAllocations } from '../catalogInventory';
 import { CARD_FIX_DEADLINE, EXTENSION_END, EXTENSION_START } from './lockWindow';
-import { boxThumbFields, lineItemsEmailItems, pickEmailItems, suggestEmailItems } from '../emailItems';
+import {
+  boxThumbFields,
+  fbaAvailableFromBoxEmailItems,
+  lineItemsEmailItems,
+  pickEmailItems,
+  suggestEmailItems,
+} from '../emailItems';
 import { loadCatalogRows, toBoxRulesRows } from '../rav/context';
 import { isSoldOutForBoxes } from '../rav/boxRules';
 
@@ -276,7 +282,16 @@ export async function cancelUnpaidAfterDeadline(db: Firestore, now = new Date())
     const status = await sendEmail({
       to: email,
       template: 'program-order-cancelled',
-      data: { cta_url: link('order_cancelled') },
+      data: {
+        cta_url: `https://grapejuice.co/?utm_source=lifecycle&utm_medium=email&utm_campaign=order_cancelled`,
+        ...boxThumbFields(
+          await fbaAvailableFromBoxEmailItems(
+            db,
+            Array.isArray(order.lineItems) ? order.lineItems : [],
+            'utm_source=lifecycle&utm_medium=email&utm_campaign=order_cancelled'
+          )
+        ),
+      },
     });
     if (status === 'sent') {
       await doc.ref.set({ cancelNotifiedAt: new Date().toISOString() }, { merge: true });
@@ -360,7 +375,10 @@ export async function runLockNotes(db: Firestore, now = new Date()): Promise<voi
     }));
   }
   if (wantSorry) {
-    counts.lock_sorry = await sendTo(db, people, 'lock_sorry', 'program-lock-sorry', (p) => !p.committed);
+    counts.lock_sorry = await sendTo(db, people, 'lock_sorry', 'program-lock-sorry', (p) => !p.committed, async (p) => ({
+      cta_url: `https://grapejuice.co/?utm_source=lifecycle&utm_medium=email&utm_campaign=lock_sorry`,
+      ...boxThumbFields(await fbaAvailableFromBoxEmailItems(db, p.lines)),
+    }));
   }
   if (wantExtend && enabled.has('extend_draft')) {
     counts.extend_draft = await sendTo(db, people, 'extend_draft', 'program-extend-draft', (p) => !p.committed && p.hasDraft, async (p) => ({

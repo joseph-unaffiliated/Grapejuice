@@ -4,7 +4,105 @@
 
 Joseph rewrote the ad copy directly in Ads Manager on Oct 8, 2026 (about 2pm ET). This section records it verbatim, as pulled from Meta at 6:10pm ET that day. **It overrides the drafts further down.** Use it when restoring an ad whose copy got overwritten, and as the voice and starting point for new ads.
 
-Every ad: CTA **Shop now**; tracking `utm_source=meta&utm_medium=paid_social&utm_content={{ad.name}}` with `utm_campaign=grapejuice-co` (Broad, Grandparent Gift) or `utm_campaign=grapejuice-followup` (Follow-up).
+Every ad: CTA **Shop now**; tracking `utm_source=meta&utm_medium=paid_social&utm_content={{ad.name}}` with `utm_campaign=grapejuice-co` (Broad, Grandparent Gift), `utm_campaign=grapejuice-followup` (Follow-up), or `utm_campaign=grapejuice-shop` (Shop / post-lock products).
+
+### Shop / post-lock products (campaign "Grapejuice Co - Shop", start after boxes lock)
+
+**Live in Ads Manager:** campaign id `120248281015360519`, created Nov 3, 2026 via `scripts/meta-create-shop-ads.mjs`. **$200/day** CBO. Ad sets scheduled to start **Nov 21, 2026** (00:00 ET) so FBA inbound can be confirmed first — pull the start earlier in Ads Manager if stock is ready sooner. Box Broad/Follow-up turn off at lock (~11:59pm Nov 8 / Nov 9); this campaign takes that budget. Inventory auto-pause still applies once live.
+
+Separate from Broad/Follow-up. Objective **Sales → Purchase**. One ad set per ad, optimizing for Purchase. CTA **Shop now**. Creative files: `/Untraditional/Ads/Product Ads/Frame {105,108–114}.mp4`. Instagram feed / Stories / Reels. UTMs: `utm_campaign=grapejuice-shop`.
+
+**Audience (wider than box ads):** US, ages **18–65**, Advantage+ audience on. Excludes Grapejuice purchasers 180d only — not parents-only, not Unaffiliated-only. No western-state geo exclusions (FBA ships nationwide).
+
+**Inventory auto-pause:** `scheduledMetaShopInventoryPause` (every 15 min) pauses ACTIVE ads whose catalog item(s) are sold out for à la carte. Ad names below must match Meta exactly. Optional overrides / ad IDs: Firestore `programConfig/metaShopAds`. Does not auto-resume when stock returns.
+
+**Copy rule:** lead with the product’s site description (first paragraph of the PDP). No box talk, no $0 today, no FIFTEENOFF, no “unaffiliated” framing.
+
+#### shop-arch-menorah — Frame 105 → https://grapejuice.co/product/arch-menorah
+
+Site: *"Reminiscent of ancient stone, this hanukkiah creates a tangible connection to the ancient story."*
+
+> Reminiscent of ancient stone, this hanukkiah creates a tangible connection to the ancient story. Travertine. Nine nights of light on your mantel.
+
+- Headline: Ancient stone. Modern mantel.
+- Description: Travertine hanukkiah · $240
+
+#### shop-dreidel-cookie-cutters — Frame 108 → https://grapejuice.co/product/dreidel-cookie-cutters
+
+Site: *"Dreidel-shaped cookie cutters for baking Hanukkah treats—press into dough for cookies you can decorate and share during the holiday."*
+
+> Dreidel-shaped cookie cutters for baking Hanukkah treats. Press into dough, decorate, share across the eight nights.
+>
+> Metal cutters. Hand wash. $8.
+
+- Headline: Bake a dreidel
+- Description: Cookie cutters · $8
+
+#### shop-stuffies — Frame 109 → https://grapejuice.co/store/stuffies
+
+Site (each stuffie PDP): Gimmel / Crispy / Jelly / Shamash — plush companions for cuddling and pretend play.
+
+> Soft Hanukkah friends: a dreidel, a latke, a sufganiyah, and a menorah. Made for cuddles and pretend play — not open flame.
+>
+> $25 each.
+
+- Headline: Hanukkah, soft
+- Description: Stuffies · $25 each
+
+#### shop-shamash-stuffie — Frame 110 → https://grapejuice.co/product/shamash-the-menorah-stuffie
+
+Site: *"Shamash is a plush menorah soft toy named for the helper candle—made for cuddles and pretend candle-lighting, not open flame."*
+
+> Shamash is a plush menorah soft toy named for the helper candle — for cuddles and pretend candle-lighting, not open flame.
+>
+> $25. Spot clean.
+
+- Headline: Meet Shamash
+- Description: Menorah stuffie · $25
+
+#### shop-toddler-play-menorah — Frame 111 → https://grapejuice.co/product/toddler-play-menorah
+
+Site: *"A wooden play menorah for toddlers to practice Hanukkah candle-lighting with play candles—no open flame. Use it to teach the order of the nights and the role of the shamash."*
+
+> A wooden play menorah for toddlers to practice candle-lighting with play candles — no open flame. Teach the nights and the shamash, hands-on.
+>
+> Wood + nine felt-flame play candles. $25.
+
+- Headline: Practice the nights
+- Description: Toddler play menorah · $25
+
+#### shop-airdry-clay-menorah — Frame 112 → https://grapejuice.co/product/airdry-clay-menorah
+
+Site: *"Make your own hanukkiah—let creativity go wild. One pack air-dry clay + nine candle cups."*
+
+> Make your own hanukkiah — let creativity go wild. One pack of air-dry clay and nine brass candle cups (don’t put candles directly in clay).
+>
+> Kid-safe kit. $10.
+
+- Headline: Make your own hanukkiah
+- Description: Air-dry clay kit · $10
+
+#### shop-wrapping-paper — Frame 113 → https://grapejuice.co/product/wrapping-paper
+
+Site: *"A wrapping paper set for dressing Hanukkah gifts—use it for presents across the eight nights or for wrapping items from the box."*
+
+> A wrapping paper set for dressing Hanukkah gifts across the eight nights — illustrated sheets you’ll actually want to keep.
+>
+> $15.
+
+- Headline: Wrap the eight nights
+- Description: Wrapping paper set · $15
+
+#### shop-big-bag-of-gelt — Frame 114 → https://grapejuice.co/product/big-bag-of-gelt
+
+Site: *"A big bag of chocolate gelt (5 large and 20 small coins) for dreidel games and Hanukkah gifts."*
+
+> A big bag of chocolate gelt — 5 large and 20 small coins — for dreidel pots and Hanukkah gifts. Vegan, dairy-free (pareve); not certified kosher.
+>
+> $10.
+
+- Headline: Chocolate for the pot
+- Description: Big bag of gelt · $10
 
 ### Broad (campaign "Grapejuice Co", one ad set per ad, landing https://grapejuice.co/)
 

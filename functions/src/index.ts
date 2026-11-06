@@ -142,6 +142,7 @@ export { scheduledNewsletterSuppression } from './newsletterSuppression';
 export { scheduledPilotSurveyReminders } from './pilotSurveyReminder';
 export { scheduledProgramSnapshots } from './programSnapshots';
 export { scheduledMetaGuard } from './programMetaGuard';
+export { scheduledMetaShopInventoryPause } from './metaShopInventoryPause';
 export {
   adminPilotParticipants,
   enrollPilot,

@@ -33,15 +33,21 @@ function isLocked(lockAt, now) {
         return false;
     return now.getTime() >= new Date(lockAt).getTime();
 }
+/** Match client LOW_STOCK_AT in src/services/catalog/availability.ts */
+const LOW_STOCK_AT = 4;
 function resolveAvailability(item, counters, lockAt, now = new Date()) {
-    if (isCatalogBookItem(item)) {
-        return { status: 'box_only', reason: 'book' };
-    }
     const reserved = nonNeg(counters === null || counters === void 0 ? void 0 : counters.directReservedQty);
     const sold = nonNeg(counters === null || counters === void 0 ? void 0 : counters.directSoldQty);
     const committed = reserved + sold;
     const boxAllocated = nonNeg(counters === null || counters === void 0 ? void 0 : counters.boxAllocatedQty);
-    if (!isLocked(lockAt, now)) {
+    const locked = isLocked(lockAt, now);
+    if (locked && isCatalogBookItem(item)) {
+        return { status: 'sold_out' };
+    }
+    if (!locked && isCatalogBookItem(item)) {
+        return { status: 'box_only', reason: 'book' };
+    }
+    if (!locked) {
         const cap = item.directSaleCapBeforeLock;
         if (cap == null || !Number.isFinite(cap) || cap <= 0) {
             return { status: 'box_only', reason: 'no_cap' };
@@ -54,24 +60,21 @@ function resolveAvailability(item, counters, lockAt, now = new Date()) {
         if (remaining <= 0) {
             return { status: 'box_only', reason: 'cap_exhausted' };
         }
-        if (remaining > 10) {
+        if (remaining > LOW_STOCK_AT) {
             return { status: 'direct', remaining };
         }
         return { status: 'limited', remaining };
     }
     const fba = item.sellAfterLock;
-    if (fba === 'flag') {
-        return { status: 'box_only', reason: 'post_lock_flag' };
-    }
-    if (fba !== 'yes') {
-        return { status: 'box_only', reason: 'post_lock_no_release' };
+    if (fba === 'flag' || fba !== 'yes') {
+        return { status: 'sold_out' };
     }
     const inventory = nonNeg(item.inventory);
     const remaining = Math.max(0, inventory - nonNeg(item.setAside) - boxAllocated - committed);
     if (remaining <= 0) {
         return { status: 'sold_out' };
     }
-    if (remaining > 10) {
+    if (remaining > LOW_STOCK_AT) {
         return { status: 'direct', remaining };
     }
     return { status: 'limited', remaining };
@@ -94,9 +97,6 @@ function availabilityRejectMessage(itemName, a) {
             }
             if (a.reason === 'cap_exhausted') {
                 return `${itemName} is sold out for direct purchase until boxes lock.`;
-            }
-            if (a.reason === 'post_lock_flag' || a.reason === 'post_lock_no_release') {
-                return `${itemName} is only available as part of a Hanukkah box.`;
             }
             return `${itemName} is only available as part of a Hanukkah box.`;
         case 'sold_out':

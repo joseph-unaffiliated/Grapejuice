@@ -5,6 +5,8 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mentionsKeepingKosher = mentionsKeepingKosher;
+exports.mentionsVeganOrGlutenFree = mentionsVeganOrGlutenFree;
+exports.hasLatkeOrSufganiyotKit = hasLatkeOrSufganiyotKit;
 exports.edibleFoodLines = edibleFoodLines;
 exports.kosherNoticeVersion = kosherNoticeVersion;
 exports.renderKosherNotice = renderKosherNotice;
@@ -21,6 +23,37 @@ function withoutNegatedKosher(text) {
 function mentionsKeepingKosher(text) {
     const cleaned = withoutNegatedKosher((text !== null && text !== void 0 ? text : '').replace(/\s+/g, ' ').trim());
     return /\bkosher\b/i.test(cleaned);
+}
+function withoutNegatedDiet(text) {
+    return text
+        .replace(/\bnon[-\s]?vegan\b/gi, '')
+        .replace(/\b(?:not|isn't|isnt|aren't|arent)\b(?:\s+\w+){0,4}\s+vegan\b/gi, '')
+        .replace(/\b(?:not|isn't|isnt|aren't|arent)\b(?:\s+\w+){0,4}\s+(?:gluten[-\s]?free|celiac|coeliac)\b/gi, '')
+        .replace(/\b(?:not|isn't|isnt|aren't|arent)\b(?:\s+\w+){0,3}\s+gluten\b/gi, '');
+}
+/** A household note that mentions vegan, celiac, or gluten-free. “Not vegan” does not count. */
+function mentionsVeganOrGlutenFree(text) {
+    const cleaned = withoutNegatedDiet((text !== null && text !== void 0 ? text : '').replace(/\s+/g, ' ').trim());
+    if (/\bvegan\b/i.test(cleaned))
+        return true;
+    return (/\b(?:gluten[-\s]?free|no gluten|without gluten|zero gluten|celiac|coeliac|gluten[-\s]?(?:allergy|intoleran\w*)|allergic to gluten)\b/i.test(cleaned) || /\b(?:can't|cannot|cant|don't|do not|won't|wont|avoid)\s+(?:have\s+|eat\s+|do\s+)?gluten\b/i.test(cleaned));
+}
+/** Latke mix or sufganiyot mix still in the box. Gelt, books, and stuffies do not count. */
+function hasLatkeOrSufganiyotKit(lines) {
+    return lines.some((line) => {
+        var _a, _b, _c, _d;
+        const slot = String((_a = line.slotId) !== null && _a !== void 0 ? _a : '').replace(/::x$/i, '');
+        const item = String((_b = line.itemId) !== null && _b !== void 0 ? _b : '');
+        const label = String((_d = (_c = line.label) !== null && _c !== void 0 ? _c : line.name) !== null && _d !== void 0 ? _d : '');
+        const hay = `${slot} ${item} ${label}`.toLowerCase();
+        if (/stuffie|plush|\bbook\b/.test(hay))
+            return false;
+        if (/sufgan/.test(hay))
+            return true;
+        if (slot === 'latke-mix' || slot === 'latke-kit')
+            return true;
+        return /latke[-\s]?(kit|mix)/.test(hay);
+    });
 }
 function edibleFoodLines(lines) {
     var _a, _b, _c, _d, _e;
@@ -49,6 +82,7 @@ function edibleFoodLines(lines) {
 /**
  * Who gets the note. Only while latke mix, sufganiyot mix, or gelt is still in the box.
  * A kosher household note, a Rav message, or a touched practice score of 80 or higher qualifies.
+ * A vegan, celiac, or gluten-free note qualifies only when a latke or sufganiyot kit is still in the box.
  * An untouched 50 does not. A high Hanukkah score by itself does not.
  */
 function kosherNoticeVersion(input) {
@@ -58,7 +92,8 @@ function kosherNoticeVersion(input) {
     const highPractice = input.practiceTouched === true &&
         typeof input.practiceScore === 'number' &&
         input.practiceScore >= 80;
-    if (saidKosher || highPractice)
+    const dietNote = mentionsVeganOrGlutenFree(input.householdNote) && input.hasMixKit === true;
+    if (saidKosher || highPractice || dietNote)
         return 'with_food';
     return null;
 }
@@ -126,12 +161,14 @@ async function runKosherNotices(db, now = new Date()) {
         const hid = typeof data.householdId === 'string' ? data.householdId : '';
         const lines = (_c = draftByHousehold.get(hid)) !== null && _c !== void 0 ? _c : [];
         const foods = edibleFoodLines(lines);
+        const householdNote = [data.ravNotes, answers.ravNotes].filter((n) => typeof n === 'string').join('\n');
         const version = kosherNoticeVersion({
-            householdNote: typeof data.ravNotes === 'string' ? data.ravNotes : '',
+            householdNote,
             ravText: (_d = ravByUid.get(user.id)) !== null && _d !== void 0 ? _d : '',
             practiceScore: practice,
             practiceTouched: practice != null && practice !== 50,
             edibleNames: foods.map((food) => food.name),
+            hasMixKit: hasLatkeOrSufganiyotKit(lines),
         });
         if (!version)
             continue;

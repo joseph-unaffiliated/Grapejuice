@@ -11,7 +11,7 @@ import { firestoreFromFirebaseCliLogin } from './lib/firebaseCliCredential.mjs';
 
 const require = createRequire(import.meta.url);
 require('sucrase/register/ts');
-const { edibleFoodLines, kosherNoticeVersion, mentionsKeepingKosher } = require('../functions/src/kosherNotice.ts');
+const { edibleFoodLines, hasLatkeOrSufganiyotKit, kosherNoticeVersion, mentionsKeepingKosher } = require('../functions/src/kosherNotice.ts');
 const { isTest } = require('../functions/src/testAccounts.ts');
 
 const db = firestoreFromFirebaseCliLogin('grapejuice-pilot');
@@ -55,13 +55,16 @@ for (const user of users.docs) {
   const answers = data.lastBoxAnswers ?? {};
   const practice = typeof answers.practiceFrequencyScore === 'number' ? answers.practiceFrequencyScore : null;
   const hid = typeof data.householdId === 'string' ? data.householdId : '';
-  const foods = edibleFoodLines(Array.isArray(draftByHousehold.get(hid)) ? draftByHousehold.get(hid) : []);
+  const boxLines = Array.isArray(draftByHousehold.get(hid)) ? draftByHousehold.get(hid) : [];
+  const foods = edibleFoodLines(boxLines);
+  const householdNote = [data.ravNotes, answers.ravNotes].filter((n) => typeof n === 'string').join('\n');
   const version = kosherNoticeVersion({
-    householdNote: typeof data.ravNotes === 'string' ? data.ravNotes : '',
+    householdNote,
     ravText: ravByUid.get(user.id) ?? '',
     practiceScore: practice,
     practiceTouched: practice != null && practice !== 50,
     edibleNames: foods.map((f) => f.name),
+    hasMixKit: hasLatkeOrSufganiyotKit(boxLines),
   });
   if (!version) continue;
   counts[version] += 1;

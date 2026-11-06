@@ -4,7 +4,14 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { edibleFoodLines, kosherNoticeVersion, mentionsKeepingKosher, renderKosherNotice } from './kosherNotice';
+import {
+  edibleFoodLines,
+  hasLatkeOrSufganiyotKit,
+  kosherNoticeVersion,
+  mentionsKeepingKosher,
+  mentionsVeganOrGlutenFree,
+  renderKosherNotice,
+} from './kosherNotice';
 
 const LATKE = 'https://storage.googleapis.com/grapejuice-pilot.firebasestorage.app/catalog/hanukkah/items/latke-kit/primary-0-fad2029b3c90.webp';
 const foods = [
@@ -52,6 +59,30 @@ assert.equal(
   null
 );
 assert.equal(kosherNoticeVersion({ householdNote: 'we keep kosher', edibleNames: [] }), null);
+
+assert.equal(mentionsVeganOrGlutenFree('we are vegan'), true);
+assert.equal(mentionsVeganOrGlutenFree('celiac, so no sufganiyot'), true);
+assert.equal(mentionsVeganOrGlutenFree('gluten-free household'), true);
+assert.equal(mentionsVeganOrGlutenFree('we are not vegan'), false);
+assert.equal(mentionsVeganOrGlutenFree('not gluten free'), false);
+assert.equal(hasLatkeOrSufganiyotKit(lines), true);
+assert.equal(hasLatkeOrSufganiyotKit([{ slotId: 'gelt-medium', itemId: 'big-bag-of-gelt', label: 'Chocolate gelt' }]), false);
+assert.equal(
+  kosherNoticeVersion({ householdNote: 'please keep it vegan', edibleNames: ['Latke kit'], hasMixKit: true }),
+  'with_food'
+);
+assert.equal(
+  kosherNoticeVersion({ householdNote: 'celiac / gluten free', edibleNames: ['Sufganiyot kit'], hasMixKit: true }),
+  'with_food'
+);
+assert.equal(
+  kosherNoticeVersion({ householdNote: 'we are vegan', edibleNames: ['Chocolate gelt'], hasMixKit: false }),
+  null
+);
+assert.equal(
+  kosherNoticeVersion({ householdNote: 'not vegan', edibleNames: ['Latke kit'], hasMixKit: true }),
+  null
+);
 
 const withFood = renderKosherNotice({
   foods,

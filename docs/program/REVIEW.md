@@ -141,13 +141,13 @@ The copies I made of newsletter 481 are gone, except The '90s Parent draft you r
 
 Nothing here sends until you tick it. The template ids stay at 0 until then, so a tick alone still does not send.
 
-### Nov 8 — boxes locked, for people who did not order
+### Nov 9 after noon — boxes locked, for people who did not order
 
 - Subject: Boxes have locked
-- Preview: Sorry you were not able to order in time.
+- Preview: You can still buy in-stock items on our site.
 - Title: Drats. Boxes are now locked.
-- CTA: Write us → hello@grapejuice.co
-- Body: Boxes have locked. Sorry you weren't able to order in time. We'd love to see you next year, or for the Passover box.
+- CTA: Shop now → grapejuice.co
+- Body: Even though boxes are now locked, you can still buy in-stock items on our site. When their draft had leftovers with Sell After Lock via FBA = Yes, show those as shop thumbnails (linked to PDPs). Passover / next year is fine as a soft close, not the lead.
 - Who: Grapejuice only. An account, a guest draft, or an email left at checkout. Not unsubscribed. Not someone who already locked a box. Not the Unaffiliated newsletter lists.
 
 ### Nov 8 — charge succeeded, for people who ordered
@@ -181,21 +181,18 @@ Nothing here sends until you tick it. The template ids stay at 0 until then, so 
 - CTA: Place my order
 - Who: The same Grapejuice list, and they never started a box.
 
-### Sunday morning, Nov 8 — Story, you post it
-
-Grapejuice account, Sunday morning. Same words as the extra-day email: the deadline is extended by one day, through Monday at noon. Other brands do not post it. This line is the reminder. It is not posted from here.
-
 ### Nov 12, noon — card still declined
 
 - Subject: We had to cancel this box
-- Preview: The payment method on file could not be charged
+- Preview: We couldn't charge the card on file — but you can still buy in-stock items on our site.
 - Title: Ahhh. That's too bad.
-- Body: Sorry we couldn't make it work for this year. Maybe next time!
+- CTA: Shop now → grapejuice.co
+- Body: We had to cancel this box because the payment method on file could not be charged. Even so, you can still buy in-stock items on our site. When the cancelled box had leftovers with Sell After Lock via FBA = Yes, show those as shop thumbnails (linked to PDPs).
 - Who: A committed box whose card was still declined. The cancellation happens then. This note waits until you tick it.
 
 ### Kosher food note
 
-One note, only when latke mix, sufganiyot mix, or gelt is still in the box. Open `docs/customerio-kosher-notice.html`. Subject: A note about the food items in your box. Title: Review the food items in your box. It says the food is not certified kosher, the mixes have flour and call for egg, everything is dairy-free (pareve), and the mixes can be made vegan with an egg substitute. Pictures are only the food lines still in that box, under the heading “Food items in your box.” There is no second email for a box that already had the food removed.
+One note, when latke mix, sufganiyot mix, or gelt is still in the box for a kosher note, a Rav mention, or a touched practice score of 80 or higher. A vegan, celiac, or gluten-free note is included only when a latke or sufganiyot kit is still in the box. Open `docs/customerio-kosher-notice.html`. Subject: A note about the food items in your box. Title: Review the food items in your box. It says the food is not certified kosher, the mixes have flour and call for egg, everything is dairy-free (pareve), and the mixes can be made vegan with an egg substitute. Pictures are only the food lines still in that box, under the heading “Food items in your box.” There is no second email for a box that already had the food removed.
 
 ### Unclaimed gifts
 

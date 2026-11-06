@@ -288,7 +288,7 @@ async function cancelUnpaidAfterDeadline(db, now = new Date()) {
         const status = await (0, email_1.sendEmail)({
             to: email,
             template: 'program-order-cancelled',
-            data: { cta_url: link('order_cancelled') },
+            data: Object.assign({ cta_url: `https://grapejuice.co/?utm_source=lifecycle&utm_medium=email&utm_campaign=order_cancelled` }, (0, emailItems_1.boxThumbFields)(await (0, emailItems_1.fbaAvailableFromBoxEmailItems)(db, Array.isArray(order.lineItems) ? order.lineItems : [], 'utm_source=lifecycle&utm_medium=email&utm_campaign=order_cancelled'))),
         });
         if (status === 'sent') {
             await doc.ref.set({ cancelNotifiedAt: new Date().toISOString() }, { merge: true });
@@ -364,7 +364,7 @@ async function runLockNotes(db, now = new Date()) {
         }));
     }
     if (wantSorry) {
-        counts.lock_sorry = await sendTo(db, people, 'lock_sorry', 'program-lock-sorry', (p) => !p.committed);
+        counts.lock_sorry = await sendTo(db, people, 'lock_sorry', 'program-lock-sorry', (p) => !p.committed, async (p) => (Object.assign({ cta_url: `https://grapejuice.co/?utm_source=lifecycle&utm_medium=email&utm_campaign=lock_sorry` }, (0, emailItems_1.boxThumbFields)(await (0, emailItems_1.fbaAvailableFromBoxEmailItems)(db, p.lines)))));
     }
     if (wantExtend && enabled.has('extend_draft')) {
         counts.extend_draft = await sendTo(db, people, 'extend_draft', 'program-extend-draft', (p) => !p.committed && p.hasDraft, async (p) => (Object.assign({}, (0, emailItems_1.boxThumbFields)(await (0, emailItems_1.lineItemsEmailItems)(db, p.lines, link('extend_draft'))))));

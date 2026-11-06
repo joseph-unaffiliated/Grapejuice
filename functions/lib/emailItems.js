@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.catalogEmailImage = catalogEmailImage;
 exports.boxEmailItems = boxEmailItems;
 exports.lineItemsEmailItems = lineItemsEmailItems;
+exports.fbaAvailableFromBoxEmailItems = fbaAvailableFromBoxEmailItems;
 exports.boxThumbFields = boxThumbFields;
 exports.suggestEmailItems = suggestEmailItems;
 exports.soldOutBookItem = soldOutBookItem;
@@ -123,6 +124,44 @@ async function lineItemsEmailItems(db, lineItems, url) {
             quantity: (_c = quantities.get(snap.id)) !== null && _c !== void 0 ? _c : 1,
             url,
             withPrice: false,
+        });
+        if (item)
+            items.push(item);
+    }
+    return { items, more: Math.max(0, ranked.length - items.length) };
+}
+/**
+ * Box lines that remain buyable after lock (`sellAfterLock === 'yes'`).
+ * Each card links to that product’s shop PDP (not the box editor).
+ */
+async function fbaAvailableFromBoxEmailItems(db, lineItems, utm = 'utm_source=lifecycle&utm_medium=email&utm_campaign=lock_sorry') {
+    var _a, _b, _c;
+    const lines = Array.isArray(lineItems) ? lineItems : [];
+    const quantities = new Map();
+    for (const line of lines) {
+        if (!isRecord(line) || typeof line.itemId !== 'string')
+            continue;
+        const qty = typeof line.quantity === 'number' ? line.quantity : 0;
+        if (qty <= 0)
+            continue;
+        quantities.set(line.itemId, ((_a = quantities.get(line.itemId)) !== null && _a !== void 0 ? _a : 0) + qty);
+    }
+    const ids = [...quantities.keys()];
+    if (!ids.length)
+        return { items: [], more: 0 };
+    const snaps = await db.getAll(...ids.map((id) => db.doc(`${CATALOG_ITEMS}/${id}`)));
+    const ranked = snaps
+        .map((snap, index) => ({ snap, index }))
+        .filter((row) => { var _a; return row.snap.exists && ((_a = row.snap.data()) === null || _a === void 0 ? void 0 : _a.sellAfterLock) === 'yes'; })
+        .sort((a, b) => { var _a, _b; return boxThumbTier(a.snap.id, (_a = a.snap.data()) !== null && _a !== void 0 ? _a : {}) - boxThumbTier(b.snap.id, (_b = b.snap.data()) !== null && _b !== void 0 ? _b : {}) || a.index - b.index; });
+    const items = [];
+    for (const { snap } of ranked) {
+        if (items.length >= MAX_BOX_ITEMS)
+            break;
+        const item = await toEmailItem(snap.id, (_b = snap.data()) !== null && _b !== void 0 ? _b : {}, {
+            quantity: (_c = quantities.get(snap.id)) !== null && _c !== void 0 ? _c : 1,
+            url: `https://grapejuice.co/product/${snap.id}?${utm}`,
+            withPrice: true,
         });
         if (item)
             items.push(item);

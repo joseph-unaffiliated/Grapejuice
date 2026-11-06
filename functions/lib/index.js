@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.healPilotDraftLines = exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.applyBoxProblemFix = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = exports.scheduledBoxesDashboard = void 0;
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledKosherNotices = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = void 0;
+exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledMetaShopInventoryPause = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.applyBoxProblemFix = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = exports.scheduledBoxesDashboard = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledKosherNotices = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = exports.healPilotDraftLines = void 0;
 const crypto_1 = require("crypto");
 const logger = require("./logger");
 const testAccounts_1 = require("./testAccounts");
@@ -28,6 +28,7 @@ const setupNudge_1 = require("./setupNudge");
 const untraditionalCio_1 = require("./untraditionalCio");
 const unaffiliated_1 = require("./unaffiliated");
 const airtableCatalogSync_1 = require("./airtableCatalogSync");
+const postLockShipping_1 = require("./postLockShipping");
 const catalogThumbs_1 = require("./catalogThumbs");
 const chargePilotBox_1 = require("./chargePilotBox");
 const lockWindow_1 = require("./program/lockWindow");
@@ -114,6 +115,8 @@ var programSnapshots_1 = require("./programSnapshots");
 Object.defineProperty(exports, "scheduledProgramSnapshots", { enumerable: true, get: function () { return programSnapshots_1.scheduledProgramSnapshots; } });
 var programMetaGuard_1 = require("./programMetaGuard");
 Object.defineProperty(exports, "scheduledMetaGuard", { enumerable: true, get: function () { return programMetaGuard_1.scheduledMetaGuard; } });
+var metaShopInventoryPause_1 = require("./metaShopInventoryPause");
+Object.defineProperty(exports, "scheduledMetaShopInventoryPause", { enumerable: true, get: function () { return metaShopInventoryPause_1.scheduledMetaShopInventoryPause; } });
 var pilotParticipants_2 = require("./pilotParticipants");
 Object.defineProperty(exports, "adminPilotParticipants", { enumerable: true, get: function () { return pilotParticipants_2.adminPilotParticipants; } });
 Object.defineProperty(exports, "enrollPilot", { enumerable: true, get: function () { return pilotParticipants_2.enrollPilot; } });
@@ -309,12 +312,15 @@ async function resolveMarketplaceLineItems(raw) {
         if (unitCents <= 0) {
             throw new sentry_1.HttpsError('invalid-argument', `Product is not available à la carte: ${itemId}`);
         }
+        const fbaRaw = cat.fbaFeeCents;
         normalized.push({
             slotId: String((_c = cat.slotId) !== null && _c !== void 0 ? _c : 'addon'),
             itemId,
             quantity: Math.max(1, Math.floor(Number(li.quantity) || 1)),
             unitCents,
             label: String((_d = cat.name) !== null && _d !== void 0 ? _d : itemId),
+            weight: typeof cat.weight === 'string' ? cat.weight : null,
+            fbaFeeCents: typeof fbaRaw === 'number' && Number.isFinite(fbaRaw) ? Math.max(0, Math.round(fbaRaw)) : null,
         });
     }
     return normalized;
@@ -930,7 +936,11 @@ exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
         if (subtotalCents < 1) {
             throw new sentry_1.HttpsError('invalid-argument', 'Cart total is too small.');
         }
-        const shippingCents = SHIPPING_FLAT_CENTS;
+        const shippingCents = (0, postLockShipping_1.postLockShippingCents)(lineItems.map((li) => ({
+            qty: li.quantity,
+            weight: li.weight,
+            fbaFeeCents: li.fbaFeeCents,
+        }))).shippingCents;
         const buyerEmail = guestEmail ||
             String((_l = (_j = (authedUid ? (_h = (await db.doc(`users/${authedUid}`).get()).data()) === null || _h === void 0 ? void 0 : _h.email : null)) !== null && _j !== void 0 ? _j : (_k = request.auth) === null || _k === void 0 ? void 0 : _k.token.email) !== null && _l !== void 0 ? _l : '')
                 .trim()
