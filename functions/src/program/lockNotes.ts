@@ -228,7 +228,7 @@ async function sendUnnotifiedReceipts(db: Firestore, now: Date): Promise<number>
   return sent;
 }
 
-/** 9am ET Sunday Nov 8 through noon ET Monday Nov 9 the public lock is the end of the extra day. */
+/** 6am ET Sunday Nov 8 through noon ET Monday Nov 9 the public lock is the end of the extra day. */
 export async function maybeOpenExtension(db: Firestore, now = new Date()): Promise<boolean> {
   const t = now.getTime();
   if (t < Date.parse(EXTENSION_START) || t >= Date.parse(EXTENSION_END)) return false;

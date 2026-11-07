@@ -226,7 +226,7 @@ async function sendUnnotifiedReceipts(db, now) {
     }
     return sent;
 }
-/** 9am ET Sunday Nov 8 through noon ET Monday Nov 9 the public lock is the end of the extra day. */
+/** 6am ET Sunday Nov 8 through noon ET Monday Nov 9 the public lock is the end of the extra day. */
 async function maybeOpenExtension(db, now = new Date()) {
     var _a;
     const t = now.getTime();

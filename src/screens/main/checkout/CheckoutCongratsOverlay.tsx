@@ -1,11 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View, Platform } from 'react-native';
-import { daysToBoxLock } from '../../../constants/hanukkahBoxLock';
+import { daysToBoxLock, isImmediateChargeWindow } from '../../../constants/hanukkahBoxLock';
+import { familyOrderOpen } from '../../../constants/familyOrder';
 import { semanticColors, spacing, typeface } from '../../../constants/theme';
 
 const AUTO_DISMISS_MS = 2000;
 
 export function congratsDaysLine(lockAt?: string | null, now: Date = new Date()): string {
+  if (isImmediateChargeWindow(now, familyOrderOpen())) {
+    return 'Your card was charged and this box is locked.';
+  }
   const days = daysToBoxLock(now, lockAt);
   if (days <= 0) return 'You can still add or swap items in your box today';
   return `You have another ${days} ${days === 1 ? 'day' : 'days'} to add or swap items in your box`;

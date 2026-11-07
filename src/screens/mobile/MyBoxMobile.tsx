@@ -48,6 +48,8 @@ import { getStripePromise, prefetchSetupIntent } from '../../services/checkout/c
 import type { MainStackParamList } from '../../navigation/types';
 import type { useMyBoxEditing } from '../../hooks/useMyBoxEditing';
 import { NOT_HELD_COPY, daysUntilLock, lockShortLabel } from '../../hooks/useBoxGlance';
+import { isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
+import { familyOrderOpen } from '../../constants/familyOrder';
 import { BoxSummary, type BoxThumb } from '../../components/mobile/BoxSummary';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { MobileSheet } from '../../components/mobile/MobileSheet';
@@ -1167,7 +1169,10 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             <Text style={styles.link} onPress={e.goToCheckout}>
               {e.cardOnFile ? 'Check out' : 'Add payment info'}
             </Text>{' '}
-            to secure {yours} inventory. Continue editing {yours} box until {e.lockAt ? `the ${lockShort} lock date` : 'it locks'}. Your card will not be charged until the lock date.
+            to secure {yours} inventory.{' '}
+            {isImmediateChargeWindow(new Date(), familyOrderOpen())
+              ? 'Your card is charged when you place the order, and the box locks then.'
+              : `Continue editing ${yours} box until ${e.lockAt ? `the ${lockShort} lock date` : 'it locks'}. Your card will not be charged until the lock date.`}
           </Text>
         ) : null}
       </View>

@@ -11,6 +11,8 @@ import type { StorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { formatCatalogDollars } from '../../services/box/buildDefaultBox';
 import { LIST_BOX_PRICE_CENTS } from '../../services/box/pricing';
+import { isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
+import { familyOrderOpen } from '../../constants/familyOrder';
 import {
   borderRadius,
   MOBILE_GUTTER,
@@ -65,13 +67,15 @@ type Copy = {
   media: StorefrontMediaSlot;
 };
 
-function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
+function copyForMode(mode: StorefrontHomeMode, boxPrice: string, immediate: boolean): Copy {
   switch (mode) {
     case 'guest_box':
       return {
         eyebrow: 'Your Hanukkah Box',
         headline: 'Your box is started. Save it with an account.',
-        body: 'Create an account so we can hold your curation, swaps, and lock date — and you can pick up right where you left off.',
+        body: immediate
+          ? 'Create an account to save this box. When you place the order, your card is charged and the box locks.'
+          : 'Create an account so we can hold your curation, swaps, and lock date — and you can pick up right where you left off.',
         checklistLabel: 'What might be inside',
         checklist: INCLUSIONS,
         primaryLabel: 'Create an account',
@@ -82,8 +86,10 @@ function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
     case 'customize':
       return {
         eyebrow: 'Your Hanukkah Box',
-        headline: 'Customize before lock.',
-        body: 'Your box is secured. Swap pieces, add extras, and fine-tune the mix anytime before the lock date.',
+        headline: immediate ? 'Place your order to lock this box.' : 'Customize before lock.',
+        body: immediate
+          ? 'Your card is charged when you place the order, and the box can’t be changed after that.'
+          : 'Your box is secured. Swap pieces, add extras, and fine-tune the mix anytime before the lock date.',
         checklistLabel: 'What might be inside',
         checklist: INCLUSIONS,
         primaryLabel: 'Customize your box',
@@ -95,7 +101,9 @@ function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
       return {
         eyebrow: 'Your Hanukkah Box',
         headline: 'Add payment to secure your box.',
-        body: 'You can browse swap options now. Save a card to lock in your picks — you won’t be charged until your box ships.',
+        body: immediate
+          ? 'Add shipping and payment to place the order. Your card is charged today, and the box locks when it goes through.'
+          : 'You can browse swap options now. Save a card to lock in your picks — you won’t be charged until your box ships.',
         checklistLabel: 'What might be inside',
         checklist: INCLUSIONS,
         primaryLabel: 'Add payment to secure',
@@ -160,7 +168,9 @@ function copyForMode(mode: StorefrontHomeMode, boxPrice: string): Copy {
       return {
         eyebrow: 'The Hanukkah Box',
         headline: 'One box. Built around your life.',
-        body: 'There’s no standard box. A short quiz tells us about your household — then we curate 8–12 pieces you can swap before lock.',
+        body: immediate
+          ? 'A short quiz tells us about your household — then we curate 8–12 pieces you can adjust before you place the order. Your card is charged when you place it.'
+          : 'There’s no standard box. A short quiz tells us about your household — then we curate 8–12 pieces you can swap before lock.',
         checklistLabel: 'What might be inside',
         checklist: INCLUSIONS,
         primaryLabel: `Build your box (${boxPrice})`,
@@ -179,7 +189,7 @@ type Props = {
 export function StorefrontBoxFeature({ mode, onPrimary }: Props) {
   const { isCompact: stacked } = useLayoutBreakpoint();
   const boxPrice = formatCatalogDollars(LIST_BOX_PRICE_CENTS);
-  const copy = copyForMode(mode, boxPrice);
+  const copy = copyForMode(mode, boxPrice, isImmediateChargeWindow(new Date(), familyOrderOpen()));
 
   return (
     <View style={styles.root}>

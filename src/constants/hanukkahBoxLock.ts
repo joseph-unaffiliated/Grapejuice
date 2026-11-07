@@ -6,8 +6,8 @@ export const HANUKKAH_BOX_LOCK_DATE = new Date('2026-11-07T23:59:59-05:00');
  * 11:59pm ET Nov 7. A committed box stays frozen after this even if the public lock moves.
  */
 export const COMMITTED_FREEZE_AT = '2026-11-08T04:59:59.000Z';
-/** 9am ET Sunday Nov 8 through noon ET Monday Nov 9. Checkout charges the card immediately. */
-const EXTENSION_START_MS = Date.parse('2026-11-08T14:00:00.000Z');
+/** 6am ET Sunday Nov 8 through noon ET Monday Nov 9. Checkout charges the card immediately. */
+const EXTENSION_START_MS = Date.parse('2026-11-08T11:00:00.000Z');
 const EXTENSION_END_MS = Date.parse('2026-11-09T17:00:00.000Z');
 const COMMITTED_FREEZE_MS = Date.parse(COMMITTED_FREEZE_AT);
 

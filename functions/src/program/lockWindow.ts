@@ -12,8 +12,8 @@ export const OFFER_LAST_DAY = '2026-11-04';
 /** 11:59pm ET Nov 7. A box committed before this stays frozen even if the public lock moves. */
 export const COMMITTED_FREEZE_AT = '2026-11-08T04:59:59.000Z';
 
-/** 9am ET Sunday Nov 8. The site opens again for people who have not locked a box. */
-export const EXTENSION_START = '2026-11-08T14:00:00.000Z';
+/** 6am ET Sunday Nov 8. The site opens again for people who have not locked a box. The email still goes at 9am. */
+export const EXTENSION_START = '2026-11-08T11:00:00.000Z';
 
 /** Noon ET Monday Nov 9. The public lock moves here when the window opens, then passes. */
 export const EXTENSION_END = '2026-11-09T17:00:00.000Z';

@@ -9,7 +9,7 @@ import { NETWORK_TERMS_INTRO, NETWORK_TERMS_SECTIONS } from './unaffiliatedNetwo
 export const TERMS_COPY: LegalPageCopy = {
   eyebrow: 'Legal',
   title: 'Terms of Use and Sale',
-  lead: ['Last update posted: October 5, 2026', 'Effective: October 5, 2026'],
+  lead: ['Last update posted: November 7, 2026', 'Effective: November 7, 2026'],
   sections: [
     {
       body: [
@@ -25,15 +25,15 @@ export const TERMS_COPY: LegalPageCopy = {
         [{ body: 'a. Using Grapejuice', weight: 'semibold' }],
         'You must be 18 or older to create an account or buy from us. You are responsible for keeping your sign-in details secure and for activity on your account. For Grapejuice, our Privacy Policy at grapejuice.co/privacy explains how we handle your information.',
         [{ body: 'b. Building your box', weight: 'semibold' }],
-        'You can build and change a Hanukkah box for your family. Each season has a lock date, shown in the app; you can keep swapping items and adding extras until then. After the lock date we prepare your box and it can no longer be changed.',
+        'You can build and change a Hanukkah box for your family. Each season has a lock date, shown in the app; you can keep swapping items and adding extras until then. After the lock date we prepare your box and it can no longer be changed. From 6:00am ET on November 8, 2026 through noon ET on November 9, 2026, a box locks when you place the order and cannot be changed after that.',
         'Item suggestions, including those from Ask Rav, our AI shopping assistant, are suggestions only. They can be wrong. Please check that each item suits the children it is for, including age guidance and food allergens listed on product pages and packaging.',
         'If an item becomes unavailable before your box ships, we may replace it with a comparable item.',
         [{ body: 'c. Prices and payment', weight: 'semibold' }],
         'Prices are in US dollars and are shown when you build your box and at checkout, including any cost for additional children, add-ons or expedited shipping. Applicable taxes are added at checkout.',
-        'When you commit to a box, you save a payment card with our payment processor, Stripe, and authorize us to charge it for your box. You are not charged until your box is prepared to ship after the lock date. If the charge fails and we cannot reach you to fix it, we may not ship your box. Items bought individually through checkout are charged when you place the order.',
+        'When you commit to a box, you save a payment card with our payment processor, Stripe, and authorize us to charge it for your box. You are not charged until your box is prepared to ship after the lock date, except during the November 8–9, 2026 extension: an order placed then is charged immediately. If the charge fails and we cannot reach you to fix it, we may not ship your box. Items bought individually through checkout are charged when you place the order.',
         'We may correct pricing errors. If we find an error after you commit, we will tell you before charging and you can cancel.',
         [{ body: 'd. Canceling', weight: 'semibold' }],
-        'You can cancel a committed box at no charge any time before the lock date from Orders in your account or by emailing hello@grapejuice.co.',
+        'You can cancel a committed box at no charge any time before the lock date from Orders in your account or by emailing hello@grapejuice.co. An order placed during the November 8–9, 2026 extension is charged when you place it and cannot be canceled after that charge.',
         [{ body: 'e. Gifts and credits', weight: 'semibold' }],
         'If you buy a Grapejuice box as a gift, you pay for the box and standard shipping. The recipient can customize it until the lock date; if they choose paid extras or expedited shipping, they pay for those. Please make sure the recipient’s details and shipping address are correct.',
         'Gift balances, promotional credits and rewards (such as credit for completing a feedback survey) can only be used on Grapejuice, have no cash value, cannot be transferred or resold, and are subject to any conditions and expiration dates shown with the offer.',

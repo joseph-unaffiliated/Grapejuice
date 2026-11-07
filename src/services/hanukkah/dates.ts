@@ -1,3 +1,6 @@
+import { familyOrderOpen } from '../../constants/familyOrder';
+import { isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
+
 const HANUKKAH_NIGHTS = 8;
 const MS_PER_DAY = 86_400_000;
 
@@ -97,6 +100,9 @@ export function formatShortDate(date: Date): string {
 
 /** Subtext under payment/shipping CTAs. Lock is midnight Eastern, so format in ET or Pacific shows the day before. */
 export function editUntilLockNote(lockAt: string | null, options: { twoLines?: boolean } = {}): string {
+  if (isImmediateChargeWindow(new Date(), familyOrderOpen())) {
+    return 'Your card is charged when you place this order, and the box locks then.';
+  }
   const base = `You’ll still be able to edit your box${options.twoLines ? '\n' : ' '}until the lock date`;
   if (!lockAt) return base;
   const date = new Date(lockAt).toLocaleDateString('en-US', {

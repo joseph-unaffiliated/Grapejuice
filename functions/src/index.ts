@@ -11,6 +11,7 @@ import { sendEmail, sendDebriefReminderEmail, sendGiftConfirmReminderEmail } fro
 import { AUTO_SHIP_TAX_CENTS, unclaimedGiftShipDecision } from './giftShip';
 import { runUnclaimedGiftNotes } from './giftUnclaimed';
 import { runKosherNotices } from './kosherNotice';
+import { stopGrapejuiceAds } from './metaAdsCutoff';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
 import {
@@ -3721,6 +3722,24 @@ export const scheduledKosherNotices = onSchedule(
 );
 
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */
+/** Sunday 6:00am ET. Opens the extra day at the same time the ads resume. The hourly job is the backup. */
+export const scheduledOpenExtension = onSchedule(
+  { schedule: '0 6 * * 0', timeZone: 'America/New_York' },
+  async () => {
+    const opened = await maybeOpenExtension(db);
+    logger.info('scheduledOpenExtension', { opened });
+  }
+);
+
+/** Monday Nov 9, 11:00am ET. Pauses Grapejuice ads and disables the overnight on/off rules. */
+export const scheduledStopGrapejuiceAds = onSchedule(
+  { schedule: '0 11 * * 1', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const result = await stopGrapejuiceAds();
+    logger.info('scheduledStopGrapejuiceAds', result);
+  }
+);
+
 export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () => {
   if (!stripe) {
     logger.warn('scheduledChargePilotBoxes skipped — Stripe not configured');
