@@ -11,7 +11,7 @@ import { sendEmail, sendDebriefReminderEmail, sendGiftConfirmReminderEmail } fro
 import { AUTO_SHIP_TAX_CENTS, unclaimedGiftShipDecision } from './giftShip';
 import { runUnclaimedGiftNotes } from './giftUnclaimed';
 import { runKosherNotices } from './kosherNotice';
-import { stopGrapejuiceAds } from './metaAdsCutoff';
+import { metaAdsCutoffToken, stopGrapejuiceAds } from './metaAdsCutoff';
 import { askPilotRav, curatePilotBox } from './rav';
 import { scanBeamAgeTriggers } from './beamAgeTrigger';
 import {
@@ -3733,9 +3733,15 @@ export const scheduledOpenExtension = onSchedule(
 
 /** Monday Nov 9, 11:00am ET. Pauses Grapejuice ads and disables the overnight on/off rules. */
 export const scheduledStopGrapejuiceAds = onSchedule(
-  { schedule: '0 11 * * 1', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '256MiB' },
+  {
+    schedule: '0 11 * * 1',
+    timeZone: 'America/New_York',
+    timeoutSeconds: 540,
+    memory: '256MiB',
+    secrets: [metaAdsCutoffToken],
+  },
   async () => {
-    const result = await stopGrapejuiceAds();
+    const result = await stopGrapejuiceAds(metaAdsCutoffToken.value().trim());
     logger.info('scheduledStopGrapejuiceAds', result);
   }
 );

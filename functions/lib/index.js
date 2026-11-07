@@ -3051,8 +3051,14 @@ exports.scheduledOpenExtension = (0, sentry_1.onSchedule)({ schedule: '0 6 * * 0
     logger.info('scheduledOpenExtension', { opened });
 });
 /** Monday Nov 9, 11:00am ET. Pauses Grapejuice ads and disables the overnight on/off rules. */
-exports.scheduledStopGrapejuiceAds = (0, sentry_1.onSchedule)({ schedule: '0 11 * * 1', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '256MiB' }, async () => {
-    const result = await (0, metaAdsCutoff_1.stopGrapejuiceAds)();
+exports.scheduledStopGrapejuiceAds = (0, sentry_1.onSchedule)({
+    schedule: '0 11 * * 1',
+    timeZone: 'America/New_York',
+    timeoutSeconds: 540,
+    memory: '256MiB',
+    secrets: [metaAdsCutoff_1.metaAdsCutoffToken],
+}, async () => {
+    const result = await (0, metaAdsCutoff_1.stopGrapejuiceAds)(metaAdsCutoff_1.metaAdsCutoffToken.value().trim());
     logger.info('scheduledStopGrapejuiceAds', result);
 });
 exports.scheduledChargePilotBoxes = (0, sentry_1.onSchedule)('every 1 hours', async () => {

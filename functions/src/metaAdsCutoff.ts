@@ -3,8 +3,12 @@
  * overnight pause/resume rules so nothing comes back on Tuesday.
  */
 
+import { defineSecret } from 'firebase-functions/params';
 import * as logger from './logger';
 import { etDate } from './program/time';
+
+/** Write token for Meta Ads. Bound by the scheduled cutoff function as a secret. */
+export const metaAdsCutoffToken = defineSecret('META_ADS_ACCESS_TOKEN_ADSMANAGEMENT');
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 const ACCOUNT = 'act_1311852520406314';
@@ -22,10 +26,12 @@ async function graph(token: string, path: string, params: Record<string, string>
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function stopGrapejuiceAds(now = new Date()): Promise<{ paused: string[]; rules: string[] }> {
+export async function stopGrapejuiceAds(
+  token: string,
+  now = new Date()
+): Promise<{ paused: string[]; rules: string[] }> {
   if (etDate(now.toISOString()) !== CUTOFF_DAY) return { paused: [], rules: [] };
-  const token = process.env.META_ADS_ACCESS_TOKEN?.trim();
-  if (!token) throw new Error('META_ADS_ACCESS_TOKEN is not configured');
+  if (!token.trim()) throw new Error('META_ADS_ACCESS_TOKEN_ADSMANAGEMENT is empty');
 
   const campaigns = await graph(token, `${ACCOUNT}/campaigns`, { fields: 'name,effective_status', limit: '100' });
   const paused: string[] = [];
