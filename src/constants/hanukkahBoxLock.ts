@@ -8,10 +8,21 @@ export const HANUKKAH_BOX_LOCK_DATE = new Date('2026-11-07T23:59:59-05:00');
 export const COMMITTED_FREEZE_AT = '2026-11-08T04:59:59.000Z';
 /** 6am ET Sunday Nov 8 through noon ET Monday Nov 9. Checkout charges the card immediately. */
 const EXTENSION_START_MS = Date.parse('2026-11-08T11:00:00.000Z');
-const EXTENSION_END_MS = Date.parse('2026-11-09T17:00:00.000Z');
+/**
+ * Noon ET Monday Nov 9. Unfinished drafts stay in place until this instant.
+ * Only then are their items copied into favorites. Keep in sync with
+ * functions/src/program/lockWindow.ts EXTENSION_END.
+ */
+export const DRAFTS_RETIRE_AT = '2026-11-09T17:00:00.000Z';
+const EXTENSION_END_MS = Date.parse(DRAFTS_RETIRE_AT);
 const COMMITTED_FREEZE_MS = Date.parse(COMMITTED_FREEZE_AT);
 
 const FROZEN_ORDER = new Set(['committed', 'pending', 'confirmed', 'shipped', 'delivered']);
+
+/** Favorites copy of an unfinished box. False through the Sunday-morning reopen. */
+export function draftsRetired(now: Date = new Date()): boolean {
+  return now.getTime() >= EXTENSION_END_MS;
+}
 
 export function isImmediateChargeWindow(now: Date = new Date(), familyOpen = false): boolean {
   const t = now.getTime();

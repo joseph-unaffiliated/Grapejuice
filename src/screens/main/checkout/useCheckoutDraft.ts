@@ -6,6 +6,7 @@ import { useSession } from '../../../hooks/useSession';
 import { boxDraftService } from '../../../services/firestore/boxDraft';
 import { catalogService, peekCatalogItems } from '../../../services/firestore/catalog';
 import { childrenService } from '../../../services/firestore/children';
+import { familyOrderOpen } from '../../../constants/familyOrder';
 import { getHanukkahConfig, isBoxLocked, effectiveLockAt, peekHanukkahConfig } from '../../../services/firestore/config';
 import { liveCatalogItems } from '../../../services/catalog/liveCatalog';
 import { peekBoxDraftCache } from '../../../hooks/useBoxDraft';
@@ -31,6 +32,12 @@ export const emptyShippingAddress: ShippingAddress = {
 };
 
 const ADDRESS_STORAGE_KEY = 'gj.checkout.shippingAddress';
+
+/** Friends-and-family links stay open after the public lock, including Monday noon. */
+function checkoutSeasonLocked(config: Parameters<typeof effectiveLockAt>[0] | null): boolean {
+  if (!config || familyOrderOpen()) return false;
+  return isBoxLocked(effectiveLockAt(config, false));
+}
 
 function readStoredAddress(): ShippingAddress | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
@@ -98,7 +105,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
   );
   const [loading, setLoading] = useState(!seed.ready);
   const [locked, setLocked] = useState(() =>
-    seed.config ? isBoxLocked(effectiveLockAt(seed.config, false)) : false
+    checkoutSeasonLocked(seed.config)
   );
   const [boxPriceCents, setBoxPriceCents] = useState(() =>
     listBoxCentsForKids(Math.max(1, seed.kidCount || 1))
@@ -114,13 +121,13 @@ export function useCheckoutDraft(householdId: string | undefined) {
       setLineItems(freshSeed.lineItems);
       setCatalog(freshSeed.catalog);
       setHanukkahConfig(freshSeed.config);
-      setLocked(isBoxLocked(effectiveLockAt(freshSeed.config, false)));
+      setLocked(checkoutSeasonLocked(freshSeed.config));
       setBoxPriceCents(listBoxCentsForKids(Math.max(1, freshSeed.kidCount || 1)));
       setLoading(false);
       void getHanukkahConfig()
         .then((config) => {
           setHanukkahConfig(config);
-          setLocked(isBoxLocked(effectiveLockAt(config, false)));
+          setLocked(checkoutSeasonLocked(config));
         })
         .catch(() => undefined);
       if (isAuthenticated && userId) {
@@ -152,7 +159,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
       ? kids.length
       : guestDrafts.filter((d) => d.role !== 'adult').length;
     setBoxPriceCents(listBoxCentsForKids(Math.max(1, kidCount)));
-    setLocked(isBoxLocked(effectiveLockAt(config, false)));
+    setLocked(checkoutSeasonLocked(config));
 
     if (!isAuthenticated) {
       setLineItems(guestLineItems);
@@ -176,7 +183,7 @@ export function useCheckoutDraft(householdId: string | undefined) {
 
   useEffect(() => {
     if (!hanukkahConfig) return;
-    setLocked(isBoxLocked(effectiveLockAt(hanukkahConfig, false)));
+    setLocked(checkoutSeasonLocked(hanukkahConfig));
   }, [hanukkahConfig]);
 
   useEffect(() => {

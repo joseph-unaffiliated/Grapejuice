@@ -53,6 +53,7 @@ import {
 } from './chargePilotBox';
 import { isExtensionWindow, isHouseholdBoxFrozen } from './program/lockWindow';
 import { cancelUnpaidAfterDeadline, maybeOpenExtension, notifyBoxChargedIfAwake, runLockNotes } from './program/lockNotes';
+import { retireUnsecuredDrafts } from './program/draftArchive';
 import {
   applyPaidMarketplaceInventory,
   assertBoxLinesWithinInventory,
@@ -3723,6 +3724,15 @@ export const scheduledKosherNotices = onSchedule(
 
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */
 /** Sunday 6:00am ET. Opens the extra day at the same time the ads resume. The hourly job is the backup. */
+/** Monday noon ET. Archives unfinished boxes, then copies their items into favorites. */
+export const scheduledRetireDrafts = onSchedule(
+  { schedule: '0 12 * * 1', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB' },
+  async () => {
+    const retired = await retireUnsecuredDrafts(db);
+    logger.info('scheduledRetireDrafts', retired);
+  }
+);
+
 export const scheduledOpenExtension = onSchedule(
   { schedule: '0 6 * * 0', timeZone: 'America/New_York' },
   async () => {
@@ -3756,6 +3766,12 @@ export const scheduledChargePilotBoxes = onSchedule('every 1 hours', async () =>
   }
   await maybeOpenExtension(db);
   await runLockNotes(db);
+  try {
+    const retired = await retireUnsecuredDrafts(db);
+    logger.info('scheduledChargePilotBoxes retire drafts', retired);
+  } catch (retireErr) {
+    logger.error('retireUnsecuredDrafts failed', retireErr);
+  }
   try {
     await runSettleUnconfirmedGiftBoxes();
     await runUnclaimedGiftNotes(db);

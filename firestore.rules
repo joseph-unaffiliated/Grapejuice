@@ -199,5 +199,9 @@ service cloud.firestore {
     match /programOverrides/{personKey} {
       allow read, write: if false;
     }
+    /** Pre-lock and Monday-noon copies of unfinished boxes. Functions only. */
+    match /boxDraftArchives/{archiveId} {
+      allow read, write: if false;
+    }
   }
 }

@@ -12,6 +12,7 @@ import {
   checkoutChargeLine,
   guestBoxSecurePromoLine,
   isHouseholdBoxFrozen,
+  draftsRetired,
   isImmediateChargeWindow,
   lockShortLabel,
 } from './hanukkahBoxLock';
@@ -60,3 +61,8 @@ assert.equal(
   isHouseholdBoxFrozen({ status: 'cancelled', lockAt: FIRESTORE_LOCK_AT }, new Date('2026-11-09T17:00:00.000Z')),
   false
 );
+
+assert.equal(draftsRetired(nightOf), false);
+assert.equal(draftsRetired(new Date('2026-11-08T11:00:00.000Z')), false);
+assert.equal(draftsRetired(new Date('2026-11-09T16:59:59.000Z')), false);
+assert.equal(draftsRetired(new Date('2026-11-09T17:00:00.000Z')), true);
