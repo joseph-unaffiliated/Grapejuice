@@ -311,7 +311,7 @@ export function AdminPackingScreen() {
                 Box size: 14 × 14 × 6 is the default for boxes and gifts; 10 × 8 × 6 is for shop orders. Packages marked
                 “May need a large box” have an item over 12 in or a lot of units. Pick a bigger box if they won’t fit. Weight uses
                 catalog weights. A ~ means part of the total is estimated; a book without a weight counts as 12 oz. Click the
-                active sort again to reverse it.
+                active sort again to reverse it. Cards start closed; tap one to see its address and items.
               </Text>
               {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
               <BoxView
@@ -321,6 +321,7 @@ export function AdminPackingScreen() {
                 groupBy={groupBy}
                 sortBy={sortBy}
                 sortDir={sortDir}
+                focusPackageId={focusPackageId}
                 onToggle={toggleLine}
                 onSize={chooseSize}
               />
@@ -397,6 +398,7 @@ type BoxViewProps = {
   groupBy: GroupBy;
   sortBy: SortBy;
   sortDir: SortDir;
+  focusPackageId: string | null;
   onToggle: (pkg: PackingPackage, line: PackingLine) => void;
   onSize: (pkg: PackingPackage, size: PackingSize) => void;
 };
@@ -416,7 +418,7 @@ function sortPackages(list: PackingPackage[], sortBy: SortBy, sortDir: SortDir):
   return copy;
 }
 
-function BoxView({ styles, colors, packages, groupBy, sortBy, sortDir, onToggle, onSize }: BoxViewProps) {
+function BoxView({ styles, colors, packages, groupBy, sortBy, sortDir, focusPackageId, onToggle, onSize }: BoxViewProps) {
   if (packages.length === 0) {
     return (
       <Text style={styles.caption}>
@@ -431,7 +433,15 @@ function BoxView({ styles, colors, packages, groupBy, sortBy, sortDir, onToggle,
     return (
       <>
         {sorted.map((p) => (
-          <PackageCard key={p.id} styles={styles} colors={colors} pkg={p} onToggle={onToggle} onSize={onSize} />
+          <PackageCard
+            key={p.id}
+            styles={styles}
+            colors={colors}
+            pkg={p}
+            forceOpen={focusPackageId === p.id}
+            onToggle={onToggle}
+            onSize={onSize}
+          />
         ))}
       </>
     );
@@ -447,7 +457,15 @@ function BoxView({ styles, colors, packages, groupBy, sortBy, sortDir, onToggle,
               {PACKING_SIZE_LABEL[size]} · {group.length} {group.length === 1 ? 'package' : 'packages'}
             </Text>
             {group.map((p) => (
-              <PackageCard key={p.id} styles={styles} colors={colors} pkg={p} onToggle={onToggle} onSize={onSize} />
+              <PackageCard
+                key={p.id}
+                styles={styles}
+                colors={colors}
+                pkg={p}
+                forceOpen={focusPackageId === p.id}
+                onToggle={onToggle}
+                onSize={onSize}
+              />
             ))}
           </View>
         );
@@ -460,15 +478,21 @@ function PackageCard({
   styles,
   colors,
   pkg,
+  forceOpen,
   onToggle,
   onSize,
 }: {
   styles: Styles;
   colors: SemanticColors;
   pkg: PackingPackage;
+  forceOpen: boolean;
   onToggle: (pkg: PackingPackage, line: PackingLine) => void;
   onSize: (pkg: PackingPackage, size: PackingSize) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (forceOpen) setOpen(true);
+  }, [forceOpen]);
   const done = pkg.lines.filter((l) => l.packed).length;
   const addr = pkg.destination;
   const kidsLine = pkg.kids.length
@@ -481,26 +505,35 @@ function PackageCard({
   const weight = packageWeight(pkg);
   return (
     <View nativeID={`packing-${pkg.id}`} style={[styles.card, isDone(pkg) && styles.cardDone]}>
-      <View style={styles.cardHead}>
-        <View style={styles.badgeRow}>
-          <Text style={[styles.badge, pkg.kind === 'gift' && styles.badgeGift, pkg.kind === 'shop' && styles.badgeShop]}>
-            {KIND_LABEL[pkg.kind]}
+      <TouchableOpacity
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${open ? 'Close' : 'Open'} ${pkg.recipient ?? pkg.reference}`}
+      >
+        <View style={styles.cardHead}>
+          <View style={styles.badgeRow}>
+            <Text style={styles.chevron}>{open ? '▾' : '▸'}</Text>
+            <Text style={[styles.badge, pkg.kind === 'gift' && styles.badgeGift, pkg.kind === 'shop' && styles.badgeShop]}>
+              {KIND_LABEL[pkg.kind]}
+            </Text>
+            {pkg.test ? <Text style={styles.badgeTest}>Test</Text> : null}
+            {pkg.awaitingPayment ? <Text style={styles.badgeLarge}>Not charged yet</Text> : null}
+            {pkg.mayNeedLargeBox ? <Text style={styles.badgeLarge}>May need a large box</Text> : null}
+            <Text style={styles.reference}>{pkg.reference}</Text>
+          </View>
+          <Text style={styles.progress}>
+            {done} / {pkg.lines.length} packed
           </Text>
-          {pkg.test ? <Text style={styles.badgeTest}>Test</Text> : null}
-          {pkg.awaitingPayment ? <Text style={styles.badgeLarge}>Not charged yet</Text> : null}
-          {pkg.mayNeedLargeBox ? <Text style={styles.badgeLarge}>May need a large box</Text> : null}
-          <Text style={styles.reference}>{pkg.reference}</Text>
         </View>
-        <Text style={styles.progress}>
-          {done} / {pkg.lines.length} packed
+        <Text style={styles.recipient}>{pkg.recipient ?? pkg.email ?? 'No name on file'}</Text>
+        <Text style={styles.meta}>
+          {pkg.awaitingPayment ? `Committed ${when(pkg.paidAt)} · not charged` : `Paid ${when(pkg.paidAt)} · ${pkg.status}`}
+          {weight.oz > 0 ? ` · ${weight.estimated ? '~' : ''}${formatOz(weight.oz)}` : ''}
         </Text>
-      </View>
-      <Text style={styles.recipient}>{pkg.recipient ?? pkg.email ?? 'No name on file'}</Text>
-      <Text style={styles.meta}>
-        {pkg.awaitingPayment ? `Committed ${when(pkg.paidAt)} · not charged` : `Paid ${when(pkg.paidAt)} · ${pkg.status}`}
-        {weight.oz > 0 ? ` · ${weight.estimated ? '~' : ''}${formatOz(weight.oz)}` : ''}
-      </Text>
-
+      </TouchableOpacity>
+      {open ? (
+      <>
       <View style={styles.infoGrid}>
         <View style={styles.infoCol}>
           <Text style={styles.infoHead}>Ship to</Text>
@@ -568,6 +601,8 @@ function PackageCard({
           <LineRow key={l.key} styles={styles} line={l} onPress={() => onToggle(pkg, l)} />
         ))}
       </View>
+      </>
+      ) : null}
     </View>
   );
 }
@@ -609,6 +644,14 @@ function categoryRank(name: string): number {
 }
 
 function ProductView({ styles, packages, categories, onCategories, hideDone, onToggle, onOpenPackage }: ProductViewProps) {
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
+  const toggleOpen = (key: string) =>
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const rows = useMemo(() => {
     const byItem = new Map<
       string,
@@ -661,25 +704,34 @@ function ProductView({ styles, packages, categories, onCategories, hideDone, onT
         ))}
       </ChipRow>
       <Text style={styles.caption}>
-        Grouped by product. Pick a category to narrow the list; pick more than one to combine them. Each row is one line in
-        one package. The order number opens that box.
+        Grouped by product. Pick a category to narrow the list; pick more than one to combine them. Cards start closed; tap
+        a product to see which packages need it. The order number opens that box.
       </Text>
       {rows.length === 0 ? <Text style={styles.caption}>No items to pack here yet.</Text> : null}
       {rows.map((row) => {
         const packed = row.entries.filter((e) => e.line.packed).length;
         const units = row.entries.reduce((s, e) => s + e.line.qty, 0);
+        const open = openKeys.has(row.key);
         return (
           <View key={row.key} style={styles.card}>
-            <View style={styles.cardHead}>
-              <View style={styles.badgeRow}>
-                <Text style={styles.recipient}>{row.name}</Text>
-                <Text style={styles.tag}>{row.category}</Text>
+            <TouchableOpacity
+              onPress={() => toggleOpen(row.key)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: open }}
+              accessibilityLabel={`${open ? 'Close' : 'Open'} ${row.name}`}
+            >
+              <View style={styles.cardHead}>
+                <View style={styles.badgeRow}>
+                  <Text style={styles.chevron}>{open ? '▾' : '▸'}</Text>
+                  <Text style={styles.recipient}>{row.name}</Text>
+                  <Text style={styles.tag}>{row.category}</Text>
+                </View>
+                <Text style={styles.progress}>
+                  {units} units · {packed} / {row.entries.length} packed
+                </Text>
               </View>
-              <Text style={styles.progress}>
-                {units} units · {packed} / {row.entries.length} packed
-              </Text>
-            </View>
-            <View style={styles.lines}>
+            </TouchableOpacity>
+            {open ? <View style={styles.lines}>
               {row.entries.map(({ pkg, line }) => (
                 <View key={`${pkg.id}:${line.key}`} style={[styles.line, line.packed && styles.lineDone]}>
                   <PackCheck styles={styles} checked={line.packed} onPress={() => onToggle(pkg, line)} />
@@ -705,7 +757,7 @@ function ProductView({ styles, packages, categories, onCategories, hideDone, onT
                   </View>
                 </View>
               ))}
-            </View>
+            </View> : null}
           </View>
         );
       })}
@@ -797,6 +849,7 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
     },
     cardDone: { opacity: 0.6 },
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+    chevron: { ...typeface('medium'), fontSize: typography.sm, color: colors.goldMuted, width: 14 },
     badgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
     badge: {
       ...typeface('medium'),
