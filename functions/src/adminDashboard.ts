@@ -1251,10 +1251,10 @@ export async function buildBoxesDashboard(
   // A draft only counts as an open box when the household has no live box order.
   for (const [hid, dr] of drafts) {
     if (liveBoxHouseholds.has(hid) || !Array.isArray(dr.lineItems) || dr.lineItems.length === 0) continue;
-    // Jobs (e.g. inventory-swap) stamp updatedBy with a label, not a uid — fall back to the owner.
-    const editor = str(dr.updatedBy);
-    const editorUid = editor && users.has(editor) ? editor : null;
-    const c = customerFor(hid, editorUid);
+    // Identity is the household owner. updatedBy is whoever last saved the draft (an admin or a
+    // test login can edit a customer's box), so using it would rename the customer and hide the
+    // row as a test account.
+    const c = customerFor(hid, null);
     const defaults = defaultLinesByHousehold.get(hid) ?? null;
     const lines = linesOf(dr.lineItems, c.childNames, defaults, preWrapIds(dr.wrapSelectedItemIds));
     const addOnCents = addOnTotal(lines);
@@ -1282,8 +1282,8 @@ export async function buildBoxesDashboard(
       updatedAt: iso(dr.updatedAt),
       committedAt: null,
       attribution: null,
-      cardSession: cardSessionFor(hid, editorUid, null),
-      ...placeFor(hid, editorUid, null),
+      cardSession: cardSessionFor(hid, null, null),
+      ...placeFor(hid, null, null),
       answers: c.answers,
       kosher: c.kosher,
       kosherNote: c.kosherNote,
