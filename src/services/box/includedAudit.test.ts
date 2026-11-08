@@ -75,6 +75,19 @@ const codes = (lines: BoxLineItem[], hh: { kidKeys: string[]; adults?: number } 
   assert.deepEqual(codes(lines), []);
 }
 
+// Free book and present left on a child id that isn't on the account. They don't fill the allowance.
+{
+  const lines = [
+    ...twoKidBox(),
+    L('story-ghost', 'book-hanukkah-bear', 1, 0, { childId: 'ghost' }),
+    L('gift-ghost', 'crispy-the-latke-stuffie', 1, 0, { childId: 'ghost' }),
+  ];
+  const audit = auditIncluded(lines, catalog, twoKids);
+  assert.deepEqual(codes(lines), ['story:not-included-item', 'presents:not-included-item']);
+  assert.deepEqual(audit.sections.story, { allowed: 2, filled: 2 });
+  assert.deepEqual(audit.sections.presents, { allowed: 2, filled: 2 });
+}
+
 // Re-added book charged with the kid's slot empty → under.
 {
   const lines = twoKidBox().map((l) => (l.slotId === 'story-b' ? { ...l, unitCents: 1400 } : l));
@@ -90,10 +103,12 @@ const codes = (lines: BoxLineItem[], hh: { kidKeys: string[]; adults?: number } 
   assert.deepEqual(codes(lines), ['story:over-allowance']);
 }
 
-// A third free present for two kids.
+// A free present on a child id that isn't on the account, and two presents for one kid who is.
 {
   const lines = [...twoKidBox(), L('gift-c', 'crispy-the-latke-stuffie')];
-  assert.deepEqual(codes(lines), ['presents:over-allowance']);
+  assert.deepEqual(codes(lines), ['presents:not-included-item']);
+  const doubled = twoKidBox().map((l) => (l.slotId === 'gift-a' ? { ...l, quantity: 2 } : l));
+  assert.deepEqual(codes(doubled), ['presents:over-allowance']);
 }
 
 // Free extra unit and free add-on.
