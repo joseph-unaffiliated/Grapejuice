@@ -302,7 +302,7 @@ type Column<T> = {
   /** The row's name. Stays visible, and the column menu can't turn it off. */
   title?: boolean;
 };
-type SortState = { col: number; dir: 'asc' | 'desc' } | null;
+type SortState = { label: string; dir: 'asc' | 'desc' } | null;
 
 const isBlank = (v: React.ReactNode) => v == null || v === '' || v === '—';
 
@@ -470,15 +470,15 @@ function SortTable<T>({
   emptyMessage: string;
   /** Inside another row's detail: white phone cards, no sort chips. */
   nested?: boolean;
-  /** Column index to sort by before the user picks a header. */
-  initialSort?: { col: number; dir: 'asc' | 'desc' };
+  /** Column to sort by before the user picks a header. Matched by label so it survives the column list loading. */
+  initialSort?: { label: string; dir: 'asc' | 'desc' };
   styles: Styles;
   colors: SemanticColors;
 }) {
   const [sort, setSort] = useState<SortState>(initialSort ?? null);
   const [viewWidth, setViewWidth] = useState(0);
   const sorted = useMemo(() => {
-    const col = sort ? columns[sort.col] : undefined;
+    const col = sort ? columns.find((c) => c.label === sort.label) : undefined;
     if (!sort || !col?.sort) return rows;
     const get = col.sort;
     const sign = sort.dir === 'asc' ? 1 : -1;
@@ -495,9 +495,10 @@ function SortTable<T>({
   }, [rows, sort, columns]);
 
   const onHeader = (i: number) => {
+    const label = columns[i].label;
     const firstDir = columns[i].align === 'right' ? 'desc' : 'asc';
     setSort((prev) =>
-      prev?.col === i ? { col: i, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col: i, dir: firstDir },
+      prev?.label === label ? { label, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { label, dir: firstDir },
     );
   };
   const expandable = Boolean(renderDetail && onToggle);
@@ -518,8 +519,8 @@ function SortTable<T>({
               c.sort ? (
                 <Chip
                   key={c.label}
-                  label={`${c.label}${sort?.col === i ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`}
-                  active={sort?.col === i}
+                  label={`${c.label}${sort?.label === c.label ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`}
+                  active={sort?.label === c.label}
                   onPress={() => onHeader(i)}
                   styles={styles}
                 />
@@ -599,8 +600,8 @@ function SortTable<T>({
           <View style={[styles.dotCell, pinned, { left: 0 }]} />
           {expandable ? <View style={[styles.toggleCell, pinned, { left: 20 }]} /> : null}
           {columns.map((c, i) => {
-            const label = `${c.label}${sort?.col === i ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`;
-            const textStyle = [styles.th, c.align === 'right' && styles.right, sort?.col === i && styles.thActive];
+            const label = `${c.label}${sort?.label === c.label ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`;
+            const textStyle = [styles.th, c.align === 'right' && styles.right, sort?.label === c.label && styles.thActive];
             const style = [cellStyle(i), pinTitle && i === 0 && { left: lead }];
             return c.sort ? (
               <TouchableOpacity key={c.label} style={style} onPress={() => onHeader(i)}>
@@ -944,7 +945,7 @@ function BoxesSection({
       <SortTable<DashBox>
         columns={shownColumns ?? columns}
         rows={shownColumns ? rows : []}
-        initialSort={{ col: shownColumns?.findIndex((c) => c.label === 'Created') ?? 0, dir: 'desc' }}
+        initialSort={{ label: 'Created', dir: 'desc' }}
         rowKey={(b) => b.id}
         rowTone={(b) => {
           if (b.status === 'cancelled') return 'neutral';
