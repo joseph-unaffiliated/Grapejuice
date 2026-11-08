@@ -69,7 +69,7 @@ export function giftLandingCopy({ lockDay, arrivesBy, startsOn }: GiftLandingDat
         },
         {
           title: "What's the deadline?",
-          body: `${lockDay}, for both of you: send the gift by ${lockDay}, and they confirm where to send it by ${lockDay}.`,
+          body: `${lockDay.charAt(0).toUpperCase()}${lockDay.slice(1)}, for both of you: send the gift by ${lockDay}, and they confirm where to send it by ${lockDay}.`,
         },
         {
           title: 'Do they need to do anything?',
