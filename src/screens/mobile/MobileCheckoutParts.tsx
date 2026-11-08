@@ -17,7 +17,7 @@ import { StickyBar, STICKY_BAR_CLEARANCE } from '../../components/mobile/StickyB
 import { MobileFooterBleed, MobileFooterSpacer, MOBILE_FOOTER_TOP_GAP, mobileFooterScrollStyle } from '../../components/mobile/MobileFooter';
 import { m, mFont, mGutter, mRadius, mType, balanceProps } from '../../components/mobile/mobileTheme';
 import { familyOrderOpen } from '../../constants/familyOrder';
-import { checkoutChargeLine, isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
+import { checkoutChargeLine, isCloseLockLabel, isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { MobileCodeSignIn, CodeEntry } from '../../components/mobile/MobileCodeSignIn';
 export { CodeEntry };
@@ -238,7 +238,7 @@ export function MobileCheckoutDone({ lockShort, startsLabel, onViewBox, onShop }
     : [
         ['Today', 'Order placed. Card saved, not charged.'],
         [`Until ${lockShort}`, 'Swap, add or remove anything in My Box.'],
-        [`End of ${lockShort}`, 'Your box locks and we start packing.'],
+        [isCloseLockLabel(lockShort) ? lockShort.charAt(0).toUpperCase() + lockShort.slice(1) : `End of ${lockShort}`, 'Your box locks and we start packing.'],
         [`After ${lockShort}`, 'Your card is charged. We email you again when it ships.'],
         [startsLabel ? `Before ${startsLabel}` : 'Before the first night', 'It arrives in time for the first candle.'],
       ];

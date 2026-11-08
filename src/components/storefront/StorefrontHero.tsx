@@ -197,9 +197,9 @@ export function StorefrontHero({
   );
   const customizeDaysLine = useMemo(() => {
     if (!journey || !journeyMode) return null;
-    const { lockDays } = boxJourneyCopy(journey, now);
+    const { lockDays, lockMoment } = boxJourneyCopy(journey, now);
     if (lockDays == null) return null;
-    if (lockDays === 0) return 'Last day to customize your box';
+    if (lockMoment.includes(' at ')) return `Customize until ${lockMoment}`;
     return `${lockDays} more day${lockDays === 1 ? '' : 's'} to customize your box`;
   }, [journey, journeyMode, now]);
   const statusLine = useMemo(() => {

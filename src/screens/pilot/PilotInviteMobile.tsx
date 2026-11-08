@@ -19,7 +19,7 @@ import { PilotCardField } from './PilotCardField';
 import type { MainStackParamList } from '../../navigation/types';
 import type { PilotBoxView, PilotDates, PilotItem } from '../../services/pilot/pilotApi';
 import { formatPilotDollars } from '../../services/pilot/pilotAgreement';
-import { pilotCopy, shortDate, type PilotInviteState } from './usePilotInvite';
+import { lockWhen, pilotCopy, type PilotInviteState } from './usePilotInvite';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -162,12 +162,12 @@ function firstSentence(text: string): string {
   return (match ? match[0] : text).trim();
 }
 
-function Questions() {
+function Questions({ lockAt }: { lockAt: string | null | undefined }) {
   const [open, setOpen] = useState<readonly [string, string] | null>(null);
   return (
     <View style={styles.section}>
       <Text style={[styles.h2, styles.questionsHeading]}>Questions</Text>
-      {pilotCopy.questions.map((qa) => (
+      {pilotCopy.questions(lockAt).map((qa) => (
         <Pressable key={qa[0]} onPress={() => setOpen(qa)} accessibilityRole="button" style={styles.qRow}>
           <View style={styles.flex}>
             <Text style={styles.qTitle}>{qa[0]}</Text>
@@ -229,7 +229,7 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
     );
   }
 
-  const lock = shortDate(view.dates.lockAt, 'Nov 7');
+  const lock = lockWhen(view.dates.lockAt);
 
   if (view.state === 'sign_in') {
     const signIn = { label: 'Sign in to get started', onPress: s.signIn };
@@ -237,7 +237,7 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
       <Page>
         <Hero firstName={view.firstName} lock={lock} cta={signIn} />
         <HowItWorks dates={view.dates} totalLabel={null} />
-        <Questions />
+        <Questions lockAt={view.dates.lockAt} />
         <View style={[styles.creamBand, styles.closingBand]}>
           <Text style={[styles.h2, styles.bandHeading]}>Sign in</Text>
           <Text style={[styles.lede, styles.bandBody]}>{pilotCopy.signIn(view.maskedEmail)}</Text>
@@ -254,7 +254,7 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
     const needsCheckout = e.status === 'awaiting_checkout';
     const steps = pilotCopy.joinedDates(view.dates).map(([when, what]): [string, string] => [when, `${what[0].toUpperCase()}${what.slice(1)}.`]);
     return (
-      <MobileDoneLayout title={pilotCopy.joinedTitle(view.firstName)} lede={needsCheckout ? pilotCopy.joinedCheckout : pilotCopy.joinedEmailed(shortDate(view.dates.lockAt, 'Nov 7'))} steps={steps}>
+      <MobileDoneLayout title={pilotCopy.joinedTitle(view.firstName)} lede={needsCheckout ? pilotCopy.joinedCheckout : pilotCopy.joinedEmailed(lockWhen(view.dates.lockAt))} steps={steps}>
         <BoxSummary
           size="sm"
           title="Your picks"
@@ -274,7 +274,7 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
         ) : (
           <MobileButton label="Edit my box" onPress={() => navigation.navigate('MyBox')} style={styles.buttonTop} />
         )}
-        <Questions />
+        <Questions lockAt={view.dates.lockAt} />
       </MobileDoneLayout>
     );
   }
@@ -300,7 +300,7 @@ export function PilotInviteMobile({ s }: { s: PilotInviteState }) {
     <Page bar={bar}>
       <Hero firstName={view.firstName} lock={lock} />
       <HowItWorks dates={view.dates} totalLabel={s.totalLabel} />
-      <Questions />
+      <Questions lockAt={view.dates.lockAt} />
       <YourBox box={view.box} onBuild={() => navigation.navigate('MyBox')} />
 
       {hasBox ? (

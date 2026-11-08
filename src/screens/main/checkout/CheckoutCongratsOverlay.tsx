@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View, Platform } from 'react-native';
-import { daysToBoxLock, isImmediateChargeWindow } from '../../../constants/hanukkahBoxLock';
+import { daysToBoxLock, isCloseLockLabel, isImmediateChargeWindow, lockMomentLabel } from '../../../constants/hanukkahBoxLock';
 import { familyOrderOpen } from '../../../constants/familyOrder';
 import { semanticColors, spacing, typeface } from '../../../constants/theme';
 
@@ -10,6 +10,8 @@ export function congratsDaysLine(lockAt?: string | null, now: Date = new Date())
   if (isImmediateChargeWindow(now, familyOrderOpen())) {
     return 'Your card was charged and this box is locked.';
   }
+  const moment = lockAt ? lockMomentLabel(lockAt, now) : '';
+  if (isCloseLockLabel(moment)) return `You can still add or swap items until ${moment}`;
   const days = daysToBoxLock(now, lockAt);
   if (days <= 0) return 'You can still add or swap items in your box today';
   return `You have another ${days} ${days === 1 ? 'day' : 'days'} to add or swap items in your box`;

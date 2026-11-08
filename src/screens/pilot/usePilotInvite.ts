@@ -13,6 +13,7 @@ import { isPilotPreviewToken, pilotPreviewView, withPreviewImages } from '../../
 import { replaceBrowserPath } from '../../navigation/webBrowserHistory';
 import { revealField } from '../../utils/revealField';
 import { usePilotPayment } from './usePilotPayment';
+import { isCloseLockLabel, lockMomentLabel } from '../../constants/hanukkahBoxLock';
 
 type Route = RouteProp<MainStackParamList, 'PilotInvite'>;
 
@@ -57,6 +58,17 @@ function pageUrl(): string {
 
 export const SUPPORT_EMAIL = 'hello@grapejuice.co';
 
+/** "Nov 7", or "tonight at midnight ET" the day before and the day of. */
+export function lockWhen(value: string | null | undefined, now = new Date()): string {
+  return lockMomentLabel(value ?? null, now);
+}
+
+/** "on Nov 7", or "tonight at midnight ET" when the lock is close. */
+function chargedWhen(value: string | null | undefined, now = new Date()): string {
+  const label = lockWhen(value, now);
+  return isCloseLockLabel(label) ? label : `on ${label}`;
+}
+
 /** "Nov 7". Date-only strings are calendar days; timestamps are read in Eastern time. */
 export function shortDate(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
@@ -98,25 +110,25 @@ export const pilotCopy = {
   agreementPendingNote: 'Your picks and their value fill in once you choose three.',
   agreeLabel: 'I agree to the participant agreement',
   quoteConsent: 'Grapejuice may quote my feedback using my first name only. (optional)',
-  questions: [
+  questions: (lockAt: string | null | undefined): Array<[string, string]> => [
     [
       'When is my card charged?',
-      'Your box is charged on Nov 7. The three picks are free, and we’d only charge for them if the survey isn’t in by Jan 15.',
+      `Your box is charged ${chargedWhen(lockAt)}. The three picks are free, and we’d only charge for them if the survey isn’t in by Jan 15.`,
     ],
     ['How long is the survey?', 'Short, and it works on your phone.'],
     [
       'Can I still change my box after I join?',
-      'Yes. Add, swap or remove anything until your box locks on Nov 7, like always. Only your three free picks stay put once you join.',
+      `Yes. Add, swap or remove anything until your box locks ${chargedWhen(lockAt)}, like always. Only your three free picks stay put once you join.`,
     ],
     ['Who sees my answers?', 'Our small team. We only quote you if you said we could, and by first name only.'],
     ['Will there be any follow up after the survey?', 'Maybe. We’ll invite a few families to a paid follow-up conversation. It’s optional.'],
-  ] as Array<[string, string]>,
+  ],
   joinedTitle: (firstName: string) => `You’re in, ${firstName || 'friend'}.`,
   joinedCheckout: 'Your picks are in your box. Check out to finish, and they’ll ship with it.',
   joinedEmailed: (lock: string) =>
     `We’ve emailed you a copy. You can keep changing the rest of your box until ${lock}. Your three picks stay in it.`,
   joinedDates: (dates: PilotDates): Array<[string, string]> => [
-    [shortDate(dates.lockAt, 'Nov 7'), 'box locks and is charged'],
+    [lockWhen(dates.lockAt), 'box locks and is charged'],
     [shortDate(dates.arrivesBy, 'Nov 21'), 'box arrives'],
     ['Dec 13', 'survey arrives'],
     ['Jan 15', 'survey due'],

@@ -48,6 +48,8 @@ import { getStripePromise, prefetchSetupIntent } from '../../services/checkout/c
 import type { MainStackParamList } from '../../navigation/types';
 import type { useMyBoxEditing } from '../../hooks/useMyBoxEditing';
 import { NOT_HELD_COPY, daysUntilLock, lockShortLabel } from '../../hooks/useBoxGlance';
+import { isCloseLockLabel } from '../../constants/hanukkahBoxLock';
+import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
 import { familyOrderOpen } from '../../constants/familyOrder';
 import { BoxSummary, type BoxThumb } from '../../components/mobile/BoxSummary';
@@ -212,6 +214,7 @@ const DonatedLineRow = React.memo(function DonatedLineRow({
  * receipt, donated items.
  */
 export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
+  const now = usePreviewNow();
   const yours = gift ? 'their' : 'your';
   /** Toast actions outlive the render that created them. */
   const live = useRef(e);
@@ -260,8 +263,8 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
   const credit = Math.min(e.boxCreditCents, subtotal);
   const total = subtotal - credit;
   const priceLabel = `${gift ? 'Gift box' : 'Box'} ${formatCatalogDollars(e.boxPriceCents)}${extras ? ` + ${formatCatalogDollars(extras)}` : ''}${credit ? ` − ${formatCatalogDollars(credit)} credit` : ''}`;
-  const lockShort = lockShortLabel(e.lockAt);
-  const daysLeft = daysUntilLock(e.lockAt);
+  const lockShort = lockShortLabel(e.lockAt, now);
+  const daysLeft = isCloseLockLabel(lockShort) ? null : daysUntilLock(e.lockAt);
   const donatedValue = e.donatedItems.reduce((t, d) => t + resolveCatalogDisplayPrices(d.item).memberCents * d.missing, 0);
   /** Edits to a placed order save on their own; the button just reports it. */
   const boxCta = !e.openOrder
@@ -1172,7 +1175,7 @@ export function MyBoxMobile({ editing: e, navigation, gift }: Props) {
             to secure {yours} inventory.{' '}
             {isImmediateChargeWindow(new Date(), familyOrderOpen())
               ? 'Your card is charged when you place the order, and the box locks then.'
-              : `Continue editing ${yours} box until ${e.lockAt ? `the ${lockShort} lock date` : 'it locks'}. Your card will not be charged until the lock date.`}
+              : `Continue editing ${yours} box until ${e.lockAt ? (isCloseLockLabel(lockShort) ? lockShort : `the ${lockShort} lock date`) : 'it locks'}. Your card will not be charged until the lock date.`}
           </Text>
         ) : null}
       </View>

@@ -55,7 +55,8 @@ export function boxOnlyPdpSubcopy(
     return 'Story picks come with the box — start a box to choose yours.';
   }
   if (reason === 'cap_exhausted') {
-    const when = lockLabel ? ` after boxes lock on ${lockLabel}` : ' after boxes lock';
+    const close = Boolean(lockLabel && lockLabel.includes(' at ') && lockLabel.endsWith(' ET'));
+    const when = lockLabel ? ` after boxes lock ${close ? lockLabel : `on ${lockLabel}`}` : ' after boxes lock';
     return `More may open for direct sale${when}.`;
   }
   if (reason === 'post_lock_flag' || reason === 'post_lock_no_release') {

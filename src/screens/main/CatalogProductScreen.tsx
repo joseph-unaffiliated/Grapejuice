@@ -31,7 +31,7 @@ import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLiveBoxLocked } from '../../hooks/useLiveBoxLocked';
 import { usePublishRavSurface } from '../../hooks/usePublishRavSurface';
 import { formatCatalogDollars, buildDefaultLineItems } from '../../services/box/buildDefaultBox';
-import { boxLockChipLabel, shipWindowLabel } from '../../constants/hanukkahBoxLock';
+import { lockMomentLabel, shipWindowLabel } from '../../constants/hanukkahBoxLock';
 import {
   HANUKKAH_SHIP_WINDOW_LABEL,
   resolveCatalogDisplayPrices,
@@ -207,17 +207,7 @@ export function CatalogProductScreen() {
 
   const directOk = availability ? availabilityAllowsDirectPurchase(availability) : false;
   const directRemaining = availability ? availabilityRemaining(availability) : null;
-  const lockLabel = useMemo(() => {
-    if (!lockAt) return null;
-    try {
-      return new Date(lockAt).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      });
-    } catch {
-      return boxLockChipLabel(previewNow, lockAt);
-    }
-  }, [lockAt, previewNow]);
+  const lockLabel = useMemo(() => (lockAt ? lockMomentLabel(lockAt, previewNow) : null), [lockAt, previewNow]);
 
   useEffect(() => {
     setDetailsOpen(true);

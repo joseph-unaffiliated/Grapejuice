@@ -85,17 +85,79 @@ export function daysToBoxLock(now: Date = new Date(), lockAt?: string | null): n
   return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
+const EASTERN = 'America/New_York';
+
+type EtParts = { year: number; month: number; day: number; hour: number; minute: number };
+
+function etParts(date: Date): EtParts | null {
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EASTERN,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const pick = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const year = pick('year');
+  const month = pick('month');
+  const day = pick('day');
+  const hour = pick('hour');
+  const minute = pick('minute');
+  if ([year, month, day, hour, minute].some((n) => !Number.isFinite(n))) return null;
+  return { year, month, day, hour, minute };
+}
+
+/** Whole Eastern calendar days from `from` to `to` (negative once `to` is in the past). */
+export function etCalendarDayGap(from: Date, to: Date): number | null {
+  const a = etParts(from);
+  const b = etParts(to);
+  if (!a || !b) return null;
+  const day = (p: EtParts) => Math.round(Date.UTC(p.year, p.month - 1, p.day) / 86_400_000);
+  return day(b) - day(a);
+}
+
+function etClockPhrase(hour: number, minute: number): string {
+  if ((hour === 23 && minute >= 59) || (hour === 0 && minute === 0)) return 'midnight';
+  if (hour === 12 && minute === 0) return 'noon';
+  const h = hour % 12 || 12;
+  const suffix = hour < 12 ? 'am' : 'pm';
+  return minute === 0 ? `${h}${suffix}` : `${h}:${String(minute).padStart(2, '0')}${suffix}`;
+}
+
+/**
+ * Lock moment for customer copy.
+ * Two or more days out: `Nov 7`.
+ * The day before or the day of: `tomorrow at midnight ET`, `tonight at midnight ET`,
+ * `tomorrow at noon ET`, `today at noon ET`. 11:59pm ET reads as midnight.
+ */
+export function lockMomentLabel(lockAt: string | null | undefined, now: Date = new Date()): string {
+  if (!lockAt) return 'the lock date';
+  const lock = new Date(lockAt);
+  const parts = etParts(lock);
+  if (!parts) return 'the lock date';
+  const short = lock.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: EASTERN });
+  const gap = etCalendarDayGap(now, lock);
+  if (gap !== 0 && gap !== 1) return short;
+  const clock = etClockPhrase(parts.hour, parts.minute);
+  const when = clock === 'midnight' ? (gap === 0 ? 'tonight' : 'tomorrow') : gap === 0 ? 'today' : 'tomorrow';
+  return `${when} at ${clock} ET`;
+}
+
+/** True when the label is a relative lock moment (`tonight at midnight ET`). */
+export function isCloseLockLabel(label: string): boolean {
+  return label.includes(' at ') && label.endsWith(' ET');
+}
+
 /**
  * Short lock day in Eastern time, e.g. `Nov 7`.
+ * On the day before or the day of, a relative moment (`tonight at midnight ET`).
  * Lock is 11:59pm ET (`2026-11-08T04:59:59Z`), so UTC or a local format shows Nov 8.
  */
-export function lockShortLabel(lockAt: string | null): string {
-  if (!lockAt) return 'the lock date';
-  return new Date(lockAt).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'America/New_York',
-  });
+export function lockShortLabel(lockAt: string | null, now: Date = new Date()): string {
+  return lockMomentLabel(lockAt, now);
 }
 
 /** Account line for a credit balance. A box that's already checked out takes it when charged at lock. */
@@ -105,13 +167,14 @@ export function creditBalanceLine(creditLabel: string, placedBox: { lockAt?: str
     : `You have ${creditLabel} in credit. It comes off your next box, order or gift at checkout.`;
 }
 
-/** e.g. `Nov 7` — the lock day in the viewer's time zone. */
-export function boxLockDayLabel(lockAt?: string | null): string {
-  const lock = lockTargetDate(lockAt);
-  return `${MONTH_SHORT[lock.getMonth()]} ${lock.getDate()}`;
+/** e.g. `Nov 7`, or `tonight at midnight ET` the day before and the day of. */
+export function boxLockDayLabel(lockAt?: string | null, now: Date = new Date()): string {
+  return lockMomentLabel(lockTargetDate(lockAt).toISOString(), now);
 }
 
 export function boxLockChipLabel(now: Date = new Date(), lockAt?: string | null): string {
+  const moment = lockAt ? lockMomentLabel(lockAt, now) : null;
+  if (moment && isCloseLockLabel(moment)) return `Locks ${moment}`;
   const days = daysToBoxLock(now, lockAt);
   if (days === 0) return 'Locks today';
   return `${days}d to lock`;
@@ -229,14 +292,13 @@ export function guestBoxSecurePromoLine(
   lockAt?: string | null,
   now: Date = new Date()
 ): string {
-  const lock = lockTargetDate(lockAt);
-  const day = `${MONTH_SHORT[lock.getMonth()]} ${lock.getDate()}`;
+  const moment = lockMomentLabel(lockTargetDate(lockAt).toISOString(), now);
+  if (isCloseLockLabel(moment)) {
+    return `Create an account to secure the items in your box • Box locks ${moment}`;
+  }
   const days = daysToBoxLock(now, lockAt);
-  const relative =
-    days === 0
-      ? 'today'
-      : `${days} day${days === 1 ? '' : 's'} from today`;
-  return `Create an account to secure the items in your box • Box locks on ${day} (${relative})`;
+  const relative = days === 0 ? 'today' : `${days} day${days === 1 ? '' : 's'} from today`;
+  return `Create an account to secure the items in your box • Box locks on ${moment} (${relative})`;
 }
 
 /**

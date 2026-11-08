@@ -4,7 +4,7 @@ import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import { usePreviewNow } from '../../hooks/useUserStatePreview';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
-import { daysToBoxLock } from '../../constants/hanukkahBoxLock';
+import { etCalendarDayGap, isCloseLockLabel, lockMomentLabel } from '../../constants/hanukkahBoxLock';
 import { semanticColors, spacing, typeface, typography } from '../../constants/theme';
 
 export type BoxJourneyDates = {
@@ -131,22 +131,19 @@ export function boxJourneyCopy(journey: BoxJourneyDates, now = new Date()) {
   }
 
   const lockDate = journey.lockAt ? parseIsoDate(journey.lockAt) : null;
-  const lockDays =
-    lockDate && startOfLocalDay(lockDate).getTime() > startOfLocalDay(now).getTime()
-      ? daysToBoxLock(now, journey.lockAt)
-      : lockDate && sameLocalDay(lockDate, now)
-        ? 0
-        : null;
+  const gap = lockDate ? etCalendarDayGap(now, lockDate) : null;
+  const lockDays = gap == null || gap < 0 ? null : gap;
+  const lockMoment = journey.lockAt ? lockMomentLabel(journey.lockAt, now) : '';
   const lockLine =
     lockDays == null
-      ? lockDate && startOfLocalDay(lockDate).getTime() <= startOfLocalDay(now).getTime()
+      ? lockDate && (gap == null || gap < 0)
         ? 'Your box is started — locked.'
         : 'Your box is started — customize anytime before it locks.'
-      : lockDays === 0
-        ? 'Your box is started — locks today.'
+      : isCloseLockLabel(lockMoment)
+        ? `Your box is started — locks ${lockMoment}.`
         : `Your box is started · locks in ${lockDays} day${lockDays === 1 ? '' : 's'}`;
 
-  return { headline, lockLine, lockDays };
+  return { headline, lockLine, lockDays, lockMoment };
 }
 
 export type BoxJourneyStatusMode = 'guest_box' | 'customize' | 'needs_payment' | 'locked';
@@ -157,12 +154,12 @@ export function boxJourneyStatusLine(
   mode: BoxJourneyStatusMode,
   now = new Date()
 ): string {
-  const { lockDays } = boxJourneyCopy(journey, now);
+  const { lockDays, lockMoment } = boxJourneyCopy(journey, now);
   const lockSuffix =
     lockDays == null
       ? null
-      : lockDays === 0
-        ? 'locks today'
+      : isCloseLockLabel(lockMoment)
+        ? `locks ${lockMoment}`
         : `locks in ${lockDays} day${lockDays === 1 ? '' : 's'}`;
 
   if (mode === 'guest_box') {
@@ -234,6 +231,7 @@ export function StorefrontHeroJourneyTimeline({
         id: 'lock',
         label: 'Box Locks',
         date: lockDate,
+        dateText: journey.lockAt ? lockMomentLabel(journey.lockAt, now) : null,
         completed: !!lockDate && startOfLocalDay(lockDate).getTime() < today.getTime(),
       },
       {

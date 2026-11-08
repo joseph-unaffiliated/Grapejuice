@@ -20,9 +20,9 @@ export function useLockAt(): string | null {
   return lockAt;
 }
 
-/** Lock day label (`Nov 7`) from live config, with the built-in fallback until it loads. */
+/** Lock day label (`Nov 7`, or `tonight at midnight ET` when it's close) from live config. */
 export function useBoxLockDay(): string {
-  return boxLockDayLabel(useLockAt());
+  return boxLockDayLabel(useLockAt(), usePreviewNow());
 }
 
 /** True once the Hanukkah box lock has passed (respects the admin preview clock). */

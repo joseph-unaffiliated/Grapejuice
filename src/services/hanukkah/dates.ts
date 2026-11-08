@@ -1,5 +1,5 @@
 import { familyOrderOpen } from '../../constants/familyOrder';
-import { isImmediateChargeWindow } from '../../constants/hanukkahBoxLock';
+import { isImmediateChargeWindow, lockMomentLabel } from '../../constants/hanukkahBoxLock';
 
 const HANUKKAH_NIGHTS = 8;
 const MS_PER_DAY = 86_400_000;
@@ -98,19 +98,17 @@ export function formatShortDate(date: Date): string {
   return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-/** Subtext under payment/shipping CTAs. Lock is midnight Eastern, so format in ET or Pacific shows the day before. */
-export function editUntilLockNote(lockAt: string | null, options: { twoLines?: boolean } = {}): string {
-  if (isImmediateChargeWindow(new Date(), familyOrderOpen())) {
+/** Subtext under payment/shipping CTAs. Close locks read as a moment (`until tonight at midnight ET`). */
+export function editUntilLockNote(
+  lockAt: string | null,
+  options: { twoLines?: boolean; now?: Date } = {}
+): string {
+  const now = options.now ?? new Date();
+  if (isImmediateChargeWindow(now, familyOrderOpen())) {
     return 'Your card is charged when you place this order, and the box locks then.';
   }
-  const base = `You’ll still be able to edit your box${options.twoLines ? '\n' : ' '}until the lock date`;
-  if (!lockAt) return base;
-  const date = new Date(lockAt).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'America/New_York',
-  });
-  return `${base} (${date})`;
+  const moment = lockMomentLabel(lockAt, now);
+  return `You’ll still be able to edit your box${options.twoLines ? '\n' : ' '}until ${moment}`;
 }
 
 /** Welcome / Rav subtext — Hanukkah countdown, never Passover. */

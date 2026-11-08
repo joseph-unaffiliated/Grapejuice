@@ -657,7 +657,7 @@ function CheckoutScreenBody() {
         colors={colors}
         styles={styles}
         replacing={cardOnFile}
-        note={locked ? undefined : editUntilLockNote(lockAt)}
+        note={locked ? undefined : editUntilLockNote(lockAt, { now })}
         onSaved={() => void onCardSaved()}
       />
     </Elements>
@@ -756,7 +756,7 @@ function CheckoutScreenBody() {
         onPress={() => void startSetup(true)}
         loading={preparing || deliverability.checking}
         disabled={preparing || locked || deliverability.checking}
-        note={locked ? undefined : editUntilLockNote(lockAt)}
+        note={locked ? undefined : editUntilLockNote(lockAt, { now })}
         colors={colors}
         styles={styles}
       />
@@ -765,7 +765,7 @@ function CheckoutScreenBody() {
 
   const showingCardForm = !!setupClientSecret;
 
-  const lockShort = lockShortLabel(lockAt);
+  const lockShort = lockShortLabel(lockAt, now);
   const chargeLine = checkoutChargeLine(lockShort, now, familyOrderOpen());
   const chargeBar = checkoutChargeBar(lockShort, now, familyOrderOpen());
   if (showCongrats) {

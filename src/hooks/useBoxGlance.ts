@@ -19,6 +19,7 @@ import { formatCatalogDollars } from '../services/box/buildDefaultBox';
 import { primaryPhoto, SAMPLE_BOX_IDS } from '../components/mobile/catalogPhotos';
 import type { BoxThumb } from '../components/mobile/BoxSummary';
 import { lockShortLabel } from '../constants/hanukkahBoxLock';
+import { usePreviewNow } from './useUserStatePreview';
 
 export { lockShortLabel };
 
@@ -32,6 +33,7 @@ export function daysUntilLock(lockAt: string | null, now = Date.now()): number |
 export const NOT_HELD_COPY = "Until you add shipping and payment, your items aren't secured and may sell out.";
 
 export function useBoxGlance() {
+  const now = usePreviewNow();
   const { lineItems, children, loading: draftLoading } = useBoxDraft();
   const { items: catalog } = useCatalog();
   const { cardOnFile, openOrder, ordersLoading } = usePaymentGate();
@@ -114,7 +116,7 @@ export function useBoxGlance() {
     cardOnFile,
     openOrder,
     lockAt,
-    lockShort: lockShortLabel(lockAt),
+    lockShort: lockShortLabel(lockAt, now),
     daysLeft: daysUntilLock(lockAt),
     kidCount: children.length,
   };

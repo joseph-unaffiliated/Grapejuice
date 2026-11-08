@@ -15,7 +15,7 @@ import { borderRadius, MOBILE_GUTTER, semanticColors, spacing, typeface, typogra
 import type { MainStackParamList } from '../../navigation/types';
 import type { PilotBoxView, PilotDates, PilotItem } from '../../services/pilot/pilotApi';
 import { formatPilotDollars } from '../../services/pilot/pilotAgreement';
-import { pilotCopy, shortDate, type PilotInviteState } from './usePilotInvite';
+import { lockWhen, pilotCopy, type PilotInviteState } from './usePilotInvite';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -38,13 +38,13 @@ function node(content: React.ReactNode): StorefrontArticleBlock {
 }
 
 /** Compact FAQ: every answer starts closed so the page's last word stays the call to action. */
-function Questions() {
+function Questions({ lockAt }: { lockAt: string | null | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionHeading}>Questions</Text>
       <View style={styles.rows}>
-        {pilotCopy.questions.map(([q, a]) => {
+        {pilotCopy.questions(lockAt).map(([q, a]) => {
           const isOpen = open === q;
           return (
             <View key={q} style={styles.qaRow}>
@@ -66,8 +66,8 @@ function Questions() {
   );
 }
 
-function questionsBlock(): StorefrontArticleBlock {
-  return node(<Questions />);
+function questionsBlock(lockAt: string | null | undefined): StorefrontArticleBlock {
+  return node(<Questions lockAt={lockAt} />);
 }
 
 function Cta({ label, onPress, disabled, loading, note }: { label: string; onPress: () => void; disabled?: boolean; loading?: boolean; note?: string | null }) {
@@ -240,7 +240,7 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
         blocks={[
           stepsBlock(view.dates),
           finePrintBlock(null),
-          questionsBlock(),
+          questionsBlock(view.dates.lockAt),
           { type: 'band', heading: 'Sign in', body: pilotCopy.signIn(view.maskedEmail), cta: { label: SIGN_IN_CTA, onPress: s.signIn }, paper: true },
         ]}
       />
@@ -254,7 +254,7 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
       <StorefrontArticlePage
         {...hero}
         title={pilotCopy.joinedTitle(view.firstName)}
-        lead={needsCheckout ? pilotCopy.joinedCheckout : pilotCopy.joinedEmailed(shortDate(view.dates.lockAt, 'Nov 7'))}
+        lead={needsCheckout ? pilotCopy.joinedCheckout : pilotCopy.joinedEmailed(lockWhen(view.dates.lockAt))}
         primaryCta={
           needsCheckout
             ? { label: 'Check out', onPress: () => navigation.navigate('Checkout') }
@@ -275,14 +275,14 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
             </Section>,
           ),
           { type: 'steps', heading: 'Key dates', items: pilotCopy.joinedDates(view.dates).map(([when, what]) => ({ title: when, body: `${what[0].toUpperCase()}${what.slice(1)}` })) },
-          questionsBlock(),
+          questionsBlock(view.dates.lockAt),
         ]}
       />
     );
   }
 
   const hasBox = view.box.kind !== 'none';
-  const lock = shortDate(view.dates.lockAt, 'Nov 7');
+  const lock = lockWhen(view.dates.lockAt);
   const picker = hasBox ? (
     <>
       <View ref={s.picksRef}>
@@ -372,7 +372,7 @@ export function PilotInviteDesktop({ s }: { s: PilotInviteState }) {
       blocks={[
         stepsBlock(view.dates),
         finePrintBlock(s.totalLabel),
-        questionsBlock(),
+        questionsBlock(view.dates.lockAt),
         node(
           <>
             <YourBox box={view.box} onBuild={() => navigation.navigate('MyBox')} />
