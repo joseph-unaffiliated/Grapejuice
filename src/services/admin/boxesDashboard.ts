@@ -55,6 +55,8 @@ export type DashBox = {
   taxCents: number | null;
   creditCents: number;
   totalCents: number | null;
+  /** When the box order was placed, or the draft document was first written. */
+  createdAt: string | null;
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;

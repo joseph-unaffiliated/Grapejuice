@@ -7,6 +7,7 @@ import {
   lateCreditReapply,
   paidMarketplaceInventoryAction,
   reapplyLateCreditInTx,
+  giftInviteCoveredByOrder,
   receivedGiftOrderHoldsStock,
   reserveBoxLinesInTx,
   reserveMarketplaceInventoryInTx,
@@ -32,6 +33,12 @@ assert.equal(
   false
 );
 assert.equal(receivedGiftOrderHoldsStock({ status: 'pending' }, now), true);
+
+// An auto-shipped gift keeps its invite pending, on no household. The confirmed order
+// still covers it, so the invite must not be counted a second time.
+assert.equal(giftInviteCoveredByOrder(['hh_ship/gift_a'], 'gift_a'), true);
+assert.equal(giftInviteCoveredByOrder(['hh_other/gift_b'], 'gift_a'), false);
+assert.equal(giftInviteCoveredByOrder([], 'gift_a'), false);
 
 // Paying a storefront order: a live hold becomes sold; a hold the stale sweep released is
 // sold from stock; an already-counted order moves nothing.

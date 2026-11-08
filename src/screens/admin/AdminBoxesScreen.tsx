@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { m, mFont, mGutter } from '../../components/mobile/mobileTheme';
 import { paintOpsMobile } from './opsMobileSkin';
 import { AdminProgramTab } from './AdminProgramTab';
-import { spacing, typography, borderRadius, typeface } from '../../constants/theme';
+import { spacing, typography, borderRadius, typeface, shadows, shadowsWeb } from '../../constants/theme';
 import type { SemanticColors } from '../../constants/themeMode';
 import type { MainStackParamList } from '../../navigation/types';
 import {
@@ -299,6 +299,8 @@ type Column<T> = {
   mobileHidden?: boolean;
   /** Desktop, first column only: stop growing here (longer text truncates to one line). */
   maxWidth?: number;
+  /** The row's name. Stays visible, and the column menu can't turn it off. */
+  title?: boolean;
 };
 type SortState = { col: number; dir: 'asc' | 'desc' } | null;
 
@@ -330,6 +332,119 @@ const mobileCard = StyleSheet.create({
   sortLabel: { fontSize: 12, color: m.muted, ...mFont(400), marginRight: 2 },
 });
 
+/**
+ * Which columns a table shows, remembered per table. The first column (the title) always stays on.
+ * `null` means the choice hasn't loaded yet, so the table waits rather than flashing every column.
+ */
+/** The name column, or the first column when a table doesn't mark one. */
+function titleIndex(columns: { title?: boolean }[]): number {
+  const marked = columns.findIndex((c) => c.title);
+  return marked >= 0 ? marked : 0;
+}
+
+function useColumnVisibility(
+  storageKey: string,
+  columns: { label: string; title?: boolean }[],
+): [Set<string> | null, (next: Set<string>) => void] {
+  const [hidden, setHidden] = useState<string[] | null>(null);
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage?.getItem(storageKey) : null;
+      const parsed = raw ? JSON.parse(raw) : [];
+      setHidden(Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []);
+    } catch {
+      setHidden([]);
+    }
+  }, [storageKey]);
+  useEffect(() => {
+    if (hidden == null) return;
+    try {
+      if (typeof window !== 'undefined') window.localStorage?.setItem(storageKey, JSON.stringify(hidden));
+    } catch {
+      // Private mode: the choice lasts for this visit only.
+    }
+  }, [hidden, storageKey]);
+  const lockAt = titleIndex(columns);
+  const visible = useMemo(() => {
+    if (hidden == null) return null;
+    const hiddenSet = new Set(hidden);
+    return new Set(columns.filter((c, i) => i === lockAt || !hiddenSet.has(c.label)).map((c) => c.label));
+  }, [columns, hidden, lockAt]);
+  const setVisible = (next: Set<string>) =>
+    setHidden(columns.filter((c, i) => i !== lockAt && !next.has(c.label)).map((c) => c.label));
+  return [visible, setVisible];
+}
+
+/** Dropdown of a table's columns, each with a checkmark, plus show-all and hide-all. */
+function ColumnPicker<T>({
+  columns,
+  visible,
+  onChange,
+  styles,
+  colors,
+}: {
+  columns: Column<T>[];
+  visible: Set<string>;
+  onChange: (next: Set<string>) => void;
+  styles: Styles;
+  colors: SemanticColors;
+}) {
+  const [open, setOpen] = useState(false);
+  const lockAt = titleIndex(columns);
+  const optional = columns.filter((_, i) => i !== lockAt);
+  const shown = optional.filter((c) => visible.has(c.label)).length;
+  return (
+    <View style={styles.colPicker}>
+      <TouchableOpacity
+        style={styles.chip}
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
+        <Text style={styles.chipLabel} numberOfLines={1}>
+          {`Columns · ${shown} of ${optional.length} ${open ? '▴' : '▾'}`}
+        </Text>
+      </TouchableOpacity>
+      {open ? (
+        <View style={[styles.colMenu, { backgroundColor: colors.bgElevated, borderColor: colors.border }]}>
+          <View style={styles.colMenuActions}>
+            <TouchableOpacity onPress={() => onChange(new Set(columns.map((c) => c.label)))} hitSlop={6}>
+              <Text style={styles.colMenuAction}>Show all</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onChange(new Set([columns[lockAt].label]))} hitSlop={6}>
+              <Text style={styles.colMenuAction}>Hide all</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.colMenuList}>
+            {columns.map((c, i) => {
+              const on = visible.has(c.label);
+              return (
+                <TouchableOpacity
+                  key={c.label}
+                  style={styles.colMenuRow}
+                  disabled={i === lockAt}
+                  onPress={() => {
+                    const next = new Set(visible);
+                    if (on) next.delete(c.label);
+                    else next.add(c.label);
+                    next.add(columns[lockAt].label);
+                    onChange(next);
+                  }}
+                >
+                  <Text style={[styles.colMenuCheck, !on && styles.colMenuCheckOff]}>{on ? '✓' : ''}</Text>
+                  <Text style={[styles.colMenuLabel, i === lockAt && styles.colMenuLabelLocked]} numberOfLines={1}>
+                    {c.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /** Horizontally scrolling table; sortable headers toggle direction and empty values always sort last. */
 function SortTable<T>({
   columns,
@@ -341,6 +456,7 @@ function SortTable<T>({
   onToggle,
   emptyMessage,
   nested,
+  initialSort,
   styles,
   colors,
 }: {
@@ -354,10 +470,12 @@ function SortTable<T>({
   emptyMessage: string;
   /** Inside another row's detail: white phone cards, no sort chips. */
   nested?: boolean;
+  /** Column index to sort by before the user picks a header. */
+  initialSort?: { col: number; dir: 'asc' | 'desc' };
   styles: Styles;
   colors: SemanticColors;
 }) {
-  const [sort, setSort] = useState<SortState>(null);
+  const [sort, setSort] = useState<SortState>(initialSort ?? null);
   const [viewWidth, setViewWidth] = useState(0);
   const sorted = useMemo(() => {
     const col = sort ? columns[sort.col] : undefined;
@@ -425,11 +543,11 @@ function SortTable<T>({
               >
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                   <View style={[styles.dot, { backgroundColor: tone, marginTop: 6 }]} />
-                  <View style={{ flex: 1, minWidth: 0 }}>{renderCell(columns[0], row, styles)}</View>
+                  <View style={{ flex: 1, minWidth: 0 }}>{renderCell(columns[titleIndex(columns)], row, styles)}</View>
                   {expandable ? <Text style={styles.toggle}>{open ? '⌄' : '›'}</Text> : null}
                 </View>
                 <View style={mobileCard.pairs}>
-                  {columns.slice(1).map((c) => {
+                  {columns.filter((_, i) => i !== titleIndex(columns)).map((c) => {
                     if (c.mobileHidden) return null;
                     const v = c.cell(row);
                     if (isBlank(v)) return null;
@@ -452,18 +570,21 @@ function SortTable<T>({
 
   const pinned = [stickyFirst, styles.pinCell, { backgroundColor: nested ? colors.bgElevated : colors.bgPrimary }];
   const overflows = viewWidth > 0 && totalWidth > viewWidth;
-  const firstMax = columns[0]?.maxWidth;
+  const titleAt = titleIndex(columns);
+  const titleMax = columns[titleAt]?.maxWidth;
+  // Only the leading column can stay put while the row scrolls.
+  const pinTitle = titleAt === 0;
   const cellStyle = (i: number) =>
-    i === 0
+    i === titleAt
       ? [
-          { flexGrow: 1, flexBasis: widths[0], maxWidth: firstMax, paddingRight: spacing.xs },
-          pinned,
-          overflows && styles.pinEdge,
+          { flexGrow: 1, flexBasis: widths[titleAt], maxWidth: titleMax, paddingRight: spacing.xs },
+          pinTitle && pinned,
+          pinTitle && overflows && styles.pinEdge,
         ]
       : [
-          // A capped first column hands the spare width to the number columns instead.
-          firstMax ? { flexGrow: 1, flexBasis: widths[i] } : { width: widths[i] },
-          { paddingLeft: i === 1 && overflows ? spacing.xs : 0, paddingRight: spacing.xs },
+          // A capped title hands the spare width to the other columns instead.
+          titleMax ? { flexGrow: 1, flexBasis: widths[i] } : { width: widths[i] },
+          { paddingLeft: i === titleAt + 1 && overflows ? spacing.xs : 0, paddingRight: spacing.xs },
         ];
 
   return (
@@ -480,7 +601,7 @@ function SortTable<T>({
           {columns.map((c, i) => {
             const label = `${c.label}${sort?.col === i ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`;
             const textStyle = [styles.th, c.align === 'right' && styles.right, sort?.col === i && styles.thActive];
-            const style = [cellStyle(i), i === 0 && { left: lead }];
+            const style = [cellStyle(i), pinTitle && i === 0 && { left: lead }];
             return c.sort ? (
               <TouchableOpacity key={c.label} style={style} onPress={() => onHeader(i)}>
                 <Text style={textStyle} numberOfLines={2}>
@@ -516,7 +637,7 @@ function SortTable<T>({
                 {columns.map((c, i) => {
                   const v = c.cell(row);
                   return (
-                    <View key={c.label} style={[cellStyle(i), i === 0 && { left: lead }]}>
+                    <View key={c.label} style={[cellStyle(i), pinTitle && i === 0 && { left: lead }]}>
                       {typeof v === 'string' ? (
                         <Text style={[styles.td, c.align === 'right' && styles.right]} numberOfLines={c.maxWidth ? 1 : 2}>
                           {v}
@@ -780,9 +901,12 @@ function BoxesSection({
       cell: (b) => (b.source === 'draft' ? `${money(b.subtotalCents)} est.` : money(b.totalCents)),
       sort: (b) => (b.source === 'draft' ? b.subtotalCents : b.totalCents),
     },
+    { label: 'Created', width: 120, cell: (b) => when(b.createdAt), sort: (b) => (b.createdAt ? Date.parse(b.createdAt) : null) },
     { label: 'Last updated', width: 120, cell: (b) => when(b.updatedAt), sort: (b) => (b.updatedAt ? Date.parse(b.updatedAt) : null) },
     { label: 'Attribution', width: 140, cell: (b) => b.attribution ?? '—', sort: (b) => b.attribution },
   ];
+  const [boxColumns, setBoxColumns] = useColumnVisibility('gj.adminBoxes.columns.boxes', columns);
+  const shownColumns = boxColumns ? columns.filter((c) => boxColumns.has(c.label)) : null;
 
   return (
     <View style={styles.sectionBody}>
@@ -814,9 +938,13 @@ function BoxesSection({
         autoCapitalize="none"
         autoCorrect={false}
       />
+      {shownColumns ? (
+        <ColumnPicker columns={columns} visible={boxColumns!} onChange={setBoxColumns} styles={styles} colors={colors} />
+      ) : null}
       <SortTable<DashBox>
-        columns={columns}
-        rows={rows}
+        columns={shownColumns ?? columns}
+        rows={shownColumns ? rows : []}
+        initialSort={{ col: shownColumns?.findIndex((c) => c.label === 'Created') ?? 0, dir: 'desc' }}
         rowKey={(b) => b.id}
         rowTone={(b) => {
           if (b.status === 'cancelled') return 'neutral';
@@ -1626,14 +1754,15 @@ function InventorySection({
       label: 'Item',
       width: 240,
       maxWidth: itemMaxWidth,
+      title: true,
       cell: (i) => <CopyableItemName name={i.name} styles={styles} />,
       sort: (i) => i.name.toLowerCase(),
     },
-    { label: 'Favorited', width: 80, align: 'right', cell: (i) => dash(i.favoritesShown), sort: (i) => i.favoritesShown },
+    { label: 'Available', width: 80, align: 'right', cell: (i) => (i.remaining == null ? '—' : String(i.remaining)), sort: (i) => i.remaining },
+    { label: 'Committed', width: 85, align: 'right', cell: (i) => dash(committed(i)), sort: (i) => committed(i) },
     { label: 'On hand', width: 100, align: 'right', cell: (i) => (i.stock == null ? 'N/A' : String(i.stock)), sort: (i) => i.stock },
     { label: 'In boxes', width: 70, align: 'right', cell: (i) => dash(i.heldByBoxes), sort: (i) => i.heldByBoxes },
     { label: 'In gifts', width: 65, align: 'right', cell: (i) => dash(i.heldByGifts), sort: (i) => i.heldByGifts },
-    { label: 'Committed', width: 85, align: 'right', cell: (i) => dash(committed(i)), sort: (i) => committed(i) },
     { label: 'Procured', width: 75, align: 'right', cell: (i) => (i.procured == null ? '—' : dash(i.procured)), sort: (i) => i.procured ?? null },
     {
       label: 'To buy',
@@ -1646,7 +1775,6 @@ function InventorySection({
     { label: 'Reserved (unpaid)', width: 125, align: 'right', cell: (i) => dash(i.directReserved), sort: (i) => i.directReserved },
     { label: 'Set aside', width: 80, align: 'right', cell: (i) => (i.setAside == null ? '—' : dash(i.setAside)), sort: (i) => i.setAside ?? null },
     { label: 'Set aside for', width: 220, cell: (i) => i.setAsideFor || '—', sort: (i) => (i.setAsideFor ?? '').toLowerCase() },
-    { label: 'Available', width: 80, align: 'right', cell: (i) => (i.remaining == null ? '—' : String(i.remaining)), sort: (i) => i.remaining },
     { label: 'Shop cap', width: 75, align: 'right', cell: (i) => (i.directCap ? String(i.directCap) : '—'), sort: (i) => i.directCap ?? null },
     { label: 'Shop can sell', width: 100, align: 'right', cell: (i) => shopAvailabilityLabel(i), sort: (i) => i.shopRemaining ?? null },
     { label: 'Draft demand', width: 95, align: 'right', cell: (i) => dash(i.draftDemand), sort: (i) => i.draftDemand },
@@ -1657,7 +1785,10 @@ function InventorySection({
       cell: (i) => (i.remainingAfterDrafts == null ? '—' : String(i.remainingAfterDrafts)),
       sort: (i) => i.remainingAfterDrafts,
     },
+    { label: 'Favorited', width: 80, align: 'right', cell: (i) => dash(i.favoritesShown), sort: (i) => i.favoritesShown },
   ];
+  const [inventoryColumns, setInventoryColumns] = useColumnVisibility('gj.adminBoxes.columns.inventory', columns);
+  const shownColumns = inventoryColumns ? columns.filter((c) => inventoryColumns.has(c.label)) : null;
 
   return (
     <View style={styles.sectionBody}>
@@ -1702,23 +1833,28 @@ function InventorySection({
         autoCapitalize="none"
         autoCorrect={false}
       />
+      {shownColumns ? (
+        <ColumnPicker
+          columns={columns}
+          visible={inventoryColumns!}
+          onChange={setInventoryColumns}
+          styles={styles}
+          colors={colors}
+        />
+      ) : null}
       <SortTable<InventoryView>
-        columns={columns}
-        rows={rows}
+        columns={shownColumns ?? columns}
+        rows={shownColumns ? rows : []}
         rowKey={(i) => i.id}
         rowTone={(i) =>
-          (i.remainingAfterDrafts != null && i.remainingAfterDrafts < 0) || (i.remaining != null && i.remaining <= 0)
-            ? 'danger'
-            : i.remainingAfterDrafts != null && i.remainingAfterDrafts <= LOW_THRESHOLD
-              ? 'warning'
-              : undefined
+          i.remaining == null ? undefined : i.remaining <= 0 ? 'danger' : i.remaining <= LOW_THRESHOLD ? 'warning' : undefined
         }
         emptyMessage="No items match."
         styles={styles}
         colors={colors}
       />
       <Text style={styles.caption}>
-        {`${rows.length} of ${inventory.length} items. Click an item name to copy it. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts + sold direct. Procured = copies physically ordered (Airtable "Procured"). To buy = Committed − Procured, the copies still to order (a negative number is already ordered past what's committed; blank when Procured isn't set). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Set aside = copies kept back (personal, friends and family, promo), with the reason in Set aside for. Available = on hand − in boxes − in gifts − sold direct − reserved − set aside. Shop cap marks items the shop sells before lock (any positive Airtable number). Shop can sell = leftover stock shoppers can buy right now, on hand minus set aside, boxes, sold direct, and reserved (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red at or below zero, amber ${LOW_THRESHOLD} or fewer.`}
+        {`${rows.length} of ${inventory.length} items. Click an item name to copy it. Favorited = households with the item in their favorites (guest favorites aren't stored; test households are left out while Hide tests is on). On hand = stock from Airtable. Committed = in boxes + in gifts + sold direct. Procured = copies physically ordered (Airtable "Procured"). To buy = Committed − Procured, the copies still to order (a negative number is already ordered past what's committed; blank when Procured isn't set). Sold direct = paid shop orders. Reserved (unpaid) = shop orders not paid yet: checkouts in progress (released after 2 hours) and committed orders charged at box lock. Set aside = copies kept back (personal, friends and family, promo), with the reason in Set aside for. Available = on hand − in boxes − in gifts − sold direct − reserved − set aside. Shop cap marks items the shop sells before lock (any positive Airtable number). Shop can sell = leftover stock shoppers can buy right now, on hand minus set aside, boxes, sold direct, and reserved (box only = not sold on its own). Draft demand counts open drafts with no live order (not yet holding stock). Held quantities include test orders, since the server really reserves that stock. Untracked items have no stock ceiling. Dot: red when Available is 0 or below, amber when Available is ${LOW_THRESHOLD} or fewer.`}
       </Text>
     </View>
   );
@@ -2901,6 +3037,33 @@ function createStyles(colors: SemanticColors, isDesktop: boolean) {
       color: colors.textPrimary,
       letterSpacing: -0.22,
     },
+    colPicker: { alignSelf: 'flex-start', zIndex: 20, elevation: 20 },
+    colMenu: {
+      position: 'absolute',
+      top: 38,
+      left: 0,
+      width: 240,
+      maxHeight: 360,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: borderRadius.xl,
+      paddingVertical: spacing.xs,
+      ...(Platform.OS === 'web' ? ({ boxShadow: shadowsWeb.md } as object) : shadows.md),
+    },
+    colMenuActions: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.sm,
+      paddingBottom: spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    colMenuAction: { ...typeface('medium'), fontSize: typography.sm, color: colors.brand, letterSpacing: -0.22 },
+    colMenuList: { flexGrow: 0 },
+    colMenuRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+    colMenuCheck: { width: 16, fontSize: 14, lineHeight: 16, color: colors.textPrimary, textAlign: 'center' },
+    colMenuCheckOff: { opacity: 0 },
+    colMenuLabel: { ...typeface('regular'), flex: 1, fontSize: typography.sm, color: colors.textPrimary, letterSpacing: -0.22 },
+    colMenuLabelLocked: { color: colors.textTertiary },
     input: {
       ...typeface('regular'),
       borderWidth: StyleSheet.hairlineWidth,

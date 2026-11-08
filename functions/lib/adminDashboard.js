@@ -15,6 +15,7 @@ const guestSessions_1 = require("./guestSessions");
 const metaAdsInsights_1 = require("./metaAdsInsights");
 const testAccounts_1 = require("./testAccounts");
 const catalogAvailability_1 = require("./catalogAvailability");
+const catalogInventory_1 = require("./catalogInventory");
 const shopOrders_1 = require("./shopOrders");
 const inventoryEmails_1 = require("./inventoryEmails");
 const stripe_1 = require("./stripe");
@@ -512,7 +513,7 @@ function lineOriginVsDefault(li, defaults) {
 }
 const sessionDoc = (v) => v && typeof v === 'object' && typeof v.at === 'string' ? v : null;
 async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61;
     const [configSnap, hhSnap, ordersSnap, invitesSnap, itemsSnap, countersSnap, draftsSnap, childrenSnap, receivedSnap, guestSnap, giftFunnelSnap, inventoryEmailSnap, chatSnap,] = await Promise.all([
         db.doc(`config/${HOLIDAY_ID}`).get(),
         db.collection('households').get(),
@@ -695,10 +696,14 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         });
     }
     const drafts = new Map();
+    // Drafts never stored their own createdAt, so the document's create time is when the box began.
+    const draftCreatedAt = new Map();
     for (const d of draftsSnap.docs) {
         const hh = d.ref.parent.parent;
-        if (d.id === HOLIDAY_ID && hh && hh.parent.id === 'households')
+        if (d.id === HOLIDAY_ID && hh && hh.parent.id === 'households') {
             drafts.set(hh.id, d.data());
+            draftCreatedAt.set(hh.id, d.createTime.toDate().toISOString());
+        }
     }
     const received = new Map();
     for (const d of receivedSnap.docs) {
@@ -908,28 +913,28 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         const addOnCents = addOnTotal(lines);
         const kids = (_24 = num(o.kidCount)) !== null && _24 !== void 0 ? _24 : c.kids;
         const subtotal = num(o.subtotalCents);
-        boxes.push(Object.assign(Object.assign({ id: `${hid}/${d.id}`, source: 'order', orderId: d.id, householdId: hid, customer: c.name, email: c.email, test: c.test, kids, kidAges: c.kidAges, status: (_25 = str(o.status)) !== null && _25 !== void 0 ? _25 : 'unknown', playthrough, cardOnFile: c.cardOnFile, boxPriceCents: (_26 = num(o.boxPriceCents)) !== null && _26 !== void 0 ? _26 : (subtotal != null ? subtotal - addOnCents : priceForKids(kids)), addOnCents, subtotalCents: subtotal, shippingCents: num(o.shippingCents), taxCents: num(o.taxCents), creditCents: ((_27 = num(o.creditAppliedCents)) !== null && _27 !== void 0 ? _27 : 0) || ((_28 = num(o.giftCreditAppliedCents)) !== null && _28 !== void 0 ? _28 : 0) + ((_29 = num(o.platformCreditAppliedCents)) !== null && _29 !== void 0 ? _29 : 0), totalCents: num(o.totalCents), updatedAt: (_31 = (_30 = iso(o.updatedAt)) !== null && _30 !== void 0 ? _30 : iso(o.committedAt)) !== null && _31 !== void 0 ? _31 : iso(o.createdAt), committedAt: iso(o.committedAt), attribution: attributionLabel(o.attribution), cardSession: cardSessionFor(hid, str(o.userId), o) }, placeFor(hid, str(o.userId), locationOf(o.shippingAddress))), { answers: c.answers, kosher: c.kosher, kosherNote: c.kosherNote, note: c.note, swaps: swapsFor(hid, o.lineItems), lines }));
+        boxes.push(Object.assign(Object.assign({ id: `${hid}/${d.id}`, source: 'order', orderId: d.id, householdId: hid, customer: c.name, email: c.email, test: c.test, kids, kidAges: c.kidAges, status: (_25 = str(o.status)) !== null && _25 !== void 0 ? _25 : 'unknown', playthrough, cardOnFile: c.cardOnFile, boxPriceCents: (_26 = num(o.boxPriceCents)) !== null && _26 !== void 0 ? _26 : (subtotal != null ? subtotal - addOnCents : priceForKids(kids)), addOnCents, subtotalCents: subtotal, shippingCents: num(o.shippingCents), taxCents: num(o.taxCents), creditCents: ((_27 = num(o.creditAppliedCents)) !== null && _27 !== void 0 ? _27 : 0) || ((_28 = num(o.giftCreditAppliedCents)) !== null && _28 !== void 0 ? _28 : 0) + ((_29 = num(o.platformCreditAppliedCents)) !== null && _29 !== void 0 ? _29 : 0), totalCents: num(o.totalCents), createdAt: iso(o.createdAt), updatedAt: (_31 = (_30 = iso(o.updatedAt)) !== null && _30 !== void 0 ? _30 : iso(o.committedAt)) !== null && _31 !== void 0 ? _31 : iso(o.createdAt), committedAt: iso(o.committedAt), attribution: attributionLabel(o.attribution), cardSession: cardSessionFor(hid, str(o.userId), o) }, placeFor(hid, str(o.userId), locationOf(o.shippingAddress))), { answers: c.answers, kosher: c.kosher, kosherNote: c.kosherNote, note: c.note, swaps: swapsFor(hid, o.lineItems), lines }));
     }
     // A draft only counts as an open box when the household has no live box order.
     for (const [hid, dr] of drafts) {
         if (liveBoxHouseholds.has(hid) || !Array.isArray(dr.lineItems) || dr.lineItems.length === 0)
             continue;
-        // Jobs (e.g. inventory-swap) stamp updatedBy with a label, not a uid — fall back to the owner.
-        const editor = str(dr.updatedBy);
-        const editorUid = editor && users.has(editor) ? editor : null;
-        const c = customerFor(hid, editorUid);
+        // Identity is the household owner. updatedBy is whoever last saved the draft (an admin or a
+        // test login can edit a customer's box), so using it would rename the customer and hide the
+        // row as a test account.
+        const c = customerFor(hid, null);
         const defaults = (_32 = defaultLinesByHousehold.get(hid)) !== null && _32 !== void 0 ? _32 : null;
         const lines = linesOf(dr.lineItems, c.childNames, defaults, preWrapIds(dr.wrapSelectedItemIds));
         const addOnCents = addOnTotal(lines);
         const boxPriceCents = priceForKids(c.kids);
         boxes.push(Object.assign(Object.assign({ id: `${hid}/draft`, source: 'draft', orderId: null, householdId: hid, customer: c.name, email: c.email, test: c.test, kids: c.kids, kidAges: c.kidAges, status: 'draft', playthrough: dr.playthrough === true || ((_33 = households.get(hid)) === null || _33 === void 0 ? void 0 : _33.playthrough) === true, cardOnFile: c.cardOnFile, boxPriceCents,
-            addOnCents, subtotalCents: boxPriceCents + addOnCents, shippingCents: null, taxCents: null, creditCents: 0, totalCents: null, updatedAt: iso(dr.updatedAt), committedAt: null, attribution: null, cardSession: cardSessionFor(hid, editorUid, null) }, placeFor(hid, editorUid, null)), { answers: c.answers, kosher: c.kosher, kosherNote: c.kosherNote, note: c.note, swaps: swapsFor(hid, dr.lineItems), lines }));
+            addOnCents, subtotalCents: boxPriceCents + addOnCents, shippingCents: null, taxCents: null, creditCents: 0, totalCents: null, createdAt: (_34 = draftCreatedAt.get(hid)) !== null && _34 !== void 0 ? _34 : null, updatedAt: iso(dr.updatedAt), committedAt: null, attribution: null, cardSession: cardSessionFor(hid, null, null) }, placeFor(hid, null, null)), { answers: c.answers, kosher: c.kosher, kosherNote: c.kosherNote, note: c.note, swaps: swapsFor(hid, dr.lineItems), lines }));
     }
     const guests = buildGuestRows(guestDocs, items, priceForKids);
     const adPeople = [];
     for (const [uid, u] of users) {
         const hid = u.householdId;
-        const draftLines = hid ? (_34 = drafts.get(hid)) === null || _34 === void 0 ? void 0 : _34.lineItems : null;
+        const draftLines = hid ? (_35 = drafts.get(hid)) === null || _35 === void 0 ? void 0 : _35.lineItems : null;
         const hasBox = Boolean(hid && (liveBoxHouseholds.has(hid) || (Array.isArray(draftLines) && draftLines.length > 0)));
         adPeople.push({
             id: uid,
@@ -950,7 +955,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         const uid = str(x.convertedUid);
         if (uid && users.has(uid))
             continue;
-        const guest = (_36 = (_35 = x.snapshot) === null || _35 === void 0 ? void 0 : _35.guest) !== null && _36 !== void 0 ? _36 : {};
+        const guest = (_37 = (_36 = x.snapshot) === null || _36 === void 0 ? void 0 : _36.guest) !== null && _37 !== void 0 ? _37 : {};
         const answered = guestAnsweredSliders(guest);
         const box = Array.isArray(guest.lineItems) && guest.lineItems.length > 0;
         if (!answered && !box)
@@ -958,7 +963,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         const a = answered ? guestAnswers(guest) : NO_ANSWERS;
         adPeople.push({
             id: d.id,
-            ad: (_37 = adNameOf(x.entry)) !== null && _37 !== void 0 ? _37 : guestNonAdLabel(x.entry),
+            ad: (_38 = adNameOf(x.entry)) !== null && _38 !== void 0 ? _38 : guestNonAdLabel(x.entry),
             account: false,
             test: false,
             answered,
@@ -973,7 +978,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
     const funnelRows = [];
     for (const d of guestDocs) {
         const x = d.data();
-        const guest = (_39 = (_38 = x.snapshot) === null || _38 === void 0 ? void 0 : _38.guest) !== null && _39 !== void 0 ? _39 : {};
+        const guest = (_40 = (_39 = x.snapshot) === null || _39 === void 0 ? void 0 : _39.guest) !== null && _40 !== void 0 ? _40 : {};
         const steps = guest.stepsReached && typeof guest.stepsReached === 'object' ? guest.stepsReached : {};
         const hasLines = Array.isArray(guest.lineItems) && guest.lineItems.length > 0;
         const kids = Array.isArray(guest.childDrafts) && guest.childDrafts.length > 0;
@@ -985,13 +990,13 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         // Before the gate, guests went from the sliders straight to `building`; only email → building is the gate.
         const gateEmail = Boolean(x.gateEmailAt) || Boolean(steps.email && steps.building);
         const u = uid ? users.get(uid) : undefined;
-        const hid = (_40 = u === null || u === void 0 ? void 0 : u.householdId) !== null && _40 !== void 0 ? _40 : null;
+        const hid = (_41 = u === null || u === void 0 ? void 0 : u.householdId) !== null && _41 !== void 0 ? _41 : null;
         const h = hid ? households.get(hid) : undefined;
         funnelRows.push({
             person: {
                 id: d.id,
                 firstSeen: iso(x.createdAt),
-                ad: (_41 = adNameOf(x.entry)) !== null && _41 !== void 0 ? _41 : guestNonAdLabel(x.entry),
+                ad: (_42 = adNameOf(x.entry)) !== null && _42 !== void 0 ? _42 : guestNonAdLabel(x.entry),
                 test: u ? (0, testAccounts_1.isTest)(u.email) : false,
                 outsideUs: ipOutsideUs(x.ipGeo),
                 family: kids || Boolean(steps.details) || sliders,
@@ -1015,15 +1020,18 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         const g = d.data();
         const isBox = g.kind === 'box' || g.kind === 'credit' ? g.kind === 'box' : Array.isArray(g.lineItems) && g.lineItems.length > 0;
         const paid = g.paymentStatus === 'paid' || (g.paymentStatus == null && Boolean(g.claimEmailSentAt));
-        const hid = (_42 = str(g.claimedByHouseholdId)) !== null && _42 !== void 0 ? _42 : '';
+        const hid = (_43 = str(g.claimedByHouseholdId)) !== null && _43 !== void 0 ? _43 : '';
         const key = `${hid}/${d.id}`;
-        const rec = hid ? (_43 = received.get(key)) !== null && _43 !== void 0 ? _43 : null : null;
+        const rec = hid ? (_44 = received.get(key)) !== null && _44 !== void 0 ? _44 : null : null;
         const convertedToCredit = g.status === 'converted_to_credit' || (rec === null || rec === void 0 ? void 0 : rec.status) === 'converted_to_credit';
-        const checkoutOrders = (_44 = receivedGiftOrdersByKey.get(key)) !== null && _44 !== void 0 ? _44 : [];
+        const checkoutOrders = (_45 = receivedGiftOrdersByKey.get(key)) !== null && _45 !== void 0 ? _45 : [];
         const checkedOut = checkoutOrders.some((o) => !o.playthrough && LIVE.includes(o.status) && o.status !== 'pending');
         let holding = false;
         if (g.playthrough !== true && isBox && paid && (g.status === 'pending' || g.status === 'claimed')) {
-            if (g.status === 'pending' || !hid) {
+            if ((0, catalogInventory_1.giftInviteCoveredByOrder)(giftOrders.keys(), d.id)) {
+                // The recipient order above already holds these lines.
+            }
+            else if (g.status === 'pending' || !hid) {
                 addLines(giftHeld, g.lineItems);
                 holding = true;
             }
@@ -1034,7 +1042,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
         }
         const recipient = hid ? customerFor(hid, null) : null;
         const lineSource = Array.isArray(rec === null || rec === void 0 ? void 0 : rec.lineItems) ? rec === null || rec === void 0 ? void 0 : rec.lineItems : g.lineItems;
-        const shipTo = (_45 = locationOf(g.shippingAddress)) !== null && _45 !== void 0 ? _45 : householdLocation(hid || null);
+        const shipTo = (_46 = locationOf(g.shippingAddress)) !== null && _46 !== void 0 ? _46 : householdLocation(hid || null);
         const giverUid = str(g.giverUid);
         const giverLocation = userIpLocation(giverUid);
         gifts.push({
@@ -1042,13 +1050,13 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
             giver: str(g.giverName),
             giverEmail: str(g.giverEmail),
             recipientEmail: str(g.recipientEmail),
-            recipientName: (_46 = recipient === null || recipient === void 0 ? void 0 : recipient.name) !== null && _46 !== void 0 ? _46 : null,
-            recipientAnswers: (_47 = recipient === null || recipient === void 0 ? void 0 : recipient.answers) !== null && _47 !== void 0 ? _47 : NO_ANSWERS,
+            recipientName: (_47 = recipient === null || recipient === void 0 ? void 0 : recipient.name) !== null && _47 !== void 0 ? _47 : null,
+            recipientAnswers: (_48 = recipient === null || recipient === void 0 ? void 0 : recipient.answers) !== null && _48 !== void 0 ? _48 : NO_ANSWERS,
             kind: isBox ? 'box' : 'credit',
             amountCents: num(g.creditCents),
             paid,
-            paymentStatus: (_48 = str(g.paymentStatus)) !== null && _48 !== void 0 ? _48 : (g.claimEmailSentAt ? 'legacy-sent' : null),
-            status: convertedToCredit ? 'converted_to_credit' : (_49 = str(g.status)) !== null && _49 !== void 0 ? _49 : 'unknown',
+            paymentStatus: (_49 = str(g.paymentStatus)) !== null && _49 !== void 0 ? _49 : (g.claimEmailSentAt ? 'legacy-sent' : null),
+            status: convertedToCredit ? 'converted_to_credit' : (_50 = str(g.status)) !== null && _50 !== void 0 ? _50 : 'unknown',
             claimed: Boolean(hid) || g.status === 'claimed',
             checkedOut,
             checkoutOrders,
@@ -1060,7 +1068,7 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
             location: shipTo,
             giverLocation,
             outsideUs: giverLocation ? userIpOutsideUs(giverUid) : addressOutsideUs(shipTo),
-            lines: linesOf(lineSource, (_50 = recipient === null || recipient === void 0 ? void 0 : recipient.childNames) !== null && _50 !== void 0 ? _50 : new Map(), null, preWrapIds(g.wrapSelectedItemIds)),
+            lines: linesOf(lineSource, (_51 = recipient === null || recipient === void 0 ? void 0 : recipient.childNames) !== null && _51 !== void 0 ? _51 : new Map(), null, preWrapIds(g.wrapSelectedItemIds)),
         });
     }
     const giftFunnel = buildGiftFunnelRows(giftFunnelSnap.docs.filter((d) => !d.id.startsWith('agenttest')), guestDocs, new Map(invitesSnap.docs.map((d) => [d.id, d.data()])), (uid) => {
@@ -1074,9 +1082,9 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
             continue;
         const real = !customerFor(hid, null).test;
         for (const id of new Set(h.wishlistItemIds.filter((x) => typeof x === 'string'))) {
-            favorites.set(id, ((_51 = favorites.get(id)) !== null && _51 !== void 0 ? _51 : 0) + 1);
+            favorites.set(id, ((_52 = favorites.get(id)) !== null && _52 !== void 0 ? _52 : 0) + 1);
             if (real)
-                favoritesReal.set(id, ((_52 = favoritesReal.get(id)) !== null && _52 !== void 0 ? _52 : 0) + 1);
+                favoritesReal.set(id, ((_53 = favoritesReal.get(id)) !== null && _53 !== void 0 ? _53 : 0) + 1);
         }
     }
     const counters = new Map(countersSnap.docs.map((d) => [d.id, d.data()]));
@@ -1086,16 +1094,16 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
     const mismatches = [];
     for (const id of ids) {
         const it = items.get(id);
-        const c = (_53 = counters.get(id)) !== null && _53 !== void 0 ? _53 : {};
-        const heldByBoxes = (_54 = boxHeld.get(id)) !== null && _54 !== void 0 ? _54 : 0;
-        const heldByGifts = (_55 = giftHeld.get(id)) !== null && _55 !== void 0 ? _55 : 0;
+        const c = (_54 = counters.get(id)) !== null && _54 !== void 0 ? _54 : {};
+        const heldByBoxes = (_55 = boxHeld.get(id)) !== null && _55 !== void 0 ? _55 : 0;
+        const heldByGifts = (_56 = giftHeld.get(id)) !== null && _56 !== void 0 ? _56 : 0;
         const counterAllocated = n0(c.boxAllocatedQty);
         const directSold = n0(c.directSoldQty);
         const directReserved = n0(c.directReservedQty);
-        const stock = (_56 = it === null || it === void 0 ? void 0 : it.inventory) !== null && _56 !== void 0 ? _56 : null;
+        const stock = (_57 = it === null || it === void 0 ? void 0 : it.inventory) !== null && _57 !== void 0 ? _57 : null;
         const setAside = n0(it === null || it === void 0 ? void 0 : it.setAside);
         if (heldByBoxes + heldByGifts !== counterAllocated) {
-            mismatches.push({ id, name: (_57 = it === null || it === void 0 ? void 0 : it.name) !== null && _57 !== void 0 ? _57 : id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
+            mismatches.push({ id, name: (_58 = it === null || it === void 0 ? void 0 : it.name) !== null && _58 !== void 0 ? _58 : id, computed: heldByBoxes + heldByGifts, counter: counterAllocated });
         }
         if (!it)
             continue;
@@ -1115,19 +1123,19 @@ async function buildBoxesDashboard(db, nowMs = Date.now(), opts = {}) {
             directCap: it.directSaleCapBeforeLock,
             shopStatus: shop.status,
             shopRemaining: (0, catalogAvailability_1.availabilityRemaining)(shop),
-            favorites: (_58 = favorites.get(id)) !== null && _58 !== void 0 ? _58 : 0,
-            favoritesReal: (_59 = favoritesReal.get(id)) !== null && _59 !== void 0 ? _59 : 0,
+            favorites: (_59 = favorites.get(id)) !== null && _59 !== void 0 ? _59 : 0,
+            favoritesReal: (_60 = favoritesReal.get(id)) !== null && _60 !== void 0 ? _60 : 0,
             procured: it.procured,
         });
     }
-    boxes.sort((a, b) => { var _a, _b; return String((_a = b.updatedAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.updatedAt) !== null && _b !== void 0 ? _b : '')); });
+    boxes.sort((a, b) => { var _a, _b; return String((_a = b.createdAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.createdAt) !== null && _b !== void 0 ? _b : '')); });
     gifts.sort((a, b) => { var _a, _b; return String((_a = b.createdAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.createdAt) !== null && _b !== void 0 ? _b : '')); });
     shopOrders.sort((a, b) => { var _a, _b; return String((_a = b.createdAt) !== null && _a !== void 0 ? _a : '').localeCompare(String((_b = a.createdAt) !== null && _b !== void 0 ? _b : '')); });
     const householdsByOwner = new Map();
     for (const [hid, h] of households) {
         const owner = str(h.ownerId);
         if (owner)
-            householdsByOwner.set(owner, [...((_60 = householdsByOwner.get(owner)) !== null && _60 !== void 0 ? _60 : []), hid]);
+            householdsByOwner.set(owner, [...((_61 = householdsByOwner.get(owner)) !== null && _61 !== void 0 ? _61 : []), hid]);
     }
     const convertedUidByVisitor = new Map();
     for (const d of guestDocs) {

@@ -6,6 +6,7 @@ import { isAdminToken } from './guestSessions';
 import { metaAdsAccessToken, metaStatsByAd, type MetaAdStats } from './metaAdsInsights';
 import { isTest } from './testAccounts';
 import { resolveAvailability, availabilityRemaining } from './catalogAvailability';
+import { giftInviteCoveredByOrder } from './catalogInventory';
 import { buildShopOrder, type DashShopOrder } from './shopOrders';
 import { INVENTORY_EMAIL_LOG, inventoryEmailStats, type InventoryEmailStats } from './inventoryEmails';
 import { stripe } from './stripe';
@@ -80,6 +81,8 @@ export type DashBox = {
   taxCents: number | null;
   creditCents: number;
   totalCents: number | null;
+  /** When the box order was placed, or the draft document was first written. */
+  createdAt: string | null;
   updatedAt: string | null;
   committedAt: string | null;
   attribution: string | null;
@@ -999,9 +1002,14 @@ export async function buildBoxesDashboard(
   }
 
   const drafts = new Map<string, DocumentData>();
+  // Drafts never stored their own createdAt, so the document's create time is when the box began.
+  const draftCreatedAt = new Map<string, string>();
   for (const d of draftsSnap.docs) {
     const hh = d.ref.parent.parent;
-    if (d.id === HOLIDAY_ID && hh && hh.parent.id === 'households') drafts.set(hh.id, d.data());
+    if (d.id === HOLIDAY_ID && hh && hh.parent.id === 'households') {
+      drafts.set(hh.id, d.data());
+      draftCreatedAt.set(hh.id, d.createTime.toDate().toISOString());
+    }
   }
   const received = new Map<string, DocumentData>();
   for (const d of receivedSnap.docs) {
@@ -1234,6 +1242,7 @@ export async function buildBoxesDashboard(
       creditCents:
         (num(o.creditAppliedCents) ?? 0) || (num(o.giftCreditAppliedCents) ?? 0) + (num(o.platformCreditAppliedCents) ?? 0),
       totalCents: num(o.totalCents),
+      createdAt: iso(o.createdAt),
       updatedAt: iso(o.updatedAt) ?? iso(o.committedAt) ?? iso(o.createdAt),
       committedAt: iso(o.committedAt),
       attribution: attributionLabel(o.attribution),
@@ -1279,6 +1288,7 @@ export async function buildBoxesDashboard(
       taxCents: null,
       creditCents: 0,
       totalCents: null,
+      createdAt: draftCreatedAt.get(hid) ?? null,
       updatedAt: iso(dr.updatedAt),
       committedAt: null,
       attribution: null,
@@ -1393,7 +1403,9 @@ export async function buildBoxesDashboard(
     const checkedOut = checkoutOrders.some((o) => !o.playthrough && LIVE.includes(o.status) && o.status !== 'pending');
     let holding = false;
     if (g.playthrough !== true && isBox && paid && (g.status === 'pending' || g.status === 'claimed')) {
-      if (g.status === 'pending' || !hid) {
+      if (giftInviteCoveredByOrder(giftOrders.keys(), d.id)) {
+        // The recipient order above already holds these lines.
+      } else if (g.status === 'pending' || !hid) {
         addLines(giftHeld, g.lineItems);
         holding = true;
       } else if (!giftOrders.has(key) && rec?.status !== 'converted_to_credit') {
@@ -1499,7 +1511,7 @@ export async function buildBoxesDashboard(
       procured: it.procured,
     });
   }
-  boxes.sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
+  boxes.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
   gifts.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
   shopOrders.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
 

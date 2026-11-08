@@ -48,6 +48,18 @@ export function parseSwapNotices(raw: unknown): InventorySwapNotice[] {
   });
 }
 
+/**
+ * Fields written on a draft save. `createdAt` is included only when the draft doesn't exist yet,
+ * so a later edit never moves the date the box began.
+ */
+export function draftSaveFields(
+  now: string,
+  exists: boolean,
+  fields: Record<string, unknown>,
+): Record<string, unknown> {
+  return omitUndefined(exists ? fields : { ...fields, createdAt: now });
+}
+
 /** Firestore rejects `undefined` anywhere in a document — drop those keys. */
 function omitUndefined<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -117,7 +129,7 @@ export const boxDraftService = {
     const now = new Date().toISOString();
     const mine = lineItems.map(sanitizeLineItem) as BoxLineItem[];
     const base = extra?.base?.map(sanitizeLineItem) as BoxLineItem[] | undefined;
-    const fields = (lines: BoxLineItem[]) => omitUndefined({
+    const fields = (lines: BoxLineItem[], exists: boolean) => draftSaveFields(now, exists, {
       holidayId: HOLIDAY_ID,
       lineItems: lines,
       updatedAt: now,
@@ -131,12 +143,13 @@ export const boxDraftService = {
       wrapSelectedItemIds: extra?.wrapSelectedItemIds,
     });
     if (!base) {
-      await setDoc(ref, fields(mine), { merge: true });
+      const existing = await getDoc(ref);
+      await setDoc(ref, fields(mine, existing.exists()), { merge: true });
     } else {
       await runTransaction(db, async (tx) => {
         const current = await tx.get(ref);
         const theirs = current.exists() ? toDraft(current.data() as Record<string, unknown>).lineItems : [];
-        tx.set(ref, fields(current.exists() ? mergeBoxLines(base, mine, theirs) : mine), { merge: true });
+        tx.set(ref, fields(current.exists() ? mergeBoxLines(base, mine, theirs) : mine, current.exists()), { merge: true });
       });
     }
     const snap = await getDoc(ref);

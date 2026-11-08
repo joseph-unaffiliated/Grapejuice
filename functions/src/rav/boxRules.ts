@@ -37,6 +37,7 @@ export type DefaultSlotId =
   | 'gelt-party'
   | 'latke-mix'
   | 'sufganiyot-mix'
+  | 'cookie-cutters'
   | 'wrapping-paper'
   | 'pre-wrap';
 
@@ -269,6 +270,7 @@ const DEFAULT_SLOT_PATTERNS: Record<DefaultSlotId, RegExp[]> = {
   // Broad food tokens still match; scoring prefers mix/kit and excludes plush/stuffie.
   'latke-mix': [/latke/i, /latke-kit|latke-mix/i],
   'sufganiyot-mix': [/sufgan/i, /sufganiyot-kit|sufganiyot-mix/i],
+  'cookie-cutters': [/cookie.?cutter/i, /^dreidel-cookie-cutters$/i],
   'wrapping-paper': [/wrapping|wrap.*paper/i, /^wrapping$/],
   'pre-wrap': [/pre.?wrap|prewrap|wrap.?service/i],
 };
@@ -373,7 +375,7 @@ export const SECTION_RULES: SectionRules[] = [
     id: 'food',
     title: 'Eat & Drink',
     notes: [
-      'Always two food slots: latke kit + sufganiyot kit by default. When one kit is nearly gone its slot gets the other kit (two of one kit is fine), then a Big Bag of gelt.',
+      'Always two food slots: latke kit + sufganiyot kit by default. When the sufganiyot kit is sold out, its slot defaults to dreidel cookie cutters. When the latke kit is nearly gone its slot gets the sufganiyot kit (two of one kit is fine), then a Big Bag of gelt.',
       'Each food slot holds exactly one of: a latke kit, a sufganiyot kit, cookie cutters, one Big Bag of gelt, or three Little Bags of gelt. Each slot swaps on its own, and both may hold the same thing (two latke kits is fine).',
       'Gelt in a food slot is extra to the household gelt allowance. Swapping a food slot to Little Bags gives three; swapping back to a kit gives one.',
       'Applesauce spice mix ships inside the latke kit; there is no separate applesauce item.',
@@ -699,14 +701,19 @@ export function planCandlesDefault(
 
 /**
  * What fills each of the two food slots (latke slot, then sufganiyot slot) — always two.
- * A kit down to its swap reserve gives its slot to the other kit (two of one kit is fine),
- * then to a Big Bag of gelt; with nothing spare, whichever option has the most left.
+ * A sold-out sufganiyot kit gives its slot to dreidel cookie cutters. A latke kit down to
+ * its swap reserve gives its slot to the sufganiyot kit (two of one kit is fine), then a
+ * Big Bag of gelt; with nothing spare, whichever option has the most left.
  */
 export function planFoodDefaults(catalog: BoxRulesCatalogRow[] | undefined): DefaultSlotId[] {
   const both: DefaultSlotId[] = ['latke-mix', 'sufganiyot-mix'];
   if (!catalog?.length) return both;
   return both.map((preferred) => {
-    const order: DefaultSlotId[] = [preferred, ...both.filter((s) => s !== preferred), 'gelt-medium'];
+    const fallbacks: DefaultSlotId[] =
+      preferred === 'sufganiyot-mix'
+        ? ['cookie-cutters', ...both.filter((s) => s !== preferred), 'gelt-medium']
+        : [...both.filter((s) => s !== preferred), 'gelt-medium'];
+    const order: DefaultSlotId[] = [preferred, ...fallbacks];
     const options = order
       .map((slot) => ({ slot, row: resolveByDefaultSlot(catalog, slot) }))
       .filter((o): o is { slot: DefaultSlotId; row: BoxRulesCatalogRow } => !!o.row);
@@ -977,6 +984,7 @@ function scoreDefaultSlotCandidate(row: BoxRulesCatalogRow, slot: DefaultSlotId)
       score += 40;
     }
   }
+  if (slot === 'cookie-cutters' && row.id === 'dreidel-cookie-cutters') score += 40;
 
   if (FOOD_MIX_SLOTS.has(slot)) {
     if (MIX_OR_KIT_RE.test(h) || MIX_OR_KIT_RE.test(slotId)) score += 50;
@@ -1220,6 +1228,18 @@ export function soldOutReplacement(
       .filter((k) => k !== kind && !claimedKinds.has(k))
       .map((k) => resolveGiftKind(pool, k, kidAge));
     return bestReplacement([...sameKind, ...otherKinds]);
+  }
+
+  // A sold-out included sufganiyot kit leaves its food slot empty unless something
+  // takes it. Dreidel cookie cutters are that default, even if the other slot already has them.
+  const foodBase = line.slotId.split('::')[0];
+  const includedSufganiyot =
+    !paid &&
+    (line.itemId === 'sufganiyot-kit' || line.itemId === 'sufganiyot-mix') &&
+    (foodBase === 'latke-mix' || foodBase === 'sufganiyot-mix' || foodBase === 'food' || foodBase === 'applesauce');
+  if (includedSufganiyot) {
+    const cutters = catalog.find((r) => r.id === 'dreidel-cookie-cutters');
+    if (cutters && !isSoldOutForBoxes(cutters)) return cutters;
   }
 
   const slot = (Object.keys(DEFAULT_SLOT_PATTERNS) as DefaultSlotId[]).find(

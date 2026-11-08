@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPilotInvite = exports.enrollPilot = exports.adminPilotParticipants = exports.scheduledMetaShopInventoryPause = exports.scheduledMetaGuard = exports.scheduledProgramSnapshots = exports.scheduledPilotSurveyReminders = exports.scheduledNewsletterSuppression = exports.scheduledDraftLifecycleSunday = exports.scheduledDraftLifecycle = exports.scheduledCheckoutAbandoner = exports.scheduledBookSelloutFlips = exports.scheduledInventoryEmails = exports.applyBoxProblemFix = exports.decideBoxAuditProblem = exports.scheduledBoxAudit = exports.recordGuestBoxHistory = exports.recordBoxDraftHistory = exports.scheduledInventoryWatch = exports.scheduledFollowUpListAudience = exports.getMyInfluencerStats = exports.checkPromo = exports.awardDebriefCredit = exports.adminPromotions = exports.unaffiliatedVisit = exports.retentionLead = exports.validateShippingAddress = exports.redeemLoginCode = exports.requestLoginCode = exports.redeemLoginLink = exports.requestLoginLink = exports.signInGiftGiver = exports.revealBoxWithEmail = exports.resumePilotGiftPayment = exports.cancelPilotGift = exports.restorePilotBoxOrder = exports.recordCheckoutStep = exports.recordGiftStep = exports.scheduledPurgeGuestSessions = exports.deleteGuestDataByEmail = exports.resumeGuestSession = exports.noteVisitorRegion = exports.markGuestSessionConverted = exports.saveGuestSessionBeacon = exports.saveGuestSession = exports.sendWelcomeOnSignup = exports.scanBeamAgeTriggers = exports.curatePilotBox = exports.askPilotRav = exports.scheduledBoxesDashboard = void 0;
-exports.syncAirtableCatalog = exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledStopGrapejuiceAds = exports.scheduledOpenExtension = exports.scheduledKosherNotices = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.setAdminPackingState = exports.getAdminPacking = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = exports.healPilotDraftLines = void 0;
-exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = void 0;
+exports.recomputeCatalogBoxAllocations = exports.scheduledReleaseStaleMarketplaceReservations = exports.scheduledChargePilotBoxes = exports.scheduledStopGrapejuiceAds = exports.scheduledOpenExtension = exports.scheduledRetireDrafts = exports.scheduledKosherNotices = exports.scheduledPilotAutoInvites = exports.scheduledSetupNudges = exports.scheduledGiftConfirmReminders = exports.scheduledLockReminders = exports.scheduledDebriefReminders = exports.sendDebriefReminders = exports.reopenReceivedGiftBox = exports.acceptReceivedGiftBox = exports.convertReceivedGiftToCredit = exports.createReceivedGiftCheckout = exports.updateReceivedGiftLineItems = exports.markReceivedGiftViewed = exports.listMyReceivedGifts = exports.claimGiftInvite = exports.peekGiftInvite = exports.listMyGiftInvites = exports.trackMetaEvent = exports.finalizePilotGiftPayment = exports.purchasePilotGift = exports.shipStationWebhook = exports.writeOrderTracking = exports.acceptPartnerInvite = exports.listPartnerInvites = exports.createPartnerInvite = exports.stripeWebhook = exports.chargePilotBoxOrder = exports.cancelPilotBoxOrder = exports.updatePilotBoxOrder = exports.commitPilotBox = exports.createPilotSetupIntent = exports.claimMarketplaceCheckoutSignIn = exports.payMarketplaceOrderWithSavedCard = exports.getSavedCardSummary = exports.createMarketplaceCheckout = exports.createPilotCheckout = exports.adminProgramTrackOverride = exports.adminProgramPerson = exports.getAdminProgramDashboard = exports.setAdminPackingState = exports.getAdminPacking = exports.getAdminBoxesDashboard = exports.sendPilotJoinedEmail = exports.healPilotDraftLines = void 0;
+exports.requestBoxDiscountCode = exports.scheduledAirtableCatalogSync = exports.backfillCatalogThumbsHttp = exports.syncAirtableCatalog = void 0;
 const crypto_1 = require("crypto");
 const logger = require("./logger");
 const testAccounts_1 = require("./testAccounts");
@@ -35,6 +35,7 @@ const catalogThumbs_1 = require("./catalogThumbs");
 const chargePilotBox_1 = require("./chargePilotBox");
 const lockWindow_1 = require("./program/lockWindow");
 const lockNotes_1 = require("./program/lockNotes");
+const draftArchive_1 = require("./program/draftArchive");
 const catalogInventory_1 = require("./catalogInventory");
 const metaCapi_1 = require("./metaCapi");
 const crypto_2 = require("crypto");
@@ -3046,6 +3047,11 @@ exports.scheduledKosherNotices = (0, sentry_1.onSchedule)({ schedule: 'every 1 h
 });
 /** Charge committed Hanukkah box orders once lockAt has passed (final draft totals). */
 /** Sunday 6:00am ET. Opens the extra day at the same time the ads resume. The hourly job is the backup. */
+/** Monday noon ET. Archives unfinished boxes, then copies their items into favorites. */
+exports.scheduledRetireDrafts = (0, sentry_1.onSchedule)({ schedule: '0 12 * * 1', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB' }, async () => {
+    const retired = await (0, draftArchive_1.retireUnsecuredDrafts)(db);
+    logger.info('scheduledRetireDrafts', retired);
+});
 exports.scheduledOpenExtension = (0, sentry_1.onSchedule)({ schedule: '0 6 * * 0', timeZone: 'America/New_York' }, async () => {
     const opened = await (0, lockNotes_1.maybeOpenExtension)(db);
     logger.info('scheduledOpenExtension', { opened });
@@ -3072,6 +3078,13 @@ exports.scheduledChargePilotBoxes = (0, sentry_1.onSchedule)('every 1 hours', as
     }
     await (0, lockNotes_1.maybeOpenExtension)(db);
     await (0, lockNotes_1.runLockNotes)(db);
+    try {
+        const retired = await (0, draftArchive_1.retireUnsecuredDrafts)(db);
+        logger.info('scheduledChargePilotBoxes retire drafts', retired);
+    }
+    catch (retireErr) {
+        logger.error('retireUnsecuredDrafts failed', retireErr);
+    }
     try {
         await runSettleUnconfirmedGiftBoxes();
         await (0, giftUnclaimed_1.runUnclaimedGiftNotes)(db);

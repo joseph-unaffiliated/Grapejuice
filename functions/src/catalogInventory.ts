@@ -453,6 +453,19 @@ export function receivedGiftKey(householdId: string, giftInviteId: string): stri
 }
 
 /**
+ * A live recipient order already holds this gift. The order can sit on a household
+ * the invite doesn't name (an auto-shipped gift stays "pending"), so match the invite
+ * id, not the household.
+ */
+export function giftInviteCoveredByOrder(orderKeys: Iterable<string>, inviteId: string): boolean {
+  const suffix = `/${inviteId}`;
+  for (const key of orderKeys) {
+    if (key === inviteId || key.endsWith(suffix)) return true;
+  }
+  return false;
+}
+
+/**
  * Lines one received gift currently holds in boxAllocatedQty: its latest live checkout
  * order, else the gift box itself. Pass as creditLines when re-checking that gift.
  */
@@ -491,8 +504,9 @@ function isPaidGiftInvite(invite: FirebaseFirestore.DocumentData): boolean {
 }
 
 /**
- * Paid gift boxes hold their lines from purchase until the recipient checks out
- * (then the received_gift order holds them) or converts the gift to credit.
+ * Paid gift boxes hold their lines from purchase until a live recipient order
+ * holds them (checkout or auto-ship) or the gift converts to credit. An invite
+ * that is still pending is not counted again once that order exists.
  */
 async function addOutstandingGiftBoxes(
   db: Firestore,
@@ -509,6 +523,8 @@ async function addOutstandingGiftBoxes(
     const householdId =
       typeof invite.claimedByHouseholdId === 'string' ? invite.claimedByHouseholdId : '';
     if (invite.status !== 'pending' && invite.status !== 'claimed') continue;
+    // Auto-ship leaves the invite pending while a confirmed order already holds the lines.
+    if (giftInviteCoveredByOrder(checkedOut, doc.id)) continue;
     if (invite.status === 'pending' || !householdId) {
       addLines(totals, invite.lineItems);
       held += 1;

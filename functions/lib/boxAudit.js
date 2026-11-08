@@ -189,6 +189,22 @@ function auditIncluded(lineItems, catalog, household, opts = {}) {
             });
             continue;
         }
+        // A free book or present for a child id that isn't on the account. Left behind when the
+        // family changed and the box was kept as-is. Don't let it fill a current kid's allowance.
+        if ((base === 'story' || base === 'gift') && (!kid || !kidKeys.includes(kid))) {
+            problems.push({
+                code: 'not-included-item',
+                section: base === 'story' ? 'story' : 'presents',
+                direction: 'over',
+                slotId: li.slotId,
+                itemId: li.itemId,
+                childKey: kid,
+                detail: base === 'story'
+                    ? `${li.itemId} is a free book for a child who isn't on this account`
+                    : `${li.itemId} is a free present for a child who isn't on this account`,
+            });
+            continue;
+        }
         freeBaseSlots.add(slotKey);
         if (base === 'story') {
             const key = kid !== null && kid !== void 0 ? kid : '?';

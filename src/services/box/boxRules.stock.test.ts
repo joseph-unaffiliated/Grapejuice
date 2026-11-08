@@ -135,6 +135,11 @@ function catalog(stockLeft: Record<string, number> = {}): BoxRulesCatalogRow[] {
   const withGelt = [...catalog({ 'latke-kit': 1, 'sufganiyot-kit': 1 }), row('big-bag-of-gelt', 'Big Bag of Gelt (5 big, 20 little)', 200, { defaultSlot: 'gelt-medium' })];
   assert.deepEqual(planFoodDefaults(withGelt), ['gelt-medium', 'gelt-medium']);
   assert.equal(planFoodDefaults(catalog({ 'latke-kit': 0, 'sufganiyot-kit': 0 })).length, 2);
+  const soldOutSuf = [
+    ...catalog({ 'sufganiyot-kit': 0 }),
+    row('dreidel-cookie-cutters', 'Dreidel Cookie Cutters', 200),
+  ];
+  assert.deepEqual(planFoodDefaults(soldOutSuf), ['latke-mix', 'cookie-cutters']);
 }
 
 console.log('boxRules stock tests passed');

@@ -237,4 +237,26 @@ const bookShelf = (over: Record<string, Partial<BoxRulesCatalogRow>> = {}) =>
   assert.deepEqual(swaps, [{ fromItemId: 'book-tracked-gone', toItemId: null }]);
 }
 
+// Sold-out included sufganiyot kit → dreidel cookie cutters in the same food slot.
+{
+  const c = [
+    ...catalog({ 'sufganiyot-kit': { stockLeft: 0 } }),
+    row('dreidel-cookie-cutters', 'Dreidel Cookie Cutters', 200),
+  ];
+  const lines = [
+    { slotId: 'latke-mix', itemId: 'latke-kit', quantity: 1, unitCents: 0 },
+    { slotId: 'sufganiyot-mix', itemId: 'sufganiyot-kit', quantity: 1, unitCents: 0, label: 'Sufganiyot Kit' },
+  ];
+  const { lines: out, swaps } = swapSoldOutLines(lines, c);
+  assert.deepEqual(swaps, [{ fromItemId: 'sufganiyot-kit', toItemId: 'dreidel-cookie-cutters' }]);
+  assert.equal(out[1].itemId, 'dreidel-cookie-cutters');
+  assert.equal(out[1].slotId, 'sufganiyot-mix');
+  assert.equal(out[1].label, 'Dreidel Cookie Cutters');
+  const paid = swapSoldOutLines(
+    [{ slotId: 'addon-sufganiyot-kit', itemId: 'sufganiyot-kit', quantity: 1, unitCents: 1800 }],
+    c
+  );
+  assert.equal(paid.lines.length, 0);
+}
+
 console.log('boxRules sold-out tests passed');
