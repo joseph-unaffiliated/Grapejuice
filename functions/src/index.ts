@@ -106,6 +106,7 @@ export {
 export { recordGiftStep } from './giftFunnel';
 export { recordCheckoutStep } from './checkoutFunnel';
 export { restorePilotBoxOrder } from './orderRestore';
+export { processBoxAdjustment } from './boxAdjustment';
 export { cancelPilotGift, resumePilotGiftPayment } from './pendingGift';
 export { revealBoxWithEmail, signInGiftGiver, requestLoginLink, redeemLoginLink, requestLoginCode, redeemLoginCode } from './loginLinks';
 import {

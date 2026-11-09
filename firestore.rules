@@ -203,5 +203,9 @@ service cloud.firestore {
     match /boxDraftArchives/{archiveId} {
       allow read, write: if false;
     }
+    /** Post-charge box changes requested by ops (functions/src/boxAdjustment.ts). Functions only. */
+    match /boxAdjustments/{adjustmentId} {
+      allow read, write: if false;
+    }
   }
 }
