@@ -612,7 +612,7 @@ export function AdminControlPanel() {
                   <View style={styles.rowCopy}>
                     <Text style={styles.rowLabel}>Clear family-order unlock</Text>
                     <Text style={styles.rowDesc}>
-                      This browser visited /d/order — keeps customize open after lock. Clear to match normal shoppers.
+                      This browser visited /d/order — keeps customize open after lock. Clear here, or open /d/clear-family on mobile.
                     </Text>
                   </View>
                 </TouchableOpacity>

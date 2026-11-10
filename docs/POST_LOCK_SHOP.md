@@ -6,7 +6,7 @@ After box lock until the last night of Hanukkah, the storefront runs in **`shop`
 
 - Cold shoppers: countdown hero, Browse CTA (no Build my box), Passover pre-register strip, FBA-in-stock rails, empty nav categories hidden
 - Box holders: locked journey hero + Browse + View order/Track; Orders via nav / cart button
-- Family link `/d/order/<token>`: unchanged pre-lock box build (never forced into shop)
+- Family link `/d/order/<token>`: unchanged pre-lock box build (never forced into shop). Clear this device with `/d/clear-family` (also `/d/remove-friends-and-family`), or Admin panel → Clear family-order unlock.
 - Abandoned drafts: first shop visit merges line items into favorites (draft + history kept)
 - Marketplace shipping: UPS Ground weight tiers + Airtable FBA fee → “Shipping & fulfillment”
 - No “Arrives by Nov 21” / arrives-in-time-for-Hanukkah copy on PDP, cart, or checkout
