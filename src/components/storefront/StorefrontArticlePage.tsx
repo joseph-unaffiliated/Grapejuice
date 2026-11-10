@@ -27,6 +27,8 @@ import { StorefrontPaperCardShell } from './StorefrontPaperCardShell';
 import { HorizontalDragScrollView } from '../home/HorizontalDragScrollView';
 import { HORIZONTAL_RAIL_DRAGGING_CLASS } from '../../hooks/useDragToScrollWeb';
 import { STOREFRONT_HOME_AISLE_CARDS } from '../../constants/landingAudiences';
+import { storefrontBuildBoxStripCopy } from '../../constants/storefrontBuildBoxStripCopy';
+import { PASSOVER_NOTIFY_INTEREST } from '../../constants/pilotHolidays';
 import {
   borderRadius,
   LAYOUT,
@@ -38,6 +40,9 @@ import {
 } from '../../constants/theme';
 import { preventWidow } from '../../utils/typography';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { useStorefrontInterest } from '../../hooks/useStorefrontInterest';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { balanceProps, m, mFont, mGutter, mRadius, mType } from '../mobile/mobileTheme';
 import { MobileButton } from '../mobile/MobileButton';
 import { MobilePromoCard } from '../mobile/MobilePromoCard';
@@ -1566,6 +1571,39 @@ export function StorefrontArticlePage({
   const kit = mobileKit && mobileLayout;
   const mediumPrimary = primaryCtaSize === 'medium';
   const largePrimary = primaryCtaSize === 'large';
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const homeMode = useStorefrontHomeMode(lockAt, startsOn);
+  const passoverInterest = useStorefrontInterest(PASSOVER_NOTIFY_INTEREST);
+  /**
+   * How-to / content pages stay on the build-a-box strip through shop (lock → last
+   * night of Hanukkah). Passover strip only after the season closes, unless the
+   * screen overrides (e.g. Our Story).
+   */
+  const seasonClosedStrip =
+    homeMode === 'passover'
+      ? storefrontBuildBoxStripCopy(homeMode, passoverInterest.marked)
+      : null;
+  const resolvedStripHeadline = buildBoxHeadline ?? seasonClosedStrip?.headline;
+  const resolvedStripBody = buildBoxBody ?? seasonClosedStrip?.body;
+  const resolvedStripCta = buildBoxCtaLabel ?? seasonClosedStrip?.ctaLabel;
+  const resolvedStripBg = buildBoxBackgroundSource ?? seasonClosedStrip?.backgroundSource;
+  const resolvedStripOnPress =
+    buildBoxOnPress ?? (seasonClosedStrip ? passoverInterest.toggle : startBox);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <ArticleKitContext.Provider value={kit}>
@@ -1681,11 +1719,11 @@ export function StorefrontArticlePage({
         {showFooterStrips ? (
           <View style={styles.footerStrips}>
             <StorefrontBuildBoxStrip
-              onPress={buildBoxOnPress ?? startBox}
-              headline={buildBoxHeadline}
-              body={buildBoxBody}
-              ctaLabel={buildBoxCtaLabel}
-              backgroundSource={buildBoxBackgroundSource}
+              onPress={resolvedStripOnPress}
+              headline={resolvedStripHeadline}
+              body={resolvedStripBody}
+              ctaLabel={resolvedStripCta}
+              backgroundSource={resolvedStripBg}
               variant="content"
             />
             <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} mobileKit={kit} />

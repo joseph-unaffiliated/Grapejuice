@@ -38,6 +38,11 @@ type Props = {
   status?: TileStatus;
   /** Button under the price ("Add to my box", "View my box"). */
   action?: { label: string; onPress: () => void; variant?: 'primary' | 'secondary' };
+  /**
+   * Show a disabled “Sold out” CTA under sold tiles. Only use when sibling tiles
+   * also show an action (e.g. Add to my box / Add to cart) — home browse rails omit it.
+   */
+  showSoldOutCta?: boolean;
   /** Hide the price line (box pitch, home top picks keep it). */
   hidePrice?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -47,7 +52,16 @@ type Props = {
  * Product tile for the phone layouts: main product photo, the site's favorite heart as a
  * white outline (filled once saved), name, price, and the item's relationship to your box.
  */
-export function ProductTileMobile({ item, width, onPress, status = null, action, hidePrice, style }: Props) {
+export function ProductTileMobile({
+  item,
+  width,
+  onPress,
+  status = null,
+  action,
+  showSoldOutCta = false,
+  hidePrice,
+  style,
+}: Props) {
   const { isWishlisted, toggleWishlist } = useWishlist();
   const saved = isWishlisted(item.id);
   const { memberCents, nonMemberCents } = resolveCatalogDisplayPrices(item);
@@ -93,9 +107,9 @@ export function ProductTileMobile({ item, width, onPress, status = null, action,
           <Text style={styles.price}>{formatCatalogDollars(price)}</Text>
         ) : null}
       </Pressable>
-      {sold ? (
+      {sold && showSoldOutCta ? (
         <MobileButton label="Sold out" onPress={() => {}} variant="secondary" disabled height={38} style={styles.action} />
-      ) : action ? (
+      ) : !sold && action ? (
         <MobileButton label={action.label} onPress={action.onPress} variant={action.variant ?? 'secondary'} height={38} style={styles.action} />
       ) : null}
     </View>

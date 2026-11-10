@@ -7,7 +7,7 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { coalesceLinesByItemId } from '../../components/box/boxLineDisplay';
 import { primaryPhoto } from '../../components/mobile/catalogPhotos';
 import { useStorefrontActions } from '../../components/storefront/StorefrontChrome';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,8 @@ import { spacing, typography, borderRadius, typeface, shadowsWeb, MOBILE_GUTTER 
 import { useThemeMode } from '../../context/ThemeContext';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useBoxLockDay } from '../../hooks/useBoxLockDay';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import type { SemanticColors } from '../../constants/themeMode';
 import { markReceivedGiftViewed } from '../../services/gift/giftFlow';
 import { noteReceivedGiftViewedThisSession } from './receivedGiftViewedSession';
@@ -59,7 +61,21 @@ function GiftRecipientRevealBody() {
   const mobileLayout = useMobileLayout();
   const { gifts } = useReceivedGifts();
   const { items: catalog } = useCatalog();
-  const { startBox } = useStorefrontActions();
+  const { startBox, goCategory } = useStorefrontActions();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(() => peekHanukkahConfig()?.startsOn ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
   const thumbs = useMemo(() => {
     const lines = gifts.find((g) => g.giftInviteId === giftInviteId)?.lineItems ?? [];
     const byId = new Map(catalog.map((c) => [c.id, c]));
@@ -88,6 +104,8 @@ function GiftRecipientRevealBody() {
         creditCents={giftCreditCents || household?.giftCreditCents || 0}
         lockDay={lockDay}
         onBuild={startBox}
+        shopMode={shopMode}
+        onShop={() => goCategory('collection')}
       />
     );
   }

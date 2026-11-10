@@ -132,8 +132,10 @@ export function MobileProductBody(p: Props) {
   }, [p.openAdd]);
 
   const boxPrice = p.memberCents > 0 ? formatCatalogDollars(p.memberCents) : 'Included';
+  /** Post-lock shop: box-only SKUs can't start a box — treat like sold out. */
+  const boxOnlyBlocked = Boolean(p.boxOnly && p.hideBoxPitch && !p.hasBox);
 
-  const bar = p.soldOut ? (
+  const bar = p.soldOut || boxOnlyBlocked ? (
     <StickyBar label="Sold out" total="" layout="row" />
   ) : p.inBox ? (
     <StickyBar label={p.inBoxUnitCents > 0 ? `Added${p.kidNameForGift ? ` for ${p.kidNameForGift}` : ''}` : 'In your box'} total={p.inBoxUnitCents > 0 ? `+${formatCatalogDollars(p.inBoxUnitCents * p.boxQuantity)}` : 'Included'} cta={{ label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }} />
@@ -179,7 +181,7 @@ export function MobileProductBody(p: Props) {
           {p.item.name}
         </Text>
         <View style={styles.priceRow}>
-          {p.soldOut ? (
+          {p.soldOut || boxOnlyBlocked ? (
             <Text style={styles.soldPill}>Sold out</Text>
           ) : p.boxOnly ? (
             <>
@@ -189,7 +191,7 @@ export function MobileProductBody(p: Props) {
           ) : (
             <Text style={styles.price}>{formatCatalogDollars(p.priceCents)}</Text>
           )}
-          {!p.soldOut && !p.boxOnly && p.hasBox && p.memberCents > 0 && p.memberCents < p.priceCents ? <Text style={styles.member}>{formatCatalogDollars(p.memberCents)} in your box</Text> : null}
+          {!p.soldOut && !boxOnlyBlocked && !p.boxOnly && p.hasBox && p.memberCents > 0 && p.memberCents < p.priceCents ? <Text style={styles.member}>{formatCatalogDollars(p.memberCents)} in your box</Text> : null}
           {low ? (
             <View style={styles.corner}>
               <Text style={styles.cornerText}>Low stock</Text>
@@ -325,9 +327,23 @@ function ProductShelf({
         ) : null}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-        {items.slice(0, 8).map((it) => (
-          <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(availabilityById?.[it.id], it)} onPress={() => onOpenProduct(it.id)} />
-        ))}
+        {[...items]
+          .sort((a, b) => {
+            const aOut = stockStatus(availabilityById?.[a.id], a)?.kind === 'sold';
+            const bOut = stockStatus(availabilityById?.[b.id], b)?.kind === 'sold';
+            if (aOut !== bOut) return aOut ? 1 : -1;
+            return 0;
+          })
+          .slice(0, 8)
+          .map((it) => (
+            <ProductTileMobile
+              key={it.id}
+              item={it}
+              width={150}
+              status={stockStatus(availabilityById?.[it.id], it)}
+              onPress={() => onOpenProduct(it.id)}
+            />
+          ))}
       </ScrollView>
     </View>
   );

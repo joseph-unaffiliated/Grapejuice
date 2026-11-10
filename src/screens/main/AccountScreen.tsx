@@ -37,6 +37,12 @@ import { WebContentPanel } from '../../components/layout/WebContentPanel';
 import { GuestAuthPrompt } from '../../components/auth/GuestAuthPrompt';
 import { BrandLoadingMark } from '../../components/brand/BrandLoadingMark';
 import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
+import {
+  shopHasBoxOrder as resolveShopHasBoxOrder,
+} from '../../hooks/useUserStatePreview';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { loadPartnerInvites, peekPartnerInvites } from '../../services/account/accountPrefetch';
 import { getSavedCardSummary } from '../../services/checkout/createMarketplaceCheckout';
 import { peekSavedCard } from '../../services/checkout/checkoutPrefetch';
@@ -127,6 +133,23 @@ function AccountScreenBody() {
   const previewKey = useDevPreviewStore((s) => s.previewKey);
   const fakeSignedIn = previewKey === 'account-signed-in';
   const mobileLayout = useMobileLayout();
+  const { openOrder } = usePaymentGate();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(() => peekHanukkahConfig()?.startsOn ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const homeMode = useStorefrontHomeMode(lockAt, startsOn);
+  const shopMode = homeMode === 'shop';
+  const shopHasBoxOrder = resolveShopHasBoxOrder(homeMode, openOrder);
 
   const user = fakeSignedIn ? PREVIEW_SIGNED_IN_USER : authUser;
   const household = fakeSignedIn ? PREVIEW_HOUSEHOLD : sessionHousehold;
@@ -532,8 +555,11 @@ function AccountScreenBody() {
               success: passwordSuccess,
             },
           }}
+          shopMode={shopMode}
+          shopHasBoxOrder={shopHasBoxOrder}
           onOpenBox={() => navigateMainStack('MyBox')}
           onBuildBox={() => navigateMainStack('MyBox')}
+          onShop={() => navigation.navigate('StorefrontCategory', { category: 'collection' })}
           onCheckout={() => navigateMainStack('Checkout')}
           onOrders={() => navigation.navigate('Orders')}
           onGifts={() => navigation.navigate('MyGifts')}

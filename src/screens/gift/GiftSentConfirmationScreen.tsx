@@ -1,6 +1,6 @@
 /** Post-payment confirmation for gift giver — checkout-adjacent visual language. */
 import { useMobileLayout } from '../../hooks/useMobileLayout';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -20,6 +20,8 @@ import { useThemeMode } from '../../context/ThemeContext';
 import type { SemanticColors } from '../../constants/themeMode';
 import { useWebLayout } from '../../hooks/useWebLayout';
 import { useAuthStore } from '../../stores/authStore';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { MobileDoneLayout } from '../mobile/MobileCheckoutParts';
 import { MobileButton } from '../../components/mobile/MobileButton';
 import { useBoxLockDay } from '../../hooks/useBoxLockDay';
@@ -144,6 +146,20 @@ function MobileGiftSent() {
   const { goHome } = useStorefrontActions();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const lockDay = useBoxLockDay();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(() => peekHanukkahConfig()?.startsOn ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
   const steps: [string, string][] = customize
     ? [
         ['Today', 'They get your note and a link to their box'],
@@ -154,11 +170,12 @@ function MobileGiftSent() {
         ['Today', `They get your note and ${formatDollars(amountCents).replace(/\.00$/, '')} in Hanukkah credit`],
         [`Until ${lockDay}`, 'They put it toward a box or anything in the store'],
       ];
+  const guestHomeLabel = shopMode ? 'Back to the store' : 'Start a box for my family';
   return (
     <MobileDoneLayout title={family ? `Your gift is on its way to ${family}` : 'Your gift is on its way'} lede={`We emailed ${recipientEmail} your note.`} steps={steps}>
       {isAuthenticated ? <MobileButton label="See your gift" onPress={() => navigation.navigate('MyGifts')} /> : null}
       <MobileButton
-        label={isAuthenticated ? 'Back to the store' : 'Start a box for my family'}
+        label={isAuthenticated ? 'Back to the store' : guestHomeLabel}
         variant={isAuthenticated ? 'secondary' : 'primary'}
         onPress={goHome}
         style={isAuthenticated ? { marginTop: 10 } : undefined}

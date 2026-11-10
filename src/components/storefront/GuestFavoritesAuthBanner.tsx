@@ -91,7 +91,7 @@ function createStyles(colors: SemanticColors) {
     card: {
       width: '100%',
       flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexWrap: 'nowrap',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: spacing.sm,
@@ -102,10 +102,11 @@ function createStyles(colors: SemanticColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.goldMuted,
     },
+    /** Left of the CTAs — shrinks so the body can wrap instead of dropping the buttons. */
     copyCol: {
+      flex: 1,
       flexShrink: 1,
-      flexGrow: 1,
-      minWidth: 180,
+      minWidth: 0,
       gap: 2,
     },
     title: {
@@ -126,7 +127,6 @@ function createStyles(colors: SemanticColors) {
       alignItems: 'center',
       gap: spacing.sm,
       flexShrink: 0,
-      marginLeft: 'auto',
     },
     primaryCta: {
       backgroundColor: 'transparent',

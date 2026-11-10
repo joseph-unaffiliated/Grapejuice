@@ -20,6 +20,8 @@ type Props = {
   onStartBox: () => void;
   onShop: () => void;
   hasBox: boolean;
+  /** Post-lock shop — no “build a box” pitch. */
+  shopMode?: boolean;
 };
 
 /** The phone cart under the site header: rows with steppers, totals, the box pitch, a white Checkout bar. */
@@ -30,9 +32,20 @@ export function MobileCartBody(p: Props) {
       <View>
         <View style={styles.empty}>
           <Text style={mType.h2}>Your cart is empty</Text>
-          <Text style={[mType.body, { marginTop: 6, textAlign: 'center' }]}>The Hanukkah box has what you need, or shop the collection piece by piece.</Text>
-          <MobileButton label="Build my box" onPress={p.onStartBox} style={{ marginTop: 18 }} />
-          <MobileButton label="Shop the collection" onPress={p.onShop} variant="secondary" style={{ marginTop: 10 }} />
+          <Text style={[mType.body, { marginTop: 6, textAlign: 'center' }]}>
+            {p.shopMode
+              ? 'Browse candles, dreidels, and more ready to ship for the holiday.'
+              : 'The Hanukkah box has what you need, or shop the collection piece by piece.'}
+          </Text>
+          {p.shopMode ? null : (
+            <MobileButton label="Build my box" onPress={p.onStartBox} style={{ marginTop: 18 }} />
+          )}
+          <MobileButton
+            label="Shop the collection"
+            onPress={p.onShop}
+            variant={p.shopMode ? 'primary' : 'secondary'}
+            style={{ marginTop: p.shopMode ? 18 : 10 }}
+          />
         </View>
       </View>
     );
@@ -75,7 +88,7 @@ export function MobileCartBody(p: Props) {
           <Line label="Tax" value="At checkout" />
         </View>
       </View>
-      {!p.hasBox && pitchItems.length ? (
+      {!p.shopMode && !p.hasBox && pitchItems.length ? (
         <View style={{ marginTop: 8 }}>
           <BoxPitch items={pitchItems} title={pitchItems.length > 1 ? 'Getting these for Hanukkah? Put them in a box' : 'Getting this for Hanukkah? Put it in a box'} cta={pitchItems.length > 1 ? 'Start a box with these' : 'Start a box with it'} onPress={p.onStartBox} />
         </View>

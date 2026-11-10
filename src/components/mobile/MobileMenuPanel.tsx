@@ -9,9 +9,16 @@ import { icons } from '../../constants/icons';
 import { STOREFRONT_CATEGORIES } from '../../constants/storefrontCategories';
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
-import { usePreviewedHasStartedBox, usePreviewedIsAuthenticated } from '../../hooks/useUserStatePreview';
+import {
+  shopHasBoxOrder as resolveShopHasBoxOrder,
+  usePreviewedHasStartedBox,
+  usePreviewedIsAuthenticated,
+} from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { useBoxGlance, NOT_HELD_COPY } from '../../hooks/useBoxGlance';
+import { usePaymentGate } from '../../hooks/usePaymentGate';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { useStorefrontLeave } from '../storefront/storefrontLeaveContext';
 import { isStorefrontRavOpenable, useStorefrontRav } from '../storefront/storefrontRavContext';
 import { isSocialInAppBrowser } from '../../utils/inAppBrowser';
@@ -50,6 +57,23 @@ function Panel({ onClose }: { onClose: () => void }) {
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
   const glance = useBoxGlance();
+  const { openOrder } = usePaymentGate();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(() => peekHanukkahConfig()?.startsOn ?? null);
+  useEffect(() => {
+    let alive = true;
+    void getHanukkahConfig().then((c) => {
+      if (!alive) return;
+      setLockAt(c.lockAt);
+      setStartsOn(c.startsOn);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const homeMode = useStorefrontHomeMode(lockAt, startsOn);
+  const shopMode = homeMode === 'shop';
+  const shopHasBoxOrder = resolveShopHasBoxOrder(homeMode, openOrder);
   const userEmail = useAuthStore((s) => s.user?.email ?? null);
   const [shopOpen, setShopOpen] = useState(false);
   const { items: catalog } = useCatalog();
@@ -75,6 +99,11 @@ function Panel({ onClose }: { onClose: () => void }) {
       if (leave) return leave({ type: 'myBox' });
       navigation.navigate('MyBox');
     });
+  const goOrders = () =>
+    go(() => {
+      if (leave) return leave({ type: 'screen', nav: { screen: 'Orders' } });
+      navigation.navigate('Orders');
+    });
 
   const sendLink = async () => {
     if (!userEmail) return;
@@ -89,6 +118,10 @@ function Panel({ onClose }: { onClose: () => void }) {
   const thumbItems = glance.thumbs.map((t) => ({
     ...t,
     onPress: () => {
+      if (shopMode) {
+        goCategory('collection');
+        return;
+      }
       if (glance.state === 'none') {
         go(() =>
           openBoxSurface(isAuthenticated, {
@@ -104,8 +137,27 @@ function Panel({ onClose }: { onClose: () => void }) {
       goMyBox();
     },
   }));
-  const boxCard =
-    glance.state === 'none' ? (
+  const boxCard = shopMode ? (
+    shopHasBoxOrder ? (
+      <BoxSummary
+        size="sm"
+        title="Your order"
+        sub={openOrder?.trackingNumber ? 'Track your package' : 'Hanukkah box locked · view order'}
+        items={thumbItems}
+        onPress={goOrders}
+        link={<Chevron />}
+      />
+    ) : (
+      <BoxSummary
+        size="sm"
+        title="Shop the collection"
+        sub="Candles, dreidels, and more — ready to ship"
+        items={thumbItems}
+        onPress={() => goCategory('collection')}
+        link={<Chevron />}
+      />
+    )
+  ) : glance.state === 'none' ? (
       <BoxSummary size="sm" title="Build my box" sub="Hanukkah delivered to your door, from $80" items={thumbItems} onPress={startBox} link={<Chevron />} />
     ) : (
       <BoxSummary

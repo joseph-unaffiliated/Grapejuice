@@ -418,15 +418,16 @@ export function StorefrontCategoryScreen() {
       availabilityById
     );
     const booksLast = facetFilters.availability === 'box-only';
-    const soldOutLast = shopMode
-      ? (item: CatalogItem) => {
-          const a = availabilityById[item.id];
-          return a?.status === 'sold_out' || a?.status === 'box_only';
-        }
-      : () => false;
-    const sorted = sortItems(faceted, sort, booksLast, soldOutLast);
+    const soldOutLast = (item: CatalogItem) => {
+      const a = availabilityById[item.id];
+      // True sell-outs only — not pre-lock box-only SKUs.
+      return a?.status === 'sold_out';
+    };
+    let sorted = sortItems(faceted, sort, booksLast, soldOutLast);
     if (slug === 'candles' && sort === 'relevant') {
-      return orderCandlesRollYourOwnBeforeElectric(sorted);
+      sorted = orderCandlesRollYourOwnBeforeElectric(sorted);
+      // Pairing can pull a sold-out Roll Your Own mid-rail — sink those again.
+      sorted = sortItems(sorted, 'relevant', false, soldOutLast);
     }
     if (slug === 'books' && sort === 'relevant') {
       // Featured books: popularity (units in committed + gifted boxes), then
@@ -476,8 +477,10 @@ export function StorefrontCategoryScreen() {
   };
 
   if (mobileLayout) {
+    /** Post-lock shop: cart only — no box membership chrome on tiles. */
+    const showBoxOnMobile = hasStartedBoxForMobile && !shopMode;
     const boxState = new Map<string, { paid: boolean; kid?: string | null }>();
-    if (hasStartedBoxForMobile) {
+    if (showBoxOnMobile) {
       for (const li of boxLines) {
         const prev = boxState.get(li.itemId);
         const kid = li.childId ? boxKids.find((c) => c.id === li.childId)?.name?.trim() ?? null : null;
@@ -491,18 +494,21 @@ export function StorefrontCategoryScreen() {
         <Text style={styles.emptyBody}>{searchQuery ? `No products matched “${searchQuery}”.` : 'Try another category, or ask Rav for ideas.'}</Text>
       </View>
     );
+    const shopEverythingSub = shopMode
+      ? 'Candles, dreidels, and more — ready to ship for the holiday.'
+      : 'Add anything to your box, or buy it on its own.';
     return (
       <StorefrontChrome activeCategory={slug} floatingFooter={guestFavoritesPrompt}>
         <MobileBoundary screen="category" fallback={<StorefrontProductGrid items={filtered} availabilityById={availabilityById} constrainWidth={false} />}>
           <MobileCategoryBody
             slug={slug}
             title={shopEverything ? 'Shop everything' : title}
-            sub={searchQuery ? undefined : shopEverything ? 'Add anything to your box, or buy it on its own.' : def?.description}
+            sub={searchQuery ? undefined : shopEverything ? shopEverythingSub : def?.description}
             sections={collectionSections}
             items={filtered}
             availabilityById={availabilityById}
             boxState={boxState}
-            hasBox={hasStartedBoxForMobile}
+            hasBox={showBoxOnMobile}
             kidName={boxKids[0]?.name?.trim() || null}
             sortLabel={SORT_OPTIONS[sortIdx]?.label ?? 'Featured'}
             onCycleSort={() => setSort(SORT_OPTIONS[(sortIdx + 1) % SORT_OPTIONS.length]!.key)}
@@ -514,14 +520,16 @@ export function StorefrontCategoryScreen() {
             empty={emptyBlock}
           />
         </MobileBoundary>
-        <StorefrontBuildBoxStrip
-          onPress={onStripPress}
-          headline={strip?.headline}
-          body={strip?.body}
-          ctaLabel={strip?.ctaLabel}
-          backgroundSource={strip?.backgroundSource}
-          variant="content"
-        />
+        {shopMode ? null : (
+          <StorefrontBuildBoxStrip
+            onPress={onStripPress}
+            headline={strip?.headline}
+            body={strip?.body}
+            ctaLabel={strip?.ctaLabel}
+            backgroundSource={strip?.backgroundSource}
+            variant="content"
+          />
+        )}
       </StorefrontChrome>
     );
   }
@@ -642,14 +650,16 @@ export function StorefrontCategoryScreen() {
         )}
 
         <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} />
-        <StorefrontBuildBoxStrip
-          onPress={onStripPress}
-          headline={strip?.headline}
-          body={strip?.body}
-          ctaLabel={strip?.ctaLabel}
-          backgroundSource={strip?.backgroundSource}
-          variant="content"
-        />
+        {shopMode ? null : (
+          <StorefrontBuildBoxStrip
+            onPress={onStripPress}
+            headline={strip?.headline}
+            body={strip?.body}
+            ctaLabel={strip?.ctaLabel}
+            backgroundSource={strip?.backgroundSource}
+            variant="content"
+          />
+        )}
       </View>
     </StorefrontChrome>
   );

@@ -39,8 +39,9 @@ export function filterShopRailInStock(
 }
 
 /**
- * Sort + in-stock filter for shop rails. Returns [] when shop mode and fewer
- * than {@link MIN_SHOP_RAIL_ITEMS} buyable SKUs (hide the thin carousel).
+ * Sort for storefront rails. Sold-out / non-buyable SKUs stay in the list but
+ * sink to the end. Returns [] when shop mode and fewer than
+ * {@link MIN_SHOP_RAIL_ITEMS} buyable SKUs (hide the thin carousel).
  */
 export function buildShopRail(
   items: CatalogItem[],
@@ -50,22 +51,20 @@ export function buildShopRail(
   limit: number
 ): CatalogItem[] {
   const sorted = sortShopRailItems(items, availabilityById, favoriteIds);
-  const filtered = filterShopRailInStock(sorted, availabilityById, shopMode);
-  if (shopMode && filtered.length < MIN_SHOP_RAIL_ITEMS) return [];
-  return filtered.slice(0, limit);
+  if (shopMode) {
+    const buyable = filterShopRailInStock(sorted, availabilityById, true);
+    if (buyable.length < MIN_SHOP_RAIL_ITEMS) return [];
+  }
+  return sorted.slice(0, limit);
 }
 
-/** All currently buyable catalog SKUs (post-lock FBA leftovers), ranked. */
+/** Post-lock leftovers ranked for home — buyable first, sold-out at the end. */
 export function allShopBuyableItems(
   items: CatalogItem[],
   availabilityById: Record<string, CatalogAvailability | undefined>,
   favoriteIds: ReadonlySet<string> | readonly string[] = []
 ): CatalogItem[] {
-  return sortShopRailItems(
-    filterShopRailInStock(items, availabilityById, true),
-    availabilityById,
-    favoriteIds
-  );
+  return sortShopRailItems(items, availabilityById, favoriteIds);
 }
 
 export function categoryHasBuyableItems(

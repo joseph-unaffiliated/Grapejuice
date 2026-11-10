@@ -173,12 +173,17 @@ export function MobileGiftCreditReady({
   creditCents,
   lockDay,
   onBuild,
+  shopMode = false,
+  onShop,
 }: {
   giverName: string;
   message?: string;
   creditCents: number;
   lockDay: string;
   onBuild: () => void;
+  /** Post-lock shop — spend credit in the store instead of starting a box. */
+  shopMode?: boolean;
+  onShop?: () => void;
 }) {
   return (
     <View style={{ flex: 1 }}>
@@ -188,10 +193,22 @@ export function MobileGiftCreditReady({
         <View style={{ marginTop: 16, gap: 16 }}>
           <CreditCard cents={creditCents} lockDay={lockDay} />
           {message ? <NoteCard message={message} giverName={giverName} /> : null}
-          <NoteLine icon={icons.pen}>Answer two quick questions and we’ll pick everything. The credit comes off automatically.</NoteLine>
+          <NoteLine icon={icons.pen}>
+            {shopMode
+              ? 'Shop the collection — your credit comes off automatically at checkout.'
+              : 'Answer two quick questions and we’ll pick everything. The credit comes off automatically.'}
+          </NoteLine>
         </View>
       </ScrollView>
-      <StickyBar layout="stack" label={`Credit from ${giverName}`} total={formatCatalogDollars(creditCents)} cta={{ label: 'Build my box', onPress: onBuild }} />
+      <StickyBar
+        layout="stack"
+        label={`Credit from ${giverName}`}
+        total={formatCatalogDollars(creditCents)}
+        cta={{
+          label: shopMode ? 'Shop with credit' : 'Build my box',
+          onPress: shopMode ? onShop ?? onBuild : onBuild,
+        }}
+      />
     </View>
   );
 }

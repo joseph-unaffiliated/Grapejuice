@@ -514,9 +514,11 @@ export function CatalogProductScreen() {
   const isSoldOut = availability?.status === 'sold_out';
   /** Every unit held by secured boxes and purchases (drafts never count). */
   const boxSoldOut = !inBox && isCatalogItemSoldOut(item ?? undefined);
-  /** No box yet + box-only/sold-out: primary drives into a box (or disabled). */
-  const marketplaceBlocked = !hasStartedBox && (isSoldOut || (isBoxOnly && boxSoldOut));
-  const marketplaceBoxOnlyPath = !hasStartedBox && isBoxOnly && !marketplaceBlocked;
+  /** No box yet + box-only/sold-out: primary drives into a box (or disabled). Post-lock shop never starts a box. */
+  const marketplaceBlocked =
+    !hasStartedBox && (isSoldOut || (isBoxOnly && (boxSoldOut || shopCheckout)));
+  const marketplaceBoxOnlyPath =
+    !shopCheckout && !hasStartedBox && isBoxOnly && !marketplaceBlocked;
   const boxBlocked = hasStartedBox && boxSoldOut;
 
   const primaryLabel = marketplaceBlocked || boxBlocked
@@ -658,7 +660,7 @@ export function CatalogProductScreen() {
             alsoLike={alsoLike}
             alsoTitle="You might also like..."
             hasBox={hasStartedBox}
-            inBox={inBox}
+            inBox={hasStartedBox && inBox}
             inBoxUnitCents={inBoxUnitCents}
             boxQuantity={boxQuantity}
             kidNameForGift={kidForGift}

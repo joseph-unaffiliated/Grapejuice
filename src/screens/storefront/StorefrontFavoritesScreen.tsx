@@ -24,7 +24,9 @@ import type { CatalogItem } from '../../types/pilot';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useBoxDraft } from '../../hooks/useBoxDraft';
 import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { useAuthStore } from '../../stores/authStore';
 import { MobileFavoritesBody } from '../mobile/MobileFavoritesBody';
 import {
@@ -106,10 +108,28 @@ export function StorefrontFavoritesScreen() {
   const [sort, setSort] = useState<SortKey>('recent');
   const mobileLayout = useMobileLayout();
   const signedIn = useAuthStore((st) => st.isAuthenticated);
-  const hasBox = usePreviewedHasStartedBox();
+  const hasBoxRaw = usePreviewedHasStartedBox();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(
+    () => peekHanukkahConfig()?.startsOn ?? null
+  );
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
+  const hasBox = hasBoxRaw && !shopMode;
   const { lineItems: boxLines } = useBoxDraft();
   const boxIds = useMemo(() => new Set(hasBox ? boxLines.map((li) => li.itemId) : []), [hasBox, boxLines]);
   const { byId: availabilityById } = useCatalogAvailabilityMap();
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   usePublishRavSurface({
     type: 'category',

@@ -128,17 +128,27 @@ export function MobileHomeBody({
   const beforeHanukkah = getHanukkahStatus(startsOn).phase === 'before';
 
   const topPicks = useMemo(() => {
+    const soldLast = (a: CatalogItem, b: CatalogItem) => {
+      const aOut = stockStatus(availability[a.id], a)?.kind === 'sold';
+      const bOut = stockStatus(availability[b.id], b)?.kind === 'sold';
+      if (aOut !== bOut) return aOut ? 1 : -1;
+      return 0;
+    };
     const loved = items
       .filter((it) => it.storefrontRails?.includes('most-loved'))
       .sort((a, b) => {
+        const byStock = soldLast(a, b);
+        if (byStock) return byStock;
         const ar = a.storefrontRank ?? Number.POSITIVE_INFINITY;
         const br = b.storefrontRank ?? Number.POSITIVE_INFINITY;
         if (ar !== br) return ar - br;
         return a.name.localeCompare(b.name);
       });
     if (loved.length) return loved;
-    return TOP_PICK_IDS.map((id) => photos.get(id)).filter((x): x is CatalogItem => !!x);
-  }, [items, photos]);
+    return TOP_PICK_IDS.map((id) => photos.get(id))
+      .filter((x): x is CatalogItem => !!x)
+      .sort(soldLast);
+  }, [items, photos, availability]);
   const openProduct = (slug: string) => navigation.navigate('CatalogProduct', { slug });
   const askRav = () => {
     if (isStorefrontRavOpenable()) return openRav();
@@ -275,9 +285,24 @@ export function MobileHomeBody({
       ) : null}
 
       {topPicks.length ? (
-        <View style={[styles.band, { paddingTop: isNew ? 36 : 28, paddingBottom: 0 }]}>
+        <View
+          style={[
+            styles.band,
+            {
+              // Shop hero is short (no trust rows / mid bands) — a full 36 on top of
+              // hero paddingBottom read as empty space. Box path still wants a section gap.
+              paddingTop: shopMode ? 20 : isNew ? 28 : 24,
+              paddingBottom: 0,
+            },
+          ]}
+        >
           <SectionHead title="Top picks" link="See all" onPress={() => goCategory('collection')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.railScroll}
+            contentContainerStyle={styles.rail}
+          >
             {topPicks.map((it) => (
               <ProductTileMobile key={it.id} item={it} width={150} status={stockStatus(availability[it.id])} onPress={() => openProduct(it.id)} />
             ))}
@@ -285,7 +310,7 @@ export function MobileHomeBody({
         </View>
       ) : null}
 
-      <View style={styles.band}>
+      <View style={[styles.band, topPicks.length ? styles.bandAfterRail : null]}>
         <SectionHead title="Shop by category" link="Shop all" onPress={() => goCategory('collection')} />
         <View style={styles.cats}>
           {(
@@ -459,6 +484,8 @@ function Step({ n, title, text }: { n: string; title: string; text: string }) {
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: mGutter },
   band: { paddingVertical: 36 },
+  /** After a product rail that already ended flush — one gap, not band+band. */
+  bandAfterRail: { paddingTop: 28 },
   cream: { backgroundColor: m.beige },
   bandH2: { fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: m.ink, ...mFont(500) },
   lede: { fontSize: 15.5, lineHeight: 23, color: m.body, ...mFont(300) },
@@ -470,7 +497,7 @@ const styles = StyleSheet.create({
   mosaicCol: { flex: 1, gap: 4 },
   mosaicPair: { flexDirection: 'row', gap: 4, flex: 1 },
   mosaicCell: { flex: 1, backgroundColor: m.img },
-  hero: { paddingHorizontal: mGutter, paddingTop: 22, paddingBottom: 26, gap: 12 },
+  hero: { paddingHorizontal: mGutter, paddingTop: 34, paddingBottom: 26, gap: 12 },
   heroH1: { fontSize: 32, lineHeight: 36, letterSpacing: -1, color: m.ink, ...mFont(400) },
   h1Gold: { color: m.goldDark },
   trust: { gap: 8, marginTop: 8 },
@@ -497,6 +524,8 @@ const styles = StyleSheet.create({
   cat: { borderRadius: 14, overflow: 'hidden', backgroundColor: m.img },
   catLabel: { position: 'absolute', left: 10, bottom: 10, backgroundColor: m.white, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 5 },
   catLabelText: { fontSize: 13.5, lineHeight: 17, color: m.ink, ...mFont(400) },
+  /** Keep the horizontal rail from growing a tall empty flex box on web. */
+  railScroll: { flexGrow: 0 },
   rail: { paddingHorizontal: mGutter, gap: 12, paddingBottom: 4 },
   giftBand: { marginHorizontal: mGutter, borderRadius: 16, overflow: 'hidden', backgroundColor: m.beige },
   giftPhoto: { width: '100%', height: 260 },

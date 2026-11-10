@@ -51,6 +51,7 @@ export function MobileFavoritesBody(p: Props) {
                   width={tile}
                   status={status}
                   onPress={() => p.onOpen(it.id)}
+                  showSoldOutCta={p.hasBox && !inBox && status?.kind === 'sold'}
                   action={
                     inBox
                       ? { label: 'View my box', onPress: p.onViewBox, variant: 'secondary' }

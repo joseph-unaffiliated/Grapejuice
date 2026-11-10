@@ -35,7 +35,6 @@ export function StorefrontPassoverScreen() {
       primaryCtaNote={passover.marked ? PRE_REGISTERED_NOTE : undefined}
       primaryCtaSize="medium"
       showHeroDivider
-      buildBoxHeadline="build your hanukkah box"
       blocks={[
         {
           type: 'prose',

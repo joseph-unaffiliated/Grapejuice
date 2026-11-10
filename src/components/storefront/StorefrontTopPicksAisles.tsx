@@ -10,11 +10,7 @@ import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap
 import { useWishlist } from '../../hooks/useWishlist';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
-import {
-  allShopBuyableItems,
-  buildShopRail,
-  MIN_SHOP_RAIL_ITEMS,
-} from '../../services/catalog/shopMerch';
+import { buildShopRail } from '../../services/catalog/shopMerch';
 import type { CatalogItem } from '../../types/pilot';
 import { StorefrontCategoryRail } from './StorefrontCategoryRail';
 import { StorefrontProductGrid } from './StorefrontProductGrid';
@@ -66,10 +62,8 @@ export function StorefrontTopPicksAisles({
 
   const loved = useMemo(() => {
     if (shopMode) {
-      // Post-lock: rank all buyable leftovers (not the pre-lock “collection” curations).
-      const buyable = allShopBuyableItems(items, availability, favoriteIds);
-      if (buyable.length < MIN_SHOP_RAIL_ITEMS) return [];
-      return buyable.slice(0, railLimit);
+      // Post-lock: buyable first, sold-out at the end (same as other store rails).
+      return buildShopRail(items, availability, favoriteIds, true, railLimit);
     }
     const nonBooks = excludeBooks(items);
     const tagged = filterCatalogByTag(nonBooks, 'collection');

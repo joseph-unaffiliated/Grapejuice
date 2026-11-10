@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,8 @@ import {
 import type { MainStackParamList } from '../../navigation/types';
 import type { CatalogItem, ReceivedGift } from '../../types/pilot';
 import { usePreviewedHasStartedBox } from '../../hooks/useUserStatePreview';
+import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
+import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { semanticColors, spacing, borderRadius, typeface, typography } from '../../constants/theme';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { giftInvitePaid, useUnifiedOrders } from '../../hooks/useUnifiedOrders';
@@ -214,8 +216,23 @@ function MyGiftsBody() {
   const { household, loading: sessionLoading, refresh: refreshSession } = useSession();
   const { gifts, loading, error, refresh } = useReceivedGifts();
   const { items: catalog } = useCatalog();
-  const hasStartedBox = usePreviewedHasStartedBox();
+  const hasStartedBoxRaw = usePreviewedHasStartedBox();
   const { goCategory, startBox } = useStorefrontActions();
+  const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
+  const [startsOn, setStartsOn] = useState<string | null>(() => peekHanukkahConfig()?.startsOn ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    void getHanukkahConfig().then((config) => {
+      if (cancelled) return;
+      setLockAt(config.lockAt);
+      setStartsOn(config.startsOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const shopMode = useStorefrontHomeMode(lockAt, startsOn) === 'shop';
+  const hasStartedBox = hasStartedBoxRaw && !shopMode;
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
   const lockDay = useBoxLockDay();
@@ -424,7 +441,7 @@ function MyGiftsBody() {
                 {hasStartedBox ? 'Add to your box' : 'Shop the collection'}
               </Text>
             </TouchableOpacity>
-            {hasStartedBox ? null : (
+            {hasStartedBox || shopMode ? null : (
               <TouchableOpacity
                 style={[styles.creditCta, styles.creditCtaSecondary]}
                 onPress={() => startBox()}

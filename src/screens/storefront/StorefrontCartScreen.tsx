@@ -186,7 +186,8 @@ export function StorefrontCartScreen() {
             onCheckout={() => navigation.navigate('MarketplaceCheckout')}
             onStartBox={startBox}
             onShop={() => goCategory('collection')}
-            hasBox={hasStartedBoxForMobile}
+            hasBox={hasStartedBoxForMobile && !shopMode}
+            shopMode={shopMode}
           />
         </MobileBoundary>
       </StorefrontChrome>
@@ -213,8 +214,9 @@ export function StorefrontCartScreen() {
             </View>
             <Text style={styles.title}>Your cart is empty</Text>
             <Text style={styles.body}>
-              You haven’t added anything yet. Browse the marketplace, or start a Hanukkah box and
-              we’ll fill it with a curated set for your household.
+              {shopMode
+                ? 'You haven’t added anything yet. Browse candles, dreidels, and more ready to ship.'
+                : 'You haven’t added anything yet. Browse the marketplace, or start a Hanukkah box and we’ll fill it with a curated set for your household.'}
             </Text>
 
             <View style={styles.ctas}>
@@ -226,14 +228,16 @@ export function StorefrontCartScreen() {
               >
                 <Text style={styles.ctaPrimaryText}>Shop the collection</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.ctaSecondary}
-                onPress={startBox}
-                accessibilityRole="button"
-                accessibilityLabel="Build a Hanukkah box"
-              >
-                <Text style={styles.ctaSecondaryText}>Build a Hanukkah box</Text>
-              </TouchableOpacity>
+              {shopMode ? null : (
+                <TouchableOpacity
+                  style={styles.ctaSecondary}
+                  onPress={startBox}
+                  accessibilityRole="button"
+                  accessibilityLabel="Build a Hanukkah box"
+                >
+                  <Text style={styles.ctaSecondaryText}>Build a Hanukkah box</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         ) : (
@@ -332,14 +336,16 @@ export function StorefrontCartScreen() {
               >
                 <Text style={styles.ctaSecondaryText}>Continue shopping</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.ctaTertiary}
-                onPress={startBox}
-                accessibilityRole="button"
-                accessibilityLabel="Build a Hanukkah box"
-              >
-                <Text style={styles.ctaTertiaryText}>Build a Hanukkah box</Text>
-              </TouchableOpacity>
+              {shopMode ? null : (
+                <TouchableOpacity
+                  style={styles.ctaTertiary}
+                  onPress={startBox}
+                  accessibilityRole="button"
+                  accessibilityLabel="Build a Hanukkah box"
+                >
+                  <Text style={styles.ctaTertiaryText}>Build a Hanukkah box</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}

@@ -74,8 +74,12 @@ type Props = {
   helpers?: MobileAccountHelpers | null;
   signIn: MobileAccountSignIn;
   previewBanner?: string | null;
+  /** Post-lock shop — no Build/View my box pitch. */
+  shopMode?: boolean;
+  shopHasBoxOrder?: boolean;
   onOpenBox: () => void;
   onBuildBox: () => void;
+  onShop?: () => void;
   onCheckout: () => void;
   onOrders: () => void;
   onGifts: () => void;
@@ -157,6 +161,27 @@ export function MobileAccountHub(p: Props) {
             <View style={styles.skel} />
             <View style={[styles.skel, { width: '72%', marginTop: 10 }]} />
           </View>
+        ) : p.shopMode ? (
+          p.shopHasBoxOrder ? (
+            <View style={styles.emptyBox}>
+              <Text style={mType.h3}>Your Hanukkah box is locked</Text>
+              <Text style={[mType.body, { marginTop: 4 }]}>Browse what’s still in stock, or check on your order.</Text>
+              <MobileButton label="View order" onPress={p.onOrders} style={{ marginTop: 14 }} />
+              {p.onShop ? (
+                <MobileButton label="Shop the collection" onPress={p.onShop} variant="secondary" style={{ marginTop: 10 }} />
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.emptyBox}>
+              <Text style={mType.h3}>Shop Hanukkah</Text>
+              <Text style={[mType.body, { marginTop: 4 }]}>Candles, dreidels, and more — ready to ship for the holiday.</Text>
+              <MobileButton
+                label="Shop the collection"
+                onPress={p.onShop ?? p.onFavorites}
+                style={{ marginTop: 14 }}
+              />
+            </View>
+          )
         ) : glance.state === 'none' ? (
           <View style={styles.emptyBox}>
             <Text style={mType.h3}>No box yet</Text>

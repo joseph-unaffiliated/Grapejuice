@@ -69,6 +69,7 @@ export function MobileCategoryBody(p: Props) {
         width={tileWidth}
         status={status}
         onPress={() => p.onOpen(it.id)}
+        showSoldOutCta={p.hasBox && !inBox && status?.kind === 'sold'}
         action={
           p.hasBox && !inBox && status?.kind !== 'sold'
             ? { label: 'Add to my box', onPress: () => p.onAdd(it.id), variant: 'secondary' }
@@ -102,7 +103,9 @@ export function MobileCategoryBody(p: Props) {
                   style={styles.railScroll}
                   contentContainerStyle={styles.rail}
                 >
-                  {inBoxFirst(sec.items, p.boxState).map((it) => renderTile(it, RAIL_TILE, true))}
+                  {inBoxFirst(sec.items, p.boxState, p.availabilityById).map((it) =>
+                    renderTile(it, RAIL_TILE, true)
+                  )}
                   <Pressable
                     onPress={() => p.onCategory(sec.slug)}
                     accessibilityRole="button"
@@ -137,15 +140,28 @@ export function MobileCategoryBody(p: Props) {
       {p.loading ? null : p.items.length === 0 ? (
         p.empty
       ) : (
-        <View style={styles.grid}>{inBoxFirst(p.items, p.boxState).map((it) => renderTile(it, tile, false))}</View>
+        <View style={styles.grid}>
+          {inBoxFirst(p.items, p.boxState, p.availabilityById).map((it) => renderTile(it, tile, false))}
+        </View>
       )}
     </View>
   );
 }
 
-/** What's already in the box leads the grid, as in the store. */
-function inBoxFirst(items: CatalogItem[], boxState: Props['boxState']): CatalogItem[] {
-  return [...items.filter((it) => boxState.has(it.id)), ...items.filter((it) => !boxState.has(it.id))];
+/** In-box first, then in-stock, sold-out last — same as desktop store rails. */
+function inBoxFirst(
+  items: CatalogItem[],
+  boxState: Props['boxState'],
+  availabilityById: Props['availabilityById']
+): CatalogItem[] {
+  const inBox = items.filter((it) => boxState.has(it.id));
+  const rest = items.filter((it) => !boxState.has(it.id));
+  const sold = (it: CatalogItem) => stockStatus(availabilityById[it.id], it)?.kind === 'sold';
+  return [
+    ...inBox,
+    ...rest.filter((it) => !sold(it)),
+    ...rest.filter((it) => sold(it)),
+  ];
 }
 
 const styles = StyleSheet.create({
