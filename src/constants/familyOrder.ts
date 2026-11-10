@@ -30,6 +30,16 @@ export function rememberFamilyOrderToken(token: string): void {
   }
 }
 
+/** Drop the F&F unlock so this browser matches normal post-lock shoppers again. */
+export function clearFamilyOrderToken(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
 /** Read /d/order/<token> once, store it, and drop it from the address bar. */
 export function captureFamilyOrderFromLocation(): void {
   if (typeof window === 'undefined') return;

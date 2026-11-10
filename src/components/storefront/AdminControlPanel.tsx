@@ -32,6 +32,7 @@ import { getHanukkahWindow } from '../../services/hanukkah/dates';
 import { resetTesterBox } from '../../services/admin/resetTesterBox';
 import { enterVisitorPlaythrough, exitVisitorPlaythrough } from '../../services/admin/visitorPlaythrough';
 import { isOpsAdmin } from '../../constants/admin';
+import { clearFamilyOrderToken, familyOrderOpen } from '../../constants/familyOrder';
 import { useMobileLayout } from '../../hooks/useMobileLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { m, mType } from '../mobile/mobileTheme';
@@ -241,7 +242,10 @@ export function AdminControlPanel() {
 
   if (!show) return null;
 
-  const previewActive = Boolean(preview || previewNowIso || entryAudienceId || mockFlowActive);
+  const familyUnlock = familyOrderOpen();
+  const previewActive = Boolean(
+    preview || previewNowIso || entryAudienceId || mockFlowActive || familyUnlock
+  );
   const activeUserLabel =
     USER_STATE_PREVIEW_OPTIONS.find((opt) => opt.id === preview)?.label ?? 'Live (you)';
 
@@ -315,7 +319,7 @@ export function AdminControlPanel() {
                     ? `Mock: ${mockLandingLabel ?? mockLandingId}${mockPersonaLabel ? ` · ${mockPersonaLabel}` : ''}`
                     : `${activeUserLabel}${previewNowIso ? ` · ${previewNowIso}` : ''}${
                         entryAudienceId ? ` · entry:${entryAudienceId}` : ''
-                      }`}
+                      }${familyUnlock ? ' · Family unlock' : ''}`}
                 </Text>
               </View>
               <TouchableOpacity
@@ -586,7 +590,34 @@ export function AdminControlPanel() {
                   <Text style={styles.rowDesc}>Create and edit storefront SKUs</Text>
                 </View>
               </TouchableOpacity>
-              {(preview || previewNowIso || entryAudienceId || mockFlowActive) && (
+              {familyUnlock ? (
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    clearFamilyOrderToken();
+                    setOpen(false);
+                    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                      window.location.reload();
+                    }
+                  }}
+                  accessibilityRole="menuitem"
+                  accessibilityLabel="Clear family-order unlock"
+                >
+                  <Icon
+                    icon={icons.close}
+                    size={14}
+                    color={semanticColors.logoDark}
+                    style={styles.toolIcon}
+                  />
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.rowLabel}>Clear family-order unlock</Text>
+                    <Text style={styles.rowDesc}>
+                      This browser visited /d/order — keeps customize open after lock. Clear to match normal shoppers.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+              {(preview || previewNowIso || entryAudienceId || mockFlowActive || familyUnlock) && (
                 <TouchableOpacity
                   style={styles.row}
                   onPress={() => {
@@ -594,6 +625,12 @@ export function AdminControlPanel() {
                     else {
                       clearPreview();
                       clearEntry();
+                      clearFamilyOrderToken();
+                      if (Platform.OS === 'web' && typeof window !== 'undefined' && familyUnlock) {
+                        setOpen(false);
+                        window.location.reload();
+                        return;
+                      }
                     }
                   }}
                   accessibilityRole="menuitem"
@@ -612,7 +649,7 @@ export function AdminControlPanel() {
                     <Text style={styles.rowDesc}>
                       {mockFlowActive
                         ? 'Sign out tester and return to admin sign-in'
-                        : 'User state, date, and entry landing'}
+                        : 'User state, date, entry landing, and family-order unlock'}
                     </Text>
                   </View>
                 </TouchableOpacity>

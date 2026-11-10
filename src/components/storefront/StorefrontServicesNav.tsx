@@ -16,7 +16,8 @@ import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
 import { shopHasBoxOrder as resolveShopHasBoxOrder, usePreviewNow } from '../../hooks/useUserStatePreview';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
-import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
+import { getHanukkahConfig, isBoxLocked, peekHanukkahConfig } from '../../services/firestore/config';
+import { familyOrderOpen } from '../../constants/familyOrder';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
 import {
   borderRadius,
@@ -64,6 +65,13 @@ export function StorefrontServicesNav({ onPress }: Props) {
         yearLabel: MY_HANUKKAH_BOX_LABEL,
         // Shop: no “Nd to ship” / Nov 21 arrival estimate — box is locked.
         chipLabel: 'Locked',
+      };
+    }
+    // F&F token keeps customize open after public lock — don't show “Locks today”.
+    if (familyOrderOpen() && isBoxLocked(lockAt, now)) {
+      return {
+        yearLabel: HANUKKAH_BOX_LOCK_YEAR_LABEL,
+        chipLabel: 'Family unlock',
       };
     }
     return {
