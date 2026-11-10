@@ -156,11 +156,13 @@ export function MobileHomeBody({
     navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } });
   };
   const familyUnlock = !shopMode && familyOrderOpen();
+  /** Hit the HTML boot clear (/d/clear-family) — more reliable than in-app localStorage on iOS. */
   const turnOffFamilyUnlock = () => {
-    clearFamilyOrderToken();
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.location.replace('/');
+      window.location.assign('/d/clear-family');
+      return;
     }
+    clearFamilyOrderToken();
   };
 
   const bigW = Math.round(((width - 4) * 1.25) / 2.25);

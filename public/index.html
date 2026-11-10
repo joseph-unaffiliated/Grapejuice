@@ -10,6 +10,30 @@
     <!-- Static per-route SEO markup (scripts/build-seo.mjs) lives in #gj-seo inside #root for
          crawlers without JavaScript; browsers hide it and React replaces it on load. -->
     <script>document.documentElement.classList.add('gj-js');</script>
+    <script type="text/javascript">
+      /**
+       * Friends-and-family unlock (/d/order/<token>) lives in localStorage as gj.familyOrder
+       * and keeps customize open after public lock. Clear it here — before React Navigation
+       * rewrites /d/clear-family → / — so phones can drop the unlock without the admin panel.
+       * Also accepts ?clearFamily=1 on any path.
+       */
+      (function () {
+        try {
+          var path = location.pathname || '';
+          var clearPath = /^\/d\/(clear-family|remove-friends-and-family|remove-family-order)\/?$/i.test(path);
+          var clearQuery = false;
+          try {
+            clearQuery = new URL(location.href).searchParams.get('clearFamily') === '1';
+          } catch (e) {}
+          if (!clearPath && !clearQuery) return;
+          try { localStorage.removeItem('gj.familyOrder'); } catch (e) {}
+          var url = new URL(location.href);
+          url.pathname = '/';
+          url.searchParams.delete('clearFamily');
+          location.replace(url.pathname + url.search + url.hash);
+        } catch (e) {}
+      })();
+    </script>
     <style>
       .gj-js #gj-seo { display: none; }
       /* Phone layouts only: headings the mobile components mark with data-balance wrap evenly. */
