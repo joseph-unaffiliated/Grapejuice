@@ -20,6 +20,7 @@ import { balanceProps, m, mFont, mGutter, mType } from '../../components/mobile/
 import { OUR_STORY_STRIP_BODY } from '../../components/storefront/StorefrontOurStoryStrip';
 import { isStorefrontRavOpenable, useStorefrontRav } from '../../components/storefront/storefrontRavContext';
 import { getHanukkahStatus } from '../../services/hanukkah/dates';
+import { clearFamilyOrderToken, familyOrderOpen } from '../../constants/familyOrder';
 
 type Nav = StackNavigationProp<MainStackParamList>;
 
@@ -154,10 +155,29 @@ export function MobileHomeBody({
     if (isStorefrontRavOpenable()) return openRav();
     navigation.navigate('MainTabs', { screen: 'Rav', params: { view: 'welcome' } });
   };
+  const familyUnlock = !shopMode && familyOrderOpen();
+  const turnOffFamilyUnlock = () => {
+    clearFamilyOrderToken();
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.replace('/');
+    }
+  };
 
   const bigW = Math.round(((width - 4) * 1.25) / 2.25);
   const hero = (
     <View ref={heroRef} collapsable={false}>
+      {familyUnlock ? (
+        <Pressable
+          onPress={turnOffFamilyUnlock}
+          accessibilityRole="button"
+          accessibilityLabel="Turn off friends and family unlock"
+          style={styles.familyUnlock}
+        >
+          <Text style={styles.familyUnlockText} {...balanceProps}>
+            Friends & family unlock is on — this phone still sees customize. Tap to turn off.
+          </Text>
+        </Pressable>
+      ) : null}
       <View style={styles.mosaic}>
         <View style={[styles.mosaicBig, { width: bigW }]}>
           <StorefrontWebVideo src={resolveUri(STOREFRONT_HERO.src)} poster={STOREFRONT_HERO.poster} style={styles.fill} load="eager" />
@@ -492,6 +512,18 @@ const styles = StyleSheet.create({
   sub: { fontSize: 14, lineHeight: 20, color: m.muted, ...mFont(300) },
   link: { fontSize: 13, color: m.goldDark, textDecorationLine: 'underline', ...mFont(400) },
   fill: { width: '100%', height: '100%' },
+  familyUnlock: {
+    marginHorizontal: mGutter,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: m.beige,
+    borderWidth: 1,
+    borderColor: m.lineWarm,
+  },
+  familyUnlockText: { fontSize: 13.5, lineHeight: 19, color: m.goldDark, ...mFont(400) },
   mosaic: { flexDirection: 'row', gap: 4, height: 304 },
   mosaicBig: { height: '100%', overflow: 'hidden', backgroundColor: m.img },
   mosaicCol: { flex: 1, gap: 4 },

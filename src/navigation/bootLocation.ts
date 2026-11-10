@@ -6,6 +6,8 @@
  * the first state sync changes the address bar, and a remount (Fast Refresh,
  * a gate flip) then looks like a storefront deep link.
  */
+import { clearFamilyOrderFromLocation } from '../constants/familyOrder';
+
 export type BootLocation = {
   pathname: string;
   search: string;
@@ -28,6 +30,9 @@ export function getBootLocation(): BootLocation | null {
 
 /** Capture immediately on import, before NavigationContainer's first sync. */
 getBootLocation();
+
+// F&F clear must run here — Navigation soon rewrites /d/clear-family → `/`.
+clearFamilyOrderFromLocation(getBootLocation()?.pathname);
 
 /**
  * Keep the inbound landing path in the address bar until the landing screen

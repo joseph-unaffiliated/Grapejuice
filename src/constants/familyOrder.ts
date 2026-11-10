@@ -56,16 +56,27 @@ export function captureFamilyOrderFromLocation(): void {
   window.history.replaceState({}, '', `/${search === '?' ? '' : search}`);
 }
 
+/** True when this path (or boot path) is a clear-family deep link. */
+export function isClearFamilyPath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return CLEAR_FAMILY_PATH.test(pathname);
+}
+
 /**
- * /d/clear-family — remove gj.familyOrder from this device and reload home as a normal shopper.
+ * /d/clear-family — remove gj.familyOrder from this device and go home as a normal shopper.
  * Safe to open on mobile Safari where the admin panel is awkward.
+ *
+ * Must run from boot (before React Navigation rewrites the address bar to `/`),
+ * otherwise the clear path is gone and the unlock stays in localStorage.
  */
-export function clearFamilyOrderFromLocation(): boolean {
+export function clearFamilyOrderFromLocation(pathname?: string | null): boolean {
   if (typeof window === 'undefined') return false;
-  if (!CLEAR_FAMILY_PATH.test(window.location.pathname)) return false;
+  const path = pathname ?? window.location.pathname;
+  if (!isClearFamilyPath(path)) return false;
   clearFamilyOrderToken();
   const search = window.location.search;
-  window.history.replaceState({}, '', `/${search === '?' ? '' : search}`);
-  window.location.reload();
+  const home = `/${search === '?' ? '' : search}`;
+  // Hard navigate — more reliable than replaceState + reload on mobile Safari.
+  window.location.replace(home);
   return true;
 }

@@ -1,18 +1,13 @@
 import { useEffect, useRef } from 'react';
-import {
-  captureFamilyOrderFromLocation,
-  clearFamilyOrderFromLocation,
-} from '../constants/familyOrder';
+import { captureFamilyOrderFromLocation } from '../constants/familyOrder';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestSessionStore } from '../stores/guestSessionStore';
 import { navigationRef } from './navigationRef';
 import { readHomePathFromWindow } from './homeLink';
 import { storePathHome } from './storeLink';
 
-// Clear before capture so /d/clear-family never races a stale token.
-if (!clearFamilyOrderFromLocation()) {
-  captureFamilyOrderFromLocation();
-}
+// Family clear runs in bootLocation (before nav rewrites the URL). Capture only.
+captureFamilyOrderFromLocation();
 
 function navigateToStorefront(): void {
   if (!navigationRef.isReady()) return;
