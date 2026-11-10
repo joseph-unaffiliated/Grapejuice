@@ -67,7 +67,6 @@ import { usersService } from '../../services/firestore/users';
 import { isListedAdmin, isOpsAdmin } from '../../constants/admin';
 import { InfluencerDashboard } from '../../components/account/InfluencerDashboard';
 import { formatCreditDollars } from '../../services/box/buildDefaultBox';
-import { usePilotOrders } from '../../hooks/usePilotOrders';
 import { creditBalanceLine } from '../../constants/hanukkahBoxLock';
 
 type Nav = StackNavigationProp<MainStackParamList>;
@@ -216,7 +215,6 @@ function AccountScreenBody() {
     };
   }, [mobileLayout, cardOnFile, household?.id, fakeSignedIn]);
   const creditCents = (household?.giftCreditCents ?? 0) + (household?.platformCreditCents ?? 0);
-  const { openOrder } = usePilotOrders(household?.id);
 
   useEffect(() => {
     if (fakeSignedIn) return;
