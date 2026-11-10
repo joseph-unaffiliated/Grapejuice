@@ -5,8 +5,8 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { Icon } from '../ui/Icon';
 import { icons } from '../../constants/icons';
 import {
+  shopHasBoxOrder as resolveShopHasBoxOrder,
   usePreviewedHasStartedBox,
-  useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
@@ -33,7 +33,6 @@ export function StorefrontCartBoxButton() {
   const navigation = useNavigation<Nav>();
   const leave = useStorefrontLeave();
   const hasBox = usePreviewedHasStartedBox();
-  const preview = useUserStatePreview();
   const { openOrder } = usePaymentGate();
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
   const [startsOn, setStartsOn] = useState<string | null>(
@@ -42,8 +41,7 @@ export function StorefrontCartBoxButton() {
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const cartItems = useMarketplaceCartStore((s) => s.items);
   /** Shop mode never routes to My Box — cart for shopping, Orders for locked box holders. */
-  const frozenToOrders =
-    mode === 'shop' && (!!openOrder || preview === 'signed_in_locked');
+  const frozenToOrders = resolveShopHasBoxOrder(mode, openOrder);
   const showBox = hasBox && mode !== 'shop';
   const cartCount = showBox || frozenToOrders ? 0 : marketplaceCartCount(cartItems);
   const badgeLabel = cartCount > 99 ? '99+' : String(cartCount);

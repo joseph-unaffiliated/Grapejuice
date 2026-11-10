@@ -423,7 +423,7 @@ export function AdminControlPanel() {
               {previewDateOpen ? (
                 <>
                   <Text style={styles.sectionDesc}>
-                    Moves timeline pin and countdown. Live mode also uses this for lock.
+                    Moves timeline pin, countdown, and lock clock for Live and every persona (same rules as real users).
                   </Text>
                   {datePresets.length ? (
                     <View style={styles.chips}>

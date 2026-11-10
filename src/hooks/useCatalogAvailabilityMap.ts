@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useCatalog } from './useCatalog';
 import { useCatalogInventory } from './useCatalogInventory';
 import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
-import { usePreviewNow, useUserStatePreview } from './useUserStatePreview';
+import { usePreviewNow } from './useUserStatePreview';
 import { useLiveBoxLocked } from './useLiveBoxLocked';
 import {
   resolveAvailability,
@@ -12,7 +12,8 @@ import type { CatalogAvailability, CatalogItem } from '../types/pilot';
 
 /**
  * Resolve marketplace availability for every catalog item using live counters
- * and the holiday lock date (respects admin preview lock / unlocked / now).
+ * and the holiday lock date (plus admin preview calendar day when set).
+ * Same lockAt as live — personas do not fake an open or past lock.
  */
 export function useCatalogAvailabilityMap(): {
   byId: Record<string, CatalogAvailability>;
@@ -26,7 +27,6 @@ export function useCatalogAvailabilityMap(): {
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
   const [configLoading, setConfigLoading] = useState(() => peekHanukkahConfig() == null);
   const now = usePreviewNow();
-  const preview = useUserStatePreview();
   const locked = useLiveBoxLocked(lockAt);
 
   useEffect(() => {
@@ -41,33 +41,18 @@ export function useCatalogAvailabilityMap(): {
     };
   }, []);
 
-  /** Map preview lock override onto a lockAt the pure resolver understands. */
-  const effectiveLockAt = useMemo(() => {
-    if (preview === 'signed_in_locked') return '2000-01-01T00:00:00.000Z';
-    if (
-      preview === 'signed_in_box' ||
-      preview === 'signed_in_needs_payment' ||
-      preview === 'signed_in_no_box' ||
-      preview === 'signed_out' ||
-      preview === 'signed_out_box'
-    ) {
-      return null;
-    }
-    return lockAt;
-  }, [preview, lockAt]);
-
   const byId = useMemo(() => {
     const map: Record<string, CatalogAvailability> = {};
     for (const item of items) {
       map[item.id] = resolveAvailability(
         item,
         counters[item.id] ?? emptyInventoryCounters(item.id),
-        effectiveLockAt,
+        lockAt,
         now
       );
     }
     return map;
-  }, [items, counters, effectiveLockAt, now]);
+  }, [items, counters, lockAt, now]);
 
   return {
     byId,

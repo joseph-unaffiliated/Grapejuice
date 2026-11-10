@@ -45,9 +45,9 @@ import {
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import {
+  shopHasBoxOrder as resolveShopHasBoxOrder,
   usePreviewedHasStartedBox,
   usePreviewedIsAuthenticated,
-  useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
@@ -282,15 +282,13 @@ function StorefrontChromeInner({
   const route = useRoute();
   const isAuthenticated = usePreviewedIsAuthenticated();
   const hasOwnBox = usePreviewedHasStartedBox();
-  const userStatePreview = useUserStatePreview();
   const { openOrder } = usePaymentGate();
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
   const [startsOn, setStartsOn] = useState<string | null>(
     () => peekHanukkahConfig()?.startsOn ?? null
   );
   const homeMode = useStorefrontHomeMode(lockAt, startsOn);
-  const shopHasBoxOrder =
-    homeMode === 'shop' && (!!openOrder || userStatePreview === 'signed_in_locked');
+  const shopHasBoxOrder = resolveShopHasBoxOrder(homeMode, openOrder);
   const { refresh } = useSession();
   const { width: windowWidth, isCompact: compact, isDesktop } = useLayoutBreakpoint();
   const fillBody = bodyMode === 'fill';

@@ -19,32 +19,36 @@ export type UserStatePreviewOption = {
 };
 
 export const USER_STATE_PREVIEW_OPTIONS: UserStatePreviewOption[] = [
-  { id: null, label: 'Live (you)', description: 'Real auth and box state' },
-  { id: 'signed_out', label: 'Signed out', description: 'Guest, no box' },
+  {
+    id: null,
+    label: 'Live (you)',
+    description: 'Exact same chrome as your real account (no persona overlays)',
+  },
+  { id: 'signed_out', label: 'Signed out', description: 'Guest, no box — same path as real guests' },
   {
     id: 'signed_out_box',
     label: 'Signed out · box started',
-    description: 'Guest with a revealed / started box',
+    description: 'Guest with a started box — same as real guest_box / shop after lock',
   },
   {
     id: 'signed_in_no_box',
     label: 'Signed in · no box',
-    description: 'Account with cart / build-box chrome',
+    description: 'Cold signed-in shopper — acquisition before lock, shop after',
   },
   {
     id: 'signed_in_box',
     label: 'Signed in · box',
-    description: 'My Box chrome, can customize',
+    description: 'Paid/open customize before lock; shop after (pin a pre-lock day to edit)',
   },
   {
     id: 'signed_in_needs_payment',
     label: 'Signed in · needs payment',
-    description: 'Box exists; customize gated on card',
+    description: 'Unpaid draft gated before lock; shop after (pin a pre-lock day for gate)',
   },
   {
     id: 'signed_in_locked',
     label: 'Signed in · locked',
-    description: 'Post-lock shop + locked box (Orders path)',
+    description: 'Post-lock box holder — shop + Orders (stand-in order if you have none)',
   },
 ];
 

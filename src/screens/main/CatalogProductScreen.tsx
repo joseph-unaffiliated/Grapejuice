@@ -25,7 +25,6 @@ import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/
 import {
   usePreviewNow,
   usePreviewedHasStartedBox,
-  useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLiveBoxLocked } from '../../hooks/useLiveBoxLocked';
@@ -135,7 +134,6 @@ export function CatalogProductScreen() {
   const { items: catalog, loading: catalogLoading } = useCatalog();
   const { byId: inventoryById } = useCatalogInventory();
   const previewNow = usePreviewNow();
-  const preview = useUserStatePreview();
   const { goHome, goCategory, startBox, startBoxWithItem, goHowToPlayDreidel, goHowToLightCandles } =
     useStorefrontActions();
   const item = useMemo(
@@ -181,29 +179,15 @@ export function CatalogProductScreen() {
   });
   const [detailsOpen, setDetailsOpen] = useState(true);
 
-  const effectiveLockAtForAvail = useMemo(() => {
-    if (preview === 'signed_in_locked') return '2000-01-01T00:00:00.000Z';
-    if (
-      preview === 'signed_in_box' ||
-      preview === 'signed_in_needs_payment' ||
-      preview === 'signed_in_no_box' ||
-      preview === 'signed_out' ||
-      preview === 'signed_out_box'
-    ) {
-      return null;
-    }
-    return lockAt;
-  }, [preview, lockAt]);
-
   const availability = useMemo(() => {
     if (!item) return undefined;
     return resolveAvailability(
       item,
       inventoryById[item.id] ?? emptyInventoryCounters(item.id),
-      effectiveLockAtForAvail,
+      lockAt,
       previewNow
     );
-  }, [item, inventoryById, effectiveLockAtForAvail, previewNow]);
+  }, [item, inventoryById, lockAt, previewNow]);
 
   const directOk = availability ? availabilityAllowsDirectPurchase(availability) : false;
   const directRemaining = availability ? availabilityRemaining(availability) : null;
@@ -296,10 +280,10 @@ export function CatalogProductScreen() {
   const similarAvailability = useMemo(() => {
     const map: Record<string, ReturnType<typeof resolveAvailability>> = {};
     for (const it of [...similar, ...alsoLike]) {
-      map[it.id] = resolveAvailability(it, inventoryById[it.id] ?? emptyInventoryCounters(it.id), effectiveLockAtForAvail, previewNow);
+      map[it.id] = resolveAvailability(it, inventoryById[it.id] ?? emptyInventoryCounters(it.id), lockAt, previewNow);
     }
     return map;
-  }, [similar, alsoLike, inventoryById, effectiveLockAtForAvail, previewNow]);
+  }, [similar, alsoLike, inventoryById, lockAt, previewNow]);
   /**
    * Preview / empty-draft “has box” states still need something to swap against.
    * Prefer the live draft; otherwise seed a default curated box for detection only.

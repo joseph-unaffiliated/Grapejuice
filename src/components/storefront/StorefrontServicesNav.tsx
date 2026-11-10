@@ -14,7 +14,7 @@ import {
 } from '../../constants/hanukkahBoxLock';
 import { useStorefrontHomeMode } from '../../hooks/useStorefrontHomeMode';
 import { useLayoutBreakpoint } from '../../hooks/useLayoutBreakpoint';
-import { usePreviewNow, useUserStatePreview } from '../../hooks/useUserStatePreview';
+import { shopHasBoxOrder as resolveShopHasBoxOrder, usePreviewNow } from '../../hooks/useUserStatePreview';
 import { usePaymentGate } from '../../hooks/usePaymentGate';
 import { getHanukkahConfig, peekHanukkahConfig } from '../../services/firestore/config';
 import { STOREFRONT_H_SCROLL_CLASS } from './storefrontScroll';
@@ -41,10 +41,8 @@ export function StorefrontServicesNav({ onPress }: Props) {
   const [startsOn, setStartsOn] = useState<string | null>(cached?.startsOn ?? null);
   const mode = useStorefrontHomeMode(lockAt, startsOn);
   const now = usePreviewNow();
-  const preview = useUserStatePreview();
   const { openOrder } = usePaymentGate();
-  const shopHasBoxOrder =
-    mode === 'shop' && (!!openOrder || preview === 'signed_in_locked');
+  const shopHasBoxOrder = resolveShopHasBoxOrder(mode, openOrder);
   /** Cold shop: no box nav. Box holders / pre-lock: show My Hanukkah box. */
   const showBoxNav = mode !== 'passover' && (mode !== 'shop' || shopHasBoxOrder);
 

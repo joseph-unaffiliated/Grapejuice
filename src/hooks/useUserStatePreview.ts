@@ -10,8 +10,24 @@ import {
 import { useSession } from './useSession';
 import { useBoxDraft } from './useBoxDraft';
 import { familyOrderOpen } from '../constants/familyOrder';
-import { isBoxLocked } from '../services/firestore/config';
-import { isHouseholdBoxFrozen } from '../constants/hanukkahBoxLock';
+import type { PilotOrder } from '../types/pilot';
+import {
+  PREVIEW_LOCKED_OPEN_ORDER,
+  resolveBoxEditingLocked,
+  resolveEffectiveBoxLocked,
+  resolvePreviewCanMutateBox,
+  resolvePreviewOpenOrder,
+  shopHasBoxOrder,
+} from '../services/storefront/resolveUserStatePreview';
+
+export {
+  PREVIEW_LOCKED_OPEN_ORDER,
+  resolveBoxEditingLocked,
+  resolveEffectiveBoxLocked,
+  resolvePreviewCanMutateBox,
+  resolvePreviewOpenOrder,
+  shopHasBoxOrder,
+};
 
 function isSignedOutPreview(preview: UserStatePreview | null): boolean {
   return preview === 'signed_out' || preview === 'signed_out_box';
@@ -85,32 +101,12 @@ export function usePreviewNow(): Date {
   return useMemo(() => dateFromPreviewNowIso(previewNowIso), [previewNowIso]);
 }
 
-/**
- * Box customization lock under preview. Locked / unlocked states are forced
- * so QA isn't dependent on the real Hanukkah lock clock. Live mode respects
- * an admin preview “now” when comparing to lockAt.
- */
 export function useEffectiveBoxLocked(lockAt: string | null): boolean {
   const preview = useUserStatePreviewStore((s) => s.preview);
   const now = usePreviewNow();
-  if (preview === 'signed_in_locked') return true;
-  if (
-    preview === 'signed_in_box' ||
-    preview === 'signed_in_needs_payment' ||
-    preview === 'signed_in_no_box' ||
-    preview === 'signed_out' ||
-    preview === 'signed_out_box'
-  ) {
-    return false;
-  }
-  if (familyOrderOpen()) return false;
-  return isBoxLocked(lockAt, now);
+  return resolveEffectiveBoxLocked(preview, lockAt, now, familyOrderOpen());
 }
 
-/**
- * Seasonal lock, plus a household whose own box is already frozen.
- * Preview states that force the box open stay open.
- */
 export function useBoxEditingLocked(
   lockAt: string | null,
   openOrder: { status?: string | null; lockAt?: string | null } | null | undefined
@@ -118,23 +114,10 @@ export function useBoxEditingLocked(
   const preview = useUserStatePreviewStore((s) => s.preview);
   const now = usePreviewNow();
   const seasonal = useEffectiveBoxLocked(lockAt);
-  if (preview) return seasonal;
-  return seasonal || isHouseholdBoxFrozen(openOrder, now);
+  return resolveBoxEditingLocked(preview, seasonal, openOrder, now);
 }
 
-/** Payment-gate override: null = use real household; boolean = force. */
-export function resolvePreviewCanMutateBox(
-  preview: UserStatePreview | null,
-  realCanMutate: boolean
-): boolean {
-  if (preview === 'signed_in_needs_payment') return false;
-  if (
-    preview === 'signed_in_box' ||
-    preview === 'signed_in_locked' ||
-    preview === 'signed_in_no_box'
-  ) {
-    return true;
-  }
-  if (isSignedOutPreview(preview)) return false;
-  return realCanMutate;
+export function usePreviewedOpenOrder(realOpenOrder: PilotOrder | null): PilotOrder | null {
+  const preview = useUserStatePreviewStore((s) => s.preview);
+  return resolvePreviewOpenOrder(preview, realOpenOrder);
 }

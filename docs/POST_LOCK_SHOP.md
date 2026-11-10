@@ -14,9 +14,11 @@ After box lock until the last night of Hanukkah, the storefront runs in **`shop`
 
 ## QA
 
-Admin control panel → preview day **Shop (post-lock)** / **During Hanukkah shop** / **Passover**. User state **Signed in · locked** resolves to shop with box-holder chrome (Orders / My Hanukkah box nav).
+Admin control panel → preview day **Shop (post-lock)** / **During Hanukkah shop** / **Passover**. User-state personas feed the **same** home-mode resolver as Live — they remap auth/box/payment/order inputs only. The lock calendar (or pinned preview day) still decides shop vs customize.
 
-User-state previews override the calendar for *persona* (e.g. **Signed in · box** stays customize chrome even on a post-lock pin). That’s intentional for isolated QA — use **Live (you)** + a shop date pin for the realistic combo.
+- **Live (you)** = exact real-account chrome (no persona short-circuits).
+- **Signed in · locked** = post-lock box holder (Orders path; stand-in open order if the live household has none).
+- Pre-lock personas (**Signed in · box**, **needs payment**, guest box, etc.) after the real lock look like those users post-lock (usually shop). Pin a **pre-lock** preview day to see customize / payment-gate chrome.
 
 ## Packs
 

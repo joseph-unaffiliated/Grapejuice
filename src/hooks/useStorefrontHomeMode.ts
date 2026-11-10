@@ -12,91 +12,22 @@ import { useBoxDraft } from './useBoxDraft';
 import { useSession } from './useSession';
 import { getHanukkahStatus } from '../services/hanukkah/dates';
 import { useGiftIntentStore } from '../stores/giftIntentStore';
-import type { UserStatePreview } from '../stores/userStatePreviewStore';
-import type { PilotOrder } from '../types/pilot';
+import {
+  homeModeArgsForPreview,
+  resolveStorefrontHomeMode,
+  type StorefrontHomeMode,
+  type StorefrontHomeModeArgs,
+} from '../services/storefront/resolveHomeMode';
 
-/** Storefront home / chrome copy mode derived from preview or live session. */
-export type StorefrontHomeMode =
-  | 'acquisition'
-  | 'guest_box'
-  | 'customize'
-  | 'needs_payment'
-  /** @deprecated Prefer `shop` after lock; kept for rare mid-migrate callers. */
-  | 'locked'
-  /** After box lock until Hanukkah ends — pure shop chrome. */
-  | 'shop'
-  | 'passover'
-  /** Mid gift-credit flow — signed up / abandoned before pay. */
-  | 'gift_credit_incomplete'
-  /** Mid gift-customize flow — abandoned before pay. */
-  | 'gift_customize_incomplete'
-  /** Giver just paid; no household box yet. */
-  | 'gift_sent';
-
-export function resolveStorefrontHomeMode(args: {
-  preview: UserStatePreview | null;
-  isAuthenticated: boolean;
-  hasStartedBox: boolean;
-  /** True when draft actually has line items (not hollow gift signup). */
-  hasBoxLineItems: boolean;
-  locked: boolean;
-  canMutateBox: boolean;
-  /** When true (Hanukkah 2026 ended), seasonal chrome pivots to Passover. */
-  afterHanukkah: boolean;
-  giftStatus: 'idle' | 'incomplete' | 'sent';
-  giftKind: 'credit_only' | 'customize' | null;
-  openOrder: PilotOrder | null;
-}): StorefrontHomeMode {
-  const {
-    preview,
-    isAuthenticated,
-    hasBoxLineItems,
-    locked,
-    canMutateBox,
-    afterHanukkah,
-    giftStatus,
-    giftKind,
-    openOrder,
-  } = args;
-
-  if (afterHanukkah) return 'passover';
-
-  // Admin previews stay self-serve (gift modes are live-session only).
-  if (preview === 'signed_out' || preview === 'signed_in_no_box') return 'acquisition';
-  if (preview === 'signed_out_box') return 'guest_box';
-  if (preview === 'signed_in_box') return 'customize';
-  if (preview === 'signed_in_needs_payment') return 'needs_payment';
-  // Locked preview = post-lock shop (box-holder journey when openOrder exists live).
-  if (preview === 'signed_in_locked') return 'shop';
-
-  // Gift intent wins over false “started box” from mid-gift signup (boxRevealComplete).
-  if (giftStatus === 'incomplete' && giftKind === 'credit_only') {
-    return 'gift_credit_incomplete';
-  }
-  if (giftStatus === 'incomplete' && giftKind === 'customize') {
-    return 'gift_customize_incomplete';
-  }
-  if (giftStatus === 'sent') {
-    return 'gift_sent';
-  }
-
-  // Hollow account: reveal flagged for gift signup but no real box draft yet.
-  // After seasonal lock (family link keeps locked=false), cold shop — not a hollow customize.
-  if (!hasBoxLineItems) return locked ? 'shop' : 'acquisition';
-
-  if (openOrder) {
-    return locked ? 'shop' : 'customize';
-  }
-
-  if (locked) return 'shop';
-  if (!isAuthenticated) return 'guest_box';
-  if (!canMutateBox) return 'needs_payment';
-  return 'customize';
-}
+export type { StorefrontHomeMode, StorefrontHomeModeArgs };
+export { homeModeArgsForPreview, resolveStorefrontHomeMode };
 
 /**
  * Home + services-nav mode from preview overlays, live auth/box/payment/lock,
  * gift intent, and calendar season (preview date or real now).
+ *
+ * Admin personas feed the same resolver as Live — they do not hard-code chrome.
+ * Pin a pre-lock preview day to see customize / needs-payment after the real lock.
  *
  * While auth / session / box draft / orders are still settling, holds the last
  * resolved mode so chrome doesn’t flash acquisition → member (or the reverse).
@@ -127,8 +58,7 @@ export function useStorefrontHomeMode(
     !preview &&
     (authLoading || (isAuthenticated && (sessionLoading || boxLoading)));
 
-  const resolved = resolveStorefrontHomeMode({
-    preview,
+  const liveArgs: StorefrontHomeModeArgs = {
     isAuthenticated,
     hasStartedBox,
     hasBoxLineItems: lineItems.length > 0,
@@ -138,7 +68,9 @@ export function useStorefrontHomeMode(
     giftStatus: options.ignoreGiftIntent ? 'idle' : giftStatus,
     giftKind: options.ignoreGiftIntent ? null : giftKind,
     openOrder,
-  });
+  };
+
+  const resolved = resolveStorefrontHomeMode(homeModeArgsForPreview(preview, liveArgs));
 
   const stableRef = useRef<StorefrontHomeMode | null>(null);
   if (!settling) {

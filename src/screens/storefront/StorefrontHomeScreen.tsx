@@ -69,9 +69,9 @@ import { useCatalogAvailabilityMap } from '../../hooks/useCatalogAvailabilityMap
 import { useWishlist } from '../../hooks/useWishlist';
 import { prefetchPartnerInvites } from '../../services/account/accountPrefetch';
 import {
+  shopHasBoxOrder as resolveShopHasBoxOrder,
   usePreviewedIsAuthenticated,
   usePreviewNow,
-  useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
 import { openOrderTracking } from '../../components/orders/OrderHistoryList';
 import { familyOrderOpen } from '../../constants/familyOrder';
@@ -123,14 +123,8 @@ export function StorefrontHomeScreen() {
   const clearGiftIntent = useGiftIntentStore((s) => s.clear);
   const { household, loading: sessionLoading } = useSession();
   const { openOrder } = usePaymentGate();
-  const userStatePreview = useUserStatePreview();
-  /** Admin “Signed in · locked” pretends a frozen box order so Orders chrome shows. */
-  const shopHasBoxOrder =
-    mode === 'shop' && (!!openOrder || userStatePreview === 'signed_in_locked');
-  const shopOrderCtaLabel =
-    openOrder?.trackingNumber && userStatePreview !== 'signed_in_locked'
-      ? 'Track package'
-      : 'View order';
+  const shopHasBoxOrder = resolveShopHasBoxOrder(mode, openOrder);
+  const shopOrderCtaLabel = openOrder?.trackingNumber ? 'Track package' : 'View order';
   useMergeAbandonedBoxFavorites(mode);
   const { byId: availabilityById } = useCatalogAvailabilityMap();
   const { ids: favoriteIds } = useWishlist();

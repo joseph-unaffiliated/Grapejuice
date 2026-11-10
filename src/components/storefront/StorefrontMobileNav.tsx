@@ -20,9 +20,9 @@ import { icons } from '../../constants/icons';
 import type { MainStackParamList } from '../../navigation/types';
 import { openBoxSurface } from '../../navigation/boxEntry';
 import {
+  shopHasBoxOrder as resolveShopHasBoxOrder,
   usePreviewedHasStartedBox,
   usePreviewedIsAuthenticated,
-  useUserStatePreview,
 } from '../../hooks/useUserStatePreview';
 import { useSession } from '../../hooks/useSession';
 import { useStorefrontNavCategories } from '../../hooks/useStorefrontNavCategories';
@@ -62,7 +62,6 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
   const hasOwnBox = usePreviewedHasStartedBox();
   const { refresh } = useSession();
   const { openOrder } = usePaymentGate();
-  const userStatePreview = useUserStatePreview();
   const navCategories = useStorefrontNavCategories();
   const [lockAt, setLockAt] = useState<string | null>(() => peekHanukkahConfig()?.lockAt ?? null);
   const [startsOn, setStartsOn] = useState<string | null>(
@@ -70,8 +69,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
   );
   const homeMode = useStorefrontHomeMode(lockAt, startsOn);
   const shopMode = homeMode === 'shop';
-  const shopHasBoxOrder =
-    shopMode && (!!openOrder || userStatePreview === 'signed_in_locked');
+  const shopHasBoxOrder = resolveShopHasBoxOrder(homeMode, openOrder);
   const { width } = useWindowDimensions();
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
@@ -134,10 +132,7 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
       ? shopHasBoxOrder
         ? [
             {
-              label:
-                openOrder?.trackingNumber && userStatePreview !== 'signed_in_locked'
-                  ? 'Track package'
-                  : 'View order',
+              label: openOrder?.trackingNumber ? 'Track package' : 'View order',
               onPress: () =>
                 go(() => {
                   if (leave) {
@@ -279,7 +274,6 @@ export function StorefrontMobileNav({ visible, onClose }: Props) {
     shopMode,
     shopHasBoxOrder,
     openOrder,
-    userStatePreview,
   ]);
 
   if (!mounted) return null;
