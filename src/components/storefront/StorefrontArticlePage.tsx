@@ -243,6 +243,8 @@ type Props = {
   showHeroDivider?: boolean;
   /** Show Ask Rav + Build Box strips (default true). */
   showFooterStrips?: boolean;
+  /** Show the Build Box / Passover strip inside the footer (default true). */
+  showBuildBoxStrip?: boolean;
   /** Override Build Box strip headline (defaults to acquisition copy). */
   buildBoxHeadline?: string;
   /** Override Build Box strip body. */
@@ -1558,6 +1560,7 @@ export function StorefrontArticlePage({
   blocks,
   showHeroDivider = false,
   showFooterStrips = true,
+  showBuildBoxStrip = true,
   buildBoxHeadline,
   buildBoxBody,
   buildBoxCtaLabel,
@@ -1718,14 +1721,16 @@ export function StorefrontArticlePage({
 
         {showFooterStrips ? (
           <View style={styles.footerStrips}>
-            <StorefrontBuildBoxStrip
-              onPress={resolvedStripOnPress}
-              headline={resolvedStripHeadline}
-              body={resolvedStripBody}
-              ctaLabel={resolvedStripCta}
-              backgroundSource={resolvedStripBg}
-              variant="content"
-            />
+            {showBuildBoxStrip ? (
+              <StorefrontBuildBoxStrip
+                onPress={resolvedStripOnPress}
+                headline={resolvedStripHeadline}
+                body={resolvedStripBody}
+                ctaLabel={resolvedStripCta}
+                backgroundSource={resolvedStripBg}
+                variant="content"
+              />
+            ) : null}
             <StorefrontAskRavStrip onSubmit={(message) => askRav(message)} mobileKit={kit} />
             <View style={styles.browseByAisle}>
               <BrowseByAisleHeader />

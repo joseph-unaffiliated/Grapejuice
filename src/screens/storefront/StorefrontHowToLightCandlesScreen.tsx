@@ -22,6 +22,7 @@ export function StorefrontHowToLightCandlesScreen() {
       eyebrow={c.eyebrow}
       title={c.title}
       lead={c.lead}
+      showBuildBoxStrip={false}
       primaryCta={{
         label: 'Shop menorahs',
         onPress: () => goCategory('menorahs'),

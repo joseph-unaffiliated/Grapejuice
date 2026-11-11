@@ -22,6 +22,7 @@ export function StorefrontHowToPlayDreidelScreen() {
       eyebrow={c.eyebrow}
       title={c.title}
       lead={c.lead}
+      showBuildBoxStrip={false}
       primaryCta={{
         label: 'Shop dreidels',
         onPress: () => goCategory('dreidels'),

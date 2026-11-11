@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { StorefrontChrome, useStorefrontActions } from '../../components/storefront/StorefrontChrome';
+import { StorefrontChrome } from '../../components/storefront/StorefrontChrome';
 import { HOW_TO_LIGHT_CANDLES_COPY } from '../../constants/storefrontHowToLightCandlesCopy';
 import { HOW_TO_PLAY_DREIDEL_COPY } from '../../constants/storefrontHowToPlayDreidelCopy';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -44,7 +44,6 @@ function tonightNight(startsOn: string | null, now = new Date()): { night: numbe
 }
 
 export function MobileHowToLightCandles() {
-  const { startBox } = useStorefrontActions();
   const { items } = useCatalog();
   const photos = useMemo(() => byId(items), [items]);
   const startsOn = useStartsOn();
@@ -61,7 +60,6 @@ export function MobileHowToLightCandles() {
         eyebrow="How to"
         title="Light the candles"
         lead="One more candle each night, plus the shamash, the helper candle in the middle that lights the others."
-        band={{ title: 'Everything you need for Hanukkah', sub: 'Candles, dreidels, gelt, food kits, a book and a present for each kid.', cta: { label: 'Build my box · from $80', onPress: startBox } }}
       >
         <View style={styles.stage}>
           <Hanukkiah night={night} width={170} label={`Night ${night}`} />
@@ -148,10 +146,8 @@ const LETTERS: { letter: string; name: string; rule: string }[] = [
 ];
 
 export function MobileHowToPlayDreidel() {
-  const { startBox } = useStorefrontActions();
   const { items } = useCatalog();
   const photos = useMemo(() => byId(items), [items]);
-  const glance = useBoxGlance();
   const c = HOW_TO_PLAY_DREIDEL_COPY;
   return (
     <StorefrontChrome>
@@ -160,11 +156,6 @@ export function MobileHowToPlayDreidel() {
         eyebrow="How to"
         title="Play dreidel"
         lead="Everyone starts with the same pile of gelt. Each player puts one in the middle, then takes turns spinning."
-        band={{
-          title: 'Dreidels and gelt are in every box',
-          sub: `Plus candles, food kits, a book and a present for each kid. Change anything until ${glance.lockShort}.`,
-          cta: { label: 'Build my box · from $80', onPress: startBox },
-        }}
       >
         <View style={styles.letters}>
           {LETTERS.map((l) => (
