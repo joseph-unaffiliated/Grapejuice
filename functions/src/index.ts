@@ -729,7 +729,7 @@ async function createAutoShipGiftOrder(params: {
     shippingAddress: params.shippingAddress,
     holidayId: HOLIDAY_ID,
     userId: params.userId,
-    estimatedDelivery: (configData.estimatedDeliveryBy as string) ?? '2026-11-24',
+    estimatedDelivery: (configData.estimatedDeliveryBy as string) ?? '2026-11-30',
     lockAt: params.lockAt,
     giftSurprise: true,
     autoShipped: true,
@@ -892,7 +892,7 @@ async function runGiftConfirmReminders(): Promise<{ sent: number; skipped: numbe
   if (!stage) return { sent: 0, skipped: 0 };
 
   const configData = (await db.doc('config/hanukkah-2026').get()).data() ?? {};
-  const arrivesByLabel = deliveryDateLabel((configData.estimatedDeliveryBy as string) ?? '2026-11-21');
+  const arrivesByLabel = deliveryDateLabel((configData.estimatedDeliveryBy as string) ?? '2026-11-30');
   const shared = { finalNotice: stage === 1, deadlineLabel: lockDateLabel(lockAt), arrivesByLabel };
   const appBase = process.env.PILOT_APP_BASE_URL ?? 'https://app.grapejuice.co';
   const now = new Date().toISOString();
@@ -1078,7 +1078,7 @@ export const createPilotCheckout = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Order total is too small.');
   }
 
-  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
+  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-30';
 
   const orderRef = db.collection(`households/${householdId}/orders`).doc();
   await orderRef.set({
@@ -1215,7 +1215,7 @@ export const createMarketplaceCheckout = onCall(async (request) => {
 
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = configSnap.data() ?? {};
-    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
+    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-30';
     const lockAt = await getLockAt(false);
 
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
@@ -1740,7 +1740,7 @@ export const commitPilotBox = onCall(async (request) => {
     await assertBoxLinesWithinInventory(db, lineItems);
   }
 
-  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
+  const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-30';
   const attribution = sanitizeAttribution(data.attribution);
 
   const orderRef = ordersRef.doc();
@@ -3411,7 +3411,7 @@ export const createReceivedGiftCheckout = onCall(async (request) => {
 
     const configSnap = await db.doc('config/hanukkah-2026').get();
     const configData = configSnap.data() ?? {};
-    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-24';
+    const estimatedDelivery = (configData.estimatedDeliveryBy as string) ?? '2026-11-30';
     const skipShipStation = request.data?.skipShipStation === true || isPlaythroughTestEmail(buyerEmail);
     if (!skipShipStation) {
       await assertBoxLinesWithinInventory(db, lineItems, {

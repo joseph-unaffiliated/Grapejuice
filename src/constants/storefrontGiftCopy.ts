@@ -3,7 +3,7 @@ import { formatCatalogDollars } from '../services/box/buildDefaultBox';
 import { listBoxCentsForKids } from '../services/box/boxRules';
 import { giftBoxPriceLine } from './giftCopy';
 
-/** `/gift` landing — see docs/GIFT_LANDING_COPY.md. Dates come from live config (`Nov 7`, `Nov 21`, `Dec 5`). */
+/** `/gift` landing — see docs/GIFT_LANDING_COPY.md. Dates come from live config (`Nov 7`, `Nov 30`, `Dec 5`). */
 export type GiftLandingDates = {
   lockDay: string;
   arrivesBy: string;

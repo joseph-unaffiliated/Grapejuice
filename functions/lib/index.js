@@ -553,7 +553,7 @@ async function createAutoShipGiftOrder(params) {
     var _a, _b;
     const orderRef = db.doc(`households/${params.householdId}/orders/autoship-${params.giftInviteId}`);
     const configData = (_a = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _a !== void 0 ? _a : {};
-    const payload = Object.assign(Object.assign({ status: 'confirmed', orderType: 'received_gift', giftInviteId: params.giftInviteId, lineItems: normalizeGiftLineItems(params.lineItems), subtotalCents: 0, shippingCents: 0, taxCents: giftShip_1.AUTO_SHIP_TAX_CENTS, totalCents: 0, creditAppliedCents: 0, giftCreditAppliedCents: 0, platformCreditAppliedCents: 0, shippingAddress: params.shippingAddress, holidayId: HOLIDAY_ID, userId: params.userId, estimatedDelivery: (_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-24', lockAt: params.lockAt, giftSurprise: true, autoShipped: true }, (params.autoShipForGiver ? { autoShipForGiver: true } : {})), { createdAt: firestore_1.FieldValue.serverTimestamp(), confirmedAt: firestore_1.FieldValue.serverTimestamp() });
+    const payload = Object.assign(Object.assign({ status: 'confirmed', orderType: 'received_gift', giftInviteId: params.giftInviteId, lineItems: normalizeGiftLineItems(params.lineItems), subtotalCents: 0, shippingCents: 0, taxCents: giftShip_1.AUTO_SHIP_TAX_CENTS, totalCents: 0, creditAppliedCents: 0, giftCreditAppliedCents: 0, platformCreditAppliedCents: 0, shippingAddress: params.shippingAddress, holidayId: HOLIDAY_ID, userId: params.userId, estimatedDelivery: (_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-30', lockAt: params.lockAt, giftSurprise: true, autoShipped: true }, (params.autoShipForGiver ? { autoShipForGiver: true } : {})), { createdAt: firestore_1.FieldValue.serverTimestamp(), confirmedAt: firestore_1.FieldValue.serverTimestamp() });
     try {
         await orderRef.create(payload);
     }
@@ -708,7 +708,7 @@ async function runGiftConfirmReminders() {
     if (!stage)
         return { sent: 0, skipped: 0 };
     const configData = (_a = (await db.doc('config/hanukkah-2026').get()).data()) !== null && _a !== void 0 ? _a : {};
-    const arrivesByLabel = (0, setupNudge_1.deliveryDateLabel)((_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-21');
+    const arrivesByLabel = (0, setupNudge_1.deliveryDateLabel)((_b = configData.estimatedDeliveryBy) !== null && _b !== void 0 ? _b : '2026-11-30');
     const shared = { finalNotice: stage === 1, deadlineLabel: (0, setupNudge_1.lockDateLabel)(lockAt), arrivesByLabel };
     const appBase = (_c = process.env.PILOT_APP_BASE_URL) !== null && _c !== void 0 ? _c : 'https://app.grapejuice.co';
     const now = new Date().toISOString();
@@ -867,7 +867,7 @@ exports.createPilotCheckout = (0, sentry_1.onCall)(async (request) => {
     if (totalCents < 50) {
         throw new sentry_1.HttpsError('invalid-argument', 'Order total is too small.');
     }
-    const estimatedDelivery = (_g = configData.estimatedDeliveryBy) !== null && _g !== void 0 ? _g : '2026-11-24';
+    const estimatedDelivery = (_g = configData.estimatedDeliveryBy) !== null && _g !== void 0 ? _g : '2026-11-30';
     const orderRef = db.collection(`households/${householdId}/orders`).doc();
     await orderRef.set({
         status: 'pending',
@@ -980,7 +980,7 @@ exports.createMarketplaceCheckout = (0, sentry_1.onCall)(async (request) => {
             : null;
         const configSnap = await db.doc('config/hanukkah-2026').get();
         const configData = (_o = configSnap.data()) !== null && _o !== void 0 ? _o : {};
-        const estimatedDelivery = (_p = configData.estimatedDeliveryBy) !== null && _p !== void 0 ? _p : '2026-11-24';
+        const estimatedDelivery = (_p = configData.estimatedDeliveryBy) !== null && _p !== void 0 ? _p : '2026-11-30';
         const lockAt = await getLockAt(false);
         const orderRef = db.collection(`households/${householdId}/orders`).doc();
         const skipShipStation = data.skipShipStation === true ||
@@ -1401,7 +1401,7 @@ exports.commitPilotBox = (0, sentry_1.onCall)(async (request) => {
     if (!isPlaythrough) {
         await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems);
     }
-    const estimatedDelivery = (_l = configData.estimatedDeliveryBy) !== null && _l !== void 0 ? _l : '2026-11-24';
+    const estimatedDelivery = (_l = configData.estimatedDeliveryBy) !== null && _l !== void 0 ? _l : '2026-11-30';
     const attribution = (0, metaCapi_1.sanitizeAttribution)(data.attribution);
     const orderRef = ordersRef.doc();
     const hhRef = db.doc(`households/${householdId}`);
@@ -2785,7 +2785,7 @@ exports.createReceivedGiftCheckout = (0, sentry_1.onCall)(async (request) => {
         }
         const configSnap = await db.doc('config/hanukkah-2026').get();
         const configData = (_q = configSnap.data()) !== null && _q !== void 0 ? _q : {};
-        const estimatedDelivery = (_r = configData.estimatedDeliveryBy) !== null && _r !== void 0 ? _r : '2026-11-24';
+        const estimatedDelivery = (_r = configData.estimatedDeliveryBy) !== null && _r !== void 0 ? _r : '2026-11-30';
         const skipShipStation = ((_s = request.data) === null || _s === void 0 ? void 0 : _s.skipShipStation) === true || (0, testAccounts_1.isPlaythroughTestEmail)(buyerEmail);
         if (!skipShipStation) {
             await (0, catalogInventory_1.assertBoxLinesWithinInventory)(db, lineItems, {

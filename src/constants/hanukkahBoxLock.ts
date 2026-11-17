@@ -57,7 +57,7 @@ export function isHouseholdBoxFrozen(
 }
 
 /** Fallback estimated delivery day (display) when config is unavailable. */
-export const HANUKKAH_DELIVERY_FALLBACK_ISO = '2026-11-21';
+export const HANUKKAH_DELIVERY_FALLBACK_ISO = '2026-11-30';
 
 /** Fallback first night when Firestore `startsOn` is unavailable. */
 export const HANUKKAH_STARTS_FALLBACK_ISO = '2026-12-05';
@@ -229,7 +229,7 @@ const MONTH_SHORT = [
   'Dec',
 ] as const;
 
-/** e.g. `Nov 24` from an ISO date (date-only or full). */
+/** e.g. `Nov 30` from an ISO date (date-only or full). */
 export function formatShortMonthDay(iso: string | null | undefined): string | null {
   if (!iso?.trim()) return null;
   const d = parseIsoDate(iso.trim());
@@ -238,14 +238,14 @@ export function formatShortMonthDay(iso: string | null | undefined): string | nu
 }
 
 /**
- * Promo line delivery half: `Arrives by Nov 24`.
+ * Promo line delivery half: `Arrives by Nov 30`.
  * Uses Firestore `estimatedDeliveryBy` when present; else fallback day.
  */
 export function arrivesByPromoLabel(estimatedDeliveryBy?: string | null): string {
   const day =
     formatShortMonthDay(estimatedDeliveryBy) ??
     formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
-    'Nov 21';
+    'Nov 30';
   return `Arrives by ${day}`;
 }
 
@@ -267,18 +267,18 @@ export function hanukkahStartsPromoLabel(startsOn?: string | null): string {
   return `Hanukkah starts ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 }
 
-/** Promo delivery clause: `Boxes arrive by Nov 21`. */
+/** Promo delivery clause: `Boxes arrive by Nov 30`. */
 export function boxesArriveByPromoLabel(estimatedDeliveryBy?: string | null): string {
   const day =
     formatShortMonthDay(estimatedDeliveryBy) ??
     formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
-    'Nov 21';
+    'Nov 30';
   return `Boxes arrive by ${day}`;
 }
 
 /**
  * Acquisition promo (fits one line on mobile):
- * `Hanukkah starts Dec 5 • Boxes arrive by Nov 21 • Free shipping`
+ * `Hanukkah starts Dec 5 • Boxes arrive by Nov 30 • Free shipping`
  * Pre-lock only — after lock use `shopPromoLine`.
  */
 export function freeShippingPromoLine(
@@ -313,7 +313,7 @@ export function guestBoxSecurePromoLine(
 }
 
 /**
- * À la carte wait: `Arrives by Nov 21, about 6 weeks from now.`
+ * À la carte wait: `Arrives by Nov 30, about 6 weeks from now.`
  * Drops the wait once the day is close or past.
  */
 export function arrivesByWithWaitLabel(
@@ -321,7 +321,7 @@ export function arrivesByWithWaitLabel(
   now: Date = new Date()
 ): string {
   const iso = estimatedDeliveryBy?.trim() || HANUKKAH_DELIVERY_FALLBACK_ISO;
-  const day = formatShortMonthDay(iso) ?? 'Nov 21';
+  const day = formatShortMonthDay(iso) ?? 'Nov 30';
   const days = daysToShip(iso, now) ?? 0;
   const weeks = Math.round(days / 7);
   if (weeks >= 2) return `Arrives by ${day}, about ${weeks} weeks from now.`;
@@ -337,6 +337,6 @@ export function shipWindowLabel(estimatedDeliveryBy?: string | null): string {
   return (
     formatShortMonthDay(estimatedDeliveryBy) ??
     formatShortMonthDay(HANUKKAH_DELIVERY_FALLBACK_ISO) ??
-    'Nov 21'
+    'Nov 30'
   );
 }

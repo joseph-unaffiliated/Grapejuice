@@ -45,7 +45,7 @@ function setupNudgeSkipReason(c, now) {
 function lockDateLabel(lockAt) {
     return new Date(lockAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'America/New_York' });
 }
-/** "November 21" from a date-only config value like "2026-11-21". */
+/** "November 30" from a date-only config value like "2026-11-30". */
 function deliveryDateLabel(date) {
     return lockDateLabel(`${date}T12:00:00Z`);
 }

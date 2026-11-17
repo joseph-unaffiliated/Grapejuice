@@ -106,7 +106,7 @@ fallbackMetaContext) {
                 message: invite.message,
                 kind: resolveGiftInviteKind(invite),
                 deadlineLabel: (0, setupNudge_1.lockDateLabel)((_f = config.lockAt) !== null && _f !== void 0 ? _f : '2026-11-08T04:59:59Z'),
-                arrivesByLabel: (0, setupNudge_1.deliveryDateLabel)((_g = config.estimatedDeliveryBy) !== null && _g !== void 0 ? _g : '2026-11-21'),
+                arrivesByLabel: (0, setupNudge_1.deliveryDateLabel)((_g = config.estimatedDeliveryBy) !== null && _g !== void 0 ? _g : '2026-11-30'),
             });
         }
         catch (emailErr) {

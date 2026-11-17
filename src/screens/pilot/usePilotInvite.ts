@@ -89,7 +89,7 @@ export const pilotCopy = {
   intro: (firstName: string) =>
     `Hi ${firstName || 'there'}, thank you for being one of our first Grapejuice families. We’re inviting a small group of families to help shape what comes next. Pick three things to add to your box, on us. After Hanukkah, tell us how it went: what worked, what didn’t, what you’d change. Honest is better than nice.`,
   steps: (dates: PilotDates): Array<[string, string]> => [
-    ['Pick three items.', `They’re free and ship inside your Hanukkah box, arriving by ${shortDate(dates.arrivesBy, 'Nov 21')}.`],
+    ['Pick three items.', `They’re free and ship inside your Hanukkah box, arriving by ${shortDate(dates.arrivesBy, 'Nov 30')}.`],
     ['Celebrate.', 'Use what you like, skip what you don’t.'],
     ['Tell us how it went.', 'We’ll email you a short survey on Dec 13. It’s due Jan 15.'],
   ],
@@ -129,7 +129,7 @@ export const pilotCopy = {
     `We’ve emailed you a copy. You can keep changing the rest of your box until ${lock}. Your three picks stay in it.`,
   joinedDates: (dates: PilotDates): Array<[string, string]> => [
     [lockWhen(dates.lockAt), 'box locks and is charged'],
-    [shortDate(dates.arrivesBy, 'Nov 21'), 'box arrives'],
+    [shortDate(dates.arrivesBy, 'Nov 30'), 'box arrives'],
     ['Dec 13', 'survey arrives'],
     ['Jan 15', 'survey due'],
   ],

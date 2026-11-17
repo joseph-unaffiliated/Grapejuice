@@ -63,7 +63,7 @@ export function StorefrontServicesNav({ onPress }: Props) {
     if (mode === 'shop' || mode === 'locked') {
       return {
         yearLabel: MY_HANUKKAH_BOX_LABEL,
-        // Shop: no “Nd to ship” / Nov 21 arrival estimate — box is locked.
+        // Shop: no “Nd to ship” / Nov 30 arrival estimate — box is locked.
         chipLabel: 'Locked',
       };
     }

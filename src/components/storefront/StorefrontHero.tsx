@@ -226,7 +226,7 @@ export function StorefrontHero({
     bodySecondary = null;
     primaryLabel = hero.ctaLabel ?? 'Browse the Collection';
     if (shopHasBoxOrder) {
-      // No arrives-by / “ships in Nd” (that was the Nov 21 box estimate).
+      // No arrives-by / “ships in Nd” (that was the Nov 30 box estimate).
       body = 'Your box is locked — shipping soon.';
       secondaryLabel = shopOrderCtaLabel ?? 'View order';
     } else {

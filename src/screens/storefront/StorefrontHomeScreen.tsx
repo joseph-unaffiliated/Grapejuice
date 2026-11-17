@@ -152,7 +152,7 @@ export function StorefrontHomeScreen() {
     };
   }, []);
 
-  /** Shop: omit box arrives-by (Nov 21) from journey chrome — not a shop promise. */
+  /** Shop: omit box arrives-by (Nov 30) from journey chrome — not a shop promise. */
   const journeyDates = {
     startsOn,
     lockAt,

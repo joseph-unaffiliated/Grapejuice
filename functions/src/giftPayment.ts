@@ -154,7 +154,7 @@ export async function finalizeGiftInvitePayment(
         message: invite.message,
         kind: resolveGiftInviteKind(invite),
         deadlineLabel: lockDateLabel((config.lockAt as string) ?? '2026-11-08T04:59:59Z'),
-        arrivesByLabel: deliveryDateLabel((config.estimatedDeliveryBy as string) ?? '2026-11-21'),
+        arrivesByLabel: deliveryDateLabel((config.estimatedDeliveryBy as string) ?? '2026-11-30'),
       });
     } catch (emailErr) {
       // claimEmailSentAt already set so we don't double-send on retry; log for ops.

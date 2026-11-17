@@ -5,6 +5,7 @@
  * they remap inputs only; they do not hard-code chrome modes.
  */
 import assert from 'node:assert/strict';
+import { DRAFTS_RETIRE_AT } from '../constants/hanukkahBoxLock';
 import {
   homeModeArgsForPreview,
   resolveStorefrontHomeMode,
@@ -132,6 +133,20 @@ const paidOpen: PilotOrder = {
   assert.equal(
     resolveStorefrontHomeMode(homeModeArgsForPreview('signed_in_box', live)),
     'customize'
+  );
+}
+
+// Missing lock date is treated as the public lock, so first paint is shop
+// (Browse the collection) rather than the two-button acquisition hero.
+{
+  const now = new Date('2026-11-17T18:00:00.000Z');
+  const assumed = DRAFTS_RETIRE_AT;
+  assert.equal(resolveEffectiveBoxLocked(null, assumed, now, false), true);
+  assert.equal(
+    resolveStorefrontHomeMode(
+      baseLive({ locked: true, hasBoxLineItems: false, hasStartedBox: false, openOrder: null })
+    ),
+    'shop'
   );
 }
 

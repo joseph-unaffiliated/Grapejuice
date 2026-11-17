@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getHanukkahConfig, peekHanukkahConfig } from '../services/firestore/config';
 import { arrivesByWithWaitLabel } from '../constants/hanukkahBoxLock';
 
-/** `Arrives by Nov 21, about 6 weeks from now.` from live config. */
+/** `Arrives by Nov 30, about 6 weeks from now.` from live config. */
 export function useArrivesByWithWait(): string {
   const [deliveryBy, setDeliveryBy] = useState<string | null>(
     () => peekHanukkahConfig()?.estimatedDeliveryBy ?? null

@@ -954,7 +954,7 @@ export const sendPilotJoinedEmail = onDocumentWritten(
           lock_date: lockAt,
           arrives_by: arrivesBy,
           lock_label: formatPilotDay(lockAt) || 'Nov 7',
-          arrives_label: formatPilotDay(arrivesBy) || 'Nov 21',
+          arrives_label: formatPilotDay(arrivesBy) || 'Nov 30',
           survey_date: 'December 13',
           survey_due: PILOT_SURVEY_DUE_LABEL,
           agreement_text: str(e.agreement?.text),

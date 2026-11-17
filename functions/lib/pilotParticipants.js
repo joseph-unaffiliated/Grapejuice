@@ -894,7 +894,7 @@ exports.sendPilotJoinedEmail = (0, firestore_1.onDocumentWritten)({ document: 'p
                 lock_date: lockAt,
                 arrives_by: arrivesBy,
                 lock_label: (0, pilotRules_1.formatPilotDay)(lockAt) || 'Nov 7',
-                arrives_label: (0, pilotRules_1.formatPilotDay)(arrivesBy) || 'Nov 21',
+                arrives_label: (0, pilotRules_1.formatPilotDay)(arrivesBy) || 'Nov 30',
                 survey_date: 'December 13',
                 survey_due: pilotRules_1.PILOT_SURVEY_DUE_LABEL,
                 agreement_text: str((_b = e.agreement) === null || _b === void 0 ? void 0 : _b.text),
